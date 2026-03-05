@@ -11,28 +11,49 @@ import type { Run, DowntownkruzManifest } from "./types";
 
 const BASE = "/downtownkruz";
 
-export async function loadRuns(): Promise<Run[]> {
-  // 1. Fetch manifest
-  const res = await fetch(`${BASE}/manifest.json`);
+export interface LoadProgress {
+  total: number;
+  loaded: number;
+  name: string;
+  date: string;
+  status: "ok" | "error";
+}
+
+export async function loadRunsProgressive(
+  onProgress: (progress: LoadProgress) => void,
+  signal?: AbortSignal
+): Promise<Run[]> {
+  const res = await fetch(`${BASE}/manifest.json`, { signal });
   if (!res.ok) throw new Error(`Failed to fetch manifest: ${res.status}`);
   const manifest: DowntownkruzManifest = await res.json();
 
-  // 2. Parse all GPX files in parallel
-  const results = await Promise.allSettled(
-    manifest.gpxFiles.map(async (filename) => {
-      const r = await fetch(`${BASE}/gpx/${filename}`);
-      if (!r.ok) throw new Error(`Failed to fetch GPX ${filename}: ${r.status}`);
-      const text = await r.text();
-      return parseGpxText(text, filename);
-    })
-  );
-
+  const total = manifest.gpxFiles.length;
   const runs: Run[] = [];
-  for (const result of results) {
-    if (result.status === "fulfilled") {
-      runs.push(result.value);
-    } else {
-      console.warn("GPX load error:", result.reason);
+  let loaded = 0;
+
+  for (const filename of manifest.gpxFiles) {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+    try {
+      const r = await fetch(`${BASE}/gpx/${filename}`, { signal });
+      if (!r.ok) throw new Error(`${r.status}`);
+      const text = await r.text();
+      const run = parseGpxText(text, filename);
+      runs.push(run);
+      loaded++;
+
+      const date = run.startTime.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+      onProgress({ total, loaded, name: run.name, date, status: "ok" });
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      console.warn("GPX load error:", filename, err);
+      loaded++;
+      onProgress({ total, loaded, name: filename, date: "", status: "error" });
     }
   }
 

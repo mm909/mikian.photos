@@ -16,12 +16,15 @@ const RUN_COLORS = [
 
 interface MapInnerProps {
   runs: Run[];
+  onReady?: () => void;
 }
 
-export default function MapInner({ runs }: MapInnerProps) {
+export default function MapInner({ runs, onReady }: MapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const polylineRefs = useRef<L.Polyline[]>([]);
+  const onReadyRef = useRef(onReady);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
 
   // Initialize map once
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function MapInner({ runs }: MapInnerProps) {
       zoomControl: true,
     });
 
-    L.tileLayer(
+    const tileLayer = L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
       {
         attribution:
@@ -43,6 +46,10 @@ export default function MapInner({ runs }: MapInnerProps) {
         maxZoom: 22,
       }
     ).addTo(map);
+
+    tileLayer.once("load", () => {
+      onReadyRef.current?.();
+    });
 
     mapRef.current = map;
 

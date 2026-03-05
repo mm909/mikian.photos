@@ -14,8 +14,9 @@ const MapInner = dynamic(() => import("./MapInner"), {
 
 export interface MapViewProps {
   runs: Run[];
+  onReady?: () => void;
 }
 
-export default function MapView({ runs }: MapViewProps) {
-  return <MapInner runs={runs} />;
+export default function MapView({ runs, onReady }: MapViewProps) {
+  return <MapInner runs={runs} onReady={onReady} />;
 }
