@@ -14,8 +14,8 @@ const BASE = new URL("../public/downtownkruz", import.meta.url).pathname.replace
 const GPX_DIR = join(BASE, "gpx");
 const OUT_PATH = join(BASE, "runs.json");
 
-// RDP tolerance in degrees (~11m at equator)
-const EPSILON = 0.0001;
+// RDP tolerance in degrees (~2m at equator)
+const EPSILON = 0.00002;
 
 // --- Ramer-Douglas-Peucker simplification ---
 
