@@ -11,7 +11,6 @@ type Status = "loading" | "empty" | "ready" | "error";
 interface LoadEntry {
   name: string;
   date: string;
-  status: "ok" | "error";
 }
 
 export default function MapPage() {
@@ -27,7 +26,7 @@ export default function MapPage() {
     setTotal(progress.total);
     setLoadedEntries((prev) => [
       ...prev,
-      { name: progress.name, date: progress.date, status: progress.status },
+      { name: progress.name, date: progress.date },
     ]);
   }, []);
 
@@ -77,7 +76,7 @@ export default function MapPage() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-dark gap-2">
         <p className="text-cream text-sm font-semibold">Could not load data</p>
-        <p className="text-muted text-xs">Check that manifest.json is accessible.</p>
+        <p className="text-muted text-xs">Check that runs.json is accessible.</p>
       </div>
     );
   }
@@ -87,9 +86,8 @@ export default function MapPage() {
       <div className="flex-1 flex flex-col items-center justify-center bg-dark gap-3 px-6 text-center">
         <p className="text-cream text-base font-semibold">No runs yet</p>
         <p className="text-muted text-sm max-w-xs">
-          Add GPX files to{" "}
-          <code className="text-strava text-xs">public/downtownkruz/gpx/</code>{" "}
-          and update <code className="text-strava text-xs">manifest.json</code>.
+          Run <code className="text-strava text-xs">node scripts/build-runs.mjs</code>{" "}
+          to generate run data.
         </p>
       </div>
     );
@@ -132,9 +130,7 @@ export default function MapPage() {
                 {loadedEntries.map((entry, i) => (
                   <div
                     key={i}
-                    className={`flex items-baseline justify-between gap-3 ${
-                      entry.status === "ok" ? "text-white/40" : "text-red-400/60"
-                    }`}
+                    className="flex items-baseline justify-between gap-3 text-white/40"
                   >
                     <p className="text-xs font-mono truncate">
                       {entry.name}

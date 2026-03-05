@@ -76,7 +76,7 @@ export default function MapInner({ runs, onReady }: MapInnerProps) {
         (p) => [p.lat, p.lon] as [number, number]
       );
 
-      const dateStr = run.startTime.toLocaleDateString("en-US", {
+      const dateStr = new Date(run.startTime).toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
