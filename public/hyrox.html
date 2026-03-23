@@ -170,6 +170,7 @@ select { appearance: none; -webkit-appearance: none; }
   -webkit-tap-highlight-color: transparent;
 }
 .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.35; pointer-events: none; }
 .btn-primary svg { width: 14px; height: 14px; }
  
 .btn-secondary {
@@ -195,10 +196,15 @@ select { appearance: none; -webkit-appearance: none; }
  
 /* ── SCHEDULE LIST ────────────────────────────────────── */
 .sched-section { margin-bottom: 20px; }
-.sched-cat-label {
-  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
-  color: var(--t3);
-  padding: 0 4px; margin-bottom: 6px;
+.sched-loc-label {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
+  color: var(--t2); font-weight: 500;
+  padding: 0 4px; margin-bottom: 2px;
+}
+.sched-sub-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--t4);
+  padding: 2px 4px 4px; margin-top: 6px;
 }
 .sched-item {
   display: flex; align-items: center; justify-content: space-between;
@@ -215,10 +221,6 @@ select { appearance: none; -webkit-appearance: none; }
   font-size: 17px; font-weight: 400; color: var(--t1);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sched-item-meta {
-  font-family: var(--mono); font-size: 10px; color: var(--t3);
-  margin-top: 2px; letter-spacing: 0.06em;
-}
 .sched-item-time {
   font-family: var(--mono); font-size: 14px; color: var(--t2);
   margin-left: 12px; flex-shrink: 0;
@@ -230,6 +232,13 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .sched-item-dl svg { width: 16px; height: 16px; }
 .sched-item-dl:active { color: var(--t2); }
+.sched-item-link {
+  background: none; border: none; color: var(--t4);
+  padding: 4px; margin-left: 6px; transition: color 0.15s;
+  display: flex; align-items: center; text-decoration: none;
+}
+.sched-item-link svg { width: 14px; height: 14px; }
+.sched-item-link:active { color: var(--t2); }
 .sched-item-rm {
   background: none; border: none; color: var(--t4);
   font-size: 18px; line-height: 1; padding: 4px; margin-left: 6px;
@@ -497,8 +506,8 @@ select { appearance: none; -webkit-appearance: none; }
       </div>
 
       <div class="btn-row">
-        <button class="btn-primary" onclick="addToScheduleFromForm()">
-          Add to Schedule
+        <button class="btn-primary" id="add-sched-btn" onclick="addToScheduleFromForm()">
+          <span id="add-sched-label">Add to Schedule</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
@@ -709,10 +718,12 @@ const EVENTS = [
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentScreen = 0;
 let filteredEvents = [...EVENTS];
-let selectedEventIdx = 0;
-let roster = []; // { name, category, date, time, event, eventShort }
+let selectedEventIdx = null;
+let roster = []; // { name, category, date, time, event, eventShort, detailUrl }
 let editingIdx = null;
 let editReturnScreen = 4;
+let pendingDetailUrl = '';
+let detailFetchPending = false;
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function goTo(n, skipValidation) {
@@ -759,7 +770,7 @@ function renderMiniRoster() {
       const evObj = EVENTS.find(e => e.n === a.event);
       const loc = evObj ? evObj.s : (a.eventShort || '').replace(/\s+\d{2}$/, '');
       const details = [loc, a.category, a.time].filter(Boolean).join(' · ');
-      return `<div class="mini-card"><div class="mini-card-info" onclick="editRosterCard(${i})" style="cursor:pointer"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-details">${escH(details)}</span></div><button class="sched-item-rm" onclick="removeFromRoster(${i})">\u00d7</button></div>`;
+      return `<div class="mini-card"><div class="mini-card-info" onclick="editRosterCard(${i})" style="cursor:pointer"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-details">${escH(details)}</span></div>${startlistLinkHTML(a.detailUrl)}<button class="sched-item-rm" onclick="removeFromRoster(${i})">\u00d7</button></div>`;
     }).join('');
   ['mini-roster-s0','mini-roster-s1','mini-roster-s2'].forEach(id => {
     const el = document.getElementById(id);
@@ -769,11 +780,15 @@ function renderMiniRoster() {
 
 // ─── EVENTS DROPDOWN ──────────────────────────────────────────────────────────
 function populateSelect() {
-  filteredEvents = [...EVENTS];
+  filteredEvents = EVENTS.filter(e => e.ds);
   const sel = document.getElementById('event-select');
-  sel.innerHTML = filteredEvents.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
+  sel.innerHTML = '<option value="" disabled selected>Select event…</option>'
+    + filteredEvents.map(e => {
+      const idx = EVENTS.indexOf(e);
+      return `<option value="${idx}">${e.s} — ${e.d}</option>`;
+    }).join('')
     + '<option value="custom">Custom event…</option>';
-  selectedEventIdx = 0;
+  selectedEventIdx = null;
   document.getElementById('custom-event-field').style.display = 'none';
 }
 
@@ -782,6 +797,9 @@ function onEventSelect() {
   if (val === 'custom') {
     selectedEventIdx = -1;
     document.getElementById('custom-event-field').style.display = '';
+  } else if (!val) {
+    selectedEventIdx = null;
+    document.getElementById('custom-event-field').style.display = 'none';
   } else {
     selectedEventIdx = parseInt(val);
     document.getElementById('custom-event-field').style.display = 'none';
@@ -793,7 +811,10 @@ function getSelectedEvent() {
     const name = document.getElementById('custom-event-name').value.trim();
     return { n: name || 'Custom Event', s: name || 'Custom', d: '', ds: '', r: '' };
   }
-  return filteredEvents[selectedEventIdx] || EVENTS[0];
+  if (selectedEventIdx === null || selectedEventIdx === undefined) {
+    return null;
+  }
+  return EVENTS[selectedEventIdx] || EVENTS[0];
 }
 
 // ─── EVENT MATCHING ──────────────────────────────────────────────────────────
@@ -932,25 +953,31 @@ function buildCardSVG(data) {
 </svg>`;
 }
 
-function buildScheduleSVG(title, groups) {
-  const W = 1080;
-  let totalEntries = 0;
-  groups.forEach(g => totalEntries += g.entries.length);
-  const HEADER=120, GROUP_H=58, ENTRY_H=42, PAD=60;
-  const H = Math.max(400, HEADER + groups.length*GROUP_H + totalEntries*ENTRY_H + PAD);
+function buildScheduleSVG(title, sections) {
+  const W = 900;
+  let totalEntries = 0, totalCats = 0;
+  sections.forEach(s => {
+    s.categories.forEach(c => { totalCats++; totalEntries += c.entries.length; });
+  });
+  const HEADER=120, SEC_H=58, CAT_H=36, ENTRY_H=42, PAD=60;
+  const H = Math.max(400, HEADER + sections.length*SEC_H + totalCats*CAT_H + totalEntries*ENTRY_H + PAD);
 
   let rows='', y=HEADER;
-  if (!groups.length) {
+  if (!sections.length) {
     rows=`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#555" font-family="DM Mono,monospace" font-size="18" letter-spacing="5">NO ATHLETES ADDED</text>`;
   } else {
-    groups.forEach(group => {
-      rows+=`<text x="80" y="${y+32}" fill="#999" font-family="DM Mono,monospace" font-size="16" letter-spacing="3">${escX(group.label)}</text>`;
-      rows+=`<line x1="80" y1="${y+44}" x2="${W-80}" y2="${y+44}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
-      y+=GROUP_H;
-      group.entries.forEach(e=>{
-        rows+=`<text x="100" y="${y+26}" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-size="26" font-weight="300">${escX(e.name)}</text>`;
-        rows+=`<text x="680" y="${y+26}" fill="#999" font-family="DM Mono,monospace" font-size="22">${escX(e.time)}</text>`;
-        y+=ENTRY_H;
+    sections.forEach(sec => {
+      rows+=`<text x="80" y="${y+32}" fill="#999" font-family="DM Mono,monospace" font-size="16" letter-spacing="3">${escX(sec.label)}</text>`;
+      rows+=`<line x1="80" y1="${y+44}" x2="820" y2="${y+44}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+      y+=SEC_H;
+      sec.categories.forEach(cat => {
+        rows+=`<text x="100" y="${y+20}" fill="#666" font-family="DM Mono,monospace" font-size="13" letter-spacing="2">${escX(cat.label)}</text>`;
+        y+=CAT_H;
+        cat.entries.forEach(e=>{
+          rows+=`<text x="120" y="${y+26}" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-size="26" font-weight="300">${escX(e.name)}</text>`;
+          rows+=`<text x="680" y="${y+26}" fill="#999" font-family="DM Mono,monospace" font-size="22">${escX(e.time)}</text>`;
+          y+=ENTRY_H;
+        });
       });
       y+=8;
     });
@@ -958,7 +985,7 @@ function buildScheduleSVG(title, groups) {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
 <text x="80" y="72" fill="#f0f1f2" font-family="DM Mono,monospace" font-weight="500" font-size="26" letter-spacing="2">${escX(title)}</text>
-<line x1="80" y1="88" x2="${W-80}" y2="88" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+<line x1="80" y1="88" x2="820" y2="88" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
 ${rows}
 </svg>`;
 }
@@ -977,13 +1004,16 @@ function getScheduleGroups() {
   const sorted = [...roster].sort((a, b) => {
     return parseTimeMins(a.time) - parseTimeMins(b.time);
   });
-  // Group sorted roster by event
-  const eventGroups = {};
+  // Nested: event → category → athletes
+  const groups = {};
   sorted.forEach(a => {
-    const key = a.event || 'HYROX';
-    (eventGroups[key] = eventGroups[key]||[]).push(a);
+    const evKey = a.event || 'HYROX';
+    if (!groups[evKey]) groups[evKey] = {};
+    const cat = a.category || 'Open';
+    if (!groups[evKey][cat]) groups[evKey][cat] = [];
+    groups[evKey][cat].push(a);
   });
-  return eventGroups;
+  return groups;
 }
 
 function parseTimeMins(t) {
@@ -1018,33 +1048,44 @@ function renderSchedule() {
   }
   empty.style.display='none';
 
-  // Group by event
-  const eventGroups = getScheduleGroups();
+  const groups = getScheduleGroups();
 
   Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
 
-  Object.entries(eventGroups).forEach(([eventName, athletes]) => {
+  let animIdx = 0;
+  Object.entries(groups).forEach(([eventName, catGroups]) => {
     const sec = document.createElement('div');
     sec.className = 'sched-section';
     const evObj = EVENTS.find(e => e.n === eventName);
-    const sectionName = evObj ? evObj.s : eventName;
-    const dateLabel = athletes[0]?.date || (evObj ? evObj.ds : '') || '';
-    sec.innerHTML = `<div class="sched-cat-label">${escH(sectionName)}${dateLabel ? ' — ' + escH(dateLabel) : ''}</div>`;
-    athletes.forEach((a, i) => {
-      const rosterIdx = roster.indexOf(a);
-      const item = document.createElement('div');
-      item.className = 'sched-item';
-      item.style.animationDelay = (i*0.05)+'s';
-      item.innerHTML = `
-        <div class="sched-item-info" onclick="editRosterCard(${rosterIdx})" style="cursor:pointer">
-          <div class="sched-item-name">${escH(a.name)}</div>
-          <div class="sched-item-meta">${escH(a.category)}${a.time ? ' · ' + escH(a.time) : ''}</div>
-        </div>
-        <button class="sched-item-dl" onclick="downloadRosterCard(${rosterIdx})" title="Copy bib">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        </button>
-        <button class="sched-item-rm" onclick="removeFromRoster(${rosterIdx})">×</button>`;
-      sec.appendChild(item);
+    const locName = evObj ? evObj.s : eventName;
+    const firstAthlete = Object.values(catGroups)[0]?.[0];
+    const dateLabel = firstAthlete?.date || (evObj ? evObj.ds : '') || '';
+    sec.innerHTML = `<div class="sched-loc-label">${escH(locName)}${dateLabel ? ' — ' + escH(dateLabel) : ''}</div>`;
+
+    Object.entries(catGroups).forEach(([catName, athletes]) => {
+      const sub = document.createElement('div');
+      sub.className = 'sched-sub-label';
+      sub.textContent = catName;
+      sec.appendChild(sub);
+
+      athletes.forEach(a => {
+        const rosterIdx = roster.indexOf(a);
+        const item = document.createElement('div');
+        item.className = 'sched-item';
+        item.style.animationDelay = (animIdx*0.05)+'s';
+        animIdx++;
+        item.innerHTML = `
+          <div class="sched-item-info" onclick="editRosterCard(${rosterIdx})" style="cursor:pointer">
+            <div class="sched-item-name">${escH(a.name)}</div>
+          </div>
+          ${a.time ? `<div class="sched-item-time">${escH(a.time)}</div>` : ''}
+          <button class="sched-item-dl" onclick="downloadRosterCard(${rosterIdx})" title="Copy bib">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          ${startlistLinkHTML(a.detailUrl)}
+          <button class="sched-item-rm" onclick="removeFromRoster(${rosterIdx})">×</button>`;
+        sec.appendChild(item);
+      });
     });
     list.insertBefore(sec, empty);
   });
@@ -1066,12 +1107,13 @@ function updateSchedHeadline() {
 
 // ─── ROSTER ───────────────────────────────────────────────────────────────────
 function addToScheduleFromForm() {
+  if (detailFetchPending) { showToast('Loading details…'); return; }
   const name = document.getElementById('athlete-name').value.trim();
   if (!name) { shake('athlete-name'); return; }
 
   // Auto-fill date from event if empty
   const ev = getSelectedEvent();
-  if (!document.getElementById('start-date').value) {
+  if (!document.getElementById('start-date').value && ev) {
     const iso = eventDateToISO(ev);
     if (iso) document.getElementById('start-date').value = iso;
   }
@@ -1080,7 +1122,8 @@ function addToScheduleFromForm() {
   const entry = {
     name: data.name, category: data.cat,
     date: data.date, dateISO: data.dateISO, time: data.time,
-    event: ev?.n || 'HYROX', eventShort: data.eventShort
+    event: ev?.n || 'HYROX', eventShort: data.eventShort,
+    detailUrl: pendingDetailUrl || ''
   };
 
   const existing = roster.findIndex(a => a.name === data.name && a.event === entry.event);
@@ -1089,6 +1132,17 @@ function addToScheduleFromForm() {
   } else {
     roster.push(entry);
   }
+
+  // Clear form for next athlete
+  document.getElementById('athlete-name').value = '';
+  document.getElementById('start-hour').value = '';
+  document.getElementById('start-min').value = '';
+  document.getElementById('start-date').value = '';
+  document.getElementById('event-select').value = '';
+  selectedEventIdx = null;
+  document.getElementById('custom-event-field').style.display = 'none';
+  document.getElementById('category').value = 'Open';
+  pendingDetailUrl = '';
 
   showToast(`${data.name} added`);
   goTo(4, true);
@@ -1100,9 +1154,17 @@ function addToScheduleAndGo() {
 
 function resetForNextAthlete() {
   editingIdx = null;
+  pendingDetailUrl = '';
+  detailFetchPending = false;
   document.getElementById('athlete-name').value = '';
   document.getElementById('start-hour').value = '';
   document.getElementById('start-min').value = '';
+  document.getElementById('start-date').value = '';
+  document.getElementById('event-select').value = '';
+  selectedEventIdx = null;
+  document.getElementById('custom-event-field').style.display = 'none';
+  document.getElementById('category').value = 'Open';
+  updateAddButton();
   goTo(0, true);
 }
 
@@ -1139,7 +1201,10 @@ function editRosterCard(idx) {
   editReturnScreen = currentScreen;
 
   const editSel = document.getElementById('edit-event-select');
-  editSel.innerHTML = EVENTS.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
+  editSel.innerHTML = EVENTS.filter(e => e.ds).map(e => {
+    const ei = EVENTS.indexOf(e);
+    return `<option value="${ei}">${e.s} — ${e.d}</option>`;
+  }).join('')
     + '<option value="custom">Custom event…</option>';
 
   const evIdx = EVENTS.findIndex(e => e.n === a.event);
@@ -1199,7 +1264,7 @@ function saveEdit() {
   const yr = (ev.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
   const eventShort = (ev.s || 'HYROX') + (yr ? ' ' + yr : '');
 
-  roster[editingIdx] = { name, category: cat, date, dateISO, time, event: ev.n, eventShort };
+  roster[editingIdx] = { name, category: cat, date, dateISO, time, event: ev.n, eventShort, detailUrl: roster[editingIdx]?.detailUrl || '' };
   showToast(`${name} updated`);
   const returnTo = editReturnScreen;
   editingIdx = null;
@@ -1227,21 +1292,26 @@ async function downloadCard() {
 
 async function downloadSchedule() {
   const title = getScheduleTitle();
-  const eventGroups = getScheduleGroups();
-  const groups = Object.entries(eventGroups).map(([eventName, athletes]) => {
+  const groups = getScheduleGroups();
+  const sections = Object.entries(groups).map(([eventName, catGroups]) => {
     const evObj = EVENTS.find(e => e.n === eventName);
-    const sectionName = evObj ? evObj.s : eventName;
-    const dateLabel = athletes[0]?.date || (evObj ? evObj.ds : '') || '';
-    const label = sectionName + (dateLabel ? ' — ' + dateLabel : '');
-    return { label, entries: athletes.map(a => ({ name: a.name, time: a.time, category: a.category })) };
+    const locName = evObj ? evObj.s : eventName;
+    const firstAthlete = Object.values(catGroups)[0]?.[0];
+    const dateLabel = firstAthlete?.date || (evObj ? evObj.ds : '') || '';
+    const label = locName + (dateLabel ? ' — ' + dateLabel : '');
+    const categories = Object.entries(catGroups).map(([catName, athletes]) => ({
+      label: catName,
+      entries: athletes.map(a => ({ name: a.name, time: a.time }))
+    }));
+    return { label, categories };
   });
 
   try {
-    const svg = buildScheduleSVG(title, groups);
+    const svg = buildScheduleSVG(title, sections);
     await copySVGAsImage(svg);
     showToast('Copied schedule!');
   } catch (e) {
-    const svg = buildScheduleSVG(title, groups);
+    const svg = buildScheduleSVG(title, sections);
     triggerDownload(svg, 'hyrox-schedule.svg');
     showToast('Downloading schedule…');
   }
@@ -1358,6 +1428,12 @@ async function copySVGAsImage(svgStr) {
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function startlistLinkHTML(detailUrl) {
+  if (!detailUrl) return '';
+  const href = 'https://startlist.hyrox.com/' + detailUrl.replace(/^\/?\??/, '?');
+  return `<a class="sched-item-link" href="${escH(href)}" target="_blank" rel="noopener" title="View on startlist.hyrox.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`;
+}
+
 // ─── STARTLIST SEARCH ─────────────────────────────────────────────────────────
 let searchTimer;
 let searchResults = [];
@@ -1393,7 +1469,7 @@ function renderSearchHistory(container) {
   label.className = 'search-history-label';
   label.style.cssText = 'display:flex;justify-content:space-between;align-items:center';
   label.setAttribute('data-history', '1');
-  label.innerHTML = 'Recent <button style="background:none;border:none;color:var(--t4);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;padding:0" onclick="clearSearchHistory()">Clear</button>';
+  label.innerHTML = 'Recent <div style="display:flex;gap:12px"><button style="background:none;border:none;color:var(--t3);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;padding:0" onclick="addAllFromHistory()">Add All</button><button style="background:none;border:none;color:var(--t4);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;padding:0" onclick="clearSearchHistory()">Clear</button></div>';
   container.appendChild(label);
   history.forEach((r, i) => {
     const div = document.createElement('div');
@@ -1539,6 +1615,7 @@ function selectSearchResult(idx) {
 
   // Fill athlete first name only for bib
   document.getElementById('athlete-name').value = r.firstName || r.name;
+  pendingDetailUrl = r.detailUrl || '';
 
   // Map startwave category to our category dropdown
   const wave = (r.startwave || '').toUpperCase();
@@ -1573,12 +1650,20 @@ function selectSearchResult(idx) {
     document.getElementById('start-ampm').value = ampm;
   }
 
+  // Clear event and date — will be filled by detail fetch
+  document.getElementById('event-select').value = '';
+  selectedEventIdx = null;
+  document.getElementById('start-date').value = '';
+  document.getElementById('custom-event-field').style.display = 'none';
+
   addToSearchHistory(r);
   closeSearch();
   updateCard();
 
   // Fetch detail page for event name, day, and doubles partner
   if (r.detailUrl) {
+    detailFetchPending = true;
+    updateAddButton();
     fetchAthleteDetail(r);
   } else {
     showToast(`${r.firstName || r.name} filled`);
@@ -1624,6 +1709,9 @@ async function fetchAthleteDetail(r) {
     showToast(`${name} filled`);
   } catch (e) {
     showToast(`${r.firstName || r.name} filled`);
+  } finally {
+    detailFetchPending = false;
+    updateAddButton();
   }
 }
 
@@ -1637,6 +1725,121 @@ function showToast(msg) {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+
+function updateAddButton() {
+  const btn = document.getElementById('add-sched-btn');
+  const label = document.getElementById('add-sched-label');
+  if (!btn || !label) return;
+  if (detailFetchPending) {
+    btn.disabled = true;
+    label.textContent = 'Loading details\u2026';
+  } else {
+    btn.disabled = false;
+    label.textContent = 'Add to Schedule';
+  }
+}
+
+function addAllFromHistory() {
+  const history = getSearchHistory();
+  if (!history.length) return;
+  let added = 0;
+
+  history.forEach(r => {
+    const name = r.firstName || r.name;
+
+    // Skip if already in roster
+    if (roster.some(a => a.name === name)) return;
+
+    // Parse category from startwave
+    const wave = (r.startwave || '').toUpperCase();
+    let category = 'Open';
+    if (wave.includes('PRO DOUBLES') || wave.includes('PRO DBL')) category = 'Pro Doubles';
+    else if (wave.includes('DOUBLES') || wave.includes('DBL')) {
+      category = wave.includes('MIXED') ? 'Mixed Doubles' : 'Open Doubles';
+    } else if (wave.includes('PRO')) category = 'Pro';
+
+    // Parse time from startwave
+    let time = '';
+    const tm = (r.startwave || '').match(/^(\d{1,2}):(\d{2})/);
+    if (tm) {
+      let hour = parseInt(tm[1]);
+      const min = parseInt(tm[2]);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      if (hour > 12) hour -= 12;
+      if (hour === 0) hour = 12;
+      const hStr = String(hour).padStart(2, '0');
+      const snapped = String(Math.round(min / 5) * 5).padStart(2, '0');
+      time = `${hStr}:${snapped} ${ampm}`;
+    }
+
+    roster.push({
+      name, category, date: '', dateISO: '', time,
+      event: '', eventShort: '', detailUrl: r.detailUrl || ''
+    });
+    added++;
+
+    // Fire detail fetch to fill event/date/partner
+    if (r.detailUrl) {
+      fetchRosterDetail(roster.length - 1, r);
+    }
+  });
+
+  closeSearch();
+  if (added) {
+    showToast(`${added} athlete${added !== 1 ? 's' : ''} added`);
+    goTo(4, true);
+  } else {
+    showToast('All already in schedule');
+  }
+}
+
+async function fetchRosterDetail(rosterIdx, r) {
+  try {
+    const res = await fetch(`/api/hyrox-search?detail=${encodeURIComponent(r.detailUrl)}`);
+    const data = await res.json();
+
+    if (!roster[rosterIdx]) return;
+
+    if (data.race) {
+      const eventMatch = matchEventIdx(data.race);
+      if (eventMatch >= 0) {
+        const ev = EVENTS[eventMatch];
+        const yr = (ev.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
+        roster[rosterIdx].event = ev.n;
+        roster[rosterIdx].eventShort = (ev.s || 'HYROX') + (yr ? ' ' + yr : '');
+
+        let iso = '';
+        const dayStr = data.day || r.day || '';
+        if (dayStr) iso = resolveDayInEvent(dayStr, ev);
+        if (!iso) iso = eventDateToISO(ev);
+        if (iso) {
+          roster[rosterIdx].dateISO = iso;
+          roster[rosterIdx].date = formatDateStr(iso);
+        }
+      }
+    }
+
+    // For doubles: update name with partner
+    if (data.members && data.members.length > 1) {
+      const partner = data.members.find(m =>
+        m.firstName.toLowerCase() !== (r.firstName || '').toLowerCase()
+      );
+      if (partner) {
+        roster[rosterIdx].name = `${r.firstName || r.name} / ${partner.firstName}`;
+      }
+    }
+
+    // Re-render if on schedule screen
+    if (currentScreen === 4) {
+      updateSchedHeadline();
+      renderSchedule();
+    }
+    renderMiniRoster();
+  } catch (e) {
+    // Roster entry stays with basic info
+  }
+}
+
 populateSelect();
 
 // Update button labels for PNG copy
