@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>HYROX Bibs — by Mikian Musser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:    transparent;
+  --s1:    transparent;
+  --s2:    rgba(255,255,255,0.04);
+  --s3:    rgba(255,255,255,0.06);
+  --s4:    rgba(255,255,255,0.08);
+  --b1:    transparent;
+  --b2:    transparent;
+  --t1:    #ffffff;
+  --t2:    rgba(255,255,255,0.85);
+  --t3:    rgba(255,255,255,0.45);
+  --t4:    rgba(255,255,255,0.2);
+  --r:     8px;
+  --mono:  'DM Mono', monospace;
+  --sans:  'DM Sans', sans-serif;
+  --ease:  cubic-bezier(0.4, 0, 0.2, 1);
+}
+html, body { height: 100%; background: transparent; color: var(--t1); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+select { appearance: none; -webkit-appearance: none; }
+ 
+/* ── LAYOUT ───────────────────────────────────────────── */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+ 
+/* ── HEADER ───────────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; justify-content: center;
+  padding: 28px 24px 0;
+  flex-direction: column; gap: 4px;
+  user-select: none;
+}
+.header-eyebrow {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--t3);
+}
+.header-title {
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+  letter-spacing: 0.12em; color: var(--t2);
+}
+ 
+/* ── PROGRESS BAR ─────────────────────────────────────── */
+.progress-wrap { padding: 20px 24px 0; display: flex; gap: 6px; }
+.progress-seg {
+  flex: 1; height: 2px; border-radius: 2px;
+  background: rgba(255,255,255,0.08); overflow: hidden; transition: background 0.4s var(--ease);
+}
+.progress-seg.done { background: rgba(255,255,255,0.2); }
+.progress-seg.active { background: rgba(255,255,255,0.6); }
+ 
+/* ── SCREEN ───────────────────────────────────────────── */
+.screens { flex: 1; position: relative; overflow: hidden; }
+.screen {
+  position: absolute; inset: 0;
+  padding: 28px 24px 40px;
+  overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 0;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.42s var(--ease), opacity 0.42s var(--ease);
+  pointer-events: none;
+  -webkit-overflow-scrolling: touch;
+}
+.screen.active {
+  transform: translateX(0); opacity: 1; pointer-events: all;
+}
+.screen.behind {
+  transform: translateX(-40px); opacity: 0; pointer-events: none;
+}
+ 
+/* ── SCREEN TITLE ─────────────────────────────────────── */
+.screen-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 400;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--t3);
+  margin-bottom: 20px;
+}
+.screen-headline {
+  font-size: 26px; font-weight: 300; color: var(--t1);
+  line-height: 1.2; margin-bottom: 28px; letter-spacing: -0.3px;
+}
+.screen-headline strong { font-weight: 500; }
+ 
+/* ── FIELD GROUP ──────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 0; margin-bottom: 10px; }
+.field-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--t3);
+  padding: 0 16px; margin-bottom: 4px;
+}
+ 
+/* Base input/select look */
+.fi {
+  background: var(--s2); border: none; border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: var(--t1); border-radius: 0;
+  padding: 15px 16px; font-size: 16px;
+  font-family: var(--sans); font-weight: 300;
+  outline: none; width: 100%;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  -webkit-appearance: none;
+}
+.fi:focus { border-bottom-color: rgba(255,255,255,0.3); background: var(--s3); }
+.fi::placeholder { color: var(--t4); }
+.fi-select-wrap { position: relative; }
+.fi-select-wrap::after {
+  content: '';
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--t3);
+  pointer-events: none;
+}
+.fi-select { padding-right: 36px; cursor: pointer; }
+.fi-select option { background: #0c0b0a; color: #ffffff; }
+ 
+/* Two-col layout */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+ 
+/* ── SEGMENTED CONTROL ────────────────────────────────── */
+.seg-ctrl {
+  display: flex; gap: 2px; background: var(--s2);
+  border: none; border-radius: var(--r); padding: 3px;
+}
+.seg-btn {
+  flex: 1; padding: 10px 8px;
+  background: none; border: none; color: var(--t3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; border-radius: 6px;
+  transition: all 0.18s var(--ease);
+}
+.seg-btn.active {
+  background: var(--s4); color: var(--t1); border: none;
+}
+ 
+/* Region tabs (scrollable) */
+.region-scroll {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;
+  margin-bottom: 8px; scrollbar-width: none;
+}
+.region-scroll::-webkit-scrollbar { display: none; }
+.rtab {
+  flex-shrink: 0; padding: 6px 12px;
+  background: none; border: none; border-radius: 20px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--t3);
+  transition: all 0.15s var(--ease);
+}
+.rtab.active { background: rgba(255,255,255,0.08); color: var(--t1); }
+ 
+/* ── PRIMARY BUTTON ───────────────────────────────────── */
+.btn-primary {
+  width: 100%; padding: 17px;
+  background: var(--t1); color: #0c0b0a;
+  border: none; border-radius: var(--r);
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all 0.18s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+.btn-primary svg { width: 14px; height: 14px; }
+ 
+.btn-secondary {
+  width: 100%; padding: 15px;
+  background: none; border: none; color: var(--t2);
+  border-radius: var(--r);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all 0.18s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-secondary:active { background: var(--s2); }
+ 
+.btn-row { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+ 
+/* ── CARD PREVIEW ─────────────────────────────────────── */
+.card-preview {
+  background: transparent; border: none;
+  border-radius: 12px; overflow: hidden; margin-bottom: 16px;
+}
+.card-preview svg { width: 100%; height: auto; display: block; }
+ 
+/* ── SCHEDULE LIST ────────────────────────────────────── */
+.sched-section { margin-bottom: 20px; }
+.sched-cat-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+  color: var(--t3);
+  padding: 0 4px; margin-bottom: 6px;
+}
+.sched-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,0.03); border: none; border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 6px;
+  animation: slideUp 0.3s var(--ease) both;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sched-item-info { flex: 1; min-width: 0; }
+.sched-item-name {
+  font-size: 15px; font-weight: 400; color: var(--t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sched-item-meta {
+  font-family: var(--mono); font-size: 10px; color: var(--t3);
+  margin-top: 2px; letter-spacing: 0.06em;
+}
+.sched-item-time {
+  font-family: var(--mono); font-size: 12px; color: var(--t2);
+  margin-left: 12px; flex-shrink: 0;
+}
+.sched-item-dl {
+  background: none; border: none; color: var(--t4);
+  padding: 4px; margin-left: 8px; transition: color 0.15s;
+  display: flex; align-items: center;
+}
+.sched-item-dl svg { width: 16px; height: 16px; }
+.sched-item-dl:active { color: var(--t2); }
+.sched-item-rm {
+  background: none; border: none; color: var(--t4);
+  font-size: 18px; line-height: 1; padding: 4px; margin-left: 6px;
+  transition: color 0.15s;
+}
+.sched-item-rm:active { color: var(--t2); }
+ 
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  color: var(--t4); font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.add-athlete-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 15px; border: none; border-radius: var(--r);
+  background: none; color: var(--t3); width: 100%;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 8px;
+  transition: all 0.15s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.add-athlete-btn:active { background: var(--s2); }
+ 
+/* ── BACK BUTTON ──────────────────────────────────────── */
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; color: var(--t3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 0; margin-bottom: 24px;
+  transition: color 0.15s;
+}
+.back-btn:active { color: var(--t2); }
+.back-btn svg { width: 12px; height: 12px; }
+
+/* ── SCREEN TOP ROW (back + schedule shortcut) ───────── */
+.screen-top-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; min-height: 16px;
+}
+.screen-top-row .back-btn { margin-bottom: 0; }
+.sched-link {
+  display: none; align-items: center; gap: 4px;
+  background: none; border: none; color: var(--t3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 0; transition: color 0.15s;
+}
+.sched-link.visible { display: flex; }
+.sched-link:active { color: var(--t2); }
+.sched-link svg { width: 12px; height: 12px; }
+ 
+/* ── DIVIDER ──────────────────────────────────────────── */
+.divider { height: 1px; background: rgba(255,255,255,0.06); margin: 20px 0; }
+ 
+/* ── TOAST ────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: rgba(255,255,255,0.1); border: none; border-radius: 24px;
+  padding: 10px 20px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.1em; color: var(--t1); white-space: nowrap;
+  opacity: 0; transition: all 0.28s var(--ease); pointer-events: none; z-index: 100;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+ 
+/* ── DOWNLOAD FORMAT PICKER ───────────────────────────── */
+.format-row { display: flex; gap: 8px; }
+.fmt-btn {
+  flex: 1; padding: 14px 8px; background: rgba(255,255,255,0.04); border: none;
+  border-radius: var(--r); color: var(--t2);
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; text-align: center;
+  transition: all 0.15s var(--ease);
+}
+.fmt-btn span { display: block; font-size: 18px; margin-bottom: 4px; }
+.fmt-btn:active { background: rgba(255,255,255,0.08); }
+
+/* ── MINI ROSTER (below input form) ──────────────────── */
+.mini-roster { margin-top: 8px; }
+.mini-roster-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--t4); margin-bottom: 6px;
+}
+.mini-card {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,0.03); border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 4px;
+}
+.mini-card-name {
+  font-size: 13px; font-weight: 400; color: var(--t2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.mini-card-meta {
+  font-family: var(--mono); font-size: 9px; color: var(--t4);
+  margin-left: 8px; flex-shrink: 0;
+}
+
+/* ── SCROLL HINT ──────────────────────────────────────── */
+.spacer { height: 40px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+ 
+<div class="app">
+  <div class="header">
+    <div class="header-title">HYROX Bibs</div>
+  </div>
+ 
+  <div class="progress-wrap" id="progress">
+    <div class="progress-seg" id="ps0"></div>
+    <div class="progress-seg" id="ps1"></div>
+    <div class="progress-seg" id="ps2"></div>
+    <div class="progress-seg" id="ps3"></div>
+    <div class="progress-seg" id="ps4"></div>
+  </div>
+ 
+  <div class="screens" id="screens">
+ 
+    <!-- ══ SCREEN 0: EVENT ══ -->
+    <div class="screen active" id="s0">
+      <div class="screen-top-row">
+        <span></span>
+        <button class="sched-link" id="sched-link-s0" onclick="goTo(4,true)">
+          Schedule
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="screen-title">Step 1 of 4</div>
+      <div class="screen-headline">Which <strong>event</strong>?</div>
+ 
+      <div class="region-scroll" id="region-scroll">
+        <button class="rtab active" onclick="filterRegion('All',this)">All</button>
+        <button class="rtab" onclick="filterRegion('Europe',this)">Europe</button>
+        <button class="rtab" onclick="filterRegion('Americas',this)">Americas</button>
+        <button class="rtab" onclick="filterRegion('Asia',this)">Asia</button>
+        <button class="rtab" onclick="filterRegion('Oceania',this)">Oceania</button>
+      </div>
+ 
+      <div class="field">
+        <div class="field-label">Event</div>
+        <div class="fi-select-wrap">
+          <select class="fi fi-select" id="event-select" onchange="onEventSelect()"></select>
+        </div>
+      </div>
+
+      <div class="field" id="custom-event-field" style="display:none">
+        <div class="field-label">Event Name</div>
+        <input class="fi" id="custom-event-name" placeholder="e.g. HYROX Las Vegas 2026" autocomplete="off">
+      </div>
+
+      <div class="mini-roster" id="mini-roster-s0"></div>
+      <div class="spacer"></div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="goTo(1)">
+          Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ══ SCREEN 1: ATHLETE ══ -->
+    <div class="screen" id="s1">
+      <div class="screen-top-row">
+        <button class="back-btn" onclick="goTo(0)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <button class="sched-link" id="sched-link-s1" onclick="goTo(4,true)">
+          Schedule
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="screen-title">Step 2 of 4</div>
+      <div class="screen-headline">Who's <strong>racing</strong>?</div>
+ 
+      <div class="field">
+        <div class="field-label">Athlete Name(s)</div>
+        <input class="fi" id="athlete-name" placeholder="e.g. Lindsay / Keith" oninput="updateCard()" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+ 
+      <div class="field">
+        <div class="field-label">Category</div>
+        <div class="fi-select-wrap">
+          <select class="fi fi-select" id="category" onchange="updateCard()">
+            <option>Open</option>
+            <option>Open Doubles</option>
+            <option>Pro</option>
+            <option>Pro Doubles</option>
+            <option>Mixed Doubles</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mini-roster" id="mini-roster-s1"></div>
+      <div class="spacer"></div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="goTo(2)">
+          Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ══ SCREEN 2: TIME ══ -->
+    <div class="screen" id="s2">
+      <div class="screen-top-row">
+        <button class="back-btn" onclick="goTo(1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <button class="sched-link" id="sched-link-s2" onclick="goTo(4,true)">
+          Schedule
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="screen-title">Step 3 of 4</div>
+      <div class="screen-headline">When do they <strong>start</strong>?</div>
+ 
+      <div class="field">
+        <div class="field-label">Race Date</div>
+        <input class="fi" id="start-date" placeholder="e.g. Saturday, February 21st" oninput="updateCard()" autocomplete="off">
+      </div>
+ 
+      <div class="field">
+        <div class="field-label">Start Time</div>
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="start-hour" onchange="updateCard()">
+              <option value="">--</option>
+              <option>01</option><option>02</option><option>03</option><option>04</option>
+              <option>05</option><option>06</option><option>07</option><option>08</option>
+              <option>09</option><option>10</option><option>11</option><option>12</option>
+            </select>
+          </div>
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="start-min" onchange="updateCard()">
+              <option value="">--</option>
+              <option>00</option><option>05</option><option>10</option><option>15</option>
+              <option>20</option><option>25</option><option>30</option><option>35</option>
+              <option>40</option><option>45</option><option>50</option><option>55</option>
+            </select>
+          </div>
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="start-ampm" onchange="updateCard()">
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-roster" id="mini-roster-s2"></div>
+      <div class="spacer"></div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="goTo(3)">
+          Preview Card
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ══ SCREEN 3: PREVIEW + DOWNLOAD ══ -->
+    <div class="screen" id="s3">
+      <button class="back-btn" onclick="goTo(2)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Edit
+      </button>
+      <div class="screen-title">Step 4 of 4</div>
+      <div class="screen-headline">Your <strong>bib</strong></div>
+ 
+      <div class="card-preview" id="card-preview-wrap">
+        <!-- SVG injected here -->
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" onclick="downloadCard()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download SVG
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="btn-row" style="margin-top:0;">
+        <button class="btn-primary" id="add-to-sched-btn" onclick="addToScheduleAndGo()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add to Schedule
+        </button>
+        <button class="btn-secondary" onclick="resetForNextAthlete()">
+          Add Another Athlete
+        </button>
+        <button class="btn-secondary" id="view-sched-btn" onclick="goTo(4)" style="display:none">
+          View Schedule
+        </button>
+      </div>
+      <div class="spacer"></div>
+    </div>
+ 
+    <!-- ══ SCREEN 4: SCHEDULE ══ -->
+    <div class="screen" id="s4">
+      <div class="screen-title">Schedule</div>
+      <div class="screen-headline" id="sched-headline">Race <strong>Day</strong></div>
+ 
+      <div class="field">
+        <div class="field-label">Schedule Heading</div>
+        <input class="fi" id="sched-date" placeholder="e.g. Sunday, February 22nd" oninput="updateSchedHeadline()">
+      </div>
+ 
+      <div class="divider"></div>
+ 
+      <div id="sched-list">
+        <div class="empty-state" id="sched-empty">No athletes added yet</div>
+      </div>
+ 
+      <button class="add-athlete-btn" onclick="goTo(0)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Athlete
+      </button>
+      <button class="add-athlete-btn" id="back-to-form-btn" onclick="goTo(lastInputScreen,true)" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Form
+      </button>
+ 
+      <div class="btn-row" style="margin-top:4px;">
+        <button class="btn-primary" onclick="downloadSchedule()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Schedule SVG
+        </button>
+      </div>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- ══ SCREEN 5: EDIT (all fields) ══ -->
+    <div class="screen" id="s5">
+      <div class="screen-top-row">
+        <button class="back-btn" onclick="cancelEdit()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Cancel
+        </button>
+        <span></span>
+      </div>
+      <div class="screen-headline">Edit <strong>Athlete</strong></div>
+
+      <div class="field">
+        <div class="field-label">Event</div>
+        <div class="fi-select-wrap">
+          <select class="fi fi-select" id="edit-event-select" onchange="onEditEventSelect()"></select>
+        </div>
+      </div>
+
+      <div class="field" id="edit-custom-event-field" style="display:none">
+        <div class="field-label">Event Name</div>
+        <input class="fi" id="edit-custom-event-name" placeholder="e.g. HYROX Las Vegas 2026" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <div class="field-label">Athlete Name(s)</div>
+        <input class="fi" id="edit-athlete-name" placeholder="e.g. Lindsay / Keith" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <div class="field-label">Category</div>
+        <div class="fi-select-wrap">
+          <select class="fi fi-select" id="edit-category">
+            <option>Open</option>
+            <option>Open Doubles</option>
+            <option>Pro</option>
+            <option>Pro Doubles</option>
+            <option>Mixed Doubles</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Race Date</div>
+        <input class="fi" id="edit-start-date" placeholder="e.g. Saturday, February 21st" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <div class="field-label">Start Time</div>
+        <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="edit-start-hour">
+              <option value="">--</option>
+              <option>01</option><option>02</option><option>03</option><option>04</option>
+              <option>05</option><option>06</option><option>07</option><option>08</option>
+              <option>09</option><option>10</option><option>11</option><option>12</option>
+            </select>
+          </div>
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="edit-start-min">
+              <option value="">--</option>
+              <option>00</option><option>05</option><option>10</option><option>15</option>
+              <option>20</option><option>25</option><option>30</option><option>35</option>
+              <option>40</option><option>45</option><option>50</option><option>55</option>
+            </select>
+          </div>
+          <div class="fi-select-wrap">
+            <select class="fi fi-select" id="edit-start-ampm">
+              <option>AM</option>
+              <option>PM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="saveEdit()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Save Changes
+        </button>
+        <button class="btn-secondary" onclick="cancelEdit()">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+ 
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+ 
+<script>
+// ─── EVENTS ──────────────────────────────────────────────────────────────────
+const EVENTS = [
+  { n:"HYROX EMEA Championships — London",  s:"EMEA Champs",    d:"Mar 21–22, 2026", ds:"Saturday, March 21st",      r:"Europe" },
+  { n:"HYROX London 2026",                  s:"London",         d:"Mar 24–29, 2026", ds:"Tuesday, March 24th",       r:"Europe" },
+  { n:"HYROX Youngstars London 2026",       s:"Youngstars LDN", d:"Mar 28–29, 2026", ds:"Saturday, March 28th",      r:"Europe" },
+  { n:"HYROX Houston 2026",                 s:"Houston",        d:"Mar 26–29, 2026", ds:"Thursday, March 26th",      r:"Americas" },
+  { n:"HYROX Mechelen 2026",                s:"Mechelen",       d:"Mar 26–29, 2026", ds:"Thursday, March 26th",      r:"Europe" },
+  { n:"HYROX Singapore 2026",               s:"Singapore",      d:"Apr 3–5, 2026",   ds:"Friday, April 3rd",         r:"Asia" },
+  { n:"HYROX Miami 2026",                   s:"Miami",          d:"Apr 3–5, 2026",   ds:"Friday, April 3rd",         r:"Americas" },
+  { n:"HYROX Cape Town 2026",               s:"Cape Town",      d:"Apr 3–5, 2026",   ds:"Friday, April 3rd",         r:"Africa" },
+  { n:"HYROX Bologna 2026",                 s:"Bologna",        d:"Apr 4–6, 2026",   ds:"Saturday, April 4th",       r:"Europe" },
+  { n:"HYROX Brisbane 2026",                s:"Brisbane",       d:"Apr 9–13, 2026",  ds:"Thursday, April 9th",       r:"Oceania" },
+  { n:"HYROX APAC Championships — Brisbane",s:"APAC Champs",    d:"Apr 11–12, 2026", ds:"Saturday, April 11th",      r:"Oceania" },
+  { n:"HYROX Bengaluru 2026",               s:"Bengaluru",      d:"Apr 11–12, 2026", ds:"Saturday, April 11th",      r:"Asia" },
+  { n:"HYROX Rotterdam 2026",               s:"Rotterdam",      d:"Apr 15–19, 2026", ds:"Wednesday, April 15th",     r:"Europe" },
+  { n:"HYROX Warsaw 2026",                  s:"Warsaw",         d:"Apr 16–19, 2026", ds:"Thursday, April 16th",      r:"Europe" },
+  { n:"HYROX Turin 2026",                   s:"Turin",          d:"Apr 24–26, 2026", ds:"Friday, April 24th",        r:"Europe" },
+  { n:"HYROX Rimini 2026",                  s:"Rimini",         d:"May 1–3, 2026",   ds:"Friday, May 1st",           r:"Europe" },
+  { n:"HYROX Madrid 2026",                  s:"Madrid",         d:"May 8–10, 2026",  ds:"Friday, May 8th",           r:"Europe" },
+  { n:"HYROX Lyon 2026",                    s:"Lyon",           d:"May 14–17, 2026", ds:"Thursday, May 14th",        r:"Europe" },
+  { n:"HYROX Dublin 2026",                  s:"Dublin",         d:"May 21–24, 2026", ds:"Thursday, May 21st",        r:"Europe" },
+  { n:"HYROX Istanbul 2026",                s:"Istanbul",       d:"May 28–31, 2026", ds:"Thursday, May 28th",        r:"Europe" },
+  { n:"HYROX Vienna 2026",                  s:"Vienna",         d:"Jun 4–7, 2026",   ds:"Thursday, June 4th",        r:"Europe" },
+  { n:"HYROX Stuttgart 2026",               s:"Stuttgart",      d:"Jun 11–14, 2026", ds:"Thursday, June 11th",       r:"Europe" },
+  { n:"HYROX Cologne 2026",                 s:"Cologne",        d:"Jun 18–21, 2026", ds:"Thursday, June 18th",       r:"Europe" },
+  { n:"HYROX World Championships 2026",     s:"World Champs",   d:"Jun 25–28, 2026", ds:"Thursday, June 25th",       r:"Europe" },
+  { n:"HYROX Washington D.C. 2026",         s:"Washington D.C.",d:"Sep 3–7, 2026",   ds:"Thursday, September 3rd",   r:"Americas" },
+  { n:"HYROX Salt Lake City 2026",          s:"Salt Lake City", d:"Sep 18–20, 2026", ds:"Friday, September 18th",    r:"Americas" },
+  { n:"HYROX Toronto 2026",                 s:"Toronto",        d:"Oct 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Boston 2026",                  s:"Boston",         d:"Oct 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Dallas 2026",                  s:"Dallas",         d:"Oct 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Tampa 2026",                   s:"Tampa",          d:"Nov 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Denver 2026",                  s:"Denver",         d:"Nov 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Nashville 2026",               s:"Nashville",      d:"Nov 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Anaheim 2026",                 s:"Anaheim",        d:"Dec 2026",         ds:"",                          r:"Americas" },
+  { n:"HYROX Mexico City 2026",             s:"Mexico City",    d:"Dec 2026",         ds:"",                          r:"Americas" },
+];
+ 
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentScreen = 0;
+let currentRegion = 'All';
+let filteredEvents = [...EVENTS];
+let selectedEventIdx = 0;
+let roster = []; // { name, category, date, time, event, eventShort }
+let editingIdx = null;
+let lastInputScreen = 0;
+ 
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function goTo(n, skipValidation) {
+  if (!skipValidation) {
+    if (currentScreen === 1 && n === 2) {
+      const name = document.getElementById('athlete-name').value.trim();
+      if (!name) { shake('athlete-name'); return; }
+    }
+  }
+ 
+  const screens = document.querySelectorAll('.screen');
+  screens.forEach((s, i) => {
+    s.classList.remove('active','behind');
+    if (i < n) s.classList.add('behind');
+  });
+  document.getElementById('s'+n).classList.add('active');
+ 
+  const prev = currentScreen;
+  currentScreen = n;
+  updateProgress();
+
+  // Track the last input screen for "Back to Form" from schedule
+  if (n <= 3) lastInputScreen = n;
+
+  // Show/hide schedule links based on roster
+  updateSchedLinks();
+  renderMiniRoster();
+
+  // Show/hide "Back to Form" on schedule screen
+  const backToFormBtn = document.getElementById('back-to-form-btn');
+  if (backToFormBtn) backToFormBtn.style.display = (prev <= 3 && n === 4) ? '' : 'none';
+
+  if (n === 3) renderCardPreview();
+  if (n === 4) renderSchedule();
+
+  // Autofill date from event if empty
+  if (n === 2) {
+    const ev = getSelectedEvent();
+    if (!document.getElementById('start-date').value && ev?.ds) {
+      document.getElementById('start-date').value = ev.ds;
+      updateCard();
+    }
+  }
+}
+ 
+function shake(id) {
+  const el = document.getElementById(id);
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'shake 0.35s ease';
+  el.focus();
+}
+ 
+// ─── PROGRESS ─────────────────────────────────────────────────────────────────
+function updateProgress() {
+  const wrap = document.getElementById('progress');
+  // Hide progress on edit screen (s5) and schedule screen (s4)
+  wrap.style.display = (currentScreen >= 4) ? 'none' : 'flex';
+  for (let i=0;i<5;i++) {
+    const seg = document.getElementById('ps'+i);
+    seg.classList.remove('done','active');
+    if (i < currentScreen) seg.classList.add('done');
+    if (i === currentScreen) seg.classList.add('active');
+  }
+}
+
+function updateSchedLinks() {
+  const show = roster.length > 0;
+  ['sched-link-s0','sched-link-s1','sched-link-s2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('visible', show);
+  });
+}
+
+function renderMiniRoster() {
+  const html = roster.length === 0 ? '' : '<div class="mini-roster-label">Added</div>' +
+    roster.map(a =>
+      `<div class="mini-card"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-meta">${escH(a.time || '')}</span></div>`
+    ).join('');
+  ['mini-roster-s0','mini-roster-s1','mini-roster-s2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
+}
+
+// ─── EVENTS DROPDOWN ──────────────────────────────────────────────────────────
+function filterRegion(r, el) {
+  currentRegion = r;
+  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedEventIdx = 0;
+  populateSelect();
+}
+ 
+function populateSelect() {
+  filteredEvents = currentRegion === 'All' ? [...EVENTS] : EVENTS.filter(e => e.r === currentRegion);
+  const sel = document.getElementById('event-select');
+  sel.innerHTML = filteredEvents.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
+    + '<option value="custom">Custom event…</option>';
+  selectedEventIdx = 0;
+  document.getElementById('custom-event-field').style.display = 'none';
+}
+
+function onEventSelect() {
+  const val = document.getElementById('event-select').value;
+  if (val === 'custom') {
+    selectedEventIdx = -1;
+    document.getElementById('custom-event-field').style.display = '';
+  } else {
+    selectedEventIdx = parseInt(val);
+    document.getElementById('custom-event-field').style.display = 'none';
+  }
+}
+
+function getSelectedEvent() {
+  if (selectedEventIdx === -1) {
+    const name = document.getElementById('custom-event-name').value.trim();
+    return { n: name || 'Custom Event', s: name || 'Custom', d: '', ds: '', r: '' };
+  }
+  return filteredEvents[selectedEventIdx] || EVENTS[0];
+}
+ 
+// ─── CARD GENERATION ──────────────────────────────────────────────────────────
+function getCardData() {
+  const ev   = getSelectedEvent();
+  const name = document.getElementById('athlete-name').value || '—';
+  const cat  = document.getElementById('category').value || 'Open';
+  const date = document.getElementById('start-date').value || ev?.ds || '';
+  const h    = document.getElementById('start-hour').value;
+  const m    = document.getElementById('start-min').value;
+  const ap   = document.getElementById('start-ampm').value;
+  const time = h && m ? `${h}:${m} ${ap}` : '';
+  const yr   = (ev?.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
+  const eventShort = (ev?.s || 'HYROX') + (yr ? ' ' + yr : '');
+  return { event: ev?.n || 'HYROX', eventShort, name, cat, date, time };
+}
+ 
+function escX(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+ 
+function buildCardSVG(data) {
+  const { eventShort, name, cat, date, time } = data;
+  const nl = name.length;
+  const nameFS = nl > 24 ? 20 : nl > 18 ? 26 : nl > 12 ? 32 : 38;
+  const dt = [date, time].filter(Boolean).join(', ');
+
+  const cW = 442;
+  const cx = cW / 2;
+  const evFS = 14;
+  const catFS = 12;
+  const dtFS = 14;
+
+  const evY   = 22;
+  const nameY = evY + nameFS * 0.75 + 12;
+  const catY  = nameY + catFS + 6;
+  const dtY   = catY + dtFS + 8;
+  const cH    = dtY + 18;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${cW} ${cH}" width="${cW}" height="${cH}">
+  <text x="${cx}" y="${evY}" text-anchor="middle" fill="#999" font-family="DM Mono,monospace" font-size="${evFS}" letter-spacing="2"><tspan font-weight="500">HYROX</tspan> \u00B7 ${escX(eventShort)}</text>
+  <text x="${cx}" y="${nameY}" text-anchor="middle" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-weight="400" font-size="${nameFS}">${escX(name)}</text>
+  <text x="${cx}" y="${catY}" text-anchor="middle" fill="#666" font-family="DM Sans,sans-serif" font-size="${catFS}">${escX(cat)}</text>
+  <text x="${cx}" y="${dtY}" text-anchor="middle" fill="#999" font-family="DM Sans,sans-serif" font-style="italic" font-size="${dtFS}">${escX(dt || 'Date \u00B7 Time')}</text>
+</svg>`;
+}
+ 
+function buildScheduleSVG(title, days) {
+  const W = 1080;
+  let totalEntries = 0;
+  days.forEach(d => totalEntries += d.entries.length);
+  const HEADER=120, DAY_H=72, ENTRY_H=76, PAD=60;
+  const H = Math.max(400, HEADER + days.length*DAY_H + totalEntries*ENTRY_H + PAD);
+
+  let rows='', y=HEADER;
+  if (!days.length) {
+    rows=`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#555" font-family="DM Mono,monospace" font-size="18" letter-spacing="5">NO ATHLETES ADDED</text>`;
+  } else {
+    days.forEach(day => {
+      rows+=`<text x="80" y="${y+40}" fill="#999" font-family="DM Mono,monospace" font-size="16" letter-spacing="3">${escX(day.date)}</text>`;
+      rows+=`<line x1="80" y1="${y+52}" x2="${W-80}" y2="${y+52}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+      y+=DAY_H;
+      day.entries.forEach(e=>{
+        rows+=`<text x="100" y="${y+28}" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-size="22" font-weight="300">${escX(e.name)}</text>`;
+        rows+=`<text x="${W-80}" y="${y+28}" fill="#999" font-family="DM Mono,monospace" font-size="18" text-anchor="end">${escX(e.time)}</text>`;
+        y+=ENTRY_H;
+      });
+      y+=12;
+    });
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+<text x="80" y="72" fill="#f0f1f2" font-family="DM Mono,monospace" font-weight="500" font-size="26" letter-spacing="2">${escX(title)}</text>
+<line x1="80" y1="88" x2="${W-80}" y2="88" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+${rows}
+</svg>`;
+}
+ 
+// ─── RENDER / UPDATE ──────────────────────────────────────────────────────────
+function updateCard() { /* live update on s3 if open */ if (currentScreen===3) renderCardPreview(); }
+ 
+function renderCardPreview() {
+  const data = getCardData();
+  const svg = buildCardSVG(data);
+  document.getElementById('card-preview-wrap').innerHTML = svg;
+  document.getElementById('view-sched-btn').style.display = roster.length ? '' : 'none';
+}
+ 
+function renderSchedule() {
+  const list = document.getElementById('sched-list');
+  const empty = document.getElementById('sched-empty');
+ 
+  if (!roster.length) {
+    empty.style.display='';
+    // clear any dynamic items
+    Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
+    return;
+  }
+  empty.style.display='none';
+ 
+  // Group by date
+  const groups = {};
+  roster.forEach(a => {
+    const key = a.date || 'TBD';
+    (groups[key] = groups[key]||[]).push(a);
+  });
+ 
+  Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
+ 
+  Object.entries(groups).forEach(([date, athletes]) => {
+    const sec = document.createElement('div');
+    sec.className = 'sched-section';
+    sec.innerHTML = `<div class="sched-cat-label">${escH(date)}</div>`;
+    athletes.forEach((a, i) => {
+      const rosterIdx = roster.indexOf(a);
+      const item = document.createElement('div');
+      item.className = 'sched-item';
+      item.style.animationDelay = (i*0.05)+'s';
+      item.innerHTML = `
+        <div class="sched-item-info" onclick="editRosterCard(${rosterIdx})" style="cursor:pointer">
+          <div class="sched-item-name">${escH(a.name)}</div>
+          <div class="sched-item-meta">${escH(a.category)} · ${escH(a.event||'')}</div>
+        </div>
+        <div class="sched-item-time">${escH(a.time)}</div>
+        <button class="sched-item-dl" onclick="downloadRosterCard(${rosterIdx})" title="Download bib">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <button class="sched-item-rm" onclick="removeFromRoster(${rosterIdx})">×</button>`;
+      sec.appendChild(item);
+    });
+    list.insertBefore(sec, empty);
+  });
+}
+ 
+function updateSchedHeadline() {
+  const v = document.getElementById('sched-date').value;
+  document.getElementById('sched-headline').innerHTML = v ? `<strong>${escH(v)}</strong>` : 'Race <strong>Day</strong>';
+}
+ 
+// ─── ROSTER ───────────────────────────────────────────────────────────────────
+function addToScheduleAndGo() {
+  const data = getCardData();
+  if (!data.name || data.name==='—') { showToast('Add an athlete name first'); return; }
+
+  const ev = getSelectedEvent();
+  const entry = {
+    name: data.name, category: data.cat,
+    date: data.date, time: data.time,
+    event: ev?.n||'HYROX', eventShort: data.eventShort
+  };
+
+  if (editingIdx !== null) {
+    roster[editingIdx] = entry;
+    showToast(`${data.name} updated`);
+    editingIdx = null;
+  } else {
+    roster.push(entry);
+    showToast(`${data.name} added`);
+  }
+
+  // Auto-set schedule heading from event name if empty
+  if (!document.getElementById('sched-date').value && ev) {
+    document.getElementById('sched-date').value = ev.s ? `HYROX ${ev.s}` : (ev.n || 'HYROX');
+  }
+
+  goTo(4, true);
+}
+ 
+function resetForNextAthlete() {
+  editingIdx = null;
+  document.getElementById('athlete-name').value = '';
+  document.getElementById('start-hour').value = '';
+  document.getElementById('start-min').value = '';
+  goTo(1, true);
+}
+ 
+function removeFromRoster(i) {
+  roster.splice(i, 1);
+  renderSchedule();
+}
+
+function downloadRosterCard(i) {
+  const a = roster[i];
+  if (!a) return;
+  const data = {
+    eventShort: a.eventShort || 'HYROX',
+    name: a.name, cat: a.category,
+    date: a.date, time: a.time
+  };
+  const svg = buildCardSVG(data);
+  triggerDownload(svg, `hyrox-card-${a.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
+  showToast(`Downloading ${a.name}…`);
+}
+
+function editRosterCard(idx) {
+  const a = roster[idx];
+  if (!a) return;
+  editingIdx = idx;
+
+  // Populate edit screen event select
+  const editSel = document.getElementById('edit-event-select');
+  editSel.innerHTML = EVENTS.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
+    + '<option value="custom">Custom event…</option>';
+
+  const evIdx = EVENTS.findIndex(e => e.n === a.event);
+  if (evIdx >= 0) {
+    editSel.value = String(evIdx);
+    document.getElementById('edit-custom-event-field').style.display = 'none';
+  } else {
+    editSel.value = 'custom';
+    document.getElementById('edit-custom-event-field').style.display = '';
+    document.getElementById('edit-custom-event-name').value = a.event || '';
+  }
+
+  // Populate fields
+  document.getElementById('edit-athlete-name').value = a.name || '';
+  document.getElementById('edit-category').value = a.category || 'Open';
+  document.getElementById('edit-start-date').value = a.date || '';
+
+  // Parse time
+  if (a.time) {
+    const match = a.time.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+    if (match) {
+      document.getElementById('edit-start-hour').value = match[1];
+      document.getElementById('edit-start-min').value = match[2];
+      document.getElementById('edit-start-ampm').value = match[3].toUpperCase();
+    }
+  } else {
+    document.getElementById('edit-start-hour').value = '';
+    document.getElementById('edit-start-min').value = '';
+  }
+
+  goTo(5, true);
+}
+
+function onEditEventSelect() {
+  const val = document.getElementById('edit-event-select').value;
+  document.getElementById('edit-custom-event-field').style.display = (val === 'custom') ? '' : 'none';
+}
+
+function saveEdit() {
+  const name = document.getElementById('edit-athlete-name').value.trim();
+  if (!name) { shake('edit-athlete-name'); return; }
+
+  const evVal = document.getElementById('edit-event-select').value;
+  let ev;
+  if (evVal === 'custom') {
+    const cn = document.getElementById('edit-custom-event-name').value.trim();
+    ev = { n: cn || 'Custom Event', s: cn || 'Custom', d: '', ds: '', r: '' };
+  } else {
+    ev = EVENTS[parseInt(evVal)] || EVENTS[0];
+  }
+
+  const cat = document.getElementById('edit-category').value || 'Open';
+  const date = document.getElementById('edit-start-date').value || '';
+  const h = document.getElementById('edit-start-hour').value;
+  const m = document.getElementById('edit-start-min').value;
+  const ap = document.getElementById('edit-start-ampm').value;
+  const time = h && m ? `${h}:${m} ${ap}` : '';
+  const yr = (ev.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
+  const eventShort = (ev.s || 'HYROX') + (yr ? ' ' + yr : '');
+
+  roster[editingIdx] = { name, category: cat, date, time, event: ev.n, eventShort };
+  showToast(`${name} updated`);
+  editingIdx = null;
+  goTo(4, true);
+}
+
+function cancelEdit() {
+  editingIdx = null;
+  goTo(4, true);
+}
+ 
+// ─── DOWNLOADS ────────────────────────────────────────────────────────────────
+function downloadCard() {
+  const data = getCardData();
+  const svg = buildCardSVG(data);
+  triggerDownload(svg, `hyrox-card-${data.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
+  showToast('Downloading SVG…');
+}
+ 
+function downloadSchedule() {
+  const title = document.getElementById('sched-date').value || 'HYROX Schedule';
+  const dayGroups = {};
+  roster.forEach(a => {
+    const key = a.date || 'TBD';
+    (dayGroups[key] = dayGroups[key]||[]).push({name:a.name, time:a.time, category:a.category});
+  });
+  const days = Object.entries(dayGroups).map(([date,entries])=>({date,entries}));
+  const svg = buildScheduleSVG(title, days);
+  triggerDownload(svg, 'hyrox-schedule.svg');
+  showToast('Downloading schedule…');
+}
+ 
+function triggerDownload(svgStr, filename) {
+  const blob = new Blob([svgStr],{type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+ 
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+ 
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+ 
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+populateSelect();
+updateProgress();
+ 
+// Shake animation keyframe
+const style = document.createElement('style');
+style.textContent = `
+@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-6px)}
+  40%{transform:translateX(6px)}
+  60%{transform:translateX(-4px)}
+  80%{transform:translateX(4px)}
+}
+`;
+document.head.appendChild(style);
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Run } from "@/lib/types";
@@ -19,12 +19,52 @@ interface MapInnerProps {
   onReady?: () => void;
 }
 
+function exportSVG(map: L.Map, runs: Run[]) {
+  const bounds = map.getBounds();
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+
+  const W = 1920;
+  const H = Math.round(W * (ne.lat - sw.lat) / (ne.lng - sw.lng)) || 1080;
+
+  const toX = (lng: number) => ((lng - sw.lng) / (ne.lng - sw.lng)) * W;
+  const toY = (lat: number) => ((ne.lat - lat) / (ne.lat - sw.lat)) * H;
+
+  const paths = runs
+    .map((run, i) => {
+      const color = RUN_COLORS[i % RUN_COLORS.length];
+      const pts = run.points
+        .map((p) => `${toX(p.lon).toFixed(1)},${toY(p.lat).toFixed(1)}`)
+        .join(" ");
+      return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="3" stroke-opacity="0.85" stroke-linecap="round" stroke-linejoin="round"/>`;
+    })
+    .join("\n  ");
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+  ${paths}
+</svg>`;
+
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "dtk-routes.svg";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function MapInner({ runs, onReady }: MapInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const polylineRefs = useRef<L.Polyline[]>([]);
   const onReadyRef = useRef(onReady);
+  const runsRef = useRef(runs);
   useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
+  useEffect(() => { runsRef.current = runs; }, [runs]);
+
+  const handleExport = useCallback(() => {
+    if (mapRef.current) exportSVG(mapRef.current, runsRef.current);
+  }, []);
 
   // Initialize map once
   useEffect(() => {
@@ -44,6 +84,8 @@ export default function MapInner({ runs, onReady }: MapInnerProps) {
         subdomains: "abcd",
         maxNativeZoom: 19,
         maxZoom: 22,
+        keepBuffer: 6,
+        updateWhenZooming: false,
       }
     ).addTo(map);
 
@@ -102,10 +144,21 @@ export default function MapInner({ runs, onReady }: MapInnerProps) {
   }, [runs]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ background: "#0c0b0a" }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        style={{ background: "#0c0b0a" }}
+      />
+      {runs.length > 0 && (
+        <button
+          onClick={handleExport}
+          title="Download routes as SVG"
+          className="absolute bottom-6 right-3 z-[1000] bg-white/10 hover:bg-white/20 text-white/70 hover:text-white rounded px-2.5 py-1.5 text-xs font-mono tracking-wide transition-colors backdrop-blur-sm"
+        >
+          SVG
+        </button>
+      )}
+    </div>
   );
 }
