@@ -1154,11 +1154,20 @@ function cancelEdit() {
 }
  
 // ─── DOWNLOADS ────────────────────────────────────────────────────────────────
-function downloadCard() {
+async function downloadCard() {
   const data = getCardData();
   const svg = buildCardSVG(data);
-  triggerDownload(svg, `hyrox-card-${data.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
-  showToast('Downloading SVG…');
+  if (isMobile()) {
+    try {
+      await copySVGToClipboard(svg);
+      showToast('SVG copied!');
+    } catch (e) {
+      showToast('Copy failed. Try again.');
+    }
+  } else {
+    triggerDownload(svg, `hyrox-card-${data.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
+    showToast('Downloading SVG…');
+  }
 }
  
 function downloadSchedule() {
@@ -1180,6 +1189,25 @@ function triggerDownload(svgStr, filename) {
   const a = document.createElement('a');
   a.href=url; a.download=filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+function isMobile() {
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+}
+
+async function copySVGToClipboard(svgStr) {
+  // Try to use the Clipboard API with SVG as text
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(svgStr);
+    return;
+  }
+  // Fallback: create a textarea and select/copy
+  const textarea = document.createElement('textarea');
+  textarea.value = svgStr;
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
 }
  
 // ─── UTILS ────────────────────────────────────────────────────────────────────
