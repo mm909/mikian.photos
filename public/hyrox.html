@@ -26,7 +26,7 @@
   --sans:  'DM Sans', sans-serif;
   --ease:  cubic-bezier(0.4, 0, 0.2, 1);
 }
-html, body { height: 100%; background: transparent; color: var(--t1); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+html, body { height: 100%; background: #0c0b0a; color: var(--t1); font-family: var(--sans); -webkit-font-smoothing: antialiased; color-scheme: dark; }
 button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; }
 select { appearance: none; -webkit-appearance: none; }
@@ -306,7 +306,7 @@ select { appearance: none; -webkit-appearance: none; }
 .fmt-btn:active { background: rgba(255,255,255,0.08); }
 
 /* ── MINI ROSTER (below input form) ──────────────────── */
-.mini-roster { margin-top: 8px; }
+.mini-roster { margin-top: 24px; }
 .mini-roster-label {
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--t4); margin-bottom: 6px;
@@ -315,14 +315,20 @@ select { appearance: none; -webkit-appearance: none; }
   display: flex; align-items: center; justify-content: space-between;
   background: rgba(255,255,255,0.03); border-radius: 8px;
   padding: 10px 14px; margin-bottom: 4px;
+  transition: background 0.15s var(--ease);
+}
+.mini-card:active { background: rgba(255,255,255,0.06); }
+.mini-card-info {
+  display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0;
 }
 .mini-card-name {
   font-size: 13px; font-weight: 400; color: var(--t2);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mini-card-meta {
+.mini-card-details {
   font-family: var(--mono); font-size: 9px; color: var(--t4);
-  margin-left: 8px; flex-shrink: 0;
+  letter-spacing: 0.04em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* ── SCROLL HINT ──────────────────────────────────────── */
@@ -336,17 +342,9 @@ select { appearance: none; -webkit-appearance: none; }
     <div class="header-title">HYROX Bibs</div>
   </div>
  
-  <div class="progress-wrap" id="progress">
-    <div class="progress-seg" id="ps0"></div>
-    <div class="progress-seg" id="ps1"></div>
-    <div class="progress-seg" id="ps2"></div>
-    <div class="progress-seg" id="ps3"></div>
-    <div class="progress-seg" id="ps4"></div>
-  </div>
- 
   <div class="screens" id="screens">
- 
-    <!-- ══ SCREEN 0: EVENT ══ -->
+
+    <!-- ══ SCREEN 0: ALL INPUTS ══ -->
     <div class="screen active" id="s0">
       <div class="screen-top-row">
         <span></span>
@@ -355,9 +353,8 @@ select { appearance: none; -webkit-appearance: none; }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
-      <div class="screen-title">Step 1 of 4</div>
-      <div class="screen-headline">Which <strong>event</strong>?</div>
- 
+      <div class="screen-headline">Create a <strong>bib</strong></div>
+
       <div class="region-scroll" id="region-scroll">
         <button class="rtab active" onclick="filterRegion('All',this)">All</button>
         <button class="rtab" onclick="filterRegion('Europe',this)">Europe</button>
@@ -365,7 +362,7 @@ select { appearance: none; -webkit-appearance: none; }
         <button class="rtab" onclick="filterRegion('Asia',this)">Asia</button>
         <button class="rtab" onclick="filterRegion('Oceania',this)">Oceania</button>
       </div>
- 
+
       <div class="field">
         <div class="field-label">Event</div>
         <div class="fi-select-wrap">
@@ -378,36 +375,11 @@ select { appearance: none; -webkit-appearance: none; }
         <input class="fi" id="custom-event-name" placeholder="e.g. HYROX Las Vegas 2026" autocomplete="off">
       </div>
 
-      <div class="mini-roster" id="mini-roster-s0"></div>
-      <div class="spacer"></div>
-      <div class="btn-row">
-        <button class="btn-primary" onclick="goTo(1)">
-          Continue
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-    </div>
- 
-    <!-- ══ SCREEN 1: ATHLETE ══ -->
-    <div class="screen" id="s1">
-      <div class="screen-top-row">
-        <button class="back-btn" onclick="goTo(0)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          Back
-        </button>
-        <button class="sched-link" id="sched-link-s1" onclick="goTo(4,true)">
-          Schedule
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-      <div class="screen-title">Step 2 of 4</div>
-      <div class="screen-headline">Who's <strong>racing</strong>?</div>
- 
       <div class="field">
         <div class="field-label">Athlete Name(s)</div>
         <input class="fi" id="athlete-name" placeholder="e.g. Lindsay / Keith" oninput="updateCard()" autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
- 
+
       <div class="field">
         <div class="field-label">Category</div>
         <div class="fi-select-wrap">
@@ -421,36 +393,11 @@ select { appearance: none; -webkit-appearance: none; }
         </div>
       </div>
 
-      <div class="mini-roster" id="mini-roster-s1"></div>
-      <div class="spacer"></div>
-      <div class="btn-row">
-        <button class="btn-primary" onclick="goTo(2)">
-          Continue
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-    </div>
- 
-    <!-- ══ SCREEN 2: TIME ══ -->
-    <div class="screen" id="s2">
-      <div class="screen-top-row">
-        <button class="back-btn" onclick="goTo(1)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          Back
-        </button>
-        <button class="sched-link" id="sched-link-s2" onclick="goTo(4,true)">
-          Schedule
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-      <div class="screen-title">Step 3 of 4</div>
-      <div class="screen-headline">When do they <strong>start</strong>?</div>
- 
       <div class="field">
         <div class="field-label">Race Date</div>
-        <input class="fi" id="start-date" placeholder="e.g. Saturday, February 21st" oninput="updateCard()" autocomplete="off">
+        <input class="fi" type="date" id="start-date" onchange="updateCard()" autocomplete="off">
       </div>
- 
+
       <div class="field">
         <div class="field-label">Start Time</div>
         <div class="field-row" style="grid-template-columns: 1fr 1fr 1fr;">
@@ -479,23 +426,22 @@ select { appearance: none; -webkit-appearance: none; }
         </div>
       </div>
 
-      <div class="mini-roster" id="mini-roster-s2"></div>
-      <div class="spacer"></div>
       <div class="btn-row">
         <button class="btn-primary" onclick="goTo(3)">
-          Preview Card
+          Preview Bib
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
+      <div class="mini-roster" id="mini-roster-s0"></div>
+      <div class="spacer"></div>
     </div>
  
     <!-- ══ SCREEN 3: PREVIEW + DOWNLOAD ══ -->
     <div class="screen" id="s3">
-      <button class="back-btn" onclick="goTo(2)">
+      <button class="back-btn" onclick="goTo(0)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         Edit
       </button>
-      <div class="screen-title">Step 4 of 4</div>
       <div class="screen-headline">Your <strong>bib</strong></div>
  
       <div class="card-preview" id="card-preview-wrap">
@@ -512,15 +458,12 @@ select { appearance: none; -webkit-appearance: none; }
       <div class="divider"></div>
 
       <div class="btn-row" style="margin-top:0;">
-        <button class="btn-primary" id="add-to-sched-btn" onclick="addToScheduleAndGo()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add to Schedule
+        <button class="btn-primary" onclick="goTo(4)">
+          Schedule
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
         <button class="btn-secondary" onclick="resetForNextAthlete()">
           Add Another Athlete
-        </button>
-        <button class="btn-secondary" id="view-sched-btn" onclick="goTo(4)" style="display:none">
-          View Schedule
         </button>
       </div>
       <div class="spacer"></div>
@@ -546,11 +489,7 @@ select { appearance: none; -webkit-appearance: none; }
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Athlete
       </button>
-      <button class="add-athlete-btn" id="back-to-form-btn" onclick="goTo(lastInputScreen,true)" style="display:none">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        Back to Form
-      </button>
- 
+
       <div class="btn-row" style="margin-top:4px;">
         <button class="btn-primary" onclick="downloadSchedule()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -603,7 +542,7 @@ select { appearance: none; -webkit-appearance: none; }
 
       <div class="field">
         <div class="field-label">Race Date</div>
-        <input class="fi" id="edit-start-date" placeholder="e.g. Saturday, February 21st" autocomplete="off">
+        <input class="fi" type="date" id="edit-start-date" autocomplete="off">
       </div>
 
       <div class="field">
@@ -698,50 +637,68 @@ let filteredEvents = [...EVENTS];
 let selectedEventIdx = 0;
 let roster = []; // { name, category, date, time, event, eventShort }
 let editingIdx = null;
-let lastInputScreen = 0;
- 
+let editReturnScreen = 4;
+
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function goTo(n, skipValidation) {
   if (!skipValidation) {
-    if (currentScreen === 1 && n === 2) {
+    if (currentScreen === 0 && n === 3) {
       const name = document.getElementById('athlete-name').value.trim();
       if (!name) { shake('athlete-name'); return; }
     }
   }
- 
+
   const screens = document.querySelectorAll('.screen');
-  screens.forEach((s, i) => {
+  screens.forEach((s) => {
+    const sid = parseInt(s.id.replace('s','')) || 0;
     s.classList.remove('active','behind');
-    if (i < n) s.classList.add('behind');
+    if (sid < n) s.classList.add('behind');
   });
   document.getElementById('s'+n).classList.add('active');
- 
+
   const prev = currentScreen;
   currentScreen = n;
   updateProgress();
-
-  // Track the last input screen for "Back to Form" from schedule
-  if (n <= 3) lastInputScreen = n;
 
   // Show/hide schedule links based on roster
   updateSchedLinks();
   renderMiniRoster();
 
-  // Show/hide "Back to Form" on schedule screen
-  const backToFormBtn = document.getElementById('back-to-form-btn');
-  if (backToFormBtn) backToFormBtn.style.display = (prev <= 3 && n === 4) ? '' : 'none';
-
-  if (n === 3) renderCardPreview();
-  if (n === 4) renderSchedule();
-
-  // Autofill date from event if empty
-  if (n === 2) {
+  if (n === 3) {
+    // Autofill date from event if empty
     const ev = getSelectedEvent();
-    if (!document.getElementById('start-date').value && ev?.ds) {
-      document.getElementById('start-date').value = ev.ds;
-      updateCard();
+    if (!document.getElementById('start-date').value) {
+      const iso = eventDateToISO(ev);
+      if (iso) document.getElementById('start-date').value = iso;
+    }
+    renderCardPreview();
+
+    // Auto-add athlete to schedule on preview
+    const data = getCardData();
+    if (data.name && data.name !== '—') {
+      const evObj = getSelectedEvent();
+      const entry = {
+        name: data.name, category: data.cat,
+        date: data.date, dateISO: data.dateISO, time: data.time,
+        event: evObj?.n || 'HYROX', eventShort: data.eventShort
+      };
+      // Check if this athlete is already in roster (by name)
+      const existing = roster.findIndex(a => a.name === data.name);
+      if (existing >= 0) {
+        roster[existing] = entry;
+      } else {
+        roster.push(entry);
+      }
+      // Auto-set schedule heading from event name if empty
+      if (!document.getElementById('sched-date').value && evObj) {
+        document.getElementById('sched-date').value = evObj.s ? `HYROX ${evObj.s}` : (evObj.n || 'HYROX');
+        updateSchedHeadline();
+      }
+      updateSchedLinks();
+      renderMiniRoster();
     }
   }
+  if (n === 4) renderSchedule();
 }
  
 function shake(id) {
@@ -754,15 +711,7 @@ function shake(id) {
  
 // ─── PROGRESS ─────────────────────────────────────────────────────────────────
 function updateProgress() {
-  const wrap = document.getElementById('progress');
-  // Hide progress on edit screen (s5) and schedule screen (s4)
-  wrap.style.display = (currentScreen >= 4) ? 'none' : 'flex';
-  for (let i=0;i<5;i++) {
-    const seg = document.getElementById('ps'+i);
-    seg.classList.remove('done','active');
-    if (i < currentScreen) seg.classList.add('done');
-    if (i === currentScreen) seg.classList.add('active');
-  }
+  // Progress bar removed — no-op
 }
 
 function updateSchedLinks() {
@@ -775,9 +724,10 @@ function updateSchedLinks() {
 
 function renderMiniRoster() {
   const html = roster.length === 0 ? '' : '<div class="mini-roster-label">Added</div>' +
-    roster.map(a =>
-      `<div class="mini-card"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-meta">${escH(a.time || '')}</span></div>`
-    ).join('');
+    roster.map((a, i) => {
+      const details = [a.category, a.date, a.time].filter(Boolean).join(' · ');
+      return `<div class="mini-card" onclick="editRosterCard(${i})" style="cursor:pointer"><div class="mini-card-info"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-details">${escH(details)}</span></div></div>`;
+    }).join('');
   ['mini-roster-s0','mini-roster-s1','mini-roster-s2'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = html;
@@ -821,19 +771,40 @@ function getSelectedEvent() {
   return filteredEvents[selectedEventIdx] || EVENTS[0];
 }
  
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
+function formatDateStr(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr + 'T12:00:00');
+  if (isNaN(d)) return isoStr;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = d.getDate();
+  const suffix = (day === 1 || day === 21 || day === 31) ? 'st' : (day === 2 || day === 22) ? 'nd' : (day === 3 || day === 23) ? 'rd' : 'th';
+  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${day}${suffix}`;
+}
+
+function eventDateToISO(ev) {
+  if (!ev || !ev.d) return '';
+  const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const m = ev.d.match(/^(\w{3})\s+(\d{1,2}).*?(\d{4})$/);
+  if (m && months[m[1]]) return `${m[3]}-${months[m[1]]}-${m[2].padStart(2,'0')}`;
+  return '';
+}
+
 // ─── CARD GENERATION ──────────────────────────────────────────────────────────
 function getCardData() {
   const ev   = getSelectedEvent();
   const name = document.getElementById('athlete-name').value || '—';
   const cat  = document.getElementById('category').value || 'Open';
-  const date = document.getElementById('start-date').value || ev?.ds || '';
+  const dateISO = document.getElementById('start-date').value || '';
+  const date = formatDateStr(dateISO);
   const h    = document.getElementById('start-hour').value;
   const m    = document.getElementById('start-min').value;
   const ap   = document.getElementById('start-ampm').value;
   const time = h && m ? `${h}:${m} ${ap}` : '';
   const yr   = (ev?.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
   const eventShort = (ev?.s || 'HYROX') + (yr ? ' ' + yr : '');
-  return { event: ev?.n || 'HYROX', eventShort, name, cat, date, time };
+  return { event: ev?.n || 'HYROX', eventShort, name, cat, date, dateISO, time };
 }
  
 function escX(s) {
@@ -870,7 +841,7 @@ function buildScheduleSVG(title, days) {
   const W = 1080;
   let totalEntries = 0;
   days.forEach(d => totalEntries += d.entries.length);
-  const HEADER=120, DAY_H=72, ENTRY_H=76, PAD=60;
+  const HEADER=120, DAY_H=72, ENTRY_H=52, PAD=60;
   const H = Math.max(400, HEADER + days.length*DAY_H + totalEntries*ENTRY_H + PAD);
 
   let rows='', y=HEADER;
@@ -904,7 +875,6 @@ function renderCardPreview() {
   const data = getCardData();
   const svg = buildCardSVG(data);
   document.getElementById('card-preview-wrap').innerHTML = svg;
-  document.getElementById('view-sched-btn').style.display = roster.length ? '' : 'none';
 }
  
 function renderSchedule() {
@@ -966,7 +936,7 @@ function addToScheduleAndGo() {
   const ev = getSelectedEvent();
   const entry = {
     name: data.name, category: data.cat,
-    date: data.date, time: data.time,
+    date: data.date, dateISO: data.dateISO, time: data.time,
     event: ev?.n||'HYROX', eventShort: data.eventShort
   };
 
@@ -992,7 +962,7 @@ function resetForNextAthlete() {
   document.getElementById('athlete-name').value = '';
   document.getElementById('start-hour').value = '';
   document.getElementById('start-min').value = '';
-  goTo(1, true);
+  goTo(0, true);
 }
  
 function removeFromRoster(i) {
@@ -1017,6 +987,7 @@ function editRosterCard(idx) {
   const a = roster[idx];
   if (!a) return;
   editingIdx = idx;
+  editReturnScreen = currentScreen;
 
   // Populate edit screen event select
   const editSel = document.getElementById('edit-event-select');
@@ -1036,7 +1007,7 @@ function editRosterCard(idx) {
   // Populate fields
   document.getElementById('edit-athlete-name').value = a.name || '';
   document.getElementById('edit-category').value = a.category || 'Open';
-  document.getElementById('edit-start-date').value = a.date || '';
+  document.getElementById('edit-start-date').value = a.dateISO || '';
 
   // Parse time
   if (a.time) {
@@ -1073,7 +1044,8 @@ function saveEdit() {
   }
 
   const cat = document.getElementById('edit-category').value || 'Open';
-  const date = document.getElementById('edit-start-date').value || '';
+  const dateISO = document.getElementById('edit-start-date').value || '';
+  const date = formatDateStr(dateISO);
   const h = document.getElementById('edit-start-hour').value;
   const m = document.getElementById('edit-start-min').value;
   const ap = document.getElementById('edit-start-ampm').value;
@@ -1081,15 +1053,17 @@ function saveEdit() {
   const yr = (ev.d || '').match(/\d{4}/)?.[0]?.slice(-2) || '';
   const eventShort = (ev.s || 'HYROX') + (yr ? ' ' + yr : '');
 
-  roster[editingIdx] = { name, category: cat, date, time, event: ev.n, eventShort };
+  roster[editingIdx] = { name, category: cat, date, dateISO, time, event: ev.n, eventShort };
   showToast(`${name} updated`);
+  const returnTo = editReturnScreen;
   editingIdx = null;
-  goTo(4, true);
+  goTo(returnTo, true);
 }
 
 function cancelEdit() {
+  const returnTo = editReturnScreen;
   editingIdx = null;
-  goTo(4, true);
+  goTo(returnTo, true);
 }
  
 // ─── DOWNLOADS ────────────────────────────────────────────────────────────────
