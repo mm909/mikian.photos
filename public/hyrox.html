@@ -1000,14 +1000,15 @@ function renderCardPreview() {
 }
 
 function getScheduleGroups() {
-  // Sort roster by start time (earliest first)
+  // Sort roster by date first, then by start time
   const sorted = [...roster].sort((a, b) => {
+    if (a.dateISO !== b.dateISO) return (a.dateISO || '').localeCompare(b.dateISO || '');
     return parseTimeMins(a.time) - parseTimeMins(b.time);
   });
-  // Nested: event → category → athletes
+  // Nested: event+date → category → athletes
   const groups = {};
   sorted.forEach(a => {
-    const evKey = a.event || 'HYROX';
+    const evKey = (a.event || 'HYROX') + '|' + (a.dateISO || '');
     if (!groups[evKey]) groups[evKey] = {};
     const cat = a.category || 'Open';
     if (!groups[evKey][cat]) groups[evKey][cat] = [];
@@ -1053,9 +1054,10 @@ function renderSchedule() {
   Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
 
   let animIdx = 0;
-  Object.entries(groups).forEach(([eventName, catGroups]) => {
+  Object.entries(groups).forEach(([groupKey, catGroups]) => {
     const sec = document.createElement('div');
     sec.className = 'sched-section';
+    const eventName = groupKey.split('|')[0];
     const evObj = EVENTS.find(e => e.n === eventName);
     const locName = evObj ? evObj.s : eventName;
     const firstAthlete = Object.values(catGroups)[0]?.[0];
@@ -1293,7 +1295,8 @@ async function downloadCard() {
 async function downloadSchedule() {
   const title = getScheduleTitle();
   const groups = getScheduleGroups();
-  const sections = Object.entries(groups).map(([eventName, catGroups]) => {
+  const sections = Object.entries(groups).map(([groupKey, catGroups]) => {
+    const eventName = groupKey.split('|')[0];
     const evObj = EVENTS.find(e => e.n === eventName);
     const locName = evObj ? evObj.s : eventName;
     const firstAthlete = Object.values(catGroups)[0]?.[0];
