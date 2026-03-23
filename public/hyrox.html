@@ -203,7 +203,7 @@ select { appearance: none; -webkit-appearance: none; }
 .sched-item {
   display: flex; align-items: center; justify-content: space-between;
   background: rgba(255,255,255,0.03); border: none; border-radius: 10px;
-  padding: 14px 16px; margin-bottom: 6px;
+  padding: 12px 16px; margin-bottom: 4px;
   animation: slideUp 0.3s var(--ease) both;
 }
 @keyframes slideUp {
@@ -212,7 +212,7 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .sched-item-info { flex: 1; min-width: 0; }
 .sched-item-name {
-  font-size: 15px; font-weight: 400; color: var(--t1);
+  font-size: 17px; font-weight: 400; color: var(--t1);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sched-item-meta {
@@ -220,7 +220,7 @@ select { appearance: none; -webkit-appearance: none; }
   margin-top: 2px; letter-spacing: 0.06em;
 }
 .sched-item-time {
-  font-family: var(--mono); font-size: 12px; color: var(--t2);
+  font-family: var(--mono); font-size: 14px; color: var(--t2);
   margin-left: 12px; flex-shrink: 0;
 }
 .sched-item-dl {
@@ -401,6 +401,10 @@ select { appearance: none; -webkit-appearance: none; }
 }
 .lookup-link:active { color: var(--t1); }
 .lookup-link svg { width: 12px; height: 12px; }
+.search-history-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--t4); padding: 8px 4px 6px;
+}
 </style>
 </head>
 <body>
@@ -423,12 +427,15 @@ select { appearance: none; -webkit-appearance: none; }
       </div>
       <div class="screen-headline">Create a <strong>bib</strong></div>
 
-      <div class="region-scroll" id="region-scroll">
-        <button class="rtab active" onclick="filterRegion('All',this)">All</button>
-        <button class="rtab" onclick="filterRegion('Europe',this)">Europe</button>
-        <button class="rtab" onclick="filterRegion('Americas',this)">Americas</button>
-        <button class="rtab" onclick="filterRegion('Asia',this)">Asia</button>
-        <button class="rtab" onclick="filterRegion('Oceania',this)">Oceania</button>
+      <div class="field">
+        <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+          Athlete Name(s)
+          <button class="lookup-link" onclick="openSearch()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Lookup
+          </button>
+        </div>
+        <input class="fi" id="athlete-name" placeholder="e.g. Lindsay / Keith" oninput="updateCard()" autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
@@ -441,17 +448,6 @@ select { appearance: none; -webkit-appearance: none; }
       <div class="field" id="custom-event-field" style="display:none">
         <div class="field-label">Event Name</div>
         <input class="fi" id="custom-event-name" placeholder="e.g. HYROX Las Vegas 2026" autocomplete="off">
-      </div>
-
-      <div class="field">
-        <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-          Athlete Name(s)
-          <button class="lookup-link" onclick="openSearch()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Lookup
-          </button>
-        </div>
-        <input class="fi" id="athlete-name" placeholder="e.g. Lindsay / Keith" oninput="updateCard()" autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
 
       <div class="field">
@@ -501,8 +497,8 @@ select { appearance: none; -webkit-appearance: none; }
       </div>
 
       <div class="btn-row">
-        <button class="btn-primary" onclick="goTo(3)">
-          Preview Bib
+        <button class="btn-primary" onclick="addToScheduleFromForm()">
+          Add to Schedule
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
@@ -523,9 +519,9 @@ select { appearance: none; -webkit-appearance: none; }
       </div>
 
       <div class="btn-row">
-        <button class="btn-primary" onclick="downloadCard()">
+        <button class="btn-primary" id="card-dl-btn" onclick="downloadCard()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download SVG
+          <span id="card-dl-label">Download SVG</span>
         </button>
       </div>
 
@@ -547,14 +543,7 @@ select { appearance: none; -webkit-appearance: none; }
     <div class="screen" id="s4">
       <div class="screen-title">Schedule</div>
       <div class="screen-headline" id="sched-headline">Race <strong>Day</strong></div>
- 
-      <div class="field">
-        <div class="field-label">Schedule Heading</div>
-        <input class="fi" id="sched-date" placeholder="e.g. Sunday, February 22nd" oninput="updateSchedHeadline()">
-      </div>
- 
-      <div class="divider"></div>
- 
+
       <div id="sched-list">
         <div class="empty-state" id="sched-empty">No athletes added yet</div>
       </div>
@@ -565,9 +554,9 @@ select { appearance: none; -webkit-appearance: none; }
       </button>
 
       <div class="btn-row" style="margin-top:4px;">
-        <button class="btn-primary" onclick="downloadSchedule()">
+        <button class="btn-primary" id="sched-dl-btn" onclick="downloadSchedule()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Schedule SVG
+          <span id="sched-dl-label">Download Schedule SVG</span>
         </button>
       </div>
       <div class="spacer"></div>
@@ -668,13 +657,13 @@ select { appearance: none; -webkit-appearance: none; }
 <!-- SEARCH OVERLAY -->
 <div class="search-overlay" id="search-overlay">
   <div class="search-header">
-    <input id="search-input" placeholder="Last name" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input id="search-input" placeholder="First or last name" autocomplete="off" autocorrect="off" spellcheck="false">
     <button class="search-close" onclick="closeSearch()">Cancel</button>
   </div>
   <div class="search-status" id="search-status"></div>
   <div class="search-results" id="search-results">
     <div class="search-spinner" id="search-spinner">Searching startlist.hyrox.com…</div>
-    <div class="search-empty" id="search-empty">Search by last name to find your registration</div>
+    <div class="search-empty" id="search-empty">Search by name to find your registration</div>
   </div>
 </div>
  
@@ -719,7 +708,6 @@ const EVENTS = [
  
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentScreen = 0;
-let currentRegion = 'All';
 let filteredEvents = [...EVENTS];
 let selectedEventIdx = 0;
 let roster = []; // { name, category, date, time, event, eventShort }
@@ -728,13 +716,6 @@ let editReturnScreen = 4;
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function goTo(n, skipValidation) {
-  if (!skipValidation) {
-    if (currentScreen === 0 && n === 3) {
-      const name = document.getElementById('athlete-name').value.trim();
-      if (!name) { shake('athlete-name'); return; }
-    }
-  }
-
   const screens = document.querySelectorAll('.screen');
   screens.forEach((s) => {
     const sid = parseInt(s.id.replace('s','')) || 0;
@@ -743,62 +724,25 @@ function goTo(n, skipValidation) {
   });
   document.getElementById('s'+n).classList.add('active');
 
-  const prev = currentScreen;
   currentScreen = n;
-  updateProgress();
-
-  // Show/hide schedule links based on roster
   updateSchedLinks();
   renderMiniRoster();
 
   if (n === 3) {
-    // Autofill date from event if empty
-    const ev = getSelectedEvent();
-    if (!document.getElementById('start-date').value) {
-      const iso = eventDateToISO(ev);
-      if (iso) document.getElementById('start-date').value = iso;
-    }
     renderCardPreview();
-
-    // Auto-add athlete to schedule on preview
-    const data = getCardData();
-    if (data.name && data.name !== '—') {
-      const evObj = getSelectedEvent();
-      const entry = {
-        name: data.name, category: data.cat,
-        date: data.date, dateISO: data.dateISO, time: data.time,
-        event: evObj?.n || 'HYROX', eventShort: data.eventShort
-      };
-      // Check if this athlete is already in roster (by name)
-      const existing = roster.findIndex(a => a.name === data.name);
-      if (existing >= 0) {
-        roster[existing] = entry;
-      } else {
-        roster.push(entry);
-      }
-      // Auto-set schedule heading from event name if empty
-      if (!document.getElementById('sched-date').value && evObj) {
-        document.getElementById('sched-date').value = evObj.s ? `HYROX ${evObj.s}` : (evObj.n || 'HYROX');
-        updateSchedHeadline();
-      }
-      updateSchedLinks();
-      renderMiniRoster();
-    }
   }
-  if (n === 4) renderSchedule();
+  if (n === 4) {
+    updateSchedHeadline();
+    renderSchedule();
+  }
 }
- 
+
 function shake(id) {
   const el = document.getElementById(id);
   el.style.animation = 'none';
   el.offsetHeight;
   el.style.animation = 'shake 0.35s ease';
   el.focus();
-}
- 
-// ─── PROGRESS ─────────────────────────────────────────────────────────────────
-function updateProgress() {
-  // Progress bar removed — no-op
 }
 
 function updateSchedLinks() {
@@ -812,8 +756,10 @@ function updateSchedLinks() {
 function renderMiniRoster() {
   const html = roster.length === 0 ? '' : '<div class="mini-roster-label">Added</div>' +
     roster.map((a, i) => {
-      const details = [a.category, a.date, a.time].filter(Boolean).join(' · ');
-      return `<div class="mini-card" onclick="editRosterCard(${i})" style="cursor:pointer"><div class="mini-card-info"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-details">${escH(details)}</span></div></div>`;
+      const evObj = EVENTS.find(e => e.n === a.event);
+      const loc = evObj ? evObj.s : (a.eventShort || '').replace(/\s+\d{2}$/, '');
+      const details = [loc, a.category, a.time].filter(Boolean).join(' · ');
+      return `<div class="mini-card"><div class="mini-card-info" onclick="editRosterCard(${i})" style="cursor:pointer"><span class="mini-card-name">${escH(a.name)}</span><span class="mini-card-details">${escH(details)}</span></div><button class="sched-item-rm" onclick="removeFromRoster(${i})">\u00d7</button></div>`;
     }).join('');
   ['mini-roster-s0','mini-roster-s1','mini-roster-s2'].forEach(id => {
     const el = document.getElementById(id);
@@ -822,16 +768,8 @@ function renderMiniRoster() {
 }
 
 // ─── EVENTS DROPDOWN ──────────────────────────────────────────────────────────
-function filterRegion(r, el) {
-  currentRegion = r;
-  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  selectedEventIdx = 0;
-  populateSelect();
-}
- 
 function populateSelect() {
-  filteredEvents = currentRegion === 'All' ? [...EVENTS] : EVENTS.filter(e => e.r === currentRegion);
+  filteredEvents = [...EVENTS];
   const sel = document.getElementById('event-select');
   sel.innerHTML = filteredEvents.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
     + '<option value="custom">Custom event…</option>';
@@ -857,7 +795,46 @@ function getSelectedEvent() {
   }
   return filteredEvents[selectedEventIdx] || EVENTS[0];
 }
- 
+
+// ─── EVENT MATCHING ──────────────────────────────────────────────────────────
+function normalizeEventStr(s) {
+  return (s||'').toLowerCase().replace(/[_\/\-]+/g, ' ').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').replace(/\b(hyrox|20\d{2})\b/g, '').trim();
+}
+
+function matchScore(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+  if (a.includes(b)) return b.length / a.length * 80;
+  if (b.includes(a)) return a.length / b.length * 80;
+  // Word overlap: check how many words in b appear in a
+  const aw = a.split(/\s+/).filter(w => w.length >= 2);
+  const bw = b.split(/\s+/).filter(w => w.length >= 2);
+  if (!aw.length || !bw.length) return 0;
+  let hits = 0;
+  for (const w of bw) {
+    if (aw.some(x => x === w || x.startsWith(w) || w.startsWith(x))) hits++;
+  }
+  return (hits / bw.length) * 70;
+}
+
+function matchEventIdx(emg) {
+  if (!emg) return -1;
+  const norm = normalizeEventStr(emg);
+  if (!norm) return -1;
+
+  let bestIdx = -1;
+  let bestScore = 0;
+
+  EVENTS.forEach((e, i) => {
+    const en = normalizeEventStr(e.n);
+    const es = normalizeEventStr(e.s);
+    const s = Math.max(matchScore(norm, en), matchScore(norm, es));
+    if (s > bestScore) { bestScore = s; bestIdx = i; }
+  });
+
+  return bestScore > 0 ? bestIdx : -1;
+}
+
 // ─── DATE HELPERS ─────────────────────────────────────────────────────────────
 function formatDateStr(isoStr) {
   if (!isoStr) return '';
@@ -878,6 +855,37 @@ function eventDateToISO(ev) {
   return '';
 }
 
+function resolveDayInEvent(dayStr, ev) {
+  if (!dayStr || !ev || !ev.d) return '';
+
+  // Try parsing as ISO date (2026-03-22)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dayStr.trim())) return dayStr.trim();
+
+  // Try parsing as DD.MM.YYYY or DD/MM/YYYY
+  const dmy = dayStr.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+
+  // Map full and abbreviated day names to day-of-week index
+  const dayMap = {sun:0,sunday:0,mon:1,monday:1,tue:2,tuesday:2,wed:3,wednesday:3,thu:4,thursday:4,fri:5,friday:5,sat:6,saturday:6};
+  const word = dayStr.toLowerCase().trim().split(/[\s,]/)[0];
+  const target = dayMap[word];
+  if (target === undefined) return '';
+
+  const iso = eventDateToISO(ev);
+  if (!iso) return '';
+  const rangeMatch = ev.d.match(/(\d{1,2})[–\-](\d{1,2})/);
+  if (!rangeMatch) return iso;
+  const startDay = parseInt(rangeMatch[1]);
+  const endDay = parseInt(rangeMatch[2]);
+  const [year, month] = iso.split('-');
+  for (let d = startDay; d <= endDay; d++) {
+    const ds = `${year}-${month}-${String(d).padStart(2,'0')}`;
+    const dt = new Date(ds + 'T12:00:00');
+    if (dt.getDay() === target) return ds;
+  }
+  return iso;
+}
+
 // ─── CARD GENERATION ──────────────────────────────────────────────────────────
 function getCardData() {
   const ev   = getSelectedEvent();
@@ -893,11 +901,11 @@ function getCardData() {
   const eventShort = (ev?.s || 'HYROX') + (yr ? ' ' + yr : '');
   return { event: ev?.n || 'HYROX', eventShort, name, cat, date, dateISO, time };
 }
- 
+
 function escX(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
- 
+
 function buildCardSVG(data) {
   const { eventShort, name, cat, date, time } = data;
   const nl = name.length;
@@ -923,28 +931,28 @@ function buildCardSVG(data) {
   <text x="${cx}" y="${dtY}" text-anchor="middle" fill="#999" font-family="DM Sans,sans-serif" font-style="italic" font-size="${dtFS}">${escX(dt || 'Date \u00B7 Time')}</text>
 </svg>`;
 }
- 
-function buildScheduleSVG(title, days) {
+
+function buildScheduleSVG(title, groups) {
   const W = 1080;
   let totalEntries = 0;
-  days.forEach(d => totalEntries += d.entries.length);
-  const HEADER=120, DAY_H=72, ENTRY_H=52, PAD=60;
-  const H = Math.max(400, HEADER + days.length*DAY_H + totalEntries*ENTRY_H + PAD);
+  groups.forEach(g => totalEntries += g.entries.length);
+  const HEADER=120, GROUP_H=58, ENTRY_H=42, PAD=60;
+  const H = Math.max(400, HEADER + groups.length*GROUP_H + totalEntries*ENTRY_H + PAD);
 
   let rows='', y=HEADER;
-  if (!days.length) {
+  if (!groups.length) {
     rows=`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#555" font-family="DM Mono,monospace" font-size="18" letter-spacing="5">NO ATHLETES ADDED</text>`;
   } else {
-    days.forEach(day => {
-      rows+=`<text x="80" y="${y+40}" fill="#999" font-family="DM Mono,monospace" font-size="16" letter-spacing="3">${escX(day.date)}</text>`;
-      rows+=`<line x1="80" y1="${y+52}" x2="${W-80}" y2="${y+52}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
-      y+=DAY_H;
-      day.entries.forEach(e=>{
-        rows+=`<text x="100" y="${y+28}" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-size="22" font-weight="300">${escX(e.name)}</text>`;
-        rows+=`<text x="${W-80}" y="${y+28}" fill="#999" font-family="DM Mono,monospace" font-size="18" text-anchor="end">${escX(e.time)}</text>`;
+    groups.forEach(group => {
+      rows+=`<text x="80" y="${y+32}" fill="#999" font-family="DM Mono,monospace" font-size="16" letter-spacing="3">${escX(group.label)}</text>`;
+      rows+=`<line x1="80" y1="${y+44}" x2="${W-80}" y2="${y+44}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+      y+=GROUP_H;
+      group.entries.forEach(e=>{
+        rows+=`<text x="100" y="${y+26}" fill="#f0f1f2" font-family="DM Sans,sans-serif" font-size="26" font-weight="300">${escX(e.name)}</text>`;
+        rows+=`<text x="680" y="${y+26}" fill="#999" font-family="DM Mono,monospace" font-size="22">${escX(e.time)}</text>`;
         y+=ENTRY_H;
       });
-      y+=12;
+      y+=8;
     });
   }
 
@@ -954,41 +962,74 @@ function buildScheduleSVG(title, days) {
 ${rows}
 </svg>`;
 }
- 
+
 // ─── RENDER / UPDATE ──────────────────────────────────────────────────────────
-function updateCard() { /* live update on s3 if open */ if (currentScreen===3) renderCardPreview(); }
- 
+function updateCard() { if (currentScreen===3) renderCardPreview(); }
+
 function renderCardPreview() {
   const data = getCardData();
   const svg = buildCardSVG(data);
   document.getElementById('card-preview-wrap').innerHTML = svg;
 }
- 
+
+function getScheduleGroups() {
+  // Sort roster by start time (earliest first)
+  const sorted = [...roster].sort((a, b) => {
+    return parseTimeMins(a.time) - parseTimeMins(b.time);
+  });
+  // Group sorted roster by event
+  const eventGroups = {};
+  sorted.forEach(a => {
+    const key = a.event || 'HYROX';
+    (eventGroups[key] = eventGroups[key]||[]).push(a);
+  });
+  return eventGroups;
+}
+
+function parseTimeMins(t) {
+  if (!t) return 9999;
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return 9999;
+  let h = parseInt(m[1]);
+  const min = parseInt(m[2]);
+  const ap = m[3].toUpperCase();
+  if (ap === 'PM' && h !== 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function getScheduleTitle() {
+  const locations = [...new Set(roster.map(a => {
+    const evObj = EVENTS.find(e => e.n === a.event);
+    return evObj ? evObj.s : (a.eventShort || 'HYROX').replace(/\s+\d{2}$/, '');
+  }))];
+  if (locations.length === 0) return 'HYROX Schedule';
+  return locations.join(' / ');
+}
+
 function renderSchedule() {
   const list = document.getElementById('sched-list');
   const empty = document.getElementById('sched-empty');
- 
+
   if (!roster.length) {
     empty.style.display='';
-    // clear any dynamic items
     Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
     return;
   }
   empty.style.display='none';
- 
-  // Group by date
-  const groups = {};
-  roster.forEach(a => {
-    const key = a.date || 'TBD';
-    (groups[key] = groups[key]||[]).push(a);
-  });
- 
+
+  // Group by event
+  const eventGroups = getScheduleGroups();
+
   Array.from(list.querySelectorAll('.sched-section')).forEach(e=>e.remove());
- 
-  Object.entries(groups).forEach(([date, athletes]) => {
+
+  Object.entries(eventGroups).forEach(([eventName, athletes]) => {
     const sec = document.createElement('div');
     sec.className = 'sched-section';
-    sec.innerHTML = `<div class="sched-cat-label">${escH(date)}</div>`;
+    const evObj = EVENTS.find(e => e.n === eventName);
+    const sectionName = evObj ? evObj.s : eventName;
+    const dateLabel = athletes[0]?.date || (evObj ? evObj.ds : '') || '';
+    sec.innerHTML = `<div class="sched-cat-label">${escH(sectionName)}${dateLabel ? ' — ' + escH(dateLabel) : ''}</div>`;
     athletes.forEach((a, i) => {
       const rosterIdx = roster.indexOf(a);
       const item = document.createElement('div');
@@ -997,10 +1038,9 @@ function renderSchedule() {
       item.innerHTML = `
         <div class="sched-item-info" onclick="editRosterCard(${rosterIdx})" style="cursor:pointer">
           <div class="sched-item-name">${escH(a.name)}</div>
-          <div class="sched-item-meta">${escH(a.category)} · ${escH(a.event||'')}</div>
+          <div class="sched-item-meta">${escH(a.category)}${a.time ? ' · ' + escH(a.time) : ''}</div>
         </div>
-        <div class="sched-item-time">${escH(a.time)}</div>
-        <button class="sched-item-dl" onclick="downloadRosterCard(${rosterIdx})" title="Download bib">
+        <button class="sched-item-dl" onclick="downloadRosterCard(${rosterIdx})" title="Copy bib">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <button class="sched-item-rm" onclick="removeFromRoster(${rosterIdx})">×</button>`;
@@ -1009,41 +1049,55 @@ function renderSchedule() {
     list.insertBefore(sec, empty);
   });
 }
- 
-function updateSchedHeadline() {
-  const v = document.getElementById('sched-date').value;
-  document.getElementById('sched-headline').innerHTML = v ? `<strong>${escH(v)}</strong>` : 'Race <strong>Day</strong>';
-}
- 
-// ─── ROSTER ───────────────────────────────────────────────────────────────────
-function addToScheduleAndGo() {
-  const data = getCardData();
-  if (!data.name || data.name==='—') { showToast('Add an athlete name first'); return; }
 
+function updateSchedHeadline() {
+  const locations = [...new Set(roster.map(a => {
+    const evObj = EVENTS.find(e => e.n === a.event);
+    return evObj ? evObj.s : (a.eventShort || 'HYROX').replace(/\s+\d{2}$/, '');
+  }))];
+  let headline;
+  if (locations.length === 0) {
+    headline = 'Race <strong>Day</strong>';
+  } else {
+    headline = locations.map(e => `<strong>${escH(e)}</strong>`).join(' / ');
+  }
+  document.getElementById('sched-headline').innerHTML = headline;
+}
+
+// ─── ROSTER ───────────────────────────────────────────────────────────────────
+function addToScheduleFromForm() {
+  const name = document.getElementById('athlete-name').value.trim();
+  if (!name) { shake('athlete-name'); return; }
+
+  // Auto-fill date from event if empty
   const ev = getSelectedEvent();
+  if (!document.getElementById('start-date').value) {
+    const iso = eventDateToISO(ev);
+    if (iso) document.getElementById('start-date').value = iso;
+  }
+
+  const data = getCardData();
   const entry = {
     name: data.name, category: data.cat,
     date: data.date, dateISO: data.dateISO, time: data.time,
-    event: ev?.n||'HYROX', eventShort: data.eventShort
+    event: ev?.n || 'HYROX', eventShort: data.eventShort
   };
 
-  if (editingIdx !== null) {
-    roster[editingIdx] = entry;
-    showToast(`${data.name} updated`);
-    editingIdx = null;
+  const existing = roster.findIndex(a => a.name === data.name && a.event === entry.event);
+  if (existing >= 0) {
+    roster[existing] = entry;
   } else {
     roster.push(entry);
-    showToast(`${data.name} added`);
   }
 
-  // Auto-set schedule heading from event name if empty
-  if (!document.getElementById('sched-date').value && ev) {
-    document.getElementById('sched-date').value = ev.s ? `HYROX ${ev.s}` : (ev.n || 'HYROX');
-  }
-
+  showToast(`${data.name} added`);
   goTo(4, true);
 }
- 
+
+function addToScheduleAndGo() {
+  addToScheduleFromForm();
+}
+
 function resetForNextAthlete() {
   editingIdx = null;
   document.getElementById('athlete-name').value = '';
@@ -1051,13 +1105,16 @@ function resetForNextAthlete() {
   document.getElementById('start-min').value = '';
   goTo(0, true);
 }
- 
+
 function removeFromRoster(i) {
   roster.splice(i, 1);
+  updateSchedHeadline();
   renderSchedule();
+  renderMiniRoster();
+  updateSchedLinks();
 }
 
-function downloadRosterCard(i) {
+async function downloadRosterCard(i) {
   const a = roster[i];
   if (!a) return;
   const data = {
@@ -1065,9 +1122,14 @@ function downloadRosterCard(i) {
     name: a.name, cat: a.category,
     date: a.date, time: a.time
   };
-  const svg = buildCardSVG(data);
-  triggerDownload(svg, `hyrox-card-${a.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
-  showToast(`Downloading ${a.name}…`);
+  try {
+    await copyBibAsImage(data);
+    showToast(`Copied ${a.name}!`);
+  } catch (e) {
+    const svg = buildCardSVG(data);
+    triggerDownload(svg, `hyrox-card-${a.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
+    showToast(`Downloading ${a.name}…`);
+  }
 }
 
 function editRosterCard(idx) {
@@ -1076,7 +1138,6 @@ function editRosterCard(idx) {
   editingIdx = idx;
   editReturnScreen = currentScreen;
 
-  // Populate edit screen event select
   const editSel = document.getElementById('edit-event-select');
   editSel.innerHTML = EVENTS.map((e,i) => `<option value="${i}">${e.s} — ${e.d}</option>`).join('')
     + '<option value="custom">Custom event…</option>';
@@ -1091,12 +1152,10 @@ function editRosterCard(idx) {
     document.getElementById('edit-custom-event-name').value = a.event || '';
   }
 
-  // Populate fields
   document.getElementById('edit-athlete-name').value = a.name || '';
   document.getElementById('edit-category').value = a.category || 'Open';
   document.getElementById('edit-start-date').value = a.dateISO || '';
 
-  // Parse time
   if (a.time) {
     const match = a.time.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
     if (match) {
@@ -1152,37 +1211,42 @@ function cancelEdit() {
   editingIdx = null;
   goTo(returnTo, true);
 }
- 
+
 // ─── DOWNLOADS ────────────────────────────────────────────────────────────────
 async function downloadCard() {
   const data = getCardData();
-  const svg = buildCardSVG(data);
-  if (isMobile()) {
-    try {
-      await copySVGToClipboard(svg);
-      showToast('SVG copied!');
-    } catch (e) {
-      showToast('Copy failed. Try again.');
-    }
-  } else {
+  try {
+    await copyBibAsImage(data);
+    showToast('Copied PNG!');
+  } catch (e) {
+    const svg = buildCardSVG(data);
     triggerDownload(svg, `hyrox-card-${data.name.replace(/[^a-z0-9]/gi,'-').toLowerCase()}.svg`);
     showToast('Downloading SVG…');
   }
 }
- 
-function downloadSchedule() {
-  const title = document.getElementById('sched-date').value || 'HYROX Schedule';
-  const dayGroups = {};
-  roster.forEach(a => {
-    const key = a.date || 'TBD';
-    (dayGroups[key] = dayGroups[key]||[]).push({name:a.name, time:a.time, category:a.category});
+
+async function downloadSchedule() {
+  const title = getScheduleTitle();
+  const eventGroups = getScheduleGroups();
+  const groups = Object.entries(eventGroups).map(([eventName, athletes]) => {
+    const evObj = EVENTS.find(e => e.n === eventName);
+    const sectionName = evObj ? evObj.s : eventName;
+    const dateLabel = athletes[0]?.date || (evObj ? evObj.ds : '') || '';
+    const label = sectionName + (dateLabel ? ' — ' + dateLabel : '');
+    return { label, entries: athletes.map(a => ({ name: a.name, time: a.time, category: a.category })) };
   });
-  const days = Object.entries(dayGroups).map(([date,entries])=>({date,entries}));
-  const svg = buildScheduleSVG(title, days);
-  triggerDownload(svg, 'hyrox-schedule.svg');
-  showToast('Downloading schedule…');
+
+  try {
+    const svg = buildScheduleSVG(title, groups);
+    await copySVGAsImage(svg);
+    showToast('Copied schedule!');
+  } catch (e) {
+    const svg = buildScheduleSVG(title, groups);
+    triggerDownload(svg, 'hyrox-schedule.svg');
+    showToast('Downloading schedule…');
+  }
 }
- 
+
 function triggerDownload(svgStr, filename) {
   const blob = new Blob([svgStr],{type:'image/svg+xml'});
   const url = URL.createObjectURL(blob);
@@ -1195,27 +1259,163 @@ function isMobile() {
   return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
 }
 
-async function copySVGToClipboard(svgStr) {
-  // Try to use the Clipboard API with SVG as text
-  if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(svgStr);
-    return;
-  }
-  // Fallback: create a textarea and select/copy
-  const textarea = document.createElement('textarea');
-  textarea.value = svgStr;
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
+// ─── COPY AS IMAGE (for mobile / Instagram stories) ──────────────────────────
+async function renderBibToPNG(data) {
+  await document.fonts.ready;
+  const scale = 3;
+
+  const nl = data.name.length;
+  const nameFS = nl > 24 ? 20 : nl > 18 ? 26 : nl > 12 ? 32 : 38;
+  const evFS = 14, catFS = 12, dtFS = 14;
+  const evY = 22;
+  const nameY = evY + nameFS * 0.75 + 12;
+  const catY = nameY + catFS + 6;
+  const dtY = catY + dtFS + 8;
+  const cW = 442;
+  const cH = dtY + 18;
+  const cx = cW / 2;
+  const dt = [data.date, data.time].filter(Boolean).join(', ');
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cW * scale;
+  canvas.height = cH * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  // Transparent background
+  ctx.clearRect(0, 0, cW, cH);
+
+  // Event line
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#999';
+  ctx.font = '500 14px "DM Mono", monospace';
+  ctx.fillText('HYROX \u00B7 ' + (data.eventShort || 'HYROX'), cx, evY);
+
+  // Name
+  ctx.fillStyle = '#f0f1f2';
+  ctx.font = `400 ${nameFS}px "DM Sans", sans-serif`;
+  ctx.fillText(data.name || '\u2014', cx, nameY);
+
+  // Category
+  ctx.fillStyle = '#666';
+  ctx.font = '400 12px "DM Sans", sans-serif';
+  ctx.fillText(data.cat || 'Open', cx, catY);
+
+  // Date/time
+  ctx.fillStyle = '#999';
+  ctx.font = 'italic 400 14px "DM Sans", sans-serif';
+  ctx.fillText(dt || 'Date \u00B7 Time', cx, dtY);
+
+  return canvas;
 }
- 
+
+async function copyBibAsImage(data) {
+  // Must call clipboard.write synchronously within user gesture.
+  // Pass a Promise as the ClipboardItem value so Safari doesn't lose gesture context.
+  const blobPromise = (async () => {
+    const canvas = await renderBibToPNG(data);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('PNG failed')), 'image/png');
+    });
+  })();
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
+}
+
+async function copySVGAsImage(svgStr) {
+  const blobPromise = (async () => {
+    const wMatch = svgStr.match(/width="(\d+)"/);
+    const hMatch = svgStr.match(/height="(\d+)"/);
+    const w = wMatch ? parseInt(wMatch[1]) : 1080;
+    const h = hMatch ? parseInt(hMatch[1]) : 400;
+
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext('2d');
+
+    const img = new Image();
+    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(svgBlob);
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('PNG failed')), 'image/png');
+    });
+  })();
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
+}
+
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ─── STARTLIST SEARCH ─────────────────────────────────────────────────────────
 let searchTimer;
 let searchResults = [];
+const HISTORY_KEY = 'hyrox-search-history';
+const MAX_HISTORY = 10;
+
+function getSearchHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function addToSearchHistory(result) {
+  const history = getSearchHistory();
+  // Remove duplicate by name+eventCode
+  const filtered = history.filter(h => !(h.name === result.name && h.eventCode === result.eventCode));
+  filtered.unshift(result);
+  if (filtered.length > MAX_HISTORY) filtered.length = MAX_HISTORY;
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered)); } catch {}
+}
+
+function clearSearchHistory() {
+  try { localStorage.removeItem(HISTORY_KEY); } catch {}
+  const container = document.getElementById('search-results');
+  container.querySelectorAll('.sr-item,[data-history]').forEach(e => e.remove());
+  document.getElementById('search-empty').style.display = '';
+  document.getElementById('search-empty').textContent = 'Search by name to find your registration';
+}
+
+function renderSearchHistory(container) {
+  const history = getSearchHistory();
+  if (!history.length) return;
+  const label = document.createElement('div');
+  label.className = 'search-history-label';
+  label.style.cssText = 'display:flex;justify-content:space-between;align-items:center';
+  label.setAttribute('data-history', '1');
+  label.innerHTML = 'Recent <button style="background:none;border:none;color:var(--t4);font-family:var(--mono);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;padding:0" onclick="clearSearchHistory()">Clear</button>';
+  container.appendChild(label);
+  history.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'sr-item';
+    div.setAttribute('data-history', '1');
+    div.onclick = () => {
+      // Re-hydrate into searchResults so selectSearchResult works
+      searchResults = [r];
+      selectSearchResult(0);
+    };
+    const parts = [];
+    if (r.bib) parts.push(`#${r.bib}`);
+    if (r.startwave) parts.push(r.startwave);
+    const eventLabel = r.eventMainGroup || r.eventCode?.replace(/_/g, ' ') || '';
+    div.innerHTML = `
+      <div class="sr-name">${escH(r.name)}</div>
+      <div class="sr-meta">${escH(parts.join(' · '))}</div>
+      ${eventLabel ? `<div class="sr-event">${escH(eventLabel)}</div>` : ''}
+    `;
+    container.appendChild(div);
+  });
+}
 
 function openSearch() {
   const overlay = document.getElementById('search-overlay');
@@ -1223,10 +1423,16 @@ function openSearch() {
   const input = document.getElementById('search-input');
   input.value = '';
   document.getElementById('search-status').textContent = '';
-  document.getElementById('search-results').querySelectorAll('.sr-item').forEach(e => e.remove());
+  document.getElementById('search-results').querySelectorAll('.sr-item,[data-history]').forEach(e => e.remove());
   document.getElementById('search-spinner').classList.remove('active');
-  document.getElementById('search-empty').style.display = '';
+  document.getElementById('search-empty').style.display = 'none';
   searchResults = [];
+  // Show recent history
+  const container = document.getElementById('search-results');
+  renderSearchHistory(container);
+  if (!getSearchHistory().length) {
+    document.getElementById('search-empty').style.display = '';
+  }
   setTimeout(() => input.focus(), 100);
 
   input.oninput = () => {
@@ -1234,9 +1440,13 @@ function openSearch() {
     const q = input.value.trim();
     if (q.length < 2) {
       document.getElementById('search-status').textContent = '';
-      document.getElementById('search-results').querySelectorAll('.sr-item').forEach(e => e.remove());
-      document.getElementById('search-empty').style.display = '';
+      document.getElementById('search-results').querySelectorAll('.sr-item,[data-history]').forEach(e => e.remove());
+      document.getElementById('search-empty').style.display = 'none';
       document.getElementById('search-spinner').classList.remove('active');
+      if (q.length === 0) {
+        renderSearchHistory(document.getElementById('search-results'));
+        if (!getSearchHistory().length) document.getElementById('search-empty').style.display = '';
+      }
       return;
     }
     searchTimer = setTimeout(() => runSearch(q), 400);
@@ -1261,13 +1471,13 @@ async function runSearch(query) {
   const status = document.getElementById('search-status');
   const container = document.getElementById('search-results');
 
-  container.querySelectorAll('.sr-item').forEach(e => e.remove());
+  container.querySelectorAll('.sr-item,[data-history]').forEach(e => e.remove());
   spinner.classList.add('active');
   empty.style.display = 'none';
   status.textContent = '';
 
   try {
-    const url = `/api/hyrox-search?name=${encodeURIComponent(query)}`;
+    const url = `/api/hyrox-search?q=${encodeURIComponent(query)}`;
     const res = await fetch(url);
     const data = await res.json();
 
@@ -1279,12 +1489,16 @@ async function runSearch(query) {
       return;
     }
 
-    searchResults = data.results || [];
+    // Filter: show results with a bib number
+    const allResults = data.results || [];
+    searchResults = allResults.filter(r => r.bib);
 
     if (!searchResults.length) {
       status.textContent = `No results for "${query}"`;
       empty.style.display = '';
-      empty.textContent = 'No registrations found. Try a different spelling.';
+      empty.textContent = allResults.length
+        ? 'Results found but missing complete info. Try a different spelling.'
+        : 'No registrations found. Try a different spelling.';
       return;
     }
 
@@ -1296,13 +1510,17 @@ async function runSearch(query) {
       div.className = 'sr-item';
       div.onclick = () => selectSearchResult(i);
 
-      const meta = [r.bib ? `#${r.bib}` : '', r.ageGroup, r.country].filter(Boolean).join(' · ');
-      const wave = r.startwave && !r.startwave.includes('\u2013') ? r.startwave : '';
-      const eventLabel = r.eventMainGroup || '';
+      // Consistent display: bib · age · wave · event
+      const parts = [];
+      if (r.bib) parts.push(`#${r.bib}`);
+      if (r.ageGroup) parts.push(r.ageGroup);
+      if (r.startwave) parts.push(r.startwave);
+      const meta = parts.join(' · ');
+      const eventLabel = r.eventMainGroup || r.eventCode?.replace(/_/g, ' ') || '';
 
       div.innerHTML = `
         <div class="sr-name">${escH(r.name)}</div>
-        <div class="sr-meta">${escH(meta)}${wave ? ' · ' + escH(wave) : ''}</div>
+        <div class="sr-meta">${escH(meta)}</div>
         ${eventLabel ? `<div class="sr-event">${escH(eventLabel)}</div>` : ''}
       `;
       container.appendChild(div);
@@ -1319,23 +1537,8 @@ function selectSearchResult(idx) {
   const r = searchResults[idx];
   if (!r) return;
 
-  // Fill athlete name
-  document.getElementById('athlete-name').value = r.name;
-
-  // Try to match event_main_group to our EVENTS array
-  const eventMatch = EVENTS.findIndex(e => {
-    const emg = (r.eventMainGroup || '').toLowerCase();
-    return emg.includes(e.s.toLowerCase()) || e.n.toLowerCase().includes(emg.replace(/^2026\s+/, '').toLowerCase());
-  });
-  if (eventMatch >= 0) {
-    // Find it in the filteredEvents or switch to All
-    filterRegion('All', document.querySelector('.rtab'));
-    const filtIdx = filteredEvents.indexOf(EVENTS[eventMatch]);
-    if (filtIdx >= 0) {
-      document.getElementById('event-select').value = String(filtIdx);
-      selectedEventIdx = filtIdx;
-    }
-  }
+  // Fill athlete first name only for bib
+  document.getElementById('athlete-name').value = r.firstName || r.name;
 
   // Map startwave category to our category dropdown
   const wave = (r.startwave || '').toUpperCase();
@@ -1360,7 +1563,6 @@ function selectSearchResult(idx) {
     if (hour > 12) hour -= 12;
     if (hour === 0) hour = 12;
     const hStr = String(hour).padStart(2, '0');
-    // Find closest minute in the select
     const minSel = document.getElementById('start-min');
     const availMins = Array.from(minSel.options).map(o => o.value).filter(Boolean);
     const closest = availMins.reduce((a, b) =>
@@ -1371,16 +1573,60 @@ function selectSearchResult(idx) {
     document.getElementById('start-ampm').value = ampm;
   }
 
-  // Auto-fill date from the matched event
-  const ev = getSelectedEvent();
-  const iso = eventDateToISO(ev);
-  if (iso) document.getElementById('start-date').value = iso;
-
+  addToSearchHistory(r);
   closeSearch();
   updateCard();
-  showToast(`${r.name} filled`);
+
+  // Fetch detail page for event name, day, and doubles partner
+  if (r.detailUrl) {
+    fetchAthleteDetail(r);
+  } else {
+    showToast(`${r.firstName || r.name} filled`);
+  }
 }
- 
+
+async function fetchAthleteDetail(r) {
+  try {
+    const res = await fetch(`/api/hyrox-search?detail=${encodeURIComponent(r.detailUrl)}`);
+    const data = await res.json();
+
+    // Match event using race name from detail page (e.g., "2026 London Olympia")
+    if (data.race) {
+      const eventMatch = matchEventIdx(data.race);
+      if (eventMatch >= 0) {
+        document.getElementById('event-select').value = String(eventMatch);
+        selectedEventIdx = eventMatch;
+        document.getElementById('custom-event-field').style.display = 'none';
+
+        // Fill date using day from detail page
+        const ev = EVENTS[eventMatch];
+        let iso = '';
+        const dayStr = data.day || r.day || '';
+        if (dayStr) iso = resolveDayInEvent(dayStr, ev);
+        if (!iso) iso = eventDateToISO(ev);
+        if (iso) document.getElementById('start-date').value = iso;
+      }
+    }
+
+    // For doubles: fill partner name as "FirstName / PartnerFirstName"
+    if (data.members && data.members.length > 1) {
+      const partner = data.members.find(m =>
+        m.firstName.toLowerCase() !== (r.firstName || '').toLowerCase()
+      );
+      if (partner) {
+        const currentName = r.firstName || r.name;
+        document.getElementById('athlete-name').value = `${currentName} / ${partner.firstName}`;
+      }
+    }
+
+    updateCard();
+    const name = document.getElementById('athlete-name').value;
+    showToast(`${name} filled`);
+  } catch (e) {
+    showToast(`${r.firstName || r.name} filled`);
+  }
+}
+
 let toastTimer;
 function showToast(msg) {
   const el = document.getElementById('toast');
@@ -1389,11 +1635,16 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
 }
- 
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 populateSelect();
-updateProgress();
- 
+
+// Update button labels for PNG copy
+const cardLabel = document.getElementById('card-dl-label');
+if (cardLabel) cardLabel.textContent = 'Copy PNG';
+const schedLabel = document.getElementById('sched-dl-label');
+if (schedLabel) schedLabel.textContent = 'Copy Schedule PNG';
+
 // Shake animation keyframe
 const style = document.createElement('style');
 style.textContent = `
