@@ -1,14 +1,14 @@
 import sharp from "sharp";
 import exifr from "exifr";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 /**
  * Two-version model:
  *   - `originalBytes` is what the photographer uploaded — untouched, full-fidelity
- *   - `previewBytes` is a 1600px JPEG with the brand watermark composited on
- *     (server-side, can't be tampered with client-side)
- * Plus best-effort EXIF: takenAt, GPS.
+ *   - `previewBytes` is a 1600px JPEG (no watermark, per product policy —
+ *     anti-theft is handled by smaller resolution + server-gated originals)
+ * Plus best-effort EXIF: takenAt, GPS (preserved on the original; the preview
+ * is re-encoded by sharp and EXIF is dropped by default — that's what we want
+ * for the public preview).
  */
 export type ProcessedUpload = {
   originalBytes: Buffer;
@@ -20,21 +20,15 @@ export type ProcessedUpload = {
 
 const PREVIEW_MAX_PX = 1600;
 const PREVIEW_JPEG_QUALITY = 75;
-const WATERMARK_TILE_PATH = join(process.cwd(), "public", "assets", "watermark-tile.svg");
-
-let _watermarkSvg: Buffer | null = null;
-function watermarkSvg(): Buffer {
-  if (_watermarkSvg) return _watermarkSvg;
-  _watermarkSvg = readFileSync(WATERMARK_TILE_PATH);
-  return _watermarkSvg;
-}
 
 /**
  * Run the upload pipeline against raw bytes. Sharp instance is reused — fast
  * after the first call; cold-start is ~700ms on Vercel-style serverless.
  */
 export async function processUpload(input: Buffer): Promise<ProcessedUpload> {
-  // EXIF first (exifr is tolerant of non-EXIF inputs and returns undefined)
+  // EXIF first (exifr is tolerant of non-EXIF inputs and returns undefined).
+  // We read GPS + DateTimeOriginal so the row carries the data even though
+  // the *preview* JPEG strips EXIF on re-encode.
   let takenAt: Date | null = null;
   let gpsLat: number | null = null;
   let gpsLng: number | null = null;
@@ -48,37 +42,19 @@ export async function processUpload(input: Buffer): Promise<ProcessedUpload> {
     // EXIF parse failures are non-fatal — proceed with nulls.
   }
 
-  // Preview pipeline: resize, watermark, encode JPEG
+  // Preview pipeline: resize to long-edge cap, JPEG-encode. No watermark.
   const base = sharp(input, { failOn: "none" }).rotate(); // auto-orient via EXIF
   const meta = await base.metadata();
   const targetW = Math.min(meta.width ?? PREVIEW_MAX_PX, PREVIEW_MAX_PX);
   const targetH = Math.min(meta.height ?? PREVIEW_MAX_PX, PREVIEW_MAX_PX);
 
-  // Resize first to a target box (long-edge cap)
-  const resized = await base.resize({
-    width: targetW,
-    height: targetH,
-    fit: "inside",
-    withoutEnlargement: true,
-  }).toBuffer();
-  const resizedMeta = await sharp(resized).metadata();
-  const finalW = resizedMeta.width ?? targetW;
-  const finalH = resizedMeta.height ?? targetH;
-
-  // Build a watermark tile sized for this image:
-  //  - the SVG is rotated -22° in CSS in the demo; we bake the rotation into
-  //    a Sharp-rendered tile and composite at 22% opacity
-  //  - the SVG is rasterized at the image's width so tile density scales
-  const tileWidth = Math.round(finalW * 0.9);
-  const tile = await sharp(watermarkSvg(), { density: 288 })
-    .resize({ width: tileWidth, fit: "inside" })
-    .rotate(-22, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .ensureAlpha(0.22)
-    .png()
-    .toBuffer();
-
-  const previewBytes = await sharp(resized)
-    .composite([{ input: tile, gravity: "center", blend: "over" }])
+  const previewBytes = await base
+    .resize({
+      width: targetW,
+      height: targetH,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .jpeg({ quality: PREVIEW_JPEG_QUALITY, mozjpeg: true })
     .toBuffer();
 
