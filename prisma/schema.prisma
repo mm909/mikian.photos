@@ -1,0 +1,86 @@
+// Mikian.Photos — production schema for v0.2 photos pipeline.
+// One event (Lighthouse Half 2026) per row to start; we can support
+// more events without schema changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Vercel Postgres provides both pooled (POSTGRES_URL) + non-pooled
+  // (POSTGRES_URL_NON_POOLING). Prisma uses non-pooled for migrations,
+  // pooled for the runtime client. directUrl handles that split.
+  url       = env("POSTGRES_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model Event {
+  id            String        @id
+  name          String
+  date          DateTime
+  city          String
+  org           String
+  photographers Photographer[]
+  photos        Photo[]
+  createdAt     DateTime      @default(now())
+}
+
+model Photographer {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  // populated by NextAuth on first sign-in; nullable for seeded test rows
+  googleSubject String?  @unique
+  // many-to-many with events is overkill for MVP; we attach via Photo.eventId only
+  primaryEventId String?
+  primaryEvent  Event?   @relation(fields: [primaryEventId], references: [id])
+  photos        Photo[]
+  // admin / staff role (you). Seeded manually.
+  isAdmin       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model Photo {
+  id              String   @id @default(cuid())
+  eventId         String
+  photographerId  String
+  bib             Int?
+  mile            Int?
+  gpsLat          Float?
+  gpsLng          Float?
+  takenAt         DateTime?
+  // R2 object keys (NOT full URLs — server signs on demand)
+  r2OriginalKey   String
+  r2PreviewKey    String
+  // photographer or admin can soft-hide
+  hidden          Boolean  @default(false)
+  // basic moderation log
+  hiddenBy        String?
+  hiddenAt        DateTime?
+  createdAt       DateTime @default(now())
+
+  event           Event        @relation(fields: [eventId], references: [id])
+  photographer    Photographer @relation(fields: [photographerId], references: [id])
+
+  @@index([eventId, bib])
+  @@index([eventId, hidden])
+  @@index([photographerId])
+}
+
+model Order {
+  // matches PayPal capture ID
+  id              String   @id
+  // buyer email (from PayPal payer_email_address)
+  email           String
+  // bundle vs single — for v0.2 only bundle exists
+  kind            String   @default("bundle")
+  amount          Float
+  // event the bundle covers — for "single" kind this would name the one photo
+  eventIdCovered  String?
+  photoIdCovered  String?
+  // short-lived JWT for the download links. nullable until mint.
+  downloadToken   String?  @unique
+  paidAt          DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
