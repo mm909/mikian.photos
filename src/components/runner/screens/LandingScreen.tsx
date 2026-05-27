@@ -32,7 +32,7 @@ export function LandingScreen() {
   }
 
   const raceName = `${currentEvent.name[0]} ${currentEvent.name[1]} ${currentEvent.name[2]}`.trim();
-  const raceAccent = `${currentEvent.name[0]} ${currentEvent.name[1]}`.trim();
+  const raceAccent = currentEvent.name[0]; // just the city in italic-terracotta
 
   return (
     <main className="screen" style={{ padding: "64px 32px 96px" }}>
