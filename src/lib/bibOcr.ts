@@ -51,9 +51,28 @@ export type OcrDebug = {
 
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
-const MIN_WORD_CONFIDENCE = 0.4; // Tesseract per-word — conservative on stylized fonts
 const PREP_WIDTH = 3000; // bibs are small in frame; keep the digits as wide as we can afford
 const OCR_TIMEOUT_MS = 40_000; // longer so PSM 11 has room on 3000px input
+
+/**
+ * Tiered confidence floor by digit length. Tesseract's per-word confidence
+ * is conservative on stylized race-bib fonts (often 15-40% even on a perfect
+ * hit), but the false-positive risk falls off a cliff as token length grows —
+ * the digit allowlist already ensures every token is a string of digits, so a
+ * 4-digit hit is almost certainly a real bib even at low confidence. We
+ * still require a high floor for 2-digit hits because those are easy to
+ * fabricate from background texture.
+ *
+ * Empirically tuned on the Las-Vegas-Marathon two-runner photo where the
+ * bibs 3498 and 3429 came through clearly in the overlay but got filtered
+ * by a flat 0.4 floor.
+ */
+function confidenceFloor(digits: number): number {
+  if (digits <= 1) return 1; // never accept singletons
+  if (digits === 2) return 0.55;
+  if (digits === 3) return 0.25;
+  return 0.15; // 4-5 digit bibs: trust them unless Tesseract is really unsure
+}
 
 // Tesseract page-segmentation mode. Default (3) assumes paragraph layout —
 // terrible for race photos where text is sparse. 11 = "Sparse text. Find as
@@ -219,16 +238,18 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
       rejected.push({ word: w, reason: "not a positive integer" });
       continue;
     }
-    if (w.confidence < MIN_WORD_CONFIDENCE) {
+    const floor = confidenceFloor(digits.length);
+    if (w.confidence < floor) {
       rejected.push({
         word: w,
-        reason: `confidence too low (${(w.confidence * 100).toFixed(0)}%<${MIN_WORD_CONFIDENCE * 100}%)`,
+        reason: `confidence too low for ${digits.length}-digit (${(w.confidence * 100).toFixed(0)}%<${(floor * 100).toFixed(0)}%)`,
       });
       continue;
     }
-    // Penalise tokens that are mostly junk surrounding a few digits
-    const noiseRatio = (w.text.length - digits.length) / Math.max(w.text.length, 1);
-    const score = w.confidence * (1 - 0.4 * noiseRatio);
+    // With the digit allowlist active, w.text === digits — no surrounding
+    // junk to penalise. Score = raw confidence; multiple detections of the
+    // same bib will keep the highest.
+    const score = w.confidence;
     const prev = seen.get(n);
     if (prev === undefined || score > prev) seen.set(n, score);
   }
