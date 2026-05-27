@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 
 type EventLite = { id: string; name: string; date: string; city: string };
@@ -12,7 +12,7 @@ type EventLite = { id: string; name: string; date: string; city: string };
  * split-out of /finalize-preview / /finalize-ocr / /finalize-face plugs in
  * cleanly. Face detection isn't built yet — items just skip that stage.
  *
- *   queued     → user picked the file but Run hasn't started this one
+ *   queued     → user picked the file but Ingest hasn't started this one
  *   uploading  → presigned PUT to R2 (bytes-on-wire from the browser)
  *   processing → /finalize is running on the server: preview build + OCR
  *   done       → all stages complete, photo is in the library
@@ -23,11 +23,9 @@ type Stage = "queued" | "uploading" | "processing" | "done" | "error";
 type QueueItem = {
   uid: string;
   file: File;
-  previewUrl: string; // local blob URL — cheap to show in pipeline thumbs
+  previewUrl: string;
   stage: Stage;
   photoId?: string;
-  /** Most recent error message; not surfaced per-item in the new UI but kept
-   *  for debugging via the console log. */
   errorMsg?: string;
 };
 
@@ -37,10 +35,27 @@ export function UploadClient({ event }: { event: EventLite }) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setDragging] = useState(false);
   const [isRunning, setRunning] = useState(false);
-  /** When the queue drains and the user explicitly clicks "Upload more →" we
-   *  flip this true to bring the dropzone back. Reset when a fresh batch is
-   *  in flight. */
+  /** Pause flag — workers finish their current item and bail out when set.
+   *  Resume re-enters the pool. */
+  const pausedRef = useRef(false);
+  const [paused, setPaused] = useState(false);
+  /** When the queue drains and the user explicitly clicks "Ingest more →" we
+   *  flip this true to bring the dropzone back. */
   const [showMoreZone, setShowMoreZone] = useState(false);
+  /** When the user clicks "Clear batch" we surface a confirm prompt instead
+   *  of nuking immediately. */
+  const [clearConfirm, setClearConfirm] = useState(false);
+
+  /** Per-batch timing for ETA. `batchStart` ticks on the first successful
+   *  Ingest click of a queue; reset when the queue is emptied. */
+  const batchStartRef = useRef<number | null>(null);
+  const [, forceTick] = useState(0); // rerender every second for ETA
+  useEffect(() => {
+    if (!isRunning) return;
+    const t = setInterval(() => forceTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [isRunning]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(files: FileList | null) {
@@ -55,24 +70,14 @@ export function UploadClient({ event }: { event: EventLite }) {
       }));
     setItems((curr) => [...curr, ...next]);
     setShowMoreZone(false);
+    setClearConfirm(false);
   }
 
   function updateItem(uid: string, patch: Partial<QueueItem>) {
     setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
   }
 
-  /**
-   * Run one item through the full pipeline. Stage transitions are surfaced to
-   * the UI as they happen so the user sees the current item move through
-   * upload → processing.
-   *
-   * Side-effect: when /finalize completes successfully, the server has
-   * already run OCR (Tesseract or Rekognition depending on
-   * DEFAULT_OCR_SETTINGS) and written PhotoBib rows. Face detection will
-   * plug in here when built — same shape, additional stage.
-   */
   async function uploadOne(item: QueueItem): Promise<void> {
-    // 1) sign + 2) PUT — both happen in the "uploading" stage from the UI's pov
     updateItem(item.uid, { stage: "uploading" });
 
     const signRes = await fetch("/api/photographer/photos/sign", {
@@ -94,8 +99,6 @@ export function UploadClient({ event }: { event: EventLite }) {
     });
     if (!putRes.ok) throw new Error(`PUT ${putRes.status}`);
 
-    // 3) finalize — server pulls original from R2, makes preview, runs OCR,
-    //    writes PhotoBib rows. From the UI this is the "processing" stage.
     updateItem(item.uid, { stage: "processing" });
 
     const finRes = await fetch("/api/photographer/photos/finalize", {
@@ -111,6 +114,9 @@ export function UploadClient({ event }: { event: EventLite }) {
   async function processUntilEmpty() {
     setRunning(true);
     setShowMoreZone(false);
+    pausedRef.current = false;
+    setPaused(false);
+    if (batchStartRef.current === null) batchStartRef.current = Date.now();
     try {
       const workers = Array.from({ length: CONCURRENCY }, () => worker());
       await Promise.all(workers);
@@ -121,6 +127,7 @@ export function UploadClient({ event }: { event: EventLite }) {
 
   async function worker() {
     while (true) {
+      if (pausedRef.current) return;
       const next: QueueItem | undefined = await new Promise((resolve) => {
         setItems((curr) => {
           const target = curr.find((i) => i.stage === "queued");
@@ -145,11 +152,42 @@ export function UploadClient({ event }: { event: EventLite }) {
     }
   }
 
+  function pause() {
+    pausedRef.current = true;
+    setPaused(true);
+  }
+  async function resume() {
+    if (!paused) return;
+    pausedRef.current = false;
+    setPaused(false);
+    await processUntilEmpty();
+  }
+
   async function retryFailed() {
     setItems((curr) =>
       curr.map((i) => (i.stage === "error" ? { ...i, stage: "queued", errorMsg: undefined } : i))
     );
     await processUntilEmpty();
+  }
+
+  /**
+   * Wipe the queue + ask the server to delete every photo that already made
+   * it to R2. Guarded behind a confirm step in the UI. Failures on individual
+   * deletes are non-fatal — we still clear the local queue so the user can
+   * start fresh.
+   */
+  async function clearBatch() {
+    setClearConfirm(false);
+    const photoIds = items.map((i) => i.photoId).filter((x): x is string => Boolean(x));
+    items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
+    setItems([]);
+    batchStartRef.current = null;
+    setShowMoreZone(true);
+    await Promise.allSettled(
+      photoIds.map((id) =>
+        fetch(`/api/photographer/photos/${id}`, { method: "DELETE" })
+      )
+    );
   }
 
   // Aggregate counts
@@ -163,7 +201,6 @@ export function UploadClient({ event }: { event: EventLite }) {
   const isFinished = total > 0 && queued === 0 && inFlight === 0;
   const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
 
-  // Most-recent item per stage — what we show as the "current" thumb.
   const currentUploading = useMemo(
     () => [...items].reverse().find((i) => i.stage === "uploading") ?? null,
     [items]
@@ -177,11 +214,22 @@ export function UploadClient({ event }: { event: EventLite }) {
     [items]
   );
 
+  // ETA — only meaningful when we have at least one completion and there's
+  // work remaining.
+  const eta = useMemo(() => {
+    if (!isRunning || done === 0 || total === done + failed) return null;
+    const elapsed = batchStartRef.current ? Date.now() - batchStartRef.current : 0;
+    if (elapsed <= 0) return null;
+    const perItem = elapsed / done;
+    const remaining = total - done - failed;
+    return Math.round((perItem * remaining) / 1000); // seconds
+  }, [isRunning, done, failed, total]);
+
   const showDropzone = !isRunning && (items.length === 0 || showMoreZone);
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
         {/* Header */}
         <div
           style={{
@@ -208,7 +256,7 @@ export function UploadClient({ event }: { event: EventLite }) {
             </div>
             <Headline
               as="h1"
-              text="Upload your photos."
+              text="Ingest your photos."
               accent="your photos."
               style={{
                 margin: 0,
@@ -225,8 +273,6 @@ export function UploadClient({ event }: { event: EventLite }) {
           </Link>
         </div>
 
-        {/* Dropzone — hidden while a batch is in flight, shown again when the
-            user clicks "Upload more →" after the queue drains. */}
         {showDropzone && (
           <div
             onDragOver={(e) => {
@@ -263,7 +309,7 @@ export function UploadClient({ event }: { event: EventLite }) {
                 letterSpacing: "-.005em",
               }}
             >
-              Drop photos here, or click to choose
+              Drop photos here to ingest
             </div>
             <div style={{ color: "var(--muted)", fontSize: 13 }}>
               JPEG or HEIC. EXIF GPS + time are read automatically. Large files OK.
@@ -282,18 +328,37 @@ export function UploadClient({ event }: { event: EventLite }) {
           </div>
         )}
 
-        {/* Pipeline view — replaces the per-file grid. Shows one thumb per
-            active stage + counts + overall progress. */}
+        {/* Pipeline view */}
         {items.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <ProgressBar pct={progressPct} hasFailures={failed > 0 && isFinished} />
 
             <div
               style={{
-                marginTop: 18,
+                marginTop: 10,
+                display: "flex",
+                gap: 16,
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+                flexWrap: "wrap",
+              }}
+            >
+              <span>
+                {done}/{total} done
+              </span>
+              {eta != null && <span>~{formatEta(eta)} remaining</span>}
+              {paused && <span style={{ color: "var(--accent)" }}>Paused</span>}
+            </div>
+
+            <div
+              style={{
+                marginTop: 16,
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
               }}
             >
               <StageCard
@@ -346,38 +411,34 @@ export function UploadClient({ event }: { event: EventLite }) {
               />
             </div>
 
-            {/* Bottom action row */}
+            {/* Action row */}
             <div
               style={{
-                marginTop: 18,
+                marginTop: 20,
                 display: "flex",
                 gap: 10,
                 justifyContent: "flex-end",
                 flexWrap: "wrap",
               }}
             >
-              {!isFinished && queued > 0 && !isRunning && (
+              {!isFinished && queued > 0 && !isRunning && !paused && (
                 <button
                   className="btn btn--primary"
                   onClick={processUntilEmpty}
                   disabled={isRunning}
                 >
-                  Upload {queued}
+                  Ingest {queued}
                 </button>
               )}
-              {isRunning && (
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    letterSpacing: ".12em",
-                    textTransform: "uppercase",
-                    color: "var(--muted)",
-                    alignSelf: "center",
-                  }}
-                >
-                  Working — {done}/{total} done
-                </span>
+              {isRunning && !paused && (
+                <button className="btn btn--ghost" onClick={pause}>
+                  Pause
+                </button>
+              )}
+              {paused && !isRunning && (
+                <button className="btn btn--primary" onClick={resume}>
+                  Resume
+                </button>
               )}
               {failed > 0 && !isRunning && (
                 <button className="btn btn--ghost" onClick={retryFailed}>
@@ -389,10 +450,78 @@ export function UploadClient({ event }: { event: EventLite }) {
                   className="btn btn--primary"
                   onClick={() => setShowMoreZone(true)}
                 >
-                  Upload more →
+                  Ingest more →
+                </button>
+              )}
+              {!isRunning && (done > 0 || failed > 0) && (
+                <button
+                  className="btn btn--ghost"
+                  onClick={() => setClearConfirm(true)}
+                  style={{ color: "var(--accent)" }}
+                >
+                  Clear batch
                 </button>
               )}
             </div>
+
+            {/* Confirm clear */}
+            {clearConfirm && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  background: "var(--cream)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 14,
+                    color: "var(--ink)",
+                    marginBottom: 10,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Delete all {total} photo{total === 1 ? "" : "s"} from this batch
+                  (originals + previews in R2, DB rows) and start over? Can&rsquo;t be
+                  undone.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={clearBatch}
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      background: "var(--accent)",
+                      color: "var(--paper)",
+                      border: 0,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    Yes, delete batch
+                  </button>
+                  <button
+                    onClick={() => setClearConfirm(false)}
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      background: "transparent",
+                      color: "var(--muted)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -400,16 +529,23 @@ export function UploadClient({ event }: { event: EventLite }) {
   );
 }
 
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
 function ProgressBar({ pct, hasFailures }: { pct: number; hasFailures: boolean }) {
   return (
     <div
       style={{
-        height: 6,
+        height: 8,
         background: "var(--line)",
         borderRadius: 999,
         overflow: "hidden",
       }}
-      aria-label="upload progress"
+      aria-label="ingest progress"
     >
       <div
         style={{
@@ -447,20 +583,50 @@ function StageCard({
     <div
       style={{
         background: "var(--surface)",
-        border: `1px solid ${tone === "future" ? "var(--line)" : "var(--line)"}`,
+        border: "1px solid var(--line)",
         borderRadius: 10,
-        padding: 12,
+        padding: 14,
         opacity: tone === "future" ? 0.6 : 1,
-        display: "grid",
-        gridTemplateColumns: "56px 1fr",
+        display: "flex",
+        flexDirection: "column",
         gap: 12,
-        alignItems: "center",
+        minHeight: 200,
       }}
     >
       <div
         style={{
-          width: 56,
-          height: 56,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: ".14em",
+            textTransform: "uppercase",
+            color: accent,
+          }}
+        >
+          {label}
+        </span>
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: ".1em",
+            color: "var(--muted)",
+          }}
+        >
+          {tally}
+        </span>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: 110,
           borderRadius: 6,
           overflow: "hidden",
           background: "var(--cream)",
@@ -476,13 +642,18 @@ function StageCard({
           <img
             src={thumb}
             alt=""
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
           />
         ) : (
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: ".1em",
               textTransform: "uppercase",
               color: "var(--muted)",
@@ -505,50 +676,18 @@ function StageCard({
         )}
       </div>
 
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".14em",
-              textTransform: "uppercase",
-              color: accent,
-            }}
-          >
-            {label}
-          </span>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".1em",
-              color: "var(--muted)",
-            }}
-          >
-            {tally}
-          </span>
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: 12,
-            color: tone === "future" ? "var(--muted)" : "var(--ink)",
-            marginTop: 3,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {hint}
-        </div>
+      <div
+        style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: 13,
+          color: tone === "future" ? "var(--muted)" : "var(--ink)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          minHeight: 18,
+        }}
+      >
+        {hint}
       </div>
       <style>{`
         @keyframes shimmer {

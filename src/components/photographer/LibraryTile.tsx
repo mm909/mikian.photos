@@ -23,7 +23,10 @@ type Props = {
  * exclusive to the modal so the grid stays calm and you reach for actions only
  * after deciding which photo you want.
  *
- * - Photo never crops (object-fit: contain); cream cell letterboxes.
+ * - Tile is a square; photo fills it with object-fit: cover so the grid stays
+ *   dense — letterboxed contain showed too much cream around portrait shots.
+ *   The detail modal still uses contain so the full frame is always visible
+ *   on click.
  * - Hidden photos render at half-opacity with a Hidden chip.
  * - Pulse dot in the corner while OCR is running in the background.
  */
@@ -42,7 +45,7 @@ export function LibraryTile({ p, running = false, onOpen }: Props) {
       title={p.bibs.length ? `Bibs ${p.bibs.map((b) => b.bib).join(", ")}` : "Open photo"}
       style={{
         position: "relative",
-        aspectRatio: "3 / 2",
+        aspectRatio: "1 / 1",
         background: "var(--cream)",
         cursor: "pointer",
         overflow: "hidden",
@@ -57,7 +60,7 @@ export function LibraryTile({ p, running = false, onOpen }: Props) {
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",
+          objectFit: "cover",
           display: "block",
           opacity: p.hidden ? 0.45 : 1,
         }}

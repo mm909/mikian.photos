@@ -200,7 +200,7 @@ export function PhotographerDashboardClient({ name, email }: Props) {
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <Link href="/photographer/upload" className="btn btn--primary">
-              Upload photos →
+              Ingest photos →
             </Link>
           </div>
         </div>
