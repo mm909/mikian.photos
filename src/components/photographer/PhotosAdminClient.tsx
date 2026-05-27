@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 
 type BibTag = {
@@ -311,13 +311,43 @@ function PhotoCard({
 }) {
   const ocrBibs = p.bibs.filter((b) => b.source.startsWith("ocr-"));
   const manualBibs = p.bibs.filter((b) => b.source === "manual" || b.source === "user-tag");
+
+  // Hover gates the overflow button. Pointer-aware so touch devices get a
+  // "tap once to reveal" affordance via the menu's open state.
+  const [hover, setHover] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside-click + Escape, only while open
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!cardRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  const showOverflow = hover || menuOpen;
+
   return (
     <div
+      ref={cardRef}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         border: "1px solid var(--line)",
         borderRadius: 10,
         overflow: "hidden",
         background: "var(--surface)",
+        position: "relative",
       }}
     >
       <div style={{ position: "relative", aspectRatio: "3 / 2", background: "var(--cream)" }}>
@@ -347,6 +377,71 @@ function PhotoCard({
             Hidden
           </span>
         )}
+
+        {/* Status pulse while OCR runs — tiny dot, no buttons cluttering the card */}
+        {rerunState !== "idle" && (
+          <span
+            title={
+              rerunState === "running"
+                ? "Re-running OCR…"
+                : rerunState === "ok"
+                  ? "OCR updated"
+                  : "OCR failed — open menu to retry"
+            }
+            aria-label="ocr status"
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 40, // sits left of the overflow button
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              background:
+                rerunState === "running"
+                  ? "var(--accent)"
+                  : rerunState === "ok"
+                    ? "var(--green)"
+                    : "var(--accent)",
+              boxShadow: "0 0 0 2px rgba(245,242,236,.85)",
+              animation: rerunState === "running" ? "pulse 1.4s ease-in-out infinite" : undefined,
+            }}
+          />
+        )}
+
+        {/* Overflow ⋯ — only renders on hover or while menu is open */}
+        {showOverflow && (
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            title="Photo actions"
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 6,
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              background: "rgba(245,242,236,.92)",
+              border: "1px solid var(--line)",
+              color: "var(--ink)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 16,
+              fontWeight: 700,
+              lineHeight: 1,
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            ⋯
+          </button>
+        )}
       </div>
 
       <div style={{ padding: 12 }}>
@@ -370,36 +465,132 @@ function PhotoCard({
         </div>
 
         <BibChips manual={manualBibs} ocr={ocrBibs} />
+      </div>
 
-        <Meta label="Taken" value={fmtDate(p.takenAt)} />
-        <Meta label="GPS" value={p.gps ? `${p.gps[0].toFixed(4)}, ${p.gps[1].toFixed(4)}` : "—"} />
-        <Meta label="Face match" value="not yet built" muted />
+      {/* Overflow menu — metadata + actions */}
+      {menuOpen && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute",
+            top: 38,
+            right: 6,
+            width: 240,
+            background: "var(--surface)",
+            border: "1px solid var(--line)",
+            borderRadius: 10,
+            boxShadow: "var(--shadow-lg)",
+            padding: 6,
+            zIndex: 20,
+          }}
+        >
+          <div
+            style={{
+              padding: "10px 12px 8px",
+              borderBottom: "1px solid var(--line)",
+              marginBottom: 6,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 9,
+                letterSpacing: ".14em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+                marginBottom: 6,
+              }}
+            >
+              Metadata
+            </div>
+            <MenuMeta label="Taken" value={fmtDate(p.takenAt)} />
+            <MenuMeta
+              label="GPS"
+              value={p.gps ? `${p.gps[0].toFixed(4)}, ${p.gps[1].toFixed(4)}` : "—"}
+            />
+            <MenuMeta label="Face match" value="not yet built" muted />
+          </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button
-            className="btn btn--ghost btn--sm"
-            onClick={onRerun}
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              onRerun();
+            }}
             disabled={rerunState === "running"}
-            style={{ flex: 1 }}
+            style={menuActionStyle(rerunState === "running")}
           >
             {rerunState === "running"
-              ? "Running…"
+              ? "Running OCR…"
               : rerunState === "ok"
-                ? "✓ Updated"
+                ? "✓ Re-run bib OCR"
                 : rerunState === "err"
-                  ? "Failed — retry"
+                  ? "↻ Retry bib OCR"
                   : "Re-run bib OCR"}
           </button>
           <button
-            className="btn btn--ghost btn--sm"
+            role="menuitem"
             disabled
             title="Face detection isn't built yet"
-            style={{ flex: 1, opacity: 0.55, cursor: "not-allowed" }}
+            style={menuActionStyle(true, true)}
           >
-            Re-run face
+            Re-run face (coming)
           </button>
         </div>
-      </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1;   transform: scale(1); }
+          50%      { opacity: 0.4; transform: scale(0.85); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function menuActionStyle(disabled: boolean, ghost = false): React.CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: 0,
+    padding: "9px 12px",
+    fontFamily: "var(--font-sans)",
+    fontSize: 13,
+    color: ghost ? "var(--muted)" : "var(--ink)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled && !ghost ? 0.7 : 1,
+    borderRadius: 4,
+  };
+}
+
+function MenuMeta({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        alignItems: "baseline",
+        fontFamily: "var(--font-mono)",
+        fontSize: 10,
+        letterSpacing: ".06em",
+        color: "var(--muted)",
+        marginTop: 4,
+      }}
+    >
+      <span
+        style={{
+          width: 56,
+          textTransform: "uppercase",
+          letterSpacing: ".12em",
+          color: muted ? "var(--line)" : "var(--muted)",
+        }}
+      >
+        {label}
+      </span>
+      <span style={{ color: muted ? "var(--line)" : "var(--ink)" }}>{value}</span>
     </div>
   );
 }
