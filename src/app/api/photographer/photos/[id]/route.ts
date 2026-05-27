@@ -2,13 +2,26 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photographerLock";
 
 // PATCH — edit metadata (bib, mile, hidden). Photographer can only touch their
-// own; admins can touch any.
+// own; admins (or anyone holding the unlock cookie) can touch any.
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.photographerId) {
+  const photographerId = await getEffectivePhotographerId();
+  if (!photographerId) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
+
+  // Admin status: either NextAuth session says so, or the unlock cookie is set
+  // (unlock implies admin).
+  let isAdmin = isPhotographerUnlocked();
+  if (!isAdmin) {
+    try {
+      const session = await getServerSession(authOptions);
+      isAdmin = Boolean(session?.isAdmin);
+    } catch {
+      /* NextAuth misconfigured — admin stays false */
+    }
   }
 
   const photo = await db.photo.findUnique({
@@ -16,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     select: { photographerId: true },
   });
   if (!photo) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (photo.photographerId !== session.photographerId && !session.isAdmin) {
+  if (photo.photographerId !== photographerId && !isAdmin) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 
@@ -31,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (body.mile === null || typeof body.mile === "number") data.mile = body.mile;
   if (typeof body.hidden === "boolean") {
     data.hidden = body.hidden;
-    data.hiddenBy = body.hidden ? session.photographerId : null;
+    data.hiddenBy = body.hidden ? photographerId : null;
     data.hiddenAt = body.hidden ? new Date() : null;
   }
 

@@ -44,7 +44,26 @@ export function LandingScreen() {
   const raceAccent = currentEvent.name[0]; // just the city in italic-terracotta
 
   return (
-    <main className="screen" style={{ padding: "64px 32px 96px" }}>
+    <main className="screen" style={{ padding: "64px 32px 96px", position: "relative" }}>
+      <a
+        href="/photographer/upload"
+        style={{
+          position: "absolute",
+          top: 24,
+          right: 32,
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          letterSpacing: ".14em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+          textDecoration: "none",
+          padding: "6px 10px",
+          border: "1px solid var(--line)",
+          borderRadius: 4,
+        }}
+      >
+        Photographer →
+      </a>
       <div
         className="landing-grid"
         style={{

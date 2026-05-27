@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { processUpload } from "@/lib/imagePipeline";
 import { r2Configured, r2Put, r2Keys } from "@/lib/r2";
+import { getEffectivePhotographerId } from "@/lib/photographerLock";
 
 // Upload one photo. Multipart form with:
 //   file: the image
@@ -18,9 +17,12 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.photographerId) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const photographerId = await getEffectivePhotographerId();
+  if (!photographerId) {
+    return NextResponse.json(
+      { error: "Photographer access required — sign in or unlock first" },
+      { status: 401 }
+    );
   }
   if (!r2Configured()) {
     return NextResponse.json({ error: "Photo storage not configured" }, { status: 503 });
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
   const created = await db.photo.create({
     data: {
       eventId,
-      photographerId: session.photographerId,
+      photographerId,
       bib,
       mile,
       gpsLat: processed.gpsLat,
