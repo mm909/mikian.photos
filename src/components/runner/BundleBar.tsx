@@ -1,8 +1,9 @@
 import { Headline } from "./Headline";
+import { prices } from "@/lib/data";
 
 type Props = { price?: number; inCart: boolean; onClick: () => void };
 
-export function BundleBar({ price = 30, inCart, onClick }: Props) {
+export function BundleBar({ price = prices.bundle, inCart, onClick }: Props) {
   return (
     <div
       style={{

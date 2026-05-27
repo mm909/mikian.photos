@@ -1,5 +1,5 @@
 import { Headline } from "../Headline";
-import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
+import { currentEvent, photoBg, prices, type Cart, type Photo } from "@/lib/data";
 
 type Props = {
   photo: Photo;
@@ -193,7 +193,7 @@ export function Lightbox({
                 </div>
               </div>
               <span className="price" style={{ fontSize: 28 }}>
-                $30
+                ${prices.bundle}
               </span>
             </div>
           </div>
@@ -210,7 +210,7 @@ export function Lightbox({
               className="btn btn--primary btn--block btn--lg"
               onClick={() => onBundle(false)}
             >
-              Get all {totalCount} photos — $30
+              Get all {totalCount} photos — ${prices.bundle}
             </button>
           )}
 

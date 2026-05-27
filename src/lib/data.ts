@@ -123,7 +123,7 @@ export const photographersRoster: Photographer[] = [
 
 export const prices: Prices = {
   single: 10,
-  bundle: 30,
+  bundle: 1,
   stripeRate: 0.029,
   stripeFlat: 0.3,
 };
