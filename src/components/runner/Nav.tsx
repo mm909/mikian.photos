@@ -50,6 +50,12 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
+    label: "OCR Lab",
+    href: "/photographer/ocr-lab",
+    match: (p) => p.startsWith("/photographer/ocr-lab"),
+    roles: ["photographer", "owner"],
+  },
+  {
     label: "Admin",
     href: "/admin/users",
     match: (p) => p.startsWith("/admin"),

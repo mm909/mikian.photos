@@ -11,12 +11,9 @@
  * per-word confidence — the top-level recognize() in v7 doesn't populate
  * blocks, which caused every detection to be silently rejected.
  *
- * Caveats:
- *   - Tesseract isn't tuned for race bibs. Expect best results on clean
- *     chest-bibs with sharp digits; expect misses on motion-blurred,
- *     partially obscured, or tiny-in-frame numbers.
- *   - Returns 0 detections silently on failure — never throws, so the upload
- *     pipeline can't be broken by an OCR edge case.
+ * Settings are tunable via the optional `OcrSettings` arg so the
+ * /photographer/ocr-lab page can experiment live without code changes.
+ * The defaults are what `extractBibsFromImage` uses in production.
  */
 import sharp from "sharp";
 
@@ -32,9 +29,8 @@ export type OcrWord = {
 };
 
 export type OcrDebug = {
-  /** Preprocessed PNG bytes (grayscale + normalize + resize, as fed to Tesseract). */
+  /** Preprocessed PNG bytes (as fed to Tesseract). */
   preparedPng: Buffer;
-  /** Final dimensions of the prepared image — useful for drawing overlays. */
   preparedWidth: number;
   preparedHeight: number;
   /** Page-level confidence Tesseract assigned the whole image (0..1). */
@@ -47,70 +43,121 @@ export type OcrDebug = {
   bibs: BibDetection[];
   /** Words that LOOK like bibs but got rejected — and why. */
   rejected: { word: OcrWord; reason: string }[];
+  /** Echo of the settings used for this run (so the UI can show what fired). */
+  settings: OcrSettings;
+  /** Wall-clock milliseconds the recognize() call took. */
+  durationMs: number;
 };
 
-const MIN_DIGITS = 2;
-const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
-const PREP_WIDTH = 3000; // bibs are small in frame; keep the digits as wide as we can afford
-const OCR_TIMEOUT_MS = 40_000; // longer so PSM 11 has room on 3000px input
+/** Tesseract page-segmentation mode. Only the values that make sense for
+ *  full-frame photo OCR are exposed in the lab UI. */
+export const PSM_OPTIONS = {
+  "3": "Auto (default — assumes paragraph layout)",
+  "6": "Single uniform block",
+  "7": "Single text line",
+  "8": "Single word",
+  "11": "Sparse text (recommended for race photos)",
+  "12": "Sparse text with OSD",
+} as const;
+export type PsmKey = keyof typeof PSM_OPTIONS;
 
-/**
- * Tiered confidence floor by digit length. Tesseract's per-word confidence
- * is conservative on stylized race-bib fonts (often 15-40% even on a perfect
- * hit), but the false-positive risk falls off a cliff as token length grows —
- * the digit allowlist already ensures every token is a string of digits, so a
- * 4-digit hit is almost certainly a real bib even at low confidence. We
- * still require a high floor for 2-digit hits because those are easy to
- * fabricate from background texture.
- *
- * Empirically tuned on the Las-Vegas-Marathon two-runner photo where the
- * bibs 3498 and 3429 came through clearly in the overlay but got filtered
- * by a flat 0.4 floor.
- */
-function confidenceFloor(digits: number): number {
+/** Tesseract OCR engine mode. 1 = LSTM (modern), 3 = LSTM + legacy. */
+export const OEM_OPTIONS = {
+  "1": "LSTM only (recommended)",
+  "3": "LSTM + legacy",
+} as const;
+export type OemKey = keyof typeof OEM_OPTIONS;
+
+export type OcrSettings = {
+  /** Tesseract page-seg mode. */
+  psm: PsmKey;
+  /** Tesseract engine mode. */
+  oem: OemKey;
+  /** Long-edge pixel width for the prep resize. 1500-4000 is the useful range. */
+  prepWidth: number;
+  /** Run sharp.sharpen() after grayscale. */
+  sharpen: boolean;
+  /** sharp.linear(a, b) — `a` is multiplier, `b` is offset. (1, 0) = passthrough. */
+  contrastA: number;
+  contrastB: number;
+  /** Normalize the histogram (stretches contrast across the image). Off by
+   *  default — on race photos it amplifies asphalt as much as the bibs. */
+  normalize: boolean;
+  /** Binarize the image — pixels above this 0–255 value become white, below
+   *  become black. `null` = no thresholding. */
+  threshold: number | null;
+  /** Invert grayscale before OCR (sometimes helps light-on-dark bibs). */
+  invert: boolean;
+  /** Restrict Tesseract to digits only. Eliminates letter false positives. */
+  whitelistDigits: boolean;
+  /** Per-digit-length confidence floors (0..1). */
+  floor2: number;
+  floor3: number;
+  floor4plus: number;
+  /** Min/max digit length for a token to be considered a bib candidate. */
+  minDigits: number;
+  maxDigits: number;
+};
+
+export const DEFAULT_OCR_SETTINGS: OcrSettings = {
+  psm: "11",
+  oem: "1",
+  prepWidth: 3000,
+  sharpen: true,
+  contrastA: 1.15,
+  contrastB: -10,
+  normalize: false,
+  threshold: null,
+  invert: false,
+  whitelistDigits: true,
+  floor2: 0.55,
+  floor3: 0.25,
+  floor4plus: 0.15,
+  minDigits: 2,
+  maxDigits: 5,
+};
+
+const OCR_TIMEOUT_MS = 45_000;
+
+function confidenceFloor(digits: number, s: OcrSettings): number {
   if (digits <= 1) return 1; // never accept singletons
-  if (digits === 2) return 0.55;
-  if (digits === 3) return 0.25;
-  return 0.15; // 4-5 digit bibs: trust them unless Tesseract is really unsure
+  if (digits === 2) return s.floor2;
+  if (digits === 3) return s.floor3;
+  return s.floor4plus;
 }
-
-// Tesseract page-segmentation mode. Default (3) assumes paragraph layout —
-// terrible for race photos where text is sparse. 11 = "Sparse text. Find as
-// much text as possible in no particular order." This is what license-plate
-// readers use on full-frame photos.
-const TESSERACT_PSM = "11";
 
 /**
- * Pre-process an image to give Tesseract its best shot at the numbers:
- *   - downscale to PREP_WIDTH long-edge (Tesseract is slow on huge images;
- *     3000px keeps small-in-frame bib digits ~80-120px tall, which is the
- *     sweet spot for the LSTM model)
- *   - grayscale + slight sharpen (counteracts the small-resize blur)
- *   - linear contrast bump (a + b*x) — we deliberately do NOT call
- *     .normalize() here because on race photos with dark asphalt the
- *     histogram stretch amplifies pavement texture as much as the bib,
- *     which causes Tesseract to see "text" everywhere
+ * Pre-process an image to give Tesseract its best shot at the numbers.
+ * Settings are exposed so the lab UI can iterate live.
  */
-async function prepareForOcr(input: Buffer): Promise<{ png: Buffer; width: number; height: number }> {
-  const png = await sharp(input, { failOn: "none" })
+async function prepareForOcr(
+  input: Buffer,
+  s: OcrSettings
+): Promise<{ png: Buffer; width: number; height: number }> {
+  let pipe = sharp(input, { failOn: "none" })
     .rotate()
-    .resize({ width: PREP_WIDTH, withoutEnlargement: true, fit: "inside" })
-    .grayscale()
-    .sharpen()                 // counter the downscale softening
-    .linear(1.15, -10)         // mild contrast boost, no full histogram stretch
-    .toFormat("png")
-    .toBuffer();
+    .resize({ width: s.prepWidth, withoutEnlargement: true, fit: "inside" })
+    .grayscale();
+  if (s.sharpen) pipe = pipe.sharpen();
+  if (s.normalize) pipe = pipe.normalize();
+  if (s.contrastA !== 1 || s.contrastB !== 0) pipe = pipe.linear(s.contrastA, s.contrastB);
+  if (s.invert) pipe = pipe.negate();
+  if (s.threshold != null) pipe = pipe.threshold(s.threshold);
+  const png = await pipe.toFormat("png").toBuffer();
   const meta = await sharp(png).metadata();
-  return { png, width: meta.width ?? PREP_WIDTH, height: meta.height ?? 0 };
+  return { png, width: meta.width ?? s.prepWidth, height: meta.height ?? 0 };
 }
 
-/** Walk Tesseract's blocks tree → flat list of words with bbox + confidence. */
 function flattenWords(data: unknown): OcrWord[] {
   const d = data as {
     blocks?: {
       paragraphs?: {
         lines?: {
-          words?: { text?: string; confidence?: number; bbox?: { x0: number; y0: number; x1: number; y1: number } }[];
+          words?: {
+            text?: string;
+            confidence?: number;
+            bbox?: { x0: number; y0: number; x1: number; y1: number };
+          }[];
         }[];
       }[];
     }[];
@@ -135,36 +182,29 @@ function flattenWords(data: unknown): OcrWord[] {
 
 type RecognizeResult = { data?: { text?: string; confidence?: number; blocks?: unknown } };
 
-/**
- * Acquire a Tesseract Worker (the only way to get blocks output AND configure
- * page-segmentation mode in v7). Cold-start is ~1s + lang model download on
- * first run; we tear down after each call to keep memory flat in serverless.
- * Returns null on any setup failure.
- */
-async function getWorker(): Promise<null | {
+async function getWorker(s: OcrSettings): Promise<null | {
   recognize: (image: Buffer) => Promise<RecognizeResult>;
   terminate: () => Promise<void>;
 }> {
   try {
     const mod = (await import("tesseract.js")) as unknown as {
-      createWorker?: (lang?: string) => Promise<unknown>;
-      default?: { createWorker: (lang?: string) => Promise<unknown> };
+      createWorker?: (lang?: string, oem?: number) => Promise<unknown>;
+      default?: { createWorker: (lang?: string, oem?: number) => Promise<unknown> };
     };
     const create = mod.createWorker ?? mod.default?.createWorker;
     if (!create) return null;
-    const worker = (await create("eng")) as {
+    const oemNum = Number(s.oem);
+    const worker = (await create("eng", Number.isFinite(oemNum) ? oemNum : 1)) as {
       recognize: (image: Buffer, options?: unknown, output?: unknown) => Promise<RecognizeResult>;
       terminate: () => Promise<void>;
       setParameters: (params: Record<string, string>) => Promise<unknown>;
     };
-    // PSM 11 (sparse text), and char-allowlist tightened to digits since
-    // race bibs are numeric. Both reduce false positives from asphalt
-    // texture and stray glyphs.
     if (typeof worker.setParameters === "function") {
-      await worker.setParameters({
-        tessedit_pageseg_mode: TESSERACT_PSM,
-        tessedit_char_whitelist: "0123456789",
-      });
+      const params: Record<string, string> = {
+        tessedit_pageseg_mode: s.psm,
+      };
+      if (s.whitelistDigits) params.tessedit_char_whitelist = "0123456789";
+      await worker.setParameters(params);
     }
     return {
       recognize: (image: Buffer) =>
@@ -180,18 +220,18 @@ async function getWorker(): Promise<null | {
  * Internal: run OCR end-to-end and return rich debug data. Both
  * `extractBibsFromImage` and the /ocr-debug endpoint go through this.
  */
-async function runOcr(input: Buffer): Promise<OcrDebug | null> {
+async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | null> {
   let prep: { png: Buffer; width: number; height: number };
   try {
-    prep = await prepareForOcr(input);
+    prep = await prepareForOcr(input, settings);
   } catch {
     return null;
   }
 
-  const worker = await getWorker();
+  const worker = await getWorker(settings);
   if (!worker) return null;
 
-  // Hard timeout — tesseract.js workers can hang on edge cases.
+  const t0 = Date.now();
   let result: RecognizeResult | null = null;
   try {
     result = await Promise.race([
@@ -211,6 +251,7 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
       /* best-effort */
     }
   }
+  const durationMs = Date.now() - t0;
   if (!result) return null;
 
   const pageConfidence = (result.data?.confidence ?? 0) / 100;
@@ -223,14 +264,14 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
 
   for (const w of words) {
     const digits = w.text.replace(/[^0-9]/g, "");
-    if (digits.length === 0) continue; // not even a candidate; skip silently
+    if (digits.length === 0) continue;
 
-    if (digits.length < MIN_DIGITS) {
-      rejected.push({ word: w, reason: `too short (${digits.length}<${MIN_DIGITS})` });
+    if (digits.length < settings.minDigits) {
+      rejected.push({ word: w, reason: `too short (${digits.length}<${settings.minDigits})` });
       continue;
     }
-    if (digits.length > MAX_DIGITS) {
-      rejected.push({ word: w, reason: `too long (${digits.length}>${MAX_DIGITS})` });
+    if (digits.length > settings.maxDigits) {
+      rejected.push({ word: w, reason: `too long (${digits.length}>${settings.maxDigits})` });
       continue;
     }
     const n = Number(digits);
@@ -238,7 +279,7 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
       rejected.push({ word: w, reason: "not a positive integer" });
       continue;
     }
-    const floor = confidenceFloor(digits.length);
+    const floor = confidenceFloor(digits.length, settings);
     if (w.confidence < floor) {
       rejected.push({
         word: w,
@@ -246,9 +287,6 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
       });
       continue;
     }
-    // With the digit allowlist active, w.text === digits — no surrounding
-    // junk to penalise. Score = raw confidence; multiple detections of the
-    // same bib will keep the highest.
     const score = w.confidence;
     const prev = seen.get(n);
     if (prev === undefined || score > prev) seen.set(n, score);
@@ -268,6 +306,8 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
     words,
     bibs,
     rejected,
+    settings,
+    durationMs,
   };
 }
 
@@ -275,15 +315,29 @@ async function runOcr(input: Buffer): Promise<OcrDebug | null> {
  * Production entry point — returns just the detected bibs. Used by the
  * upload finalize step and the rerun-ocr admin endpoint.
  */
-export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[]> {
-  const debug = await runOcr(input);
+export async function extractBibsFromImage(
+  input: Buffer,
+  settings: OcrSettings = DEFAULT_OCR_SETTINGS
+): Promise<BibDetection[]> {
+  const debug = await runOcr(input, settings);
   return debug?.bibs ?? [];
 }
 
 /**
  * Debug entry point — returns the full inspection payload. Used by the
- * /ocr-debug admin endpoint to power the visualization modal.
+ * /ocr-debug admin endpoint to power the visualization modal and the lab.
  */
-export async function extractBibsDebug(input: Buffer): Promise<OcrDebug | null> {
-  return runOcr(input);
+export async function extractBibsDebug(
+  input: Buffer,
+  settings: OcrSettings = DEFAULT_OCR_SETTINGS
+): Promise<OcrDebug | null> {
+  return runOcr(input, settings);
+}
+
+/**
+ * Merge partial settings into the defaults — used by API routes that accept
+ * a (possibly partial) settings object from the lab UI.
+ */
+export function withDefaults(partial: Partial<OcrSettings> | undefined): OcrSettings {
+  return { ...DEFAULT_OCR_SETTINGS, ...(partial ?? {}) };
 }

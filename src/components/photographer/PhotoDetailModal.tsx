@@ -281,6 +281,13 @@ export function PhotoDetailModal({
           {/* OCR debug — preprocessed image + word boxes */}
           <Section title="OCR debug">
             <OcrDebugPanel photoId={photo.id} />
+            <a
+              href={`/photographer/ocr-lab?photo=${photo.id}`}
+              className="btn btn--ghost btn--sm"
+              style={{ marginTop: 8, textAlign: "center", textDecoration: "none" }}
+            >
+              Open in OCR Lab →
+            </a>
           </Section>
 
           {/* Destructive section */}

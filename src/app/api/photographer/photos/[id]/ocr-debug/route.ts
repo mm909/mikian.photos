@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
-import { extractBibsDebug } from "@/lib/bibOcr";
+import { extractBibsDebug, withDefaults, type OcrSettings } from "@/lib/bibOcr";
 import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photographerLock";
 
 /**
@@ -10,16 +10,19 @@ import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photog
  * passed our bib filter and which got rejected (with reason).
  *
  *   POST /api/photographer/photos/[id]/ocr-debug
+ *   body: { settings?: Partial<OcrSettings> }
  *
- * Powers the "Debug OCR" modal in /photographer/photos. NOT for runner-facing
- * traffic — guarded by the photographer auth path (unlock cookie or session).
+ * If `settings` is omitted, runs with DEFAULT_OCR_SETTINGS. Any subset of
+ * fields can be passed — they merge over the defaults. Used by both the
+ * detail-modal "Show OCR intermediates" button (no body) and the OCR Lab
+ * page (settings body).
  *
- * Does NOT write to the DB. This is a read-only inspection tool.
+ * Read-only — never writes to the DB.
  */
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   const photographerId = await getEffectivePhotographerId();
   if (!photographerId) {
     return NextResponse.json({ error: "Photographer access required" }, { status: 401 });
@@ -37,11 +40,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 
+  let body: { settings?: Partial<OcrSettings> } = {};
+  try {
+    body = (await req.json()) as { settings?: Partial<OcrSettings> };
+  } catch {
+    /* no body is fine — fall through to defaults */
+  }
+  const settings = withDefaults(body.settings);
+
   let bytes: Buffer;
   try {
-    const { body } = await r2GetStream(r2Keys.preview(photo.id));
+    const { body: stream } = await r2GetStream(r2Keys.preview(photo.id));
     const chunks: Buffer[] = [];
-    for await (const c of body) chunks.push(Buffer.from(c));
+    for await (const c of stream) chunks.push(Buffer.from(c));
     bytes = Buffer.concat(chunks);
   } catch (e) {
     return NextResponse.json(
@@ -50,7 +61,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     );
   }
 
-  const debug = await extractBibsDebug(bytes);
+  const debug = await extractBibsDebug(bytes, settings);
   if (!debug) {
     return NextResponse.json({ error: "ocr failed" }, { status: 500 });
   }
@@ -64,5 +75,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     words: debug.words,
     bibs: debug.bibs,
     rejected: debug.rejected,
+    settings: debug.settings,
+    durationMs: debug.durationMs,
   });
 }
