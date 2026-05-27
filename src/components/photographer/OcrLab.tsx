@@ -10,7 +10,7 @@ import {
   type OcrSettings,
   type OemKey,
   type PsmKey,
-} from "@/lib/bibOcr";
+} from "@/lib/bibOcrTypes";
 
 type Bbox = { x0: number; y0: number; x1: number; y1: number };
 type Word = { text: string; confidence: number; bbox: Bbox };

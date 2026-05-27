@@ -1,5 +1,6 @@
 /**
- * Best-effort bib detection on a JPEG/PNG buffer.
+ * Best-effort bib detection on a JPEG/PNG buffer. **Server-only** — pulls
+ * `sharp` and `tesseract.js`, which can't be bundled for the browser.
  *
  * Pluggable provider — currently runs Tesseract.js (open-source OCR, no API
  * key, ~5MB WASM bundle on first run). The whole point of `bibOcr.ts` is to
@@ -7,129 +8,31 @@
  * a custom race-bib model later without touching `/finalize` or the rerun
  * route.
  *
- * Uses createWorker + blocks output so we get per-word bounding boxes +
- * per-word confidence — the top-level recognize() in v7 doesn't populate
- * blocks, which caused every detection to be silently rejected.
- *
- * Settings are tunable via the optional `OcrSettings` arg so the
- * /photographer/ocr-lab page can experiment live without code changes.
- * The defaults are what `extractBibsFromImage` uses in production.
+ * Settings shape lives in `bibOcrTypes.ts` so the lab UI can import it
+ * without dragging Node-only deps into the client bundle.
  */
+import "server-only";
 import sharp from "sharp";
+import {
+  DEFAULT_OCR_SETTINGS,
+  type BibDetection,
+  type OcrDebug,
+  type OcrSettings,
+  type OcrWord,
+} from "./bibOcrTypes";
 
-export type BibDetection = {
-  bib: number;
-  confidence: number; // 0..1
-};
-
-export type OcrWord = {
-  text: string;
-  confidence: number; // 0..1
-  bbox: { x0: number; y0: number; x1: number; y1: number };
-};
-
-export type OcrDebug = {
-  /** Preprocessed PNG bytes (as fed to Tesseract). */
-  preparedPng: Buffer;
-  preparedWidth: number;
-  preparedHeight: number;
-  /** Page-level confidence Tesseract assigned the whole image (0..1). */
-  pageConfidence: number;
-  /** Raw concatenated text Tesseract produced. */
-  rawText: string;
-  /** Every word Tesseract emitted, with its bbox + confidence. */
-  words: OcrWord[];
-  /** Bib detections we'd keep (after digit-length + confidence filtering). */
-  bibs: BibDetection[];
-  /** Words that LOOK like bibs but got rejected — and why. */
-  rejected: { word: OcrWord; reason: string }[];
-  /** Echo of the settings used for this run (so the UI can show what fired). */
-  settings: OcrSettings;
-  /** Wall-clock milliseconds the recognize() call took. */
-  durationMs: number;
-};
-
-/** Tesseract page-segmentation mode. Only the values that make sense for
- *  full-frame photo OCR are exposed in the lab UI. */
-export const PSM_OPTIONS = {
-  "3": "Auto (default — assumes paragraph layout)",
-  "6": "Single uniform block",
-  "7": "Single text line",
-  "8": "Single word",
-  "11": "Sparse text (recommended for race photos)",
-  "12": "Sparse text with OSD",
-} as const;
-export type PsmKey = keyof typeof PSM_OPTIONS;
-
-/** Tesseract OCR engine mode. 1 = LSTM (modern), 3 = LSTM + legacy. */
-export const OEM_OPTIONS = {
-  "1": "LSTM only (recommended)",
-  "3": "LSTM + legacy",
-} as const;
-export type OemKey = keyof typeof OEM_OPTIONS;
-
-export type OcrSettings = {
-  /** Tesseract page-seg mode. */
-  psm: PsmKey;
-  /** Tesseract engine mode. */
-  oem: OemKey;
-  /** Long-edge pixel width for the prep resize. 1500-4000 is the useful range. */
-  prepWidth: number;
-  /** Run sharp.sharpen() after grayscale. */
-  sharpen: boolean;
-  /** sharp.linear(a, b) — `a` is multiplier, `b` is offset. (1, 0) = passthrough. */
-  contrastA: number;
-  contrastB: number;
-  /** Normalize the histogram (stretches contrast across the image). Off by
-   *  default — on race photos it amplifies asphalt as much as the bibs. */
-  normalize: boolean;
-  /** Binarize the image — pixels above this 0–255 value become white, below
-   *  become black. `null` = no thresholding. */
-  threshold: number | null;
-  /** Invert grayscale before OCR (sometimes helps light-on-dark bibs). */
-  invert: boolean;
-  /** Restrict Tesseract to digits only. Eliminates letter false positives. */
-  whitelistDigits: boolean;
-  /** Per-digit-length confidence floors (0..1). */
-  floor2: number;
-  floor3: number;
-  floor4plus: number;
-  /** Min/max digit length for a token to be considered a bib candidate. */
-  minDigits: number;
-  maxDigits: number;
-};
-
-export const DEFAULT_OCR_SETTINGS: OcrSettings = {
-  psm: "11",
-  oem: "1",
-  prepWidth: 3000,
-  sharpen: true,
-  contrastA: 1.15,
-  contrastB: -10,
-  normalize: false,
-  threshold: null,
-  invert: false,
-  whitelistDigits: true,
-  floor2: 0.55,
-  floor3: 0.25,
-  floor4plus: 0.15,
-  minDigits: 2,
-  maxDigits: 5,
-};
+export { DEFAULT_OCR_SETTINGS, withDefaults, PSM_OPTIONS, OEM_OPTIONS } from "./bibOcrTypes";
+export type { BibDetection, OcrDebug, OcrSettings, OcrWord, PsmKey, OemKey } from "./bibOcrTypes";
 
 const OCR_TIMEOUT_MS = 45_000;
 
 function confidenceFloor(digits: number, s: OcrSettings): number {
-  if (digits <= 1) return 1; // never accept singletons
+  if (digits <= 1) return 1;
   if (digits === 2) return s.floor2;
   if (digits === 3) return s.floor3;
   return s.floor4plus;
 }
 
-/**
- * Pre-process an image to give Tesseract its best shot at the numbers.
- * Settings are exposed so the lab UI can iterate live.
- */
 async function prepareForOcr(
   input: Buffer,
   s: OcrSettings
@@ -216,10 +119,6 @@ async function getWorker(s: OcrSettings): Promise<null | {
   }
 }
 
-/**
- * Internal: run OCR end-to-end and return rich debug data. Both
- * `extractBibsFromImage` and the /ocr-debug endpoint go through this.
- */
 async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | null> {
   let prep: { png: Buffer; width: number; height: number };
   try {
@@ -311,10 +210,6 @@ async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | 
   };
 }
 
-/**
- * Production entry point — returns just the detected bibs. Used by the
- * upload finalize step and the rerun-ocr admin endpoint.
- */
 export async function extractBibsFromImage(
   input: Buffer,
   settings: OcrSettings = DEFAULT_OCR_SETTINGS
@@ -323,21 +218,9 @@ export async function extractBibsFromImage(
   return debug?.bibs ?? [];
 }
 
-/**
- * Debug entry point — returns the full inspection payload. Used by the
- * /ocr-debug admin endpoint to power the visualization modal and the lab.
- */
 export async function extractBibsDebug(
   input: Buffer,
   settings: OcrSettings = DEFAULT_OCR_SETTINGS
 ): Promise<OcrDebug | null> {
   return runOcr(input, settings);
-}
-
-/**
- * Merge partial settings into the defaults — used by API routes that accept
- * a (possibly partial) settings object from the lab UI.
- */
-export function withDefaults(partial: Partial<OcrSettings> | undefined): OcrSettings {
-  return { ...DEFAULT_OCR_SETTINGS, ...(partial ?? {}) };
 }
