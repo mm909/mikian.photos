@@ -6,7 +6,15 @@ import { Headline } from "../Headline";
 import { CourseCard } from "../CourseCard";
 import { FinishTimeChart } from "../FinishTimeChart";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent } from "@/lib/data";
+import { currentEvent, racers } from "@/lib/data";
+import type { DistanceKey } from "@/lib/gpx";
+
+const REQUIRED_DISTANCES: DistanceKey[] = ["5k", "10k", "half"];
+// Show the finish-time distribution only when every distance has results.
+// Right now only the half is populated, so the chart hides on its own.
+const hasFinishTimesForAllDistances = REQUIRED_DISTANCES.every((d) =>
+  racers.some((r) => r.distance === d)
+);
 
 export function LandingScreen() {
   const router = useRouter();
@@ -196,10 +204,10 @@ export function LandingScreen() {
           </div>
         </div>
 
-        {/* Right — course / GPX / elevation + finish-time distribution */}
+        {/* Right — course / GPX / elevation + finish-time distribution (when all distances have data) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <CourseCard />
-          <FinishTimeChart />
+          {hasFinishTimesForAllDistances && <FinishTimeChart />}
         </div>
       </div>
     </main>
