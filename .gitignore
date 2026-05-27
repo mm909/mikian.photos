@@ -35,3 +35,6 @@ next-env.d.ts
 # Claude Code local settings (per-user permission grants)
 .claude/settings.local.json
 .env*
+
+# Tesseract.js downloads language models at runtime — they shouldn't be tracked
+*.traineddata

@@ -24,6 +24,7 @@ export type BibDetection = {
 
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
+const MIN_CONFIDENCE = 0.4; // Tesseract's confidence is on the conservative side for stylized bib fonts
 
 /**
  * Pre-process an image to give Tesseract its best shot at the numbers:
@@ -46,11 +47,18 @@ async function prepareForOcr(input: Buffer): Promise<Buffer> {
  * any error returns [].
  */
 export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[]> {
-  let tesseract: typeof import("tesseract.js");
+  // tesseract.js v7 ships CommonJS. Under Node's ESM interop only `default`
+  // carries the full namespace including `recognize`, so we reach through it.
+  let recognize: (typeof import("tesseract.js"))["recognize"];
   try {
-    tesseract = await import("tesseract.js");
+    const tesseract = (await import("tesseract.js")) as unknown as {
+      recognize?: (typeof import("tesseract.js"))["recognize"];
+      default?: { recognize: (typeof import("tesseract.js"))["recognize"] };
+    };
+    const fn = tesseract.recognize ?? tesseract.default?.recognize;
+    if (!fn) return [];
+    recognize = fn;
   } catch {
-    // tesseract.js not installed — return no detections
     return [];
   }
 
@@ -62,7 +70,7 @@ export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[
   }
 
   try {
-    const { data } = await tesseract.recognize(prepared, "eng", {
+    const { data } = await recognize(prepared, "eng", {
       // Only let Tesseract emit digits, dashes, and spaces — speeds it up
       // and avoids confusing 0/O, 1/I, etc.
       // (tessedit_char_whitelist is recognized in legacy mode; harmless in v5.)
@@ -84,7 +92,7 @@ export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[
             if (!Number.isFinite(n) || n <= 0) continue;
             const conf = w.confidence / 100;
             // require a minimum confidence — Tesseract is noisy with low-conf hits
-            if (conf < 0.55) continue;
+            if (conf < MIN_CONFIDENCE) continue;
             const prev = seen.get(n);
             if (prev === undefined || conf > prev) seen.set(n, conf);
           }
