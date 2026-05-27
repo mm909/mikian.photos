@@ -2,18 +2,17 @@
  * Best-effort bib detection on a JPEG/PNG buffer.
  *
  * Pluggable provider — currently runs Tesseract.js (open-source OCR, no API
- * key, ~5MB WASM bundle, slow but free). The whole point of `bibOcr.ts` is to
+ * key, ~5MB WASM bundle on first run). The whole point of `bibOcr.ts` is to
  * isolate the provider so we can swap in AWS Rekognition / Google Vision /
- * a custom race-bib model later without touching `/finalize`.
+ * a custom race-bib model later without touching `/finalize` or the rerun
+ * route.
  *
  * Caveats:
- *   - Tesseract isn't tuned for race bibs. Expect ~20-40% recall on clean
- *     shots, far less on motion-blurred or partially obscured numbers.
+ *   - Tesseract isn't tuned for race bibs. Expect best results on clean
+ *     chest-bibs with sharp digits; expect misses on motion-blurred,
+ *     partially obscured, or tiny-in-frame numbers.
  *   - Returns 0 detections silently on failure — never throws, so the upload
  *     pipeline can't be broken by an OCR edge case.
- *
- * The contract: given image bytes, return zero or more `{ bib, confidence }`
- * detections. Confidence is 0-1. Caller writes PhotoBib rows for each result.
  */
 import sharp from "sharp";
 
@@ -24,20 +23,21 @@ export type BibDetection = {
 
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
-const MIN_CONFIDENCE = 0.4; // Tesseract's confidence is on the conservative side for stylized bib fonts
+const MIN_PAGE_CONFIDENCE = 0.3; // skip pages that are mostly noise
 
 /**
  * Pre-process an image to give Tesseract its best shot at the numbers:
- *   - downscale (Tesseract is slow on large images)
+ *   - downscale (Tesseract is slow on huge images; ~2000px hits a good
+ *     balance — bibs stay readable, runtime stays sane)
  *   - grayscale
  *   - boost contrast a bit
  */
 async function prepareForOcr(input: Buffer): Promise<Buffer> {
   return sharp(input, { failOn: "none" })
     .rotate()
-    .resize({ width: 1400, withoutEnlargement: true, fit: "inside" })
+    .resize({ width: 2000, withoutEnlargement: true, fit: "inside" })
     .grayscale()
-    .normalize() // stretch the histogram for contrast
+    .normalize()
     .toFormat("png")
     .toBuffer();
 }
@@ -47,13 +47,18 @@ async function prepareForOcr(input: Buffer): Promise<Buffer> {
  * any error returns [].
  */
 export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[]> {
-  // tesseract.js v7 ships CommonJS. Under Node's ESM interop only `default`
+  // Tesseract.js v7 ships CommonJS; under Node's ESM interop only `default`
   // carries the full namespace including `recognize`, so we reach through it.
-  let recognize: (typeof import("tesseract.js"))["recognize"];
+  type RecognizeFn = (
+    image: Buffer | string,
+    langs?: string,
+    options?: unknown
+  ) => Promise<{ data?: { text?: string; confidence?: number } }>;
+  let recognize: RecognizeFn;
   try {
     const tesseract = (await import("tesseract.js")) as unknown as {
-      recognize?: (typeof import("tesseract.js"))["recognize"];
-      default?: { recognize: (typeof import("tesseract.js"))["recognize"] };
+      recognize?: RecognizeFn;
+      default?: { recognize: RecognizeFn };
     };
     const fn = tesseract.recognize ?? tesseract.default?.recognize;
     if (!fn) return [];
@@ -70,37 +75,33 @@ export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[
   }
 
   try {
-    const { data } = await recognize(prepared, "eng", {
-      // Only let Tesseract emit digits, dashes, and spaces — speeds it up
-      // and avoids confusing 0/O, 1/I, etc.
-      // (tessedit_char_whitelist is recognized in legacy mode; harmless in v5.)
-      // @ts-expect-error TesseractJob options aren't typed exhaustively
-      tessedit_char_whitelist: "0123456789 -",
-    });
+    const { data } = await recognize(prepared, "eng");
+    const text = data?.text ?? "";
+    const pageConf = (data?.confidence ?? 0) / 100;
+    if (pageConf < MIN_PAGE_CONFIDENCE) return [];
 
-    // Tesseract.js v7 nests words inside blocks → paragraphs → lines → words.
-    const seen = new Map<number, number>(); // bib -> best confidence
-    const blocks = data?.blocks ?? [];
-    for (const block of blocks) {
-      for (const para of block.paragraphs ?? []) {
-        for (const line of para.lines ?? []) {
-          for (const w of line.words ?? []) {
-            if (!w?.text || typeof w.confidence !== "number") continue;
-            const clean = w.text.replace(/[^0-9]/g, "");
-            if (clean.length < MIN_DIGITS || clean.length > MAX_DIGITS) continue;
-            const n = Number(clean);
-            if (!Number.isFinite(n) || n <= 0) continue;
-            const conf = w.confidence / 100;
-            // require a minimum confidence — Tesseract is noisy with low-conf hits
-            if (conf < MIN_CONFIDENCE) continue;
-            const prev = seen.get(n);
-            if (prev === undefined || conf > prev) seen.set(n, conf);
-          }
-        }
-      }
+    // Scan all whitespace-bounded digit runs. \b is unreliable around
+    // non-ASCII Tesseract noise; whitespace splitting is more predictable.
+    const tokens = text.split(/[\s,;:|/\\]+/);
+    const seen = new Map<number, number>(); // bib -> best per-token score
+    for (const tok of tokens) {
+      const digits = tok.replace(/[^0-9]/g, "");
+      if (digits.length < MIN_DIGITS || digits.length > MAX_DIGITS) continue;
+      const n = Number(digits);
+      if (!Number.isFinite(n) || n <= 0) continue;
+
+      // Score = page confidence × (1 − noise ratio). Tokens that are mostly
+      // digits (e.g. "3498") score higher than tokens with stray junk
+      // (e.g. "u8|3498e"). Keeps OCR-noisy hits at a lower confidence.
+      const noiseRatio = (tok.length - digits.length) / Math.max(tok.length, 1);
+      const score = pageConf * (1 - 0.4 * noiseRatio);
+      const prev = seen.get(n);
+      if (prev === undefined || score > prev) seen.set(n, score);
     }
 
-    return Array.from(seen.entries()).map(([bib, confidence]) => ({ bib, confidence }));
+    return Array.from(seen.entries())
+      .map(([bib, confidence]) => ({ bib, confidence }))
+      .sort((a, b) => b.confidence - a.confidence);
   } catch {
     return [];
   }

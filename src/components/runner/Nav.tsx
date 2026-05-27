@@ -20,7 +20,12 @@ const VIEWS: View[] = [
   {
     label: "Runners",
     href: "/",
-    match: (p) => p === "/" || p.startsWith("/results") || p.startsWith("/cart") || p.startsWith("/checkout") || p.startsWith("/success"),
+    match: (p) =>
+      p === "/" ||
+      p.startsWith("/results") ||
+      p.startsWith("/cart") ||
+      p.startsWith("/checkout") ||
+      p.startsWith("/success"),
   },
   {
     label: "Race Directors",
@@ -29,7 +34,12 @@ const VIEWS: View[] = [
   {
     label: "Photographers",
     href: "/photographer/upload",
-    match: (p) => p.startsWith("/photographer"),
+    match: (p) => p === "/photographer" || p.startsWith("/photographer/upload"),
+  },
+  {
+    label: "Library",
+    href: "/photographer/photos",
+    match: (p) => p.startsWith("/photographer/photos"),
   },
 ];
 

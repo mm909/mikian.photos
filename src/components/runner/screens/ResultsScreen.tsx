@@ -13,9 +13,11 @@ import { currentEvent } from "@/lib/data";
 export function ResultsScreen() {
   const router = useRouter();
   const {
+    catalog,
     resultPhotos,
     matchedRacer,
     searchedBib,
+    searchFellBack,
     faceSuggest,
     bibSuggest,
     acceptFaceSuggest,
@@ -29,6 +31,14 @@ export function ResultsScreen() {
     scanFaceOnResults,
     faceDone,
   } = useRunner();
+
+  // Real event totals derived from the fetched catalog. The synthetic
+  // currentEvent.photoCount / .photographers are placeholders — don't show
+  // those.
+  const realPhotoCount = catalog.length;
+  const realPhotographerCount = new Set(
+    catalog.map((p) => p.photographerId).filter(Boolean)
+  ).size;
 
   const [drawerOpen, setDrawer] = useState(false);
   const [bib, setBib] = useState("");
@@ -88,9 +98,15 @@ export function ResultsScreen() {
             <span>·</span>
             <span>{event.city}</span>
             <span>·</span>
-            <span>{event.photoCount.toLocaleString()} photos</span>
-            <span>·</span>
-            <span>{event.photographers} photographers</span>
+            <span>{realPhotoCount.toLocaleString()} photo{realPhotoCount === 1 ? "" : "s"}</span>
+            {realPhotographerCount > 0 && (
+              <>
+                <span>·</span>
+                <span>
+                  {realPhotographerCount} photographer{realPhotographerCount === 1 ? "" : "s"}
+                </span>
+              </>
+            )}
             <span>·</span>
             <span style={{ color: "#5dbf85", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span className="live-dot" style={{ background: "#5dbf85" }} /> Live
@@ -122,19 +138,76 @@ export function ResultsScreen() {
               Bib #{matchedRacer.bib} · {matchedRacer.name} · finished {matchedRacer.finishTime}
             </div>
           )}
-          <Headline
-            as="div"
-            text={`${resultPhotos.length} photos found`}
-            accent="found"
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 40,
-              lineHeight: 1.05,
-              letterSpacing: "-.012em",
-              color: "var(--ink)",
-            }}
-          />
+          {searchFellBack && searchedBib ? (
+            <>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  letterSpacing: ".14em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                  marginBottom: 8,
+                }}
+              >
+                No matches yet for bib #{searchedBib}
+              </div>
+              <Headline
+                as="div"
+                text={`Browse all ${resultPhotos.length}.`}
+                accent="all"
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontWeight: 500,
+                  fontSize: 40,
+                  lineHeight: 1.05,
+                  letterSpacing: "-.012em",
+                  color: "var(--ink)",
+                }}
+              />
+              <div
+                style={{
+                  marginTop: 8,
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 14,
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  maxWidth: 540,
+                }}
+              >
+                Bib detection is still warming up on this event. Scroll the
+                full set — your photos are in here.
+              </div>
+            </>
+          ) : searchFellBack ? (
+            <Headline
+              as="div"
+              text={`Browse all ${resultPhotos.length}.`}
+              accent="all"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: 40,
+                lineHeight: 1.05,
+                letterSpacing: "-.012em",
+                color: "var(--ink)",
+              }}
+            />
+          ) : (
+            <Headline
+              as="div"
+              text={`${resultPhotos.length} photos found.`}
+              accent="found."
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: 40,
+                lineHeight: 1.05,
+                letterSpacing: "-.012em",
+                color: "var(--ink)",
+              }}
+            />
+          )}
 
           {faceSuggest && (
             <div style={{ marginTop: 22 }}>

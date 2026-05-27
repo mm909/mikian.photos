@@ -30,6 +30,10 @@ type RunnerCtx = {
   resultPhotos: Photo[];
   matchedRacer: Racer | null;
   searchedBib: string | null;
+  /** Last search returned 0 direct matches and we fell back to showing the
+   *  whole event. Lets the results screen avoid claiming "N photos found"
+   *  for a bib that didn't actually match. */
+  searchFellBack: boolean;
   faceSuggest: FaceSuggest | null;
   bibSuggest: BibSuggest | null;
   faceDone: boolean;
@@ -161,6 +165,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
   const [matchedRacer, setMatchedRacer] = useState<Racer | null>(null);
   const [searchedBib, setSearchedBib] = useState<string | null>(null);
+  const [searchFellBack, setSearchFellBack] = useState<boolean>(false);
   const [faceSuggest, setFaceSuggest] = useState<FaceSuggest | null>(null);
   const [bibSuggest, setBibSuggest] = useState<BibSuggest | null>(null);
   const [faceDone, setFaceDone] = useState(false);
@@ -266,6 +271,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const fellBackToBrowse = matches.length === 0;
       setMatchedRacer(racer);
       setSearchedBib(value);
+      setSearchFellBack(fellBackToBrowse);
       setResultPhotos(fellBackToBrowse ? catalog : matches);
       setFaceSuggest(null);
       setBibSuggest(null);
@@ -274,6 +280,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       // Face search isn't built yet — show the whole catalog so buyers can browse.
       setMatchedRacer(null);
       setSearchedBib(null);
+      setSearchFellBack(true); // face match is a stub today
       setResultPhotos(catalog);
       setFaceSuggest(null);
       setBibSuggest(null);
@@ -281,6 +288,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     } else {
       setMatchedRacer(null);
       setSearchedBib(null);
+      setSearchFellBack(false);
       setResultPhotos(catalog);
       setFaceSuggest(null);
       setBibSuggest(null);
@@ -473,6 +481,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       resultPhotos,
       matchedRacer,
       searchedBib,
+      searchFellBack,
       faceSuggest,
       bibSuggest,
       faceDone,
@@ -508,7 +517,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
