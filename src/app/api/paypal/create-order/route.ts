@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { createOrder } from "@/lib/paypal";
+import { isPaymentsOpen } from "@/lib/paymentLock";
 import { prices } from "@/lib/data";
 
-// One bundle = $30 + processing fee (PayPal Standard ~2.9% + $0.49).
-// Total is what we charge the buyer; PayPal nets ~$30 to the seller.
+// Bundle total = price + processing fee. What we charge the buyer; PayPal nets ~bundle to the seller.
 function bundleTotal(): number {
   const sub = prices.bundle;
   return +(sub + sub * prices.stripeRate + prices.stripeFlat).toFixed(2);
 }
 
 export async function POST() {
+  if (!isPaymentsOpen()) {
+    return NextResponse.json(
+      { error: "Payments are not open yet. Check back soon." },
+      { status: 503 }
+    );
+  }
   try {
     const total = bundleTotal();
     const order = await createOrder({

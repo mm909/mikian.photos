@@ -9,9 +9,59 @@ import { prices } from "@/lib/data";
 
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 
-export function CheckoutScreen() {
+type Props = { unlocked: boolean };
+
+export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
   const { cart, resultPhotos, finalizeOrder, addBundle } = useRunner();
+
+  // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
+  // Show a friendly "Coming soon" panel and let the visitor go back to browsing.
+  if (!unlocked) {
+    return (
+      <main className="screen" style={{ padding: "64px 24px 96px" }}>
+        <div style={{ maxWidth: 540, margin: "0 auto", textAlign: "center" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+              marginBottom: 14,
+            }}
+          >
+            Pre-launch · {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </div>
+          <Headline
+            as="h1"
+            text="We're not open for sales yet."
+            accent="not open"
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: "clamp(32px, 4vw, 44px)",
+              lineHeight: 1.05,
+              letterSpacing: "-.015em",
+              color: "var(--ink)",
+            }}
+          />
+          <p style={{ color: "var(--muted)", fontSize: 16, marginTop: 18 }}>
+            Mikian.Photos is in preview — you can browse the experience, but checkout is paused
+            until we go live for your race. Come back soon.
+          </p>
+          <button
+            className="btn btn--primary btn--lg"
+            onClick={() => router.push("/")}
+            style={{ marginTop: 28 }}
+          >
+            ← Back to the race
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   // Bundle-only MVP: if the user lands here without a cart, drop the bundle in
   // automatically. Re-runs after RunnerProvider hydrates from localStorage so the
