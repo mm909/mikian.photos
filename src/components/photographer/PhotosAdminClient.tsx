@@ -28,12 +28,14 @@ type AdminPhoto = {
 };
 
 type RerunState = "idle" | "running" | "ok" | "err";
+type DeleteState = "idle" | "confirm" | "running" | "err";
 
 export function PhotosAdminClient() {
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<AdminPhoto[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [rerun, setRerun] = useState<Record<string, RerunState>>({});
+  const [delState, setDelState] = useState<Record<string, DeleteState>>({});
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, found: 0 });
   const [search, setSearch] = useState("");
@@ -93,6 +95,27 @@ export function PhotosAdminClient() {
     } catch (e) {
       console.error(e);
       setRerun((s) => ({ ...s, [photoId]: "err" }));
+    }
+  }
+
+  async function deletePhoto(photoId: string) {
+    setDelState((s) => ({ ...s, [photoId]: "running" }));
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}`, { method: "DELETE" });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `delete ${r.status}`);
+      }
+      // Drop from local state immediately — no refetch needed.
+      setPhotos((curr) => curr.filter((p) => p.id !== photoId));
+      setDelState((s) => {
+        const next = { ...s };
+        delete next[photoId];
+        return next;
+      });
+    } catch (e) {
+      console.error(e);
+      setDelState((s) => ({ ...s, [photoId]: "err" }));
     }
   }
 
@@ -290,7 +313,13 @@ export function PhotosAdminClient() {
                 key={p.id}
                 p={p}
                 rerunState={rerun[p.id] ?? "idle"}
+                deleteState={delState[p.id] ?? "idle"}
                 onRerun={() => rerunOcr(p.id)}
+                onAskDelete={() =>
+                  setDelState((s) => ({ ...s, [p.id]: s[p.id] === "confirm" ? "idle" : "confirm" }))
+                }
+                onConfirmDelete={() => deletePhoto(p.id)}
+                onCancelDelete={() => setDelState((s) => ({ ...s, [p.id]: "idle" }))}
               />
             ))}
           </div>
@@ -303,11 +332,19 @@ export function PhotosAdminClient() {
 function PhotoCard({
   p,
   rerunState,
+  deleteState,
   onRerun,
+  onAskDelete,
+  onConfirmDelete,
+  onCancelDelete,
 }: {
   p: AdminPhoto;
   rerunState: RerunState;
+  deleteState: DeleteState;
   onRerun: () => void;
+  onAskDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
 }) {
   const ocrBibs = p.bibs.filter((b) => b.source.startsWith("ocr-"));
   const manualBibs = p.bibs.filter((b) => b.source === "manual" || b.source === "user-tag");
@@ -536,6 +573,81 @@ function PhotoCard({
           >
             Re-run face (coming)
           </button>
+
+          {/* Destructive section — divider + two-step confirm */}
+          <div
+            style={{
+              borderTop: "1px solid var(--line)",
+              marginTop: 6,
+              paddingTop: 6,
+            }}
+          >
+            {deleteState === "confirm" || deleteState === "err" ? (
+              <div style={{ padding: "6px 12px 4px" }}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12,
+                    color: "var(--ink)",
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {deleteState === "err"
+                    ? "Delete failed — try again?"
+                    : "Delete this photo? Can't be undone."}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    role="menuitem"
+                    onClick={onConfirmDelete}
+                    style={{
+                      flex: 1,
+                      padding: "7px 10px",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 12,
+                      background: "var(--accent)",
+                      color: "var(--paper)",
+                      border: 0,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {deleteState === "err" ? "Retry" : "Yes, delete"}
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={onCancelDelete}
+                    style={{
+                      flex: 1,
+                      padding: "7px 10px",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 12,
+                      background: "transparent",
+                      color: "var(--muted)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                role="menuitem"
+                onClick={onAskDelete}
+                disabled={deleteState === "running"}
+                style={{
+                  ...menuActionStyle(deleteState === "running"),
+                  color: "var(--accent)",
+                }}
+              >
+                {deleteState === "running" ? "Deleting…" : "Delete photo"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 

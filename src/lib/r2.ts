@@ -1,4 +1,9 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectsCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "node:stream";
 
@@ -94,6 +99,24 @@ export async function r2PresignPut(
     r2(),
     new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: contentType }),
     { expiresIn: ttlSeconds }
+  );
+}
+
+/**
+ * Best-effort batch delete. R2 supports up to 1000 keys per call; we always
+ * pass a small list (original + preview for one photo). Missing keys are
+ * silently ignored — deletion from a key that doesn't exist is not an error.
+ */
+export async function r2Delete(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  await r2().send(
+    new DeleteObjectsCommand({
+      Bucket: R2_BUCKET,
+      Delete: {
+        Objects: keys.map((Key) => ({ Key })),
+        Quiet: true,
+      },
+    })
   );
 }
 
