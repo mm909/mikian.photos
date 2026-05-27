@@ -158,6 +158,111 @@ export function UploadClient({ event }: { event: EventLite }) {
     await processUntilEmpty();
   }
 
+  /* ──────────────────────────────────────────────────────────────────────
+   * Per-photo actions on completed uploads — mirrors PhotosAdminClient so
+   * the user can rerun OCR, hide, or delete a just-uploaded photo without
+   * leaving this page. Detail modal opens on tile click and lazy-loads
+   * the full DetailPhoto from /api/photographer/photos/[id].
+   * ────────────────────────────────────────────────────────────────────── */
+
+  async function openDetail(photoId: string) {
+    setOpenId(photoId);
+    setDetailLoading(true);
+    setDetailPhoto(null);
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`get ${r.status}`);
+      const d = (await r.json()) as { photo: DetailPhoto };
+      setDetailPhoto(d.photo);
+    } catch (e) {
+      console.error(e);
+      // Close on failure — better than leaving an empty modal hanging.
+      setOpenId(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeDetail() {
+    setOpenId(null);
+    setDetailPhoto(null);
+  }
+
+  async function rerunOcr(photoId: string) {
+    setRerun((s) => ({ ...s, [photoId]: "running" }));
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-ocr`, { method: "POST" });
+      if (!r.ok) throw new Error(`rerun ${r.status}`);
+      // If the detail modal is open on this photo, refetch to reflect new bibs.
+      if (openId === photoId) {
+        const re = await fetch(`/api/photographer/photos/${photoId}`, { cache: "no-store" });
+        if (re.ok) {
+          const d = (await re.json()) as { photo: DetailPhoto };
+          setDetailPhoto(d.photo);
+        }
+      }
+      setRerun((s) => ({ ...s, [photoId]: "ok" }));
+      setTimeout(() => setRerun((s) => ({ ...s, [photoId]: "idle" })), 1800);
+    } catch (e) {
+      console.error(e);
+      setRerun((s) => ({ ...s, [photoId]: "err" }));
+    }
+  }
+
+  async function deletePhoto(photoId: string) {
+    setDelState((s) => ({ ...s, [photoId]: "running" }));
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}`, { method: "DELETE" });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `delete ${r.status}`);
+      }
+      // Drop from the queue + close the modal if it's open on this photo.
+      if (openId === photoId) closeDetail();
+      setItems((curr) => {
+        const target = curr.find((i) => i.photoId === photoId);
+        if (target) URL.revokeObjectURL(target.previewUrl);
+        return curr.filter((i) => i.photoId !== photoId);
+      });
+      setDelState((s) => {
+        const next = { ...s };
+        delete next[photoId];
+        return next;
+      });
+    } catch (e) {
+      console.error(e);
+      setDelState((s) => ({ ...s, [photoId]: "err" }));
+    }
+  }
+
+  async function toggleHidden(photoId: string, currentHidden: boolean) {
+    const nextHidden = !currentHidden;
+    setHideStateMap((s) => ({ ...s, [photoId]: "running" }));
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hidden: nextHidden }),
+      });
+      if (!r.ok) throw new Error(`patch ${r.status}`);
+      // Reflect optimistically in the queue + open modal.
+      setItems((curr) =>
+        curr.map((i) => (i.photoId === photoId ? { ...i, hidden: nextHidden } : i))
+      );
+      setDetailPhoto((curr) =>
+        curr && curr.id === photoId ? { ...curr, hidden: nextHidden } : curr
+      );
+      setHideStateMap((s) => {
+        const next = { ...s };
+        delete next[photoId];
+        return next;
+      });
+    } catch (e) {
+      console.error(e);
+      setHideStateMap((s) => ({ ...s, [photoId]: "err" }));
+    }
+  }
+
   // Aggregate counts + progress
   const total = items.length;
   const done = items.filter((i) => i.status === "done").length;
@@ -347,22 +452,95 @@ export function UploadClient({ event }: { event: EventLite }) {
           </div>
         )}
 
-        {/* Thumbnail grid */}
+        {/* Thumbnail grid — completed uploads get the full library tile
+            (click-to-modal + ⋯ quick actions); in-flight items keep the
+            lightweight Tile with status pills. */}
         {items.length > 0 && (
           <div
             style={{
               marginTop: 22,
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 10,
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 4,
             }}
           >
-            {items.map((it) => (
-              <Tile key={it.uid} item={it} />
-            ))}
+            {items.map((it) => {
+              if (it.status === "done" && it.photoId && it.serverReady) {
+                const tilePhoto: LibraryTilePhoto = {
+                  id: it.photoId,
+                  previewUrl: `/api/photos/${it.photoId}/preview`,
+                  hidden: Boolean(it.hidden),
+                  bibs: [], // queue items don't carry full bib data; modal fetches it on click
+                };
+                return (
+                  <LibraryTile
+                    key={it.uid}
+                    p={tilePhoto}
+                    running={rerun[it.photoId] === "running"}
+                    deleteState={delState[it.photoId] ?? "idle"}
+                    onOpen={() => openDetail(it.photoId!)}
+                    onRerun={() => rerunOcr(it.photoId!)}
+                    onToggleHidden={() => toggleHidden(it.photoId!, Boolean(it.hidden))}
+                    onAskDelete={() =>
+                      setDelState((s) => ({
+                        ...s,
+                        [it.photoId!]: s[it.photoId!] === "confirm" ? "idle" : "confirm",
+                      }))
+                    }
+                    onConfirmDelete={() => deletePhoto(it.photoId!)}
+                    onCancelDelete={() =>
+                      setDelState((s) => ({ ...s, [it.photoId!]: "idle" }))
+                    }
+                  />
+                );
+              }
+              return <Tile key={it.uid} item={it} />;
+            })}
           </div>
         )}
       </div>
+
+      {/* Detail modal — same component as the library page. Renders a
+          loading shim while we fetch the full DetailPhoto. */}
+      {openId && detailPhoto && (
+        <PhotoDetailModal
+          photo={detailPhoto}
+          rerunState={rerun[detailPhoto.id] ?? "idle"}
+          deleteState={delState[detailPhoto.id] ?? "idle"}
+          hideState={hideStateMap[detailPhoto.id] ?? "idle"}
+          onClose={closeDetail}
+          onRerun={() => rerunOcr(detailPhoto.id)}
+          onAskDelete={() =>
+            setDelState((s) => ({
+              ...s,
+              [detailPhoto.id]: s[detailPhoto.id] === "confirm" ? "idle" : "confirm",
+            }))
+          }
+          onConfirmDelete={() => deletePhoto(detailPhoto.id)}
+          onCancelDelete={() => setDelState((s) => ({ ...s, [detailPhoto.id]: "idle" }))}
+          onToggleHidden={() => toggleHidden(detailPhoto.id, detailPhoto.hidden)}
+        />
+      )}
+      {openId && !detailPhoto && detailLoading && (
+        <div className="overlay" onClick={closeDetail} style={{ background: "rgba(28,26,23,.6)" }}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              padding: "20px 28px",
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            Loading photo…
+          </div>
+        </div>
+      )}
     </main>
   );
 }
