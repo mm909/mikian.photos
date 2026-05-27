@@ -394,6 +394,22 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
 /* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Legal pages — prose */
+.legal-prose { color: var(--ink); font-size: 15px; line-height: 1.65; }
+.legal-prose h2 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -.005em;
+  color: var(--ink);
+  margin: 32px 0 10px;
+}
+.legal-prose p { margin: 0 0 14px; color: var(--ink); }
+.legal-prose ul { margin: 0 0 18px; padding-left: 20px; }
+.legal-prose li { margin: 6px 0; }
+.legal-prose strong { font-weight: 600; }
+.legal-prose a { color: var(--accent); text-decoration-color: var(--accent); }
+
 /* Responsive helpers used by screens */
 @media (max-width: 800px) {
   .landing-grid { grid-template-columns: 1fr !important; gap: 36px !important; text-align: center; }
