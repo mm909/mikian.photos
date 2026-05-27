@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import {
+  findRacerByBib,
   photos as ALL_PHOTOS,
   prices,
   type BibSuggest,
@@ -18,11 +19,14 @@ import {
   type FaceSuggest,
   type Order,
   type Photo,
+  type Racer,
 } from "@/lib/data";
 
 type RunnerCtx = {
   // results state
   resultPhotos: Photo[];
+  matchedRacer: Racer | null;
+  searchedBib: string | null;
   faceSuggest: FaceSuggest | null;
   bibSuggest: BibSuggest | null;
   faceDone: boolean;
@@ -67,6 +71,8 @@ const STORAGE_KEY = "mikian.runner.v1";
 
 type Persisted = {
   resultPhotoIds: string[];
+  searchedBib: string | null;
+  matchedRacerBib: number | null;
   faceSuggest: FaceSuggest | null;
   bibSuggest: BibSuggest | null;
   faceDone: boolean;
@@ -112,6 +118,8 @@ function applyBundleCap(cart: Cart): { cart: Cart; capped: boolean } {
 
 export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
+  const [matchedRacer, setMatchedRacer] = useState<Racer | null>(null);
+  const [searchedBib, setSearchedBib] = useState<string | null>(null);
   const [faceSuggest, setFaceSuggest] = useState<FaceSuggest | null>(null);
   const [bibSuggest, setBibSuggest] = useState<BibSuggest | null>(null);
   const [faceDone, setFaceDone] = useState(false);
@@ -129,6 +137,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     const p = loadPersisted();
     if (p) {
       setResultPhotos(ALL_PHOTOS.filter((ph) => p.resultPhotoIds.includes(ph.id)));
+      setSearchedBib(p.searchedBib);
+      setMatchedRacer(p.matchedRacerBib ? findRacerByBib(p.matchedRacerBib) ?? null : null);
       setFaceSuggest(p.faceSuggest);
       setBibSuggest(p.bibSuggest);
       setFaceDone(p.faceDone);
@@ -143,13 +153,15 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated.current) return;
     savePersisted({
       resultPhotoIds: resultPhotos.map((p) => p.id),
+      searchedBib,
+      matchedRacerBib: matchedRacer?.bib ?? null,
       faceSuggest,
       bibSuggest,
       faceDone,
       cart,
       order,
     });
-  }, [resultPhotos, faceSuggest, bibSuggest, faceDone, cart, order]);
+  }, [resultPhotos, searchedBib, matchedRacer, faceSuggest, bibSuggest, faceDone, cart, order]);
 
   const flashToast = useCallback((msg: string) => {
     setToast(msg);
@@ -167,31 +179,51 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   function runSearch(s: { kind: "bib" | "face" | "browse"; value?: string }) {
     if (s.kind === "bib" && s.value) {
       const value = s.value;
-      let matches = ALL_PHOTOS.filter((p) => p.bib % 5 === Number(value) % 5).slice(0, 14);
-      if (matches.length === 0) matches = ALL_PHOTOS.slice(0, 14);
-      const sugg = ALL_PHOTOS.slice(14, 22);
+      const racer = findRacerByBib(value) ?? null;
+      const matches = ALL_PHOTOS.filter((p) => p.bib === Number(value));
+      setMatchedRacer(racer);
+      setSearchedBib(value);
       setResultPhotos(matches);
-      setFaceSuggest({
-        bib: value,
-        count: sugg.length,
-        tones: sugg.slice(0, 3).map((p) => p.tones),
-        ids: sugg.map((p) => p.id),
-      });
+      // Face-suggest is meaningful when we have a real photo catalog to draw from.
+      // Skip it in empty-catalog mode so we don't show fake stacked thumbs.
+      if (matches.length > 0) {
+        const sugg = ALL_PHOTOS.filter((p) => p.bib !== Number(value)).slice(0, 6);
+        setFaceSuggest(
+          sugg.length > 0
+            ? {
+                bib: value,
+                count: sugg.length,
+                tones: sugg.slice(0, 3).map((p) => p.tones),
+                ids: sugg.map((p) => p.id),
+              }
+            : null
+        );
+      } else {
+        setFaceSuggest(null);
+      }
       setBibSuggest(null);
       setFaceDone(false);
     } else if (s.kind === "face") {
       const matches = ALL_PHOTOS.slice(0, 18);
+      setMatchedRacer(null);
+      setSearchedBib(null);
       setResultPhotos(matches);
       setFaceSuggest(null);
-      setBibSuggest({
-        bib: "1248",
-        count: 6,
-        tones: ALL_PHOTOS.slice(18, 21).map((p) => p.tones),
-        ids: ALL_PHOTOS.slice(18, 24).map((p) => p.id),
-      });
+      setBibSuggest(
+        matches.length > 0
+          ? {
+              bib: String(matches[0]?.bib ?? ""),
+              count: 6,
+              tones: ALL_PHOTOS.slice(18, 21).map((p) => p.tones),
+              ids: ALL_PHOTOS.slice(18, 24).map((p) => p.id),
+            }
+          : null
+      );
       setFaceDone(true);
     } else {
       const matches = ALL_PHOTOS;
+      setMatchedRacer(null);
+      setSearchedBib(null);
       setResultPhotos(matches);
       setFaceSuggest(null);
       setBibSuggest(null);
@@ -373,6 +405,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   function resetAll() {
     setResultPhotos([]);
+    setMatchedRacer(null);
+    setSearchedBib(null);
     setSelected(new Set());
     setCart({ items: [] });
     setCartCapped(false);
@@ -401,6 +435,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<RunnerCtx>(
     () => ({
       resultPhotos,
+      matchedRacer,
+      searchedBib,
       faceSuggest,
       bibSuggest,
       faceDone,
@@ -436,7 +472,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resultPhotos, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [resultPhotos, matchedRacer, searchedBib, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

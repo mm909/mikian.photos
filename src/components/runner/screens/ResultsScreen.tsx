@@ -14,6 +14,8 @@ export function ResultsScreen() {
   const router = useRouter();
   const {
     resultPhotos,
+    matchedRacer,
+    searchedBib,
     faceSuggest,
     bibSuggest,
     acceptFaceSuggest,
@@ -106,6 +108,20 @@ export function ResultsScreen() {
         }}
       >
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+          {matchedRacer && (
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".14em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+                marginBottom: 8,
+              }}
+            >
+              Bib #{matchedRacer.bib} · {matchedRacer.name} · finished {matchedRacer.finishTime}
+            </div>
+          )}
           <Headline
             as="div"
             text={`${resultPhotos.length} photos found`}
@@ -223,28 +239,142 @@ export function ResultsScreen() {
         </div>
       </section>
 
-      {/* Bundle bar */}
-      <BundleBar inCart={bundleInCart} onClick={onBundleAdd} />
+      {/* Bundle bar — only show when there's something to buy */}
+      {resultPhotos.length > 0 && <BundleBar inCart={bundleInCart} onClick={onBundleAdd} />}
 
-      {/* Grid */}
+      {/* Grid or empty state */}
       <section style={{ padding: 32, maxWidth: 1280, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
-            gap: 14,
-          }}
-        >
-          {resultPhotos.map((p) => (
-            <PhotoThumb
-              key={p.id}
-              photo={p}
-              onClick={() => openLightbox(p)}
-              onExpand={() => openLightbox(p)}
-            />
-          ))}
-        </div>
+        {resultPhotos.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+              gap: 14,
+            }}
+          >
+            {resultPhotos.map((p) => (
+              <PhotoThumb
+                key={p.id}
+                photo={p}
+                onClick={() => openLightbox(p)}
+                onExpand={() => openLightbox(p)}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyResultsState
+            matchedRacer={matchedRacer ? { name: matchedRacer.name, bib: matchedRacer.bib } : null}
+            searchedBib={searchedBib}
+          />
+        )}
       </section>
     </main>
+  );
+}
+
+function EmptyResultsState({
+  matchedRacer,
+  searchedBib,
+}: {
+  matchedRacer: { name: string; bib: number } | null;
+  searchedBib: string | null;
+}) {
+  if (matchedRacer) {
+    return (
+      <div
+        style={{
+          maxWidth: 640,
+          margin: "32px auto",
+          textAlign: "center",
+          padding: "48px 24px",
+          background: "var(--cream)",
+          border: "1px solid var(--line)",
+          borderRadius: 10,
+        }}
+      >
+        <Headline
+          as="h2"
+          text={`Hi, ${matchedRacer.name.split(" ")[0]} — we're still sorting your photos.`}
+          accent={`Hi, ${matchedRacer.name.split(" ")[0]}`}
+          style={{
+            margin: 0,
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 28,
+            lineHeight: 1.15,
+            letterSpacing: "-.012em",
+            color: "var(--ink)",
+          }}
+        />
+        <p style={{ color: "var(--muted)", fontSize: 15, marginTop: 14, lineHeight: 1.55 }}>
+          We found you in the bib #{matchedRacer.bib} results, and photos are on the way. Check
+          back in a few days — we&rsquo;ll have you covered.
+        </p>
+      </div>
+    );
+  }
+  if (searchedBib) {
+    return (
+      <div
+        style={{
+          maxWidth: 540,
+          margin: "32px auto",
+          textAlign: "center",
+          padding: "48px 24px",
+          background: "var(--cream)",
+          border: "1px solid var(--line)",
+          borderRadius: 10,
+        }}
+      >
+        <Headline
+          as="h2"
+          text={`No runner with bib #${searchedBib}.`}
+          accent="No runner"
+          style={{
+            margin: 0,
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 24,
+            lineHeight: 1.15,
+            letterSpacing: "-.012em",
+            color: "var(--ink)",
+          }}
+        />
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12 }}>
+          Double-check your number — bib numbers from this event run 251 to 400.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        maxWidth: 540,
+        margin: "32px auto",
+        textAlign: "center",
+        padding: "48px 24px",
+        background: "var(--cream)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+      }}
+    >
+      <Headline
+        as="h2"
+        text="Photos are on the way."
+        accent="on the way."
+        style={{
+          margin: 0,
+          fontFamily: "var(--font-serif)",
+          fontWeight: 500,
+          fontSize: 26,
+          lineHeight: 1.15,
+          letterSpacing: "-.012em",
+          color: "var(--ink)",
+        }}
+      />
+      <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12 }}>
+        We&rsquo;re still processing photos from the race. Check back in a few days.
+      </p>
+    </div>
   );
 }
