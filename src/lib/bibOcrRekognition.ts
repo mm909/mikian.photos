@@ -71,34 +71,34 @@ function confidenceFloor(digits: number, s: OcrSettings): number {
 }
 
 /**
- * Apply the user's preprocessing settings + downscale to keep under
- * Rekognition's 5MB byte limit. Rekognition does its own detection, so the
- * prep here is much lighter than Tesseract's — usually it's enough to just
- * cap dimensions. The contrast/threshold knobs from the lab still apply so
- * the visualisation matches what we sent.
+ * Minimal prep for Rekognition: orient via EXIF + downscale enough to fit
+ * under the 5MB byte cap. **No grayscale, sharpen, contrast, threshold, or
+ * negate** — Rekognition is trained on real-world colour photos and
+ * preprocessing generally hurts accuracy rather than helps. The lab UI
+ * hides those toggles when this provider is selected.
+ *
+ * Only `prepWidth` from settings applies (caps the long edge for byte
+ * size); all other prep knobs are deliberately ignored.
  */
 async function prepare(
   input: Buffer,
   s: OcrSettings
 ): Promise<{ jpeg: Buffer; png: Buffer; width: number; height: number }> {
-  let pipe = sharp(input, { failOn: "none" })
+  const pipe = sharp(input, { failOn: "none" })
     .rotate()
     .resize({ width: s.prepWidth, withoutEnlargement: true, fit: "inside" });
-  // Optional preprocessing (lab toggles). Defaults are passthrough.
-  if (s.sharpen) pipe = pipe.sharpen();
-  if (s.normalize) pipe = pipe.normalize();
-  if (s.contrastA !== 1 || s.contrastB !== 0) pipe = pipe.linear(s.contrastA, s.contrastB);
-  if (s.invert) pipe = pipe.negate();
-  if (s.threshold != null) pipe = pipe.threshold(s.threshold);
 
-  // We need two encodings: JPEG for the API (smaller bytes-on-wire) and
-  // PNG for the debug overlay (visualisation).
-  let jpeg = await pipe.clone().jpeg({ quality: 88 }).toBuffer();
-  let quality = 88;
+  // JPEG for the API (smaller bytes-on-wire). Drop quality if we're near
+  // Rekognition's 5MB cap.
+  let jpeg = await pipe.clone().jpeg({ quality: 92 }).toBuffer();
+  let quality = 92;
   while (jpeg.length > MAX_REKOG_BYTES && quality > 50) {
     quality -= 10;
     jpeg = await pipe.clone().jpeg({ quality }).toBuffer();
   }
+
+  // PNG for the debug overlay (visualisation). Same pipe, just lossless so
+  // the bbox renderer doesn't compound JPEG artefacts.
   const png = await pipe.clone().toFormat("png").toBuffer();
   const meta = await sharp(png).metadata();
   return { jpeg, png, width: meta.width ?? s.prepWidth, height: meta.height ?? 0 };

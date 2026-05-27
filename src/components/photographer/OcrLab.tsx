@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_OCR_SETTINGS,
   OEM_OPTIONS,
@@ -46,6 +46,26 @@ export function OcrLab({
   const [debug, setDebug] = useState<DebugPayload | null>(null);
   const [state, setState] = useState<State>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  /** In-session cache: (photoId + settings) → DebugPayload. Saves Rekognition
+   *  API calls when the user clicks Run with the same config repeatedly.
+   *  Wiped on page reload — fine for a lab tool. */
+  const cacheRef = useRef<Map<string, DebugPayload>>(new Map());
+  function cacheKey(pid: string, s: OcrSettings) {
+    return `${pid}|${JSON.stringify(s)}`;
+  }
+
+  /** Per-thumb refs so we can scroll the active one into view when the user
+   *  navigates with arrow keys. Without this, the highlight runs off-screen
+   *  in the horizontally-scrolling strip. */
+  const thumbRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => {
+    if (!photoId) return;
+    const el = thumbRefs.current[photoId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [photoId]);
   /** When debug is loaded, this controls whether the single image box shows
    *  the Original photo or the OCR-prepared view with bbox overlays. Flips
    *  to true on a successful run; user can toggle back with the chip. */
@@ -90,8 +110,18 @@ export function OcrLab({
     return () => window.removeEventListener("keydown", onKey);
   }, [goPrev, goNext]);
 
-  async function run() {
+  async function run(opts: { force?: boolean } = {}) {
     if (!photoId) return;
+    const key = cacheKey(photoId, settings);
+    if (!opts.force) {
+      const cached = cacheRef.current.get(key);
+      if (cached) {
+        setDebug(cached);
+        setState("ok");
+        setShowOcrView(true);
+        return;
+      }
+    }
     setState("running");
     setError(null);
     try {
@@ -104,7 +134,9 @@ export function OcrLab({
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error || `${r.status}`);
       }
-      setDebug((await r.json()) as DebugPayload);
+      const d = (await r.json()) as DebugPayload;
+      cacheRef.current.set(key, d);
+      setDebug(d);
       setState("ok");
       // Auto-flip to the OCR view on success — that's why you ran it.
       setShowOcrView(true);
@@ -197,7 +229,8 @@ export function OcrLab({
           </span>
         </div>
 
-        {/* Photo picker strip — smaller tiles */}
+        {/* Photo picker strip — smaller tiles. Active thumb auto-scrolls
+            into view when the user navigates with arrow keys. */}
         {recent.length > 0 && (
           <div
             style={{
@@ -211,6 +244,9 @@ export function OcrLab({
             {recent.map((p) => (
               <button
                 key={p.id}
+                ref={(el) => {
+                  thumbRefs.current[p.id] = el;
+                }}
                 onClick={() => setPhotoId(p.id)}
                 title={p.bibs.length ? `Bibs: ${p.bibs.join(", ")}` : "Untagged"}
                 style={{
@@ -358,32 +394,65 @@ export function OcrLab({
               paddingRight: 4,
             }}
           >
-            {/* Run button */}
-            <div style={{ position: "sticky", top: 0, background: "var(--paper)", paddingBottom: 4, zIndex: 1 }}>
-              <button
-                className="btn btn--primary"
-                onClick={run}
-                disabled={state === "running" || !photoId}
-                style={{ width: "100%" }}
-              >
-                {state === "running" ? "Running…" : "Run OCR"}
-              </button>
-              {debug && (
+            {/* Run button. The cache returns a memoised result instantly for
+                identical (photoId + settings). "Force re-run" bypasses it
+                when you want to hit the provider again. */}
+            {(() => {
+              const hasCachedFor = photoId
+                ? cacheRef.current.has(cacheKey(photoId, settings))
+                : false;
+              return (
                 <div
                   style={{
-                    marginTop: 4,
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 10,
-                    letterSpacing: ".12em",
-                    textTransform: "uppercase",
-                    color: "var(--muted)",
-                    textAlign: "right",
+                    position: "sticky",
+                    top: 0,
+                    background: "var(--paper)",
+                    paddingBottom: 4,
+                    zIndex: 1,
                   }}
                 >
-                  {debug.durationMs} ms · {debug.words.length} words · {debug.bibs.length} kept
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="btn btn--primary"
+                      onClick={() => run()}
+                      disabled={state === "running" || !photoId}
+                      style={{ flex: 1 }}
+                    >
+                      {state === "running"
+                        ? "Running…"
+                        : hasCachedFor
+                          ? "Show cached"
+                          : "Run OCR"}
+                    </button>
+                    {hasCachedFor && state !== "running" && (
+                      <button
+                        className="btn btn--ghost"
+                        onClick={() => run({ force: true })}
+                        title="Bypass cache and call the provider again"
+                      >
+                        ↻ Force
+                      </button>
+                    )}
+                  </div>
+                  {debug && (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        letterSpacing: ".12em",
+                        textTransform: "uppercase",
+                        color: "var(--muted)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {debug.durationMs} ms · {debug.words.length} words ·{" "}
+                      {debug.bibs.length} kept
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Result chips */}
             {debug && debug.bibs.length > 0 && (
@@ -461,63 +530,82 @@ export function OcrLab({
                   onChange={(v) => patch("prepWidth", v)}
                 />
               </Field>
-              <Toggle
-                label="Sharpen"
-                value={settings.sharpen}
-                onChange={(v) => patch("sharpen", v)}
-              />
-              <Toggle
-                label="Normalize (histogram stretch)"
-                value={settings.normalize}
-                onChange={(v) => patch("normalize", v)}
-              />
-              <Field label={`Contrast linear(a=${settings.contrastA}, b=${settings.contrastB})`}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <NumberInput
-                    value={settings.contrastA}
-                    step={0.05}
-                    min={0.5}
-                    max={2.5}
-                    onChange={(v) => patch("contrastA", v)}
-                  />
-                  <NumberInput
-                    value={settings.contrastB}
-                    step={2}
-                    min={-60}
-                    max={60}
-                    onChange={(v) => patch("contrastB", v)}
-                  />
-                </div>
-              </Field>
-              <Field
-                label={
-                  settings.threshold == null
-                    ? "Threshold (binarize): off"
-                    : `Threshold (binarize): ${settings.threshold}`
-                }
-              >
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Slider
-                    min={0}
-                    max={255}
-                    step={1}
-                    value={settings.threshold ?? 128}
-                    onChange={(v) => patch("threshold", v)}
-                    disabled={settings.threshold == null}
+              {settings.provider === "tesseract" ? (
+                <>
+                  <Toggle
+                    label="Sharpen"
+                    value={settings.sharpen}
+                    onChange={(v) => patch("sharpen", v)}
                   />
                   <Toggle
-                    label="on"
-                    inline
-                    value={settings.threshold != null}
-                    onChange={(v) => patch("threshold", v ? 128 : null)}
+                    label="Normalize (histogram stretch)"
+                    value={settings.normalize}
+                    onChange={(v) => patch("normalize", v)}
                   />
+                  <Field
+                    label={`Contrast linear(a=${settings.contrastA}, b=${settings.contrastB})`}
+                  >
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <NumberInput
+                        value={settings.contrastA}
+                        step={0.05}
+                        min={0.5}
+                        max={2.5}
+                        onChange={(v) => patch("contrastA", v)}
+                      />
+                      <NumberInput
+                        value={settings.contrastB}
+                        step={2}
+                        min={-60}
+                        max={60}
+                        onChange={(v) => patch("contrastB", v)}
+                      />
+                    </div>
+                  </Field>
+                  <Field
+                    label={
+                      settings.threshold == null
+                        ? "Threshold (binarize): off"
+                        : `Threshold (binarize): ${settings.threshold}`
+                    }
+                  >
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <Slider
+                        min={0}
+                        max={255}
+                        step={1}
+                        value={settings.threshold ?? 128}
+                        onChange={(v) => patch("threshold", v)}
+                        disabled={settings.threshold == null}
+                      />
+                      <Toggle
+                        label="on"
+                        inline
+                        value={settings.threshold != null}
+                        onChange={(v) => patch("threshold", v ? 128 : null)}
+                      />
+                    </div>
+                  </Field>
+                  <Toggle
+                    label="Invert (negate)"
+                    value={settings.invert}
+                    onChange={(v) => patch("invert", v)}
+                  />
+                </>
+              ) : (
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 11,
+                    color: "var(--muted)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Rekognition is trained on real-world photos — sharpen / contrast /
+                  threshold / invert are not applied. Only prep width (byte-size cap)
+                  has effect.
                 </div>
-              </Field>
-              <Toggle
-                label="Invert (negate)"
-                value={settings.invert}
-                onChange={(v) => patch("invert", v)}
-              />
+              )}
             </Box>
 
             <Box title="Bib filter">

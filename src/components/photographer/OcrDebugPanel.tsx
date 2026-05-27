@@ -44,7 +44,7 @@ export function OcrDebugPanel({ debug, state, error, onRun }: ControlsProps) {
       )}
       {state === "running" && (
         <button className="btn btn--ghost btn--sm" disabled style={{ width: "100%" }}>
-          Running Tesseract… (~5–25s)
+          Running OCR…
         </button>
       )}
       {state === "err" && (
