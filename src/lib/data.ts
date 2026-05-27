@@ -1,4 +1,5 @@
 import type { DistanceKey } from "./gpx";
+import { LIGHTHOUSE_RACERS, racerByBib } from "./lighthouseRoster";
 
 export type EventStatus = "live" | "recent";
 
@@ -139,9 +140,10 @@ const TONES: [string, string, string][] = [
 
 const MILES = [3, 6, 10, 13, 18, 21, 24, 26];
 
-// Approximate Boston Marathon course bbox for synthetic GPS per photo (Hopkinton → Copley).
-const COURSE_LAT_RANGE: [number, number] = [42.2284, 42.3496];
-const COURSE_LNG_RANGE: [number, number] = [-71.5197, -71.0779];
+// Approximate Long Beach shoreline bbox (Lions Lighthouse → eastern turnaround)
+// for synthetic GPS positions in DEMO_PHOTOS only. Real photos arrive with EXIF GPS.
+const COURSE_LAT_RANGE: [number, number] = [33.7574, 33.7600];
+const COURSE_LNG_RANGE: [number, number] = [-118.1905, -118.1430];
 function photoGps(i: number): [number, number] {
   const t = (i % 36) / 35;
   const lat = COURSE_LAT_RANGE[0] + (COURSE_LAT_RANGE[1] - COURSE_LAT_RANGE[0]) * t;
@@ -150,23 +152,32 @@ function photoGps(i: number): [number, number] {
   return [lat + (i % 7 - 3) * 0.0006, lng + (i % 11 - 5) * 0.0009];
 }
 
-export const photos: Photo[] = Array.from({ length: 36 }, (_, i) => {
+// Real photo catalog for the event. Empty until photographer uploads land.
+// When you drop a real Photo[] in here (or wire an API), bib search + face
+// search will return matches automatically — no other code change needed.
+export const photos: Photo[] = [];
+
+// Kept around as a demo fallback. Pre-generated procedural photos against
+// the real Lighthouse bib pool — useful for previewing the results / lightbox /
+// checkout UI when no real photos exist yet. Not exposed by default; opt in by
+// importing { DEMO_PHOTOS } from "@/lib/data" and substituting at the call site.
+export const DEMO_PHOTOS: Photo[] = LIGHTHOUSE_RACERS.slice(0, 36).map((r, i) => {
   const t = TONES[i % TONES.length];
   const sx = 20 + ((i * 17) % 60);
   const sy = 25 + ((i * 11) % 30);
   const pg = photographersRoster[i % photographersRoster.length];
   return {
     id: `p${i + 1}`,
-    bib: 1240 + (i % 12),
+    bib: r.bib,
     mile: MILES[i % MILES.length],
-    time: `${2 + Math.floor(i / 12)}:${String(15 + ((i * 7) % 40)).padStart(2, "0")}:${String((i * 13) % 60).padStart(2, "0")}`,
+    time: r.chipTime,
     photographer: pg.name,
     photographerId: pg.id,
     tones: t,
     spot: [sx, sy],
     price: 10,
     gps: photoGps(i),
-    takenAt: `2025-04-21T${String(10 + Math.floor(i / 12)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}:00Z`,
+    takenAt: `2026-05-24T${String(10 + Math.floor(i / 12)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}:00Z`,
     hidden: false,
   };
 });
@@ -178,38 +189,32 @@ export function photoBg(p: { tones: [string, string, string]; spot: [number, num
 }
 
 /* ----------------------------------------------------------------
-   Racer roster — used by face/bib search and (later) RD stats
+   Racer roster — real 2026 Lighthouse Half Marathon finishers
+   (loaded from src/lib/lighthouseRoster.ts). All entries are the
+   half distance; 5K and 10K rosters not yet wired.
    ---------------------------------------------------------------- */
-const FIRST = ["Alex", "Sam", "Jamie", "Riley", "Casey", "Morgan", "Drew", "Jordan", "Taylor", "Avery", "Quinn", "Hayden"];
-const LAST = ["Nguyen", "Kim", "Patel", "Garcia", "Smith", "O'Connor", "Park", "Singh", "Lee", "Brown"];
-const DISTANCES_PER_BUCKET: { distance: DistanceKey; count: number; baseTime: string }[] = [
-  { distance: "5k",   count: 30, baseTime: "0:24:00" },
-  { distance: "10k",  count: 30, baseTime: "0:51:00" },
-  { distance: "half", count: 30, baseTime: "1:52:00" },
-  { distance: "full", count: 30, baseTime: "3:42:00" },
-];
+export const racers: Racer[] = LIGHTHOUSE_RACERS.map((r) => ({
+  id: `r-${r.bib}`,
+  name: r.name,
+  email: "", // not collected publicly; comes from the racer's account when they sign in
+  bib: r.bib,
+  distance: "half" as DistanceKey,
+  finishTime: r.chipTime,
+}));
 
-export const racers: Racer[] = (() => {
-  const out: Racer[] = [];
-  let bibCounter = 1000;
-  for (const bucket of DISTANCES_PER_BUCKET) {
-    for (let i = 0; i < bucket.count; i++) {
-      const f = FIRST[(bibCounter * 7) % FIRST.length];
-      const l = LAST[(bibCounter * 13) % LAST.length];
-      out.push({
-        id: `r-${bibCounter}`,
-        name: `${f} ${l}`,
-        email: `${f.toLowerCase()}.${l.toLowerCase().replace(/\W/g, "")}@example.com`,
-        bib: bibCounter,
-        distance: bucket.distance,
-        finishTime: bucket.baseTime,
-      });
-      bibCounter++;
-    }
-  }
-  return out;
-})();
+export function findRacerByBib(bib: number | string): Racer | undefined {
+  const r = racerByBib(bib);
+  if (!r) return undefined;
+  return {
+    id: `r-${r.bib}`,
+    name: r.name,
+    email: "",
+    bib: r.bib,
+    distance: "half",
+    finishTime: r.chipTime,
+  };
+}
 
 // Bib that face-search "matches" — the seeded face-suggest banner proposes this bib.
-// In production this comes from the face-recognition pipeline; for the demo we just pick one.
-export const FACE_SEED_BIB = 1248;
+// Pick a real Lighthouse runner so it lands credibly.
+export const FACE_SEED_BIB = 288;

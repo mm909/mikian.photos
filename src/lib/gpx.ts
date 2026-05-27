@@ -6,24 +6,22 @@ export type GpxTrack = {
   bbox: { minLat: number; maxLat: number; minLng: number; maxLng: number };
 };
 
-export type DistanceKey = "5k" | "10k" | "half" | "full";
+export type DistanceKey = "5k" | "10k" | "half";
 
 export const DISTANCE_LABELS: Record<DistanceKey, string> = {
   "5k": "5K",
   "10k": "10K",
   half: "Half",
-  full: "Full",
 };
 
 export const DISTANCE_METERS: Record<DistanceKey, number> = {
   "5k": 5000,
   "10k": 10000,
   half: 21097,
-  full: 42195,
 };
 
-const BOSTON_FINISH: [number, number] = [42.3496, -71.0779];
-const BOSTON_START: [number, number] = [42.2284, -71.5197];
+// Lions Lighthouse, Long Beach — start/finish for the Lighthouse races.
+const LIGHTHOUSE_FINISH: [number, number] = [33.7593, -118.1903];
 
 const R_EARTH = 6371000;
 function haversineM(a: [number, number], b: [number, number]) {
@@ -39,13 +37,18 @@ function haversineM(a: [number, number], b: [number, number]) {
 export function parseGpx(xml: string): GpxTrack | null {
   if (typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(xml, "application/xml");
-  const trkpts = Array.from(doc.querySelectorAll("trkpt"));
+  // GPX has a default xmlns, so querySelector("trkpt") returns nothing in XML mode.
+  // getElementsByTagName works regardless of namespace.
+  const trkpts = Array.from(doc.getElementsByTagName("trkpt"));
   if (trkpts.length === 0) return null;
-  const points: GpxPoint[] = trkpts.map((el) => ({
-    lat: parseFloat(el.getAttribute("lat") || "0"),
-    lng: parseFloat(el.getAttribute("lon") || "0"),
-    ele: parseFloat(el.querySelector("ele")?.textContent || "0"),
-  }));
+  const points: GpxPoint[] = trkpts.map((el) => {
+    const eleEl = el.getElementsByTagName("ele")[0];
+    return {
+      lat: parseFloat(el.getAttribute("lat") || "0"),
+      lng: parseFloat(el.getAttribute("lon") || "0"),
+      ele: parseFloat(eleEl?.textContent || "0"),
+    };
+  });
   return summarize(points);
 }
 
@@ -76,7 +79,7 @@ function summarize(points: GpxPoint[]): GpxTrack {
    ---------------------------------------------------------------- */
 export function synthesizeGpx(distance: DistanceKey): GpxTrack {
   const meters = DISTANCE_METERS[distance];
-  const finish = BOSTON_FINISH;
+  const finish = LIGHTHOUSE_FINISH;
 
   // Pick a start point so straight-line distance roughly matches the race.
   // Real distances are not straight lines but this gives a believable scale.
@@ -84,7 +87,6 @@ export function synthesizeGpx(distance: DistanceKey): GpxTrack {
     "5k": [finish[0] + 0.018, finish[1] - 0.034],
     "10k": [finish[0] + 0.022, finish[1] - 0.062],
     half: [finish[0] + 0.06, finish[1] - 0.16],
-    full: BOSTON_START,
   };
   const start = startMap[distance];
 
@@ -103,9 +105,8 @@ export function synthesizeGpx(distance: DistanceKey): GpxTrack {
     const py = dx / norm;
     const amp = 0.012 * (distance === "5k" ? 0.6 : distance === "10k" ? 0.8 : 1);
     const wig = Math.sin(t * Math.PI * (distance === "5k" ? 4 : 3)) * amp;
-    // Elevation: Boston-shaped — rolling hills with Newton (mile 17-21) climb for full
+    // Elevation profile fallback — gentle rolling
     let ele = 30 + Math.sin(t * Math.PI * 2.5) * 12;
-    if (distance === "full" && t > 0.55 && t < 0.75) ele += 35 * Math.sin(((t - 0.55) / 0.2) * Math.PI);
     if (distance === "half" && t > 0.4 && t < 0.65) ele += 22 * Math.sin(((t - 0.4) / 0.25) * Math.PI);
     pts.push({ lat: lat + px * wig, lng: lng + py * wig, ele });
   }
@@ -125,7 +126,8 @@ export function synthesizeGpx(distance: DistanceKey): GpxTrack {
 
 export async function loadGpx(distance: DistanceKey): Promise<GpxTrack> {
   try {
-    const res = await fetch(`/gpx/${distance}.gpx`, { cache: "force-cache" });
+    // 'default' lets the browser revalidate; 'force-cache' would serve stale on re-deploys.
+    const res = await fetch(`/gpx/${distance}.gpx`, { cache: "default" });
     if (res.ok) {
       const txt = await res.text();
       const parsed = parseGpx(txt);
