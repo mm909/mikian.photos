@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 import {
   PhotoDetailModal,
@@ -369,57 +369,113 @@ export function PhotosAdminClient() {
 }
 
 /**
- * Library card — uncropped photo on a cream cell, no chrome.
- * All interaction goes through the click-to-open detail modal.
+ * Library tile — uncropped photo on a cream cell, contact-sheet tight.
+ *
+ * Primary interaction: click the photo → opens the detail modal.
+ * Secondary (hover): a ⋯ button reveals in the top-right corner with a
+ * small popover of quick actions (rerun OCR, hide/unhide, delete with
+ * two-step confirm). Quick actions duplicate the modal's, but save a
+ * click when you're scanning the grid.
  */
 function PhotoTile({
   p,
   running,
-  onClick,
+  deleteState,
+  onOpen,
+  onRerun,
+  onToggleHidden,
+  onAskDelete,
+  onConfirmDelete,
+  onCancelDelete,
 }: {
   p: AdminPhoto;
   running: boolean;
-  onClick: () => void;
+  deleteState: DeleteState;
+  onOpen: () => void;
+  onRerun: () => void;
+  onToggleHidden: () => void;
+  onAskDelete: () => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
 }) {
+  const [hover, setHover] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Outside-click + Esc close the menu (per-tile scope)
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  // While the delete-confirm is open we hold the menu open so the user
+  // can finish the confirmation.
+  const showOverflow = hover || menuOpen;
+  const inConfirm = deleteState === "confirm" || deleteState === "err";
+
+  function onTileClick() {
+    // Don't open the modal if the user just clicked into the menu.
+    if (menuOpen) return;
+    onOpen();
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
+      ref={wrapRef}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onTileClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onTileClick();
+        }
+      }}
       title={p.bibs.length ? `Bibs ${p.bibs.map((b) => b.bib).join(", ")}` : "Untagged"}
       style={{
         position: "relative",
         aspectRatio: "3 / 2",
         background: "var(--cream)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        overflow: "hidden",
-        padding: 0,
         cursor: "pointer",
-        transition: "transform var(--dur-hover) var(--ease), box-shadow var(--dur-hover) var(--ease)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "";
+        overflow: "visible", // popover can spill below
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={p.previewUrl}
-        alt=""
-        loading="lazy"
+      {/* Image wrapper crops the rounded preview separately */}
+      <div
         style={{
-          width: "100%",
-          height: "100%",
-          // contain → full photo visible, never cropped
-          objectFit: "contain",
-          display: "block",
-          opacity: p.hidden ? 0.45 : 1,
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          borderRadius: 2,
         }}
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={p.previewUrl}
+          alt=""
+          loading="lazy"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+            opacity: p.hidden ? 0.45 : 1,
+          }}
+        />
+      </div>
 
       {p.hidden && (
         <span
@@ -435,20 +491,21 @@ function PhotoTile({
             color: "var(--paper)",
             padding: "2px 6px",
             borderRadius: 3,
+            pointerEvents: "none",
           }}
         >
           Hidden
         </span>
       )}
 
-      {/* Tiny status pulse when this photo is mid-OCR. Stays out of the way. */}
+      {/* Status pulse + ⋯ button live in the same corner area */}
       {running && (
         <span
           aria-label="ocr running"
           style={{
             position: "absolute",
             top: 8,
-            right: 8,
+            right: showOverflow ? 38 : 8, // slide left when ⋯ is visible
             width: 8,
             height: 8,
             borderRadius: 999,
@@ -459,14 +516,181 @@ function PhotoTile({
         />
       )}
 
+      {/* Overflow ⋯ button — visible on hover or while menu is open */}
+      {showOverflow && (
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+          title="Quick actions"
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 26,
+            height: 26,
+            borderRadius: 5,
+            background: "rgba(245,242,236,.92)",
+            border: "1px solid var(--line)",
+            color: "var(--ink)",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 15,
+            fontWeight: 700,
+            lineHeight: 1,
+            backdropFilter: "blur(4px)",
+            zIndex: 3,
+          }}
+        >
+          ⋯
+        </button>
+      )}
+
+      {/* Quick-action popover. Stops click propagation so taps inside don't
+          open the detail modal. */}
+      {menuOpen && (
+        <div
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: 36,
+            right: 6,
+            minWidth: 180,
+            background: "var(--surface)",
+            border: "1px solid var(--line)",
+            borderRadius: 8,
+            boxShadow: "var(--shadow-lg)",
+            padding: 4,
+            zIndex: 4,
+          }}
+        >
+          {!inConfirm ? (
+            <>
+              <button
+                role="menuitem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onRerun();
+                }}
+                style={tileMenuItem(false)}
+              >
+                Re-run bib OCR
+              </button>
+              <button
+                role="menuitem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onToggleHidden();
+                }}
+                style={tileMenuItem(false)}
+              >
+                {p.hidden ? "Unhide" : "Hide"}
+              </button>
+              <button
+                role="menuitem"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAskDelete(); // keeps the menu open via inConfirm branch
+                }}
+                style={{ ...tileMenuItem(false), color: "var(--accent)" }}
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <div style={{ padding: "6px 8px" }}>
+              <div
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 12,
+                  color: "var(--ink)",
+                  marginBottom: 8,
+                  lineHeight: 1.4,
+                }}
+              >
+                {deleteState === "err"
+                  ? "Delete failed — retry?"
+                  : "Delete this photo?"}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfirmDelete();
+                    setMenuOpen(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12,
+                    background: "var(--accent)",
+                    color: "var(--paper)",
+                    border: 0,
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  {deleteState === "err" ? "Retry" : "Delete"}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelDelete();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "6px 8px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12,
+                    background: "transparent",
+                    color: "var(--muted)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1;   transform: scale(1); }
           50%      { opacity: 0.4; transform: scale(0.85); }
         }
       `}</style>
-    </button>
+    </div>
   );
+}
+
+function tileMenuItem(disabled: boolean): React.CSSProperties {
+  return {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: 0,
+    padding: "7px 10px",
+    fontFamily: "var(--font-sans)",
+    fontSize: 13,
+    color: "var(--ink)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    borderRadius: 4,
+  };
 }
 
 function Stat({
