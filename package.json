@@ -9,8 +9,12 @@
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "prisma:seed": "prisma db seed"
+    "prisma:push": "dotenv -e .env.local -- prisma db push",
+    "prisma:push:prod": "dotenv -e .env.production -- prisma db push",
+    "prisma:migrate": "dotenv -e .env.local -- prisma migrate deploy",
+    "prisma:seed": "dotenv -e .env.local -- prisma db seed",
+    "prisma:seed:prod": "dotenv -e .env.production -- prisma db seed",
+    "prisma:studio": "dotenv -e .env.local -- prisma studio"
   },
   "prisma": {
     "seed": "node --import tsx/esm prisma/seed.ts"
@@ -33,6 +37,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "dotenv-cli": "^11.0.0",
     "prisma": "^5.22.0",
     "tsx": "^4.22.3",
     "typescript": "^5"
