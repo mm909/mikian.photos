@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { OcrDebugPanel } from "./OcrDebugPanel";
 
 export type BibTag = {
   id: string;
@@ -206,7 +207,6 @@ export function PhotoDetailModal({
                   : "—"
               }
             />
-            <KV label="Mile" value={photo.mile ? `Mile ${photo.mile}` : "—"} />
             <KV label="Uploaded" value={fmtDate(photo.createdAt)} />
             <KV label="Photographer" value={photo.photographer.name} />
             <KV label="Email" value={photo.photographer.email} muted />
@@ -268,6 +268,11 @@ export function PhotoDetailModal({
                 Couldn&rsquo;t update — try again.
               </Muted>
             )}
+          </Section>
+
+          {/* OCR debug — preprocessed image + word boxes */}
+          <Section title="OCR debug">
+            <OcrDebugPanel photoId={photo.id} />
           </Section>
 
           {/* Destructive section */}

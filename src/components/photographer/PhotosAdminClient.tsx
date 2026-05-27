@@ -318,8 +318,8 @@ export function PhotosAdminClient() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-              gap: 12,
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 4,
             }}
           >
             {filteredPhotos.map((p) => (
@@ -327,7 +327,18 @@ export function PhotosAdminClient() {
                 key={p.id}
                 p={p}
                 running={rerun[p.id] === "running"}
-                onClick={() => setOpenId(p.id)}
+                deleteState={delState[p.id] ?? "idle"}
+                onOpen={() => setOpenId(p.id)}
+                onRerun={() => rerunOcr(p.id)}
+                onToggleHidden={() => toggleHidden(p.id)}
+                onAskDelete={() =>
+                  setDelState((s) => ({
+                    ...s,
+                    [p.id]: s[p.id] === "confirm" ? "idle" : "confirm",
+                  }))
+                }
+                onConfirmDelete={() => deletePhoto(p.id)}
+                onCancelDelete={() => setDelState((s) => ({ ...s, [p.id]: "idle" }))}
               />
             ))}
           </div>
