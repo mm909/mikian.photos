@@ -1,32 +1,15 @@
 import { db } from "@/lib/db";
 import { UploadClient } from "@/components/photographer/UploadClient";
-import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { getEffectiveActor } from "@/lib/permissions";
+import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
 export default async function UploadPage() {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
-    return (
-      <main
-        className="screen"
-        style={{ padding: "96px 24px", textAlign: "center", maxWidth: 540, margin: "0 auto" }}
-      >
-        <h1
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontWeight: 500,
-            fontSize: 28,
-            color: "var(--ink)",
-          }}
-        >
-          Photographer access required
-        </h1>
-        <p style={{ marginTop: 16, color: "var(--muted)", lineHeight: 1.55 }}>
-          Sign in with Google at <a href="/photographer/sign-in">/photographer/sign-in</a>, or, if
-          you&rsquo;re Mikian, hit <code>/api/photographer/unlock?key=…</code> with your unlock
-          key.
-        </p>
-      </main>
-    );
+  const actor = await getEffectiveActor();
+  if (!actor) {
+    return <NoPhotographerAccess reason="signed-out" />;
+  }
+  if (!actor.roles.includes("photographer") && !actor.roles.includes("owner")) {
+    return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
 
   // Single-event MVP — load the one active event so the dropzone knows where

@@ -1,11 +1,12 @@
-import { redirect } from "next/navigation";
-import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { getEffectiveActor } from "@/lib/permissions";
 import { PhotosAdminClient } from "@/components/photographer/PhotosAdminClient";
+import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
 export default async function PhotosAdminPage() {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
-    redirect("/photographer/upload"); // shows the unlock-required panel
+  const actor = await getEffectiveActor();
+  if (!actor) return <NoPhotographerAccess reason="signed-out" />;
+  if (!actor.roles.includes("photographer") && !actor.roles.includes("owner")) {
+    return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
   return <PhotosAdminClient />;
 }
