@@ -3,33 +3,32 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
-import { LibraryTile, type LibraryTilePhoto } from "@/components/photographer/LibraryTile";
-import {
-  PhotoDetailModal,
-  type DeleteState,
-  type DetailPhoto,
-  type HideState,
-  type RerunState,
-} from "@/components/photographer/PhotoDetailModal";
 
 type EventLite = { id: string; name: string; date: string; city: string };
 
-type Status = "queued" | "uploading" | "done" | "error";
+/**
+ * Per-file pipeline stage. The /finalize server step today bundles preview-
+ * gen + OCR, but from the UI we surface them as separate stages so a future
+ * split-out of /finalize-preview / /finalize-ocr / /finalize-face plugs in
+ * cleanly. Face detection isn't built yet — items just skip that stage.
+ *
+ *   queued     → user picked the file but Run hasn't started this one
+ *   uploading  → presigned PUT to R2 (bytes-on-wire from the browser)
+ *   processing → /finalize is running on the server: preview build + OCR
+ *   done       → all stages complete, photo is in the library
+ *   error      → any step failed; user can retry the failed bucket
+ */
+type Stage = "queued" | "uploading" | "processing" | "done" | "error";
 
 type QueueItem = {
   uid: string;
   file: File;
-  previewUrl: string;
-  status: Status;
+  previewUrl: string; // local blob URL — cheap to show in pipeline thumbs
+  stage: Stage;
   photoId?: string;
-  // We intentionally don't surface error strings per-file; aggregate counts only.
-  errored: boolean;
-  // Set true once the server preview is reachable. Tile then swaps from the
-  // local blob URL to /api/photos/[id]/preview so OCR / hide updates land.
-  serverReady?: boolean;
-  // Hidden flag mirrors the server row. Lets us optimistically dim the tile
-  // when the photographer hides a just-uploaded photo without refetching.
-  hidden?: boolean;
+  /** Most recent error message; not surfaced per-item in the new UI but kept
+   *  for debugging via the console log. */
+  errorMsg?: string;
 };
 
 const CONCURRENCY = 3;
@@ -38,15 +37,11 @@ export function UploadClient({ event }: { event: EventLite }) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setDragging] = useState(false);
   const [isRunning, setRunning] = useState(false);
+  /** When the queue drains and the user explicitly clicks "Upload more →" we
+   *  flip this true to bring the dropzone back. Reset when a fresh batch is
+   *  in flight. */
+  const [showMoreZone, setShowMoreZone] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Per-photo action state + detail-modal data, mirroring the library page.
-  const [rerun, setRerun] = useState<Record<string, RerunState>>({});
-  const [delState, setDelState] = useState<Record<string, DeleteState>>({});
-  const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [detailPhoto, setDetailPhoto] = useState<DetailPhoto | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -56,34 +51,30 @@ export function UploadClient({ event }: { event: EventLite }) {
         uid: `q-${f.name}-${f.size}-${f.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
         file: f,
         previewUrl: URL.createObjectURL(f),
-        status: "queued",
-        errored: false,
+        stage: "queued",
       }));
     setItems((curr) => [...curr, ...next]);
+    setShowMoreZone(false);
   }
 
   function updateItem(uid: string, patch: Partial<QueueItem>) {
     setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
   }
 
-  function removeAllDone() {
-    setItems((curr) => {
-      curr.filter((i) => i.status === "done").forEach((i) => URL.revokeObjectURL(i.previewUrl));
-      return curr.filter((i) => i.status !== "done");
-    });
-  }
-
-  function clearAll() {
-    setItems((curr) => {
-      curr.forEach((i) => URL.revokeObjectURL(i.previewUrl));
-      return [];
-    });
-  }
-
+  /**
+   * Run one item through the full pipeline. Stage transitions are surfaced to
+   * the UI as they happen so the user sees the current item move through
+   * upload → processing.
+   *
+   * Side-effect: when /finalize completes successfully, the server has
+   * already run OCR (Tesseract or Rekognition depending on
+   * DEFAULT_OCR_SETTINGS) and written PhotoBib rows. Face detection will
+   * plug in here when built — same shape, additional stage.
+   */
   async function uploadOne(item: QueueItem): Promise<void> {
-    updateItem(item.uid, { status: "uploading", errored: false });
+    // 1) sign + 2) PUT — both happen in the "uploading" stage from the UI's pov
+    updateItem(item.uid, { stage: "uploading" });
 
-    // 1) sign — server makes a Photo placeholder + returns a presigned PUT URL
     const signRes = await fetch("/api/photographer/photos/sign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,8 +85,8 @@ export function UploadClient({ event }: { event: EventLite }) {
       photoId: string;
       uploadUrl: string;
     };
+    updateItem(item.uid, { photoId });
 
-    // 2) direct browser PUT to R2 — bypasses Vercel's 4.5MB body limit
     const putRes = await fetch(uploadUrl, {
       method: "PUT",
       body: item.file,
@@ -103,7 +94,10 @@ export function UploadClient({ event }: { event: EventLite }) {
     });
     if (!putRes.ok) throw new Error(`PUT ${putRes.status}`);
 
-    // 3) finalize — server pulls original from R2, makes preview, reads EXIF
+    // 3) finalize — server pulls original from R2, makes preview, runs OCR,
+    //    writes PhotoBib rows. From the UI this is the "processing" stage.
+    updateItem(item.uid, { stage: "processing" });
+
     const finRes = await fetch("/api/photographer/photos/finalize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -111,14 +105,13 @@ export function UploadClient({ event }: { event: EventLite }) {
     });
     if (!finRes.ok) throw new Error(`finalize ${finRes.status}`);
 
-    updateItem(item.uid, { status: "done", photoId, serverReady: true, hidden: false });
+    updateItem(item.uid, { stage: "done" });
   }
 
   async function processUntilEmpty() {
     setRunning(true);
+    setShowMoreZone(false);
     try {
-      // Work-stealing pool: keep CONCURRENCY uploads in flight until the queue
-      // (plus retries) drains.
       const workers = Array.from({ length: CONCURRENCY }, () => worker());
       await Promise.all(workers);
     } finally {
@@ -127,159 +120,68 @@ export function UploadClient({ event }: { event: EventLite }) {
   }
 
   async function worker() {
-    // Each worker pulls the next queued or errored item until none remain.
-    // We re-read state via the setter pattern so multiple workers cooperate.
     while (true) {
       const next: QueueItem | undefined = await new Promise((resolve) => {
         setItems((curr) => {
-          const target = curr.find((i) => i.status === "queued");
+          const target = curr.find((i) => i.stage === "queued");
           if (!target) {
             resolve(undefined);
             return curr;
           }
           resolve(target);
-          // Mark as uploading so other workers skip it
-          return curr.map((i) => (i.uid === target.uid ? { ...i, status: "uploading" } : i));
+          return curr.map((i) =>
+            i.uid === target.uid ? { ...i, stage: "uploading" } : i
+          );
         });
       });
       if (!next) return;
       try {
         await uploadOne(next);
-      } catch {
-        updateItem(next.uid, { status: "error", errored: true });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn("upload failed:", msg);
+        updateItem(next.uid, { stage: "error", errorMsg: msg });
       }
     }
   }
 
   async function retryFailed() {
     setItems((curr) =>
-      curr.map((i) => (i.status === "error" ? { ...i, status: "queued", errored: false } : i))
+      curr.map((i) => (i.stage === "error" ? { ...i, stage: "queued", errorMsg: undefined } : i))
     );
     await processUntilEmpty();
   }
 
-  /* ──────────────────────────────────────────────────────────────────────
-   * Per-photo actions on completed uploads — mirrors PhotosAdminClient so
-   * the user can rerun OCR, hide, or delete a just-uploaded photo without
-   * leaving this page. Detail modal opens on tile click and lazy-loads
-   * the full DetailPhoto from /api/photographer/photos/[id].
-   * ────────────────────────────────────────────────────────────────────── */
-
-  async function openDetail(photoId: string) {
-    setOpenId(photoId);
-    setDetailLoading(true);
-    setDetailPhoto(null);
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}`, { cache: "no-store" });
-      if (!r.ok) throw new Error(`get ${r.status}`);
-      const d = (await r.json()) as { photo: DetailPhoto };
-      setDetailPhoto(d.photo);
-    } catch (e) {
-      console.error(e);
-      // Close on failure — better than leaving an empty modal hanging.
-      setOpenId(null);
-    } finally {
-      setDetailLoading(false);
-    }
-  }
-
-  function closeDetail() {
-    setOpenId(null);
-    setDetailPhoto(null);
-  }
-
-  async function rerunOcr(photoId: string) {
-    setRerun((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-ocr`, { method: "POST" });
-      if (!r.ok) throw new Error(`rerun ${r.status}`);
-      // If the detail modal is open on this photo, refetch to reflect new bibs.
-      if (openId === photoId) {
-        const re = await fetch(`/api/photographer/photos/${photoId}`, { cache: "no-store" });
-        if (re.ok) {
-          const d = (await re.json()) as { photo: DetailPhoto };
-          setDetailPhoto(d.photo);
-        }
-      }
-      setRerun((s) => ({ ...s, [photoId]: "ok" }));
-      setTimeout(() => setRerun((s) => ({ ...s, [photoId]: "idle" })), 1800);
-    } catch (e) {
-      console.error(e);
-      setRerun((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
-
-  async function deletePhoto(photoId: string) {
-    setDelState((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}`, { method: "DELETE" });
-      if (!r.ok) {
-        const j = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `delete ${r.status}`);
-      }
-      // Drop from the queue + close the modal if it's open on this photo.
-      if (openId === photoId) closeDetail();
-      setItems((curr) => {
-        const target = curr.find((i) => i.photoId === photoId);
-        if (target) URL.revokeObjectURL(target.previewUrl);
-        return curr.filter((i) => i.photoId !== photoId);
-      });
-      setDelState((s) => {
-        const next = { ...s };
-        delete next[photoId];
-        return next;
-      });
-    } catch (e) {
-      console.error(e);
-      setDelState((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
-
-  async function toggleHidden(photoId: string, currentHidden: boolean) {
-    const nextHidden = !currentHidden;
-    setHideStateMap((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hidden: nextHidden }),
-      });
-      if (!r.ok) throw new Error(`patch ${r.status}`);
-      // Reflect optimistically in the queue + open modal.
-      setItems((curr) =>
-        curr.map((i) => (i.photoId === photoId ? { ...i, hidden: nextHidden } : i))
-      );
-      setDetailPhoto((curr) =>
-        curr && curr.id === photoId ? { ...curr, hidden: nextHidden } : curr
-      );
-      setHideStateMap((s) => {
-        const next = { ...s };
-        delete next[photoId];
-        return next;
-      });
-    } catch (e) {
-      console.error(e);
-      setHideStateMap((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
-
-  // Aggregate counts + progress
+  // Aggregate counts
   const total = items.length;
-  const done = items.filter((i) => i.status === "done").length;
-  const flight = items.filter((i) => i.status === "uploading").length;
-  const failed = items.filter((i) => i.status === "error").length;
-  const queued = items.filter((i) => i.status === "queued").length;
+  const queued = items.filter((i) => i.stage === "queued").length;
+  const uploading = items.filter((i) => i.stage === "uploading").length;
+  const processing = items.filter((i) => i.stage === "processing").length;
+  const done = items.filter((i) => i.stage === "done").length;
+  const failed = items.filter((i) => i.stage === "error").length;
+  const inFlight = uploading + processing;
+  const isFinished = total > 0 && queued === 0 && inFlight === 0;
   const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
-  const isFinished = total > 0 && queued === 0 && flight === 0;
 
-  const failedLabel = useMemo(() => {
-    if (failed === 0) return "";
-    return `${failed} failed`;
-  }, [failed]);
+  // Most-recent item per stage — what we show as the "current" thumb.
+  const currentUploading = useMemo(
+    () => [...items].reverse().find((i) => i.stage === "uploading") ?? null,
+    [items]
+  );
+  const currentProcessing = useMemo(
+    () => [...items].reverse().find((i) => i.stage === "processing") ?? null,
+    [items]
+  );
+  const lastFailed = useMemo(
+    () => [...items].reverse().find((i) => i.stage === "error") ?? null,
+    [items]
+  );
+
+  const showDropzone = !isRunning && (items.length === 0 || showMoreZone);
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
         {/* Header */}
         <div
           style={{
@@ -318,314 +220,342 @@ export function UploadClient({ event }: { event: EventLite }) {
               }}
             />
           </div>
-          <Link href="/photographer" className="btn btn--ghost">
-            ← Back to dashboard
+          <Link href="/photographer/photos" className="btn btn--ghost">
+            View library →
           </Link>
         </div>
 
-        {/* Dropzone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            addFiles(e.dataTransfer.files);
-          }}
-          onClick={() => fileInputRef.current?.click()}
-          role="button"
-          tabIndex={0}
-          style={{
-            border: `2px dashed ${isDragging ? "var(--accent)" : "var(--line)"}`,
-            background: isDragging ? "rgba(200,64,26,.04)" : "var(--cream)",
-            borderRadius: 12,
-            padding: "40px 24px",
-            textAlign: "center",
-            cursor: "pointer",
-            transition:
-              "background var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease)",
-          }}
-        >
+        {/* Dropzone — hidden while a batch is in flight, shown again when the
+            user clicks "Upload more →" after the queue drains. */}
+        {showDropzone && (
           <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              addFiles(e.dataTransfer.files);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
             style={{
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 22,
-              color: "var(--ink)",
-              marginBottom: 6,
-              letterSpacing: "-.005em",
+              border: `2px dashed ${isDragging ? "var(--accent)" : "var(--line)"}`,
+              background: isDragging ? "rgba(200,64,26,.04)" : "var(--cream)",
+              borderRadius: 12,
+              padding: "40px 24px",
+              textAlign: "center",
+              cursor: "pointer",
+              transition:
+                "background var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease)",
             }}
           >
-            Drop photos here, or click to choose
-          </div>
-          <div style={{ color: "var(--muted)", fontSize: 13 }}>
-            JPEG or HEIC. EXIF GPS + time are read automatically. Large files OK.
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </div>
-
-        {/* Aggregate status bar + actions */}
-        {items.length > 0 && (
-          <div style={{ marginTop: 22 }}>
             <div
               style={{
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: 22,
+                color: "var(--ink)",
+                marginBottom: 6,
+                letterSpacing: "-.005em",
+              }}
+            >
+              Drop photos here, or click to choose
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: 13 }}>
+              JPEG or HEIC. EXIF GPS + time are read automatically. Large files OK.
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        )}
+
+        {/* Pipeline view — replaces the per-file grid. Shows one thumb per
+            active stage + counts + overall progress. */}
+        {items.length > 0 && (
+          <div style={{ marginTop: 22 }}>
+            <ProgressBar pct={progressPct} hasFailures={failed > 0 && isFinished} />
+
+            <div
+              style={{
+                marginTop: 18,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 10,
+              }}
+            >
+              <StageCard
+                label="Upload"
+                count={uploading}
+                total={total}
+                done={done + processing}
+                thumb={currentUploading?.previewUrl}
+                tone="active"
+                hint={
+                  uploading > 0
+                    ? `Pushing ${uploading}…`
+                    : queued > 0
+                      ? `${queued} waiting`
+                      : "—"
+                }
+              />
+              <StageCard
+                label="OCR"
+                count={processing}
+                total={total}
+                done={done}
+                thumb={currentProcessing?.previewUrl}
+                tone="active"
+                hint={
+                  processing > 0
+                    ? `Scanning ${processing} for bibs…`
+                    : done > 0
+                      ? `${done} scanned`
+                      : "—"
+                }
+              />
+              <StageCard
+                label="Face"
+                count={0}
+                total={total}
+                done={0}
+                thumb={null}
+                tone="future"
+                hint="Coming soon"
+              />
+              <StageCard
+                label="Failed"
+                count={failed}
+                total={total}
+                done={0}
+                thumb={lastFailed?.previewUrl}
+                tone="error"
+                hint={failed > 0 ? `${failed} need retry` : "None"}
+              />
+            </div>
+
+            {/* Bottom action row */}
+            <div
+              style={{
+                marginTop: 18,
                 display: "flex",
-                alignItems: "center",
-                gap: 16,
+                gap: 10,
+                justifyContent: "flex-end",
                 flexWrap: "wrap",
               }}
             >
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  color: "var(--muted)",
-                }}
-              >
-                {done}/{total} uploaded
-                {flight > 0 ? ` · ${flight} in flight` : ""}
-                {queued > 0 && !isRunning ? ` · ${queued} queued` : ""}
-                {failedLabel ? ` · ${failedLabel}` : ""}
-              </div>
-              <span style={{ flex: 1 }} />
+              {!isFinished && queued > 0 && !isRunning && (
+                <button
+                  className="btn btn--primary"
+                  onClick={processUntilEmpty}
+                  disabled={isRunning}
+                >
+                  Upload {queued}
+                </button>
+              )}
+              {isRunning && (
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    letterSpacing: ".12em",
+                    textTransform: "uppercase",
+                    color: "var(--muted)",
+                    alignSelf: "center",
+                  }}
+                >
+                  Working — {done}/{total} done
+                </span>
+              )}
               {failed > 0 && !isRunning && (
                 <button className="btn btn--ghost" onClick={retryFailed}>
                   Retry {failed}
                 </button>
               )}
-              {done > 0 && !isRunning && (
-                <button className="btn btn--ghost" onClick={removeAllDone}>
-                  Clear uploaded
-                </button>
-              )}
-              {isFinished && (
-                <button className="btn btn--ghost" onClick={clearAll}>
-                  Clear all
-                </button>
-              )}
-              {!isFinished && (
+              {isFinished && !showDropzone && (
                 <button
                   className="btn btn--primary"
-                  disabled={(queued === 0 && failed === 0) || isRunning}
-                  onClick={processUntilEmpty}
+                  onClick={() => setShowMoreZone(true)}
                 >
-                  {isRunning ? "Uploading…" : `Upload ${queued + failed}`}
+                  Upload more →
                 </button>
               )}
             </div>
-
-            {/* Progress bar */}
-            <div
-              style={{
-                marginTop: 12,
-                height: 6,
-                background: "var(--line)",
-                borderRadius: 999,
-                overflow: "hidden",
-              }}
-              aria-label="upload progress"
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${progressPct}%`,
-                  background: failed > 0 && isFinished ? "var(--accent)" : "var(--green)",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Thumbnail grid — completed uploads get the full library tile
-            (click-to-modal + ⋯ quick actions); in-flight items keep the
-            lightweight Tile with status pills. */}
-        {items.length > 0 && (
-          <div
-            style={{
-              marginTop: 22,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 4,
-            }}
-          >
-            {items.map((it) => {
-              if (it.status === "done" && it.photoId && it.serverReady) {
-                const tilePhoto: LibraryTilePhoto = {
-                  id: it.photoId,
-                  previewUrl: `/api/photos/${it.photoId}/preview`,
-                  hidden: Boolean(it.hidden),
-                  bibs: [], // queue items don't carry full bib data; modal fetches it on click
-                };
-                return (
-                  <LibraryTile
-                    key={it.uid}
-                    p={tilePhoto}
-                    running={rerun[it.photoId] === "running"}
-                    onOpen={() => openDetail(it.photoId!)}
-                  />
-                );
-              }
-              return <Tile key={it.uid} item={it} />;
-            })}
           </div>
         )}
       </div>
-
-      {/* Detail modal — same component as the library page. Renders a
-          loading shim while we fetch the full DetailPhoto.
-          We only pass the one fetched photo as the "set" for now — arrow-key
-          navigation across the upload queue would require fetching full
-          DetailPhoto rows for every completed item, which we skip until
-          someone asks for it. */}
-      {openId && detailPhoto && (
-        <PhotoDetailModal
-          photos={[detailPhoto]}
-          currentId={detailPhoto.id}
-          onSelect={() => {
-            /* single-item set — arrow keys are inert here */
-          }}
-          rerunState={rerun[detailPhoto.id] ?? "idle"}
-          deleteState={delState[detailPhoto.id] ?? "idle"}
-          hideState={hideStateMap[detailPhoto.id] ?? "idle"}
-          onClose={closeDetail}
-          onRerun={() => rerunOcr(detailPhoto.id)}
-          onAskDelete={() =>
-            setDelState((s) => ({
-              ...s,
-              [detailPhoto.id]: s[detailPhoto.id] === "confirm" ? "idle" : "confirm",
-            }))
-          }
-          onConfirmDelete={() => deletePhoto(detailPhoto.id)}
-          onCancelDelete={() => setDelState((s) => ({ ...s, [detailPhoto.id]: "idle" }))}
-          onToggleHidden={() => toggleHidden(detailPhoto.id, detailPhoto.hidden)}
-        />
-      )}
-      {openId && !detailPhoto && detailLoading && (
-        <div className="overlay" onClick={closeDetail} style={{ background: "rgba(28,26,23,.6)" }}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              padding: "20px 28px",
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-            }}
-          >
-            Loading photo…
-          </div>
-        </div>
-      )}
     </main>
   );
 }
 
-function Tile({ item }: { item: QueueItem }) {
-  const ring =
-    item.status === "done"
-      ? "var(--green)"
-      : item.status === "error"
-        ? "var(--accent)"
-        : item.status === "uploading"
-          ? "var(--accent)"
-          : "transparent";
-  const dimOpacity = item.status === "queued" ? 0.55 : 1;
-
+function ProgressBar({ pct, hasFailures }: { pct: number; hasFailures: boolean }) {
   return (
     <div
       style={{
-        position: "relative",
-        aspectRatio: "4 / 3",
-        borderRadius: 6,
+        height: 6,
+        background: "var(--line)",
+        borderRadius: 999,
         overflow: "hidden",
-        background: "var(--cream)",
-        outline: ring === "transparent" ? "1px solid var(--line)" : `2px solid ${ring}`,
-        outlineOffset: 0,
       }}
-      title={item.file.name}
+      aria-label="upload progress"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={item.previewUrl}
-        alt={item.file.name}
+      <div
         style={{
-          width: "100%",
           height: "100%",
-          objectFit: "cover",
-          opacity: dimOpacity,
-          transition: "opacity 0.2s ease",
+          width: `${pct}%`,
+          background: hasFailures ? "var(--accent)" : "var(--green)",
+          transition: "width 0.3s ease",
         }}
       />
-      {item.status === "uploading" && (
+    </div>
+  );
+}
+
+function StageCard({
+  label,
+  count,
+  done,
+  total,
+  thumb,
+  tone,
+  hint,
+}: {
+  label: string;
+  count: number;
+  done: number;
+  total: number;
+  thumb: string | null | undefined;
+  tone: "active" | "future" | "error";
+  hint: string;
+}) {
+  const accent =
+    tone === "future" ? "var(--line)" : tone === "error" ? "var(--accent)" : "var(--ink)";
+  const tally = `${done}/${total}`;
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: `1px solid ${tone === "future" ? "var(--line)" : "var(--line)"}`,
+        borderRadius: 10,
+        padding: 12,
+        opacity: tone === "future" ? 0.6 : 1,
+        display: "grid",
+        gridTemplateColumns: "56px 1fr",
+        gap: 12,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 6,
+          overflow: "hidden",
+          background: "var(--cream)",
+          border: "1px solid var(--line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}
+      >
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumb}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : (
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 9,
+              letterSpacing: ".1em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            {tone === "future" ? "soon" : "—"}
+          </span>
+        )}
+        {count > 0 && tone === "active" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,.3) 50%, transparent 100%)",
+              backgroundSize: "200% 100%",
+              animation: "shimmer 1.4s linear infinite",
+            }}
+          />
+        )}
+      </div>
+
+      <div style={{ minWidth: 0 }}>
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,.25) 50%, transparent 100%)",
-            backgroundSize: "200% 100%",
-            animation: "shimmer 1.4s linear infinite",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 8,
           }}
-        />
-      )}
-      {item.status === "done" && (
-        <Badge color="var(--green)" symbol="✓" />
-      )}
-      {item.status === "error" && (
-        <Badge color="var(--accent)" symbol="!" />
-      )}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              color: accent,
+            }}
+          >
+            {label}
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              letterSpacing: ".1em",
+              color: "var(--muted)",
+            }}
+          >
+            {tally}
+          </span>
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontSize: 12,
+            color: tone === "future" ? "var(--muted)" : "var(--ink)",
+            marginTop: 3,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {hint}
+        </div>
+      </div>
       <style>{`
         @keyframes shimmer {
           0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
       `}</style>
-    </div>
-  );
-}
-
-function Badge({ color, symbol }: { color: string; symbol: string }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 6,
-        right: 6,
-        width: 22,
-        height: 22,
-        borderRadius: 999,
-        background: color,
-        color: "var(--paper)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "var(--font-mono)",
-        fontSize: 12,
-        fontWeight: 700,
-        boxShadow: "0 1px 3px rgba(0,0,0,.25)",
-      }}
-    >
-      {symbol}
     </div>
   );
 }
