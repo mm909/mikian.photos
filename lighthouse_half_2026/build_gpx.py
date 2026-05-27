@@ -1,9 +1,9 @@
 """Build an approximate GPX for the 2026 Lighthouse Half Marathon course.
 
-Course (per race website + USATF certification + timing splits showing Lap 1 / Lap 2):
+Course (per race website + timing splits showing Lap 1 / Lap 2):
 - Start/finish: Shoreline Aquatic Park (Lions Lighthouse) — ~33.7593, -118.1903
 - Two out-and-back loops along the Long Beach Shoreline Pedestrian/Bike Path
-- Mostly flat, USATF-certified 13.1094 mi (21097.5 m)
+- Mostly flat, 13.1094 mi (21097.5 m)
 
 We ask OSRM (public foot-routing API on OSM data) for an east-bound route along
 the waterfront, trim it to exactly 1/4 of a half-marathon, then mirror+repeat for
@@ -88,8 +88,7 @@ with out.open("w", encoding="utf-8") as f:
     f.write('    <desc>Approximate two-lap out-and-back along the Long Beach '
             'Shoreline Pedestrian/Bike Path, reconstructed from OpenStreetMap via '
             'OSRM foot routing. Start/finish: Shoreline Aquatic Park (Lions '
-            'Lighthouse). Total distance trimmed to 13.1094 mi. Not the official '
-            'USATF certified line.</desc>\n')
+            'Lighthouse). Total distance trimmed to 13.1094 mi.</desc>\n')
     f.write('    <time>2026-05-24T14:00:00Z</time>\n')
     f.write('  </metadata>\n')
     f.write('  <wpt lat="%.6f" lon="%.6f"><name>Start / Finish</name></wpt>\n'
