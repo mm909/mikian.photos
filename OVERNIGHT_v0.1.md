@@ -5,19 +5,15 @@ Four commits, all clean, build passes, walked end-to-end in the browser.
 
 ## What landed
 
-### 1. Real Lighthouse GPX courses (5K / 10K / Half)
+### 1. GPX parser fix
 
-Copied your OSRM-generated GPX from `lighthouse_half_2026/` into `public/gpx/`:
+**Heads up:** while I was working, you pushed two commits to `main` — `42f7199 GPXXX` and `c89a01b Revert public/gpx/* to placeholders — synthetic OSRM courses were wrong`. I'd dropped the OSRM-generated Lighthouse courses into `public/gpx/` early in the night; once I saw your revert, I undid that on this branch so it matches main's intent (StravaGPX placeholders kept).
 
-| Tab | File | Distance |
-|---|---|---|
-| 5K | `public/gpx/5k.gpx` | 5.0 km |
-| 10K | `public/gpx/10k.gpx` | 10.0 km |
-| Half | `public/gpx/half.gpx` | 21.1 km |
+**The valuable thing here is the parser fix that survived the revert.** `parseGpx` was using `querySelectorAll("trkpt")`, which silently returns zero matches against any GPX document that declares a default `xmlns` (which is all of them — both your StravaGPX placeholders and the OSRM ones I'd tried). The synth fallback was firing every time on the half tab. Now uses `getElementsByTagName`, which works regardless of namespace. Both StravaGPX and OSRM GPX parse correctly.
 
-`public/gpx/full.gpx` deleted (Lighthouse has no full marathon).
+Also switched the loader from `cache: "force-cache"` to `cache: "default"` so a redeploy with new GPX isn't masked by stale browser cache (this bit us during testing tonight).
 
-Also fixed a real bug in `parseGpx`: it was using `querySelectorAll("trkpt")`, which returns nothing on a namespaced `<gpx xmlns="...">` document — the synth fallback was firing silently. Now uses `getElementsByTagName`. Switched the loader from `cache: "force-cache"` to `cache: "default"` so a redeploy with new GPX isn't masked by stale browser cache.
+When you have proper Lighthouse Strava recordings, just drop them into `public/gpx/{5k,10k,half}.gpx` — no code change needed.
 
 ### 2. Real Lighthouse Half racer roster
 
