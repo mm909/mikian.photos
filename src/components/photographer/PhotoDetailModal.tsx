@@ -91,8 +91,16 @@ export function PhotoDetailModal({
           boxShadow: "var(--shadow-lg)",
           display: "grid",
           gridTemplateColumns: "1.6fr 1fr",
+          // Force the single row to exactly the container height. Without
+          // this, an auto-sized row grows to fit the tallest child's
+          // intrinsic height (the OCR debug stack on the right), and the
+          // left pane's flex-centered image ends up centered in that taller
+          // row — which the modal then clips, making the photo appear pushed
+          // to the bottom. `minmax(0, 1fr)` lets both panes use exactly the
+          // available height and scroll their own overflow.
+          gridTemplateRows: "minmax(0, 1fr)",
           overflow: "hidden",
-          maxHeight: "92vh",
+          height: "92vh",
         }}
       >
         {/* Photo pane */}

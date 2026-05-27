@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
+import { LibraryTile, type LibraryTilePhoto } from "@/components/photographer/LibraryTile";
+import {
+  PhotoDetailModal,
+  type DeleteState,
+  type DetailPhoto,
+  type HideState,
+  type RerunState,
+} from "@/components/photographer/PhotoDetailModal";
 
 type EventLite = { id: string; name: string; date: string; city: string };
 
@@ -16,6 +24,12 @@ type QueueItem = {
   photoId?: string;
   // We intentionally don't surface error strings per-file; aggregate counts only.
   errored: boolean;
+  // Set true once the server preview is reachable. Tile then swaps from the
+  // local blob URL to /api/photos/[id]/preview so OCR / hide updates land.
+  serverReady?: boolean;
+  // Hidden flag mirrors the server row. Lets us optimistically dim the tile
+  // when the photographer hides a just-uploaded photo without refetching.
+  hidden?: boolean;
 };
 
 const CONCURRENCY = 3;
@@ -25,6 +39,14 @@ export function UploadClient({ event }: { event: EventLite }) {
   const [isDragging, setDragging] = useState(false);
   const [isRunning, setRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Per-photo action state + detail-modal data, mirroring the library page.
+  const [rerun, setRerun] = useState<Record<string, RerunState>>({});
+  const [delState, setDelState] = useState<Record<string, DeleteState>>({});
+  const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [detailPhoto, setDetailPhoto] = useState<DetailPhoto | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -89,7 +111,7 @@ export function UploadClient({ event }: { event: EventLite }) {
     });
     if (!finRes.ok) throw new Error(`finalize ${finRes.status}`);
 
-    updateItem(item.uid, { status: "done", photoId });
+    updateItem(item.uid, { status: "done", photoId, serverReady: true, hidden: false });
   }
 
   async function processUntilEmpty() {

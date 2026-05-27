@@ -26,6 +26,69 @@ async function resolveActor(): Promise<{ photographerId: string; isAdmin: boolea
   return { photographerId, isAdmin };
 }
 
+/**
+ * GET — return a single photo in the same shape as /photographer/photos/catalog.
+ * Used by the upload page's detail modal: when a photographer clicks a
+ * just-uploaded thumbnail, we fetch the full DetailPhoto on demand instead of
+ * doing it eagerly for every finalize. Same owner-or-admin gate as the rest.
+ */
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const actor = await resolveActor();
+  if (!actor) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
+
+  const row = await db.photo.findUnique({
+    where: { id: params.id },
+    select: {
+      id: true,
+      eventId: true,
+      mile: true,
+      gpsLat: true,
+      gpsLng: true,
+      takenAt: true,
+      r2OriginalKey: true,
+      r2PreviewKey: true,
+      hidden: true,
+      createdAt: true,
+      photographer: { select: { id: true, name: true, email: true } },
+      bibs: {
+        select: { id: true, bib: true, confidence: true, source: true, createdAt: true },
+        orderBy: { confidence: "desc" },
+      },
+    },
+  });
+
+  if (!row) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (row.photographer.id !== actor.photographerId && !actor.isAdmin) {
+    return NextResponse.json({ error: "not your photo" }, { status: 403 });
+  }
+
+  const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+
+  return NextResponse.json({
+    photo: {
+      id: row.id,
+      eventId: row.eventId,
+      mile: row.mile,
+      gps: row.gpsLat != null && row.gpsLng != null ? [row.gpsLat, row.gpsLng] : null,
+      takenAt: row.takenAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      hidden: row.hidden,
+      photographer: row.photographer,
+      bibs: row.bibs.map((b) => ({
+        ...b,
+        createdAt: b.createdAt.toISOString(),
+      })),
+      previewUrl: publicBase
+        ? `${publicBase}/previews/${row.id}.jpg`
+        : `/api/photos/${row.id}/preview`,
+      r2OriginalKey: row.r2OriginalKey,
+      r2PreviewKey: row.r2PreviewKey,
+    },
+  });
+}
+
 // PATCH — edit metadata (bib, mile, hidden). Photographer can only touch their
 // own; admins (or anyone holding the unlock cookie) can touch any.
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
