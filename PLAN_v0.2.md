@@ -277,11 +277,11 @@ Ping me with "infra is ready" and I'll start PR1.
 
 ---
 
-## Open questions
+## Open questions — answered
 
-1. **Bucket region** — R2 is global by default; do you want to pin it to a specific region (`wnam` for West NA cuts a few ms for Long Beach traffic)?
-2. **Initial photographer list** — who's uploading for Lighthouse? Just you for now, or do we seed a couple of test photographer rows?
-3. **Bib OCR timeline** — for v0.2 the photographer types bibs manually. Auto-OCR via something like AWS Rekognition or Vision API is v0.3+. Confirm?
+1. **Bucket region** → **`wnam`** (West North America). Long Beach traffic stays close-by.
+2. **Initial photographer list** → **seed test photographers**. PR1 will create 2–3 fake photographer rows ("Mara K.", "Jules C.", "Devon L." matching the existing demo photographer roster) so the upload UI has something to attach to even before real photographers sign in via Google.
+3. **Bib OCR** → **deferred**. Photographers type bibs manually in v0.2. Auto-OCR is v0.3+.
 
 ---
 
