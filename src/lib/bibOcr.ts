@@ -24,6 +24,7 @@ export type BibDetection = {
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
 const MIN_PAGE_CONFIDENCE = 0.3; // skip pages that are mostly noise
+const OCR_TIMEOUT_MS = 25_000;   // never block finalize longer than this
 
 /**
  * Pre-process an image to give Tesseract its best shot at the numbers:
@@ -74,8 +75,26 @@ export async function extractBibsFromImage(input: Buffer): Promise<BibDetection[
     return [];
   }
 
+  // Hard timeout: tesseract.js can hang indefinitely if its worker thread
+  // crashes (the `.next/worker-script/node/index.js` MODULE_NOT_FOUND case).
+  // We don't want to keep a finalize request alive for a stuck OCR call.
+  let data: { text?: string; confidence?: number } | undefined;
   try {
-    const { data } = await recognize(prepared, "eng");
+    const result = await Promise.race([
+      recognize(prepared, "eng"),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("ocr-timeout")), OCR_TIMEOUT_MS)
+      ),
+    ]);
+    data = result?.data;
+  } catch (e) {
+    if (e instanceof Error && e.message === "ocr-timeout") {
+      console.warn(`bib OCR timed out after ${OCR_TIMEOUT_MS}ms — skipping`);
+    }
+    return [];
+  }
+
+  try {
     const text = data?.text ?? "";
     const pageConf = (data?.confidence ?? 0) / 100;
     if (pageConf < MIN_PAGE_CONFIDENCE) return [];
