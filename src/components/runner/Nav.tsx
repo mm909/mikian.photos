@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
+import { AccountWidget } from "@/components/auth/AccountWidget";
 
 type Props = {
   cartCount: number;
@@ -112,6 +113,7 @@ export function Nav({ cartCount, onLogo, onCart }: Props) {
           Cart <span className="nav__count">{cartCount}</span>
         </button>
       )}
+      <AccountWidget />
     </nav>
   );
 }
