@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Headline } from "../Headline";
 import { CourseCard } from "../CourseCard";
+import { FinishTimeChart } from "../FinishTimeChart";
 import { useRunner } from "../RunnerProvider";
 import { currentEvent } from "@/lib/data";
 
@@ -195,9 +196,10 @@ export function LandingScreen() {
           </div>
         </div>
 
-        {/* Right — course / GPX / elevation */}
-        <div>
+        {/* Right — course / GPX / elevation + finish-time distribution */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <CourseCard />
+          <FinishTimeChart />
         </div>
       </div>
     </main>
