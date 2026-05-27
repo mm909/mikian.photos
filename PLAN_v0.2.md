@@ -1,234 +1,293 @@
-# MVP v0.2 — two parallel tracks
+# MVP v0.2 — real photos pipeline + photographer flow
 
-After v0.1 we have: locked production, real PayPal flow, real bib roster, empty
-results screen waiting on photos. Next up are two tracks that can be built in
-parallel.
+Decisions locked 2026-05-27:
+
+| Question | Answer |
+|---|---|
+| Storage | **Final-version storage** — no LocalPhotoStore intermediate. Pick the bucket once, build against it. |
+| Photographer auth | **Google OAuth via NextAuth** |
+| Watermarking | **Real Sharp + `watermark-tile.svg`** preview transform |
+| Dev cost guardrail | **Hard-cap photo lists at 10** while we're iterating, behind a `MAX_PHOTOS_DEV` env var |
 
 ---
 
-## Track A — implementation: real race photos in the UI
+## Why these choices in cost terms
 
-### Goal
-Get real photos into the runner-facing UI:
-1. Source them from some storage place
-2. Serve previews **fast** on results / lightbox
-3. Serve full-resolution originals **only** after purchase
-4. Build the interface so we *can* serve watermarked previews — actual
-   watermarking isn't required for v0.2, just the affordance.
+A photo marketplace's variable cost is **egress bandwidth** (every preview view downloads bytes). Storage is cheap; eyeballs aren't.
 
-### Architecture — the seam
+| Backend | Storage | Egress | First $30 you charge nets you… |
+|---|---|---|---|
+| Cloudflare R2 | $0.015 / GB-mo | **$0** | ~$28 after PayPal fee |
+| Vercel Blob | $0.15 / GB-mo | $0.30 / GB | $25–27 depending on traffic |
+| AWS S3 | $0.023 / GB-mo | $0.09 / GB | $26–27 |
+| Cloudinary | included free up to 25 "credits/mo" → $99/mo paid tier | included | hard cliff at the paid tier |
 
-A `PhotoStore` interface that the UI talks to. Implementations swap behind it:
+**Recommendation: Cloudflare R2.**
+- Free tier: 10 GB storage + 1M Class-A ops/mo + **unlimited egress**
+- S3-compatible — drop-in libraries work
+- Fronts naturally with the Cloudflare CDN for preview caching
+- Worst case at 1000 photos × 3 MB = 3 GB stored, 5 GB egress / month → **$0**
 
-```ts
-// src/lib/photoStore/types.ts
-export type PhotoVariant = "preview" | "full";
+Database for metadata: **Vercel Postgres (Neon)** — free tier covers our scale (1 GB / 100 hours compute / month) and it shows up in the same dashboard as the deploy. Prisma as the ORM.
 
-export type StoredPhoto = {
-  id: string;
-  eventId: string;
-  photographerId: string;
-  bib: number | null;
-  takenAt: string | null;
-  gps: [number, number] | null;
-  hidden: boolean;
-};
+---
 
-export interface PhotoStore {
-  list(eventId: string): Promise<StoredPhoto[]>;
-  listByBib(eventId: string, bib: number): Promise<StoredPhoto[]>;
-  variantUrl(photoId: string, variant: PhotoVariant, viewerToken?: string): string;
+## Architecture (final shape)
+
+```
+┌─────────────────────────┐         ┌──────────────────────────┐
+│  Photographer browser    │         │  Runner browser           │
+│  /photographer/upload    │         │  /, /results, /lightbox   │
+└────────┬─────────────────┘         └────────┬─────────────────┘
+         │ multipart POST + cookie            │ GET (no auth)
+         ▼                                    ▼
+┌─────────────────────────┐         ┌──────────────────────────┐
+│  /api/photographer/photos│         │  /api/photos (list, ≤10)  │
+│  - NextAuth check        │         │  /api/photos/[id]/preview │
+│  - Sharp:                │         │   (Sharp + watermark)    │
+│      EXIF → metadata     │         │  /api/photos/[id]/download│
+│      preview JPEG        │         │   (JWT-gated, signed URL)│
+│  - Upload both to R2     │         └────────┬─────────────────┘
+│  - INSERT row in Postgres│                  │
+└────────┬─────────────────┘                  │
+         │                                    │
+         └──────────┬─────────────────────────┘
+                    ▼
+         ┌──────────────────────┐
+         │  Cloudflare R2        │
+         │   originals/          │
+         │   previews/           │
+         └──────────────────────┘
+         ┌──────────────────────┐
+         │  Vercel Postgres      │
+         │   photos, photographers│
+         │   events, orders      │
+         └──────────────────────┘
+```
+
+### Photo data model (Prisma)
+
+```prisma
+model Event {
+  id            String   @id
+  name          String
+  date          DateTime
+  city          String
+  photoCount    Int      @default(0)
+  photos        Photo[]
+}
+
+model Photographer {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  // populated by NextAuth on first sign-in
+  googleSubject String?  @unique
+  photos        Photo[]
+  createdAt     DateTime @default(now())
+}
+
+model Photo {
+  id              String   @id @default(cuid())
+  eventId         String
+  photographerId  String
+  bib             Int?
+  mile            Int?
+  gpsLat          Float?
+  gpsLng          Float?
+  takenAt         DateTime?
+  // R2 object keys (NOT full URLs — we sign at request time)
+  r2OriginalKey   String
+  r2PreviewKey    String
+  hidden          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  event           Event    @relation(fields: [eventId], references: [id])
+  photographer    Photographer @relation(fields: [photographerId], references: [id])
+  @@index([eventId, bib])
+  @@index([eventId, hidden])
+}
+
+model Order {
+  id              String   @id   // matches PayPal capture id
+  userEmail       String
+  total           Float
+  paidAt          DateTime
+  // photo coverage: bundle for the whole event, or specific photo ids
+  eventIdCovered  String?
+  // signed download token (JWT) bound to this order
+  downloadToken   String   @unique
+  createdAt       DateTime @default(now())
 }
 ```
 
-Two implementations to start:
+### Image pipeline (Sharp)
 
-**`LocalPhotoStore`** (v0.2 ship)
-- Files: drop JPEGs under `public/photos/{eventId}/{photoId}.jpg`
-- Catalog: a single JSON at `src/data/photos.{eventId}.json` with the metadata
-- `variantUrl` returns `/photos/{eventId}/{photoId}.jpg` for both variants
-  (preview = full for now; the watermarking layer slots in later without
-  changing callers)
-- Pros: zero infra, ships today, deploys with the repo
-- Cons: photos live in git (bad for thousands of files), no per-purchase
-  access control on file URLs
-
-**`BlobPhotoStore`** (v0.3+)
-- Files: Vercel Blob (or Cloudflare R2)
-- Catalog: Vercel Postgres / Supabase row per photo
-- `variantUrl` returns signed URLs with short TTL for `"full"`, public URLs for
-  `"preview"` (a request goes through an image-transform worker that applies
-  watermark + resize)
-- This is what we'd switch to once photographer uploads start landing for
-  real
-
-### Purchase gate
-
-A new server route serves the **full-resolution** download only to a buyer
-with a valid order:
-
+**On upload:**
 ```
-/api/photos/{photoId}/download?token=<order-jwt>
+photographer POST → /api/photographer/photos
+  ├─ parse multipart
+  ├─ sharp(original)
+  │    ├─ read EXIF: gpsLat, gpsLng, takenAt
+  │    ├─ resize → 1600px long-edge, JPEG q=75 → previewBuffer
+  │    └─ composite watermark-tile.svg at 22% opacity, rotated -22°
+  ├─ R2 PUT originals/{photoId}.jpg          (original bytes)
+  ├─ R2 PUT previews/{photoId}.jpg           (watermarked preview)
+  └─ Postgres INSERT
 ```
 
-- `finalizeOrder()` in `RunnerProvider` mints a short-lived JWT with
-  `{ orderId, photoIds, exp }`
-- The route validates the JWT against the recorded `Order`
-- For bundles, the JWT covers every photo in the event
-- Returns a 302 to the signed Vercel-Blob URL (or, in LocalPhotoStore mode,
-  reads the file and streams it back so we still don't expose the raw path)
+**On view (runner):**
+```
+GET /api/photos/[id]/preview
+  ├─ Postgres SELECT photo
+  ├─ if hidden → 404
+  ├─ R2 GET previews/{photoId}.jpg
+  ├─ Cache-Control: public, max-age=31536000, immutable
+  └─ stream bytes back
+```
 
-Previews stay public-readable — no token check on `?variant=preview`.
+Cache header means after the first hit, the browser + Cloudflare CDN cache forever. We pay R2 once per photo per CDN node. **Egress on R2 is free anyway**, so cache misses are cheap.
 
-### Watermark hook
-
-`/api/photos/{photoId}/preview` is a server route too (instead of a static
-file). When `WATERMARK_ENABLED=true`, it pipes the source through Sharp +
-`watermark-tile.svg` (we already have the asset in `public/assets/`). When
-the flag is off, it just redirects to the underlying URL. v0.2 ships with
-the flag off but the plumbing in.
-
-### What changes in the runner UI
-
-- `RunnerProvider.runSearch({kind:"bib"})` calls `photoStore.listByBib`
-- `Photo` type gains `previewUrl` + `fullUrl` (derived via
-  `photoStore.variantUrl`)
-- `PhotoThumb` switches from `photoBg(gradient)` to `<img src={previewUrl}>`
-  when a real URL exists; keeps the gradient as the loading placeholder
-- `Lightbox` and `SuccessScreen` use the same `variantUrl` calls; success
-  swaps to the `"full"` variant after purchase
-- `DEMO_PHOTOS` becomes the in-memory `LocalPhotoStore` for events without
-  real photos yet (drives demos without polluting production)
-
-### Concrete v0.2 deliverable
-
-1. `PhotoStore` interface + `LocalPhotoStore` impl
-2. `/api/photos/[id]/preview` + `/api/photos/[id]/download` routes
-3. `RunnerProvider` rewired to call the store
-4. `PhotoThumb` / `Lightbox` / `SuccessScreen` rendering real `<img>`
-5. Drop ~10 real Lighthouse photos under `public/photos/lighthouse-half-2026/`
-   + a hand-written `photos.lighthouse-half-2026.json` to prove the wiring
-6. Open questions answered before merge:
-   - Storage choice (Vercel Blob vs other) — defer to v0.3 if we go
-     LocalPhotoStore for v0.2
-   - Whether watermarking ships enabled or just plumbed
+**On download (after purchase):**
+```
+GET /api/photos/[id]/download?token=<jwt>
+  ├─ verify JWT: orderId, photoIds, exp
+  ├─ Postgres SELECT order → confirm photoId in eventIdCovered set
+  ├─ mint a presigned R2 URL for originals/{photoId}.jpg (15-min TTL)
+  └─ 302 redirect to that URL
+```
 
 ---
 
-## Track B — UI/flow: photographer upload page
+## Dev cost guardrail
 
-### Goal
-A photographer signs in, sees their uploads, uploads a batch of files with
-metadata, and reviews/edits/hides them. The runner UI doesn't see new
-photos until the photographer marks them "live."
-
-### Persona auth
-
-We don't have real auth yet. For v0.2 I recommend the **URL-token bearer
-key** pattern — same as the payment lock:
-- Each photographer gets a generated key (env or per-row)
-- Visiting `/photographer?key=<pg-key>` sets a cookie binding the browser
-  to that photographer
-- Cookie carries `photographerId` for subsequent calls
-- Replace with real Google OAuth in v0.3+
-
-This is much faster than wiring NextAuth right now and gets us to the
-upload UI in the same week.
-
-### Routes & screens
-
-```
-/photographer                       overview: my uploads, sales (later), payouts (later)
-/photographer/upload                bulk uploader
-/photographer/photos/[id]           edit a single photo's metadata
+`/api/photos` list route:
+```ts
+const MAX = process.env.NODE_ENV === "production"
+  ? Number(process.env.MAX_PHOTOS_PROD ?? 200)
+  : Number(process.env.MAX_PHOTOS_DEV ?? 10);
+return photos.slice(0, MAX);
 ```
 
-### `/photographer` layout
-- Header strip: photographer name + 3 mono-stat tiles
-  (Uploaded · Sold · Est payout)
-- Tabs: `MY UPLOADS · SALES · PAYOUTS` (only Uploads built in v0.2)
-- Grid: each tile is a `PhotoThumb` rendered watermark-free + hover actions:
-  - Edit (→ `/photographer/photos/[id]`)
-  - Hide / Unhide (toggle `hidden`)
-  - View on course (later — map pin) 
+So during dev / staging: **max 10 photo rows ever return per request**, no matter how many you upload. Plenty to validate the flow, zero risk of bill surprise.
 
-### `/photographer/upload` flow
-- Big drag-and-drop region
-- For each dropped file, append a queue row containing:
-  - 64×88 thumbnail (`URL.createObjectURL`)
-  - Filename + size
-  - EXIF readout (`exifr` lib): `takenAt`, `gps`
-  - Bib input (text; auto-detect via OCR is v0.3+)
-  - Mile / location (optional dropdown of course landmarks)
-  - Status pill: `Queued → Uploading → Processing → Live` (color shifts)
-  - Progress bar
-  - Retry / Remove
-- Bulk inputs above the queue:
-  - "Credit all to: [me ▾]" (defaults to signed-in pg)
-  - "Default event: [Lighthouse Half 2026]"
-- Save All button — triggers concurrent uploads
-- Per-photo POST `/api/photographer/photos` with:
-  - The file (multipart)
-  - Bib, mile, photographer, event
-  - EXIF-derived gps + takenAt
-- Server stores the file via `PhotoStore` (writes to `public/photos/` for v0.2)
-  and appends to the catalog JSON
-
-### Two-version model — keep it
-
-Worth keeping the data model with both `previewUrl` and `fullUrl`, even when
-v0.2 sets them to the same file. Why:
-- **Performance:** results grid wants 200KB previews, not 5MB originals.
-  Vercel Image Optimization handles this automatically once we move off
-  LocalPhotoStore.
-- **Anti-piracy:** clean full-res should never leave the server until a
-  purchase clears. Previews can be watermarked.
-- **Cost:** previews can be served from CDN edges; originals are private
-  blob storage with signed URLs.
-
-For v0.2 LocalPhotoStore: both URLs point at the same `public/photos/...`
-file. We design the interface, defer the actual two-version pipeline.
-
-### Cull / hide
-
-- Photographers can flip `hidden` on any of their own photos
-- Hidden photos:
-  - don't appear in runner search results
-  - DO appear in `/photographer` with a `HIDDEN` badge
-  - are excluded from a bundle purchase
-- An admin role (you) can hide any photographer's photo too (built behind
-  the `admin` dev-panel toggle that already exists)
-
-### Open questions / I'd like your input
-- **Bib tagging**: photographer-manual now, auto-OCR later. Confirm?
-- **Multiple events per photographer**: in v0.2 we have one event
-  (Lighthouse Half 2026). Keep single-event for now, add an event picker
-  in v0.3?
-- **Real auth timeline**: faked sign-in via URL token for v0.2, real Google
-  OAuth in v0.3 — or do you want OAuth now?
+Preview route is also rate-limited per IP (e.g. 60 req/min) via a simple in-memory limiter — protects against scraping.
 
 ---
 
-## Suggested branching
+## v0.2 implementation — vertical slice first
 
-- `mvpv0.1-real-data` (open PR) — merge as is, contains the hide-the-chart fix
-- `v0.2-photos-pipeline` — Track A
-- `v0.2-photographer-flow` — Track B
+Three PRs in order. Each merges to main only after end-to-end works.
 
-Track A and Track B share the `PhotoStore` interface. They could be one
-branch or two — slight preference for two so we can ship Track A first
-(it unblocks any real photos showing up on the site at all), and Track B
-later (depends on photographers actually existing).
+### PR1 — Infra + one photo end-to-end
+**Goal:** prove the whole pipeline by hand-uploading exactly one photo.
+- Prisma schema + migration
+- R2 client wrapper (`src/lib/r2.ts`)
+- NextAuth scaffold with Google provider
+- Sharp helper (`src/lib/imagePipeline.ts`) — `processOriginal()` returns `{ original, preview, exif }`
+- `/api/photos/[id]/preview` route (R2 stream + cache)
+- `/api/photos/[id]/download` route (JWT-gated, signed URL)
+- `/api/photos` list route (capped at 10)
+- Runner UI: `PhotoThumb` renders `<img src={previewUrl}>` instead of gradient
+- A one-off `scripts/seedPhoto.ts` that uploads one test JPEG to R2 + creates the Postgres row
+- Walk it end-to-end: bib `288` → results screen shows real photo → buy → download original
+
+### PR2 — Photographer upload UI
+**Goal:** photographers can upload, runners see the photos automatically.
+- `/photographer` overview (header + uploads grid)
+- `/photographer/upload` dropzone + queue + per-row EXIF readout + bib input
+- `/api/photographer/photos` POST (multipart → Sharp → R2 → Postgres)
+- Hide / edit / delete on a photo
+- "Save All" with concurrent uploads + progress
+
+### PR3 — Polish + admin
+**Goal:** Mikian can run the event.
+- Admin role flips on `hidden` for any photo
+- Bulk operations (hide all from photographer X, etc.)
+- Photographer payout estimate on the overview
+- Real Google OAuth gating instead of dev-panel role toggles
 
 ---
 
-## Three blocking questions before I start coding
+## Setup you need to do before I write PR1
 
-1. **Storage for v0.2**: `LocalPhotoStore` (drop JPEGs into the repo's
-   `public/photos/`, hand-write metadata JSON) or jump straight to Vercel
-   Blob + a real DB?
-2. **Photographer auth for v0.2**: URL-token bearer cookies (matches the
-   payment-unlock pattern; ~30 min of work) or real Google OAuth via
-   NextAuth (~3 hr, but production-grade)?
-3. **Watermarking**: just plumb the interface for v0.2 (recommended), or
-   actually wire Sharp + watermark-tile.svg as a real preview transform?
+Six steps, ~30–45 minutes total.
+
+### 1. Cloudflare R2 bucket (~10 min)
+- Sign up / log in to https://dash.cloudflare.com
+- R2 → Create Bucket → name it `mikian-photos` (or your pick)
+- Settings → **Bucket Settings → Public Access** → leave **disabled** (we sign URLs server-side)
+- R2 → Manage R2 API Tokens → **Create API Token** → permissions: Object Read + Write on this bucket
+- Save the **Access Key ID**, **Secret Access Key**, and the **Account ID** (visible top-right)
+
+Drop into `.env.local`:
+```
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=mikian-photos
+```
+
+### 2. Vercel Postgres (~5 min)
+- Vercel dashboard → your project → Storage tab → **Create Database → Postgres** → name it, region near Vercel's default
+- It auto-populates `POSTGRES_URL` etc. in your Vercel env vars
+- Hit **`.env.local`** tab there → "Copy snippet" → paste into your local `.env.local`
+
+You'll get:
+```
+POSTGRES_URL=postgres://...
+POSTGRES_URL_NON_POOLING=postgres://...
+POSTGRES_USER=...
+POSTGRES_HOST=...
+POSTGRES_PASSWORD=...
+POSTGRES_DATABASE=...
+```
+
+### 3. Google OAuth app (~10 min)
+- https://console.cloud.google.com → create project "Mikian.Photos"
+- APIs & Services → OAuth consent screen → External → fill in app name, support email
+  - Scopes: just `email`, `profile`, `openid` for now
+  - Add yourself + 1-2 test emails under "Test users"
+- Credentials → Create Credentials → **OAuth client ID** → Web application
+  - Authorized JavaScript origins: `https://www.mikianmusser.com`, `http://localhost:3000`
+  - Authorized redirect URIs:
+    - `https://www.mikianmusser.com/api/auth/callback/google`
+    - `http://localhost:3000/api/auth/callback/google`
+- Save the **Client ID** + **Client Secret**
+
+```
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+NEXTAUTH_SECRET=<generate: openssl rand -base64 32>
+NEXTAUTH_URL=http://localhost:3000   # local dev
+# Vercel sets NEXTAUTH_URL automatically in prod
+```
+
+### 4. Mirror env vars to Vercel
+Settings → Environment Variables → add R2_*, GOOGLE_*, NEXTAUTH_* to **Production, Preview, Development**. (POSTGRES_* was added automatically in step 2.)
+
+### 5. Dev cost guardrail vars
+```
+MAX_PHOTOS_DEV=10
+MAX_PHOTOS_PROD=200
+```
+(Tune as you go.)
+
+### 6. Tell me when done
+Ping me with "infra is ready" and I'll start PR1.
+
+---
+
+## Open questions
+
+1. **Bucket region** — R2 is global by default; do you want to pin it to a specific region (`wnam` for West NA cuts a few ms for Long Beach traffic)?
+2. **Initial photographer list** — who's uploading for Lighthouse? Just you for now, or do we seed a couple of test photographer rows?
+3. **Bib OCR timeline** — for v0.2 the photographer types bibs manually. Auto-OCR via something like AWS Rekognition or Vision API is v0.3+. Confirm?
+
+---
+
+## What stays the same regardless
+
+- `PAYMENTS_OPEN=false` lock remains — production is gated.
+- The `/api/unlock?key=...` bypass works the same way.
+- The bundle price stays at `$1` until you bump it for launch.
+- `mvpv0.1-real-data` PR merges first; v0.2 work branches off `main` after that.
