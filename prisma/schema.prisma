@@ -49,6 +49,11 @@ model Photographer {
   // directly via the permissions helpers.
   isAdmin        Boolean  @default(false)
   createdAt      DateTime @default(now())
+  // Orders this user placed (linked at capture time via session email
+  // match). Guest orders — buyer wasn't signed in at checkout — carry a
+  // null userId and are reached only via the tokenized email link until
+  // the buyer signs in later with a matching email.
+  orders         Order[]  @relation("UserOrders")
 }
 
 model Photo {
@@ -94,19 +99,54 @@ model PhotoBib {
   @@index([bib])
 }
 
+/// Order is what the buyer paid for. One row per successful PayPal capture.
+///
+/// Identifiers:
+///   - `id` — internal cuid, used in JWT claims + relations
+///   - `orderNumber` — human-readable sequential int, displayed as
+///     "MK-000123" (see src/lib/orderId.ts). Stable, never changes.
+///   - `paypalCaptureId` — the PayPal capture identifier; carried for
+///     reconciliation with PayPal's dashboard / refund flows.
+///
+/// Entitlement:
+///   - `photoIds[]` — snapshot of every photo this order grants access to.
+///     Computed server-side at capture time (e.g. "every visible photo in
+///     event X" for a bundle). Stored explicitly so future re-mint or
+///     re-issue is straightforward.
+///   - `downloadToken` — JWT that carries `{ orderId, photoIds }`. The
+///     download API verifies this token before signing a hi-res URL.
+///
+/// Buyer linkage:
+///   - `email` is always set (from PayPal payer if not signed-in).
+///   - `userId` is set when the buyer was signed in at checkout — that
+///     order shows up automatically on /runner. A guest order's userId is
+///     null until we wire a back-fill flow ("claim this order" when an
+///     existing user signs in later with the same email).
 model Order {
-  // matches PayPal capture ID
-  id             String   @id
-  // buyer email (from PayPal payer_email_address)
-  email          String
-  // bundle vs single — for v0.2 only bundle exists
-  kind           String   @default("bundle")
-  amount         Float
-  // event the bundle covers — for "single" kind this would name the one photo
-  eventIdCovered String?
-  photoIdCovered String?
-  // short-lived JWT for the download links. nullable until mint.
-  downloadToken  String?  @unique
-  paidAt         DateTime @default(now())
-  createdAt      DateTime @default(now())
+  id              String    @id @default(cuid())
+  orderNumber     Int       @unique @default(autoincrement())
+  // Buyer linkage (always have email; userId set only when signed-in at capture)
+  email           String
+  userId          String?
+  user            Photographer? @relation("UserOrders", fields: [userId], references: [id])
+  // Bundle vs single — v0.2 ships bundle only. Single will add photoIdCovered.
+  kind            String    @default("bundle")
+  amount          Float
+  // Event the order covers (always set for bundle; carries the scope used to
+  // expand photoIds at capture time)
+  eventIdCovered  String?
+  photoIdCovered  String?
+  // Entitlement snapshot — what the buyer can download (every id here is
+  // also claimable via the downloadToken JWT)
+  photoIds        String[]
+  // PayPal capture id — for reconciliation with PayPal's dashboard, refunds.
+  // Unique so re-capture attempts can't double-insert.
+  paypalCaptureId String?   @unique
+  // 30-day JWT carrying { orderId, photoIds }; minted on capture.
+  downloadToken   String?   @unique
+  paidAt          DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  @@index([email])
+  @@index([userId])
 }

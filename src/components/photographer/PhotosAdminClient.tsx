@@ -32,21 +32,48 @@ export function PhotosAdminClient() {
   // The currently-open photo in the detail modal, or null.
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const fetchCatalog = useCallback(async () => {
-    setLoading(true);
+  /** Cursor for the next page (server's createdAt of the last loaded row).
+   *  null = no further pages OR initial state before first fetch. */
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  /** Fetch a page from the catalog. When `cursor` is omitted we load the
+   *  first page and replace state; with a cursor we append to the existing
+   *  list. */
+  const fetchPage = useCallback(async (cursor: string | null) => {
+    if (cursor === null) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const r = await fetch("/api/photographer/photos/catalog", { cache: "no-store" });
+      const qs = new URLSearchParams();
+      if (cursor) qs.set("cursor", cursor);
+      const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
+        cache: "no-store",
+      });
       if (!r.ok) throw new Error(`catalog ${r.status}`);
-      const d = (await r.json()) as { photos: AdminPhoto[]; isAdmin: boolean };
-      setPhotos(d.photos);
+      const d = (await r.json()) as {
+        photos: AdminPhoto[];
+        isAdmin: boolean;
+        hasMore: boolean;
+        nextCursor: string | null;
+      };
+      setPhotos((curr) => (cursor === null ? d.photos : [...curr, ...d.photos]));
       setIsAdmin(d.isAdmin);
+      setHasMore(d.hasMore);
+      setNextCursor(d.nextCursor);
     } catch (e) {
       console.error(e);
-      setPhotos([]);
+      if (cursor === null) setPhotos([]);
     } finally {
-      setLoading(false);
+      if (cursor === null) setLoading(false);
+      else setLoadingMore(false);
     }
   }, []);
+
+  const fetchCatalog = useCallback(() => fetchPage(null), [fetchPage]);
+  const loadMore = useCallback(() => {
+    if (nextCursor && hasMore && !loadingMore) void fetchPage(nextCursor);
+  }, [fetchPage, nextCursor, hasMore, loadingMore]);
 
   useEffect(() => {
     void fetchCatalog();
@@ -316,22 +343,39 @@ export function PhotosAdminClient() {
         ) : filteredPhotos.length === 0 ? (
           <p style={{ color: "var(--muted)" }}>No photos match this filter.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 4,
-            }}
-          >
-            {filteredPhotos.map((p) => (
-              <LibraryTile
-                key={p.id}
-                p={p}
-                running={rerun[p.id] === "running"}
-                onOpen={() => setOpenId(p.id)}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                gap: 4,
+              }}
+            >
+              {filteredPhotos.map((p) => (
+                <LibraryTile
+                  key={p.id}
+                  p={p}
+                  running={rerun[p.id] === "running"}
+                  onOpen={() => setOpenId(p.id)}
+                />
+              ))}
+            </div>
+
+            {/* Paginator — only when the *unfiltered* dataset has more rows.
+                If the active filter is hiding everything below, we still let
+                the user fetch the next page so they can find more matches. */}
+            {hasMore && (
+              <div style={{ marginTop: 22, display: "flex", justifyContent: "center" }}>
+                <button
+                  className="btn btn--ghost"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? "Loading…" : `Load more (${photos.length} loaded)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

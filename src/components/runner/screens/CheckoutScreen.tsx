@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
-import { prices } from "@/lib/data";
+import { currentEvent, prices } from "@/lib/data";
 
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 
@@ -180,19 +180,35 @@ export function CheckoutScreen({ unlocked }: Props) {
                     const res = await fetch("/api/paypal/capture-order", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ orderId: data.orderID }),
+                      body: JSON.stringify({
+                        orderId: data.orderID,
+                        eventId: currentEvent.id,
+                        kind: "bundle",
+                      }),
                     });
                     if (!res.ok) {
                       const j = await res.json().catch(() => ({}));
                       throw new Error(j.error || "Capture failed");
                     }
                     const captured = (await res.json()) as {
+                      orderUrl?: string;
+                      orderNumberDisplay?: string;
                       amountUsd?: number;
-                      payerEmail?: string;
                     };
+                    // Persist the cart cleanup + local "order" snapshot so the
+                    // success/order page can still read it if the server hop
+                    // ever lags. The server response is the source of truth
+                    // for the URL though — that carries the magic-link token.
                     const amount = captured.amountUsd ?? total;
-                    const o = finalizeOrder(amount);
-                    router.push(`/success/${o.id}`);
+                    finalizeOrder(amount);
+                    if (captured.orderUrl) {
+                      router.push(captured.orderUrl);
+                    } else {
+                      // Shouldn't happen — server always returns orderUrl on
+                      // success — but if it does, send them to /runner so
+                      // they at least land somewhere useful.
+                      router.push("/runner");
+                    }
                   } catch (e) {
                     setProcessing(false);
                     setError(e instanceof Error ? e.message : String(e));

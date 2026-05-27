@@ -40,24 +40,41 @@ export function PhotographerDashboardClient({ name, email }: Props) {
   const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const fetchCatalog = useCallback(async () => {
-    setLoading(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchPage = useCallback(async (cursor: string | null) => {
+    if (cursor === null) setLoading(true);
+    else setLoadingMore(true);
     try {
-      // mine=1 forces owner to see only their own uploads here. Non-owners
-      // already get scoped to themselves server-side.
-      const r = await fetch("/api/photographer/photos/catalog?mine=1", {
+      const qs = new URLSearchParams({ mine: "1" });
+      if (cursor) qs.set("cursor", cursor);
+      const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
         cache: "no-store",
       });
       if (!r.ok) throw new Error(`catalog ${r.status}`);
-      const d = (await r.json()) as { photos: DetailPhoto[] };
-      setPhotos(d.photos);
+      const d = (await r.json()) as {
+        photos: DetailPhoto[];
+        hasMore: boolean;
+        nextCursor: string | null;
+      };
+      setPhotos((curr) => (cursor === null ? d.photos : [...curr, ...d.photos]));
+      setHasMore(d.hasMore);
+      setNextCursor(d.nextCursor);
     } catch (e) {
       console.error(e);
-      setPhotos([]);
+      if (cursor === null) setPhotos([]);
     } finally {
-      setLoading(false);
+      if (cursor === null) setLoading(false);
+      else setLoadingMore(false);
     }
   }, []);
+
+  const fetchCatalog = useCallback(() => fetchPage(null), [fetchPage]);
+  const loadMore = useCallback(() => {
+    if (nextCursor && hasMore && !loadingMore) void fetchPage(nextCursor);
+  }, [fetchPage, nextCursor, hasMore, loadingMore]);
 
   useEffect(() => {
     void fetchCatalog();
@@ -249,22 +266,35 @@ export function PhotographerDashboardClient({ name, email }: Props) {
             Nothing here yet. Drop your first batch via the upload button above.
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 4,
-            }}
-          >
-            {visiblePhotos.map((p) => (
-              <LibraryTile
-                key={p.id}
-                p={p}
-                running={rerun[p.id] === "running"}
-                onOpen={() => setOpenId(p.id)}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                gap: 4,
+              }}
+            >
+              {visiblePhotos.map((p) => (
+                <LibraryTile
+                  key={p.id}
+                  p={p}
+                  running={rerun[p.id] === "running"}
+                  onOpen={() => setOpenId(p.id)}
+                />
+              ))}
+            </div>
+            {hasMore && (
+              <div style={{ marginTop: 22, display: "flex", justifyContent: "center" }}>
+                <button
+                  className="btn btn--ghost"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? "Loading…" : `Load more (${photos.length} loaded)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

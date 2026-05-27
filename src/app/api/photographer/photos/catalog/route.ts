@@ -29,17 +29,30 @@ export async function GET(req: Request) {
   const isAdmin = pg?.isAdmin ?? false;
 
   const url = new URL(req.url);
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 500) || 500, 1000);
+  // Cursor pagination. `pageSize` caps how many we return per page;
+  // `cursor` is the createdAt ISO string of the last row from the previous
+  // page (we send rows back DESC by createdAt). Omit cursor → first page.
+  const pageSize = Math.min(
+    Math.max(Number(url.searchParams.get("pageSize") ?? 48) || 48, 1),
+    200
+  );
+  const cursor = url.searchParams.get("cursor"); // ISO datetime of last seen row
   // ?mine=1 forces "only show photos I uploaded", overriding admin's
   // see-all behaviour. The photographer dashboard sends this so the owner
   // sees their own gallery instead of every photographer's work mixed in.
   const onlyMine = url.searchParams.get("mine") === "1";
   const scopeToMe = !isAdmin || onlyMine;
 
+  const where = {
+    ...(scopeToMe ? { photographerId } : {}),
+    ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+  };
+
+  // Fetch pageSize + 1 to know if there's another page without a count query.
   const rows = await db.photo.findMany({
-    where: scopeToMe ? { photographerId } : {},
+    where,
     orderBy: { createdAt: "desc" },
-    take: limit,
+    take: pageSize + 1,
     select: {
       id: true,
       eventId: true,
@@ -59,11 +72,20 @@ export async function GET(req: Request) {
     },
   });
 
+  // If we fetched pageSize+1 successfully, there's at least one more row
+  // beyond this page. Slice off the peek row before returning.
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
+  const nextCursor = hasMore ? page[page.length - 1].createdAt.toISOString() : null;
+
   const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
 
   return NextResponse.json({
     isAdmin,
-    photos: rows.map((r) => ({
+    pageSize,
+    hasMore,
+    nextCursor,
+    photos: page.map((r) => ({
       id: r.id,
       eventId: r.eventId,
       mile: r.mile,

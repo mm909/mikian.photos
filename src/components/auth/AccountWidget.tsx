@@ -161,8 +161,11 @@ export function AccountWidget() {
               {session.user.email ?? name}
             </div>
           </div>
+          <MenuLink href="/runner" onClick={() => setOpen(false)}>
+            My orders
+          </MenuLink>
           <MenuLink href="/photographer" onClick={() => setOpen(false)}>
-            Profile
+            Photographer dashboard
           </MenuLink>
           <MenuLink href="/photographer/upload" onClick={() => setOpen(false)}>
             Upload photos
