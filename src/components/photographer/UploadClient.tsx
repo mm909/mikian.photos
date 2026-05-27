@@ -1,26 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 
 type EventLite = { id: string; name: string; date: string; city: string };
+
+type Status = "queued" | "uploading" | "done" | "error";
 
 type QueueItem = {
   uid: string;
   file: File;
   previewUrl: string;
-  bib: string;
-  mile: string;
-  status: "queued" | "uploading" | "done" | "error";
-  progress: number;
-  error?: string;
+  status: Status;
   photoId?: string;
+  // We intentionally don't surface error strings per-file; aggregate counts only.
+  errored: boolean;
 };
+
+const CONCURRENCY = 3;
 
 export function UploadClient({ event }: { event: EventLite }) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setDragging] = useState(false);
+  const [isRunning, setRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(files: FileList | null) {
@@ -31,10 +34,8 @@ export function UploadClient({ event }: { event: EventLite }) {
         uid: `q-${f.name}-${f.size}-${f.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
         file: f,
         previewUrl: URL.createObjectURL(f),
-        bib: "",
-        mile: "",
         status: "queued",
-        progress: 0,
+        errored: false,
       }));
     setItems((curr) => [...curr, ...next]);
   }
@@ -43,57 +44,116 @@ export function UploadClient({ event }: { event: EventLite }) {
     setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
   }
 
-  function removeItem(uid: string) {
+  function removeAllDone() {
     setItems((curr) => {
-      const target = curr.find((i) => i.uid === uid);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return curr.filter((i) => i.uid !== uid);
+      curr.filter((i) => i.status === "done").forEach((i) => URL.revokeObjectURL(i.previewUrl));
+      return curr.filter((i) => i.status !== "done");
     });
   }
 
-  async function uploadOne(item: QueueItem) {
-    updateItem(item.uid, { status: "uploading", progress: 0, error: undefined });
+  function clearAll() {
+    setItems((curr) => {
+      curr.forEach((i) => URL.revokeObjectURL(i.previewUrl));
+      return [];
+    });
+  }
+
+  async function uploadOne(item: QueueItem): Promise<void> {
+    updateItem(item.uid, { status: "uploading", errored: false });
+
+    // 1) sign — server makes a Photo placeholder + returns a presigned PUT URL
+    const signRes = await fetch("/api/photographer/photos/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId: event.id, contentType: item.file.type || "image/jpeg" }),
+    });
+    if (!signRes.ok) throw new Error(`sign ${signRes.status}`);
+    const { photoId, uploadUrl } = (await signRes.json()) as {
+      photoId: string;
+      uploadUrl: string;
+    };
+
+    // 2) direct browser PUT to R2 — bypasses Vercel's 4.5MB body limit
+    const putRes = await fetch(uploadUrl, {
+      method: "PUT",
+      body: item.file,
+      headers: { "Content-Type": item.file.type || "image/jpeg" },
+    });
+    if (!putRes.ok) throw new Error(`PUT ${putRes.status}`);
+
+    // 3) finalize — server pulls original from R2, makes preview, reads EXIF
+    const finRes = await fetch("/api/photographer/photos/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photoId }),
+    });
+    if (!finRes.ok) throw new Error(`finalize ${finRes.status}`);
+
+    updateItem(item.uid, { status: "done", photoId });
+  }
+
+  async function processUntilEmpty() {
+    setRunning(true);
     try {
-      const form = new FormData();
-      form.append("file", item.file);
-      form.append("eventId", event.id);
-      if (item.bib) form.append("bib", item.bib);
-      if (item.mile) form.append("mile", item.mile);
+      // Work-stealing pool: keep CONCURRENCY uploads in flight until the queue
+      // (plus retries) drains.
+      const workers = Array.from({ length: CONCURRENCY }, () => worker());
+      await Promise.all(workers);
+    } finally {
+      setRunning(false);
+    }
+  }
 
-      const res = await fetch("/api/photographer/photos", { method: "POST", body: form });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error || `Upload failed (${res.status})`);
-      }
-      const j = (await res.json()) as { photo: { id: string } };
-      updateItem(item.uid, { status: "done", progress: 100, photoId: j.photo.id });
-    } catch (e) {
-      updateItem(item.uid, {
-        status: "error",
-        error: e instanceof Error ? e.message : String(e),
+  async function worker() {
+    // Each worker pulls the next queued or errored item until none remain.
+    // We re-read state via the setter pattern so multiple workers cooperate.
+    while (true) {
+      const next: QueueItem | undefined = await new Promise((resolve) => {
+        setItems((curr) => {
+          const target = curr.find((i) => i.status === "queued");
+          if (!target) {
+            resolve(undefined);
+            return curr;
+          }
+          resolve(target);
+          // Mark as uploading so other workers skip it
+          return curr.map((i) => (i.uid === target.uid ? { ...i, status: "uploading" } : i));
+        });
       });
+      if (!next) return;
+      try {
+        await uploadOne(next);
+      } catch {
+        updateItem(next.uid, { status: "error", errored: true });
+      }
     }
   }
 
-  async function uploadAll() {
-    // Sequential to avoid spiky bandwidth + serverless cold-start storms.
-    // Two-at-a-time would be a reasonable upgrade later.
-    const pending = items.filter((i) => i.status === "queued" || i.status === "error");
-    for (const item of pending) {
-      // Re-read latest copy of the item (bib may have been edited)
-      const fresh = items.find((i) => i.uid === item.uid) ?? item;
-      // eslint-disable-next-line no-await-in-loop
-      await uploadOne(fresh);
-    }
+  async function retryFailed() {
+    setItems((curr) =>
+      curr.map((i) => (i.status === "error" ? { ...i, status: "queued", errored: false } : i))
+    );
+    await processUntilEmpty();
   }
 
-  const queuedCount = items.filter((i) => i.status === "queued" || i.status === "error").length;
-  const doneCount = items.filter((i) => i.status === "done").length;
-  const uploadingCount = items.filter((i) => i.status === "uploading").length;
+  // Aggregate counts + progress
+  const total = items.length;
+  const done = items.filter((i) => i.status === "done").length;
+  const flight = items.filter((i) => i.status === "uploading").length;
+  const failed = items.filter((i) => i.status === "error").length;
+  const queued = items.filter((i) => i.status === "queued").length;
+  const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const isFinished = total > 0 && queued === 0 && flight === 0;
+
+  const failedLabel = useMemo(() => {
+    if (failed === 0) return "";
+    return `${failed} failed`;
+  }, [failed]);
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
-      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -155,10 +215,11 @@ export function UploadClient({ event }: { event: EventLite }) {
             border: `2px dashed ${isDragging ? "var(--accent)" : "var(--line)"}`,
             background: isDragging ? "rgba(200,64,26,.04)" : "var(--cream)",
             borderRadius: 12,
-            padding: "48px 24px",
+            padding: "40px 24px",
             textAlign: "center",
             cursor: "pointer",
-            transition: "background var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease)",
+            transition:
+              "background var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease)",
           }}
         >
           <div
@@ -174,7 +235,7 @@ export function UploadClient({ event }: { event: EventLite }) {
             Drop photos here, or click to choose
           </div>
           <div style={{ color: "var(--muted)", fontSize: 13 }}>
-            JPEG or HEIC, any size. EXIF GPS + time are read automatically.
+            JPEG or HEIC. EXIF GPS + time are read automatically. Large files OK.
           </div>
           <input
             ref={fileInputRef}
@@ -184,183 +245,192 @@ export function UploadClient({ event }: { event: EventLite }) {
             hidden
             onChange={(e) => {
               addFiles(e.target.files);
-              e.target.value = ""; // allow re-selecting the same files
+              e.target.value = "";
             }}
           />
         </div>
 
-        {/* Queue stats + action */}
+        {/* Aggregate status bar + actions */}
         {items.length > 0 && (
-          <div
-            style={{
-              marginTop: 18,
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ marginTop: 22 }}>
             <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".12em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                flexWrap: "wrap",
               }}
             >
-              {items.length} in queue · {doneCount} uploaded · {uploadingCount} in flight
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                }}
+              >
+                {done}/{total} uploaded
+                {flight > 0 ? ` · ${flight} in flight` : ""}
+                {queued > 0 && !isRunning ? ` · ${queued} queued` : ""}
+                {failedLabel ? ` · ${failedLabel}` : ""}
+              </div>
+              <span style={{ flex: 1 }} />
+              {failed > 0 && !isRunning && (
+                <button className="btn btn--ghost" onClick={retryFailed}>
+                  Retry {failed}
+                </button>
+              )}
+              {done > 0 && !isRunning && (
+                <button className="btn btn--ghost" onClick={removeAllDone}>
+                  Clear uploaded
+                </button>
+              )}
+              {isFinished && (
+                <button className="btn btn--ghost" onClick={clearAll}>
+                  Clear all
+                </button>
+              )}
+              {!isFinished && (
+                <button
+                  className="btn btn--primary"
+                  disabled={(queued === 0 && failed === 0) || isRunning}
+                  onClick={processUntilEmpty}
+                >
+                  {isRunning ? "Uploading…" : `Upload ${queued + failed}`}
+                </button>
+              )}
             </div>
-            <span style={{ flex: 1 }} />
-            <button
-              className="btn btn--primary"
-              disabled={queuedCount === 0 || uploadingCount > 0}
-              onClick={uploadAll}
+
+            {/* Progress bar */}
+            <div
+              style={{
+                marginTop: 12,
+                height: 6,
+                background: "var(--line)",
+                borderRadius: 999,
+                overflow: "hidden",
+              }}
+              aria-label="upload progress"
             >
-              Upload all {queuedCount > 0 ? `(${queuedCount})` : ""}
-            </button>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${progressPct}%`,
+                  background: failed > 0 && isFinished ? "var(--accent)" : "var(--green)",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
           </div>
         )}
 
-        {/* Queue rows */}
-        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-          {items.map((it) => (
-            <QueueRow
-              key={it.uid}
-              item={it}
-              onChange={(patch) => updateItem(it.uid, patch)}
-              onRemove={() => removeItem(it.uid)}
-              onRetry={() => uploadOne(it)}
-            />
-          ))}
-        </div>
+        {/* Thumbnail grid */}
+        {items.length > 0 && (
+          <div
+            style={{
+              marginTop: 22,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {items.map((it) => (
+              <Tile key={it.uid} item={it} />
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
 }
 
-function QueueRow({
-  item,
-  onChange,
-  onRemove,
-  onRetry,
-}: {
-  item: QueueItem;
-  onChange: (patch: Partial<QueueItem>) => void;
-  onRemove: () => void;
-  onRetry: () => void;
-}) {
-  const statusLabel = {
-    queued: "Queued",
-    uploading: "Uploading",
-    done: "Live",
-    error: "Failed",
-  }[item.status];
-  const statusColor = {
-    queued: "var(--muted)",
-    uploading: "var(--accent)",
-    done: "var(--green)",
-    error: "var(--accent)",
-  }[item.status];
+function Tile({ item }: { item: QueueItem }) {
+  const ring =
+    item.status === "done"
+      ? "var(--green)"
+      : item.status === "error"
+        ? "var(--accent)"
+        : item.status === "uploading"
+          ? "var(--accent)"
+          : "transparent";
+  const dimOpacity = item.status === "queued" ? 0.55 : 1;
 
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "64px 1fr auto",
-        gap: 14,
-        alignItems: "center",
-        padding: "12px 14px",
-        background: "var(--surface)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
+        position: "relative",
+        aspectRatio: "4 / 3",
+        borderRadius: 6,
+        overflow: "hidden",
+        background: "var(--cream)",
+        outline: ring === "transparent" ? "1px solid var(--line)" : `2px solid ${ring}`,
+        outlineOffset: 0,
       }}
+      title={item.file.name}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={item.previewUrl}
         alt={item.file.name}
-        style={{ width: 64, height: 88, objectFit: "cover", borderRadius: 4 }}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: dimOpacity,
+          transition: "opacity 0.2s ease",
+        }}
       />
-      <div style={{ minWidth: 0 }}>
+      {item.status === "uploading" && (
         <div
           style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: 14,
-            color: "var(--ink)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,.25) 50%, transparent 100%)",
+            backgroundSize: "200% 100%",
+            animation: "shimmer 1.4s linear infinite",
           }}
-        >
-          {item.file.name}
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 10,
-            letterSpacing: ".1em",
-            textTransform: "uppercase",
-            color: "var(--muted)",
-            marginTop: 4,
-          }}
-        >
-          {(item.file.size / 1024 / 1024).toFixed(2)} MB ·{" "}
-          <span style={{ color: statusColor }}>{statusLabel}</span>
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="bib #"
-            value={item.bib}
-            disabled={item.status === "uploading"}
-            onChange={(e) => onChange({ bib: e.target.value.replace(/[^0-9]/g, "") })}
-            className="input"
-            style={{ width: 100, padding: "6px 10px", fontSize: 13 }}
-          />
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="mile"
-            value={item.mile}
-            disabled={item.status === "uploading"}
-            onChange={(e) => onChange({ mile: e.target.value.replace(/[^0-9]/g, "") })}
-            className="input"
-            style={{ width: 80, padding: "6px 10px", fontSize: 13 }}
-          />
-        </div>
-        {item.error && (
-          <div style={{ color: "var(--accent)", fontSize: 12, marginTop: 6 }}>
-            {item.error}
-          </div>
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {item.status === "error" && (
-          <button className="btn btn--ghost btn--sm" onClick={onRetry}>
-            Retry
-          </button>
-        )}
-        {item.status !== "done" && (
-          <button
-            onClick={onRemove}
-            disabled={item.status === "uploading"}
-            style={{
-              background: "transparent",
-              border: 0,
-              color: "var(--muted)",
-              fontSize: 12,
-              cursor: item.status === "uploading" ? "not-allowed" : "pointer",
-              textDecoration: "underline",
-              textDecorationColor: "var(--line)",
-              textUnderlineOffset: 3,
-            }}
-          >
-            Remove
-          </button>
-        )}
-      </div>
+        />
+      )}
+      {item.status === "done" && (
+        <Badge color="var(--green)" symbol="✓" />
+      )}
+      {item.status === "error" && (
+        <Badge color="var(--accent)" symbol="!" />
+      )}
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function Badge({ color, symbol }: { color: string; symbol: string }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 6,
+        right: 6,
+        width: 22,
+        height: 22,
+        borderRadius: 999,
+        background: color,
+        color: "var(--paper)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "var(--font-mono)",
+        fontSize: 12,
+        fontWeight: 700,
+        boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+      }}
+    >
+      {symbol}
     </div>
   );
 }

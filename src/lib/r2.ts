@@ -80,6 +80,23 @@ export async function r2PresignGet(key: string, ttlSeconds = 900): Promise<strin
   });
 }
 
+/**
+ * Presign a PUT URL so a browser can upload directly to R2 — bypasses Vercel's
+ * 4.5MB API-route body limit. The client PUTs the bytes; the server then
+ * pulls the object back to derive the preview and read EXIF.
+ */
+export async function r2PresignPut(
+  key: string,
+  contentType: string,
+  ttlSeconds = 900
+): Promise<string> {
+  return getSignedUrl(
+    r2(),
+    new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: contentType }),
+    { expiresIn: ttlSeconds }
+  );
+}
+
 /** Key helpers — keep all R2 paths in one place. */
 export const r2Keys = {
   original: (photoId: string) => `originals/${photoId}.jpg`,
