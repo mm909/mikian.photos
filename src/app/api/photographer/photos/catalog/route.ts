@@ -30,9 +30,14 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 500) || 500, 1000);
+  // ?mine=1 forces "only show photos I uploaded", overriding admin's
+  // see-all behaviour. The photographer dashboard sends this so the owner
+  // sees their own gallery instead of every photographer's work mixed in.
+  const onlyMine = url.searchParams.get("mine") === "1";
+  const scopeToMe = !isAdmin || onlyMine;
 
   const rows = await db.photo.findMany({
-    where: isAdmin ? {} : { photographerId },
+    where: scopeToMe ? { photographerId } : {},
     orderBy: { createdAt: "desc" },
     take: limit,
     select: {

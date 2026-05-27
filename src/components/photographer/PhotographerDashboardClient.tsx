@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
+import { LibraryTile } from "@/components/photographer/LibraryTile";
 import {
   PhotoDetailModal,
   type DeleteState,
@@ -10,36 +11,46 @@ import {
   type HideState,
   type RerunState,
 } from "@/components/photographer/PhotoDetailModal";
-import { LibraryTile } from "@/components/photographer/LibraryTile";
 
-type BibTag = DetailPhoto["bibs"][number];
-type AdminPhoto = DetailPhoto;
+type Props = {
+  /** First name to greet with. Passed from the server actor lookup. */
+  name: string;
+  /** Email shown in the mono "Photographer · …" chip above the headline. */
+  email: string;
+};
 
-export function PhotosAdminClient() {
+/**
+ * Photographer dashboard — the "your race-day gallery" landing page.
+ *
+ * It's intentionally a near-clone of the Library experience (same tile, same
+ * click-to-modal, same ⋯ hover menu) but always scoped to the signed-in user's
+ * own uploads — even for owner. Owner gets a separate Library route to see
+ * every photographer's work.
+ *
+ * Why the duplication-ish: keeping the dashboard as its own component lets
+ * us add dashboard-only things later (sales, payouts, route-map of where you
+ * shot from) without bloating the admin Library client.
+ */
+export function PhotographerDashboardClient({ name, email }: Props) {
   const [loading, setLoading] = useState(true);
-  const [photos, setPhotos] = useState<AdminPhoto[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [photos, setPhotos] = useState<DetailPhoto[]>([]);
 
   const [rerun, setRerun] = useState<Record<string, RerunState>>({});
   const [delState, setDelState] = useState<Record<string, DeleteState>>({});
   const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
-
-  const [bulkRunning, setBulkRunning] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, found: 0 });
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "tagged" | "untagged" | "hidden">("all");
-
-  // The currently-open photo in the detail modal, or null.
   const [openId, setOpenId] = useState<string | null>(null);
 
   const fetchCatalog = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/photographer/photos/catalog", { cache: "no-store" });
+      // mine=1 forces owner to see only their own uploads here. Non-owners
+      // already get scoped to themselves server-side.
+      const r = await fetch("/api/photographer/photos/catalog?mine=1", {
+        cache: "no-store",
+      });
       if (!r.ok) throw new Error(`catalog ${r.status}`);
-      const d = (await r.json()) as { photos: AdminPhoto[]; isAdmin: boolean };
+      const d = (await r.json()) as { photos: DetailPhoto[] };
       setPhotos(d.photos);
-      setIsAdmin(d.isAdmin);
     } catch (e) {
       console.error(e);
       setPhotos([]);
@@ -55,7 +66,9 @@ export function PhotosAdminClient() {
   async function rerunOcr(photoId: string) {
     setRerun((s) => ({ ...s, [photoId]: "running" }));
     try {
-      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-ocr`, { method: "POST" });
+      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-ocr`, {
+        method: "POST",
+      });
       if (!r.ok) throw new Error(`rerun ${r.status}`);
       const d = (await r.json()) as { detected: { bib: number; confidence: number }[] };
       setPhotos((curr) =>
@@ -93,8 +106,6 @@ export function PhotosAdminClient() {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `delete ${r.status}`);
       }
-      // Close the modal first so it doesn't flash empty after the photo
-      // disappears from the grid.
       setOpenId((curr) => (curr === photoId ? null : curr));
       setPhotos((curr) => curr.filter((p) => p.id !== photoId));
       setDelState((s) => {
@@ -134,67 +145,31 @@ export function PhotosAdminClient() {
     }
   }
 
-  async function rerunAll() {
-    const ids = filteredPhotos.map((p) => p.id);
-    setBulkRunning(true);
-    setBulkProgress({ done: 0, total: ids.length, found: 0 });
-    let foundTotal = 0;
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      try {
-        const r = await fetch(`/api/photographer/photos/${id}/rerun-ocr`, { method: "POST" });
-        if (r.ok) {
-          const d = (await r.json()) as { total: number };
-          foundTotal += d.total;
-        }
-      } catch {
-        /* keep going */
-      }
-      setBulkProgress({ done: i + 1, total: ids.length, found: foundTotal });
-    }
-    setBulkRunning(false);
-    await fetchCatalog();
-  }
-
-  const filteredPhotos = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    return photos.filter((p) => {
-      if (filter === "tagged" && p.bibs.length === 0) return false;
-      if (filter === "untagged" && p.bibs.length > 0) return false;
-      if (filter === "hidden" && !p.hidden) return false;
-      if (filter !== "hidden" && p.hidden) return false; // hide hidden by default
-      if (!s) return true;
-      if (p.id.toLowerCase().includes(s)) return true;
-      if (p.bibs.some((b) => String(b.bib).includes(s))) return true;
-      if (p.photographer.name.toLowerCase().includes(s)) return true;
-      return false;
-    });
-  }, [photos, search, filter]);
+  // Visible-only by default; hidden photos still counted in stats but not in grid.
+  const visiblePhotos = useMemo(() => photos.filter((p) => !p.hidden), [photos]);
 
   const counts = useMemo(() => {
     const total = photos.length;
-    const tagged = photos.filter((p) => p.bibs.length > 0).length;
-    const ocrTagged = photos.filter((p) =>
-      p.bibs.some((b) => b.source.startsWith("ocr-"))
-    ).length;
-    const hidden = photos.filter((p) => p.hidden).length;
-    return { total, tagged, untagged: total - tagged, ocrTagged, hidden };
-  }, [photos]);
+    const visible = visiblePhotos.length;
+    const hidden = total - visible;
+    return { total, visible, hidden };
+  }, [photos, visiblePhotos]);
 
   const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
+  const firstName = name.split(" ")[0] || name;
 
   return (
-    <main className="screen" style={{ padding: "40px 24px 96px" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+    <main className="screen" style={{ padding: "48px 24px 96px" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         {/* Header */}
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "baseline",
+            justifyContent: "space-between",
             gap: 18,
             flexWrap: "wrap",
-            marginBottom: 22,
+            marginBottom: 32,
           }}
         >
           <div>
@@ -205,116 +180,74 @@ export function PhotosAdminClient() {
                 letterSpacing: ".14em",
                 textTransform: "uppercase",
                 color: "var(--muted)",
-                marginBottom: 8,
+                marginBottom: 6,
               }}
             >
-              {isAdmin ? "Admin — all photographers" : "Your uploads"}
+              Photographer · {email}
             </div>
             <Headline
               as="h1"
-              text="Photo library."
-              accent="library."
+              text={`Hi, ${firstName}.`}
+              accent={firstName}
               style={{
                 margin: 0,
                 fontFamily: "var(--font-serif)",
                 fontWeight: 500,
-                fontSize: 36,
-                letterSpacing: "-.015em",
+                fontSize: 44,
+                letterSpacing: "-.018em",
               }}
             />
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <Link href="/photographer" className="btn btn--ghost">
-              ← Dashboard
-            </Link>
             <Link href="/photographer/upload" className="btn btn--primary">
-              Upload →
+              Upload photos →
             </Link>
           </div>
         </div>
 
-        {/* Stat strip */}
+        {/* Stats */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 10,
-            marginBottom: 22,
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+            marginBottom: 32,
           }}
         >
-          <Stat label="Total" value={counts.total.toString()} />
-          <Stat label="Bib-tagged" value={counts.tagged.toString()} />
-          <Stat label="OCR detected" value={counts.ocrTagged.toString()} />
-          <Stat label="Untagged" value={counts.untagged.toString()} muted />
-          <Stat label="Hidden" value={counts.hidden.toString()} muted />
+          <Stat label="Uploaded" value={counts.total.toString()} />
+          <Stat label="Visible" value={counts.visible.toString()} />
+          <Stat label="Hidden" value={counts.hidden.toString()} />
+          <Stat label="Sales (coming)" value="—" muted />
         </div>
 
-        {/* Filter + actions */}
-        <div
+        <h2
           style={{
-            display: "flex",
-            gap: 10,
-            marginBottom: 18,
-            flexWrap: "wrap",
-            alignItems: "center",
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 22,
+            margin: "0 0 14px",
+            color: "var(--ink)",
           }}
         >
-          <input
-            className="input"
-            placeholder="Search bib, photo ID, photographer…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 240, padding: "8px 12px", fontSize: 14 }}
-          />
-          <div
-            role="tablist"
-            style={{
-              display: "flex",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              background: "var(--cream)",
-              padding: 2,
-            }}
-          >
-            {(["all", "tagged", "untagged", "hidden"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setFilter(k)}
-                aria-selected={filter === k}
-                style={{
-                  padding: "6px 12px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 10,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  background: filter === k ? "var(--surface)" : "transparent",
-                  border: 0,
-                  color: filter === k ? "var(--ink)" : "var(--muted)",
-                  cursor: "pointer",
-                  borderRadius: 4,
-                }}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-          <button
-            className="btn btn--ghost"
-            onClick={rerunAll}
-            disabled={bulkRunning || filteredPhotos.length === 0}
-            title="Re-run bib OCR on every photo in the current filter"
-          >
-            {bulkRunning
-              ? `Re-running ${bulkProgress.done}/${bulkProgress.total} (+${bulkProgress.found} bibs)`
-              : `Re-run OCR on ${filteredPhotos.length}`}
-          </button>
-        </div>
+          Your uploads
+        </h2>
 
-        {/* Grid — photo only, full frame, click to open detail modal */}
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading…</p>
-        ) : filteredPhotos.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No photos match this filter.</p>
+        ) : visiblePhotos.length === 0 ? (
+          <div
+            style={{
+              padding: "48px 24px",
+              textAlign: "center",
+              background: "var(--cream)",
+              border: "1px solid var(--line)",
+              borderRadius: 10,
+              color: "var(--muted)",
+              fontSize: 15,
+            }}
+          >
+            Nothing here yet. Drop your first batch via the upload button above.
+          </div>
         ) : (
           <div
             style={{
@@ -323,7 +256,7 @@ export function PhotosAdminClient() {
               gap: 4,
             }}
           >
-            {filteredPhotos.map((p) => (
+            {visiblePhotos.map((p) => (
               <LibraryTile
                 key={p.id}
                 p={p}
@@ -369,23 +302,15 @@ export function PhotosAdminClient() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+function Stat({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div
       style={{
         background: "var(--surface)",
         border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        opacity: muted ? 0.7 : 1,
+        borderRadius: 10,
+        padding: "14px 16px",
+        opacity: muted ? 0.6 : 1,
       }}
     >
       <div
@@ -403,9 +328,9 @@ function Stat({
         style={{
           fontFamily: "var(--font-serif)",
           fontWeight: 500,
-          fontSize: 22,
-          color: "var(--ink)",
+          fontSize: 28,
           marginTop: 2,
+          color: "var(--ink)",
         }}
       >
         {value}
@@ -413,7 +338,3 @@ function Stat({
     </div>
   );
 }
-
-// Kept for any future external usage; re-export the BibTag shape via the
-// modal's named export to avoid duplication.
-export type { BibTag };

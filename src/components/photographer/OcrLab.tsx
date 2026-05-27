@@ -86,60 +86,81 @@ export function OcrLab({
     setSettings((s) => ({ ...s, [key]: value }));
   }
 
+  const selectedPhoto = photoId ? recent.find((r) => r.id === photoId) ?? null : null;
+
   return (
-    <main className="screen" style={{ padding: "32px 24px 96px" }}>
-      <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        {/* Header */}
+    <main
+      className="screen ocr-lab-main"
+      style={{
+        padding: "12px 16px 16px",
+        height: "calc(100vh - var(--nav-h, 60px))",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1320,
+          margin: "0 auto",
+          width: "100%",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          minHeight: 0,
+        }}
+      >
+        {/* Compact header — single row */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: 18,
+            alignItems: "center",
+            gap: 12,
             flexWrap: "wrap",
-            marginBottom: 20,
           }}
         >
-          <div>
-            <div
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <span
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".14em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-                marginBottom: 6,
-              }}
-            >
-              Tuning · {recent.length} recent photo{recent.length === 1 ? "" : "s"}
-            </div>
-            <Headline
-              as="h1"
-              text="OCR lab."
-              accent="lab."
-              style={{
-                margin: 0,
                 fontFamily: "var(--font-serif)",
                 fontWeight: 500,
-                fontSize: 36,
-                letterSpacing: "-.015em",
+                fontSize: 20,
+                letterSpacing: "-.012em",
+                color: "var(--ink)",
               }}
-            />
+            >
+              OCR <em className="acc-l" style={{ fontStyle: "italic" }}>lab</em>
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+              }}
+            >
+              {recent.length} photo{recent.length === 1 ? "" : "s"}
+              {debug && ` · ${debug.durationMs}ms · ${debug.bibs.length} kept`}
+            </span>
           </div>
-          <Link href="/photographer/photos" className="btn btn--ghost">
+          <Link href="/photographer/photos" className="btn btn--ghost btn--sm">
             ← Library
           </Link>
         </div>
 
-        {/* Photo picker strip */}
+        {/* Photo picker strip — smaller tiles */}
         {recent.length > 0 && (
           <div
             style={{
               display: "flex",
-              gap: 6,
+              gap: 5,
               overflowX: "auto",
-              padding: "4px 0 14px",
-              marginBottom: 14,
+              padding: "2px 0 4px",
+              flex: "0 0 auto",
             }}
           >
             {recent.map((p) => (
@@ -150,14 +171,15 @@ export function OcrLab({
                 style={{
                   position: "relative",
                   flex: "0 0 auto",
-                  width: 86,
-                  height: 86,
+                  width: 62,
+                  height: 62,
                   padding: 0,
-                  borderRadius: 6,
+                  borderRadius: 5,
                   overflow: "hidden",
                   cursor: "pointer",
                   background: "var(--cream)",
-                  border: photoId === p.id ? "3px solid var(--accent)" : "1px solid var(--line)",
+                  border:
+                    photoId === p.id ? "2px solid var(--accent)" : "1px solid var(--line)",
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -171,37 +193,99 @@ export function OcrLab({
           </div>
         )}
 
-        {/* Result + controls */}
+        {/* Result + controls — both panes constrained, scroll independently */}
         <div
           className="ocr-lab-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1.5fr 1fr",
-            gap: 20,
-            alignItems: "start",
+            gridTemplateRows: "minmax(0, 1fr)",
+            gap: 16,
+            flex: 1,
+            minHeight: 0,
           }}
         >
-          {/* LEFT — overlay */}
-          <div>
+          {/* LEFT — OCR overlay (top) + original preview (bottom). Always shows
+             the photo when one is selected so the user has visual context
+             before kicking OCR off. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              minHeight: 0,
+              overflowY: "auto",
+            }}
+          >
             {!photoId ? (
               <Empty>No photos yet. Upload one to start tuning.</Empty>
-            ) : !debug ? (
-              <Empty>
-                {state === "running"
-                  ? "Running OCR…"
-                  : state === "err"
-                    ? error ?? "Failed"
-                    : "Pick a photo, tweak settings, hit Run OCR."}
-              </Empty>
             ) : (
-              <ResultOverlay debug={debug} />
+              <>
+                {/* OCR result panel — only after a run */}
+                {debug ? (
+                  <div style={{ flex: "1 1 0", minHeight: 0 }}>
+                    <ResultOverlay debug={debug} fitHeight />
+                  </div>
+                ) : (
+                  <div style={{ flex: "0 0 auto" }}>
+                    <Empty compact>
+                      {state === "running"
+                        ? "Running OCR…"
+                        : state === "err"
+                          ? error ?? "Failed"
+                          : "Tweak settings, hit Run OCR to see what Tesseract sees."}
+                    </Empty>
+                  </div>
+                )}
+
+                {/* Original preview — always visible when a photo is picked */}
+                {selectedPhoto && (
+                  <div style={{ flex: "0 0 auto" }}>
+                    <Caption>Original</Caption>
+                    <div
+                      style={{
+                        background: "var(--cream)",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: "1px solid var(--line)",
+                        maxHeight: debug ? "32vh" : "60vh",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedPhoto.previewUrl}
+                        alt=""
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: debug ? "32vh" : "60vh",
+                          objectFit: "contain",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* RIGHT — controls + lists */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* RIGHT — controls + lists. Scrolls within its grid cell so the
+             whole page stays viewport-fit. */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              minHeight: 0,
+              overflowY: "auto",
+              paddingRight: 4,
+            }}
+          >
             {/* Run button */}
-            <div>
+            <div style={{ position: "sticky", top: 0, background: "var(--paper)", paddingBottom: 4, zIndex: 1 }}>
               <button
                 className="btn btn--primary"
                 onClick={run}
@@ -213,7 +297,7 @@ export function OcrLab({
               {debug && (
                 <div
                   style={{
-                    marginTop: 6,
+                    marginTop: 4,
                     fontFamily: "var(--font-mono)",
                     fontSize: 10,
                     letterSpacing: ".12em",
@@ -481,7 +565,15 @@ export function OcrLab({
   );
 }
 
-function ResultOverlay({ debug }: { debug: DebugPayload }) {
+function ResultOverlay({
+  debug,
+  fitHeight,
+}: {
+  debug: DebugPayload;
+  /** When true, fill the parent height instead of using intrinsic aspect ratio.
+   *  Used in the viewport-fit layout where the left column owns its height. */
+  fitHeight?: boolean;
+}) {
   const bibSet = new Set(debug.bibs.map((b) => b.bib));
   return (
     <div
@@ -490,14 +582,23 @@ function ResultOverlay({ debug }: { debug: DebugPayload }) {
         background: "#111",
         borderRadius: 8,
         overflow: "hidden",
-        aspectRatio: `${debug.preparedWidth} / ${Math.max(debug.preparedHeight, 1)}`,
+        width: "100%",
+        height: fitHeight ? "100%" : undefined,
+        aspectRatio: fitHeight
+          ? undefined
+          : `${debug.preparedWidth} / ${Math.max(debug.preparedHeight, 1)}`,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`data:image/png;base64,${debug.preparedPngBase64}`}
         alt="preprocessed for OCR"
-        style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          objectFit: fitHeight ? "contain" : "cover",
+        }}
       />
       <svg
         viewBox={`0 0 ${debug.preparedWidth} ${debug.preparedHeight}`}
@@ -576,11 +677,21 @@ function ResultOverlay({ debug }: { debug: DebugPayload }) {
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
+function Empty({
+  children,
+  compact,
+}: {
+  children: React.ReactNode;
+  /** Slim banner used in the lab when an Original preview is also showing —
+   *  avoids the big aspect-ratio box when we just want a one-liner. */
+  compact?: boolean;
+}) {
   return (
     <div
       style={{
-        aspectRatio: "3 / 2",
+        ...(compact
+          ? { padding: "10px 14px" }
+          : { aspectRatio: "3 / 2", padding: 24 }),
         background: "var(--cream)",
         border: "1px dashed var(--line)",
         borderRadius: 8,
@@ -589,9 +700,25 @@ function Empty({ children }: { children: React.ReactNode }) {
         justifyContent: "center",
         color: "var(--muted)",
         fontFamily: "var(--font-sans)",
-        fontSize: 14,
-        padding: 24,
+        fontSize: compact ? 12 : 14,
         textAlign: "center",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Caption({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: 10,
+        letterSpacing: ".14em",
+        textTransform: "uppercase",
+        color: "var(--muted)",
+        marginBottom: 4,
       }}
     >
       {children}

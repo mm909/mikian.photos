@@ -38,9 +38,13 @@ const VIEWS: View[] = [
     roles: ["race_director", "owner"],
   },
   {
+    // Photographer dashboard — landing place for "I shot this race" view.
+    // Upload is a sub-surface of the photographer flow so the dashboard
+    // chip stays active there too. Library + OCR Lab have their own chips.
     label: "Photographers",
-    href: "/photographer/upload",
-    match: (p) => p === "/photographer" || p.startsWith("/photographer/upload"),
+    href: "/photographer",
+    match: (p) =>
+      p === "/photographer" || p.startsWith("/photographer/upload"),
     roles: ["photographer", "owner"],
   },
   {

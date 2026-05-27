@@ -460,7 +460,7 @@ export function UploadClient({ event }: { event: EventLite }) {
             style={{
               marginTop: 22,
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
               gap: 4,
             }}
           >
