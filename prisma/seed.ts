@@ -32,10 +32,14 @@ async function main() {
   });
   console.log(`✓ event: ${event.name} (${event.id})`);
 
+  // Test photographers — get the photographer role pre-seeded so they
+  // can upload immediately on first Google sign-in. Existing rows will
+  // also have their roles updated by the upsert (idempotent).
+  const photographerRoles = ["runner", "photographer"];
   const pgs = [
-    { email: "mara@mikian.photos",  name: "Mara K.",  primaryEventId: event.id, isAdmin: false },
-    { email: "jules@mikian.photos", name: "Jules C.", primaryEventId: event.id, isAdmin: false },
-    { email: "devon@mikian.photos", name: "Devon L.", primaryEventId: event.id, isAdmin: false },
+    { email: "mara@mikian.photos",  name: "Mara K.",  primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
+    { email: "jules@mikian.photos", name: "Jules C.", primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
+    { email: "devon@mikian.photos", name: "Devon L.", primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
   ];
   for (const p of pgs) {
     const row = await db.photographer.upsert({
@@ -43,8 +47,26 @@ async function main() {
       update: p,
       create: p,
     });
-    console.log(`✓ photographer: ${row.name} <${row.email}>`);
+    console.log(`✓ photographer: ${row.name} <${row.email}> [${row.roles.join(", ")}]`);
   }
+
+  // Owner row — pre-seed so Mikian gets the owner role even before first
+  // Google sign-in. signIn() in src/lib/auth.ts will link this row to the
+  // Google subject when mikian.photos@gmail.com logs in for the first time.
+  const ownerEmail = (process.env.OWNER_EMAIL || "mikian.photos@gmail.com").toLowerCase();
+  const ownerRoles = ["runner", "photographer", "race_director", "owner"];
+  const owner = await db.photographer.upsert({
+    where: { email: ownerEmail },
+    update: { roles: ownerRoles, isAdmin: true },
+    create: {
+      email: ownerEmail,
+      name: "Mikian Musser",
+      primaryEventId: event.id,
+      roles: ownerRoles,
+      isAdmin: true,
+    },
+  });
+  console.log(`✓ owner: ${owner.name} <${owner.email}> [${owner.roles.join(", ")}]`);
 }
 
 main()

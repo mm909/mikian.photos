@@ -1,16 +1,32 @@
 import type { NextAuthOptions } from "next-auth";
 import Google from "next-auth/providers/google";
 import { db } from "./db";
+import {
+  ALL_ROLES,
+  OWNER_IMPLIED_ROLES,
+  normalizeRoles,
+  ownerEmail,
+  type Role,
+} from "./permissions";
 
 /**
  * NextAuth config — Google OAuth, JWT sessions.
  *
- * On first sign-in we upsert a Photographer row keyed on the Google subject
- * (stable Google user ID). The session token then carries that photographerId,
- * so any /api/photographer/* route can authorize the caller in one DB read.
+ * On first sign-in we make sure a Photographer row exists for this Google
+ * identity. Resolution order:
+ *   1. Existing row whose `googleSubject` matches the OAuth subject.
+ *   2. Existing row whose `email` matches (claims a pre-seeded row — the
+ *      seed creates a few placeholder photographers; this lets us link a
+ *      real Google login to that row instead of creating a duplicate).
+ *   3. Brand-new row.
  *
- * No DB adapter for sessions (JWT strategy) — keeps things simple and lets
- * us iterate on the Photographer schema without touching auth machinery.
+ * Roles are assigned on first signIn:
+ *   - email matches OWNER_EMAIL (default mikian.photos@gmail.com)
+ *     → ["runner","photographer","race_director","owner"]
+ *   - otherwise: keep existing roles if any, else default to ["runner"]
+ *
+ * No DB adapter for sessions (JWT strategy) — keeps things simple.
+ * Session/JWT carry `photographerId`, `roles`, and (legacy) `isAdmin`.
  */
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -22,21 +38,61 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async signIn({ user, account }) {
-      // Reject if missing the bits we depend on
       if (!user.email || !account?.providerAccountId) return false;
-      // Upsert a Photographer row for this Google identity
-      await db.photographer.upsert({
+      const email = user.email.toLowerCase().trim();
+      const displayName = user.name ?? user.email.split("@")[0];
+      const isOwnerEmail = email === ownerEmail();
+
+      // 1. Look up by googleSubject first (stable across email changes)
+      let existing = await db.photographer.findUnique({
         where: { googleSubject: account.providerAccountId },
-        update: {
-          email: user.email,
-          name: user.name ?? user.email.split("@")[0],
-        },
-        create: {
-          googleSubject: account.providerAccountId,
-          email: user.email,
-          name: user.name ?? user.email.split("@")[0],
-        },
+        select: { id: true, roles: true, email: true },
       });
+
+      // 2. Fall back to email match (claims pre-seeded rows)
+      if (!existing) {
+        existing = await db.photographer.findUnique({
+          where: { email },
+          select: { id: true, roles: true, email: true },
+        });
+      }
+
+      // Compute roles: owner-by-email gets the full set; otherwise inherit
+      // any existing roles, or default to ["runner"] for net-new users.
+      const baseRoles: Role[] = isOwnerEmail
+        ? OWNER_IMPLIED_ROLES
+        : existing
+          ? normalizeRoles(existing.roles)
+          : ["runner"];
+      // Always ensure "runner" is present — a baseline so signed-in users
+      // can buy photos via their account.
+      const roles: Role[] = baseRoles.includes("runner")
+        ? baseRoles
+        : (["runner", ...baseRoles] as Role[]);
+      const isAdmin = roles.includes("owner");
+
+      if (existing) {
+        await db.photographer.update({
+          where: { id: existing.id },
+          data: {
+            googleSubject: account.providerAccountId,
+            email,
+            name: displayName,
+            roles,
+            isAdmin,
+          },
+        });
+      } else {
+        await db.photographer.create({
+          data: {
+            googleSubject: account.providerAccountId,
+            email,
+            name: displayName,
+            roles,
+            isAdmin,
+          },
+        });
+      }
       return true;
     },
     async jwt({ token, account, user }) {
@@ -44,25 +100,31 @@ export const authOptions: NextAuthOptions = {
       if (account?.providerAccountId) {
         token.googleSubject = account.providerAccountId;
       }
-      // Subsequent calls: hydrate photographerId + isAdmin from DB if we
-      // don't already have them on the token
-      if (token.googleSubject && (!token.photographerId || token.isAdmin === undefined)) {
+      // Hydrate photographerId + roles from DB when missing on the token.
+      // Re-hydrate every time so role updates from /admin/users land
+      // without forcing the user to sign out.
+      if (token.googleSubject) {
         const pg = await db.photographer.findUnique({
           where: { googleSubject: token.googleSubject as string },
-          select: { id: true, isAdmin: true },
+          select: { id: true, isAdmin: true, roles: true },
         });
         if (pg) {
           token.photographerId = pg.id;
           token.isAdmin = pg.isAdmin;
+          token.roles = normalizeRoles(pg.roles);
         }
       }
-      // Helpful fallbacks for the session shape
       if (user?.email) token.email = user.email;
       return token;
     },
     async session({ session, token }) {
       session.photographerId = (token.photographerId as string | undefined) ?? null;
       session.isAdmin = Boolean(token.isAdmin);
+      session.roles = Array.isArray(token.roles)
+        ? (token.roles as string[]).filter((r): r is Role =>
+            (ALL_ROLES as readonly string[]).includes(r)
+          )
+        : ["runner"];
       return session;
     },
   },

@@ -33,29 +33,46 @@ export function isPhotographerUnlocked(): boolean {
  * cookie. Returns null when neither path applies — caller decides whether to
  * 401, redirect, or render a "request access" message.
  *
+ * **Role-gated**: only returns an id when the actor has the "photographer"
+ * (or "owner") role. A signed-in runner gets null here, so every API route
+ * that calls this is automatically denied to runners. Routes that don't
+ * need the photographer role should use `getEffectiveActor()` directly from
+ * `permissions.ts` and check roles themselves.
+ *
  * The NextAuth try/catch is deliberate: if the deploy is missing OAuth env
  * vars (NEXTAUTH_SECRET, GOOGLE_*), getServerSession can throw. We still want
  * the unlock path to work in that case.
  */
 export async function getEffectivePhotographerId(): Promise<string | null> {
-  // Path 1: real Google sign-in
+  // Path 1: real Google sign-in — accept only if the user has photographer
+  // or owner role on their row.
   try {
     const session = await getServerSession(authOptions);
-    if (session?.photographerId) return session.photographerId;
+    if (session?.photographerId) {
+      const roles = session.roles ?? [];
+      if (roles.includes("photographer") || roles.includes("owner")) {
+        return session.photographerId;
+      }
+      return null;
+    }
   } catch {
     /* NextAuth misconfigured — fall through */
   }
 
-  // Path 2: unlock cookie. Idempotently upsert the admin row so we have
-  // something to attribute uploads to.
+  // Path 2: unlock cookie. Idempotently upsert the admin row (owner role)
+  // so we have something to attribute uploads to.
   if (isPhotographerUnlocked()) {
     const admin = await db.photographer.upsert({
       where: { email: ADMIN_PHOTOGRAPHER_EMAIL },
-      update: { isAdmin: true },
+      update: {
+        isAdmin: true,
+        roles: ["runner", "photographer", "race_director", "owner"],
+      },
       create: {
         email: ADMIN_PHOTOGRAPHER_EMAIL,
         name: ADMIN_PHOTOGRAPHER_NAME,
         isAdmin: true,
+        roles: ["runner", "photographer", "race_director", "owner"],
       },
       select: { id: true },
     });
