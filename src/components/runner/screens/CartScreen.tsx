@@ -259,7 +259,7 @@ export function CartScreen() {
                 }}
               >
                 <Row label={`Photos (${items.length})`} value={`$${subtotal.toFixed(2)}`} />
-                <Row label="Stripe fee (est.)" value={`$${stripeFee.toFixed(2)}`} muted />
+                <Row label="Processing fee (est.)" value={`$${stripeFee.toFixed(2)}`} muted />
               </div>
               <div
                 style={{

@@ -2,77 +2,56 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
 import { prices } from "@/lib/data";
 
-const PROC_STEPS = ["Processing payment…", "Confirming with Stripe…", "Preparing your photos…"];
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 
 export function CheckoutScreen() {
   const router = useRouter();
   const { cart, resultPhotos, finalizeOrder, addBundle } = useRunner();
 
-  // Bundle-only MVP: if the user lands here without a cart, drop the bundle in automatically.
+  // Bundle-only MVP: if the user lands here without a cart, drop the bundle in
+  // automatically. Re-runs after RunnerProvider hydrates from localStorage so the
+  // bundle isn't overwritten by an empty persisted cart.
   useEffect(() => {
     if (cart.items.length === 0) addBundle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cart.items.length]);
 
   const subtotal = cart.items.reduce((s, i) => s + i.price, 0);
-  const stripeFee = +(subtotal * prices.stripeRate + prices.stripeFlat).toFixed(2);
-  const total = +(subtotal + stripeFee).toFixed(2);
+  const processingFee = +(subtotal * prices.stripeRate + prices.stripeFlat).toFixed(2);
+  const total = +(subtotal + processingFee).toFixed(2);
 
-  const [email, setEmail] = useState("");
-  const [num, setNum] = useState("");
-  const [exp, setExp] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [name, setName] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [procStep, setProcStep] = useState(0);
-
-  function fmtCard(v: string) {
-    return v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-  }
-  function fmtExp(v: string) {
-    const d = v.replace(/\D/g, "").slice(0, 4);
-    return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
-  }
-
-  const valid =
-    email.includes("@") &&
-    num.replace(/\s/g, "").length >= 15 &&
-    exp.length === 5 &&
-    cvc.length >= 3;
-
-  function useTest() {
-    setEmail("runner@example.com");
-    setNum("4242 4242 4242 4242");
-    setExp("12/29");
-    setCvc("123");
-    setName("Sam Runner");
-  }
-
-  function pay() {
-    setProcessing(true);
-    setProcStep(0);
-    let i = 0;
-    const tk = window.setInterval(() => {
-      i++;
-      if (i >= PROC_STEPS.length) {
-        window.clearInterval(tk);
-        window.setTimeout(() => {
-          const o = finalizeOrder(total);
-          router.push(`/success/${o.id}`);
-        }, 300);
-      } else {
-        setProcStep(i);
-      }
-    }, 700);
-  }
+  const [error, setError] = useState<string | null>(null);
 
   if (cart.items.length === 0 && !processing) {
-    // Cart is being auto-populated by the useEffect above; render a brief blank state.
     return <main className="screen" style={{ padding: "96px 32px" }} />;
+  }
+
+  if (!PAYPAL_CLIENT_ID) {
+    return (
+      <main className="screen" style={{ padding: "96px 32px", textAlign: "center" }}>
+        <Headline
+          as="h1"
+          text="Payment is not configured."
+          accent="not configured."
+          style={{
+            margin: 0,
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 36,
+            letterSpacing: "-.015em",
+          }}
+        />
+        <p style={{ color: "var(--muted)", marginTop: 14, fontSize: 14 }}>
+          NEXT_PUBLIC_PAYPAL_CLIENT_ID missing from environment.
+        </p>
+      </main>
+    );
   }
 
   return (
@@ -108,99 +87,95 @@ export function CheckoutScreen() {
           style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 40 }}
         >
           <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <h2
-                style={{
-                  margin: 0,
-                  fontFamily: "var(--font-serif)",
-                  fontWeight: 500,
-                  fontSize: 22,
-                  color: "var(--ink)",
-                }}
-              >
-                Contact
-              </h2>
-              <button onClick={useTest} className="btn btn--ghost btn--sm">
-                Use test card
-              </button>
-            </div>
-            <label className="field-label">Email</label>
-            <input
-              className="input"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
             <h2
               style={{
-                margin: "32px 0 14px",
+                margin: "0 0 14px",
                 fontFamily: "var(--font-serif)",
                 fontWeight: 500,
                 fontSize: 22,
                 color: "var(--ink)",
               }}
             >
-              Payment
+              Pay with PayPal or card
             </h2>
-            <label className="field-label">Card number</label>
-            <input
-              className="input"
-              placeholder="1234 1234 1234 1234"
-              value={num}
-              onChange={(e) => setNum(fmtCard(e.target.value))}
-              inputMode="numeric"
-            />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
-              <div>
-                <label className="field-label">Expiry</label>
-                <input
-                  className="input"
-                  placeholder="MM/YY"
-                  value={exp}
-                  onChange={(e) => setExp(fmtExp(e.target.value))}
-                  inputMode="numeric"
-                />
-              </div>
-              <div>
-                <label className="field-label">CVC</label>
-                <input
-                  className="input"
-                  placeholder="123"
-                  value={cvc}
-                  onChange={(e) => setCvc(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <label className="field-label">Name on card</label>
-              <input
-                className="input"
-                placeholder="Full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 14 }}>
-              Payments secured by Stripe.
-            </div>
+            <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 0, marginBottom: 20 }}>
+              You&rsquo;ll see PayPal&rsquo;s Pay button below. You can pay with your PayPal
+              account or as a guest with any major card — no PayPal account needed.
+            </p>
 
-            <div style={{ marginTop: 28 }}>
-              <button
-                className="btn btn--primary btn--block btn--lg"
-                disabled={!valid}
-                onClick={pay}
+            <PayPalScriptProvider
+              options={{
+                clientId: PAYPAL_CLIENT_ID,
+                currency: "USD",
+                intent: "capture",
+                components: "buttons",
+              }}
+            >
+              <PayPalButtons
+                style={{ layout: "vertical", shape: "rect", color: "gold", label: "pay" }}
+                disabled={processing}
+                createOrder={async () => {
+                  setError(null);
+                  const res = await fetch("/api/paypal/create-order", { method: "POST" });
+                  if (!res.ok) {
+                    const j = await res.json().catch(() => ({}));
+                    throw new Error(j.error || "Could not create order");
+                  }
+                  const j = (await res.json()) as { id: string };
+                  return j.id;
+                }}
+                onApprove={async (data) => {
+                  setProcessing(true);
+                  try {
+                    const res = await fetch("/api/paypal/capture-order", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ orderId: data.orderID }),
+                    });
+                    if (!res.ok) {
+                      const j = await res.json().catch(() => ({}));
+                      throw new Error(j.error || "Capture failed");
+                    }
+                    const captured = (await res.json()) as {
+                      amountUsd?: number;
+                      payerEmail?: string;
+                    };
+                    const amount = captured.amountUsd ?? total;
+                    const o = finalizeOrder(amount);
+                    router.push(`/success/${o.id}`);
+                  } catch (e) {
+                    setProcessing(false);
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
+                }}
+                onError={(e) => {
+                  setError(e instanceof Error ? e.message : "Payment error");
+                }}
+                onCancel={() => {
+                  setError(null);
+                }}
+              />
+            </PayPalScriptProvider>
+
+            {error && (
+              <div
+                role="alert"
+                style={{
+                  marginTop: 16,
+                  padding: "10px 14px",
+                  border: "1px solid var(--accent)",
+                  borderRadius: 6,
+                  color: "var(--accent)",
+                  fontSize: 13,
+                  background: "rgba(200,64,26,.06)",
+                }}
               >
-                Pay ${total.toFixed(2)}
-              </button>
+                {error}
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 18 }}>
+              Payments processed by PayPal. We don&rsquo;t store your card details.
             </div>
 
             <button
@@ -264,9 +239,18 @@ export function CheckoutScreen() {
                   </span>
                 </div>
               ))}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, fontSize: 13, color: "var(--ink)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  marginTop: 12,
+                  fontSize: 13,
+                  color: "var(--ink)",
+                }}
+              >
                 <SumRow label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
-                <SumRow label="Stripe fee (est.)" value={`$${stripeFee.toFixed(2)}`} muted />
+                <SumRow label="Processing fee (est.)" value={`$${processingFee.toFixed(2)}`} muted />
               </div>
               <div
                 style={{
@@ -312,7 +296,7 @@ export function CheckoutScreen() {
               }}
             />
             <div style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--ink)" }}>
-              {PROC_STEPS[procStep]}
+              Preparing your photos…
             </div>
           </div>
         </div>
@@ -323,7 +307,13 @@ export function CheckoutScreen() {
 
 function SumRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", color: muted ? "var(--muted)" : "var(--ink)" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        color: muted ? "var(--muted)" : "var(--ink)",
+      }}
+    >
       <span>{label}</span>
       <span style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>
     </div>
