@@ -52,22 +52,33 @@ export type OcrDebug = {
 const MIN_DIGITS = 2;
 const MAX_DIGITS = 5; // race bibs are typically 1-5 digits; we drop 1-digit as too noisy
 const MIN_WORD_CONFIDENCE = 0.4; // Tesseract per-word — conservative on stylized fonts
-const PREP_WIDTH = 2000;
-const OCR_TIMEOUT_MS = 25_000; // never block finalize longer than this
+const PREP_WIDTH = 3000; // bibs are small in frame; keep the digits as wide as we can afford
+const OCR_TIMEOUT_MS = 40_000; // longer so PSM 11 has room on 3000px input
+
+// Tesseract page-segmentation mode. Default (3) assumes paragraph layout —
+// terrible for race photos where text is sparse. 11 = "Sparse text. Find as
+// much text as possible in no particular order." This is what license-plate
+// readers use on full-frame photos.
+const TESSERACT_PSM = "11";
 
 /**
  * Pre-process an image to give Tesseract its best shot at the numbers:
- *   - downscale to 2000px long-edge (Tesseract is slow on huge images; this
- *     hits a good balance — bibs stay readable, runtime stays sane)
- *   - grayscale
- *   - boost contrast a bit (normalize stretches the histogram)
+ *   - downscale to PREP_WIDTH long-edge (Tesseract is slow on huge images;
+ *     3000px keeps small-in-frame bib digits ~80-120px tall, which is the
+ *     sweet spot for the LSTM model)
+ *   - grayscale + slight sharpen (counteracts the small-resize blur)
+ *   - linear contrast bump (a + b*x) — we deliberately do NOT call
+ *     .normalize() here because on race photos with dark asphalt the
+ *     histogram stretch amplifies pavement texture as much as the bib,
+ *     which causes Tesseract to see "text" everywhere
  */
 async function prepareForOcr(input: Buffer): Promise<{ png: Buffer; width: number; height: number }> {
   const png = await sharp(input, { failOn: "none" })
     .rotate()
     .resize({ width: PREP_WIDTH, withoutEnlargement: true, fit: "inside" })
     .grayscale()
-    .normalize()
+    .sharpen()                 // counter the downscale softening
+    .linear(1.15, -10)         // mild contrast boost, no full histogram stretch
     .toFormat("png")
     .toBuffer();
   const meta = await sharp(png).metadata();
@@ -106,9 +117,10 @@ function flattenWords(data: unknown): OcrWord[] {
 type RecognizeResult = { data?: { text?: string; confidence?: number; blocks?: unknown } };
 
 /**
- * Acquire a Tesseract Worker (the only way to get blocks output in v7).
- * Cold-start is ~1s; we tear down after each call to keep memory flat in
- * serverless. Returns null on any setup failure.
+ * Acquire a Tesseract Worker (the only way to get blocks output AND configure
+ * page-segmentation mode in v7). Cold-start is ~1s + lang model download on
+ * first run; we tear down after each call to keep memory flat in serverless.
+ * Returns null on any setup failure.
  */
 async function getWorker(): Promise<null | {
   recognize: (image: Buffer) => Promise<RecognizeResult>;
@@ -124,7 +136,17 @@ async function getWorker(): Promise<null | {
     const worker = (await create("eng")) as {
       recognize: (image: Buffer, options?: unknown, output?: unknown) => Promise<RecognizeResult>;
       terminate: () => Promise<void>;
+      setParameters: (params: Record<string, string>) => Promise<unknown>;
     };
+    // PSM 11 (sparse text), and char-allowlist tightened to digits since
+    // race bibs are numeric. Both reduce false positives from asphalt
+    // texture and stray glyphs.
+    if (typeof worker.setParameters === "function") {
+      await worker.setParameters({
+        tessedit_pageseg_mode: TESSERACT_PSM,
+        tessedit_char_whitelist: "0123456789",
+      });
+    }
     return {
       recognize: (image: Buffer) =>
         worker.recognize(image, undefined, { blocks: true, text: true }),
