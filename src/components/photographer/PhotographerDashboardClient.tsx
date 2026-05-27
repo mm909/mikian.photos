@@ -261,18 +261,7 @@ export function PhotographerDashboardClient({ name, email }: Props) {
                 key={p.id}
                 p={p}
                 running={rerun[p.id] === "running"}
-                deleteState={delState[p.id] ?? "idle"}
                 onOpen={() => setOpenId(p.id)}
-                onRerun={() => rerunOcr(p.id)}
-                onToggleHidden={() => toggleHidden(p.id)}
-                onAskDelete={() =>
-                  setDelState((s) => ({
-                    ...s,
-                    [p.id]: s[p.id] === "confirm" ? "idle" : "confirm",
-                  }))
-                }
-                onConfirmDelete={() => deletePhoto(p.id)}
-                onCancelDelete={() => setDelState((s) => ({ ...s, [p.id]: "idle" }))}
               />
             ))}
           </div>
@@ -281,7 +270,9 @@ export function PhotographerDashboardClient({ name, email }: Props) {
 
       {openPhoto && (
         <PhotoDetailModal
-          photo={openPhoto}
+          photos={visiblePhotos}
+          currentId={openPhoto.id}
+          onSelect={(id) => setOpenId(id)}
           rerunState={rerun[openPhoto.id] ?? "idle"}
           deleteState={delState[openPhoto.id] ?? "idle"}
           hideState={hideStateMap[openPhoto.id] ?? "idle"}

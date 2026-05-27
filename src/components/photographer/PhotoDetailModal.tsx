@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
-import { OcrDebugPanel } from "./OcrDebugPanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  OcrDebugPanel,
+  OcrTesseractView,
+  type DebugPayload,
+  type OcrState,
+} from "./OcrDebugPanel";
 
 export type BibTag = {
   id: string;
@@ -31,11 +36,19 @@ export type DeleteState = "idle" | "confirm" | "running" | "err";
 export type HideState = "idle" | "running" | "err";
 
 type Props = {
-  photo: DetailPhoto;
+  /** Full photo set the user is browsing through. Drives the thumbnail strip
+   *  and arrow-key navigation. Order = visual order in the parent grid. */
+  photos: DetailPhoto[];
+  /** ID of the currently-displayed photo. Must exist in `photos`. */
+  currentId: string;
+  /** Parent owns the open-photo state; modal calls this to navigate. */
+  onSelect: (id: string) => void;
+  onClose: () => void;
+
+  /** Per-photo state lookups + actions. Keyed by photo id on the parent. */
   rerunState: RerunState;
   deleteState: DeleteState;
   hideState: HideState;
-  onClose: () => void;
   onRerun: () => void;
   onAskDelete: () => void;
   onConfirmDelete: () => void;
@@ -44,39 +57,144 @@ type Props = {
 };
 
 /**
- * Library detail view — opens when you click a photo card.
+ * Library detail view — opens on photo click.
  *
- * Two-pane lightbox:
- *   left:  big preview, cropped only by viewport ("contain" so you see the
- *          whole frame, never cut)
- *   right: bib chips, metadata, R2 storage paths, all actions (rerun OCR,
- *          rerun face stub, download original, hide/unhide, delete)
+ * Layout:
+ *   left pane:  ONE preview that swaps between the original photo and the
+ *               Tesseract-prepared view (with bbox overlays) once OCR debug
+ *               has run. Toggle chip in the corner flips between them.
+ *               Thumbnail strip sits below for picking a sibling photo.
+ *   right pane: bib chips · metadata · storage · actions · OCR debug panel
  *
- * Esc + outside-click close. Actions are owned by the parent so optimistic
- * grid updates (delete-and-vanish) stay in sync with the modal.
+ * Keyboard:
+ *   Esc            → close
+ *   ArrowLeft / ←  → previous photo in the set
+ *   ArrowRight / → → next photo in the set
+ *
+ * OCR debug state is owned here (per photo) so we can re-render the left
+ * pane as the Tesseract view without keeping two copies of the preprocessed
+ * image around. State resets when the user navigates to a different photo.
  */
 export function PhotoDetailModal({
-  photo,
+  photos,
+  currentId,
+  onSelect,
+  onClose,
   rerunState,
   deleteState,
   hideState,
-  onClose,
   onRerun,
   onAskDelete,
   onConfirmDelete,
   onCancelDelete,
   onToggleHidden,
 }: Props) {
+  // OCR debug state — per photo. Reset whenever the user navigates.
+  const [ocrState, setOcrState] = useState<OcrState>("idle");
+  const [ocrDebug, setOcrDebug] = useState<DebugPayload | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  /** When true and ocrDebug is loaded, left pane renders the Tesseract view
+   *  instead of the original preview. Auto-flips to true on first OCR success. */
+  const [showOcrView, setShowOcrView] = useState(false);
+
+  // Reset OCR state on photo change so we don't show a stale overlay over
+  // the wrong image.
+  useEffect(() => {
+    setOcrState("idle");
+    setOcrDebug(null);
+    setOcrError(null);
+    setShowOcrView(false);
+  }, [currentId]);
+
+  const photo = useMemo(
+    () => photos.find((p) => p.id === currentId) ?? null,
+    [photos, currentId]
+  );
+  const currentIndex = useMemo(
+    () => photos.findIndex((p) => p.id === currentId),
+    [photos, currentId]
+  );
+
+  const goPrev = useCallback(() => {
+    if (currentIndex <= 0) return;
+    onSelect(photos[currentIndex - 1].id);
+  }, [currentIndex, onSelect, photos]);
+
+  const goNext = useCallback(() => {
+    if (currentIndex < 0 || currentIndex >= photos.length - 1) return;
+    onSelect(photos[currentIndex + 1].id);
+  }, [currentIndex, onSelect, photos]);
+
+  // Keyboard: Esc + arrow nav.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Ignore arrow keys when focused inside an editable element so we
+      // don't hijack textarea/input navigation.
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, goPrev, goNext]);
 
+  async function runOcrDebug() {
+    if (!photo) return;
+    setOcrState("running");
+    setOcrError(null);
+    try {
+      const r = await fetch(`/api/photographer/photos/${photo.id}/ocr-debug`, {
+        method: "POST",
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `${r.status}`);
+      }
+      const d = (await r.json()) as DebugPayload;
+      setOcrDebug(d);
+      setOcrState("ok");
+      // Auto-flip to the Tesseract view once we have one — that's the
+      // whole point of running it.
+      setShowOcrView(true);
+    } catch (e) {
+      setOcrError(e instanceof Error ? e.message : String(e));
+      setOcrState("err");
+    }
+  }
+
+  // Scroll the active thumbnail into view when the user navigates with the
+  // keyboard. Without this, the strip stays still and the active marker
+  // disappears past the viewport edge.
+  const thumbRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => {
+    const el = thumbRefs.current[currentId];
+    if (el) {
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [currentId]);
+
+  if (!photo) return null;
+
+  const ocrViewActive = showOcrView && ocrState === "ok" && ocrDebug !== null;
+  const ocrToggleAvailable = ocrState === "ok" && ocrDebug !== null;
   const ocrBibs = photo.bibs.filter((b) => b.source.startsWith("ocr-"));
-  const manualBibs = photo.bibs.filter((b) => b.source === "manual" || b.source === "user-tag");
+  const manualBibs = photo.bibs.filter(
+    (b) => b.source === "manual" || b.source === "user-tag"
+  );
 
   return (
     <div className="overlay" onClick={onClose} style={{ background: "rgba(28,26,23,.78)" }}>
@@ -91,19 +209,12 @@ export function PhotoDetailModal({
           boxShadow: "var(--shadow-lg)",
           display: "grid",
           gridTemplateColumns: "1.6fr 1fr",
-          // Force the single row to exactly the container height. Without
-          // this, an auto-sized row grows to fit the tallest child's
-          // intrinsic height (the OCR debug stack on the right), and the
-          // left pane's flex-centered image ends up centered in that taller
-          // row — which the modal then clips, making the photo appear pushed
-          // to the bottom. `minmax(0, 1fr)` lets both panes use exactly the
-          // available height and scroll their own overflow.
           gridTemplateRows: "minmax(0, 1fr)",
           overflow: "hidden",
           height: "92vh",
         }}
       >
-        {/* Photo pane */}
+        {/* Left pane: image (or Tesseract overlay) + thumbnail strip */}
         <div
           className="library-detail-photo"
           style={{
@@ -111,46 +222,134 @@ export function PhotoDetailModal({
             background: "var(--cream)",
             padding: 20,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            flexDirection: "column",
+            gap: 14,
             minHeight: 360,
+            minWidth: 0,
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={photo.previewUrl}
-            alt={photo.bibs.length ? `Bibs ${photo.bibs.map((b) => b.bib).join(", ")}` : "Race photo"}
+          {/* Image area — fills the remaining height above the strip */}
+          <div
             style={{
-              maxWidth: "100%",
-              maxHeight: "82vh",
-              objectFit: "contain",
-              display: "block",
-              borderRadius: 4,
-              boxShadow: "var(--shadow)",
+              flex: 1,
+              minHeight: 0,
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-          />
-          {photo.hidden && (
-            <span
-              style={{
-                position: "absolute",
-                top: 16,
-                left: 16,
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: ".12em",
-                textTransform: "uppercase",
-                background: "var(--ink)",
-                color: "var(--paper)",
-                padding: "4px 8px",
-                borderRadius: 3,
+          >
+            {ocrViewActive ? (
+              <OcrTesseractView debug={ocrDebug!} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photo.previewUrl}
+                alt={
+                  photo.bibs.length
+                    ? `Bibs ${photo.bibs.map((b) => b.bib).join(", ")}`
+                    : "Race photo"
+                }
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  objectFit: "contain",
+                  display: "block",
+                  borderRadius: 4,
+                  boxShadow: "var(--shadow)",
+                }}
+              />
+            )}
+
+            {photo.hidden && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  background: "var(--ink)",
+                  color: "var(--paper)",
+                  padding: "4px 8px",
+                  borderRadius: 3,
+                }}
+              >
+                Hidden
+              </span>
+            )}
+
+            {/* View toggle — only appears once OCR debug has produced a payload */}
+            {ocrToggleAvailable && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  display: "inline-flex",
+                  background: "rgba(245,242,236,.92)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 6,
+                  padding: 2,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                <ToggleChip
+                  active={!showOcrView}
+                  onClick={() => setShowOcrView(false)}
+                  label="Original"
+                />
+                <ToggleChip
+                  active={showOcrView}
+                  onClick={() => setShowOcrView(true)}
+                  label="OCR view"
+                />
+              </div>
+            )}
+
+            {/* Prev/Next overlay arrows — visual cue that keyboard nav works.
+                Only render when there's something to navigate between. */}
+            {photos.length > 1 && (
+              <>
+                <NavArrow
+                  dir="prev"
+                  disabled={currentIndex <= 0}
+                  onClick={goPrev}
+                  aria-label="Previous photo"
+                />
+                <NavArrow
+                  dir="next"
+                  disabled={currentIndex < 0 || currentIndex >= photos.length - 1}
+                  onClick={goNext}
+                  aria-label="Next photo"
+                />
+              </>
+            )}
+          </div>
+
+          {/* Thumbnail strip — only useful when there's more than one photo. */}
+          {photos.length > 1 && (
+            <ThumbStrip
+              photos={photos}
+              currentId={currentId}
+              onSelect={onSelect}
+              registerRef={(id, el) => {
+                thumbRefs.current[id] = el;
               }}
-            >
-              Hidden
-            </span>
+              counterLabel={
+                currentIndex >= 0 ? `${currentIndex + 1} / ${photos.length}` : ""
+              }
+            />
           )}
         </div>
 
-        {/* Info + actions pane */}
+        {/* Right pane: info + actions */}
         <div
           className="library-detail-info"
           style={{
@@ -161,7 +360,13 @@ export function PhotoDetailModal({
             gap: 18,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div
               style={{
                 fontFamily: "var(--font-mono)",
@@ -178,7 +383,6 @@ export function PhotoDetailModal({
             </button>
           </div>
 
-          {/* Bib chips */}
           <Section title="Bibs">
             {manualBibs.length === 0 && ocrBibs.length === 0 ? (
               <Muted>No bibs detected.</Muted>
@@ -204,7 +408,6 @@ export function PhotoDetailModal({
             )}
           </Section>
 
-          {/* Metadata */}
           <Section title="Metadata">
             <KV label="Taken" value={fmtDate(photo.takenAt)} />
             <KV
@@ -221,13 +424,11 @@ export function PhotoDetailModal({
             <KV label="Face match" value="not yet built" muted />
           </Section>
 
-          {/* Storage */}
           <Section title="Storage">
             <KV label="Original" value={photo.r2OriginalKey} mono small />
             <KV label="Preview" value={photo.r2PreviewKey} mono small />
           </Section>
 
-          {/* Actions */}
           <Section title="Actions">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <button
@@ -278,9 +479,15 @@ export function PhotoDetailModal({
             )}
           </Section>
 
-          {/* OCR debug — preprocessed image + word boxes */}
+          {/* OCR debug — controls + readouts only. The big overlay lives in
+              the left pane and replaces the original preview on success. */}
           <Section title="OCR debug">
-            <OcrDebugPanel photoId={photo.id} />
+            <OcrDebugPanel
+              debug={ocrDebug}
+              state={ocrState}
+              error={ocrError}
+              onRun={runOcrDebug}
+            />
             <a
               href={`/photographer/ocr-lab?photo=${photo.id}`}
               className="btn btn--ghost btn--sm"
@@ -290,7 +497,6 @@ export function PhotoDetailModal({
             </a>
           </Section>
 
-          {/* Destructive section */}
           <Section title="Danger zone">
             {deleteState === "confirm" || deleteState === "err" ? (
               <div
@@ -373,6 +579,162 @@ export function PhotoDetailModal({
   );
 }
 
+function ToggleChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        padding: "4px 10px",
+        background: active ? "var(--surface)" : "transparent",
+        color: active ? "var(--ink)" : "var(--muted)",
+        border: 0,
+        borderRadius: 4,
+        cursor: active ? "default" : "pointer",
+        fontFamily: "inherit",
+        fontSize: "inherit",
+        letterSpacing: "inherit",
+        textTransform: "inherit",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function NavArrow({
+  dir,
+  disabled,
+  onClick,
+  "aria-label": ariaLabel,
+}: {
+  dir: "prev" | "next";
+  disabled: boolean;
+  onClick: () => void;
+  "aria-label": string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      style={{
+        position: "absolute",
+        top: "50%",
+        transform: "translateY(-50%)",
+        [dir === "prev" ? "left" : "right"]: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 999,
+        background: "rgba(245,242,236,.85)",
+        border: "1px solid var(--line)",
+        color: disabled ? "var(--line)" : "var(--ink)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 18,
+        lineHeight: 1,
+        backdropFilter: "blur(4px)",
+        boxShadow: "var(--shadow)",
+      }}
+    >
+      {dir === "prev" ? "‹" : "›"}
+    </button>
+  );
+}
+
+function ThumbStrip({
+  photos,
+  currentId,
+  onSelect,
+  registerRef,
+  counterLabel,
+}: {
+  photos: DetailPhoto[];
+  currentId: string;
+  onSelect: (id: string) => void;
+  registerRef: (id: string, el: HTMLButtonElement | null) => void;
+  counterLabel: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          gap: 4,
+          overflowX: "auto",
+          paddingBottom: 4,
+        }}
+      >
+        {photos.map((p) => {
+          const active = p.id === currentId;
+          return (
+            <button
+              key={p.id}
+              ref={(el) => registerRef(p.id, el)}
+              onClick={() => onSelect(p.id)}
+              aria-label={`Open photo ${p.id.slice(0, 8)}`}
+              aria-current={active ? "true" : undefined}
+              style={{
+                flex: "0 0 auto",
+                width: 64,
+                height: 44,
+                padding: 0,
+                background: "var(--surface)",
+                border: active ? "2px solid var(--ink)" : "1px solid var(--line)",
+                borderRadius: 4,
+                cursor: active ? "default" : "pointer",
+                overflow: "hidden",
+                opacity: p.hidden ? 0.45 : 1,
+                outline: "none",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={p.previewUrl}
+                alt=""
+                loading="lazy"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            </button>
+          );
+        })}
+      </div>
+      {counterLabel && (
+        <span
+          style={{
+            flex: "0 0 auto",
+            fontFamily: "var(--font-mono)",
+            fontSize: 10,
+            letterSpacing: ".14em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+          }}
+        >
+          {counterLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -440,7 +802,15 @@ function KV({
   );
 }
 
-function Chip({ text, color, title }: { text: string; color: "ink" | "accent"; title?: string }) {
+function Chip({
+  text,
+  color,
+  title,
+}: {
+  text: string;
+  color: "ink" | "accent";
+  title?: string;
+}) {
   const bg = color === "ink" ? "var(--ink)" : "var(--accent)";
   return (
     <span

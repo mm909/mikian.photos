@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+export type Bbox = { x0: number; y0: number; x1: number; y1: number };
+export type Word = { text: string; confidence: number; bbox: Bbox };
+export type Rejected = { word: Word; reason: string };
 
-type Bbox = { x0: number; y0: number; x1: number; y1: number };
-type Word = { text: string; confidence: number; bbox: Bbox };
-type Rejected = { word: Word; reason: string };
-
-type DebugPayload = {
+export type DebugPayload = {
   preparedPngBase64: string;
   preparedWidth: number;
   preparedHeight: number;
@@ -17,47 +15,30 @@ type DebugPayload = {
   rejected: Rejected[];
 };
 
-type State = "idle" | "running" | "ok" | "err";
+export type OcrState = "idle" | "running" | "ok" | "err";
+
+type ControlsProps = {
+  /** Latest debug payload (null until first run completes). */
+  debug: DebugPayload | null;
+  state: OcrState;
+  error: string | null;
+  onRun: () => void;
+};
 
 /**
- * Inline OCR-debug widget for a single photo. Click "Show OCR intermediates"
- * to fetch the preprocessed image + every word Tesseract saw with its bbox
- * and confidence, then render an overlay so you can see exactly what got
- * picked up vs. dropped.
+ * Right-pane OCR debug controls + readouts.
  *
- * Green box  = passed filter, kept as a bib detection
- * Red box    = saw a digit-ish token, rejected (hover for reason)
- * Faint box  = no digits in this word (visual reference only)
+ * The big preprocessed-image overlay (`OcrTesseractView` below) used to live
+ * here too, but the modal needs ONE image surface — original preview by
+ * default, swap to the Tesseract view after OCR runs. So this panel is now
+ * purely controlled: parent owns the state machine and we render a run
+ * button, summary stats, and the kept/rejected/raw text breakdowns.
  */
-export function OcrDebugPanel({ photoId }: { photoId: string }) {
-  const [state, setState] = useState<State>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [debug, setDebug] = useState<DebugPayload | null>(null);
-
-  async function run() {
-    setState("running");
-    setError(null);
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}/ocr-debug`, {
-        method: "POST",
-      });
-      if (!r.ok) {
-        const j = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error || `${r.status}`);
-      }
-      const d = (await r.json()) as DebugPayload;
-      setDebug(d);
-      setState("ok");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setState("err");
-    }
-  }
-
+export function OcrDebugPanel({ debug, state, error, onRun }: ControlsProps) {
   return (
     <div>
       {state === "idle" && (
-        <button className="btn btn--ghost btn--sm" onClick={run} style={{ width: "100%" }}>
+        <button className="btn btn--ghost btn--sm" onClick={onRun} style={{ width: "100%" }}>
           Show OCR intermediates
         </button>
       )}
@@ -70,7 +51,7 @@ export function OcrDebugPanel({ photoId }: { photoId: string }) {
         <>
           <button
             className="btn btn--ghost btn--sm"
-            onClick={run}
+            onClick={onRun}
             style={{ width: "100%", color: "var(--accent)" }}
           >
             ↻ Retry OCR debug
@@ -82,12 +63,10 @@ export function OcrDebugPanel({ photoId }: { photoId: string }) {
       )}
       {state === "ok" && debug && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <button className="btn btn--ghost btn--sm" onClick={run} style={{ width: "100%" }}>
+          <button className="btn btn--ghost btn--sm" onClick={onRun} style={{ width: "100%" }}>
             ↻ Re-run OCR debug
           </button>
-
           <DebugStats debug={debug} />
-          <Overlay debug={debug} />
           <DebugLists debug={debug} />
         </div>
       )}
@@ -95,32 +74,19 @@ export function OcrDebugPanel({ photoId }: { photoId: string }) {
   );
 }
 
-function DebugStats({ debug }: { debug: DebugPayload }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-        gap: 6,
-      }}
-    >
-      <MiniStat label="Page conf" value={`${(debug.pageConfidence * 100).toFixed(0)}%`} />
-      <MiniStat label="Words" value={debug.words.length.toString()} />
-      <MiniStat label="Kept bibs" value={debug.bibs.length.toString()} />
-      <MiniStat label="Rejected" value={debug.rejected.length.toString()} muted />
-    </div>
-  );
-}
-
-function Overlay({ debug }: { debug: DebugPayload }) {
-  // The prepared image is the exact pixel space Tesseract saw — we draw the
-  // bboxes in that coordinate system using SVG so the markers scale with the
-  // displayed image regardless of CSS sizing.
-  const rejectedIds = new Set(debug.rejected.map((r, i) => i)); // index into rejected
-  const keptDigitWords = new Set<string>(); // keys "x0,y0,x1,y1"
-  // A word is "kept" if its parsed-digit value matches a bib in debug.bibs.
-  // (Tesseract sometimes emits a word that turned into the same bib at
-  // multiple positions; we mark them all.)
+/**
+ * Modal-left-pane Tesseract view: the preprocessed image (exactly what
+ * Tesseract saw) with bbox overlays drawn on top.
+ *
+ * - Green box = digits parsed into a kept bib detection
+ * - Red box   = digit-like token Tesseract found but the filter rejected
+ * - Faint box = non-digit word (visual reference only)
+ *
+ * Coordinate space is the preprocessed image's native pixel space; SVG scales
+ * with whatever container size we render at.
+ */
+export function OcrTesseractView({ debug }: { debug: DebugPayload }) {
+  const keptDigitWords = new Set<string>();
   const bibSet = new Set(debug.bibs.map((b) => b.bib));
   for (const w of debug.words) {
     const digits = w.text.replace(/[^0-9]/g, "");
@@ -136,7 +102,8 @@ function Overlay({ debug }: { debug: DebugPayload }) {
         background: "#111",
         borderRadius: 6,
         overflow: "hidden",
-        // intrinsic aspect ratio matches the preprocessed image
+        width: "100%",
+        maxHeight: "82vh",
         aspectRatio: `${debug.preparedWidth} / ${Math.max(debug.preparedHeight, 1)}`,
       }}
     >
@@ -144,10 +111,11 @@ function Overlay({ debug }: { debug: DebugPayload }) {
       <img
         src={`data:image/png;base64,${debug.preparedPngBase64}`}
         alt="preprocessed for OCR"
-        style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }}
+        style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }}
       />
       <svg
         viewBox={`0 0 ${debug.preparedWidth} ${debug.preparedHeight}`}
+        preserveAspectRatio="xMidYMid meet"
         style={{
           position: "absolute",
           inset: 0,
@@ -162,7 +130,11 @@ function Overlay({ debug }: { debug: DebugPayload }) {
           const kept = keptDigitWords.has(key);
           const hasDigits = digits.length > 0;
           const wasRejected =
-            !kept && hasDigits && debug.rejected.some((r) => r.word.bbox.x0 === w.bbox.x0 && r.word.bbox.y0 === w.bbox.y0);
+            !kept &&
+            hasDigits &&
+            debug.rejected.some(
+              (r) => r.word.bbox.x0 === w.bbox.x0 && r.word.bbox.y0 === w.bbox.y0
+            );
           const stroke = kept ? "#3fd17d" : wasRejected ? "#ff7152" : "rgba(255,255,255,.35)";
           const strokeWidth = kept ? 5 : wasRejected ? 4 : 2;
           const w_ = w.bbox.x1 - w.bbox.x0;
@@ -195,6 +167,23 @@ function Overlay({ debug }: { debug: DebugPayload }) {
         })}
       </svg>
       <Legend />
+    </div>
+  );
+}
+
+function DebugStats({ debug }: { debug: DebugPayload }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+        gap: 6,
+      }}
+    >
+      <MiniStat label="Page conf" value={`${(debug.pageConfidence * 100).toFixed(0)}%`} />
+      <MiniStat label="Words" value={debug.words.length.toString()} />
+      <MiniStat label="Kept bibs" value={debug.bibs.length.toString()} />
+      <MiniStat label="Rejected" value={debug.rejected.length.toString()} muted />
     </div>
   );
 }

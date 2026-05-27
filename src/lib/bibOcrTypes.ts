@@ -88,7 +88,9 @@ export type OcrSettings = {
 };
 
 export const DEFAULT_OCR_SETTINGS: OcrSettings = {
-  provider: "tesseract",
+  // Production default. Tesseract stays available behind the lab dropdown
+  // (and the dispatcher falls back to it if AWS_* env vars are missing).
+  provider: "rekognition",
   psm: "11",
   oem: "1",
   whitelistDigits: true,

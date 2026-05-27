@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Headline } from "@/components/runner/Headline";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_OCR_SETTINGS,
   OEM_OPTIONS,
@@ -48,6 +46,10 @@ export function OcrLab({
   const [debug, setDebug] = useState<DebugPayload | null>(null);
   const [state, setState] = useState<State>("idle");
   const [error, setError] = useState<string | null>(null);
+  /** When debug is loaded, this controls whether the single image box shows
+   *  the Original photo or the OCR-prepared view with bbox overlays. Flips
+   *  to true on a successful run; user can toggle back with the chip. */
+  const [showOcrView, setShowOcrView] = useState(false);
 
   // Reset result when photo changes (avoids confusion — the overlay would
   // still be showing the old photo).
@@ -55,7 +57,38 @@ export function OcrLab({
     setDebug(null);
     setState("idle");
     setError(null);
+    setShowOcrView(false);
   }, [photoId]);
+
+  // Arrow-key navigation through the recent photo strip. Skips when focus is
+  // inside an editable element so we don't hijack input typing.
+  const currentIndex = useMemo(
+    () => recent.findIndex((p) => p.id === photoId),
+    [recent, photoId]
+  );
+  const goPrev = useCallback(() => {
+    if (currentIndex <= 0) return;
+    setPhotoId(recent[currentIndex - 1].id);
+  }, [currentIndex, recent]);
+  const goNext = useCallback(() => {
+    if (currentIndex < 0 || currentIndex >= recent.length - 1) return;
+    setPhotoId(recent[currentIndex + 1].id);
+  }, [currentIndex, recent]);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goPrev, goNext]);
 
   async function run() {
     if (!photoId) return;
@@ -73,6 +106,8 @@ export function OcrLab({
       }
       setDebug((await r.json()) as DebugPayload);
       setState("ok");
+      // Auto-flip to the OCR view on success — that's why you ran it.
+      setShowOcrView(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setState("err");
@@ -149,9 +184,17 @@ export function OcrLab({
               {debug && ` · ${debug.durationMs}ms · ${debug.bibs.length} kept`}
             </span>
           </div>
-          <Link href="/photographer/photos" className="btn btn--ghost btn--sm">
-            ← Library
-          </Link>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            ← → to navigate
+          </span>
         </div>
 
         {/* Photo picker strip — smaller tiles */}
@@ -207,70 +250,99 @@ export function OcrLab({
             minHeight: 0,
           }}
         >
-          {/* LEFT — OCR overlay (top) + original preview (bottom). Always shows
-             the photo when one is selected so the user has visual context
-             before kicking OCR off. */}
+          {/* LEFT — ONE image box. Shows original by default; flips to the
+             OCR preprocessed view + bbox overlays after a run. A toggle chip
+             in the top-right swaps between them. */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 10,
+              gap: 8,
               minHeight: 0,
-              overflowY: "auto",
             }}
           >
             {!photoId ? (
               <Empty>No photos yet. Upload one to start tuning.</Empty>
             ) : (
-              <>
-                {/* OCR result panel — only after a run */}
-                {debug ? (
-                  <div style={{ flex: "1 1 0", minHeight: 0 }}>
-                    <ResultOverlay debug={debug} fitHeight />
-                  </div>
-                ) : (
-                  <div style={{ flex: "0 0 auto" }}>
-                    <Empty compact>
-                      {state === "running"
-                        ? "Running OCR…"
-                        : state === "err"
-                          ? error ?? "Failed"
-                          : "Tweak settings, hit Run OCR to see what Tesseract sees."}
-                    </Empty>
+              <div
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 0,
+                  background: showOcrView && debug ? "#111" : "var(--cream)",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  border: "1px solid var(--line)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {showOcrView && debug ? (
+                  <ResultOverlay debug={debug} fitHeight />
+                ) : selectedPhoto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedPhoto.previewUrl}
+                    alt=""
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                ) : null}
+
+                {/* Status badge — when OCR is running or failed, surface that
+                    in the image box instead of replacing the photo. */}
+                {(state === "running" || state === "err") && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      left: 8,
+                      background: state === "err" ? "var(--accent)" : "rgba(0,0,0,.65)",
+                      color: "var(--paper)",
+                      padding: "4px 10px",
+                      borderRadius: 4,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      letterSpacing: ".12em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {state === "running" ? "Running OCR…" : `Failed: ${error ?? "unknown"}`}
                   </div>
                 )}
 
-                {/* Original preview — always visible when a photo is picked */}
-                {selectedPhoto && (
-                  <div style={{ flex: "0 0 auto" }}>
-                    <Caption>Original</Caption>
-                    <div
-                      style={{
-                        background: "var(--cream)",
-                        borderRadius: 6,
-                        overflow: "hidden",
-                        border: "1px solid var(--line)",
-                        maxHeight: debug ? "32vh" : "60vh",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedPhoto.previewUrl}
-                        alt=""
-                        style={{
-                          maxWidth: "100%",
-                          maxHeight: debug ? "32vh" : "60vh",
-                          objectFit: "contain",
-                          display: "block",
-                        }}
-                      />
-                    </div>
+                {/* Toggle chip — only visible after a successful run */}
+                {debug && state === "ok" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      display: "flex",
+                      background: "rgba(0,0,0,.55)",
+                      borderRadius: 6,
+                      padding: 2,
+                      gap: 2,
+                    }}
+                  >
+                    <ToggleChip
+                      label="Original"
+                      active={!showOcrView}
+                      onClick={() => setShowOcrView(false)}
+                    />
+                    <ToggleChip
+                      label="OCR view"
+                      active={showOcrView}
+                      onClick={() => setShowOcrView(true)}
+                    />
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 
@@ -726,20 +798,33 @@ function Empty({
   );
 }
 
-function Caption({ children }: { children: React.ReactNode }) {
+function ToggleChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div
+    <button
+      onClick={onClick}
       style={{
+        padding: "4px 10px",
+        background: active ? "var(--paper)" : "transparent",
+        color: active ? "var(--ink)" : "var(--paper)",
+        border: 0,
+        borderRadius: 4,
         fontFamily: "var(--font-mono)",
         fontSize: 10,
-        letterSpacing: ".14em",
+        letterSpacing: ".12em",
         textTransform: "uppercase",
-        color: "var(--muted)",
-        marginBottom: 4,
+        cursor: "pointer",
       }}
     >
-      {children}
-    </div>
+      {label}
+    </button>
   );
 }
 

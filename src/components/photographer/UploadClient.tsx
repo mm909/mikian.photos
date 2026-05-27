@@ -477,20 +477,7 @@ export function UploadClient({ event }: { event: EventLite }) {
                     key={it.uid}
                     p={tilePhoto}
                     running={rerun[it.photoId] === "running"}
-                    deleteState={delState[it.photoId] ?? "idle"}
                     onOpen={() => openDetail(it.photoId!)}
-                    onRerun={() => rerunOcr(it.photoId!)}
-                    onToggleHidden={() => toggleHidden(it.photoId!, Boolean(it.hidden))}
-                    onAskDelete={() =>
-                      setDelState((s) => ({
-                        ...s,
-                        [it.photoId!]: s[it.photoId!] === "confirm" ? "idle" : "confirm",
-                      }))
-                    }
-                    onConfirmDelete={() => deletePhoto(it.photoId!)}
-                    onCancelDelete={() =>
-                      setDelState((s) => ({ ...s, [it.photoId!]: "idle" }))
-                    }
                   />
                 );
               }
@@ -501,10 +488,18 @@ export function UploadClient({ event }: { event: EventLite }) {
       </div>
 
       {/* Detail modal — same component as the library page. Renders a
-          loading shim while we fetch the full DetailPhoto. */}
+          loading shim while we fetch the full DetailPhoto.
+          We only pass the one fetched photo as the "set" for now — arrow-key
+          navigation across the upload queue would require fetching full
+          DetailPhoto rows for every completed item, which we skip until
+          someone asks for it. */}
       {openId && detailPhoto && (
         <PhotoDetailModal
-          photo={detailPhoto}
+          photos={[detailPhoto]}
+          currentId={detailPhoto.id}
+          onSelect={() => {
+            /* single-item set — arrow keys are inert here */
+          }}
           rerunState={rerun[detailPhoto.id] ?? "idle"}
           deleteState={delState[detailPhoto.id] ?? "idle"}
           hideState={hideStateMap[detailPhoto.id] ?? "idle"}

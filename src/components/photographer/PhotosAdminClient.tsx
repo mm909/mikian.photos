@@ -337,7 +337,11 @@ export function PhotosAdminClient() {
 
       {openPhoto && (
         <PhotoDetailModal
-          photo={openPhoto}
+          // Arrow-key nav walks the same filtered+sorted list the user is
+          // looking at in the grid, so the order matches what they expect.
+          photos={filteredPhotos}
+          currentId={openPhoto.id}
+          onSelect={(id) => setOpenId(id)}
           rerunState={rerun[openPhoto.id] ?? "idle"}
           deleteState={delState[openPhoto.id] ?? "idle"}
           hideState={hideStateMap[openPhoto.id] ?? "idle"}
