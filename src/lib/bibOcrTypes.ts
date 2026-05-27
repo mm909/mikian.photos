@@ -52,9 +52,26 @@ export const OEM_OPTIONS = {
 } as const;
 export type OemKey = keyof typeof OEM_OPTIONS;
 
+/** Which OCR backend to use. Tesseract = local, free. Rekognition = AWS
+ *  DetectText (does text-region detection + OCR in one call, much better on
+ *  race photos but requires AWS credentials). */
+export const PROVIDER_OPTIONS = {
+  tesseract: "Tesseract (local, free)",
+  rekognition: "AWS Rekognition (DetectText, ~$1/1k)",
+} as const;
+export type ProviderKey = keyof typeof PROVIDER_OPTIONS;
+
 export type OcrSettings = {
+  /** Which backend runs OCR. Tesseract for local/free; Rekognition for prod
+   *  accuracy. Tesseract is the default so nothing breaks if AWS isn't set
+   *  up. Provider-specific knobs (psm/oem/whitelistDigits) only apply when
+   *  `provider === "tesseract"`. */
+  provider: ProviderKey;
+  // ---- Tesseract-only ----
   psm: PsmKey;
   oem: OemKey;
+  whitelistDigits: boolean;
+  // ---- Preprocessing (applies to either provider) ----
   prepWidth: number;
   sharpen: boolean;
   contrastA: number;
@@ -62,7 +79,7 @@ export type OcrSettings = {
   normalize: boolean;
   threshold: number | null;
   invert: boolean;
-  whitelistDigits: boolean;
+  // ---- Bib filter (applies to either provider's word output) ----
   floor2: number;
   floor3: number;
   floor4plus: number;
@@ -71,8 +88,10 @@ export type OcrSettings = {
 };
 
 export const DEFAULT_OCR_SETTINGS: OcrSettings = {
+  provider: "tesseract",
   psm: "11",
   oem: "1",
+  whitelistDigits: true,
   prepWidth: 3000,
   sharpen: true,
   contrastA: 1.15,
@@ -80,7 +99,6 @@ export const DEFAULT_OCR_SETTINGS: OcrSettings = {
   normalize: false,
   threshold: null,
   invert: false,
-  whitelistDigits: true,
   floor2: 0.55,
   floor3: 0.25,
   floor4plus: 0.15,

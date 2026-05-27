@@ -6,9 +6,11 @@ import { Headline } from "@/components/runner/Headline";
 import {
   DEFAULT_OCR_SETTINGS,
   OEM_OPTIONS,
+  PROVIDER_OPTIONS,
   PSM_OPTIONS,
   type OcrSettings,
   type OemKey,
+  type ProviderKey,
   type PsmKey,
 } from "@/lib/bibOcrTypes";
 
@@ -334,33 +336,48 @@ export function OcrLab({
               </Box>
             )}
 
-            <Box title="Tesseract">
-              <Field label="PSM (page seg)">
+            <Box title="Provider">
+              <Field label="OCR backend">
                 <Select
-                  value={settings.psm}
-                  onChange={(v) => patch("psm", v as PsmKey)}
-                  options={Object.entries(PSM_OPTIONS).map(([k, label]) => ({
+                  value={settings.provider}
+                  onChange={(v) => patch("provider", v as ProviderKey)}
+                  options={Object.entries(PROVIDER_OPTIONS).map(([k, label]) => ({
                     value: k,
-                    label: `${k} — ${label}`,
+                    label,
                   }))}
                 />
               </Field>
-              <Field label="OEM (engine)">
-                <Select
-                  value={settings.oem}
-                  onChange={(v) => patch("oem", v as OemKey)}
-                  options={Object.entries(OEM_OPTIONS).map(([k, label]) => ({
-                    value: k,
-                    label: `${k} — ${label}`,
-                  }))}
-                />
-              </Field>
-              <Toggle
-                label="Whitelist digits only"
-                value={settings.whitelistDigits}
-                onChange={(v) => patch("whitelistDigits", v)}
-              />
             </Box>
+
+            {settings.provider === "tesseract" && (
+              <Box title="Tesseract">
+                <Field label="PSM (page seg)">
+                  <Select
+                    value={settings.psm}
+                    onChange={(v) => patch("psm", v as PsmKey)}
+                    options={Object.entries(PSM_OPTIONS).map(([k, label]) => ({
+                      value: k,
+                      label: `${k} — ${label}`,
+                    }))}
+                  />
+                </Field>
+                <Field label="OEM (engine)">
+                  <Select
+                    value={settings.oem}
+                    onChange={(v) => patch("oem", v as OemKey)}
+                    options={Object.entries(OEM_OPTIONS).map(([k, label]) => ({
+                      value: k,
+                      label: `${k} — ${label}`,
+                    }))}
+                  />
+                </Field>
+                <Toggle
+                  label="Whitelist digits only"
+                  value={settings.whitelistDigits}
+                  onChange={(v) => patch("whitelistDigits", v)}
+                />
+              </Box>
+            )}
 
             <Box title="Preprocessing">
               <Field label={`Prep width: ${settings.prepWidth}px`}>

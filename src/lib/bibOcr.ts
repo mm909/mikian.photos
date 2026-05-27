@@ -20,9 +20,28 @@ import {
   type OcrSettings,
   type OcrWord,
 } from "./bibOcrTypes";
+import {
+  extractBibsDebugRekognition,
+  rekognitionConfigured,
+} from "./bibOcrRekognition";
 
-export { DEFAULT_OCR_SETTINGS, withDefaults, PSM_OPTIONS, OEM_OPTIONS } from "./bibOcrTypes";
-export type { BibDetection, OcrDebug, OcrSettings, OcrWord, PsmKey, OemKey } from "./bibOcrTypes";
+export {
+  DEFAULT_OCR_SETTINGS,
+  withDefaults,
+  PSM_OPTIONS,
+  OEM_OPTIONS,
+  PROVIDER_OPTIONS,
+} from "./bibOcrTypes";
+export type {
+  BibDetection,
+  OcrDebug,
+  OcrSettings,
+  OcrWord,
+  PsmKey,
+  OemKey,
+  ProviderKey,
+} from "./bibOcrTypes";
+export { rekognitionConfigured } from "./bibOcrRekognition";
 
 const OCR_TIMEOUT_MS = 45_000;
 
@@ -210,11 +229,29 @@ async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | 
   };
 }
 
+/**
+ * Dispatch to the requested OCR provider. If the caller asks for Rekognition
+ * but it isn't configured, we fall back to Tesseract so a misconfigured deploy
+ * still gives some answer (and surfaces it in the lab).
+ */
+async function dispatch(input: Buffer, settings: OcrSettings): Promise<OcrDebug | null> {
+  if (settings.provider === "rekognition") {
+    if (!rekognitionConfigured()) {
+      console.warn(
+        "Rekognition requested but AWS_* env vars are missing — falling back to Tesseract"
+      );
+      return runOcr(input, { ...settings, provider: "tesseract" });
+    }
+    return extractBibsDebugRekognition(input, settings);
+  }
+  return runOcr(input, settings);
+}
+
 export async function extractBibsFromImage(
   input: Buffer,
   settings: OcrSettings = DEFAULT_OCR_SETTINGS
 ): Promise<BibDetection[]> {
-  const debug = await runOcr(input, settings);
+  const debug = await dispatch(input, settings);
   return debug?.bibs ?? [];
 }
 
@@ -222,5 +259,5 @@ export async function extractBibsDebug(
   input: Buffer,
   settings: OcrSettings = DEFAULT_OCR_SETTINGS
 ): Promise<OcrDebug | null> {
-  return runOcr(input, settings);
+  return dispatch(input, settings);
 }

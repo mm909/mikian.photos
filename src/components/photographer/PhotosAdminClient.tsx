@@ -328,18 +328,7 @@ export function PhotosAdminClient() {
                 key={p.id}
                 p={p}
                 running={rerun[p.id] === "running"}
-                deleteState={delState[p.id] ?? "idle"}
                 onOpen={() => setOpenId(p.id)}
-                onRerun={() => rerunOcr(p.id)}
-                onToggleHidden={() => toggleHidden(p.id)}
-                onAskDelete={() =>
-                  setDelState((s) => ({
-                    ...s,
-                    [p.id]: s[p.id] === "confirm" ? "idle" : "confirm",
-                  }))
-                }
-                onConfirmDelete={() => deletePhoto(p.id)}
-                onCancelDelete={() => setDelState((s) => ({ ...s, [p.id]: "idle" }))}
               />
             ))}
           </div>
