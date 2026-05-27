@@ -2,13 +2,13 @@
 <gpx version="1.1" creator="lighthouse-half-2026-mapper" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>2026 Lighthouse Half Marathon (Long Beach, CA)</name>
-    <desc>Approximate two-lap out-and-back along the Long Beach Shoreline Pedestrian/Bike Path, reconstructed from OpenStreetMap via OSRM foot routing. Start/finish: Shoreline Aquatic Park (Lions Lighthouse). Total distance trimmed to 13.1094 mi.</desc>
+    <desc>Approximate 2-lap out-and-back along the Long Beach Shoreline Pedestrian/Bike Path, reconstructed from OpenStreetMap via OSRM foot routing. Start/finish: Shoreline Aquatic Park (Lions Lighthouse). Total distance trimmed to 13.1094 mi.</desc>
     <time>2026-05-24T14:00:00Z</time>
   </metadata>
   <wpt lat="33.759954" lon="-118.190480"><name>Start / Finish</name></wpt>
   <wpt lat="33.756923" lon="-118.140344"><name>Turnaround</name></wpt>
   <trk>
-    <name>Lighthouse Half — 2 laps</name>
+    <name>Lighthouse Half Marathon — 2 laps</name>
     <trkseg>
       <trkpt lat="33.759954" lon="-118.190480"></trkpt>
       <trkpt lat="33.759959" lon="-118.190455"></trkpt>

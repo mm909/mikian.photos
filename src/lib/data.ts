@@ -104,10 +104,10 @@ export type BibSuggest = {
 };
 
 export const currentEvent: CurrentEvent = {
-  id: "long-beach-half-2026",
-  org: "Long Beach Marathon",
-  name: ["Long Beach", "Half", "Marathon"],
-  date: "10.12.26",
+  id: "lighthouse-half-2026",
+  org: "Elite Sports California",
+  name: ["Lighthouse", "Half", "Marathon"],
+  date: "05.24.26",
   city: "Long Beach, CA",
   photoCount: 1248,
   photographers: 4,

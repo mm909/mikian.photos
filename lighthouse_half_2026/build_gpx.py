@@ -15,9 +15,15 @@ from pathlib import Path
 HERE = Path(__file__).parent
 START = (33.7593, -118.1903)        # Lions Lighthouse, Shoreline Aquatic Park
 EAST  = (33.7575, -118.1325)        # generous eastern target (will be trimmed)
-TARGET_HALF_MI = 13.1094
-TARGET_M = TARGET_HALF_MI * 1609.344
-LEG_M = TARGET_M / 4                # one-way leg = quarter of full course
+
+# All three sub-events start from the lighthouse and head east along the
+# Shoreline Pedestrian/Bike Path. Half = 2 out-and-back loops; 10K / 5K = single
+# out-and-back loops, with closer turnarounds.
+DISTANCES = {
+    "half": {"total_m": 21097.5, "laps": 2, "label": "Half Marathon"},
+    "10k":  {"total_m": 10000.0, "laps": 1, "label": "10K"},
+    "5k":   {"total_m":  5000.0, "laps": 1, "label": "5K"},
+}
 
 def hav(a, b):
     R = 6371000.0
@@ -67,36 +73,45 @@ def trim(coords, target_m):
             break
     return out, used
 
-leg, leg_dist = trim(coords, LEG_M)
-print(f"trimmed one-way leg: {leg_dist:.0f} m ({leg_dist/1609.344:.3f} mi), {len(leg)} pts")
+def build(distance_key, spec, source_coords):
+    total_m = spec["total_m"]
+    laps = spec["laps"]
+    leg_m = total_m / (2 * laps)                      # one-way leg per lap
+    leg, leg_dist = trim(source_coords, leg_m)
+    back = list(reversed(leg))
+    route = list(leg)
+    for _ in range(laps):
+        route += back[1:]                              # back to start
+        if _ < laps - 1:
+            route += leg[1:]                           # start next lap
+    total = sum(hav(route[i], route[i+1]) for i in range(len(route)-1))
+    print(f"{distance_key:>4}: leg {leg_dist:.0f}m, {laps} lap(s), "
+          f"final {total:.0f}m ({total/1609.344:.3f} mi), {len(route)} pts")
 
-# 3) Stitch two out-and-back laps
-back = list(reversed(leg))
-# avoid duplicating the U-turn point + the start-of-lap-2 duplicate
-route = leg + back[1:] + leg[1:] + back[1:]
-total = sum(hav(route[i], route[i+1]) for i in range(len(route)-1))
-print(f"final course: {total:.0f} m ({total/1609.344:.4f} mi)  {len(route)} pts")
+    out = HERE / f"lighthouse_{distance_key}_2026_course.gpx"
+    with out.open("w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<gpx version="1.1" creator="lighthouse-half-2026-mapper" '
+                'xmlns="http://www.topografix.com/GPX/1/1">\n')
+        f.write('  <metadata>\n')
+        f.write(f'    <name>2026 Lighthouse {spec["label"]} (Long Beach, CA)</name>\n')
+        f.write(f'    <desc>Approximate {laps}-lap out-and-back along the Long Beach '
+                f'Shoreline Pedestrian/Bike Path, reconstructed from OpenStreetMap '
+                f'via OSRM foot routing. Start/finish: Shoreline Aquatic Park '
+                f'(Lions Lighthouse). Total distance trimmed to '
+                f'{total_m/1609.344:.4f} mi.</desc>\n')
+        f.write('    <time>2026-05-24T14:00:00Z</time>\n')
+        f.write('  </metadata>\n')
+        f.write('  <wpt lat="%.6f" lon="%.6f"><name>Start / Finish</name></wpt>\n'
+                % (leg[0][0], leg[0][1]))
+        f.write('  <wpt lat="%.6f" lon="%.6f"><name>Turnaround</name></wpt>\n'
+                % (leg[-1][0], leg[-1][1]))
+        f.write(f'  <trk>\n    <name>Lighthouse {spec["label"]} — {laps} lap'
+                f'{"s" if laps > 1 else ""}</name>\n    <trkseg>\n')
+        for lat, lon in route:
+            f.write(f'      <trkpt lat="{lat:.6f}" lon="{lon:.6f}"></trkpt>\n')
+        f.write('    </trkseg>\n  </trk>\n</gpx>\n')
+    return out
 
-# 4) Write GPX
-out = HERE / "lighthouse_half_2026_course.gpx"
-with out.open("w", encoding="utf-8") as f:
-    f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-    f.write('<gpx version="1.1" creator="lighthouse-half-2026-mapper" '
-            'xmlns="http://www.topografix.com/GPX/1/1">\n')
-    f.write('  <metadata>\n')
-    f.write('    <name>2026 Lighthouse Half Marathon (Long Beach, CA)</name>\n')
-    f.write('    <desc>Approximate two-lap out-and-back along the Long Beach '
-            'Shoreline Pedestrian/Bike Path, reconstructed from OpenStreetMap via '
-            'OSRM foot routing. Start/finish: Shoreline Aquatic Park (Lions '
-            'Lighthouse). Total distance trimmed to 13.1094 mi.</desc>\n')
-    f.write('    <time>2026-05-24T14:00:00Z</time>\n')
-    f.write('  </metadata>\n')
-    f.write('  <wpt lat="%.6f" lon="%.6f"><name>Start / Finish</name></wpt>\n'
-            % (leg[0][0], leg[0][1]))
-    f.write('  <wpt lat="%.6f" lon="%.6f"><name>Turnaround</name></wpt>\n'
-            % (leg[-1][0], leg[-1][1]))
-    f.write('  <trk>\n    <name>Lighthouse Half — 2 laps</name>\n    <trkseg>\n')
-    for lat, lon in route:
-        f.write(f'      <trkpt lat="{lat:.6f}" lon="{lon:.6f}"></trkpt>\n')
-    f.write('    </trkseg>\n  </trk>\n</gpx>\n')
-print("wrote", out)
+for key, spec in DISTANCES.items():
+    build(key, spec, coords)
