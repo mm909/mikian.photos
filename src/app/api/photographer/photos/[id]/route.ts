@@ -40,7 +40,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   };
 
   const data: Record<string, unknown> = {};
-  if (body.bib === null || typeof body.bib === "number") data.bib = body.bib;
   if (body.mile === null || typeof body.mile === "number") data.mile = body.mile;
   if (typeof body.hidden === "boolean") {
     data.hidden = body.hidden;
@@ -48,11 +47,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data.hiddenAt = body.hidden ? new Date() : null;
   }
 
+  // Bib edits go through PhotoBib (multi-bib). A non-null bib *adds* a manual
+  // tag; null clears manual tags only — OCR detections are preserved.
+  if (body.bib === null) {
+    await db.photoBib.deleteMany({ where: { photoId: params.id, source: "manual" } });
+  } else if (typeof body.bib === "number") {
+    await db.photoBib.upsert({
+      where: { photoId_bib: { photoId: params.id, bib: body.bib } },
+      update: { confidence: 1.0, source: "manual" },
+      create: { photoId: params.id, bib: body.bib, confidence: 1.0, source: "manual" },
+    });
+  }
+
   const updated = await db.photo.update({
     where: { id: params.id },
     data,
     select: {
-      id: true, eventId: true, bib: true, mile: true, hidden: true, takenAt: true,
+      id: true, eventId: true, mile: true, hidden: true, takenAt: true,
+      bibs: { select: { bib: true } },
     },
   });
   return NextResponse.json({ photo: updated });

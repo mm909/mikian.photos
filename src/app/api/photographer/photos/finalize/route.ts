@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys, r2Put } from "@/lib/r2";
 import { processUpload } from "@/lib/imagePipeline";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { extractBibsFromImage } from "@/lib/bibOcr";
 
 /**
  * Finalize a presigned upload: the client has PUT the original JPEG to R2,
@@ -90,7 +91,33 @@ export async function POST(req: Request) {
     select: { id: true, eventId: true, takenAt: true, gpsLat: true, gpsLng: true },
   });
 
+  // Best-effort bib OCR. Never blocks the upload — failures are silent.
+  // Run against the resized preview (faster) so Tesseract sees consistent
+  // dimensions regardless of source camera.
+  let detectedBibs: { bib: number; confidence: number }[] = [];
+  try {
+    detectedBibs = await extractBibsFromImage(processed.previewBytes);
+    if (detectedBibs.length > 0) {
+      await db.photoBib.createMany({
+        data: detectedBibs.map((d) => ({
+          photoId: photo.id,
+          bib: d.bib,
+          confidence: d.confidence,
+          source: "ocr-tesseract",
+        })),
+        skipDuplicates: true,
+      });
+    }
+  } catch (e) {
+    // Don't fail the upload over an OCR hiccup.
+    console.warn(`bib OCR failed for photo ${photo.id}:`, e);
+  }
+
   return NextResponse.json({
-    photo: { ...updated, previewUrl: `/api/photos/${updated.id}/preview` },
+    photo: {
+      ...updated,
+      previewUrl: `/api/photos/${updated.id}/preview`,
+      detectedBibs: detectedBibs.map((d) => d.bib),
+    },
   });
 }

@@ -48,8 +48,8 @@ export async function POST(req: Request) {
   const event = await db.event.findUnique({ where: { id: eventId } });
   if (!event) return NextResponse.json({ error: "unknown eventId" }, { status: 404 });
 
-  const bib = parseIntOrNull(form.get("bib"));
   const mile = parseIntOrNull(form.get("mile"));
+  const bibForTagging = parseIntOrNull(form.get("bib"));
 
   let original: Buffer;
   try {
@@ -74,13 +74,21 @@ export async function POST(req: Request) {
     data: {
       eventId,
       photographerId,
-      bib,
       mile,
       gpsLat: processed.gpsLat,
       gpsLng: processed.gpsLng,
       takenAt: processed.takenAt,
       r2OriginalKey: "pending", // overwritten below
       r2PreviewKey: "pending",
+      // Optional manual bib tag from the legacy multipart route. The presigned
+      // flow doesn't pass bib — OCR fills it in on the finalize step.
+      ...(bibForTagging != null
+        ? {
+            bibs: {
+              create: [{ bib: bibForTagging, confidence: 1.0, source: "manual" }],
+            },
+          }
+        : {}),
     },
   });
 
@@ -106,8 +114,9 @@ export async function POST(req: Request) {
     where: { id: created.id },
     data: { r2OriginalKey: originalKey, r2PreviewKey: previewKey },
     select: {
-      id: true, eventId: true, bib: true, mile: true, takenAt: true,
+      id: true, eventId: true, mile: true, takenAt: true,
       gpsLat: true, gpsLng: true,
+      bibs: { select: { bib: true } },
     },
   });
 

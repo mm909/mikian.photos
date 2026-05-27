@@ -9,8 +9,18 @@ type Props = {
 export function PhotoThumb({ photo, onClick, onExpand }: Props) {
   return (
     <div className="thumb" onClick={onClick}>
-      <div className="thumb__img" style={{ background: photoBg(photo) }} />
-      <div className="thumb__wm">MIKIAN.PHOTOS</div>
+      {photo.previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photo.previewUrl}
+          alt=""
+          loading="lazy"
+          className="thumb__img"
+          style={{ objectFit: "cover", display: "block", width: "100%", height: "100%" }}
+        />
+      ) : (
+        <div className="thumb__img" style={{ background: photoBg(photo) }} />
+      )}
       <div
         className="thumb__expand"
         onClick={(e) => {

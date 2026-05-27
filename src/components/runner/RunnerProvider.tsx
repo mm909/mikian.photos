@@ -10,8 +10,8 @@ import {
   useState,
 } from "react";
 import {
+  currentEvent,
   findRacerByBib,
-  photos as ALL_PHOTOS,
   prices,
   type BibSuggest,
   type Cart,
@@ -23,6 +23,9 @@ import {
 } from "@/lib/data";
 
 type RunnerCtx = {
+  // catalog (real photos fetched from /api/photos)
+  catalog: Photo[];
+  catalogLoading: boolean;
   // results state
   resultPhotos: Photo[];
   matchedRacer: Racer | null;
@@ -67,7 +70,7 @@ type RunnerCtx = {
 };
 
 const Ctx = createContext<RunnerCtx | null>(null);
-const STORAGE_KEY = "mikian.runner.v1";
+const STORAGE_KEY = "mikian.runner.v2"; // bumped (v1 stored photo objects directly)
 
 type Persisted = {
   resultPhotoIds: string[];
@@ -116,7 +119,45 @@ function applyBundleCap(cart: Cart): { cart: Cart; capped: boolean } {
   return { cart, capped: false };
 }
 
+/**
+ * Normalize an API photo row into the UI Photo shape. The API doesn't ship
+ * tones/spot (real photos don't need the gradient) and may omit photographer
+ * fields, so we provide sane defaults.
+ */
+function apiPhotoToUi(p: {
+  id: string;
+  bib?: number;
+  bibs?: number[];
+  mile: number | null;
+  gps?: [number, number] | null;
+  takenAt?: string | Date | null;
+  photographer?: string;
+  photographerId?: string;
+  previewUrl?: string;
+}): Photo {
+  return {
+    id: p.id,
+    previewUrl: p.previewUrl,
+    bibs: p.bibs ?? [],
+    bib: p.bib ?? p.bibs?.[0] ?? 0,
+    mile: p.mile ?? 0,
+    time: "",
+    photographer: p.photographer ?? "",
+    photographerId: p.photographerId,
+    // No tones/spot for real photos — PhotoThumb falls back to gradient only
+    // when previewUrl is absent.
+    tones: ["#d6c3a2", "#8b7960", "#5c4f3e"],
+    spot: [50, 50],
+    price: 10,
+    gps: p.gps ?? undefined,
+    takenAt: typeof p.takenAt === "string" ? p.takenAt : p.takenAt?.toISOString?.(),
+    hidden: false,
+  };
+}
+
 export function RunnerProvider({ children }: { children: React.ReactNode }) {
+  const [catalog, setCatalog] = useState<Photo[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
   const [matchedRacer, setMatchedRacer] = useState<Racer | null>(null);
   const [searchedBib, setSearchedBib] = useState<string | null>(null);
@@ -131,12 +172,38 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
   const hydrated = useRef(false);
+  const pendingResultIds = useRef<string[] | null>(null);
 
-  // Hydrate from localStorage once on mount
+  // Fetch the event's catalog from the API on mount.
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    fetch(`/api/photos?eventId=${encodeURIComponent(currentEvent.id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`/api/photos ${r.status}`))))
+      .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][] }) => {
+        if (cancelled) return;
+        const ui = (d.photos ?? []).map(apiPhotoToUi);
+        setCatalog(ui);
+      })
+      .catch((e) => {
+        console.warn("photo catalog fetch failed:", e);
+        if (!cancelled) setCatalog([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Hydrate non-photo state from localStorage once on mount. We can't rebuild
+  // `resultPhotos` here because the catalog hasn't loaded yet; we stash the IDs
+  // and apply them when the catalog arrives.
   useEffect(() => {
     const p = loadPersisted();
     if (p) {
-      setResultPhotos(ALL_PHOTOS.filter((ph) => p.resultPhotoIds.includes(ph.id)));
+      pendingResultIds.current = p.resultPhotoIds ?? null;
       setSearchedBib(p.searchedBib);
       setMatchedRacer(p.matchedRacerBib ? findRacerByBib(p.matchedRacerBib) ?? null : null);
       setFaceSuggest(p.faceSuggest);
@@ -148,7 +215,16 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     hydrated.current = true;
   }, []);
 
-  // Persist on relevant changes
+  // Once the catalog lands, rebuild resultPhotos from any stashed IDs.
+  useEffect(() => {
+    if (catalogLoading) return;
+    const ids = pendingResultIds.current;
+    if (!ids) return;
+    pendingResultIds.current = null;
+    setResultPhotos(catalog.filter((p) => ids.includes(p.id)));
+  }, [catalogLoading, catalog]);
+
+  // Persist relevant state.
   useEffect(() => {
     if (!hydrated.current) return;
     savePersisted({
@@ -175,56 +251,37 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setCartCapped(didCap || capped.items.some((i) => i.kind === "bundle"));
   }
 
-  /* --- Search flow ---------------------------------------------------- */
+  /* --- Search flow ----------------------------------------------------
+   *
+   * Bib search uses the multi-bib PhotoBib table (`p.bibs.includes(n)`).
+   * If no photos match the typed bib, we fall back to showing the whole
+   * catalog — better UX while OCR coverage is still patchy.
+   * -------------------------------------------------------------------- */
   function runSearch(s: { kind: "bib" | "face" | "browse"; value?: string }) {
     if (s.kind === "bib" && s.value) {
       const value = s.value;
+      const n = Number(value);
       const racer = findRacerByBib(value) ?? null;
-      const matches = ALL_PHOTOS.filter((p) => p.bib === Number(value));
+      const matches = catalog.filter((p) => p.bibs?.includes(n));
+      const fellBackToBrowse = matches.length === 0;
       setMatchedRacer(racer);
       setSearchedBib(value);
-      setResultPhotos(matches);
-      // Face-suggest is meaningful when we have a real photo catalog to draw from.
-      // Skip it in empty-catalog mode so we don't show fake stacked thumbs.
-      if (matches.length > 0) {
-        const sugg = ALL_PHOTOS.filter((p) => p.bib !== Number(value)).slice(0, 6);
-        setFaceSuggest(
-          sugg.length > 0
-            ? {
-                bib: value,
-                count: sugg.length,
-                tones: sugg.slice(0, 3).map((p) => p.tones),
-                ids: sugg.map((p) => p.id),
-              }
-            : null
-        );
-      } else {
-        setFaceSuggest(null);
-      }
+      setResultPhotos(fellBackToBrowse ? catalog : matches);
+      setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
     } else if (s.kind === "face") {
-      const matches = ALL_PHOTOS.slice(0, 18);
+      // Face search isn't built yet — show the whole catalog so buyers can browse.
       setMatchedRacer(null);
       setSearchedBib(null);
-      setResultPhotos(matches);
+      setResultPhotos(catalog);
       setFaceSuggest(null);
-      setBibSuggest(
-        matches.length > 0
-          ? {
-              bib: String(matches[0]?.bib ?? ""),
-              count: 6,
-              tones: ALL_PHOTOS.slice(18, 21).map((p) => p.tones),
-              ids: ALL_PHOTOS.slice(18, 24).map((p) => p.id),
-            }
-          : null
-      );
+      setBibSuggest(null);
       setFaceDone(true);
     } else {
-      const matches = ALL_PHOTOS;
       setMatchedRacer(null);
       setSearchedBib(null);
-      setResultPhotos(matches);
+      setResultPhotos(catalog);
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
@@ -234,7 +291,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   function acceptFaceSuggest() {
     if (!faceSuggest) return;
-    const adds = ALL_PHOTOS.filter(
+    const adds = catalog.filter(
       (p) => faceSuggest.ids.includes(p.id) && !resultPhotos.some((rp) => rp.id === p.id)
     );
     setResultPhotos([...resultPhotos, ...adds]);
@@ -245,7 +302,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   function acceptBibSuggest() {
     if (!bibSuggest) return;
-    const adds = ALL_PHOTOS.filter(
+    const adds = catalog.filter(
       (p) => bibSuggest.ids.includes(p.id) && !resultPhotos.some((rp) => rp.id === p.id)
     );
     setResultPhotos([...resultPhotos, ...adds]);
@@ -254,39 +311,19 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   function addBib(extraBib: string) {
-    const adds = ALL_PHOTOS.filter(
-      (p) => p.bib % 7 === Number(extraBib) % 7 && !resultPhotos.some((rp) => rp.id === p.id)
-    ).slice(0, 6);
+    const n = Number(extraBib);
+    const adds = catalog
+      .filter((p) => p.bibs?.includes(n) && !resultPhotos.some((rp) => rp.id === p.id))
+      .slice(0, 12);
     setResultPhotos([...resultPhotos, ...adds]);
     flashToast(`+${adds.length} photos from bib #${extraBib}`);
-    // Re-prompt face every time a new bib lands (per Phase 1 spec).
-    const sugg = ALL_PHOTOS.filter(
-      (p) => !resultPhotos.some((rp) => rp.id === p.id) && !adds.some((a) => a.id === p.id)
-    ).slice(0, 6);
-    setFaceSuggest({
-      bib: extraBib,
-      count: sugg.length,
-      tones: sugg.slice(0, 3).map((p) => p.tones),
-      ids: sugg.map((p) => p.id),
-    });
   }
 
   function scanFaceOnResults() {
     if (faceDone) return;
-    const adds = ALL_PHOTOS.slice(20, 28).filter(
-      (p) => !resultPhotos.some((rp) => rp.id === p.id)
-    );
-    setResultPhotos([...resultPhotos, ...adds]);
-    flashToast(`+${adds.length} photos from face match`);
-    setFaceSuggest(null);
     setFaceDone(true);
-    // After a face scan, propose a likely bib.
-    setBibSuggest({
-      bib: "1248",
-      count: 4,
-      tones: ALL_PHOTOS.slice(28, 31).map((p) => p.tones),
-      ids: ALL_PHOTOS.slice(28, 32).map((p) => p.id),
-    });
+    setFaceSuggest(null);
+    // Face match isn't built yet; this is now a no-op for the data layer.
   }
 
   /* --- Selection / cart actions -------------------------------------- */
@@ -303,7 +340,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   function addSelToCart() {
     const newItems: CartItem[] = [...selected]
       .map<CartItem | null>((id) => {
-        const p = ALL_PHOTOS.find((x) => x.id === id);
+        const p = catalog.find((x) => x.id === id);
         if (!p) return null;
         return {
           uid: `u-${id}-${Date.now()}`,
@@ -317,9 +354,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
         };
       })
       .filter((x): x is CartItem => x !== null);
-    const survivors = cart.items.filter(
-      (i) => i.kind === "bundle" || !selected.has(i.id)
-    );
+    const survivors = cart.items.filter((i) => i.kind === "bundle" || !selected.has(i.id));
     const merged = { items: [...survivors, ...newItems] };
     applyCap(merged);
     setSelected(new Set());
@@ -396,7 +431,6 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       paidAt: Date.now(),
     };
     setOrder(o);
-    // Cart empties after a successful purchase.
     setCart({ items: [] });
     setCartCapped(false);
     setSelected(new Set());
@@ -434,6 +468,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<RunnerCtx>(
     () => ({
+      catalog,
+      catalogLoading,
       resultPhotos,
       matchedRacer,
       searchedBib,
@@ -472,7 +508,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resultPhotos, matchedRacer, searchedBib, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

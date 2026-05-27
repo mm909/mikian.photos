@@ -1,34 +1,62 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Headline } from "@/components/runner/Headline";
 import { SignOutButton } from "@/components/photographer/SignOutButton";
+import { getEffectivePhotographerId } from "@/lib/photographerLock";
+
+type PhotoRow = {
+  id: string;
+  hidden: boolean;
+  createdAt: Date;
+  eventId: string;
+  bibs: { bib: number }[];
+};
 
 export default async function PhotographerOverviewPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.photographerId) {
-    redirect("/photographer/sign-in");
+  const photographerId = await getEffectivePhotographerId();
+  if (!photographerId) {
+    return (
+      <main
+        className="screen"
+        style={{ padding: "96px 24px", textAlign: "center", maxWidth: 540, margin: "0 auto" }}
+      >
+        <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 500, fontSize: 28 }}>
+          Photographer access required
+        </h1>
+        <p style={{ marginTop: 16, color: "var(--muted)", lineHeight: 1.55 }}>
+          Sign in at <a href="/photographer/sign-in">/photographer/sign-in</a>, or, if you&rsquo;re
+          Mikian, hit <code>/api/photographer/unlock?key=…</code> with your unlock key.
+        </p>
+      </main>
+    );
   }
 
   const pg = await db.photographer.findUnique({
-    where: { id: session.photographerId },
+    where: { id: photographerId },
     include: {
       photos: {
         orderBy: { createdAt: "desc" },
         select: {
-          id: true, bib: true, hidden: true, createdAt: true, eventId: true,
+          id: true, hidden: true, createdAt: true, eventId: true,
+          bibs: { select: { bib: true } },
         },
       },
     },
   });
   if (!pg) {
-    redirect("/photographer/sign-in");
+    return (
+      <main className="screen" style={{ padding: "96px 24px", textAlign: "center" }}>
+        <p style={{ color: "var(--muted)" }}>
+          Photographer row not found. The unlock route should have created one — try{" "}
+          <a href="/api/photographer/unlock?key=YOUR_KEY">re-running it</a>.
+        </p>
+      </main>
+    );
   }
 
-  const uploaded = pg.photos.length;
-  const visible = pg.photos.filter((p) => !p.hidden).length;
+  const photos = pg.photos as PhotoRow[];
+  const uploaded = photos.length;
+  const visible = photos.filter((p) => !p.hidden).length;
   const hidden = uploaded - visible;
 
   return (
@@ -126,7 +154,15 @@ export default async function PhotographerOverviewPage() {
               gap: 12,
             }}
           >
-            {pg.photos.map((p) => (
+            {photos.map((p) => {
+              const bibList = p.bibs.map((b) => b.bib);
+              const tagLabel =
+                bibList.length === 0
+                  ? "Untagged"
+                  : bibList.length === 1
+                    ? `#${bibList[0]}`
+                    : `#${bibList[0]} +${bibList.length - 1}`;
+              return (
               <div
                 key={p.id}
                 style={{
@@ -142,7 +178,7 @@ export default async function PhotographerOverviewPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`/api/photos/${p.id}/preview`}
-                  alt={p.bib ? `Bib ${p.bib}` : "Race photo"}
+                  alt={bibList.length ? `Bib ${bibList.join(", ")}` : "Race photo"}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
                 <div
@@ -160,7 +196,7 @@ export default async function PhotographerOverviewPage() {
                     color: "var(--ink)",
                   }}
                 >
-                  {p.bib ? `#${p.bib}` : "Untagged"}
+                  {tagLabel}
                 </div>
                 {p.hidden && (
                   <div
@@ -182,7 +218,8 @@ export default async function PhotographerOverviewPage() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

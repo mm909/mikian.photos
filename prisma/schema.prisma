@@ -45,7 +45,6 @@ model Photo {
   id              String   @id @default(cuid())
   eventId         String
   photographerId  String
-  bib             Int?
   mile            Int?
   gpsLat          Float?
   gpsLng          Float?
@@ -62,10 +61,27 @@ model Photo {
 
   event           Event        @relation(fields: [eventId], references: [id])
   photographer    Photographer @relation(fields: [photographerId], references: [id])
+  bibs            PhotoBib[]
 
-  @@index([eventId, bib])
   @@index([eventId, hidden])
   @@index([photographerId])
+}
+
+/// One row per (photo, bib) tag. Same photo can carry several bibs (multiple
+/// runners in frame); same bib can appear on many photos. `source` lets us
+/// re-run detection or revoke a specific provider's results later.
+model PhotoBib {
+  id         String   @id @default(cuid())
+  photoId    String
+  bib        Int
+  confidence Float    @default(1.0)
+  source     String   @default("manual") // "manual" | "ocr-tesseract" | "ocr-rekognition" | "user-tag"
+  createdAt  DateTime @default(now())
+
+  photo      Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([photoId, bib])
+  @@index([bib])
 }
 
 model Order {

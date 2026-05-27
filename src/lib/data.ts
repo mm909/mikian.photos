@@ -41,6 +41,15 @@ export type Racer = {
 
 export type Photo = {
   id: string;
+  /** Direct CDN URL for the preview JPEG. Present on real photos coming from
+   *  the API; absent on synthetic placeholders, which fall back to the
+   *  tones+spot gradient. */
+  previewUrl?: string;
+  /** All bibs tagged on this photo (multi-runner support). Empty array =
+   *  no bib detected/tagged yet. */
+  bibs: number[];
+  /** Legacy convenience — first bib if any, else 0 for synthetic data. Kept
+   *  for backward compat with screens that read photo.bib directly. */
   bib: number;
   mile: number;
   time: string;
@@ -169,6 +178,7 @@ export const DEMO_PHOTOS: Photo[] = LIGHTHOUSE_RACERS.slice(0, 36).map((r, i) =>
   return {
     id: `p${i + 1}`,
     bib: r.bib,
+    bibs: [r.bib],
     mile: MILES[i % MILES.length],
     time: r.chipTime,
     photographer: pg.name,
