@@ -1,7 +1,8 @@
 # Mikian.Photos — Roadmap (v0.3 onward)
 
-Status as of v0.2 ship: working OCR + image delivery + receipt flow. Site
-is env-locked (`PAYMENTS_OPEN=false`); first real $ already settled
+Status as of v0.3 in-progress: face recognition end-to-end is live on the
+`v0.3-face-rec` branch; bib↔face cross-link landed in the same branch.
+Site is still env-locked (`PAYMENTS_OPEN=false`); first real $ settled
 2026-05-27 in a one-off test, so the payment path itself is proven.
 
 This doc is the running list. Edit it freely — the order is the order I'll
@@ -26,17 +27,21 @@ work in unless you say otherwise.
 
 These are the things between "test capture" and "people who don't know me can actually buy and use the product."
 
-### 1. Face recognition end-to-end
-- AWS Rekognition collection per event (or one global, decide cost-wise)
-- Upload finalize step: `IndexFaces` against the original; store `(photoId, faceId, boundingBox, confidence)` in a new `PhotoFace` table
-- Runner face-search input: file picker → `SearchFacesByImage` → photoIds → existing results screen
-- Wire the `NoBibMatchPrompt` "try face search" CTA to the real flow
-- Cost guardrail: cap faces-per-image so a crowd shot doesn't burn the budget
+### 1. Face recognition end-to-end ✓ shipped (v0.3-face-rec)
+- Per-event Rekognition collection (one per `eventId`, created lazily)
+- Upload finalize step calls `IndexFaces` on the preview after OCR, writes `PhotoFace` rows (photoId, eventId, rekognitionFaceId, normalized bbox, confidence) plus `Photo.facesIndexedAt`
+- `POST /api/photos/face-search` — multipart selfie endpoint, returns same Photo shape as `/api/photos` plus `faceSimilarity`
+- Runner UI: `runFaceSearch(file)` in `RunnerProvider` replaces the old no-op; LandingScreen "Scan My Face" and ResultsScreen `NoBibMatchPrompt` both wired
+- Photo delete cascades to Rekognition via `DeleteFaces`
+- `POST /api/photographer/photos/[id]/rerun-faces` re-indexes one photo
+- `scripts/backfill-faces.ts` for existing photos
+- IAM smoke-tested ✓ (8/8 actions); backfill ran ✓ (231 faces across 172 photos)
 
-### 2. Bib ↔ face cross-link
-- When the same photo has both a bib OCR hit and an indexed face, record the association
-- Downstream: searching by bib for runner #288 returns face matches across other photos that share that face (even if the bib isn't visible)
-- This is the multiplier that makes results feel magical — and the reason face rec belongs *before* bulk download
+### 2. Bib ↔ face cross-link ✓ shipped (v0.3-face-rec)
+- New faces clustered at index time via `SearchFaces` (threshold 92%, max 50 neighbors); `faceClusterId` = lexicographically-smallest of (self + matched neighbors), with merge of conflicting clusters
+- `/api/photos?bib=N` expands the bib-tagged set with photos sharing the bib's runner's face clusters. Cluster qualifies as "the runner" when it appears in ≥2 bib-tagged photos (or, when only 1 bib photo exists, every cluster from it qualifies)
+- Each photo carries `matchedVia: "bib" | "face" | "both"` for future UI differentiation
+- `RunnerProvider.runSearch` issues the server fetch on bib search (after instant client-side filter for snappy UI); flashes "+N found via face match" toast when expansion lands
 
 ### 3. Bulk ZIP download
 - `/api/orders/[orderNumber]/zip?key=...` streams a server-built ZIP of all entitled originals

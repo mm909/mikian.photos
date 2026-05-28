@@ -292,18 +292,39 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const value = s.value;
       const n = Number(value);
       const racer = findRacerByBib(value) ?? null;
+      // Optimistic client-side filter for instant feedback. The server
+      // call below replaces this with the bib↔face cross-linked set —
+      // photos with the runner's face but a missed bib OCR appear in the
+      // expanded result.
       const matches = catalog.filter((p) => p.bibs?.includes(n));
-      // Bib search with no hits → do NOT fall back to the whole catalog;
-      // the user prefers to be prompted into a face search instead. The
-      // ResultsScreen empty state surfaces a "Scan your face" CTA.
-      const noMatches = matches.length === 0;
       setMatchedRacer(racer);
       setSearchedBib(value);
-      setSearchFellBack(noMatches);
+      setSearchFellBack(matches.length === 0);
       setResultPhotos(matches);
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
+
+      // Fire-and-forget server fetch for cross-link expansion. We don't
+      // block the UI — instant client-side results show first, then the
+      // expanded set replaces them when the server responds. On error
+      // we keep the client-side fallback so the user isn't worse off.
+      void fetch(
+        `/api/photos?eventId=${encodeURIComponent(currentEvent.id)}&bib=${n}`
+      )
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][]; crossLinked?: number }) => {
+          const ui = (d.photos ?? []).map(apiPhotoToUi);
+          setResultPhotos(ui);
+          setSearchFellBack(ui.length === 0);
+          if (d.crossLinked && d.crossLinked > 0) {
+            flashToast(`+${d.crossLinked} found via face match`);
+          }
+        })
+        .catch((e) => {
+          // Keep optimistic client results on failure — don't disrupt UX.
+          console.warn("bib server search failed:", e);
+        });
     } else if (s.kind === "face") {
       // Face search isn't built yet — show the whole catalog so buyers can browse.
       setMatchedRacer(null);

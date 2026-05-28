@@ -43,6 +43,7 @@ import {
   IndexFacesCommand,
   RekognitionClient,
   SearchFacesByImageCommand,
+  SearchFacesCommand,
   type FaceRecord,
   type FaceMatch,
 } from "@aws-sdk/client-rekognition";
@@ -66,9 +67,20 @@ const MAX_REKOG_BYTES = 5 * 1024 * 1024;
  *  more false positives. Tunable later if recall is too low. */
 const FACE_MATCH_THRESHOLD = 80;
 
+/** Tighter threshold for *clustering* (linking the same runner across
+ *  multiple race photos). False positives here merge two different
+ *  runners into one cluster — much worse than missing a link — so we
+ *  err high: 92% similarity. */
+const CLUSTER_MATCH_THRESHOLD = 92;
+
 /** Max faces SearchFacesByImage returns per query. Race buyers usually
  *  appear in ≤ a few dozen photos; cap keeps response sizes sane. */
 const SEARCH_MAX_FACES = 100;
+
+/** Max related faces returned per per-face SearchFaces during clustering.
+ *  Higher → more transitive cluster merging in one pass; we cap at 50 to
+ *  bound the API cost per upload (15 faces × 50 matches → 750 records). */
+const CLUSTER_MAX_NEIGHBORS = 50;
 
 let _client: RekognitionClient | null = null;
 /** Cached per-process — once a collection exists we don't re-check. */
@@ -136,6 +148,103 @@ export type IndexedFace = {
   confidence: number;
   bbox: { x0: number; y0: number; x1: number; y1: number }; // normalized 0-1
 };
+
+/**
+ * For each new FaceId, run SearchFaces against the collection and decide
+ * which cluster it joins. Returns a Map<rekognitionFaceId → faceClusterId>.
+ *
+ * Cluster rules:
+ *   - When SearchFaces returns no neighbors → new face is its own cluster
+ *     (clusterId = the FaceId itself).
+ *   - When neighbors exist → canonical clusterId is the lexicographically
+ *     smallest among the new FaceId AND every cluster id of the matched
+ *     neighbors. Lexicographic is arbitrary but stable — UUIDv4 means we
+ *     don't bias toward older/newer entries.
+ *   - Any *existing* PhotoFace rows whose faceClusterId disagrees with
+ *     the new canonical get updated to it (cluster merge across photos).
+ *
+ * If SearchFaces fails for a particular face (transient AWS hiccup, etc.)
+ * we fall back to "own cluster" and move on — better than blocking the
+ * whole upload over a non-critical refinement.
+ */
+async function assignClusters(opts: {
+  eventId: string;
+  newFaces: { rekognitionFaceId: string }[];
+}): Promise<Map<string, string>> {
+  const { eventId, newFaces } = opts;
+  const out = new Map<string, string>();
+  if (newFaces.length === 0) return out;
+
+  const collectionId = collectionIdFor(eventId);
+
+  for (const f of newFaces) {
+    let matches: FaceMatch[] = [];
+    try {
+      const res = await client().send(
+        new SearchFacesCommand({
+          CollectionId: collectionId,
+          FaceId: f.rekognitionFaceId,
+          FaceMatchThreshold: CLUSTER_MATCH_THRESHOLD,
+          MaxFaces: CLUSTER_MAX_NEIGHBORS,
+        })
+      );
+      matches = res.FaceMatches ?? [];
+    } catch (e) {
+      // Don't fail the whole index over a clustering miss. The face still
+      // gets stored as a singleton cluster; a future rerun-faces or
+      // batch-recluster job can refine.
+      console.warn(
+        `SearchFaces failed during clustering for ${f.rekognitionFaceId}:`,
+        e instanceof Error ? e.message : e
+      );
+      out.set(f.rekognitionFaceId, f.rekognitionFaceId);
+      continue;
+    }
+
+    if (matches.length === 0) {
+      out.set(f.rekognitionFaceId, f.rekognitionFaceId);
+      continue;
+    }
+
+    const neighborFaceIds = matches
+      .map((m) => m.Face?.FaceId)
+      .filter((x): x is string => !!x);
+
+    // Look up the *existing* cluster ids of the neighbors so we can pick a
+    // canonical that's consistent with prior decisions.
+    const existing =
+      neighborFaceIds.length > 0
+        ? await db.photoFace.findMany({
+            where: { rekognitionFaceId: { in: neighborFaceIds }, eventId },
+            select: { faceClusterId: true },
+          })
+        : [];
+    const existingClusterIds = existing
+      .map((r) => r.faceClusterId)
+      .filter((x): x is string => !!x);
+
+    const candidates = [f.rekognitionFaceId, ...existingClusterIds];
+    candidates.sort();
+    const canonical = candidates[0];
+    out.set(f.rekognitionFaceId, canonical);
+
+    // Merge any conflicting prior clusters into the canonical. This is
+    // what makes clustering converge as more photos come in: two clusters
+    // that turn out to be the same person get unified the first time a
+    // new face crosses both.
+    const conflicting = [...new Set(existingClusterIds)].filter(
+      (c) => c !== canonical
+    );
+    if (conflicting.length > 0) {
+      await db.photoFace.updateMany({
+        where: { faceClusterId: { in: conflicting }, eventId },
+        data: { faceClusterId: canonical },
+      });
+    }
+  }
+
+  return out;
+}
 
 /**
  * Index every face in `bytes` into the event's collection and write a
@@ -219,15 +328,23 @@ export async function indexFacesForPhoto(opts: {
     });
   }
 
+  // Cluster each new face into an existing group (same runner across
+  // multiple photos) before writing rows, so the bib↔face cross-link
+  // works in one pass without a separate clustering job. See
+  // assignClusters below for the merging rules.
+  const clusterAssignments = await assignClusters({
+    eventId,
+    newFaces: indexed.map((f) => ({ rekognitionFaceId: f.rekognitionFaceId })),
+  });
+
   if (indexed.length > 0) {
     await db.photoFace.createMany({
       data: indexed.map((f) => ({
         photoId,
         eventId,
         rekognitionFaceId: f.rekognitionFaceId,
-        // MVP cluster = faceId itself; SearchFaces-based clustering can
-        // refine this in a later pass.
-        faceClusterId: f.rekognitionFaceId,
+        faceClusterId:
+          clusterAssignments.get(f.rekognitionFaceId) ?? f.rekognitionFaceId,
         confidence: f.confidence,
         x0: f.bbox.x0,
         y0: f.bbox.y0,
