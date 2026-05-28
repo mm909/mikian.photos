@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { r2Configured, r2PresignGet } from "@/lib/r2";
+import { r2Configured, r2PresignGet, r2Keys } from "@/lib/r2";
 import { verifyDownloadToken } from "@/lib/downloadToken";
+import { formatOrderNumber } from "@/lib/orderId";
 
 /**
  * Gated download: requires a valid JWT (minted at order capture).
@@ -24,8 +25,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!r2Configured()) {
     return NextResponse.json({ error: "Photo storage not configured" }, { status: 503 });
   }
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
+  const reqUrl = new URL(req.url);
+  const token = reqUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "token required" }, { status: 401 });
 
   const claims = await verifyDownloadToken(token);
@@ -35,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // and gives us the entitlement list to check.
   const order = await db.order.findUnique({
     where: { id: claims.orderId },
-    select: { id: true, photoIds: true },
+    select: { id: true, photoIds: true, orderNumber: true },
   });
   if (!order) return NextResponse.json({ error: "order revoked" }, { status: 403 });
 
@@ -45,10 +46,31 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const photo = await db.photo.findUnique({
     where: { id: params.id },
-    select: { r2OriginalKey: true, hidden: true },
+    select: { id: true, r2OriginalKey: true, hidden: true },
   });
   if (!photo || photo.hidden) return new NextResponse("Not found", { status: 404 });
 
-  const signed = await r2PresignGet(photo.r2OriginalKey, 900); // 15 min
-  return NextResponse.redirect(signed, 302);
+  // Older rows can carry r2OriginalKey="pending" while the upload pipeline is
+  // still finalizing. Fall back to the deterministic key derived from the
+  // photo id so the presign still hits the right object.
+  const key =
+    photo.r2OriginalKey && photo.r2OriginalKey !== "pending"
+      ? photo.r2OriginalKey
+      : r2Keys.original(photo.id);
+
+  const signed = await r2PresignGet(key, 900); // 15 min
+
+  // R2 honors response-content-disposition as a query-string override on
+  // presigned URLs. We append one so the file lands as
+  // "MK-000123-<photoId>.jpg" instead of the raw R2 key (which would be
+  // something like "originals/clxyz.jpg" → a useless filename for the buyer).
+  const signedUrl = new URL(signed);
+  const orderTag = formatOrderNumber(order.orderNumber);
+  const filename = `${orderTag}-${photo.id}.jpg`;
+  signedUrl.searchParams.set(
+    "response-content-disposition",
+    `attachment; filename="${filename}"`
+  );
+
+  return NextResponse.redirect(signedUrl.toString(), 302);
 }

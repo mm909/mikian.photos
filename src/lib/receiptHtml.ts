@@ -18,6 +18,7 @@
  */
 
 import { formatOrderNumber } from "./orderId";
+import { DOWNLOAD_TOKEN_TTL_DAYS } from "./downloadToken";
 
 export type ReceiptInput = {
   orderNumber: number;
@@ -113,7 +114,7 @@ export function renderReceiptHtml(r: ReceiptInput): string {
       Your photos
     </div>
     <p style="margin:0 0 14px;font-size:14px;line-height:1.45;color:${INK};">
-      All ${r.photoCount} of your race photos are ready. Click below to view them and download the high-resolution originals — the link works for 30 days, no account needed.
+      All ${r.photoCount} of your race photos are ready. Click below to view them and download the high-resolution originals — the link works for ${DOWNLOAD_TOKEN_TTL_DAYS} days, no account needed.
     </p>
     <a
       href="${r.orderUrl}"

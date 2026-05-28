@@ -15,7 +15,8 @@ import { SignJWT, jwtVerify } from "jose";
  * Default TTL: 30 days — buyers can re-download within that window and
  * the receipt email's magic link stays valid that long.
  */
-const TTL_SECONDS = 60 * 60 * 24 * 30;
+export const DOWNLOAD_TOKEN_TTL_DAYS = 30;
+const TTL_SECONDS = 60 * 60 * 24 * DOWNLOAD_TOKEN_TTL_DAYS;
 
 export type DownloadClaims = {
   orderId: string;
