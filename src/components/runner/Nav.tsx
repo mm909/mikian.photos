@@ -54,22 +54,16 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
-    // Owner-only — internal tuning surface for OCR detection. Photographers
-    // get the per-photo "OCR view" inside the library detail modal; the lab
-    // is for cross-photo experimentation (different model params, hand-
-    // picked test set) and would be more noise than signal in their nav.
-    label: "OCR Lab",
+    // Owner-only — combined OCR + Faces tuning/inspection surface. One tab
+    // with an internal mode toggle: OCR for bib detection knobs, Faces for
+    // Rekognition cluster inspection + force re-index. Photographers get
+    // the per-photo "OCR view" inside the library detail modal; this lab
+    // is for cross-photo experimentation.
+    label: "Lab",
     href: "/photographer/ocr-lab",
-    match: (p) => p.startsWith("/photographer/ocr-lab"),
-    roles: ["owner"],
-  },
-  {
-    // Owner-only — sibling of OCR Lab for face inspection. Sees the
-    // Rekognition face bboxes, cluster membership across the event, and
-    // a force-re-index escape hatch when clustering needs to be redone.
-    label: "Face Lab",
-    href: "/photographer/face-lab",
-    match: (p) => p.startsWith("/photographer/face-lab"),
+    match: (p) =>
+      p.startsWith("/photographer/ocr-lab") ||
+      p.startsWith("/photographer/face-lab"),
     roles: ["owner"],
   },
   {

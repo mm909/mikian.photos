@@ -30,26 +30,63 @@ type DebugPayload = {
 };
 
 type ExistingTag = { bib: number; confidence: number; source: string };
+type LabFace = {
+  id: string;
+  rekognitionFaceId: string | null;
+  faceClusterId: string | null;
+  confidence: number;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+  source: string;
+};
 type RecentPhoto = {
   id: string;
+  /** Used for the cluster-member lookup in faces mode. */
+  eventId: string;
   previewUrl: string;
   bibs: number[];
   tags?: ExistingTag[];
+  faces: LabFace[];
+  facesIndexedAt?: string | null;
   takenAt?: string | null;
   gps?: [number, number] | null;
 };
 type State = "idle" | "running" | "ok" | "err";
+type LabMode = "ocr" | "faces";
+
+/** Cluster-panel row — one PhotoFace in the same cluster, used for the
+ *  "faces mode" sidebar grid. */
+type ClusterMember = {
+  photoId: string;
+  faceId: string;
+  confidence: number;
+};
 
 export function OcrLab({
   recent,
   initialPhotoId,
+  initialMode = "ocr",
 }: {
   recent: RecentPhoto[];
   initialPhotoId?: string;
+  initialMode?: LabMode;
 }) {
+  /** Local working copy of `recent` so the faces-mode re-index can refresh
+   *  a single photo's face list inline without re-routing through the
+   *  server component. */
+  const [photos, setPhotos] = useState<RecentPhoto[]>(recent);
   const [photoId, setPhotoId] = useState<string | null>(
-    initialPhotoId ?? recent[0]?.id ?? null
+    initialPhotoId ?? photos[0]?.id ?? null
   );
+  /** OCR vs Faces. URL-synced via history.replaceState — refreshing keeps
+   *  the same view, sharing the URL keeps the same view. */
+  const [mode, setMode] = useState<LabMode>(initialMode);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (mode === "ocr") url.searchParams.delete("mode");
+    else url.searchParams.set("mode", mode);
+    window.history.replaceState({}, "", url.pathname + (url.search || ""));
+  }, [mode]);
   const [settings, setSettings] = useState<OcrSettings>(DEFAULT_OCR_SETTINGS);
   const [debug, setDebug] = useState<DebugPayload | null>(null);
   const [state, setState] = useState<State>("idle");
@@ -79,6 +116,32 @@ export function OcrLab({
    *  to true on a successful run; user can toggle back with the chip. */
   const [showOcrView, setShowOcrView] = useState(false);
 
+  /* ------------------------- Faces mode state ------------------------- */
+
+  /** Which face the user has clicked in faces mode — drives the cluster
+   *  panel that shows other photos with the same person. */
+  const [activeFaceId, setActiveFaceId] = useState<string | null>(null);
+  const [clusterMembers, setClusterMembers] = useState<ClusterMember[] | null>(null);
+  const [clusterLoading, setClusterLoading] = useState(false);
+
+  /** Faces mode re-index button state. Same pattern as the OCR Run state
+   *  but separate so they don't collide when both modes are visited. */
+  const [reindexState, setReindexState] = useState<State>("idle");
+  const [reindexError, setReindexError] = useState<string | null>(null);
+
+  // Reset cluster panel when the selected photo changes — its faces are
+  // a different set, the prior cluster picks would be confusing.
+  useEffect(() => {
+    setActiveFaceId(null);
+    setClusterMembers(null);
+  }, [photoId]);
+
+  // Faces-mode auto-flip: showOcrView is OCR-specific. Forcing faces mode
+  // means we don't want OCR overlays accidentally showing on top.
+  useEffect(() => {
+    if (mode === "faces") setShowOcrView(false);
+  }, [mode]);
+
   /** When true, render a fullscreen overlay zooming the OCR view (or the
    *  original photo, whichever is currently active) so you can inspect
    *  bbox details on small/distant bibs. Closes on ESC or outside-click. */
@@ -104,17 +167,17 @@ export function OcrLab({
   // Arrow-key navigation through the recent photo strip. Skips when focus is
   // inside an editable element so we don't hijack input typing.
   const currentIndex = useMemo(
-    () => recent.findIndex((p) => p.id === photoId),
-    [recent, photoId]
+    () => photos.findIndex((p) => p.id === photoId),
+    [photos, photoId]
   );
   const goPrev = useCallback(() => {
     if (currentIndex <= 0) return;
-    setPhotoId(recent[currentIndex - 1].id);
-  }, [currentIndex, recent]);
+    setPhotoId(photos[currentIndex - 1].id);
+  }, [currentIndex, photos]);
   const goNext = useCallback(() => {
-    if (currentIndex < 0 || currentIndex >= recent.length - 1) return;
-    setPhotoId(recent[currentIndex + 1].id);
-  }, [currentIndex, recent]);
+    if (currentIndex < 0 || currentIndex >= photos.length - 1) return;
+    setPhotoId(photos[currentIndex + 1].id);
+  }, [currentIndex, photos]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
@@ -130,6 +193,94 @@ export function OcrLab({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [goPrev, goNext]);
+
+  /** Load the cluster panel for a clicked face. Hits the same endpoint
+   *  the standalone Face Lab used; returns members within the photo's
+   *  event sharing the face's faceClusterId. */
+  async function loadCluster(face: LabFace) {
+    if (!selectedPhoto || !face.faceClusterId) return;
+    setActiveFaceId(face.id);
+    setClusterMembers(null);
+    setClusterLoading(true);
+    try {
+      const qs = new URLSearchParams({
+        eventId: selectedPhoto.eventId,
+        cluster: face.faceClusterId,
+      });
+      const r = await fetch(`/api/photographer/face-lab/cluster?${qs}`, {
+        cache: "no-store",
+      });
+      if (!r.ok) throw new Error(`${r.status}`);
+      const d = (await r.json()) as { members: ClusterMember[] };
+      setClusterMembers(d.members);
+    } catch (e) {
+      console.warn("cluster fetch failed:", e);
+      setClusterMembers([]);
+    } finally {
+      setClusterLoading(false);
+    }
+  }
+
+  /** Force-re-index a single photo's faces. Mutates the local `photos`
+   *  copy after success so the bbox overlay refreshes in place — no
+   *  hard reload needed. */
+  async function forceFaceReindex() {
+    if (!selectedPhoto) return;
+    setReindexState("running");
+    setReindexError(null);
+    try {
+      const r = await fetch(
+        `/api/photographer/photos/${selectedPhoto.id}/rerun-faces`,
+        { method: "POST" }
+      );
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `${r.status}`);
+      }
+      // Refetch the photo so we get the new face row ids + bboxes.
+      const detail = await fetch(`/api/photographer/photos/${selectedPhoto.id}`, {
+        cache: "no-store",
+      });
+      if (detail.ok) {
+        const d = (await detail.json()) as {
+          photo?: {
+            faces?: {
+              id: string;
+              rekognitionFaceId: string | null;
+              faceClusterId: string | null;
+              confidence: number;
+              x0: number;
+              y0: number;
+              x1: number;
+              y1: number;
+              source: string;
+            }[];
+          };
+        };
+        const newFaces: LabFace[] =
+          d.photo?.faces?.map((f) => ({
+            id: f.id,
+            rekognitionFaceId: f.rekognitionFaceId,
+            faceClusterId: f.faceClusterId,
+            confidence: f.confidence,
+            bbox: { x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 },
+            source: f.source,
+          })) ?? [];
+        setPhotos((curr) =>
+          curr.map((p) =>
+            p.id === selectedPhoto.id
+              ? { ...p, faces: newFaces, facesIndexedAt: new Date().toISOString() }
+              : p
+          )
+        );
+      }
+      setReindexState("ok");
+      setTimeout(() => setReindexState("idle"), 1500);
+    } catch (e) {
+      setReindexError(e instanceof Error ? e.message : String(e));
+      setReindexState("err");
+    }
+  }
 
   async function run(opts: { force?: boolean } = {}) {
     if (!photoId) return;
@@ -176,7 +327,7 @@ export function OcrLab({
     setSettings((s) => ({ ...s, [key]: value }));
   }
 
-  const selectedPhoto = photoId ? recent.find((r) => r.id === photoId) ?? null : null;
+  const selectedPhoto = photoId ? photos.find((r) => r.id === photoId) ?? null : null;
 
   return (
     <main
@@ -227,8 +378,67 @@ export function OcrLab({
                 color: "var(--ink)",
               }}
             >
-              OCR <em className="acc-l" style={{ fontStyle: "italic" }}>lab</em>
+              Detection <em className="acc-l" style={{ fontStyle: "italic" }}>lab</em>
             </span>
+            {/* Mode toggle — OCR (bibs) vs Faces (Rekognition). Sits next to
+                the title so it reads as "this is the lab; toggle what we're
+                inspecting." URL syncs the choice on change. */}
+            <div
+              role="tablist"
+              style={{
+                display: "flex",
+                background: "var(--cream)",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: 2,
+                gap: 2,
+              }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "ocr"}
+                onClick={() => setMode("ocr")}
+                style={{
+                  padding: "4px 10px",
+                  background: mode === "ocr" ? "var(--surface)" : "transparent",
+                  color: mode === "ocr" ? "var(--ink)" : "var(--muted)",
+                  border: 0,
+                  borderRadius: 4,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontWeight: mode === "ocr" ? 500 : 400,
+                  boxShadow: mode === "ocr" ? "var(--shadow)" : "none",
+                }}
+              >
+                OCR
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "faces"}
+                onClick={() => setMode("faces")}
+                style={{
+                  padding: "4px 10px",
+                  background: mode === "faces" ? "var(--surface)" : "transparent",
+                  color: mode === "faces" ? "var(--ink)" : "var(--muted)",
+                  border: 0,
+                  borderRadius: 4,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  fontWeight: mode === "faces" ? 500 : 400,
+                  boxShadow: mode === "faces" ? "var(--shadow)" : "none",
+                }}
+              >
+                Faces
+              </button>
+            </div>
             <span
               style={{
                 fontFamily: "var(--font-mono)",
@@ -238,15 +448,18 @@ export function OcrLab({
                 color: "var(--muted)",
               }}
             >
-              {recent.length} photo{recent.length === 1 ? "" : "s"}
-              {debug && ` · ${debug.durationMs}ms · ${debug.bibs.length} kept`}
+              {photos.length} photo{photos.length === 1 ? "" : "s"}
+              {mode === "ocr" && debug &&
+                ` · ${debug.durationMs}ms · ${debug.bibs.length} kept`}
+              {mode === "faces" && selectedPhoto &&
+                ` · ${selectedPhoto.faces.length} face${selectedPhoto.faces.length === 1 ? "" : "s"}`}
             </span>
           </div>
         </div>
 
         {/* Photo picker strip — smaller tiles. Active thumb auto-scrolls
             into view when the user navigates with arrow keys. */}
-        {recent.length > 0 && (
+        {photos.length > 0 && (
           <div
             style={{
               display: "flex",
@@ -256,7 +469,7 @@ export function OcrLab({
               flex: "0 0 auto",
             }}
           >
-            {recent.map((p) => (
+            {photos.map((p) => (
               <button
                 key={p.id}
                 ref={(el) => {
@@ -333,20 +546,77 @@ export function OcrLab({
                   cursor: selectedPhoto ? "zoom-in" : "default",
                 }}
               >
-                {showOcrView && debug ? (
+                {mode === "ocr" && showOcrView && debug ? (
                   <ResultOverlay debug={debug} fitHeight />
                 ) : selectedPhoto ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={selectedPhoto.previewUrl}
-                    alt=""
+                  <div
                     style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                      display: "block",
+                      position: "relative",
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
-                  />
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedPhoto.previewUrl}
+                      alt=""
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                    {/* Faces-mode bbox overlay. Each box is a clickable
+                        target that opens the cluster panel in the right
+                        rail. We use percent units so they scale with the
+                        rendered image. */}
+                    {mode === "faces" && selectedPhoto.faces.length > 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {selectedPhoto.faces.map((f) => {
+                          const isActive = f.id === activeFaceId;
+                          return (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void loadCluster(f);
+                              }}
+                              title={`conf ${(f.confidence * 100).toFixed(0)}%`}
+                              style={{
+                                position: "absolute",
+                                left: `${f.bbox.x0 * 100}%`,
+                                top: `${f.bbox.y0 * 100}%`,
+                                width: `${(f.bbox.x1 - f.bbox.x0) * 100}%`,
+                                height: `${(f.bbox.y1 - f.bbox.y0) * 100}%`,
+                                border: isActive
+                                  ? "3px solid var(--accent)"
+                                  : "2px solid #5dbf85",
+                                background: "transparent",
+                                cursor: "pointer",
+                                padding: 0,
+                                borderRadius: 2,
+                                pointerEvents: "auto",
+                                boxShadow: isActive
+                                  ? "0 0 0 1px var(--accent) inset"
+                                  : "none",
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 ) : null}
 
                 {/* Status badge — when OCR is running or failed, surface that
@@ -373,8 +643,9 @@ export function OcrLab({
 
                 {/* Toggle chip — only visible after a successful run.
                     stopPropagation so clicking the chip doesn't also fire the
-                    zoom overlay. */}
-                {debug && state === "ok" && (
+                    zoom overlay. OCR-only — faces mode has no preprocessed
+                    view to toggle to. */}
+                {mode === "ocr" && debug && state === "ok" && (
                   <div
                     onClick={(e) => e.stopPropagation()}
                     style={{
@@ -428,10 +699,26 @@ export function OcrLab({
               paddingRight: 4,
             }}
           >
+            {/* ---------- Faces-mode right rail ---------- */}
+            {mode === "faces" && (
+              <FacesPanel
+                photo={selectedPhoto}
+                activeFaceId={activeFaceId}
+                clusterMembers={clusterMembers}
+                clusterLoading={clusterLoading}
+                reindexState={reindexState}
+                reindexError={reindexError}
+                onPickFace={loadCluster}
+                onForceReindex={forceFaceReindex}
+                onJumpToPhoto={(pid) => setPhotoId(pid)}
+              />
+            )}
+
+            {/* ---------- OCR-mode right rail ---------- */}
             {/* Run button. The cache returns a memoised result instantly for
                 identical (photoId + settings). "Force re-run" bypasses it
                 when you want to hit the provider again. */}
-            {(() => {
+            {mode === "ocr" && (() => {
               const hasCachedFor = photoId
                 ? cacheRef.current.has(cacheKey(photoId, settings))
                 : false;
@@ -489,7 +776,7 @@ export function OcrLab({
             })()}
 
             {/* Result chips */}
-            {debug && debug.bibs.length > 0 && (
+            {mode === "ocr" && debug && debug.bibs.length > 0 && (
               <Box title={`Kept bibs (${debug.bibs.length})`}>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {debug.bibs.map((b) => (
@@ -513,7 +800,7 @@ export function OcrLab({
 
             {/* Already-tagged metadata for the selected photo. Compares the
                 live OCR run against whatever bibs we've already stored. */}
-            {selectedPhoto && (
+            {mode === "ocr" && selectedPhoto && (
               <Box title="Photo metadata">
                 {selectedPhoto.tags && selectedPhoto.tags.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -581,6 +868,7 @@ export function OcrLab({
               </Box>
             )}
 
+            {mode === "ocr" && (<>
             <Box title="Provider">
               <Field label="OCR backend">
                 <Select
@@ -842,6 +1130,7 @@ export function OcrLab({
                 </pre>
               </Box>
             )}
+            </>)}
           </div>
         </div>
       </div>
@@ -853,6 +1142,260 @@ export function OcrLab({
       `}</style>
     </main>
   );
+}
+
+/* ============================================================
+ * FacesPanel — right rail in Faces mode
+ *
+ * Lists every detected face for the selected photo with its
+ * Rekognition FaceId / cluster / confidence / source. Clicking
+ * a face opens the cluster panel below, which renders crop
+ * thumbnails of every PhotoFace sharing the cluster across the
+ * event. The force-re-index button up top drops + re-runs
+ * IndexFaces for this photo.
+ * ============================================================ */
+function FacesPanel({
+  photo,
+  activeFaceId,
+  clusterMembers,
+  clusterLoading,
+  reindexState,
+  reindexError,
+  onPickFace,
+  onForceReindex,
+  onJumpToPhoto,
+}: {
+  photo: RecentPhoto | null;
+  activeFaceId: string | null;
+  clusterMembers: ClusterMember[] | null;
+  clusterLoading: boolean;
+  reindexState: State;
+  reindexError: string | null;
+  onPickFace: (face: LabFace) => void | Promise<void>;
+  onForceReindex: () => void | Promise<void>;
+  onJumpToPhoto: (photoId: string) => void;
+}) {
+  return (
+    <>
+      {/* Force re-index — same sticky-top behaviour as the OCR Run button
+          so it's always reachable while scrolling through the face list. */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          background: "var(--paper)",
+          paddingBottom: 4,
+          zIndex: 1,
+        }}
+      >
+        <button
+          className="btn btn--primary"
+          onClick={() => onForceReindex()}
+          disabled={!photo || reindexState === "running"}
+          style={{ width: "100%" }}
+        >
+          {reindexState === "running"
+            ? "Re-indexing…"
+            : reindexState === "ok"
+              ? "✓ Re-indexed"
+              : reindexState === "err"
+                ? "Failed — retry"
+                : "↻ Force re-index"}
+        </button>
+        {photo && (
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+              textAlign: "right",
+            }}
+          >
+            {photo.facesIndexedAt
+              ? `indexed ${fmtRelative(photo.facesIndexedAt)} · ${photo.faces.length} face${photo.faces.length === 1 ? "" : "s"}`
+              : "never indexed"}
+          </div>
+        )}
+        {reindexState === "err" && reindexError && (
+          <div
+            style={{
+              marginTop: 6,
+              background: "var(--cream)",
+              border: "1px solid var(--accent)",
+              color: "var(--accent)",
+              padding: "6px 10px",
+              borderRadius: 6,
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+            }}
+          >
+            {reindexError}
+          </div>
+        )}
+      </div>
+
+      <Box title="Detected faces">
+        {!photo || photo.faces.length === 0 ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--muted)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {photo
+              ? "No faces yet — try Force re-index."
+              : "Select a photo to see its faces."}
+          </div>
+        ) : (
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            {photo.faces.map((f) => {
+              const selected = f.id === activeFaceId;
+              return (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPickFace(f)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      background: selected ? "var(--cream)" : "transparent",
+                      border: selected
+                        ? "1px solid var(--accent)"
+                        : "1px solid var(--line)",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      letterSpacing: ".04em",
+                      color: "var(--ink)",
+                      display: "grid",
+                      gap: 2,
+                    }}
+                  >
+                    <span>
+                      faceId{" "}
+                      <strong style={{ fontWeight: 600 }}>
+                        {truncateMid(f.rekognitionFaceId ?? "—", 14)}
+                      </strong>
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>
+                      cluster {truncateMid(f.faceClusterId ?? "—", 14)}
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>
+                      conf {(f.confidence * 100).toFixed(1)}% · {f.source}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Box>
+
+      {activeFaceId && (
+        <Box title="Cluster across event">
+          {clusterLoading ? (
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>Loading cluster…</div>
+          ) : !clusterMembers ? null : clusterMembers.length === 0 ? (
+            <div style={{ color: "var(--muted)", fontSize: 12 }}>
+              No other photos found in this cluster.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))",
+                gap: 6,
+              }}
+            >
+              {clusterMembers.map((m) => (
+                <button
+                  key={`${m.photoId}-${m.faceId}`}
+                  type="button"
+                  onClick={() => onJumpToPhoto(m.photoId)}
+                  title={`Conf ${(m.confidence * 100).toFixed(0)}%`}
+                  style={{
+                    padding: 0,
+                    border: "1px solid var(--line)",
+                    borderRadius: 4,
+                    background: "var(--cream)",
+                    cursor: "pointer",
+                    aspectRatio: "1 / 1",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/photos/${m.photoId}/face/${m.faceId}`}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </Box>
+      )}
+
+      {photo && (
+        <Box title="Photo metadata">
+          <MetaKV
+            label="Taken"
+            value={photo.takenAt ? fmtDate(photo.takenAt) : "—"}
+          />
+          <MetaKV
+            label="GPS"
+            value={
+              photo.gps
+                ? `${photo.gps[0].toFixed(5)}, ${photo.gps[1].toFixed(5)}`
+                : "—"
+            }
+          />
+          <MetaKV label="ID" value={photo.id.slice(0, 14) + "…"} />
+        </Box>
+      )}
+    </>
+  );
+}
+
+/** "abcdefghij" → "abcd…ghij" — for compact id rendering. */
+function truncateMid(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const half = Math.floor((max - 1) / 2);
+  return `${s.slice(0, half)}…${s.slice(-half)}`;
+}
+
+/** "3d ago" / "just now" for the facesIndexedAt chip. */
+function fmtRelative(iso: string): string {
+  try {
+    const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+    const m = Math.floor(diff / 60_000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch {
+    return iso;
+  }
 }
 
 function ResultOverlay({
