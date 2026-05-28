@@ -29,13 +29,15 @@ export async function GET(req: Request) {
   const isAdmin = pg?.isAdmin ?? false;
 
   const url = new URL(req.url);
-  // Cursor pagination. `pageSize` caps how many we return per page;
-  // `cursor` is the createdAt ISO string of the last row from the previous
-  // page (we send rows back DESC by createdAt). Omit cursor → first page.
+  // Pagination: pages-based when `page` is set, cursor-based otherwise.
+  // Page-based gives the client real totals and "jump to last page" but
+  // does a COUNT() — cursor avoids that cost. Both share `pageSize`.
   const pageSize = Math.min(
     Math.max(Number(url.searchParams.get("pageSize") ?? 48) || 48, 1),
     200
   );
+  const pageParam = url.searchParams.get("page");
+  const page = pageParam ? Math.max(Number(pageParam) || 1, 1) : null;
   const cursor = url.searchParams.get("cursor"); // ISO datetime of last seen row
   // ?mine=1 forces "only show photos I uploaded", overriding admin's
   // see-all behaviour. The photographer dashboard sends this so the owner
@@ -43,16 +45,25 @@ export async function GET(req: Request) {
   const onlyMine = url.searchParams.get("mine") === "1";
   const scopeToMe = !isAdmin || onlyMine;
 
+  const baseWhere = scopeToMe ? { photographerId } : {};
   const where = {
-    ...(scopeToMe ? { photographerId } : {}),
-    ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+    ...baseWhere,
+    // Cursor only applies when explicit page isn't requested.
+    ...(page === null && cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
   };
 
-  // Fetch pageSize + 1 to know if there's another page without a count query.
+  // For pages mode we also need the total to compute pageCount.
+  const total =
+    page !== null ? await db.photo.count({ where: baseWhere }) : null;
+
+  // Fetch pageSize + 1 to know if there's another page without a count query
+  // (cursor mode). Pages mode uses skip/take + total.
   const rows = await db.photo.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    take: pageSize + 1,
+    ...(page !== null
+      ? { skip: (page - 1) * pageSize, take: pageSize }
+      : { take: pageSize + 1 }),
     select: {
       id: true,
       eventId: true,
@@ -72,11 +83,30 @@ export async function GET(req: Request) {
     },
   });
 
-  // If we fetched pageSize+1 successfully, there's at least one more row
-  // beyond this page. Slice off the peek row before returning.
-  const hasMore = rows.length > pageSize;
-  const page = hasMore ? rows.slice(0, pageSize) : rows;
-  const nextCursor = hasMore ? page[page.length - 1].createdAt.toISOString() : null;
+  // Two response shapes — pages mode (total + pageCount) and cursor mode
+  // (hasMore + nextCursor). Both return the photos in DESC createdAt order
+  // sliced to pageSize.
+  let pageRows = rows;
+  let hasMore = false;
+  let nextCursor: string | null = null;
+  let pageCount: number | null = null;
+
+  if (page !== null && total !== null) {
+    pageCount = Math.max(Math.ceil(total / pageSize), 1);
+    // Pages mode: rows is already exactly `pageSize` (or fewer on the last).
+    // No peek row to trim. hasMore is derived from page < pageCount.
+    hasMore = page < pageCount;
+    if (pageRows.length > 0) {
+      nextCursor = pageRows[pageRows.length - 1].createdAt.toISOString();
+    }
+  } else {
+    // Cursor mode: slice off the peek row, advertise hasMore + nextCursor.
+    hasMore = rows.length > pageSize;
+    pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+    if (hasMore && pageRows.length > 0) {
+      nextCursor = pageRows[pageRows.length - 1].createdAt.toISOString();
+    }
+  }
 
   const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
 
@@ -85,7 +115,11 @@ export async function GET(req: Request) {
     pageSize,
     hasMore,
     nextCursor,
-    photos: page.map((r) => ({
+    // Pages-mode fields. Null when caller used cursor mode.
+    total,
+    page,
+    pageCount,
+    photos: pageRows.map((r) => ({
       id: r.id,
       eventId: r.eventId,
       mile: r.mile,

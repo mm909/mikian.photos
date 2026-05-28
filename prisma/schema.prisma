@@ -72,6 +72,10 @@ model Photo {
   // basic moderation log
   hiddenBy       String?
   hiddenAt       DateTime?
+  // Client-computed SHA-256 of the original file bytes. Used by the upload
+  // sign route to detect duplicate uploads (same image being ingested
+  // twice). null on rows created before this field existed.
+  fingerprint    String?
   createdAt      DateTime  @default(now())
 
   event        Event        @relation(fields: [eventId], references: [id])
@@ -80,6 +84,7 @@ model Photo {
 
   @@index([eventId, hidden])
   @@index([photographerId])
+  @@index([fingerprint])
 }
 
 /// One row per (photo, bib) tag. Same photo can carry several bibs (multiple
@@ -142,8 +147,12 @@ model Order {
   // PayPal capture id — for reconciliation with PayPal's dashboard, refunds.
   // Unique so re-capture attempts can't double-insert.
   paypalCaptureId String?   @unique
-  // 30-day JWT carrying { orderId, photoIds }; minted on capture.
-  downloadToken   String?   @unique
+  // 30-day JWT carrying { orderId }. Minted on capture, kept on the row
+  // so we can re-send the receipt email later without re-minting.
+  // NO @unique — the encoded JWT is variable-length text and an index on
+  // it busts the Postgres btree row-size limit; we never query by token
+  // anyway (downloads supply it in the URL and we verify by signature).
+  downloadToken   String?
   paidAt          DateTime  @default(now())
   createdAt       DateTime  @default(now())
 

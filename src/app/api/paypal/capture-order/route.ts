@@ -113,7 +113,12 @@ export async function POST(req: Request) {
       },
     });
 
-    const token = await mintDownloadToken({ orderId: order.id, photoIds });
+    // Token carries only the order id — entitlement (photoIds) lives on the
+    // Order row so the JWT stays tiny regardless of how many photos the buyer
+    // bought. Earlier we packed photoIds into the claims and the encoded
+    // token blew past Postgres' btree row size limit (Lighthouse has 1200+
+    // photos × ~25-char cuids).
+    const token = await mintDownloadToken({ orderId: order.id });
     const orderWithToken = await db.order.update({
       where: { id: order.id },
       data: { downloadToken: token },

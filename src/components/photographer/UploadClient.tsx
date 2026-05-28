@@ -12,13 +12,24 @@ type EventLite = { id: string; name: string; date: string; city: string };
  * split-out of /finalize-preview / /finalize-ocr / /finalize-face plugs in
  * cleanly. Face detection isn't built yet — items just skip that stage.
  *
- *   queued     → user picked the file but Ingest hasn't started this one
- *   uploading  → presigned PUT to R2 (bytes-on-wire from the browser)
- *   processing → /finalize is running on the server: preview build + OCR
- *   done       → all stages complete, photo is in the library
- *   error      → any step failed; user can retry the failed bucket
+ *   queued       → user picked the file but Ingest hasn't started this one
+ *   uploading    → presigned PUT to R2 (bytes-on-wire from the browser)
+ *   processing   → /finalize is running on the server: preview build + OCR
+ *   done         → all stages complete, photo is in the library
+ *   duplicate    → server says this fingerprint already exists; awaiting
+ *                  user decision (overwrite/skip)
+ *   skipped      → user chose to skip a duplicate; file does not get
+ *                  re-uploaded
+ *   error        → any step failed; user can retry the failed bucket
  */
-type Stage = "queued" | "uploading" | "processing" | "done" | "error";
+type Stage =
+  | "queued"
+  | "uploading"
+  | "processing"
+  | "done"
+  | "duplicate"
+  | "skipped"
+  | "error";
 
 type QueueItem = {
   uid: string;
@@ -26,8 +37,27 @@ type QueueItem = {
   previewUrl: string;
   stage: Stage;
   photoId?: string;
+  /** Client-side SHA-256 of the file bytes, computed once on enqueue. */
+  fingerprint?: string;
+  /** When stage === "duplicate", the existing photo we'd be replacing. */
+  duplicateOf?: { id: string; createdAt: string };
   errorMsg?: string;
 };
+
+/**
+ * Compute SHA-256 of a File as a lowercase hex string. Runs in the browser
+ * via SubtleCrypto — works in all current browsers, no extra dependency.
+ */
+async function fingerprintFile(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  const bytes = new Uint8Array(hash);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) {
+    out += bytes[i].toString(16).padStart(2, "0");
+  }
+  return out;
+}
 
 const CONCURRENCY = 3;
 
@@ -71,25 +101,53 @@ export function UploadClient({ event }: { event: EventLite }) {
     setItems((curr) => [...curr, ...next]);
     setShowMoreZone(false);
     setClearConfirm(false);
+
+    // Compute fingerprints in the background — kicks off SHA-256 over each
+    // file's bytes. Cheap on modern hardware (~50ms per file). Once each
+    // resolves we patch the queue item; the upload pipeline reads it later.
+    for (const it of next) {
+      fingerprintFile(it.file)
+        .then((fp) => updateItem(it.uid, { fingerprint: fp }))
+        .catch(() => {
+          /* fingerprint failure is silent — duplicate detection just won't
+           * fire for this item, upload still proceeds. */
+        });
+    }
   }
 
   function updateItem(uid: string, patch: Partial<QueueItem>) {
     setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
   }
 
-  async function uploadOne(item: QueueItem): Promise<void> {
+  async function uploadOne(item: QueueItem, opts: { force?: boolean } = {}): Promise<void> {
     updateItem(item.uid, { stage: "uploading" });
 
     const signRes = await fetch("/api/photographer/photos/sign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId: event.id, contentType: item.file.type || "image/jpeg" }),
+      body: JSON.stringify({
+        eventId: event.id,
+        contentType: item.file.type || "image/jpeg",
+        fingerprint: item.fingerprint,
+        force: opts.force ?? false,
+      }),
     });
     if (!signRes.ok) throw new Error(`sign ${signRes.status}`);
-    const { photoId, uploadUrl } = (await signRes.json()) as {
-      photoId: string;
-      uploadUrl: string;
-    };
+    const signJson = (await signRes.json()) as
+      | { photoId: string; uploadUrl: string }
+      | { duplicate: true; existing: { id: string; createdAt: string } };
+
+    if ("duplicate" in signJson) {
+      // Server says this fingerprint already exists. Park the item — the
+      // user has to decide overwrite vs skip via the duplicate prompt below.
+      updateItem(item.uid, {
+        stage: "duplicate",
+        duplicateOf: signJson.existing,
+      });
+      return;
+    }
+
+    const { photoId, uploadUrl } = signJson;
     updateItem(item.uid, { photoId });
 
     const putRes = await fetch(uploadUrl, {
@@ -171,6 +229,53 @@ export function UploadClient({ event }: { event: EventLite }) {
   }
 
   /**
+   * Resolve a single duplicate by overwriting the existing photo. Deletes
+   * the existing Photo + R2 blobs, then re-runs the pipeline for this item
+   * with `force: true` so the sign route skips the duplicate check.
+   */
+  async function overwriteOne(item: QueueItem) {
+    if (!item.duplicateOf) return;
+    try {
+      await fetch(`/api/photographer/photos/${item.duplicateOf.id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      /* deletion failure isn't fatal — the new upload will get a fresh id. */
+    }
+    updateItem(item.uid, { stage: "queued", duplicateOf: undefined });
+    void processUntilEmpty();
+  }
+
+  function skipOne(item: QueueItem) {
+    updateItem(item.uid, { stage: "skipped", duplicateOf: undefined });
+  }
+
+  async function overwriteAllDuplicates() {
+    const dups = items.filter((i) => i.stage === "duplicate" && i.duplicateOf);
+    await Promise.allSettled(
+      dups.map((i) =>
+        fetch(`/api/photographer/photos/${i.duplicateOf!.id}`, { method: "DELETE" })
+      )
+    );
+    setItems((curr) =>
+      curr.map((i) =>
+        i.stage === "duplicate"
+          ? { ...i, stage: "queued", duplicateOf: undefined }
+          : i
+      )
+    );
+    void processUntilEmpty();
+  }
+
+  function skipAllDuplicates() {
+    setItems((curr) =>
+      curr.map((i) =>
+        i.stage === "duplicate" ? { ...i, stage: "skipped", duplicateOf: undefined } : i
+      )
+    );
+  }
+
+  /**
    * Wipe the queue + ask the server to delete every photo that already made
    * it to R2. Guarded behind a confirm step in the UI. Failures on individual
    * deletes are non-fatal — we still clear the local queue so the user can
@@ -196,10 +301,15 @@ export function UploadClient({ event }: { event: EventLite }) {
   const uploading = items.filter((i) => i.stage === "uploading").length;
   const processing = items.filter((i) => i.stage === "processing").length;
   const done = items.filter((i) => i.stage === "done").length;
+  const skipped = items.filter((i) => i.stage === "skipped").length;
+  const duplicates = items.filter((i) => i.stage === "duplicate");
   const failed = items.filter((i) => i.stage === "error").length;
   const inFlight = uploading + processing;
-  const isFinished = total > 0 && queued === 0 && inFlight === 0;
-  const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const isFinished =
+    total > 0 && queued === 0 && inFlight === 0 && duplicates.length === 0;
+  // Progress denominator excludes skipped items so the bar fills cleanly.
+  const denom = Math.max(total - skipped, 1);
+  const progressPct = Math.round((done / denom) * 100);
 
   const currentUploading = useMemo(
     () => [...items].reverse().find((i) => i.stage === "uploading") ?? null,
@@ -331,6 +441,149 @@ export function UploadClient({ event }: { event: EventLite }) {
         {/* Pipeline view */}
         {items.length > 0 && (
           <div style={{ marginTop: 22 }}>
+            {/* Duplicate prompt — parks duplicate items until the user decides
+                overwrite-or-skip. Doesn't block the rest of the queue. */}
+            {duplicates.length > 0 && (
+              <div
+                style={{
+                  marginBottom: 18,
+                  padding: 14,
+                  background: "var(--cream)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        letterSpacing: ".14em",
+                        textTransform: "uppercase",
+                        color: "var(--accent)",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {duplicates.length} duplicate
+                      {duplicates.length === 1 ? "" : "s"} detected
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: 13,
+                        color: "var(--ink)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      Same file (by content hash) is already in this event.
+                      Overwrite replaces the existing photo; skip leaves it
+                      alone.
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={skipAllDuplicates}
+                    >
+                      Skip all
+                    </button>
+                    <button
+                      className="btn btn--primary btn--sm"
+                      onClick={() => void overwriteAllDuplicates()}
+                    >
+                      Overwrite all
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  {duplicates.map((it) => (
+                    <div
+                      key={it.uid}
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: 6,
+                        padding: 8,
+                        display: "grid",
+                        gridTemplateColumns: "48px 1fr",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={it.previewUrl}
+                        alt=""
+                        style={{
+                          width: 48,
+                          height: 48,
+                          objectFit: "cover",
+                          borderRadius: 4,
+                          display: "block",
+                        }}
+                      />
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 10,
+                            color: "var(--muted)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {it.file.name}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              flex: 1,
+                            }}
+                            onClick={() => skipOne(it)}
+                          >
+                            Skip
+                          </button>
+                          <button
+                            className="btn btn--primary btn--sm"
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 6px",
+                              flex: 1,
+                            }}
+                            onClick={() => void overwriteOne(it)}
+                          >
+                            Overwrite
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <ProgressBar pct={progressPct} hasFailures={failed > 0 && isFinished} />
 
             <div

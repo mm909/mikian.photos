@@ -1,18 +1,24 @@
 import { SignJWT, jwtVerify } from "jose";
 
 /**
- * Short-lived JWT minted at order capture. Carries the order ID + a list of
- * photo IDs the buyer is entitled to download. Signed with NEXTAUTH_SECRET
- * (we already have one provisioned for NextAuth — reuse it).
+ * Short-lived JWT minted at order capture. Carries only the order id —
+ * everything else (which photos are entitled, expiry, refund status) is
+ * looked up against the Order row at verify time.
  *
- * Default TTL: 30 days. Buyers can re-download within that window. If they
- * lose the link, /account (Phase 2) will let them re-mint.
+ * Why so small: an earlier version of this token stashed every entitled
+ * photo id in the claims, which blew past the Postgres btree row-size
+ * limit when stored back on the order row (the Lighthouse Half has ~1200+
+ * photos × ~25-char cuids). Keeping the token to a single id keeps it
+ * tiny and pushes entitlement to a join you'd do anyway.
+ *
+ * Signed with NEXTAUTH_SECRET (we already provision one for NextAuth).
+ * Default TTL: 30 days — buyers can re-download within that window and
+ * the receipt email's magic link stays valid that long.
  */
 const TTL_SECONDS = 60 * 60 * 24 * 30;
 
-type DownloadClaims = {
+export type DownloadClaims = {
   orderId: string;
-  photoIds: string[];
 };
 
 function secretKey(): Uint8Array {
@@ -33,9 +39,8 @@ export async function verifyDownloadToken(token: string): Promise<DownloadClaims
   try {
     const { payload } = await jwtVerify(token, secretKey());
     const orderId = typeof payload.orderId === "string" ? payload.orderId : null;
-    const photoIds = Array.isArray(payload.photoIds) ? (payload.photoIds as string[]) : null;
-    if (!orderId || !photoIds) return null;
-    return { orderId, photoIds };
+    if (!orderId) return null;
+    return { orderId };
   } catch {
     return null;
   }

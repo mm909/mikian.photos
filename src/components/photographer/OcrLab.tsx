@@ -221,17 +221,6 @@ export function OcrLab({
               {debug && ` · ${debug.durationMs}ms · ${debug.bibs.length} kept`}
             </span>
           </div>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-            }}
-          >
-            ← → to navigate
-          </span>
         </div>
 
         {/* Photo picker strip — smaller tiles. Active thumb auto-scrolls

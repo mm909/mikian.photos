@@ -160,8 +160,8 @@ export function Lightbox({
           </div>
           <Headline
             as="h2"
-            text="Your photo."
-            accent="photo."
+            text={currentEvent.name.join(" ")}
+            accent={currentEvent.name[0]}
             style={{
               margin: 0,
               fontFamily: "var(--font-serif)",

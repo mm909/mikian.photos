@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 import { LibraryTile } from "@/components/photographer/LibraryTile";
+import { Pager } from "@/components/photographer/Pager";
 import {
   PhotoDetailModal,
   type DeleteState,
@@ -40,41 +41,52 @@ export function PhotographerDashboardClient({ name, email }: Props) {
   const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Pages mode: shows real total + page navigation. Server returns
+  // { photos, total, page, pageCount } per request.
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(48);
+  const [total, setTotal] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
 
-  const fetchPage = useCallback(async (cursor: string | null) => {
-    if (cursor === null) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const qs = new URLSearchParams({ mine: "1" });
-      if (cursor) qs.set("cursor", cursor);
-      const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error(`catalog ${r.status}`);
-      const d = (await r.json()) as {
-        photos: DetailPhoto[];
-        hasMore: boolean;
-        nextCursor: string | null;
-      };
-      setPhotos((curr) => (cursor === null ? d.photos : [...curr, ...d.photos]));
-      setHasMore(d.hasMore);
-      setNextCursor(d.nextCursor);
-    } catch (e) {
-      console.error(e);
-      if (cursor === null) setPhotos([]);
-    } finally {
-      if (cursor === null) setLoading(false);
-      else setLoadingMore(false);
-    }
-  }, []);
+  const fetchPageNum = useCallback(
+    async (n: number) => {
+      setLoading(true);
+      try {
+        const qs = new URLSearchParams({
+          mine: "1",
+          page: String(n),
+          pageSize: String(pageSize),
+        });
+        const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
+          cache: "no-store",
+        });
+        if (!r.ok) throw new Error(`catalog ${r.status}`);
+        const d = (await r.json()) as {
+          photos: DetailPhoto[];
+          total: number | null;
+          page: number | null;
+          pageCount: number | null;
+        };
+        setPhotos(d.photos);
+        if (d.total != null) setTotal(d.total);
+        if (d.pageCount != null) setPageCount(d.pageCount);
+        if (d.page != null) setPage(d.page);
+        // If the requested page is past the end (e.g. after deletes), bounce
+        // to the new last page automatically.
+        if (d.pageCount != null && n > d.pageCount && d.pageCount >= 1) {
+          void fetchPageNum(d.pageCount);
+        }
+      } catch (e) {
+        console.error(e);
+        setPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pageSize]
+  );
 
-  const fetchCatalog = useCallback(() => fetchPage(null), [fetchPage]);
-  const loadMore = useCallback(() => {
-    if (nextCursor && hasMore && !loadingMore) void fetchPage(nextCursor);
-  }, [fetchPage, nextCursor, hasMore, loadingMore]);
+  const fetchCatalog = useCallback(() => fetchPageNum(1), [fetchPageNum]);
 
   useEffect(() => {
     void fetchCatalog();
@@ -231,9 +243,13 @@ export function PhotographerDashboardClient({ name, email }: Props) {
             marginBottom: 32,
           }}
         >
-          <Stat label="Uploaded" value={counts.total.toString()} />
-          <Stat label="Visible" value={counts.visible.toString()} />
-          <Stat label="Hidden" value={counts.hidden.toString()} />
+          {/* Uploaded shows the real total across all pages (from the server's
+              COUNT), not just the count of rows currently loaded on the
+              client. Visible/Hidden remain derived from the loaded page —
+              they describe the page you're seeing, not the dataset. */}
+          <Stat label="Uploaded" value={total.toString()} />
+          <Stat label="On this page" value={counts.visible.toString()} />
+          <Stat label="Hidden (page)" value={counts.hidden.toString()} />
           <Stat label="Sales (coming)" value="—" muted />
         </div>
 
@@ -283,16 +299,15 @@ export function PhotographerDashboardClient({ name, email }: Props) {
                 />
               ))}
             </div>
-            {hasMore && (
-              <div style={{ marginTop: 22, display: "flex", justifyContent: "center" }}>
-                <button
-                  className="btn btn--ghost"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? "Loading…" : `Load more (${photos.length} loaded)`}
-                </button>
-              </div>
+            {pageCount > 1 && (
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                total={total}
+                pageSize={pageSize}
+                onGo={fetchPageNum}
+                disabled={loading}
+              />
             )}
           </>
         )}

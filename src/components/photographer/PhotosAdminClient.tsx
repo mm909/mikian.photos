@@ -11,6 +11,7 @@ import {
   type RerunState,
 } from "@/components/photographer/PhotoDetailModal";
 import { LibraryTile } from "@/components/photographer/LibraryTile";
+import { Pager } from "@/components/photographer/Pager";
 
 type BibTag = DetailPhoto["bibs"][number];
 type AdminPhoto = DetailPhoto;
@@ -32,48 +33,51 @@ export function PhotosAdminClient() {
   // The currently-open photo in the detail modal, or null.
   const [openId, setOpenId] = useState<string | null>(null);
 
-  /** Cursor for the next page (server's createdAt of the last loaded row).
-   *  null = no further pages OR initial state before first fetch. */
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Pages mode — replaces the previous cursor-based Load-more so the admin
+  // can jump anywhere in the dataset (first / last / arbitrary page).
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(48);
+  const [total, setTotal] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
 
-  /** Fetch a page from the catalog. When `cursor` is omitted we load the
-   *  first page and replace state; with a cursor we append to the existing
-   *  list. */
-  const fetchPage = useCallback(async (cursor: string | null) => {
-    if (cursor === null) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const qs = new URLSearchParams();
-      if (cursor) qs.set("cursor", cursor);
-      const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
-        cache: "no-store",
-      });
-      if (!r.ok) throw new Error(`catalog ${r.status}`);
-      const d = (await r.json()) as {
-        photos: AdminPhoto[];
-        isAdmin: boolean;
-        hasMore: boolean;
-        nextCursor: string | null;
-      };
-      setPhotos((curr) => (cursor === null ? d.photos : [...curr, ...d.photos]));
-      setIsAdmin(d.isAdmin);
-      setHasMore(d.hasMore);
-      setNextCursor(d.nextCursor);
-    } catch (e) {
-      console.error(e);
-      if (cursor === null) setPhotos([]);
-    } finally {
-      if (cursor === null) setLoading(false);
-      else setLoadingMore(false);
-    }
-  }, []);
+  const fetchPageNum = useCallback(
+    async (n: number) => {
+      setLoading(true);
+      try {
+        const qs = new URLSearchParams({
+          page: String(n),
+          pageSize: String(pageSize),
+        });
+        const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
+          cache: "no-store",
+        });
+        if (!r.ok) throw new Error(`catalog ${r.status}`);
+        const d = (await r.json()) as {
+          photos: AdminPhoto[];
+          isAdmin: boolean;
+          total: number | null;
+          page: number | null;
+          pageCount: number | null;
+        };
+        setPhotos(d.photos);
+        setIsAdmin(d.isAdmin);
+        if (d.total != null) setTotal(d.total);
+        if (d.pageCount != null) setPageCount(d.pageCount);
+        if (d.page != null) setPage(d.page);
+        if (d.pageCount != null && n > d.pageCount && d.pageCount >= 1) {
+          void fetchPageNum(d.pageCount);
+        }
+      } catch (e) {
+        console.error(e);
+        setPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pageSize]
+  );
 
-  const fetchCatalog = useCallback(() => fetchPage(null), [fetchPage]);
-  const loadMore = useCallback(() => {
-    if (nextCursor && hasMore && !loadingMore) void fetchPage(nextCursor);
-  }, [fetchPage, nextCursor, hasMore, loadingMore]);
+  const fetchCatalog = useCallback(() => fetchPageNum(1), [fetchPageNum]);
 
   useEffect(() => {
     void fetchCatalog();
@@ -185,14 +189,23 @@ export function PhotosAdminClient() {
 
   const filteredPhotos = useMemo(() => {
     const s = search.trim().toLowerCase();
+    // If the search term is purely digits, use it as an EXACT bib number.
+    // Substring matching on bibs ("250" matches "12503") meant the library
+    // surfaced photos the runner-facing bib search couldn't find — the
+    // /api/photos route does exact equality (bibs: { some: { bib: n } }).
+    // Keeping both code paths aligned avoids the discrepancy.
+    const numericExact = /^\d+$/.test(s) ? Number(s) : null;
     return photos.filter((p) => {
       if (filter === "tagged" && p.bibs.length === 0) return false;
       if (filter === "untagged" && p.bibs.length > 0) return false;
       if (filter === "hidden" && !p.hidden) return false;
       if (filter !== "hidden" && p.hidden) return false; // hide hidden by default
       if (!s) return true;
+      if (numericExact !== null) {
+        // Exact bib match — same semantics as the runner /api/photos?bib=
+        return p.bibs.some((b) => b.bib === numericExact);
+      }
       if (p.id.toLowerCase().includes(s)) return true;
-      if (p.bibs.some((b) => String(b.bib).includes(s))) return true;
       if (p.photographer.name.toLowerCase().includes(s)) return true;
       return false;
     });
@@ -361,19 +374,15 @@ export function PhotosAdminClient() {
               ))}
             </div>
 
-            {/* Paginator — only when the *unfiltered* dataset has more rows.
-                If the active filter is hiding everything below, we still let
-                the user fetch the next page so they can find more matches. */}
-            {hasMore && (
-              <div style={{ marginTop: 22, display: "flex", justifyContent: "center" }}>
-                <button
-                  className="btn btn--ghost"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? "Loading…" : `Load more (${photos.length} loaded)`}
-                </button>
-              </div>
+            {pageCount > 1 && (
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                total={total}
+                pageSize={pageSize}
+                onGo={fetchPageNum}
+                disabled={loading}
+              />
             )}
           </>
         )}
