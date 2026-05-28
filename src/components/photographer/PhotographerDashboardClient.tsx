@@ -1,17 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
-import { LibraryTile } from "@/components/photographer/LibraryTile";
-import { Pager } from "@/components/photographer/Pager";
-import {
-  PhotoDetailModal,
-  type DeleteState,
-  type DetailPhoto,
-  type HideState,
-  type RerunState,
-} from "@/components/photographer/PhotoDetailModal";
 
 type Props = {
   /** First name to greet with. Passed from the server actor lookup. */
@@ -20,181 +11,72 @@ type Props = {
   email: string;
 };
 
+type EventRow = {
+  eventId: string;
+  eventName: string;
+  eventDate: string | null;
+  eventCity: string | null;
+  photoCount: number;
+  lastUploadAt: string | null;
+};
+
 /**
- * Photographer dashboard — the "your race-day gallery" landing page.
+ * Photographer dashboard — landing page for everyone with a photographer role.
  *
- * It's intentionally a near-clone of the Library experience (same tile, same
- * click-to-modal, same ⋯ hover menu) but always scoped to the signed-in user's
- * own uploads — even for owner. Owner gets a separate Library route to see
- * every photographer's work.
+ * Re-scoped (May 2026) from a per-photographer photo grid into a per-event
+ * rollup table. The reasoning:
+ *   - The grid here was a near-duplicate of /photographer/photos, which
+ *     confused the "where do I go to manage my photos" path.
+ *   - At MVP scale (10s of events at most), an event table gives the
+ *     photographer the right mental model: "here are the races I've shot;
+ *     click into one to browse its library."
  *
- * Why the duplication-ish: keeping the dashboard as its own component lets
- * us add dashboard-only things later (sales, payouts, route-map of where you
- * shot from) without bloating the admin Library client.
+ * The owner sees every event in the system here (cross-photographer
+ * overview); non-owner sees only events they've personally uploaded to.
+ *
+ * Clicking a row deep-links to /photographer/photos?eventId=<id> which
+ * filters the library page to that event.
  */
 export function PhotographerDashboardClient({ name, email }: Props) {
   const [loading, setLoading] = useState(true);
-  const [photos, setPhotos] = useState<DetailPhoto[]>([]);
-
-  const [rerun, setRerun] = useState<Record<string, RerunState>>({});
-  const [delState, setDelState] = useState<Record<string, DeleteState>>({});
-  const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  // Pages mode: shows real total + page navigation. Server returns
-  // { photos, total, page, pageCount } per request.
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(48);
-  const [total, setTotal] = useState(0);
-  const [pageCount, setPageCount] = useState(1);
-
-  const fetchPageNum = useCallback(
-    async (n: number) => {
-      setLoading(true);
-      try {
-        const qs = new URLSearchParams({
-          mine: "1",
-          page: String(n),
-          pageSize: String(pageSize),
-        });
-        const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
-          cache: "no-store",
-        });
-        if (!r.ok) throw new Error(`catalog ${r.status}`);
-        const d = (await r.json()) as {
-          photos: DetailPhoto[];
-          total: number | null;
-          page: number | null;
-          pageCount: number | null;
-        };
-        setPhotos(d.photos);
-        if (d.total != null) setTotal(d.total);
-        if (d.pageCount != null) setPageCount(d.pageCount);
-        if (d.page != null) setPage(d.page);
-        // If the requested page is past the end (e.g. after deletes), bounce
-        // to the new last page automatically.
-        if (d.pageCount != null && n > d.pageCount && d.pageCount >= 1) {
-          void fetchPageNum(d.pageCount);
-        }
-      } catch (e) {
-        console.error(e);
-        setPhotos([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [pageSize]
-  );
-
-  const fetchCatalog = useCallback(() => fetchPageNum(1), [fetchPageNum]);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [totalPhotos, setTotalPhotos] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    void fetchCatalog();
-  }, [fetchCatalog]);
-
-  async function rerunOcr(photoId: string) {
-    setRerun((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-ocr`, {
-        method: "POST",
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/photographer/events", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`events ${r.status}`))))
+      .then((d: { events: EventRow[]; totalPhotos: number; isAdmin: boolean }) => {
+        if (cancelled) return;
+        setEvents(d.events);
+        setTotalPhotos(d.totalPhotos);
+        setIsAdmin(d.isAdmin);
+      })
+      .catch((e) => {
+        console.warn("dashboard events fetch failed:", e);
+        if (!cancelled) setEvents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-      if (!r.ok) throw new Error(`rerun ${r.status}`);
-      const d = (await r.json()) as { detected: { bib: number; confidence: number }[] };
-      setPhotos((curr) =>
-        curr.map((p) =>
-          p.id === photoId
-            ? {
-                ...p,
-                bibs: [
-                  ...p.bibs.filter((b) => !b.source.startsWith("ocr-")),
-                  ...d.detected.map((x) => ({
-                    id: `tmp-${x.bib}`,
-                    bib: x.bib,
-                    confidence: x.confidence,
-                    source: "ocr-tesseract",
-                    createdAt: new Date().toISOString(),
-                  })),
-                ].sort((a, b) => b.confidence - a.confidence),
-              }
-            : p
-        )
-      );
-      setRerun((s) => ({ ...s, [photoId]: "ok" }));
-      setTimeout(() => setRerun((s) => ({ ...s, [photoId]: "idle" })), 1800);
-    } catch (e) {
-      console.error(e);
-      setRerun((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  async function deletePhoto(photoId: string) {
-    setDelState((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}`, { method: "DELETE" });
-      if (!r.ok) {
-        const j = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `delete ${r.status}`);
-      }
-      setOpenId((curr) => (curr === photoId ? null : curr));
-      setPhotos((curr) => curr.filter((p) => p.id !== photoId));
-      setDelState((s) => {
-        const next = { ...s };
-        delete next[photoId];
-        return next;
-      });
-    } catch (e) {
-      console.error(e);
-      setDelState((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
-
-  async function toggleHidden(photoId: string) {
-    const photo = photos.find((p) => p.id === photoId);
-    if (!photo) return;
-    const nextHidden = !photo.hidden;
-    setHideStateMap((s) => ({ ...s, [photoId]: "running" }));
-    try {
-      const r = await fetch(`/api/photographer/photos/${photoId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hidden: nextHidden }),
-      });
-      if (!r.ok) throw new Error(`patch ${r.status}`);
-      setPhotos((curr) =>
-        curr.map((p) => (p.id === photoId ? { ...p, hidden: nextHidden } : p))
-      );
-      setHideStateMap((s) => {
-        const next = { ...s };
-        delete next[photoId];
-        return next;
-      });
-    } catch (e) {
-      console.error(e);
-      setHideStateMap((s) => ({ ...s, [photoId]: "err" }));
-    }
-  }
-
-  // Visible-only by default; hidden photos still counted in stats but not in grid.
-  const visiblePhotos = useMemo(() => photos.filter((p) => !p.hidden), [photos]);
-
-  const counts = useMemo(() => {
-    const total = photos.length;
-    const visible = visiblePhotos.length;
-    const hidden = total - visible;
-    return { total, visible, hidden };
-  }, [photos, visiblePhotos]);
-
-  const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
   const firstName = name.split(" ")[0] || name;
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
-        {/* Header */}
+        {/* Header — center-aligned so the Ingest button sits middle-aligned
+            with the headline block. */}
         <div
           style={{
             display: "flex",
-            alignItems: "baseline",
+            alignItems: "center",
             justifyContent: "space-between",
             gap: 18,
             flexWrap: "wrap",
@@ -227,47 +109,51 @@ export function PhotographerDashboardClient({ name, email }: Props) {
               }}
             />
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <Link href="/photographer/upload" className="btn btn--primary">
-              Ingest photos →
-            </Link>
+          <Link href="/photographer/upload" className="btn btn--primary">
+            Ingest photos →
+          </Link>
+        </div>
+
+        {/* Section heading + total. Single line replaces the old pill stats
+            row. Admins see "all events"; non-admins see their own work. */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 18,
+            flexWrap: "wrap",
+            marginBottom: 18,
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 22,
+              margin: 0,
+              color: "var(--ink)",
+            }}
+          >
+            {isAdmin ? "All events" : "Your events"}
+          </h2>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            {events.length} event{events.length === 1 ? "" : "s"} ·{" "}
+            {totalPhotos.toLocaleString()} photo{totalPhotos === 1 ? "" : "s"}
           </div>
         </div>
 
-        {/* Stats */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-            marginBottom: 32,
-          }}
-        >
-          {/* Uploaded shows the real total across all pages (from the server's
-              COUNT), not just the count of rows currently loaded on the
-              client. Visible/Hidden remain derived from the loaded page —
-              they describe the page you're seeing, not the dataset. */}
-          <Stat label="Uploaded" value={total.toString()} />
-          <Stat label="On this page" value={counts.visible.toString()} />
-          <Stat label="Hidden (page)" value={counts.hidden.toString()} />
-          <Stat label="Sales (coming)" value="—" muted />
-        </div>
-
-        <h2
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontWeight: 500,
-            fontSize: 22,
-            margin: "0 0 14px",
-            color: "var(--ink)",
-          }}
-        >
-          Your uploads
-        </h2>
-
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading…</p>
-        ) : visiblePhotos.length === 0 ? (
+        ) : events.length === 0 ? (
           <div
             style={{
               padding: "48px 24px",
@@ -279,78 +165,41 @@ export function PhotographerDashboardClient({ name, email }: Props) {
               fontSize: 15,
             }}
           >
-            Nothing here yet. Drop your first batch via the upload button above.
+            No events yet. Drop your first batch via the Ingest button above.
           </div>
         ) : (
-          <>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                gap: 4,
-              }}
-            >
-              {visiblePhotos.map((p) => (
-                <LibraryTile
-                  key={p.id}
-                  p={p}
-                  running={rerun[p.id] === "running"}
-                  onOpen={() => setOpenId(p.id)}
-                />
-              ))}
-            </div>
-            {pageCount > 1 && (
-              <Pager
-                page={page}
-                pageCount={pageCount}
-                total={total}
-                pageSize={pageSize}
-                onGo={fetchPageNum}
-                disabled={loading}
-              />
-            )}
-          </>
+          <EventTable rows={events} />
         )}
       </div>
-
-      {openPhoto && (
-        <PhotoDetailModal
-          photos={visiblePhotos}
-          currentId={openPhoto.id}
-          onSelect={(id) => setOpenId(id)}
-          rerunState={rerun[openPhoto.id] ?? "idle"}
-          deleteState={delState[openPhoto.id] ?? "idle"}
-          hideState={hideStateMap[openPhoto.id] ?? "idle"}
-          onClose={() => setOpenId(null)}
-          onRerun={() => rerunOcr(openPhoto.id)}
-          onAskDelete={() =>
-            setDelState((s) => ({
-              ...s,
-              [openPhoto.id]: s[openPhoto.id] === "confirm" ? "idle" : "confirm",
-            }))
-          }
-          onConfirmDelete={() => deletePhoto(openPhoto.id)}
-          onCancelDelete={() => setDelState((s) => ({ ...s, [openPhoto.id]: "idle" }))}
-          onToggleHidden={() => toggleHidden(openPhoto.id)}
-        />
-      )}
     </main>
   );
 }
 
-function Stat({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+/**
+ * Per-event rollup table. Each row links to the library page scoped to
+ * that event so the photographer can browse + manage individual photos.
+ *
+ * Mobile: the columns collapse via grid-template gracefully — we don't
+ * try to be clever, just keep the row clickable as a whole.
+ */
+function EventTable({ rows }: { rows: EventRow[] }) {
   return (
     <div
       style={{
         background: "var(--surface)",
         border: "1px solid var(--line)",
         borderRadius: 10,
-        padding: "14px 16px",
-        opacity: muted ? 0.6 : 1,
+        overflow: "hidden",
       }}
     >
       <div
         style={{
+          display: "grid",
+          gridTemplateColumns: "1.6fr 100px 120px 140px",
+          gap: 12,
+          padding: "12px 18px",
+          background: "var(--cream)",
+          borderBottom: "1px solid var(--line)",
           fontFamily: "var(--font-mono)",
           fontSize: 10,
           letterSpacing: ".12em",
@@ -358,19 +207,130 @@ function Stat({ label, value, muted }: { label: string; value: string; muted?: b
           color: "var(--muted)",
         }}
       >
-        {label}
+        <span>Event</span>
+        <span style={{ textAlign: "right" }}>Photos</span>
+        <span style={{ textAlign: "right" }}>Last upload</span>
+        <span style={{ textAlign: "right" }}>Browse</span>
       </div>
-      <div
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: 28,
-          marginTop: 2,
-          color: "var(--ink)",
-        }}
-      >
-        {value}
-      </div>
+      {rows.map((r) => (
+        <Link
+          key={r.eventId}
+          href={`/photographer/photos?eventId=${encodeURIComponent(r.eventId)}`}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 100px 120px 140px",
+            gap: 12,
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--line)",
+            textDecoration: "none",
+            color: "var(--ink)",
+            fontSize: 14,
+            alignItems: "center",
+            transition: "background 0.12s",
+          }}
+        >
+          <span style={{ minWidth: 0 }}>
+            <span
+              style={{
+                display: "block",
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: 16,
+                color: "var(--ink)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {r.eventName}
+            </span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 2,
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".06em",
+                color: "var(--muted)",
+              }}
+            >
+              {[
+                r.eventDate ? fmtDate(r.eventDate) : null,
+                r.eventCity,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 20,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {r.photoCount.toLocaleString()}
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontSize: 13,
+              color: "var(--muted)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {r.lastUploadAt ? fmtRelative(r.lastUploadAt) : "—"}
+          </span>
+          <span
+            style={{
+              textAlign: "right",
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--ink)",
+            }}
+          >
+            View library →
+          </span>
+        </Link>
+      ))}
     </div>
   );
+}
+
+function fmtDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * "3 days ago" / "just now" — coarse buckets are enough for the dashboard.
+ * Falls back to absolute date once we're past the week boundary.
+ */
+function fmtRelative(iso: string): string {
+  try {
+    const then = new Date(iso).getTime();
+    const now = Date.now();
+    const diff = Math.max(0, now - then);
+    const minutes = Math.floor(diff / 60_000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return fmtDate(iso);
+  } catch {
+    return iso;
+  }
 }

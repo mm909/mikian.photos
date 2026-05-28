@@ -45,7 +45,20 @@ export async function GET(req: Request) {
   const onlyMine = url.searchParams.get("mine") === "1";
   const scopeToMe = !isAdmin || onlyMine;
 
-  const baseWhere = scopeToMe ? { photographerId } : {};
+  // Library filters. Both are admin-only — non-admin's scope is already
+  // forced to themselves above, so a photographerId filter is meaningless
+  // and an eventId filter, while harmless, gets honored anyway so deep
+  // links from the dashboard work for both.
+  const filterEventId = url.searchParams.get("eventId") || null;
+  const filterPhotographerId = isAdmin
+    ? url.searchParams.get("photographerId") || null
+    : null;
+
+  const baseWhere = {
+    ...(scopeToMe ? { photographerId } : {}),
+    ...(filterEventId ? { eventId: filterEventId } : {}),
+    ...(filterPhotographerId ? { photographerId: filterPhotographerId } : {}),
+  };
   const where = {
     ...baseWhere,
     // Cursor only applies when explicit page isn't requested.
@@ -78,6 +91,21 @@ export async function GET(req: Request) {
       photographer: { select: { id: true, name: true, email: true } },
       bibs: {
         select: { id: true, bib: true, confidence: true, source: true, createdAt: true },
+        orderBy: { confidence: "desc" },
+      },
+      faces: {
+        select: {
+          id: true,
+          rekognitionFaceId: true,
+          faceClusterId: true,
+          confidence: true,
+          x0: true,
+          y0: true,
+          x1: true,
+          y1: true,
+          source: true,
+          createdAt: true,
+        },
         orderBy: { confidence: "desc" },
       },
     },
@@ -129,6 +157,10 @@ export async function GET(req: Request) {
       hidden: r.hidden,
       photographer: r.photographer,
       bibs: r.bibs,
+      faces: r.faces.map((f) => ({
+        ...f,
+        createdAt: f.createdAt.toISOString(),
+      })),
       previewUrl: publicBase
         ? `${publicBase}/previews/${r.id}.jpg`
         : `/api/photos/${r.id}/preview`,

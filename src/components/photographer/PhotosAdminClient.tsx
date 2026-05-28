@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Headline } from "@/components/runner/Headline";
 import {
   PhotoDetailModal,
@@ -16,29 +17,55 @@ import { Pager } from "@/components/photographer/Pager";
 type BibTag = DetailPhoto["bibs"][number];
 type AdminPhoto = DetailPhoto;
 
+/** Compact directory entry for the photographer-filter dropdown. */
+type PhotographerOption = { id: string; name: string; email: string };
+
+/**
+ * Photo library — single-pane browse-and-manage surface.
+ *
+ * Reshaped (May 2026) to drop the stat pills, the all/tagged/untagged/hidden
+ * tab strip, the bulk Re-run-OCR button, and the back-to-dashboard chip.
+ * The dashboard now groups uploads by event, and clicking a row deep-links
+ * here with `?eventId=<id>` (and optionally `?photographerId=<id>` so an
+ * owner can scope to one photographer's work).
+ *
+ * URL params (deep-linkable from the dashboard):
+ *   eventId          - filter to photos for this event
+ *   photographerId   - admin only: filter to this photographer's photos
+ *
+ * Quick-search box still does substring/exact-bib match on the loaded
+ * page (kept because typing a bib number is the fastest way to confirm
+ * "did OCR see this?").
+ */
 export function PhotosAdminClient() {
+  const params = useSearchParams();
+  const eventIdParam = params?.get("eventId") ?? null;
+  const photographerIdParam = params?.get("photographerId") ?? null;
+
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<AdminPhoto[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [rerun, setRerun] = useState<Record<string, RerunState>>({});
+  const [rerunFace, setRerunFace] = useState<Record<string, RerunState>>({});
   const [delState, setDelState] = useState<Record<string, DeleteState>>({});
   const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
 
-  const [bulkRunning, setBulkRunning] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, found: 0 });
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "tagged" | "untagged" | "hidden">("all");
+  /** Admin-only photographer filter; null = "all photographers". */
+  const [photographerId, setPhotographerId] = useState<string | null>(photographerIdParam);
 
-  // The currently-open photo in the detail modal, or null.
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Pages mode — replaces the previous cursor-based Load-more so the admin
-  // can jump anywhere in the dataset (first / last / arbitrary page).
+  // Pages mode — replaces the previous cursor-based Load-more.
   const [page, setPage] = useState(1);
   const [pageSize] = useState(48);
   const [total, setTotal] = useState(0);
   const [pageCount, setPageCount] = useState(1);
+
+  // Directory of photographers for the admin filter dropdown. Loaded once
+  // when we learn the caller is admin.
+  const [photographers, setPhotographers] = useState<PhotographerOption[]>([]);
 
   const fetchPageNum = useCallback(
     async (n: number) => {
@@ -48,6 +75,8 @@ export function PhotosAdminClient() {
           page: String(n),
           pageSize: String(pageSize),
         });
+        if (eventIdParam) qs.set("eventId", eventIdParam);
+        if (photographerId) qs.set("photographerId", photographerId);
         const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
           cache: "no-store",
         });
@@ -74,7 +103,7 @@ export function PhotosAdminClient() {
         setLoading(false);
       }
     },
-    [pageSize]
+    [pageSize, eventIdParam, photographerId]
   );
 
   const fetchCatalog = useCallback(() => fetchPageNum(1), [fetchPageNum]);
@@ -82,6 +111,39 @@ export function PhotosAdminClient() {
   useEffect(() => {
     void fetchCatalog();
   }, [fetchCatalog]);
+
+  // Once we know the caller is admin, fetch the photographer directory for
+  // the filter dropdown. Owner-only endpoint — non-admins won't see the
+  // option anyway.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    fetch("/api/admin/users", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`users ${r.status}`))))
+      .then(
+        (d: {
+          users: {
+            id: string;
+            name: string;
+            email: string;
+            photoCount: number;
+          }[];
+        }) => {
+          if (cancelled) return;
+          // Only show photographers who actually have photos — keeps the
+          // dropdown short and useful.
+          setPhotographers(
+            d.users
+              .filter((u) => u.photoCount > 0)
+              .map((u) => ({ id: u.id, name: u.name, email: u.email }))
+          );
+        }
+      )
+      .catch((e) => console.warn("photographers fetch failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   async function rerunOcr(photoId: string) {
     setRerun((s) => ({ ...s, [photoId]: "running" }));
@@ -116,6 +178,25 @@ export function PhotosAdminClient() {
     }
   }
 
+  async function rerunFaceIndex(photoId: string) {
+    setRerunFace((s) => ({ ...s, [photoId]: "running" }));
+    try {
+      const r = await fetch(`/api/photographer/photos/${photoId}/rerun-faces`, {
+        method: "POST",
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `rerun-faces ${r.status}`);
+      }
+      void fetchCatalog();
+      setRerunFace((s) => ({ ...s, [photoId]: "ok" }));
+      setTimeout(() => setRerunFace((s) => ({ ...s, [photoId]: "idle" })), 1500);
+    } catch (e) {
+      console.error(e);
+      setRerunFace((s) => ({ ...s, [photoId]: "err" }));
+    }
+  }
+
   async function deletePhoto(photoId: string) {
     setDelState((s) => ({ ...s, [photoId]: "running" }));
     try {
@@ -124,8 +205,6 @@ export function PhotosAdminClient() {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `delete ${r.status}`);
       }
-      // Close the modal first so it doesn't flash empty after the photo
-      // disappears from the grid.
       setOpenId((curr) => (curr === photoId ? null : curr));
       setPhotos((curr) => curr.filter((p) => p.id !== photoId));
       setDelState((s) => {
@@ -165,91 +244,65 @@ export function PhotosAdminClient() {
     }
   }
 
-  async function rerunAll() {
-    const ids = filteredPhotos.map((p) => p.id);
-    setBulkRunning(true);
-    setBulkProgress({ done: 0, total: ids.length, found: 0 });
-    let foundTotal = 0;
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      try {
-        const r = await fetch(`/api/photographer/photos/${id}/rerun-ocr`, { method: "POST" });
-        if (r.ok) {
-          const d = (await r.json()) as { total: number };
-          foundTotal += d.total;
-        }
-      } catch {
-        /* keep going */
-      }
-      setBulkProgress({ done: i + 1, total: ids.length, found: foundTotal });
-    }
-    setBulkRunning(false);
-    await fetchCatalog();
-  }
-
+  // In-page search across what's currently loaded. Numeric input is an
+  // exact bib match (mirrors /api/photos?bib= semantics); free-text is a
+  // substring match on photo id and photographer name.
   const filteredPhotos = useMemo(() => {
     const s = search.trim().toLowerCase();
-    // If the search term is purely digits, use it as an EXACT bib number.
-    // Substring matching on bibs ("250" matches "12503") meant the library
-    // surfaced photos the runner-facing bib search couldn't find — the
-    // /api/photos route does exact equality (bibs: { some: { bib: n } }).
-    // Keeping both code paths aligned avoids the discrepancy.
     const numericExact = /^\d+$/.test(s) ? Number(s) : null;
     return photos.filter((p) => {
-      if (filter === "tagged" && p.bibs.length === 0) return false;
-      if (filter === "untagged" && p.bibs.length > 0) return false;
-      if (filter === "hidden" && !p.hidden) return false;
-      if (filter !== "hidden" && p.hidden) return false; // hide hidden by default
+      if (p.hidden) return false; // hidden photos drop out of the grid
       if (!s) return true;
       if (numericExact !== null) {
-        // Exact bib match — same semantics as the runner /api/photos?bib=
         return p.bibs.some((b) => b.bib === numericExact);
       }
       if (p.id.toLowerCase().includes(s)) return true;
       if (p.photographer.name.toLowerCase().includes(s)) return true;
       return false;
     });
-  }, [photos, search, filter]);
-
-  const counts = useMemo(() => {
-    const total = photos.length;
-    const tagged = photos.filter((p) => p.bibs.length > 0).length;
-    const ocrTagged = photos.filter((p) =>
-      p.bibs.some((b) => b.source.startsWith("ocr-"))
-    ).length;
-    const hidden = photos.filter((p) => p.hidden).length;
-    return { total, tagged, untagged: total - tagged, ocrTagged, hidden };
-  }, [photos]);
+  }, [photos, search]);
 
   const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
+
+  // Build the scope summary line: "Admin · all photographers · 2,345 photos"
+  // or "Your uploads · 145 photos" with extra qualifiers when filters are on.
+  const photographerNameById = useMemo(
+    () => new Map(photographers.map((p) => [p.id, p.name])),
+    [photographers]
+  );
+  const scopeLine = (() => {
+    const parts: string[] = [];
+    if (isAdmin) {
+      if (photographerId) {
+        parts.push(`Admin · ${photographerNameById.get(photographerId) ?? "photographer"}`);
+      } else {
+        parts.push("Admin · all photographers");
+      }
+    } else {
+      parts.push("Your uploads");
+    }
+    if (eventIdParam) parts.push(`event ${eventIdParam}`);
+    parts.push(`${total.toLocaleString()} photo${total === 1 ? "" : "s"}`);
+    return parts.join(" · ");
+  })();
 
   return (
     <main className="screen" style={{ padding: "40px 24px 96px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        {/* Header */}
+        {/* Header — vert-aligned title + CTA. The title block carries the
+            scope summary right below the headline so the user always knows
+            what they're looking at without a separate pill row. */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "baseline",
+            alignItems: "center",
             gap: 18,
             flexWrap: "wrap",
             marginBottom: 22,
           }}
         >
           <div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".14em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-                marginBottom: 8,
-              }}
-            >
-              {isAdmin ? "Admin — all photographers" : "Your uploads"}
-            </div>
             <Headline
               as="h1"
               text="Photo library."
@@ -262,34 +315,27 @@ export function PhotosAdminClient() {
                 letterSpacing: "-.015em",
               }}
             />
+            <div
+              style={{
+                marginTop: 8,
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".14em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+              }}
+            >
+              {scopeLine}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <Link href="/photographer" className="btn btn--ghost">
-              ← Dashboard
-            </Link>
-            <Link href="/photographer/upload" className="btn btn--primary">
-              Upload →
-            </Link>
-          </div>
+          <Link href="/photographer/upload" className="btn btn--primary">
+            Upload →
+          </Link>
         </div>
 
-        {/* Stat strip */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 10,
-            marginBottom: 22,
-          }}
-        >
-          <Stat label="Total" value={counts.total.toString()} />
-          <Stat label="Bib-tagged" value={counts.tagged.toString()} />
-          <Stat label="OCR detected" value={counts.ocrTagged.toString()} />
-          <Stat label="Untagged" value={counts.untagged.toString()} muted />
-          <Stat label="Hidden" value={counts.hidden.toString()} muted />
-        </div>
-
-        {/* Filter + actions */}
+        {/* Filter row — search + (admin-only) photographer dropdown.
+            Drops the previous all/tagged/untagged/hidden tab strip and
+            the bulk Re-run OCR button. */}
         <div
           style={{
             display: "flex",
@@ -306,48 +352,27 @@ export function PhotosAdminClient() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 240, padding: "8px 12px", fontSize: 14 }}
           />
-          <div
-            role="tablist"
-            style={{
-              display: "flex",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              background: "var(--cream)",
-              padding: 2,
-            }}
-          >
-            {(["all", "tagged", "untagged", "hidden"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setFilter(k)}
-                aria-selected={filter === k}
-                style={{
-                  padding: "6px 12px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 10,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  background: filter === k ? "var(--surface)" : "transparent",
-                  border: 0,
-                  color: filter === k ? "var(--ink)" : "var(--muted)",
-                  cursor: "pointer",
-                  borderRadius: 4,
-                }}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-          <button
-            className="btn btn--ghost"
-            onClick={rerunAll}
-            disabled={bulkRunning || filteredPhotos.length === 0}
-            title="Re-run bib OCR on every photo in the current filter"
-          >
-            {bulkRunning
-              ? `Re-running ${bulkProgress.done}/${bulkProgress.total} (+${bulkProgress.found} bibs)`
-              : `Re-run OCR on ${filteredPhotos.length}`}
-          </button>
+          {isAdmin && (
+            <select
+              value={photographerId ?? ""}
+              onChange={(e) => setPhotographerId(e.target.value || null)}
+              className="input"
+              style={{
+                padding: "8px 12px",
+                fontSize: 13,
+                minWidth: 220,
+                fontFamily: "var(--font-sans)",
+              }}
+              title="Filter by photographer"
+            >
+              <option value="">All photographers</option>
+              {photographers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.email})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Grid — photo only, full frame, click to open detail modal */}
@@ -390,12 +415,12 @@ export function PhotosAdminClient() {
 
       {openPhoto && (
         <PhotoDetailModal
-          // Arrow-key nav walks the same filtered+sorted list the user is
-          // looking at in the grid, so the order matches what they expect.
           photos={filteredPhotos}
           currentId={openPhoto.id}
           onSelect={(id) => setOpenId(id)}
           rerunState={rerun[openPhoto.id] ?? "idle"}
+          rerunFaceState={rerunFace[openPhoto.id] ?? "idle"}
+          onRerunFace={() => rerunFaceIndex(openPhoto.id)}
           deleteState={delState[openPhoto.id] ?? "idle"}
           hideState={hideStateMap[openPhoto.id] ?? "idle"}
           onClose={() => setOpenId(null)}
@@ -412,51 +437,6 @@ export function PhotosAdminClient() {
         />
       )}
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        opacity: muted ? 0.7 : 1,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 10,
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "var(--muted)",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: 22,
-          color: "var(--ink)",
-          marginTop: 2,
-        }}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
