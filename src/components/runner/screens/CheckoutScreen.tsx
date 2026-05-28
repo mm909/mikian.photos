@@ -297,7 +297,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                 >
                   <span>
                     {it.kind === "single"
-                      ? `Photo · Mile ${it.mile}`
+                      ? "Photo"
                       : `All photos bundle (${resultPhotos.length || 36})`}
                   </span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>

@@ -53,11 +53,16 @@ export function LandingScreen() {
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
           gap: 64,
-          alignItems: "start",
+          // Stretch both columns to the same height so the search card on
+          // the left matches the course-card stack on the right. The search
+          // card uses flex-column with the LegalFooter pinned to the bottom
+          // (no dead space because we dropped the inner minHeight).
+          alignItems: "stretch",
         }}
       >
-        {/* Left — hook + search */}
-        <div>
+        {/* Left — hook + search. Flex column so the search card can stretch
+            to match the right column's height. */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <div
             style={{
               fontFamily: "var(--font-mono)",
@@ -102,12 +107,16 @@ export function LandingScreen() {
             Search by face scan or bib number.
           </p>
 
-          {/* Search card */}
+          {/* Search card. Flex column so the LegalFooter pins to the
+              bottom when the card stretches to match the right column. */}
           <div
             className="card"
             style={{
               padding: 24,
               marginTop: 28,
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <div
@@ -147,13 +156,13 @@ export function LandingScreen() {
               ))}
             </div>
 
-            {/* Equal-height tab body */}
+            {/* Tab body — content sits at the top, LegalFooter pins to the
+                bottom of the card via the parent flex stretch. */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "space-between",
-                minHeight: 132,
+                flex: 1,
               }}
             >
               <div>
@@ -199,6 +208,10 @@ export function LandingScreen() {
                 )}
               </div>
 
+              {/* Spacer pushes the footer to the bottom of the (now-stretched)
+                  card. With minHeight gone there's no dead space on the
+                  short tab. */}
+              <div style={{ flex: 1 }} />
               <LegalFooter />
             </div>
           </div>

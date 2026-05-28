@@ -69,12 +69,22 @@ export function Lightbox({
               borderRadius: 6,
               overflow: "hidden",
               boxShadow: "var(--shadow-lg)",
-              background: photoBg(photo),
+              background: photo.previewUrl ? "var(--cream)" : photoBg(photo),
             }}
           >
-            <div className="thumb__wm" style={{ fontSize: 14 }}>
-              MIKIAN.PHOTOS
-            </div>
+            {photo.previewUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photo.previewUrl}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            )}
           </div>
 
           <button
@@ -150,8 +160,8 @@ export function Lightbox({
           </div>
           <Headline
             as="h2"
-            text={`Photo at Mile ${photo.mile}`}
-            accent={`Mile ${photo.mile}`}
+            text="Your photo."
+            accent="photo."
             style={{
               margin: 0,
               fontFamily: "var(--font-serif)",
@@ -239,11 +249,26 @@ export function Lightbox({
                       aspectRatio: "2/3",
                       borderRadius: 4,
                       cursor: "pointer",
-                      background: photoBg(p),
+                      background: p.previewUrl ? "var(--cream)" : photoBg(p),
                       outline: isCurr ? "2px solid var(--accent)" : "0",
                       outlineOffset: 2,
+                      overflow: "hidden",
                     }}
-                  />
+                  >
+                    {p.previewUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.previewUrl}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    )}
+                  </div>
                 );
               })}
             </div>

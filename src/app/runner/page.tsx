@@ -100,26 +100,6 @@ export default async function RunnerDashboardPage() {
           </Link>
         </div>
 
-        {/* Stats */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-            marginBottom: 32,
-          }}
-        >
-          <Stat label="Orders" value={orders.length.toString()} />
-          <Stat
-            label="Photos owned"
-            value={orders.reduce((s, o) => s + o.photoIds.length, 0).toString()}
-          />
-          <Stat
-            label="Total spent"
-            value={`$${orders.reduce((s, o) => s + o.amount, 0).toFixed(2)}`}
-          />
-        </div>
-
         <h2
           style={{
             margin: "0 0 14px",
@@ -239,38 +219,3 @@ export default async function RunnerDashboardPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line)",
-        borderRadius: 10,
-        padding: "14px 16px",
-      }}
-    >
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 10,
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "var(--muted)",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: 28,
-          marginTop: 2,
-          color: "var(--ink)",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}

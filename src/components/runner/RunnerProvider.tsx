@@ -268,11 +268,14 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const n = Number(value);
       const racer = findRacerByBib(value) ?? null;
       const matches = catalog.filter((p) => p.bibs?.includes(n));
-      const fellBackToBrowse = matches.length === 0;
+      // Bib search with no hits → do NOT fall back to the whole catalog;
+      // the user prefers to be prompted into a face search instead. The
+      // ResultsScreen empty state surfaces a "Scan your face" CTA.
+      const noMatches = matches.length === 0;
       setMatchedRacer(racer);
       setSearchedBib(value);
-      setSearchFellBack(fellBackToBrowse);
-      setResultPhotos(fellBackToBrowse ? catalog : matches);
+      setSearchFellBack(noMatches);
+      setResultPhotos(matches);
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
@@ -356,6 +359,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
           id,
           mile: p.mile,
           time: p.time,
+          previewUrl: p.previewUrl,
           tones: p.tones,
           spot: p.spot,
           price: 10,
@@ -380,6 +384,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
           id: p.id,
           mile: p.mile,
           time: p.time,
+          previewUrl: p.previewUrl,
           tones: p.tones,
           spot: p.spot,
           price: 10,

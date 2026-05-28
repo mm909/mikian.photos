@@ -103,9 +103,26 @@ export function CartScreen() {
                       width: 64,
                       height: 88,
                       borderRadius: 4,
-                      background: photoBg({ tones: it.tones, spot: it.spot }),
+                      overflow: "hidden",
+                      background: it.previewUrl
+                        ? "var(--cream)"
+                        : photoBg({ tones: it.tones, spot: it.spot }),
                     }}
-                  />
+                  >
+                    {it.previewUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={it.previewUrl}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    )}
+                  </div>
                 ) : (
                   <div
                     style={{
@@ -136,7 +153,7 @@ export function CartScreen() {
                       color: "var(--ink)",
                     }}
                   >
-                    {it.kind === "single" ? `Photo at Mile ${it.mile}` : "All photos bundle"}
+                    {it.kind === "single" ? "Photo" : "All photos bundle"}
                   </div>
                   <div
                     style={{

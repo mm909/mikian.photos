@@ -627,6 +627,15 @@ export function OcrLab({
                   onChange={(v) => patch("maxDigits", v)}
                 />
               </Field>
+              <Field label={`Floor 1-digit: ${(settings.floor1 * 100).toFixed(0)}%`}>
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={settings.floor1}
+                  onChange={(v) => patch("floor1", v)}
+                />
+              </Field>
               <Field label={`Floor 2-digit: ${(settings.floor2 * 100).toFixed(0)}%`}>
                 <Slider
                   min={0}

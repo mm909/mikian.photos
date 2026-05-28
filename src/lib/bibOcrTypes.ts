@@ -80,6 +80,7 @@ export type OcrSettings = {
   threshold: number | null;
   invert: boolean;
   // ---- Bib filter (applies to either provider's word output) ----
+  floor1: number;
   floor2: number;
   floor3: number;
   floor4plus: number;
@@ -101,10 +102,13 @@ export const DEFAULT_OCR_SETTINGS: OcrSettings = {
   normalize: false,
   threshold: null,
   invert: false,
+  // 1-digit bibs are real (small races) but very prone to false positives
+  // from background noise, so we keep the floor high by default.
+  floor1: 0.95,
   floor2: 0.55,
   floor3: 0.25,
   floor4plus: 0.15,
-  minDigits: 2,
+  minDigits: 1,
   maxDigits: 5,
 };
 

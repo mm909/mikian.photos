@@ -46,7 +46,8 @@ export { rekognitionConfigured } from "./bibOcrRekognition";
 const OCR_TIMEOUT_MS = 45_000;
 
 function confidenceFloor(digits: number, s: OcrSettings): number {
-  if (digits <= 1) return 1;
+  if (digits <= 0) return 1;
+  if (digits === 1) return s.floor1;
   if (digits === 2) return s.floor2;
   if (digits === 3) return s.floor3;
   return s.floor4plus;

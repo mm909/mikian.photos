@@ -76,6 +76,10 @@ export type SingleCartItem = {
   id: string;
   mile: number;
   time: string;
+  /** Real photo URL if the item came from the API catalog. When set the
+   *  CartScreen renders an <img>; absent → falls back to the gradient
+   *  built from tones/spot (synthetic demo data only). */
+  previewUrl?: string;
   tones: [string, string, string];
   spot: [number, number];
   price: number;

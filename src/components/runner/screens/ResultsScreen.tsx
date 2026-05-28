@@ -4,16 +4,16 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Headline } from "../Headline";
 import { PhotoThumb } from "../PhotoThumb";
-import { BundleBar } from "../BundleBar";
 import { FaceSuggestBanner } from "../FaceSuggestBanner";
 import { BibSuggestBanner } from "../BibSuggestBanner";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent } from "@/lib/data";
+import { currentEvent, prices } from "@/lib/data";
 
 export function ResultsScreen() {
   const router = useRouter();
   const {
     catalog,
+    catalogLoading,
     resultPhotos,
     matchedRacer,
     searchedBib,
@@ -44,6 +44,15 @@ export function ResultsScreen() {
   const [bib, setBib] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const event = currentEvent;
+
+  const headlineStyle = {
+    fontFamily: "var(--font-serif)",
+    fontWeight: 500 as const,
+    fontSize: 40,
+    lineHeight: 1.05,
+    letterSpacing: "-.012em",
+    color: "var(--ink)",
+  };
 
   function onBundleAdd() {
     if (!bundleInCart) addBundle();
@@ -78,7 +87,7 @@ export function ResultsScreen() {
               color: "var(--paper)",
             }}
           >
-            {event.name[0]} <em className="acc-l">{event.name[1]}</em> {event.name[2]}
+            <em className="acc-l">{event.name[0]}</em> {event.name[1]} {event.name[2]}
           </h1>
           <div
             style={{
@@ -138,76 +147,62 @@ export function ResultsScreen() {
               Bib #{matchedRacer.bib} · {matchedRacer.name} · finished {matchedRacer.finishTime}
             </div>
           )}
-          {searchFellBack && searchedBib ? (
-            <>
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  letterSpacing: ".14em",
-                  textTransform: "uppercase",
-                  color: "var(--muted)",
-                  marginBottom: 8,
-                }}
-              >
-                No matches yet for bib #{searchedBib}
+          {/* Headline + inline buy CTA on one row. Drops the standalone
+              BundleBar visual block in favour of price + button right next
+              to the photos-found count. */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 24,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              {catalogLoading ? (
+                <Headline
+                  as="div"
+                  text="Loading photos…"
+                  accent="photos…"
+                  style={headlineStyle}
+                />
+              ) : searchFellBack && searchedBib ? (
+                <Headline
+                  as="div"
+                  text={`No photos tagged #${searchedBib} yet.`}
+                  accent="No photos"
+                  style={headlineStyle}
+                />
+              ) : (
+                <Headline
+                  as="div"
+                  text={`${resultPhotos.length} photo${resultPhotos.length === 1 ? "" : "s"} found.`}
+                  accent="found."
+                  style={headlineStyle}
+                />
+              )}
+            </div>
+            {resultPhotos.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontWeight: 500,
+                    color: "var(--accent)",
+                    fontSize: 36,
+                    lineHeight: 1,
+                    fontVariantNumeric: "lining-nums tabular-nums",
+                  }}
+                >
+                  ${prices.bundle}
+                </span>
+                <button className="btn btn--primary btn--lg" onClick={onBundleAdd}>
+                  {bundleInCart ? "Checkout →" : "Get them all →"}
+                </button>
               </div>
-              <Headline
-                as="div"
-                text={`Browse all ${resultPhotos.length}.`}
-                accent="all"
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontWeight: 500,
-                  fontSize: 40,
-                  lineHeight: 1.05,
-                  letterSpacing: "-.012em",
-                  color: "var(--ink)",
-                }}
-              />
-              <div
-                style={{
-                  marginTop: 8,
-                  fontFamily: "var(--font-sans)",
-                  fontSize: 14,
-                  color: "var(--muted)",
-                  lineHeight: 1.5,
-                  maxWidth: 540,
-                }}
-              >
-                Bib detection is still warming up on this event. Scroll the
-                full set — your photos are in here.
-              </div>
-            </>
-          ) : searchFellBack ? (
-            <Headline
-              as="div"
-              text={`Browse all ${resultPhotos.length}.`}
-              accent="all"
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontWeight: 500,
-                fontSize: 40,
-                lineHeight: 1.05,
-                letterSpacing: "-.012em",
-                color: "var(--ink)",
-              }}
-            />
-          ) : (
-            <Headline
-              as="div"
-              text={`${resultPhotos.length} photos found.`}
-              accent="found."
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontWeight: 500,
-                fontSize: 40,
-                lineHeight: 1.05,
-                letterSpacing: "-.012em",
-                color: "var(--ink)",
-              }}
-            />
-          )}
+            )}
+          </div>
 
           {faceSuggest && (
             <div style={{ marginTop: 22 }}>
@@ -242,18 +237,6 @@ export function ResultsScreen() {
               flexWrap: "wrap",
             }}
           >
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".12em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-              }}
-            >
-              Find more —
-            </span>
-
             {drawerOpen ? (
               <form
                 onSubmit={(e) => {
@@ -312,10 +295,9 @@ export function ResultsScreen() {
         </div>
       </section>
 
-      {/* Bundle bar — only show when there's something to buy */}
-      {resultPhotos.length > 0 && <BundleBar inCart={bundleInCart} onClick={onBundleAdd} />}
-
-      {/* Grid or empty state */}
+      {/* Grid or empty state. The bundle CTA used to live in a standalone
+          BundleBar row here — it now sits inline with the photos-found
+          headline above for a tighter buy-flow. */}
       <section style={{ padding: 32, maxWidth: 1280, margin: "0 auto" }}>
         {resultPhotos.length > 0 ? (
           <div
@@ -342,6 +324,60 @@ export function ResultsScreen() {
         )}
       </section>
     </main>
+  );
+}
+
+/** Shown when a bib search returned no photos. Encourages the user to try a
+ *  face scan instead of re-typing bibs, since auto-tagging coverage may be
+ *  patchy on a fresh event. */
+function NoBibMatchPrompt({ searchedBib }: { searchedBib: string }) {
+  const { scanFaceOnResults } = useRunner();
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      style={{
+        maxWidth: 560,
+        margin: "32px auto",
+        textAlign: "center",
+        padding: "48px 24px",
+        background: "var(--cream)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+      }}
+    >
+      <Headline
+        as="h2"
+        text={`No photos tagged #${searchedBib} yet.`}
+        accent={`#${searchedBib}`}
+        style={{
+          margin: 0,
+          fontFamily: "var(--font-serif)",
+          fontWeight: 500,
+          fontSize: 24,
+          lineHeight: 1.2,
+          letterSpacing: "-.012em",
+          color: "var(--ink)",
+        }}
+      />
+      <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12, lineHeight: 1.5 }}>
+        Bib auto-detection misses sometimes. A face scan finds your photos
+        even when the bib didn&rsquo;t come through clean.
+      </p>
+      <button
+        className="btn btn--primary"
+        onClick={() => fileRef.current?.click()}
+        style={{ marginTop: 18 }}
+      >
+        Scan your face instead →
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={() => scanFaceOnResults()}
+      />
+    </div>
   );
 }
 
@@ -388,35 +424,7 @@ function EmptyResultsState({
   }
   if (searchedBib) {
     return (
-      <div
-        style={{
-          maxWidth: 540,
-          margin: "32px auto",
-          textAlign: "center",
-          padding: "48px 24px",
-          background: "var(--cream)",
-          border: "1px solid var(--line)",
-          borderRadius: 10,
-        }}
-      >
-        <Headline
-          as="h2"
-          text={`No runner with bib #${searchedBib}.`}
-          accent="No runner"
-          style={{
-            margin: 0,
-            fontFamily: "var(--font-serif)",
-            fontWeight: 500,
-            fontSize: 24,
-            lineHeight: 1.15,
-            letterSpacing: "-.012em",
-            color: "var(--ink)",
-          }}
-        />
-        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12 }}>
-          Double-check your number — bib numbers from this event run 251 to 400.
-        </p>
-      </div>
+      <NoBibMatchPrompt searchedBib={searchedBib} />
     );
   }
   return (
