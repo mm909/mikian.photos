@@ -6,7 +6,7 @@ import { Headline } from "../Headline";
 import { PhotoThumb } from "../PhotoThumb";
 import { FaceSuggestBanner } from "../FaceSuggestBanner";
 import { BibSuggestBanner } from "../BibSuggestBanner";
-import { useRunner } from "../RunnerProvider";
+import { useRunner, type FaceCandidate } from "../RunnerProvider";
 import { currentEvent, prices } from "@/lib/data";
 
 export function ResultsScreen() {
@@ -32,6 +32,10 @@ export function ResultsScreen() {
     faceScanning,
     faceScanStatus,
     faceDone,
+    faceCandidates,
+    confirmedClusterId,
+    expandingCluster,
+    confirmFaceCluster,
   } = useRunner();
 
   // Real event totals derived from the fetched catalog. The synthetic
@@ -306,6 +310,18 @@ export function ResultsScreen() {
         </div>
       </section>
 
+      {/* "Is this you?" — disambiguation strip for bib searches that turn
+          up multiple distinct faces. Click a candidate to expand the
+          result set with that face's other photos in the event. */}
+      {searchedBib && faceCandidates.length > 0 && (
+        <FaceCandidateStrip
+          candidates={faceCandidates}
+          confirmedClusterId={confirmedClusterId}
+          expandingCluster={expandingCluster}
+          onConfirm={confirmFaceCluster}
+        />
+      )}
+
       {/* Grid or empty state. The bundle CTA used to live in a standalone
           BundleBar row here — it now sits inline with the photos-found
           headline above for a tighter buy-flow. */}
@@ -478,5 +494,187 @@ function EmptyResultsState({
         We&rsquo;re still processing photos from the race. Check back in a few days.
       </p>
     </div>
+  );
+}
+
+/* ============================================================
+ * FaceCandidateStrip
+ * ------------------------------------------------------------
+ * Renders the "Is this you?" disambiguation row above the photo
+ * grid. One round avatar tile per cluster present in the bib's
+ * photos; click to confirm the face → server expands the result
+ * set with that cluster's other photos.
+ *
+ * Visual: a horizontal scroller (works on narrow viewports) of
+ * 72px face crops with the photo count below each. Selected
+ * cluster has an accent ring + "✓ you" label.
+ * ============================================================ */
+function FaceCandidateStrip({
+  candidates,
+  confirmedClusterId,
+  expandingCluster,
+  onConfirm,
+}: {
+  candidates: FaceCandidate[];
+  confirmedClusterId: string | null;
+  expandingCluster: boolean;
+  onConfirm: (clusterId: string | null) => void | Promise<void>;
+}) {
+  return (
+    <section
+      style={{
+        maxWidth: 1280,
+        margin: "0 auto",
+        padding: "0 32px",
+      }}
+    >
+      <div
+        style={{
+          background: "var(--cream)",
+          border: "1px solid var(--line)",
+          borderRadius: 12,
+          padding: "20px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: 24,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 220 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+              marginBottom: 6,
+            }}
+          >
+            Is this you?
+          </div>
+          <div
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 18,
+              color: "var(--ink)",
+              lineHeight: 1.3,
+            }}
+          >
+            {confirmedClusterId
+              ? "Pulled in more photos by face."
+              : "Tap your face to find more of you."}
+          </div>
+          {confirmedClusterId && (
+            <button
+              type="button"
+              onClick={() => onConfirm(null)}
+              disabled={expandingCluster}
+              style={{
+                marginTop: 8,
+                background: "transparent",
+                border: 0,
+                color: "var(--muted)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              ← Undo
+            </button>
+          )}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            overflowX: "auto",
+            paddingBottom: 4,
+            flex: 1,
+          }}
+        >
+          {candidates.map((c) => {
+            const selected = c.clusterId === confirmedClusterId;
+            // Cap "more in event" subtitle by subtracting the bib-tagged
+            // appearances — what we're advertising is the *new* photos
+            // the runner unlocks by confirming.
+            const newPhotosUnlocked = Math.max(
+              0,
+              c.photoCountInEvent - c.photoCountInBib
+            );
+            const subtitle =
+              newPhotosUnlocked > 0
+                ? `+${newPhotosUnlocked} more photo${newPhotosUnlocked === 1 ? "" : "s"}`
+                : `in ${c.photoCountInBib} photo${c.photoCountInBib === 1 ? "" : "s"}`;
+            return (
+              <button
+                key={c.clusterId}
+                type="button"
+                onClick={() => onConfirm(selected ? null : c.clusterId)}
+                disabled={expandingCluster}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 6,
+                  minWidth: 84,
+                }}
+              >
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    border: selected
+                      ? "3px solid var(--accent)"
+                      : "2px solid var(--line)",
+                    boxShadow: selected ? "var(--shadow)" : "none",
+                    transition: "border-color 0.12s, box-shadow 0.12s",
+                    background: "var(--surface)",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.sampleFaceUrl}
+                    alt="Face candidate"
+                    width={72}
+                    height={72}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10,
+                    letterSpacing: ".08em",
+                    textTransform: "uppercase",
+                    color: selected ? "var(--accent)" : "var(--muted)",
+                    textAlign: "center",
+                    fontWeight: selected ? 500 : 400,
+                  }}
+                >
+                  {selected ? "✓ you" : subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

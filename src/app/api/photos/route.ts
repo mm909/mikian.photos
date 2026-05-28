@@ -6,31 +6,34 @@ import { db } from "@/lib/db";
  *
  *   GET /api/photos?eventId=lighthouse-half-2026
  *   GET /api/photos?eventId=lighthouse-half-2026&bib=1248
- *   GET /api/photos?eventId=lighthouse-half-2026&bib=1248&crossLink=0  (opt-out)
+ *   GET /api/photos?eventId=lighthouse-half-2026&bib=1248&cluster=<id>
  *
- * Returns non-hidden photos for the event. When `bib` is provided, only photos
- * tagged with that bib (via the PhotoBib join table) are returned — plus, by
- * default, additional photos sharing the bibbed runner's face clusters (see
- * the "Bib ↔ face cross-link" section below). Pass `crossLink=0` to disable.
+ * Returns non-hidden photos for the event.
  *
- * ## Bib ↔ face cross-link
+ * ## How bib search works (two-step "Is this you?" flow)
  *
  * Bib OCR can miss photos where the number is obscured (arms covering it,
- * back of runner to camera, motion blur, etc). To rescue those, we use the
- * runner's *face*:
+ * back of runner to camera, motion blur, etc). We use the runner's *face*
+ * to rescue those — but instead of guessing which face is theirs, we ask:
  *
- *   1. Pull the photos directly tagged with this bib.
- *   2. From those photos' PhotoFace rows, count which face clusters appear.
- *   3. A cluster is "the runner's" if it appears in ≥2 of the bib-tagged
- *      photos. (Multiple bibbed photos containing the same face is strong
- *      evidence that face = the bib's runner. Random crowd faces appear
- *      once and get filtered out.) When the bib has only 1 tagged photo,
- *      we accept every cluster from it — small false-positive risk but
- *      higher recall when coverage is sparse.
- *   4. Union with any other photos in the event whose PhotoFaces share
- *      one of those clusters.
- *   5. Each returned photo carries `matchedVia: "bib" | "face" | "both"`
- *      so the UI can mark face-only matches subtly differently.
+ *   Step 1: `?bib=N` (no cluster yet)
+ *     → return photos directly tagged with bib N
+ *     → return `faceCandidates`: top clusters from those photos, ranked
+ *       by how many of the bib's photos contain each face. The UI shows
+ *       these as "Is this you?" thumbnails.
+ *
+ *   Step 2: `?bib=N&cluster=<id>` (after the runner clicks a candidate)
+ *     → same bib-tagged photos
+ *     → PLUS every other photo in the event whose PhotoFaces share the
+ *       picked cluster
+ *     → photos carry `matchedVia: "bib" | "face" | "both"` so the UI can
+ *       distinguish how each match was found.
+ *
+ * Why a deliberate confirmation step: blind auto-expansion was too eager
+ * — when a bib only has 1–2 photos, every face in those photos qualifies
+ * as "the runner," which sometimes brings in friends/family standing next
+ * to the runner. Making the confirmation explicit removes the false
+ * positives at the cost of one extra click.
  *
  * `previewUrl` points directly at the CDN (`R2_PUBLIC_URL`) when set, so the
  * browser fetches bytes straight from R2 with zero Vercel egress. When the env
@@ -38,10 +41,10 @@ import { db } from "@/lib/db";
  */
 export const runtime = "nodejs";
 
-/** When a bib has only a few tagged photos, the "appears in 2+" rule
- *  becomes too strict to ever trigger. Below this count we accept all
- *  clusters from the bib-tagged photos. */
-const BIB_SPARSE_THRESHOLD = 2;
+/** Max face-candidate tiles we return for the "Is this you?" strip.
+ *  More than ~4 is hard for a user to scan; fewer leaves the runner
+ *  stranded when they're not the dominant face. */
+const MAX_FACE_CANDIDATES = 4;
 
 // Dev cost guardrail: hard-cap how many rows ever come back.
 function maxPhotos(): number {
@@ -55,7 +58,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const eventId = url.searchParams.get("eventId");
   const bibParam = url.searchParams.get("bib");
-  const crossLink = url.searchParams.get("crossLink") !== "0"; // default ON
+  const clusterParam = url.searchParams.get("cluster");
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
   const bib = bibParam ? Number(bibParam) : null;
@@ -88,66 +91,115 @@ export async function GET(req: Request) {
       },
     });
 
-    // Cross-link expansion: only when a bib was requested, the feature is
-    // on, and we have at least one bib-tagged photo to anchor from.
     type Source = "bib" | "face";
     const sourcesByPhotoId = new Map<string, Set<Source>>();
     for (const p of baseRows) {
       sourcesByPhotoId.set(p.id, new Set<Source>(["bib"]));
     }
 
-    let expansionRows: typeof baseRows = [];
-    if (crossLink && bib !== null && baseRows.length > 0) {
+    // Build face candidates from the bib's photos. Only when a bib search
+    // was actually issued.
+    type FaceCandidate = {
+      clusterId: string;
+      photoCountInBib: number;
+      photoCountInEvent: number;
+      sample: { photoId: string; faceId: string };
+    };
+    let faceCandidates: FaceCandidate[] = [];
+
+    if (bib !== null && baseRows.length > 0) {
       const bibPhotoIds = baseRows.map((p) => p.id);
       const bibFaces = await db.photoFace.findMany({
         where: { photoId: { in: bibPhotoIds }, faceClusterId: { not: null } },
-        select: { photoId: true, faceClusterId: true },
+        select: {
+          id: true,
+          photoId: true,
+          faceClusterId: true,
+          confidence: true,
+        },
+        orderBy: { confidence: "desc" },
       });
 
-      // Cluster → set of bib-tagged photos it appears in.
-      const photosPerCluster = new Map<string, Set<string>>();
+      // Cluster → {photo set, best sample face row}
+      const aggregate = new Map<
+        string,
+        { photoIds: Set<string>; sampleId: string; sampleConfidence: number; samplePhotoId: string }
+      >();
       for (const f of bibFaces) {
         if (!f.faceClusterId) continue;
-        const set = photosPerCluster.get(f.faceClusterId) ?? new Set<string>();
-        set.add(f.photoId);
-        photosPerCluster.set(f.faceClusterId, set);
-      }
-
-      // Pick clusters that look like "the runner."
-      const runnerClusters: string[] = [];
-      const sparse = baseRows.length < BIB_SPARSE_THRESHOLD;
-      for (const [clusterId, photoSet] of photosPerCluster) {
-        // Dense path: keep clusters appearing in 2+ bib-tagged photos
-        // (a single appearance is too easy to false-positive on crowd
-        // shots). Sparse path: with only 1 bib photo we can't apply the
-        // ≥2 rule; accept every cluster from that photo.
-        if (sparse || photoSet.size >= 2) runnerClusters.push(clusterId);
-      }
-
-      if (runnerClusters.length > 0) {
-        expansionRows = await db.photo.findMany({
-          where: {
-            eventId,
-            hidden: false,
-            id: { notIn: bibPhotoIds },
-            faces: { some: { faceClusterId: { in: runnerClusters } } },
-          },
-          take: Math.max(0, cap - baseRows.length),
-          orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
-          select: {
-            id: true,
-            eventId: true,
-            mile: true,
-            gpsLat: true,
-            gpsLng: true,
-            takenAt: true,
-            photographer: { select: { id: true, name: true } },
-            bibs: { select: { bib: true } },
-          },
-        });
-        for (const p of expansionRows) {
-          sourcesByPhotoId.set(p.id, new Set<Source>(["face"]));
+        const slot = aggregate.get(f.faceClusterId);
+        if (!slot) {
+          aggregate.set(f.faceClusterId, {
+            photoIds: new Set([f.photoId]),
+            sampleId: f.id,
+            sampleConfidence: f.confidence,
+            samplePhotoId: f.photoId,
+          });
+        } else {
+          slot.photoIds.add(f.photoId);
+          // Already sorted by confidence desc — first row per cluster is best.
         }
+      }
+
+      // Look up event-wide photo counts for the top clusters so the UI can
+      // promise "see N more photos of this face."
+      const topClusterIds = [...aggregate.entries()]
+        .sort(
+          (a, b) =>
+            b[1].photoIds.size - a[1].photoIds.size ||
+            b[1].sampleConfidence - a[1].sampleConfidence
+        )
+        .slice(0, MAX_FACE_CANDIDATES)
+        .map(([id]) => id);
+
+      const eventWideCounts = await db.photoFace.groupBy({
+        by: ["faceClusterId"],
+        where: { eventId, faceClusterId: { in: topClusterIds } },
+        _count: { photoId: true },
+      });
+      const eventCountByCluster = new Map<string, number>();
+      for (const row of eventWideCounts) {
+        if (row.faceClusterId) eventCountByCluster.set(row.faceClusterId, row._count.photoId);
+      }
+
+      faceCandidates = topClusterIds.map((cid) => {
+        const slot = aggregate.get(cid)!;
+        return {
+          clusterId: cid,
+          photoCountInBib: slot.photoIds.size,
+          photoCountInEvent: eventCountByCluster.get(cid) ?? slot.photoIds.size,
+          sample: { photoId: slot.samplePhotoId, faceId: slot.sampleId },
+        };
+      });
+    }
+
+    // Expand by cluster — only when the runner has explicitly confirmed one
+    // by clicking a candidate (passed as ?cluster=X).
+    let expansionRows: typeof baseRows = [];
+    if (bib !== null && clusterParam && baseRows.length > 0) {
+      const bibPhotoIds = baseRows.map((p) => p.id);
+      expansionRows = await db.photo.findMany({
+        where: {
+          eventId,
+          hidden: false,
+          id: { notIn: bibPhotoIds },
+          faces: { some: { faceClusterId: clusterParam } },
+        },
+        take: Math.max(0, cap - baseRows.length),
+        orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          eventId: true,
+          mile: true,
+          gpsLat: true,
+          gpsLng: true,
+          takenAt: true,
+          photographer: { select: { id: true, name: true } },
+          bibs: { select: { bib: true } },
+        },
+      });
+      for (const p of expansionRows) {
+        sourcesByPhotoId.set(p.id, new Set<Source>(["face"]));
       }
     }
 
@@ -180,6 +232,13 @@ export async function GET(req: Request) {
           matchedVia,
         };
       }),
+      faceCandidates: faceCandidates.map((c) => ({
+        ...c,
+        // Hand the client a ready-to-use thumbnail URL so it doesn't have
+        // to assemble routes from raw ids.
+        sampleFaceUrl: `/api/photos/${c.sample.photoId}/face/${c.sample.faceId}`,
+      })),
+      confirmedCluster: clusterParam ?? null,
       cap,
       crossLinked: expansionRows.length,
     });

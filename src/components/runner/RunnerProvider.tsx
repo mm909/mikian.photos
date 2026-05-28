@@ -31,6 +31,16 @@ type FaceSearchResponse = {
   matchCount: number;
 };
 
+/** One row in the "Is this you?" candidate strip — a face cluster present
+ *  in the bib's tagged photos, plus enough metadata for the UI to show
+ *  the thumbnail and the "N more photos" promise. */
+export type FaceCandidate = {
+  clusterId: string;
+  photoCountInBib: number;
+  photoCountInEvent: number;
+  sampleFaceUrl: string;
+};
+
 type RunnerCtx = {
   // catalog (real photos fetched from /api/photos)
   catalog: Photo[];
@@ -74,6 +84,22 @@ type RunnerCtx = {
    *  got hits, "empty" when the scan completed but found no faces. The
    *  ResultsScreen reads this to render an empty-state nudge. */
   faceScanStatus: "none" | "matched" | "empty";
+  /** Top face clusters from the most recent bib search. The "Is this you?"
+   *  strip renders one tile per candidate; clicking confirms the cluster
+   *  and re-runs the search with expansion enabled. Empty when the search
+   *  wasn't a bib search or the bib produced no face-bearing photos. */
+  faceCandidates: FaceCandidate[];
+  /** The cluster the runner has confirmed as theirs (via confirmFaceCluster).
+   *  When set, results are expanded with that cluster's other photos in the
+   *  same event. null means "no confirmation yet" — the candidate strip
+   *  stays visible. */
+  confirmedClusterId: string | null;
+  /** True while the post-confirmation refetch is in flight. */
+  expandingCluster: boolean;
+  /** Confirm a face cluster: re-issues the bib search with ?cluster=<id>
+   *  so the server returns the cross-link-expanded set. Pass null to
+   *  un-confirm (rarely needed; useful for "actually no, that's not me"). */
+  confirmFaceCluster: (clusterId: string | null) => Promise<void>;
   toggleSel: (id: string) => void;
   clearSel: () => void;
   addSelToCart: () => void;
@@ -194,6 +220,12 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   // the results screen can show "scanning…" / "no face found" states.
   const [faceScanning, setFaceScanning] = useState(false);
   const [faceScanStatus, setFaceScanStatus] = useState<"none" | "matched" | "empty">("none");
+  // "Is this you?" disambiguation — the bib search returns up to N face
+  // candidates; clicking one moves the user from "show photos with bib N"
+  // to "show photos with bib N OR sharing the runner's face cluster."
+  const [faceCandidates, setFaceCandidates] = useState<FaceCandidate[]>([]);
+  const [confirmedClusterId, setConfirmedClusterId] = useState<string | null>(null);
+  const [expandingCluster, setExpandingCluster] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<Cart>({ items: [] });
   const [cartCappedToBundle, setCartCapped] = useState<boolean>(false);
@@ -293,9 +325,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const n = Number(value);
       const racer = findRacerByBib(value) ?? null;
       // Optimistic client-side filter for instant feedback. The server
-      // call below replaces this with the bib↔face cross-linked set —
-      // photos with the runner's face but a missed bib OCR appear in the
-      // expanded result.
+      // call below upgrades this with bib-tagged results + the
+      // "Is this you?" face candidates the runner can then confirm to
+      // pull in additional photos that only show their face.
       const matches = catalog.filter((p) => p.bibs?.includes(n));
       setMatchedRacer(racer);
       setSearchedBib(value);
@@ -304,22 +336,27 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
+      // New bib search → drop any prior confirmation; the candidate strip
+      // will re-render against the new bib's face clusters.
+      setConfirmedClusterId(null);
+      setFaceCandidates([]);
 
-      // Fire-and-forget server fetch for cross-link expansion. We don't
-      // block the UI — instant client-side results show first, then the
-      // expanded set replaces them when the server responds. On error
-      // we keep the client-side fallback so the user isn't worse off.
+      // Fire-and-forget server fetch — populates faceCandidates and
+      // upgrades the bib-tagged photo set. On error we keep the client-
+      // side fallback so the user isn't worse off.
       void fetch(
         `/api/photos?eventId=${encodeURIComponent(currentEvent.id)}&bib=${n}`
       )
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][]; crossLinked?: number }) => {
-          const ui = (d.photos ?? []).map(apiPhotoToUi);
-          setResultPhotos(ui);
-          setSearchFellBack(ui.length === 0);
-          if (d.crossLinked && d.crossLinked > 0) {
-            flashToast(`+${d.crossLinked} found via face match`);
-          }
+        .then(
+          (d: {
+            photos: Parameters<typeof apiPhotoToUi>[0][];
+            faceCandidates?: FaceCandidate[];
+          }) => {
+            const ui = (d.photos ?? []).map(apiPhotoToUi);
+            setResultPhotos(ui);
+            setSearchFellBack(ui.length === 0);
+            setFaceCandidates(d.faceCandidates ?? []);
         })
         .catch((e) => {
           // Keep optimistic client results on failure — don't disrupt UX.
@@ -334,6 +371,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(true);
+      setFaceCandidates([]);
+      setConfirmedClusterId(null);
     } else {
       setMatchedRacer(null);
       setSearchedBib(null);
@@ -342,8 +381,57 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setFaceSuggest(null);
       setBibSuggest(null);
       setFaceDone(false);
+      setFaceCandidates([]);
+      setConfirmedClusterId(null);
     }
     setSelected(new Set());
+  }
+
+  /**
+   * Confirm one of the "Is this you?" face candidates. Re-runs the bib
+   * search with `?cluster=<id>` so the server returns the cross-link-
+   * expanded result set (bib-tagged photos + every photo in the event
+   * whose PhotoFaces share that cluster).
+   *
+   * Pass null to undo a prior confirmation — useful for an "actually
+   * no" button.
+   */
+  async function confirmFaceCluster(clusterId: string | null): Promise<void> {
+    if (!searchedBib) return;
+    setConfirmedClusterId(clusterId);
+
+    const n = Number(searchedBib);
+    if (!Number.isFinite(n) || n <= 0) return;
+
+    setExpandingCluster(true);
+    try {
+      const url = new URL("/api/photos", window.location.origin);
+      url.searchParams.set("eventId", currentEvent.id);
+      url.searchParams.set("bib", String(n));
+      if (clusterId) url.searchParams.set("cluster", clusterId);
+      const res = await fetch(url.pathname + "?" + url.searchParams.toString());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = (await res.json()) as {
+        photos: Parameters<typeof apiPhotoToUi>[0][];
+        faceCandidates?: FaceCandidate[];
+        crossLinked?: number;
+      };
+      const ui = (d.photos ?? []).map(apiPhotoToUi);
+      setResultPhotos(ui);
+      setSearchFellBack(ui.length === 0);
+      // Server returns candidates regardless of confirmation; keep them
+      // fresh so the user can switch their pick if they realize they
+      // chose the wrong face.
+      setFaceCandidates(d.faceCandidates ?? []);
+      if (clusterId && d.crossLinked && d.crossLinked > 0) {
+        flashToast(`+${d.crossLinked} more found by face match`);
+      }
+    } catch (e) {
+      console.warn("cluster confirmation failed:", e);
+      // Leave the prior result set in place; user can retry.
+    } finally {
+      setExpandingCluster(false);
+    }
   }
 
   function acceptFaceSuggest() {
@@ -601,6 +689,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       runFaceSearch,
       faceScanning,
       faceScanStatus,
+      faceCandidates,
+      confirmedClusterId,
+      expandingCluster,
+      confirmFaceCluster,
       toggleSel,
       clearSel,
       addSelToCart,
@@ -619,7 +711,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, faceScanning, faceScanStatus, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, selected, cart, cartCappedToBundle, lightbox, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
