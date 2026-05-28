@@ -162,11 +162,16 @@ export function OcrLab({
       className="screen ocr-lab-main"
       style={{
         padding: "12px 16px 16px",
-        height: "calc(100vh - var(--nav-h, 60px))",
+        // dvh respects mobile address-bar collapse; max-height keeps the
+        // page strictly within the viewport so the photo box can't push
+        // the page into a scroll. Nav-h fallback is generous to cover
+        // chunkier nav variants.
+        maxHeight: "calc(100dvh - var(--nav-h, 80px))",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         gap: 10,
+        overflow: "hidden",
       }}
     >
       <div

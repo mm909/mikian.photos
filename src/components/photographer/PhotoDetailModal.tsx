@@ -211,7 +211,11 @@ export function PhotoDetailModal({
           gridTemplateColumns: "1.6fr 1fr",
           gridTemplateRows: "minmax(0, 1fr)",
           overflow: "hidden",
-          height: "92vh",
+          // dvh handles mobile chrome better, max-height keeps the modal
+          // strictly inside the viewport so the right column's scroll
+          // never gets clipped by the bottom of the page.
+          height: "92dvh",
+          maxHeight: "92dvh",
         }}
       >
         {/* Left pane: image (or Tesseract overlay) + thumbnail strip */}
