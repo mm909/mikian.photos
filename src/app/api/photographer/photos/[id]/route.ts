@@ -1,29 +1,22 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photographerLock";
+import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 import { r2Configured, r2Delete, r2Keys } from "@/lib/r2";
 
 /**
- * Resolve the caller's photographer id + admin status. Used by both PATCH
- * and DELETE — keeps the ownership check in one place.
+ * Resolve the caller for photo-edit/delete routes.
  *
- * Returns null if no valid identity, otherwise { photographerId, isAdmin }.
+ * Returns null when the actor doesn't have photographer or owner role —
+ * runners can't touch photo rows. `isAdmin` is true when the actor has the
+ * owner role, granting cross-photographer permissions. Owner status comes
+ * from the user's roles[] column — set on the Google-signed-in account via
+ * the upsert in auth.ts AND on the unlock-cookie admin row.
  */
 async function resolveActor(): Promise<{ photographerId: string; isAdmin: boolean } | null> {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) return null;
-  let isAdmin = isPhotographerUnlocked(); // unlock cookie implies admin
-  if (!isAdmin) {
-    try {
-      const session = await getServerSession(authOptions);
-      isAdmin = Boolean(session?.isAdmin);
-    } catch {
-      /* NextAuth misconfigured — admin stays false */
-    }
-  }
-  return { photographerId, isAdmin };
+  const actor = await getEffectiveActor();
+  if (!actor) return null;
+  if (!hasRole(actor, "photographer")) return null; // owner implies photographer
+  return { photographerId: actor.photographerId, isAdmin: isOwner(actor) };
 }
 
 /**

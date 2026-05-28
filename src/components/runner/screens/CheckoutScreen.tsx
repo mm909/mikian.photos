@@ -5,7 +5,24 @@ import { useEffect, useState } from "react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent, prices } from "@/lib/data";
+import { currentEvent, prices, type CartItem } from "@/lib/data";
+
+/**
+ * Reduce the cart to the shape the API expects:
+ *   - any bundle item → kind=bundle, server snapshots all event photos
+ *   - otherwise       → kind=multi with the explicit photo ids
+ *
+ * Bundle wins if both kinds coexist (defensive — shouldn't normally happen).
+ */
+function describeCart(items: CartItem[]):
+  | { kind: "bundle" }
+  | { kind: "multi"; photoIds: string[] } {
+  if (items.some((i) => i.kind === "bundle")) return { kind: "bundle" };
+  const photoIds = items
+    .filter((i): i is Extract<CartItem, { kind: "single" }> => i.kind === "single")
+    .map((i) => i.id);
+  return { kind: "multi", photoIds };
+}
 
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 
@@ -166,7 +183,19 @@ export function CheckoutScreen({ unlocked }: Props) {
                 disabled={processing}
                 createOrder={async () => {
                   setError(null);
-                  const res = await fetch("/api/paypal/create-order", { method: "POST" });
+                  // Derive cart shape — bundle if any bundle item, otherwise
+                  // multi with the singles we have. Server recomputes the
+                  // price from kind + count, so the client doesn't get to
+                  // dictate dollar amounts.
+                  const cartShape = describeCart(cart.items);
+                  const res = await fetch("/api/paypal/create-order", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      kind: cartShape.kind,
+                      count: cartShape.kind === "multi" ? cartShape.photoIds.length : 0,
+                    }),
+                  });
                   if (!res.ok) {
                     const j = await res.json().catch(() => ({}));
                     throw new Error(j.error || "Could not create order");
@@ -177,13 +206,17 @@ export function CheckoutScreen({ unlocked }: Props) {
                 onApprove={async (data) => {
                   setProcessing(true);
                   try {
+                    const cartShape = describeCart(cart.items);
                     const res = await fetch("/api/paypal/capture-order", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         orderId: data.orderID,
                         eventId: currentEvent.id,
-                        kind: "bundle",
+                        kind: cartShape.kind,
+                        // photoIds is only meaningful for multi; server
+                        // ignores it for bundle (snapshots event-wide).
+                        photoIds: cartShape.kind === "multi" ? cartShape.photoIds : undefined,
                       }),
                     });
                     if (!res.ok) {

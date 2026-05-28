@@ -108,18 +108,21 @@ function savePersisted(p: Persisted) {
 }
 
 /**
- * If singles-only subtotal hits the bundle price, auto-replace singles with
- * a single BundleCartItem. Idempotent.
+ * Cart "cap" used to silently rewrite singles into a bundle once their total
+ * crossed the bundle price. That was a buyer-friendly nudge at production
+ * pricing ($30 bundle, $10 single — three singles == bundle, give them all
+ * the photos for the same money), but it backfires at test pricing where
+ * bundle == $1 — the first single you add silently converts to bundle and
+ * checkout buys all 1200+ photos.
+ *
+ * For now the cap is disabled: singles stay singles, bundle stays bundle.
+ * `upgradeToBundle()` still exists for an explicit "upgrade to bundle"
+ * affordance from the cart screen.
+ *
+ * Kept as a no-op (rather than deleted) so the upstream call site doesn't
+ * have to be rewritten, and so re-enabling at launch is a one-line change.
  */
 function applyBundleCap(cart: Cart): { cart: Cart; capped: boolean } {
-  if (cart.items.some((i) => i.kind === "bundle")) return { cart, capped: false };
-  const singlesTotal = cart.items.reduce((s, i) => s + i.price, 0);
-  if (singlesTotal >= prices.bundle && cart.items.length > 0) {
-    return {
-      cart: { items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: prices.bundle }] },
-      capped: true,
-    };
-  }
   return { cart, capped: false };
 }
 

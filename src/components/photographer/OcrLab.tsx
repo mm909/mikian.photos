@@ -29,7 +29,15 @@ type DebugPayload = {
   durationMs: number;
 };
 
-type RecentPhoto = { id: string; previewUrl: string; bibs: number[] };
+type ExistingTag = { bib: number; confidence: number; source: string };
+type RecentPhoto = {
+  id: string;
+  previewUrl: string;
+  bibs: number[];
+  tags?: ExistingTag[];
+  takenAt?: string | null;
+  gps?: [number, number] | null;
+};
 type State = "idle" | "running" | "ok" | "err";
 
 export function OcrLab({
@@ -70,6 +78,19 @@ export function OcrLab({
    *  the Original photo or the OCR-prepared view with bbox overlays. Flips
    *  to true on a successful run; user can toggle back with the chip. */
   const [showOcrView, setShowOcrView] = useState(false);
+
+  /** When true, render a fullscreen overlay zooming the OCR view (or the
+   *  original photo, whichever is currently active) so you can inspect
+   *  bbox details on small/distant bibs. Closes on ESC or outside-click. */
+  const [zoomOpen, setZoomOpen] = useState(false);
+  useEffect(() => {
+    if (!zoomOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setZoomOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomOpen]);
 
   // Reset result when photo changes (avoids confusion — the overlay would
   // still be showing the old photo).
@@ -294,7 +315,10 @@ export function OcrLab({
             {!photoId ? (
               <Empty>No photos yet. Upload one to start tuning.</Empty>
             ) : (
+              <>
               <div
+                onClick={() => setZoomOpen(true)}
+                title="Click to zoom"
                 style={{
                   position: "relative",
                   flex: 1,
@@ -306,6 +330,7 @@ export function OcrLab({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  cursor: selectedPhoto ? "zoom-in" : "default",
                 }}
               >
                 {showOcrView && debug ? (
@@ -346,9 +371,12 @@ export function OcrLab({
                   </div>
                 )}
 
-                {/* Toggle chip — only visible after a successful run */}
+                {/* Toggle chip — only visible after a successful run.
+                    stopPropagation so clicking the chip doesn't also fire the
+                    zoom overlay. */}
                 {debug && state === "ok" && (
                   <div
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       position: "absolute",
                       top: 8,
@@ -373,6 +401,18 @@ export function OcrLab({
                   </div>
                 )}
               </div>
+
+              {/* Zoom overlay — fullscreen view of whichever variant is active.
+                  ESC or outside-click closes. */}
+              {zoomOpen && selectedPhoto && (
+                <ZoomOverlay
+                  showOcrView={showOcrView && !!debug}
+                  debug={debug}
+                  originalUrl={selectedPhoto.previewUrl}
+                  onClose={() => setZoomOpen(false)}
+                />
+              )}
+              </>
             )}
           </div>
 
@@ -468,6 +508,76 @@ export function OcrLab({
                     </span>
                   ))}
                 </div>
+              </Box>
+            )}
+
+            {/* Already-tagged metadata for the selected photo. Compares the
+                live OCR run against whatever bibs we've already stored. */}
+            {selectedPhoto && (
+              <Box title="Photo metadata">
+                {selectedPhoto.tags && selectedPhoto.tags.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        letterSpacing: ".1em",
+                        textTransform: "uppercase",
+                        color: "var(--muted)",
+                      }}
+                    >
+                      Already tagged ({selectedPhoto.tags.length})
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {selectedPhoto.tags.map((t, i) => (
+                        <span
+                          key={`${t.bib}-${i}`}
+                          title={`${t.source} · ${(t.confidence * 100).toFixed(0)}%`}
+                          style={{
+                            display: "inline-block",
+                            padding: "3px 8px",
+                            background:
+                              t.source === "manual" || t.source === "user-tag"
+                                ? "var(--ink)"
+                                : "var(--accent)",
+                            color: "var(--paper)",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            letterSpacing: ".06em",
+                            borderRadius: 4,
+                          }}
+                        >
+                          #{t.bib}
+                          {t.source.startsWith("ocr-") &&
+                            ` · ${Math.round(t.confidence * 100)}%`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 12,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    No bibs tagged yet.
+                  </div>
+                )}
+                <MetaKV
+                  label="Taken"
+                  value={selectedPhoto.takenAt ? fmtDate(selectedPhoto.takenAt) : "—"}
+                />
+                <MetaKV
+                  label="GPS"
+                  value={
+                    selectedPhoto.gps
+                      ? `${selectedPhoto.gps[0].toFixed(5)}, ${selectedPhoto.gps[1].toFixed(5)}`
+                      : "—"
+                  }
+                />
+                <MetaKV label="ID" value={selectedPhoto.id.slice(0, 14) + "…"} />
               </Box>
             )}
 
@@ -917,6 +1027,145 @@ function ToggleChip({
       {label}
     </button>
   );
+}
+
+/**
+ * Fullscreen zoom overlay. Mirrors whichever variant the lab is currently
+ * showing (OCR overlay vs original) at near-viewport size, so the user can
+ * inspect bbox accuracy on small bibs without leaving the lab page.
+ *
+ * Click anywhere outside the image (the dark backdrop) to close. ESC also
+ * closes via a keydown listener on the parent.
+ */
+function ZoomOverlay({
+  showOcrView,
+  debug,
+  originalUrl,
+  onClose,
+}: {
+  showOcrView: boolean;
+  debug: DebugPayload | null;
+  originalUrl: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10,8,6,.92)",
+        zIndex: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        cursor: "zoom-out",
+      }}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label="Close zoom"
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          background: "rgba(255,255,255,.1)",
+          color: "var(--paper)",
+          border: 0,
+          width: 36,
+          height: 36,
+          borderRadius: 999,
+          fontSize: 18,
+          cursor: "pointer",
+        }}
+      >
+        ×
+      </button>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "95vw",
+          maxHeight: "95vh",
+          width: showOcrView && debug ? "auto" : "auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {showOcrView && debug ? (
+          // The ResultOverlay already supports being constrained to a
+          // container — we give it a generous one here so bboxes scale up.
+          <div style={{ width: "min(95vw, 1800px)", maxHeight: "95vh" }}>
+            <ResultOverlay debug={debug} fitHeight />
+          </div>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={originalUrl}
+            alt=""
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "95vh",
+              objectFit: "contain",
+              display: "block",
+              cursor: "default",
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MetaKV({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "60px 1fr",
+        gap: 8,
+        alignItems: "baseline",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 9,
+          letterSpacing: ".12em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          color: "var(--ink)",
+          wordBreak: "break-all",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {

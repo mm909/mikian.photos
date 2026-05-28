@@ -54,10 +54,14 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
+    // Owner-only — internal tuning surface for OCR detection. Photographers
+    // get the per-photo "OCR view" inside the library detail modal; the lab
+    // is for cross-photo experimentation (different model params, hand-
+    // picked test set) and would be more noise than signal in their nav.
     label: "OCR Lab",
     href: "/photographer/ocr-lab",
     match: (p) => p.startsWith("/photographer/ocr-lab"),
-    roles: ["photographer", "owner"],
+    roles: ["owner"],
   },
   {
     label: "Admin",

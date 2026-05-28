@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { extractBibsFromImage } from "@/lib/bibOcr";
-import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photographerLock";
+import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 
 /**
  * Re-run bib OCR on a single photo. Drops the photo's existing `ocr-tesseract`
@@ -16,8 +16,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
+  const actor = await getEffectiveActor();
+  if (!actor || !hasRole(actor, "photographer")) {
     return NextResponse.json({ error: "Photographer access required" }, { status: 401 });
   }
   if (!r2Configured()) {
@@ -30,8 +30,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
   if (!photo) return NextResponse.json({ error: "unknown photo" }, { status: 404 });
 
-  // Owner-or-admin (unlock cookie counts as admin)
-  if (photo.photographerId !== photographerId && !isPhotographerUnlocked()) {
+  // Owner OR the photo's photographer. Owner role comes from the user's
+  // roles[] column (set on the Google account at sign-in OR on the unlock-
+  // cookie admin row) so the owner doesn't need the legacy cookie to act.
+  if (photo.photographerId !== actor.photographerId && !isOwner(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 

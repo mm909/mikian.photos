@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { extractBibsDebug, withDefaults, type OcrSettings } from "@/lib/bibOcr";
-import { getEffectivePhotographerId, isPhotographerUnlocked } from "@/lib/photographerLock";
+import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 
 /**
  * Debug OCR for one photo — returns the preprocessed image (as a base64 PNG)
@@ -23,8 +23,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
+  const actor = await getEffectiveActor();
+  if (!actor || !hasRole(actor, "photographer")) {
     return NextResponse.json({ error: "Photographer access required" }, { status: 401 });
   }
   if (!r2Configured()) {
@@ -36,7 +36,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     select: { id: true, photographerId: true },
   });
   if (!photo) return NextResponse.json({ error: "unknown photo" }, { status: 404 });
-  if (photo.photographerId !== photographerId && !isPhotographerUnlocked()) {
+  if (photo.photographerId !== actor.photographerId && !isOwner(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 
