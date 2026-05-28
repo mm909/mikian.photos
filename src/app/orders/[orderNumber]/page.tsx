@@ -203,6 +203,8 @@ export default async function OrderPage({
           <OrderPhotoGrid
             photos={photos.map((p) => ({ id: p.id }))}
             downloadToken={downloadToken}
+            orderNumber={order.orderNumber}
+            dropboxAppKey={process.env.NEXT_PUBLIC_DROPBOX_APP_KEY}
           />
         )}
 

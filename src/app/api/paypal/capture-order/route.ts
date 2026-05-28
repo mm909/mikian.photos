@@ -161,7 +161,11 @@ export async function POST(req: Request) {
 
     // 5) Receipt email — best-effort.
     const baseUrl = resolveBaseUrl(req);
-    const orderUrl = `${baseUrl}/orders/${formatOrderNumber(orderWithToken.orderNumber)}?key=${encodeURIComponent(token)}`;
+    const orderTag = formatOrderNumber(orderWithToken.orderNumber);
+    const orderUrl = `${baseUrl}/orders/${orderTag}?key=${encodeURIComponent(token)}`;
+    // Direct ZIP URL — same token, different endpoint. Lets the buyer skip
+    // the order page and grab everything in one click from the receipt.
+    const zipUrl = `${baseUrl}/api/orders/${orderTag}/zip?key=${encodeURIComponent(token)}`;
     const subtotal = amountUsd - +(amountUsd * prices.stripeRate + prices.stripeFlat).toFixed(2);
     const itemLabel =
       kind === "bundle"
@@ -183,6 +187,7 @@ export async function POST(req: Request) {
         },
       ],
       orderUrl,
+      zipUrl,
     });
 
     return NextResponse.json(buildReturnPayload(orderWithToken));

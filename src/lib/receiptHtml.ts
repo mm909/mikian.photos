@@ -34,6 +34,10 @@ export type ReceiptInput = {
   /** Public URL the buyer can click to see + download photos. Already carries
    *  the magic ?key=token query string when applicable. */
   orderUrl: string;
+  /** Direct ZIP download URL (with ?key=token). When set, the email shows
+   *  a "Download ZIP" button next to "View photos online" so the buyer can
+   *  skip the order page entirely. Optional for back-compat. */
+  zipUrl?: string;
 };
 
 const INK = "#1c1a17";
@@ -114,12 +118,35 @@ export function renderReceiptHtml(r: ReceiptInput): string {
       Your photos
     </div>
     <p style="margin:0 0 14px;font-size:14px;line-height:1.45;color:${INK};">
-      All ${r.photoCount} of your race photos are ready. Click below to view them and download the high-resolution originals — the link works for ${DOWNLOAD_TOKEN_TTL_DAYS} days, no account needed.
+      All ${r.photoCount} of your race photos are ready. The links below work for ${DOWNLOAD_TOKEN_TTL_DAYS} days, no account needed.
     </p>
-    <a
-      href="${r.orderUrl}"
-      style="display:inline-block;padding:11px 18px;background:${ACCENT};color:${PAPER};font-family:-apple-system,sans-serif;font-size:14px;font-weight:500;text-decoration:none;border-radius:6px;"
-    >View &amp; download photos →</a>
+    <!-- Two-button row. Outlook + some Apple-mail variants stretch <a>
+         oddly when nested in flex containers, so we use a table for
+         consistent rendering across clients. -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0;border-collapse:separate;">
+      <tr>
+        <td style="padding-right:10px;vertical-align:top;">
+          <a
+            href="${r.orderUrl}"
+            style="display:inline-block;padding:11px 18px;background:${ACCENT};color:${PAPER};font-family:-apple-system,sans-serif;font-size:14px;font-weight:500;text-decoration:none;border-radius:6px;"
+          >View &amp; pick photos →</a>
+        </td>
+        ${
+          r.zipUrl
+            ? `
+        <td style="vertical-align:top;">
+          <a
+            href="${r.zipUrl}"
+            style="display:inline-block;padding:11px 18px;background:${INK};color:${PAPER};font-family:-apple-system,sans-serif;font-size:14px;font-weight:500;text-decoration:none;border-radius:6px;"
+          >Download ZIP (${r.photoCount})</a>
+        </td>`
+            : ""
+        }
+      </tr>
+    </table>
+    <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">
+      On a phone? Open the order page and tap <strong style="color:${INK};font-weight:600;">Save to Photos…</strong> to drop the photos straight into your Apple Photos or Google Photos. Dropbox is also one click from there.
+    </p>
     <div style="margin-top:14px;font-size:12px;color:${MUTED};word-break:break-all;">
       Direct link: <a href="${r.orderUrl}" style="color:${MUTED};">${r.orderUrl}</a>
     </div>
@@ -154,8 +181,17 @@ export function renderReceiptText(r: ReceiptInput): string {
   lines.push("");
   lines.push(`Total paid: ${fmtUsd(r.amountUsd)}`);
   lines.push("");
-  lines.push("Download your photos:");
-  lines.push(r.orderUrl);
+  lines.push("View & pick photos:");
+  lines.push(`  ${r.orderUrl}`);
+  if (r.zipUrl) {
+    lines.push("");
+    lines.push("Or grab everything in one go:");
+    lines.push(`  ${r.zipUrl}`);
+  }
+  lines.push("");
+  lines.push(
+    "On a phone, open the order page and tap Save to Photos for Apple/Google Photos, or Save to Dropbox."
+  );
   lines.push("");
   lines.push("Reply to this email if anything isn't right.");
   return lines.join("\n");

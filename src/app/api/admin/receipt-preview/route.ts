@@ -47,6 +47,10 @@ function sampleReceipt(): ReceiptInput {
       "https://mikianmusser.com/orders/" +
       formatOrderNumber(999) +
       "?key=preview-token-placeholder",
+    zipUrl:
+      "https://mikianmusser.com/api/orders/" +
+      formatOrderNumber(999) +
+      "/zip?key=preview-token-placeholder",
   };
 }
 

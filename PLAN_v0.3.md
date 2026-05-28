@@ -43,11 +43,41 @@ These are the things between "test capture" and "people who don't know me can ac
 - Each photo carries `matchedVia: "bib" | "face" | "both"` for future UI differentiation
 - `RunnerProvider.runSearch` issues the server fetch on bib search (after instant client-side filter for snappy UI); flashes "+N found via face match" toast when expansion lands
 
-### 3. Bulk ZIP download
-- `/api/orders/[orderNumber]/zip?key=...` streams a server-built ZIP of all entitled originals
-- Use the `archiver` package; pipe R2 stream → ZIP → response, no temp files
-- Fall back to the current "sequential download" path on browsers that block the response (keep it as the secondary button, ZIP as primary)
-- Cap byte count + show progress so the UX doesn't feel broken on large orders
+### 3. Download options + integrations ✓ (mostly) shipped (v0.3-face-rec)
+
+What landed:
+- **ZIP download** — `GET /api/orders/[N]/zip?key=` streams every entitled
+  original through `archiver` (`store: true` since JPEGs are already
+  compressed) into the response body. Token-gated via the existing
+  `getOrderForViewer`. 500-photo cap to stay inside Vercel's 60s function
+  budget.
+- **Dropbox Saver** — JS widget loaded on demand from
+  `dropbox.com/static/api/2/dropins.js`. Requires
+  `NEXT_PUBLIC_DROPBOX_APP_KEY` on Vercel; button hides itself when
+  unset. User confirms in Dropbox's popup; their servers fetch each
+  `/api/photos/[id]/download?token=` URL.
+- **Save to Photos (mobile)** — `navigator.share({files})` triggers the
+  native share sheet, which surfaces "Save to Photos" on iOS and the
+  Google Photos / Drive / Dropbox targets on Android. Capped at 6 files
+  per share (iOS rejects larger batches); UI explains the cap and
+  points to ZIP for the full set. Feature-detected via `canShare` so
+  desktop hides the button.
+- **Receipt email** — now ships a two-button row in the "Your photos"
+  card: "View & pick photos →" (the order page) and "Download ZIP (N)"
+  (direct ZIP endpoint). Plaintext fallback mirrors both URLs.
+  Plus a one-liner pointing mobile buyers at the Save-to-Photos /
+  Dropbox affordances on the order page.
+
+Still open as v0.4 follow-up:
+- **Save to Google Photos** as a desktop-friendly first-class button.
+  The Web Share API surfaces Google Photos on Android; iOS Safari does
+  not. For a real "save to Google Photos" from a desktop browser we'd
+  need an OAuth flow + the Photos Library API (mediaItems:batchCreate).
+  Day-or-two project: register the OAuth client with Google, store
+  per-user refresh tokens (Photographer.googleRefreshToken?), build a
+  small server route that batchCreates with the buyer's hi-res URLs.
+  Worth doing once Apple Photos / Dropbox usage tells us the share-
+  sheet path is leaving people behind.
 
 ### 4. Resend domain verification (ops, not code)
 - Add Resend's SPF + DKIM records to Cloudflare DNS
