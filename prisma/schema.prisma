@@ -76,15 +76,62 @@ model Photo {
   // sign route to detect duplicate uploads (same image being ingested
   // twice). null on rows created before this field existed.
   fingerprint    String?
+  // Timestamp of the last successful Rekognition IndexFaces call. null when
+  // never indexed. Used by the rerun-faces endpoint and the upload finalize
+  // path to skip already-processed photos unless `force` is passed.
+  facesIndexedAt DateTime?
   createdAt      DateTime  @default(now())
 
   event        Event        @relation(fields: [eventId], references: [id])
   photographer Photographer @relation(fields: [photographerId], references: [id])
   bibs         PhotoBib[]
+  faces        PhotoFace[]
 
   @@index([eventId, hidden])
   @@index([photographerId])
   @@index([fingerprint])
+}
+
+/// One row per face detected in a photo.
+///
+/// Two ID fields with different semantics:
+///   - `rekognitionFaceId` — globally unique id Rekognition assigns when we
+///     IndexFaces. Stable for the lifetime of the entry in Rekognition's
+///     collection; we delete it via DeleteFaces when the photo is removed.
+///     Nullable so manual-source rows (no Rekognition entry) can exist.
+///   - `faceClusterId` — soft grouping of "this is the same runner across
+///     multiple photos." For MVP we set it equal to rekognitionFaceId at
+///     write time and refine later via Rekognition's SearchFaces (face-to-
+///     face) clustering pass. Nullable for the same reason.
+///
+/// `eventId` is denormalized off Photo so we can issue collection-scoped
+/// DeleteFaces calls without joining. (One Rekognition collection per event.)
+///
+/// Coverage screen aggregates by faceClusterId to count "photos per face."
+/// Runner face search hits SearchFacesByImage → matches FaceIds → joins
+/// back through this table to photoIds.
+model PhotoFace {
+  id                 String   @id @default(cuid())
+  photoId            String
+  eventId            String
+  rekognitionFaceId  String?  @unique
+  faceClusterId      String?
+  confidence         Float    @default(0.0)
+  // Bounding box in normalized [0,1] coordinates (Rekognition's native
+  // format). Multiply by the preview image's width/height to draw.
+  x0                 Float
+  y0                 Float
+  x1                 Float
+  y1                 Float
+  // "rekognition" | "facenet" | "manual" — same idea as PhotoBib.source.
+  source             String   @default("rekognition")
+  createdAt          DateTime @default(now())
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([faceClusterId])
+  @@index([photoId])
+  @@index([eventId])
 }
 
 /// One row per (photo, bib) tag. Same photo can carry several bibs (multiple

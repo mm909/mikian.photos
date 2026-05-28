@@ -22,6 +22,15 @@ import {
   type Racer,
 } from "@/lib/data";
 
+/**
+ * Server contract: POST /api/photos/face-search returns the same Photo
+ * shape as the catalog plus a `faceSimilarity` annotation (0–100).
+ */
+type FaceSearchResponse = {
+  photos: (Photo & { faceSimilarity?: number })[];
+  matchCount: number;
+};
+
 type RunnerCtx = {
   // catalog (real photos fetched from /api/photos)
   catalog: Photo[];
@@ -55,7 +64,16 @@ type RunnerCtx = {
   acceptBibSuggest: () => void;
   dismissBibSuggest: () => void;
   addBib: (bib: string) => void;
-  scanFaceOnResults: () => void;
+  /** Network face-search: send the file to /api/photos/face-search, replace
+   *  resultPhotos with the matches. Resolves on completion; no return. */
+  runFaceSearch: (file: File) => Promise<void>;
+  /** True while runFaceSearch's network call is in flight — UI can show a
+   *  spinner or disable the button. */
+  faceScanning: boolean;
+  /** Last face-search outcome — "none" before a scan, "matched" when we
+   *  got hits, "empty" when the scan completed but found no faces. The
+   *  ResultsScreen reads this to render an empty-state nudge. */
+  faceScanStatus: "none" | "matched" | "empty";
   toggleSel: (id: string) => void;
   clearSel: () => void;
   addSelToCart: () => void;
@@ -172,6 +190,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [faceSuggest, setFaceSuggest] = useState<FaceSuggest | null>(null);
   const [bibSuggest, setBibSuggest] = useState<BibSuggest | null>(null);
   const [faceDone, setFaceDone] = useState(false);
+  // In-flight + last-outcome state for runFaceSearch — surfaced via ctx so
+  // the results screen can show "scanning…" / "no face found" states.
+  const [faceScanning, setFaceScanning] = useState(false);
+  const [faceScanStatus, setFaceScanStatus] = useState<"none" | "matched" | "empty">("none");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<Cart>({ items: [] });
   const [cartCappedToBundle, setCartCapped] = useState<boolean>(false);
@@ -333,11 +355,60 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     flashToast(`+${adds.length} photos from bib #${extraBib}`);
   }
 
-  function scanFaceOnResults() {
-    if (faceDone) return;
-    setFaceDone(true);
-    setFaceSuggest(null);
-    // Face match isn't built yet; this is now a no-op for the data layer.
+  /**
+   * Real face search — POSTs the buyer's selfie at /api/photos/face-search,
+   * replaces resultPhotos with the (similarity-sorted) matches. Tracks
+   * status for the UI: idle → matched/empty.
+   *
+   * Always resolves; errors surface as a toast + status="empty" so the UI
+   * can prompt a retry. Re-entry while `faceScanning` is true is ignored
+   * (button is also expected to be disabled).
+   */
+  async function runFaceSearch(file: File): Promise<void> {
+    if (faceScanning) return;
+    setFaceScanning(true);
+    try {
+      const form = new FormData();
+      form.append("selfie", file);
+      form.append("eventId", currentEvent.id);
+      const res = await fetch("/api/photos/face-search", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const msg = await res
+          .json()
+          .then((j) => (j as { error?: string }).error ?? `HTTP ${res.status}`)
+          .catch(() => `HTTP ${res.status}`);
+        flashToast(`Face search failed: ${msg}`);
+        setFaceScanStatus("empty");
+        return;
+      }
+      const data = (await res.json()) as FaceSearchResponse;
+      if (data.matchCount === 0) {
+        setFaceScanStatus("empty");
+        flashToast("No face matches yet — try a clearer photo.");
+        return;
+      }
+      // Replace the results list with the matched photos. We deliberately
+      // overwrite rather than append: the buyer asked for face matches,
+      // not "bib results plus face matches glued together."
+      setResultPhotos(data.photos);
+      setMatchedRacer(null);
+      setSearchedBib(null);
+      setSearchFellBack(false);
+      setFaceSuggest(null);
+      setBibSuggest(null);
+      setFaceDone(true);
+      setFaceScanStatus("matched");
+      flashToast(`${data.matchCount} photo${data.matchCount === 1 ? "" : "s"} matched.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      flashToast(`Face search failed: ${msg}`);
+      setFaceScanStatus("empty");
+    } finally {
+      setFaceScanning(false);
+    }
   }
 
   /* --- Selection / cart actions -------------------------------------- */
@@ -506,7 +577,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       acceptBibSuggest,
       dismissBibSuggest: () => setBibSuggest(null),
       addBib,
-      scanFaceOnResults,
+      runFaceSearch,
+      faceScanning,
+      faceScanStatus,
       toggleSel,
       clearSel,
       addSelToCart,
@@ -525,7 +598,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, faceScanning, faceScanStatus, selected, cart, cartCappedToBundle, lightbox, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

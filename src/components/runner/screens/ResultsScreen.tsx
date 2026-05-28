@@ -28,7 +28,9 @@ export function ResultsScreen() {
     bundleInCart,
     openLightbox,
     addBib,
-    scanFaceOnResults,
+    runFaceSearch,
+    faceScanning,
+    faceScanStatus,
     faceDone,
   } = useRunner();
 
@@ -280,16 +282,25 @@ export function ResultsScreen() {
             <button
               className="btn btn--ghost btn--sm"
               onClick={() => fileRef.current?.click()}
+              disabled={faceScanning}
               style={faceDone ? { borderColor: "var(--green)", color: "var(--green)" } : undefined}
             >
-              {faceDone ? "✓ Face scan applied" : "Scan your face"}
+              {faceScanning
+                ? "Scanning…"
+                : faceDone
+                  ? "✓ Face scan applied"
+                  : "Scan your face"}
             </button>
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
               hidden
-              onChange={() => scanFaceOnResults()}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void runFaceSearch(f);
+                e.target.value = "";
+              }}
             />
           </div>
         </div>
@@ -331,7 +342,7 @@ export function ResultsScreen() {
  *  face scan instead of re-typing bibs, since auto-tagging coverage may be
  *  patchy on a fresh event. */
 function NoBibMatchPrompt({ searchedBib }: { searchedBib: string }) {
-  const { scanFaceOnResults } = useRunner();
+  const { runFaceSearch, faceScanning, faceScanStatus } = useRunner();
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <div
@@ -366,16 +377,26 @@ function NoBibMatchPrompt({ searchedBib }: { searchedBib: string }) {
       <button
         className="btn btn--primary"
         onClick={() => fileRef.current?.click()}
+        disabled={faceScanning}
         style={{ marginTop: 18 }}
       >
-        Scan your face instead →
+        {faceScanning ? "Scanning…" : "Scan your face instead →"}
       </button>
+      {faceScanStatus === "empty" && !faceScanning && (
+        <div style={{ marginTop: 12, fontSize: 13, color: "var(--accent)" }}>
+          No matches yet — try a clearer, well-lit photo of just your face.
+        </div>
+      )}
       <input
         ref={fileRef}
         type="file"
         accept="image/*"
         hidden
-        onChange={() => scanFaceOnResults()}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void runFaceSearch(f);
+          e.target.value = "";
+        }}
       />
     </div>
   );

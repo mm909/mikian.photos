@@ -4,6 +4,7 @@ import { r2Configured, r2GetStream, r2Keys, r2Put } from "@/lib/r2";
 import { processUpload } from "@/lib/imagePipeline";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
 import { extractBibsFromImage } from "@/lib/bibOcr";
+import { indexFacesForPhoto, faceRecConfigured } from "@/lib/faceRec";
 
 /**
  * Finalize a presigned upload: the client has PUT the original JPEG to R2,
@@ -113,11 +114,29 @@ export async function POST(req: Request) {
     console.warn(`bib OCR failed for photo ${photo.id}:`, e);
   }
 
+  // Best-effort face indexing. Same shape as OCR: never blocks the upload.
+  // Skipped silently when Rekognition env isn't configured (e.g. preview
+  // deploys without AWS creds).
+  let indexedFaceCount = 0;
+  if (faceRecConfigured()) {
+    try {
+      const indexed = await indexFacesForPhoto({
+        photoId: photo.id,
+        eventId: updated.eventId,
+        bytes: processed.previewBytes,
+      });
+      indexedFaceCount = indexed.length;
+    } catch (e) {
+      console.warn(`face indexing failed for photo ${photo.id}:`, e);
+    }
+  }
+
   return NextResponse.json({
     photo: {
       ...updated,
       previewUrl: `/api/photos/${updated.id}/preview`,
       detectedBibs: detectedBibs.map((d) => d.bib),
+      indexedFaceCount,
     },
   });
 }

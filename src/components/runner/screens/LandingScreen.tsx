@@ -18,7 +18,7 @@ const hasFinishTimesForAllDistances = REQUIRED_DISTANCES.every((d) =>
 
 export function LandingScreen() {
   const router = useRouter();
-  const { runSearch } = useRunner();
+  const { runSearch, runFaceSearch, faceScanning } = useRunner();
   const [tab, setTab] = useState<"face" | "bib">("face");
   const [bib, setBib] = useState("");
   const [err, setErr] = useState("");
@@ -35,9 +35,17 @@ export function LandingScreen() {
     router.push("/results");
   }
 
-  function pickedFile() {
-    runSearch({ kind: "face", value: "self" });
+  /** Fired when the user picks a selfie from the file dialog. We navigate
+   *  to /results first so the user sees the scanning state, then fire the
+   *  request in parallel — the results screen reads `faceScanning` to show
+   *  the spinner while it runs. */
+  async function pickedFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
     router.push("/results");
+    await runFaceSearch(file);
+    // Reset the input so picking the same file again re-fires onChange.
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   const raceName = `${currentEvent.name[0]} ${currentEvent.name[1]} ${currentEvent.name[2]}`.trim();
@@ -168,8 +176,12 @@ export function LandingScreen() {
               <div>
                 {tab === "face" ? (
                   <>
-                    <button className="btn btn--dark btn--block" onClick={() => fileRef.current?.click()}>
-                      Upload a selfie to find your photos
+                    <button
+                      className="btn btn--dark btn--block"
+                      onClick={() => fileRef.current?.click()}
+                      disabled={faceScanning}
+                    >
+                      {faceScanning ? "Scanning…" : "Upload a selfie to find your photos"}
                     </button>
                     <input
                       ref={fileRef}

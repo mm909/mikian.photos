@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 import { r2Configured, r2Delete, r2Keys } from "@/lib/r2";
+import { deleteFacesForPhoto, faceRecConfigured } from "@/lib/faceRec";
 
 /**
  * Resolve the caller for photo-edit/delete routes.
@@ -155,6 +156,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     where: { id: params.id },
     select: {
       id: true,
+      eventId: true,
       photographerId: true,
       r2OriginalKey: true,
       r2PreviewKey: true,
@@ -163,6 +165,22 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (!photo) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (photo.photographerId !== actor.photographerId && !actor.isAdmin) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
+  }
+
+  // Rekognition collection cleanup. Run before the DB delete so we still
+  // have PhotoFace rows to look up FaceIds; the photo's PhotoFace rows then
+  // cascade-delete with the row. Failures are warned but don't block the
+  // photo delete — orphan FaceIds in Rekognition are harmless (no DB row
+  // to join back through).
+  if (faceRecConfigured()) {
+    try {
+      await deleteFacesForPhoto({ photoId: photo.id, eventId: photo.eventId });
+    } catch (e) {
+      console.warn(
+        `Rekognition cleanup failed for photo ${photo.id}:`,
+        e instanceof Error ? e.message : e
+      );
+    }
   }
 
   // R2 first — if this fails we still want to bail before touching the DB so
