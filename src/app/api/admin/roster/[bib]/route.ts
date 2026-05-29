@@ -6,23 +6,24 @@
  * theirs (with a sample face for thumbnail rendering).
  *
  * "One face per runner" rule: a runner has at most one assigned face
- * cluster. We compute it as the face cluster that appears most often
- * across photos tagged with this bib. Ties broken by total face
- * confidence within the cluster (so a low-confidence single appearance
- * doesn't beat a high-confidence single appearance).
+ * cluster. The assignment is computed in computeFaceAssignments() from the
+ * per-photo face-above-bib links (PhotoFace.bib), and guarantees that no two
+ * runners share a face cluster. This route just looks up this bib's entry so
+ * it always agrees with the roster list.
  *
- * If face detection hasn't produced any clusters for this runner's
- * photos, `assignedFace` is null and the UI shows "no face assigned yet".
+ * If no face has been linked to this runner's bib, `assignedFace` is null and
+ * the UI shows "no face assigned yet".
  *
  * Future: an explicit confirm/override flow ("this isn't me, that is")
  * will write the assignment to a new column on Photographer/Runner. For
- * now the heuristic above is the source of truth.
+ * now the geometry above is the source of truth.
  */
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/permissions";
 import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
+import { computeFaceAssignments } from "@/lib/faceAssignment";
 
 export const runtime = "nodejs";
 
@@ -59,105 +60,35 @@ export async function GET(
       ? LIGHTHOUSE_RACERS.find((r) => r.bib === bibNumber)
       : null;
 
-  // Photo + face data for this bib. One round-trip — we pull every
-  // PhotoBib row for the bib in this event, then for each photo grab
-  // its faces. Lighthouse Half ≈ ~10 photos per runner so this is
-  // trivial; if we ever shoot 500 photos per runner we'd push the
-  // groupBy into SQL.
+  // Total distinct photos tagged with this bib (for the count + share).
   const bibRows = await db.photoBib.findMany({
     where: { bib: bibNumber, photo: { eventId, hidden: false } },
-    select: {
-      photoId: true,
-      photo: {
-        select: {
-          faces: {
-            select: {
-              id: true,
-              faceClusterId: true,
-              confidence: true,
-            },
-          },
-        },
-      },
-    },
+    select: { photoId: true },
   });
+  const photoCount = new Set(bibRows.map((r) => r.photoId)).size;
 
-  const photoCount = bibRows.length;
-
-  // Aggregate: per cluster, how many photos it appears in + total
-  // confidence (tiebreaker) + a sample (highest-conf) face.
-  type Agg = {
-    photoIds: Set<string>;
-    confSum: number;
-    sampleFaceId: string;
-    samplePhotoId: string;
-    sampleConfidence: number;
-  };
-  const clusters = new Map<string, Agg>();
-  for (const r of bibRows) {
-    const photoId = r.photoId;
-    // A photo can have several faces. We count the cluster once per
-    // photo (using a per-photo Set) so a multi-runner shot doesn't
-    // inflate a single cluster's count from one photo.
-    const seenInThisPhoto = new Set<string>();
-    for (const f of r.photo.faces) {
-      if (!f.faceClusterId) continue;
-      const cid = f.faceClusterId;
-      const existing = clusters.get(cid);
-      const slot: Agg = existing ?? {
-        photoIds: new Set<string>(),
-        confSum: 0,
-        sampleFaceId: f.id,
-        samplePhotoId: photoId,
-        sampleConfidence: f.confidence,
-      };
-      if (!seenInThisPhoto.has(cid)) {
-        slot.photoIds.add(photoId);
-        seenInThisPhoto.add(cid);
-      }
-      slot.confSum += f.confidence;
-      if (existing && f.confidence > slot.sampleConfidence) {
-        slot.sampleFaceId = f.id;
-        slot.samplePhotoId = photoId;
-        slot.sampleConfidence = f.confidence;
-      }
-      clusters.set(cid, slot);
-    }
-  }
-
-  // Pick the assigned cluster: most photos, then highest confSum.
-  let assignedClusterId: string | null = null;
-  let assignedSample: { photoId: string; faceId: string } | null = null;
-  let assignedPhotoShare = 0;
-  let bestPhotoCount = 0;
-  let bestConfSum = 0;
-  for (const [cid, slot] of clusters) {
-    const c = slot.photoIds.size;
-    if (c > bestPhotoCount || (c === bestPhotoCount && slot.confSum > bestConfSum)) {
-      assignedClusterId = cid;
-      assignedSample = { photoId: slot.samplePhotoId, faceId: slot.sampleFaceId };
-      assignedPhotoShare = photoCount > 0 ? c / photoCount : 0;
-      bestPhotoCount = c;
-      bestConfSum = slot.confSum;
-    }
-  }
+  // The assigned face comes from the same event-wide assignment the roster
+  // list uses, so the two never disagree. It applies the face-above-bib
+  // geometry (PhotoFace.bib) plus the one-face-per-runner rule — a face
+  // cluster claimed by another runner can't show up here.
+  const assignments = await computeFaceAssignments(eventId);
+  const assigned = assignments.get(bibNumber) ?? null;
 
   return NextResponse.json({
     event,
     runner: runner ?? null,
     photoCount,
-    /** Number of distinct face clusters seen across this runner's photos.
-     *  >1 means the assignment heuristic had to pick one; the others
-     *  could be other runners visible in the same frames. */
-    clusterCount: clusters.size,
-    assignedFace: assignedClusterId
+    /** Distinct face clusters geometrically linked to this bib. >1 means the
+     *  assignment had to pick one; the others could be mis-links worth a look. */
+    clusterCount: assigned?.clusterCount ?? 0,
+    assignedFace: assigned
       ? {
-          faceClusterId: assignedClusterId,
-          sample: assignedSample!,
+          faceClusterId: assigned.faceClusterId,
+          sample: assigned.sample,
           /** Fraction of this runner's photos that contain this cluster.
            *  Closer to 1.0 = high confidence in the assignment. */
-          photoShare: assignedPhotoShare,
-          photoCount: bestPhotoCount,
+          photoShare: assigned.photoShare,
+          photoCount: assigned.photoCount,
         }
       : null,
   });

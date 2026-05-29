@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { extractBibsFromImage } from "@/lib/bibOcr";
+import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
 import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 
 /**
@@ -65,9 +66,20 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         bib: d.bib,
         confidence: d.confidence,
         source: "ocr-tesseract",
+        x0: d.bbox?.x0 ?? null,
+        y0: d.bbox?.y0 ?? null,
+        x1: d.bbox?.x1 ?? null,
+        y1: d.bbox?.y1 ?? null,
       })),
       skipDuplicates: true,
     });
+  }
+
+  // Bib boxes changed — recompute the face↔bib links for this photo.
+  try {
+    await linkFacesToBibsForPhoto(photo.id);
+  } catch (e) {
+    console.warn(`face↔bib linking failed for photo ${photo.id}:`, e);
   }
 
   return NextResponse.json({

@@ -123,6 +123,13 @@ model PhotoFace {
   y0                 Float
   x1                 Float
   y1                 Float
+  // The bib this face is geometrically linked to *within this photo* — the
+  // bib whose box sits directly below this face (a runner's number is on the
+  // torso, under the face). Computed at ingest from the face + bib boxes by
+  // linkFacesToBibsForPhoto(); see src/lib/faceBibMatch.ts. Null when no bib
+  // box is close enough below the face (or bib OCR has no box yet). This is
+  // what makes per-runner face assignment robust in multi-runner frames.
+  bib                Int?
   // "rekognition" | "facenet" | "manual" — same idea as PhotoBib.source.
   source             String   @default("rekognition")
   createdAt          DateTime @default(now())
@@ -132,6 +139,7 @@ model PhotoFace {
   @@index([faceClusterId])
   @@index([photoId])
   @@index([eventId])
+  @@index([eventId, bib])
 }
 
 /// One row per (photo, bib) tag. Same photo can carry several bibs (multiple
@@ -143,6 +151,14 @@ model PhotoBib {
   bib        Int
   confidence Float    @default(1.0)
   source     String   @default("manual") // "manual" | "ocr-tesseract" | "ocr-rekognition" | "user-tag"
+  // Bounding box of the detected bib number, normalized [0,1] (same space as
+  // PhotoFace). Populated by OCR (Tesseract/Rekognition); null for manual /
+  // user-tag rows and for rows created before box capture existed. Used to
+  // link a face to the bib directly below it — see src/lib/faceBibMatch.ts.
+  x0         Float?
+  y0         Float?
+  x1         Float?
+  y1         Float?
   createdAt  DateTime @default(now())
 
   photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)

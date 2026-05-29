@@ -53,6 +53,23 @@ function confidenceFloor(digits: number, s: OcrSettings): number {
   return s.floor4plus;
 }
 
+/** Convert a pixel-space OCR word box into normalized [0,1] coordinates so it
+ *  lives in the same space as PhotoFace boxes (which face matching compares
+ *  against). Returns undefined if dimensions are degenerate. */
+function normalizeBox(
+  bbox: { x0: number; y0: number; x1: number; y1: number },
+  width: number,
+  height: number
+): { x0: number; y0: number; x1: number; y1: number } | undefined {
+  if (!(width > 0) || !(height > 0)) return undefined;
+  return {
+    x0: bbox.x0 / width,
+    y0: bbox.y0 / height,
+    x1: bbox.x1 / width,
+    y1: bbox.y1 / height,
+  };
+}
+
 async function prepareForOcr(
   input: Buffer,
   s: OcrSettings
@@ -179,7 +196,7 @@ async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | 
 
   const bibs: BibDetection[] = [];
   const rejected: { word: OcrWord; reason: string }[] = [];
-  const seen = new Map<number, number>();
+  const seen = new Map<number, BibDetection>();
 
   for (const w of words) {
     const digits = w.text.replace(/[^0-9]/g, "");
@@ -208,12 +225,14 @@ async function runOcr(input: Buffer, settings: OcrSettings): Promise<OcrDebug | 
     }
     const score = w.confidence;
     const prev = seen.get(n);
-    if (prev === undefined || score > prev) seen.set(n, score);
+    // Keep the highest-confidence detection per bib number, carrying its box
+    // (normalized against the prepared image so it's comparable to face boxes).
+    if (prev === undefined || score > prev.confidence) {
+      seen.set(n, { bib: n, confidence: score, bbox: normalizeBox(w.bbox, prep.width, prep.height) });
+    }
   }
 
-  for (const [bib, confidence] of seen) {
-    bibs.push({ bib, confidence });
-  }
+  for (const det of seen.values()) bibs.push(det);
   bibs.sort((a, b) => b.confidence - a.confidence);
 
   return {

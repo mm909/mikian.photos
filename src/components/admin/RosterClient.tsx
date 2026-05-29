@@ -22,7 +22,10 @@ type Runner = {
   chipTime: string;
   chipMinutes: number;
   photoCount: number;
-  faceCount: number;
+  // The single face we've identified for this runner (face-above-bib geometry
+  // + one-face-per-runner). null when no face is matched yet. Renders the row
+  // thumbnail and doubles as the "face identified" marker.
+  face: { photoId: string; faceId: string } | null;
 };
 
 type RosterResponse = {
@@ -31,7 +34,7 @@ type RosterResponse = {
   officialResultsUrl: string | null;
 };
 
-type SortKey = "bib" | "name" | "gender" | "age" | "city" | "chip" | "photos" | "faces";
+type SortKey = "bib" | "face" | "name" | "gender" | "age" | "city" | "chip" | "photos";
 
 /** Top-level surface tabs. "runners" is the roster table; the rest borrow
  *  the coverage tabs so this one page answers both "who do we have photos
@@ -155,8 +158,10 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
           return (a.chipMinutes - b.chipMinutes) * dir;
         case "photos":
           return (a.photoCount - b.photoCount) * dir;
-        case "faces":
-          return (a.faceCount - b.faceCount) * dir;
+        case "face":
+          // Identified-first (or last, depending on dir). Tiebreak by bib so
+          // the order within each group is stable.
+          return ((a.face ? 1 : 0) - (b.face ? 1 : 0)) * dir || a.bib - b.bib;
         default:
           return 0;
       }
@@ -358,7 +363,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
+                      gridTemplateColumns: "60px 34px 1.6fr 60px 50px 1fr 80px 70px",
                       gap: 10,
                       padding: "8px 12px",
                       background: "var(--cream)",
@@ -366,6 +371,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                     }}
                   >
                     <SortBtn label="Bib" k="bib" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Face" k="face" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Name" k="name" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Sex" k="gender" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Age" k="age" active={sort} dir={sortDir} onClick={toggleSort} />
@@ -378,20 +384,13 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                       dir={sortDir}
                       onClick={toggleSort}
                     />
-                    <SortBtn
-                      label="Faces"
-                      k="faces"
-                      active={sort}
-                      dir={sortDir}
-                      onClick={toggleSort}
-                    />
                   </div>
                   {pageRows.map((r) => (
                     <div
                       key={r.bib}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
+                        gridTemplateColumns: "60px 34px 1.6fr 60px 50px 1fr 80px 70px",
                         gap: 10,
                         padding: "7px 12px",
                         borderBottom: "1px solid var(--line)",
@@ -417,6 +416,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                       >
                         #{r.bib}
                       </Link>
+                      <FaceThumb face={r.face} name={r.name} />
                       <Link
                         href={`/admin/roster/${r.bib}`}
                         style={{
@@ -469,14 +469,6 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                         }}
                       >
                         {r.photoCount}
-                      </span>
-                      <span
-                        style={{
-                          fontVariantNumeric: "tabular-nums",
-                          color: r.faceCount === 0 ? "var(--line)" : "var(--ink)",
-                        }}
-                      >
-                        {r.faceCount}
                       </span>
                     </div>
                   ))}
@@ -543,6 +535,54 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
         )}
       </div>
     </main>
+  );
+}
+
+/** Row face cell: the runner's identified-face crop, or a dim placeholder when
+ *  we haven't matched one. The filled vs empty circle is the at-a-glance
+ *  "face identified" marker the roster scans for. */
+function FaceThumb({
+  face,
+  name,
+}: {
+  face: { photoId: string; faceId: string } | null;
+  name: string;
+}) {
+  const SIZE = 24;
+  if (!face) {
+    return (
+      <span
+        aria-label="No face identified"
+        title="No face identified yet"
+        style={{
+          width: SIZE,
+          height: SIZE,
+          borderRadius: "50%",
+          border: "1px dashed var(--line)",
+          background: "var(--cream)",
+          display: "inline-block",
+        }}
+      />
+    );
+  }
+  return (
+    <img
+      src={`/api/photos/${face.photoId}/face/${face.faceId}`}
+      alt={`${name} (identified face)`}
+      title={`${name} — face identified`}
+      loading="lazy"
+      width={SIZE}
+      height={SIZE}
+      style={{
+        width: SIZE,
+        height: SIZE,
+        borderRadius: "50%",
+        objectFit: "cover",
+        display: "block",
+        border: "1px solid var(--line)",
+        background: "var(--cream)",
+      }}
+    />
   );
 }
 

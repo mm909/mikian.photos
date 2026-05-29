@@ -71,6 +71,22 @@ function confidenceFloor(digits: number, s: OcrSettings): number {
   return s.floor4plus;
 }
 
+/** Convert a pixel-space word box into normalized [0,1] coordinates (same
+ *  space as PhotoFace boxes). Returns undefined for degenerate dimensions. */
+function normalizeBox(
+  bbox: { x0: number; y0: number; x1: number; y1: number },
+  width: number,
+  height: number
+): { x0: number; y0: number; x1: number; y1: number } | undefined {
+  if (!(width > 0) || !(height > 0)) return undefined;
+  return {
+    x0: bbox.x0 / width,
+    y0: bbox.y0 / height,
+    x1: bbox.x1 / width,
+    y1: bbox.y1 / height,
+  };
+}
+
 /**
  * Minimal prep for Rekognition: orient via EXIF + downscale enough to fit
  * under the 5MB byte cap. **No grayscale, sharpen, contrast, threshold, or
@@ -181,7 +197,7 @@ export async function extractBibsDebugRekognition(
   // tokens like "3498." or "3429,"; we strip non-digits before length-check.
   const bibs: BibDetection[] = [];
   const rejected: { word: OcrWord; reason: string }[] = [];
-  const seen = new Map<number, number>();
+  const seen = new Map<number, BibDetection>();
 
   for (const w of words) {
     const digits = w.text.replace(/[^0-9]/g, "");
@@ -209,9 +225,13 @@ export async function extractBibsDebugRekognition(
     }
     const score = w.confidence;
     const prev = seen.get(n);
-    if (prev === undefined || score > prev) seen.set(n, score);
+    // Keep the highest-confidence detection per bib, carrying its box
+    // (normalized against the prepared image, same space as face boxes).
+    if (prev === undefined || score > prev.confidence) {
+      seen.set(n, { bib: n, confidence: score, bbox: normalizeBox(w.bbox, prep.width, prep.height) });
+    }
   }
-  for (const [bib, confidence] of seen) bibs.push({ bib, confidence });
+  for (const det of seen.values()) bibs.push(det);
   bibs.sort((a, b) => b.confidence - a.confidence);
 
   return {

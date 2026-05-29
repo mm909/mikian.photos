@@ -11,6 +11,10 @@
 export type BibDetection = {
   bib: number;
   confidence: number; // 0..1
+  /** Bounding box of the winning OCR word for this bib, normalized to [0,1]
+   *  against the prepared image (same coordinate space as PhotoFace boxes).
+   *  Undefined only if the provider somehow yielded no geometry. */
+  bbox?: { x0: number; y0: number; x1: number; y1: number };
 };
 
 export type OcrWord = {

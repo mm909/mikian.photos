@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { faceRecConfigured, indexFacesForPhoto } from "@/lib/faceRec";
+import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
 import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
 
 /**
@@ -66,6 +67,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       bytes,
       force: true,
     });
+    // New face boxes — recompute the face↔bib links for this photo.
+    await linkFacesToBibsForPhoto(photo.id);
     return NextResponse.json({
       indexed: indexed.length,
       faces: indexed,

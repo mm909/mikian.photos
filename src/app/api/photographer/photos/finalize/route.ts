@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys, r2Put } from "@/lib/r2";
 import { processUpload } from "@/lib/imagePipeline";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
-import { extractBibsFromImage } from "@/lib/bibOcr";
+import { extractBibsFromImage, type BibDetection } from "@/lib/bibOcr";
 import { indexFacesForPhoto, faceRecConfigured } from "@/lib/faceRec";
+import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
 
 /**
  * Finalize a presigned upload: the client has PUT the original JPEG to R2,
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
   // Best-effort bib OCR. Never blocks the upload — failures are silent.
   // Run against the resized preview (faster) so Tesseract sees consistent
   // dimensions regardless of source camera.
-  let detectedBibs: { bib: number; confidence: number }[] = [];
+  let detectedBibs: BibDetection[] = [];
   try {
     detectedBibs = await extractBibsFromImage(processed.previewBytes);
     if (detectedBibs.length > 0) {
@@ -105,6 +106,10 @@ export async function POST(req: Request) {
           bib: d.bib,
           confidence: d.confidence,
           source: "ocr-tesseract",
+          x0: d.bbox?.x0 ?? null,
+          y0: d.bbox?.y0 ?? null,
+          x1: d.bbox?.x1 ?? null,
+          y1: d.bbox?.y1 ?? null,
         })),
         skipDuplicates: true,
       });
@@ -129,6 +134,15 @@ export async function POST(req: Request) {
     } catch (e) {
       console.warn(`face indexing failed for photo ${photo.id}:`, e);
     }
+  }
+
+  // Link each face to the bib directly below it (face-above-bib geometry).
+  // Runs after both detectors so it sees the full set of boxes. Best-effort —
+  // a failure here just leaves faces unlinked until the next rerun.
+  try {
+    await linkFacesToBibsForPhoto(photo.id);
+  } catch (e) {
+    console.warn(`face↔bib linking failed for photo ${photo.id}:`, e);
   }
 
   return NextResponse.json({

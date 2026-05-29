@@ -14,7 +14,7 @@
  *     event: { id, name },
  *     runners: [{
  *       bib, name, gender, age, city, state, chipTime, chipMinutes,
- *       photoCount, faceCount
+ *       photoCount, face: { photoId, faceId } | null
  *     }],
  *     officialResultsUrl: string | null   // null when unknown for this event
  *   }
@@ -24,6 +24,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/permissions";
 import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
+import { computeFaceAssignments } from "@/lib/faceAssignment";
 
 export const runtime = "nodejs";
 
@@ -72,26 +73,35 @@ export async function GET(req: Request) {
     photosByBib.set(r.bib, set);
   }
 
+  // The single face we've identified for each runner, via the face-above-bib
+  // geometry + one-face-per-runner assignment. Drives the row thumbnail and
+  // the "face identified" marker.
+  const faceByBib = await computeFaceAssignments(eventId);
+
   // Pick the roster for this event. Only Lighthouse is wired today.
   const roster =
     eventId === "lighthouse-half-2026" ? LIGHTHOUSE_RACERS : [];
 
-  const runners = roster.map((r) => ({
-    bib: r.bib,
-    name: r.name,
-    gender: r.gender,
-    age: r.age,
-    city: r.city,
-    state: r.state,
-    chipTime: r.chipTime,
-    chipMinutes: r.chipMinutes,
-    distance: r.distance,
-    photoCount: photosByBib.get(r.bib)?.size ?? 0,
-    // Face count is per-runner once face → bib linking is established. For
-    // now it's the same proxy as "any face cluster appears in a photo this
-    // bib also appears in" — surfaced via the coverage screen, not here.
-    faceCount: 0,
-  }));
+  const runners = roster.map((r) => {
+    const face = faceByBib.get(r.bib);
+    return {
+      bib: r.bib,
+      name: r.name,
+      gender: r.gender,
+      age: r.age,
+      city: r.city,
+      state: r.state,
+      chipTime: r.chipTime,
+      chipMinutes: r.chipMinutes,
+      distance: r.distance,
+      photoCount: photosByBib.get(r.bib)?.size ?? 0,
+      // The runner's identified face, or null if we haven't matched one. The
+      // sample points the row thumbnail at /api/photos/[photoId]/face/[faceId].
+      face: face
+        ? { photoId: face.sample.photoId, faceId: face.sample.faceId }
+        : null,
+    };
+  });
 
   return NextResponse.json({
     event,
