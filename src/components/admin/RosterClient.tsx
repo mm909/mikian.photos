@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
+import {
+  BibTab,
+  FaceTab,
+  GapsTab,
+  Stat,
+  TabBtn,
+  fmtCount,
+  pctValue,
+  useCoverageData,
+} from "@/components/admin/CoverageClient";
 
 type Runner = {
   bib: number;
@@ -25,23 +35,39 @@ type RosterResponse = {
 
 type SortKey = "bib" | "name" | "gender" | "age" | "city" | "chip" | "photos" | "faces";
 
+/** Top-level surface tabs. "runners" is the roster table; the rest borrow
+ *  the coverage tabs so this one page answers both "who do we have photos
+ *  of?" and "what did detection actually tag?". */
+type Tab = "runners" | "bib" | "face" | "gaps";
+
 const ROW_PAGE_SIZE = 50;
 
 type Props = { defaultEventId: string; defaultEventName: string };
 
 /**
- * Roster screen — searchable, sortable list of every entrant joined with
- * per-runner photo + face counts. Helpful for spot-checking detection
- * coverage by runner identity (the coverage screen does it by bib).
+ * Combined Roster + Coverage surface — owner-only.
  *
- * Owner-only. Click the offical-results link to verify a runner's time on
- * the third-party timing site.
+ * - **Runners** (default): searchable, sortable list of every entrant joined
+ *   with per-runner photo + face counts. Click a row → that runner's profile.
+ *   This is the "someone got first, find their photos" lookup.
+ * - **By bib / By face / Coverage gaps**: the detection-coverage tabs, so the
+ *   owner can audit what OCR + face detection actually tagged without leaving
+ *   the page.
+ *
+ * Click the official-results link to verify a runner's time on the
+ * third-party timing site.
  */
 export function RosterClient({ defaultEventId, defaultEventName }: Props) {
   const [eventId] = useState(defaultEventId);
+  const [tab, setTab] = useState<Tab>("runners");
+
   const [data, setData] = useState<RosterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Coverage rollup powers the stat strip + the bib/face/gaps tabs. Fetched
+  // alongside the roster so the header numbers are complete on first paint.
+  const coverage = useCoverageData(eventId);
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("bib");
@@ -130,9 +156,9 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
   }
 
   // Aggregate summary above the table.
-  const total = sorted.length;
-  const withPhotos = sorted.filter((r) => r.photoCount > 0).length;
-  const withoutPhotos = total - withPhotos;
+  const total = data?.runners.length ?? 0;
+  const withPhotos = (data?.runners ?? []).filter((r) => r.photoCount > 0).length;
+  const cov = coverage.data?.totals;
 
   return (
     <main className="screen" style={{ padding: "28px 24px 64px" }}>
@@ -148,7 +174,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
               marginBottom: 4,
             }}
           >
-            Owner · Roster · {data?.event.name ?? defaultEventName}
+            Owner · Roster &amp; coverage · {data?.event.name ?? defaultEventName}
           </div>
           <Headline
             as="h1"
@@ -180,6 +206,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
           </div>
         )}
 
+        {/* Unified stat strip — roster headcount + detection coverage. */}
         <div
           style={{
             display: "grid",
@@ -194,350 +221,320 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
             value={`${withPhotos}`}
             sub={total ? `${Math.round((withPhotos / total) * 100)}%` : "—"}
           />
+          <Stat label="Photos" value={fmtCount(cov?.photos)} />
           <Stat
-            label="Missing photos"
-            value={`${withoutPhotos}`}
-            sub={total ? `${Math.round((withoutPhotos / total) * 100)}%` : "—"}
-            muted={withoutPhotos === 0}
+            label="Bibs found"
+            value={pctValue(cov?.withBib, cov?.photos)}
+            sub={fmtCount(cov?.withBib)}
           />
-          {data?.officialResultsUrl ? (
-            <a
-              href={data.officialResultsUrl}
-              target="_blank"
-              rel="noreferrer"
+          <Stat
+            label="Faces found"
+            value={pctValue(cov?.withFace, cov?.photos)}
+            sub={fmtCount(cov?.withFace)}
+            muted={cov?.withFace === 0}
+          />
+        </div>
+
+        {/* Surface tabs */}
+        <div
+          role="tablist"
+          style={{
+            display: "inline-flex",
+            border: "1px solid var(--line)",
+            borderRadius: 6,
+            background: "var(--cream)",
+            padding: 2,
+            marginBottom: 12,
+          }}
+        >
+          <TabBtn active={tab === "runners"} onClick={() => setTab("runners")} label="Runners" />
+          <TabBtn active={tab === "bib"} onClick={() => setTab("bib")} label="By bib" />
+          <TabBtn active={tab === "face"} onClick={() => setTab("face")} label="By face" />
+          <TabBtn active={tab === "gaps"} onClick={() => setTab("gaps")} label="Coverage gaps" />
+        </div>
+
+        {/* Coverage-tab load/error chrome (the runners tab has its own). */}
+        {tab !== "runners" && coverage.loading && (
+          <p style={{ color: "var(--muted)" }}>Loading coverage…</p>
+        )}
+        {tab !== "runners" && coverage.error && (
+          <div
+            role="alert"
+            style={{
+              padding: "10px 14px",
+              border: "1px solid var(--accent)",
+              borderRadius: 6,
+              color: "var(--accent)",
+              fontSize: 13,
+            }}
+          >
+            Could not load coverage: {coverage.error}
+          </div>
+        )}
+
+        {tab === "bib" && coverage.data && (
+          <BibTab eventId={eventId} rows={coverage.data.bibs} onMutated={coverage.refetch} />
+        )}
+        {tab === "face" && coverage.data && (
+          <FaceTab eventId={eventId} rows={coverage.data.faces} />
+        )}
+        {tab === "gaps" && coverage.data && (
+          <GapsTab eventId={eventId} totals={coverage.data.gaps} />
+        )}
+
+        {tab === "runners" && (
+          <>
+            <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                padding: "10px 12px",
-                background: "var(--surface)",
-                border: "1px solid var(--line)",
-                borderRadius: 8,
-                textDecoration: "none",
-                color: "var(--ink)",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+                marginBottom: 10,
               }}
             >
-              <div
+              <input
+                className="input"
+                type="search"
+                placeholder="Search bib, name, or city…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={{ flex: 1, minWidth: 240, padding: "7px 10px", fontSize: 13 }}
+              />
+              <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 9,
+                  fontSize: 10,
                   letterSpacing: ".12em",
                   textTransform: "uppercase",
                   color: "var(--muted)",
                 }}
               >
-                Verify times
-              </div>
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12,
-                  color: "var(--ink)",
-                  marginTop: 2,
-                }}
-              >
-                Official results →
-              </div>
-            </a>
-          ) : (
-            <Stat label="Verify times" value="—" sub="no source" muted />
-          )}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-            marginBottom: 10,
-          }}
-        >
-          <input
-            className="input"
-            type="search"
-            placeholder="Search bib, name, or city…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: 1, minWidth: 240, padding: "7px 10px", fontSize: 13 }}
-          />
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-            }}
-          >
-            {filtered.length} of {data?.runners.length ?? 0}
-          </span>
-        </div>
-
-        {loading ? (
-          <p style={{ color: "var(--muted)" }}>Loading roster…</p>
-        ) : data?.runners.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No roster wired for this event yet.</p>
-        ) : (
-          <>
-            <div
-              style={{
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
-                  gap: 10,
-                  padding: "8px 12px",
-                  background: "var(--cream)",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                <SortBtn label="Bib" k="bib" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn label="Name" k="name" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn label="Sex" k="gender" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn label="Age" k="age" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn label="City" k="city" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn label="Chip" k="chip" active={sort} dir={sortDir} onClick={toggleSort} />
-                <SortBtn
-                  label="Photos"
-                  k="photos"
-                  active={sort}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                />
-                <SortBtn
-                  label="Faces"
-                  k="faces"
-                  active={sort}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                />
-              </div>
-              {pageRows.map((r) => (
-                <div
-                  key={r.bib}
+                {filtered.length} of {data?.runners.length ?? 0}
+              </span>
+              {data?.officialResultsUrl && (
+                <a
+                  href={data.officialResultsUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
-                    gap: 10,
-                    padding: "7px 12px",
-                    borderBottom: "1px solid var(--line)",
-                    fontSize: 13,
-                    alignItems: "center",
-                    cursor: "default",
-                    background: "var(--surface)",
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLDivElement).style.background = "var(--cream)")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLDivElement).style.background = "var(--surface)")
-                  }
-                >
-                  <Link
-                    href={`/admin/roster/${r.bib}`}
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--ink)",
-                      textDecoration: "none",
-                    }}
-                  >
-                    #{r.bib}
-                  </Link>
-                  <Link
-                    href={`/admin/roster/${r.bib}`}
-                    style={{
-                      color: "var(--ink)",
-                      textDecoration: "none",
-                      // Subtle hint that the row is clickable — underline
-                      // on hover, no underline otherwise (keeps the table
-                      // visually quiet).
-                    }}
-                    onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
-                        "underline")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
-                        "none")
-                    }
-                  >
-                    {r.name}
-                  </Link>
-                  <span style={{ color: "var(--muted)" }}>{r.gender[0]}</span>
-                  <span
-                    style={{
-                      color: "var(--muted)",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {r.age}
-                  </span>
-                  <span
-                    style={{
-                      color: "var(--muted)",
-                      fontSize: 12,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {r.city ? `${r.city}${r.state ? ", " + r.state : ""}` : "—"}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontVariantNumeric: "tabular-nums",
-                      fontSize: 12,
-                    }}
-                  >
-                    {r.chipTime}
-                  </span>
-                  <span
-                    style={{
-                      fontVariantNumeric: "tabular-nums",
-                      color: r.photoCount === 0 ? "var(--line)" : "var(--ink)",
-                    }}
-                  >
-                    {r.photoCount}
-                  </span>
-                  <span
-                    style={{
-                      fontVariantNumeric: "tabular-nums",
-                      color: r.faceCount === 0 ? "var(--line)" : "var(--ink)",
-                    }}
-                  >
-                    {r.faceCount}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {pageCount > 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 10,
-                }}
-              >
-                <PageBtn
-                  label="←"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                />
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "0 6px",
                     fontFamily: "var(--font-mono)",
                     fontSize: 11,
-                    color: "var(--muted)",
+                    color: "var(--ink)",
+                    textDecoration: "none",
+                    border: "1px solid var(--line)",
+                    borderRadius: 5,
+                    padding: "6px 10px",
+                    whiteSpace: "nowrap",
+                  }}
+                  title="Verify finish times on the official timing site"
+                >
+                  Official results →
+                </a>
+              )}
+            </div>
+
+            {loading ? (
+              <p style={{ color: "var(--muted)" }}>Loading roster…</p>
+            ) : data?.runners.length === 0 ? (
+              <p style={{ color: "var(--muted)" }}>No roster wired for this event yet.</p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    border: "1px solid var(--line)",
+                    borderRadius: 6,
+                    overflow: "hidden",
                   }}
                 >
-                  <input
-                    type="number"
-                    min={1}
-                    max={pageCount}
-                    value={page}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n) && n >= 1 && n <= pageCount) setPage(n);
-                    }}
+                  <div
                     style={{
-                      width: 50,
-                      padding: "4px 6px",
-                      border: "1px solid var(--line)",
-                      borderRadius: 4,
-                      background: "var(--surface)",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 11,
-                      textAlign: "center",
+                      display: "grid",
+                      gridTemplateColumns: "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
+                      gap: 10,
+                      padding: "8px 12px",
+                      background: "var(--cream)",
+                      borderBottom: "1px solid var(--line)",
                     }}
-                  />
-                  / {pageCount}
-                </label>
-                <PageBtn
-                  label="→"
-                  disabled={page >= pageCount}
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                />
-              </div>
+                  >
+                    <SortBtn label="Bib" k="bib" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Name" k="name" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Sex" k="gender" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Age" k="age" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="City" k="city" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Chip" k="chip" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn
+                      label="Photos"
+                      k="photos"
+                      active={sort}
+                      dir={sortDir}
+                      onClick={toggleSort}
+                    />
+                    <SortBtn
+                      label="Faces"
+                      k="faces"
+                      active={sort}
+                      dir={sortDir}
+                      onClick={toggleSort}
+                    />
+                  </div>
+                  {pageRows.map((r) => (
+                    <div
+                      key={r.bib}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "60px 1.6fr 60px 50px 1fr 80px 70px 70px",
+                        gap: 10,
+                        padding: "7px 12px",
+                        borderBottom: "1px solid var(--line)",
+                        fontSize: 13,
+                        alignItems: "center",
+                        cursor: "default",
+                        background: "var(--surface)",
+                      }}
+                      onMouseEnter={(e) =>
+                        ((e.currentTarget as HTMLDivElement).style.background = "var(--cream)")
+                      }
+                      onMouseLeave={(e) =>
+                        ((e.currentTarget as HTMLDivElement).style.background = "var(--surface)")
+                      }
+                    >
+                      <Link
+                        href={`/admin/roster/${r.bib}`}
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: "var(--ink)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        #{r.bib}
+                      </Link>
+                      <Link
+                        href={`/admin/roster/${r.bib}`}
+                        style={{
+                          color: "var(--ink)",
+                          textDecoration: "none",
+                        }}
+                        onMouseEnter={(e) =>
+                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
+                            "underline")
+                        }
+                        onMouseLeave={(e) =>
+                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")
+                        }
+                      >
+                        {r.name}
+                      </Link>
+                      <span style={{ color: "var(--muted)" }}>{r.gender[0]}</span>
+                      <span
+                        style={{
+                          color: "var(--muted)",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {r.age}
+                      </span>
+                      <span
+                        style={{
+                          color: "var(--muted)",
+                          fontSize: 12,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.city ? `${r.city}${r.state ? ", " + r.state : ""}` : "—"}
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 12,
+                        }}
+                      >
+                        {r.chipTime}
+                      </span>
+                      <span
+                        style={{
+                          fontVariantNumeric: "tabular-nums",
+                          color: r.photoCount === 0 ? "var(--line)" : "var(--ink)",
+                        }}
+                      >
+                        {r.photoCount}
+                      </span>
+                      <span
+                        style={{
+                          fontVariantNumeric: "tabular-nums",
+                          color: r.faceCount === 0 ? "var(--line)" : "var(--ink)",
+                        }}
+                      >
+                        {r.faceCount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {pageCount > 1 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 10,
+                    }}
+                  >
+                    <PageBtn
+                      label="←"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    />
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "0 6px",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      <input
+                        type="number"
+                        min={1}
+                        max={pageCount}
+                        value={page}
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          if (Number.isFinite(n) && n >= 1 && n <= pageCount) setPage(n);
+                        }}
+                        style={{
+                          width: 50,
+                          padding: "4px 6px",
+                          border: "1px solid var(--line)",
+                          borderRadius: 4,
+                          background: "var(--surface)",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 11,
+                          textAlign: "center",
+                        }}
+                      />
+                      / {pageCount}
+                    </label>
+                    <PageBtn
+                      label="→"
+                      disabled={page >= pageCount}
+                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
       </div>
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  sub,
-  muted,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  muted?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        opacity: muted ? 0.6 : 1,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 9,
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "var(--muted)",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: 22,
-          marginTop: 1,
-          color: "var(--ink)",
-        }}
-      >
-        {value}
-      </div>
-      {sub && (
-        <div
-          style={{
-            marginTop: 1,
-            fontFamily: "var(--font-mono)",
-            fontSize: 10,
-            color: "var(--muted)",
-          }}
-        >
-          {sub}
-        </div>
-      )}
-    </div>
   );
 }
 
