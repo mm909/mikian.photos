@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -368,18 +367,13 @@ export function PhotosAdminClient() {
               {scopeLine}
             </span>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              className="input"
-              placeholder="Search bib, photo ID, photographer…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 280, maxWidth: "50vw", padding: "7px 12px", fontSize: 14 }}
-            />
-            <Link href="/photographer/upload" className="btn btn--primary">
-              Upload →
-            </Link>
-          </div>
+          <input
+            className="input"
+            placeholder="Search bib, photo ID, photographer…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 280, maxWidth: "50vw", padding: "7px 12px", fontSize: 14 }}
+          />
         </div>
 
         {/* Body — the inline detail workbench fills the remaining height. */}
