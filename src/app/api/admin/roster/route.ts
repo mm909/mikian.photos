@@ -32,8 +32,9 @@ export const runtime = "nodejs";
 // needing a schema change. null means "unknown" → UI renders no link.
 const OFFICIAL_RESULTS_URLS: Record<string, string> = {
   // Race Roster's per-race result page. `filter_search=` left empty so it
-  // lands on the full leaderboard; the user can type a bib/name there.
-  // If we ever scrape 5K/10K rosters, swap in their own race ids here.
+  // lands on the full leaderboard; the user can type a bib/name there. This
+  // points at the half marathon; the roster itself now spans all three races
+  // (10K = race 283501, 5K = race 283502 under the same event).
   "lighthouse-half-2026":
     "https://results.raceroster.com/v3/events/tmf7z96gjcpjtuet/race/283500?filter_search=",
 };
@@ -84,6 +85,7 @@ export async function GET(req: Request) {
     state: r.state,
     chipTime: r.chipTime,
     chipMinutes: r.chipMinutes,
+    distance: r.distance,
     photoCount: photosByBib.get(r.bib)?.size ?? 0,
     // Face count is per-runner once face → bib linking is established. For
     // now it's the same proxy as "any face cluster appears in a photo this
