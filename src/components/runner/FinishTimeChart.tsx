@@ -9,7 +9,13 @@ import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
  * No external charting deps.
  */
 export function FinishTimeChart() {
-  const data = useMemo(() => buildBins(LIGHTHOUSE_RACERS.map((r) => r.chipMinutes)), []);
+  // Half-marathon only — the roster now also holds 5K/10K finishers whose
+  // much shorter times would otherwise distort this single-distance histogram.
+  const halfRacers = useMemo(
+    () => LIGHTHOUSE_RACERS.filter((r) => r.distance === "half"),
+    []
+  );
+  const data = useMemo(() => buildBins(halfRacers.map((r) => r.chipMinutes)), [halfRacers]);
   if (data.bins.length === 0) return null;
 
   const W = 320;
@@ -32,9 +38,9 @@ export function FinishTimeChart() {
     return avg;
   });
 
-  const winner = LIGHTHOUSE_RACERS.reduce(
+  const winner = halfRacers.reduce(
     (best, r) => (r.chipMinutes < best.chipMinutes ? r : best),
-    LIGHTHOUSE_RACERS[0]
+    halfRacers[0]
   );
 
   function xForMinutes(m: number): number {
@@ -70,7 +76,7 @@ export function FinishTimeChart() {
             color: "var(--muted)",
           }}
         >
-          Finish times — {LIGHTHOUSE_RACERS.length} runners
+          Finish times — {halfRacers.length} runners
         </div>
         <div
           style={{

@@ -203,16 +203,16 @@ export function photoBg(p: { tones: [string, string, string]; spot: [number, num
 }
 
 /* ----------------------------------------------------------------
-   Racer roster — real 2026 Lighthouse Half Marathon finishers
-   (loaded from src/lib/lighthouseRoster.ts). All entries are the
-   half distance; 5K and 10K rosters not yet wired.
+   Racer roster — real 2026 Lighthouse finishers across all three
+   races (half / 10K / 5K), loaded from src/lib/lighthouseRoster.ts.
+   Each entry carries its own `distance`.
    ---------------------------------------------------------------- */
 export const racers: Racer[] = LIGHTHOUSE_RACERS.map((r) => ({
   id: `r-${r.bib}`,
   name: r.name,
   email: "", // not collected publicly; comes from the racer's account when they sign in
   bib: r.bib,
-  distance: "half" as DistanceKey,
+  distance: r.distance,
   finishTime: r.chipTime,
 }));
 
@@ -224,11 +224,11 @@ export function findRacerByBib(bib: number | string): Racer | undefined {
     name: r.name,
     email: "",
     bib: r.bib,
-    distance: "half",
+    distance: r.distance,
     finishTime: r.chipTime,
   };
 }
 
 // Bib that face-search "matches" — the seeded face-suggest banner proposes this bib.
-// Pick a real Lighthouse runner so it lands credibly.
-export const FACE_SEED_BIB = 288;
+// Pick a real Lighthouse runner so it lands credibly (current half winner).
+export const FACE_SEED_BIB = 340;

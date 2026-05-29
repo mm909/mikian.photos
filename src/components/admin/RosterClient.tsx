@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 import {
   BibTab,
   FaceTab,
-  GapsTab,
   Stat,
   TabBtn,
   fmtCount,
-  pctValue,
   useCoverageData,
 } from "@/components/admin/CoverageClient";
 
@@ -38,9 +36,12 @@ type SortKey = "bib" | "name" | "gender" | "age" | "city" | "chip" | "photos" | 
 /** Top-level surface tabs. "runners" is the roster table; the rest borrow
  *  the coverage tabs so this one page answers both "who do we have photos
  *  of?" and "what did detection actually tag?". */
-type Tab = "runners" | "bib" | "face" | "gaps";
+type Tab = "runners" | "bib" | "face";
 
-const ROW_PAGE_SIZE = 50;
+// Approx pixel height of one rendered roster row — used to size a page so
+// the table fits the viewport without scrolling. Keep in sync with the row
+// padding/font below.
+const ROW_PX = 31;
 
 type Props = { defaultEventId: string; defaultEventName: string };
 
@@ -73,6 +74,26 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
   const [sort, setSort] = useState<SortKey>("bib");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+
+  // Size each page so the table fills the space below it without making the
+  // page scroll. Measured from the table's top edge to the bottom of the
+  // viewport, minus room for the column header + pager.
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  useEffect(() => {
+    function recompute() {
+      const el = tableRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      const reserveBelow = 72; // pager + bottom breathing room
+      const headerRow = 36; // the column-header row inside the table
+      const avail = window.innerHeight - top - reserveBelow - headerRow;
+      setRowsPerPage(Math.max(5, Math.floor(avail / ROW_PX)));
+    }
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [tab, loading, data]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,9 +164,10 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
     return arr;
   }, [filtered, sort, sortDir]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / ROW_PAGE_SIZE));
-  const pageStart = (page - 1) * ROW_PAGE_SIZE;
-  const pageRows = sorted.slice(pageStart, pageStart + ROW_PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * rowsPerPage;
+  const pageRows = sorted.slice(pageStart, pageStart + rowsPerPage);
 
   function toggleSort(k: SortKey) {
     if (sort === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -216,22 +238,11 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
           }}
         >
           <Stat label="Runners" value={total.toString()} />
-          <Stat
-            label="With photos"
-            value={`${withPhotos}`}
-            sub={total ? `${Math.round((withPhotos / total) * 100)}%` : "—"}
-          />
           <Stat label="Photos" value={fmtCount(cov?.photos)} />
           <Stat
-            label="Bibs found"
-            value={pctValue(cov?.withBib, cov?.photos)}
-            sub={fmtCount(cov?.withBib)}
-          />
-          <Stat
-            label="Faces found"
-            value={pctValue(cov?.withFace, cov?.photos)}
-            sub={fmtCount(cov?.withFace)}
-            muted={cov?.withFace === 0}
+            label="Coverage"
+            value={total ? `${Math.round((withPhotos / total) * 100)}%` : "—"}
+            sub={total ? `${withPhotos} of ${total} runners` : undefined}
           />
         </div>
 
@@ -250,7 +261,6 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
           <TabBtn active={tab === "runners"} onClick={() => setTab("runners")} label="Runners" />
           <TabBtn active={tab === "bib"} onClick={() => setTab("bib")} label="By bib" />
           <TabBtn active={tab === "face"} onClick={() => setTab("face")} label="By face" />
-          <TabBtn active={tab === "gaps"} onClick={() => setTab("gaps")} label="Coverage gaps" />
         </div>
 
         {/* Coverage-tab load/error chrome (the runners tab has its own). */}
@@ -277,9 +287,6 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
         )}
         {tab === "face" && coverage.data && (
           <FaceTab eventId={eventId} rows={coverage.data.faces} />
-        )}
-        {tab === "gaps" && coverage.data && (
-          <GapsTab eventId={eventId} totals={coverage.data.gaps} />
         )}
 
         {tab === "runners" && (
@@ -341,6 +348,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
             ) : (
               <>
                 <div
+                  ref={tableRef}
                   style={{
                     border: "1px solid var(--line)",
                     borderRadius: 6,
@@ -486,8 +494,8 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                   >
                     <PageBtn
                       label="←"
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      onClick={() => setPage(Math.max(1, currentPage - 1))}
                     />
                     <label
                       style={{
@@ -504,7 +512,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                         type="number"
                         min={1}
                         max={pageCount}
-                        value={page}
+                        value={currentPage}
                         onChange={(e) => {
                           const n = Number(e.target.value);
                           if (Number.isFinite(n) && n >= 1 && n <= pageCount) setPage(n);
@@ -524,8 +532,8 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                     </label>
                     <PageBtn
                       label="→"
-                      disabled={page >= pageCount}
-                      onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                      disabled={currentPage >= pageCount}
+                      onClick={() => setPage(Math.min(pageCount, currentPage + 1))}
                     />
                   </div>
                 )}

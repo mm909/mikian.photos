@@ -6,7 +6,8 @@ import matplotlib.patches as mpatches
 import numpy as np
 
 HERE = Path(__file__).parent
-raw = json.loads((HERE / "results_raw.json").read_text())
+# Half-marathon results (subEvent 283500). Re-fetch via build_roster.py's curl note.
+raw = json.loads((HERE / "results_raw_283500.json").read_text())
 rows = raw["data"]
 
 def to_minutes(t):
