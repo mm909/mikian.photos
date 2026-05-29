@@ -67,25 +67,18 @@ const VIEWS: View[] = [
     roles: ["owner"],
   },
   {
-    // Owner-only insights — bib & face coverage table. Sits alongside Admin
-    // so they're grouped visually in the nav.
-    label: "Coverage",
-    href: "/admin/coverage",
-    match: (p) => p.startsWith("/admin/coverage"),
-    roles: ["owner"],
-  },
-  {
-    // Owner-only roster view — race entrants joined with our per-runner
-    // photo + face counts. Used to verify "do we have everyone we should?".
+    // Owner-only roster + coverage surface. Roster lists race entrants joined
+    // with per-runner photo/face counts; the same page carries the bib/face/
+    // gaps coverage tabs. (/admin/coverage redirects here.)
     label: "Roster",
     href: "/admin/roster",
-    match: (p) => p.startsWith("/admin/roster"),
+    match: (p) => p.startsWith("/admin/roster") || p.startsWith("/admin/coverage"),
     roles: ["owner"],
   },
   {
     label: "Admin",
     href: "/admin/users",
-    // Narrowed from /admin/* so Coverage doesn't double-highlight this chip.
+    // Narrowed from /admin/* so Roster doesn't double-highlight this chip.
     match: (p) => p.startsWith("/admin/users"),
     roles: ["owner"],
   },
