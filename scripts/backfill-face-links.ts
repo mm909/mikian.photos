@@ -1,7 +1,12 @@
 /**
  * Backfill face↔bib geometric links for an event's existing photos.
  *
- *   npx -y dotenv-cli -e .env.local -- npx tsx scripts/backfill-face-links.ts
+ *   npx -y dotenv-cli -e .env.local -- node --conditions=react-server \
+ *     --import tsx scripts/backfill-face-links.ts
+ *
+ * (The `--conditions=react-server` flag makes the `import "server-only"` in
+ * the OCR lib resolve to its no-op stub — without it tsx throws, since that
+ * condition is only set automatically inside Next.js.)
  *
  * The face-above-bib matching (src/lib/faceBibMatch.ts) needs bib bounding
  * boxes, which only get captured at OCR time by the new pipeline. Photos
