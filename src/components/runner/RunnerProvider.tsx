@@ -38,6 +38,10 @@ export type FaceCandidate = {
   clusterId: string;
   photoCountInBib: number;
   photoCountInEvent: number;
+  /** Photo IDs (event-wide) that contain this face cluster. Used by the
+   *  "Is this you?" strip to advertise "+N more photos" using only the
+   *  ids NOT already in the runner's current result set. */
+  photoIdsInEvent: string[];
   sampleFaceUrl: string;
 };
 
@@ -419,10 +423,15 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const ui = (d.photos ?? []).map(apiPhotoToUi);
       setResultPhotos(ui);
       setSearchFellBack(ui.length === 0);
-      // Server returns candidates regardless of confirmation; keep them
-      // fresh so the user can switch their pick if they realize they
-      // chose the wrong face.
-      setFaceCandidates(d.faceCandidates ?? []);
+      // Refresh the strip from the server response, but ONLY overwrite
+      // when the server returns a non-empty list. After a cluster confirm
+      // the server occasionally returns 0 candidates (e.g. the bib's
+      // photos are now all face-tagged via the expansion); clearing them
+      // would yank the strip out from under the user mid-flow. The
+      // existing candidates stay valid until they kick off a new bib
+      // search.
+      const fresh = d.faceCandidates ?? [];
+      if (fresh.length > 0) setFaceCandidates(fresh);
       if (clusterId && d.crossLinked && d.crossLinked > 0) {
         flashToast(`+${d.crossLinked} more found by face match`);
       }
@@ -455,13 +464,60 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setBibSuggest(null);
   }
 
-  function addBib(extraBib: string) {
+  /**
+   * Pull in every photo for an additional bib and merge it into the
+   * current result set.
+   *
+   * Used to filter the cached `catalog` and cap at 12 — which broke when
+   * the catalog (cost-guardrail) doesn't include all of the event's
+   * photos for the bib. Now we hit `/api/photos?bib=N` so we get the
+   * full server-side match list, then de-dupe against what's already on
+   * screen. Falls back to the cached catalog if the network call fails
+   * so the action never silently no-ops.
+   */
+  async function addBib(extraBib: string) {
     const n = Number(extraBib);
-    const adds = catalog
-      .filter((p) => p.bibs?.includes(n) && !resultPhotos.some((rp) => rp.id === p.id))
-      .slice(0, 12);
-    setResultPhotos([...resultPhotos, ...adds]);
-    flashToast(`+${adds.length} photos from bib #${extraBib}`);
+    if (!Number.isFinite(n) || n <= 0) return;
+
+    const dedupe = (extras: Photo[]) => {
+      const seen = new Set(resultPhotos.map((rp) => rp.id));
+      return extras.filter((p) => !seen.has(p.id));
+    };
+
+    try {
+      const r = await fetch(
+        `/api/photos?eventId=${encodeURIComponent(currentEvent.id)}&bib=${n}`
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = (await r.json()) as {
+        photos: Parameters<typeof apiPhotoToUi>[0][];
+        faceCandidates?: FaceCandidate[];
+      };
+      const ui = (d.photos ?? []).map(apiPhotoToUi);
+      const adds = dedupe(ui);
+      setResultPhotos([...resultPhotos, ...adds]);
+
+      // Merge the added bib's face candidates into the existing "Is this
+      // you?" strip so the runner can disambiguate against the expanded
+      // result set too. De-dupe by clusterId (a face that shows up under
+      // multiple bibs only needs one tile).
+      if (d.faceCandidates && d.faceCandidates.length > 0) {
+        setFaceCandidates((curr) => {
+          const seen = new Set(curr.map((c) => c.clusterId));
+          const fresh = d.faceCandidates!.filter((c) => !seen.has(c.clusterId));
+          return [...curr, ...fresh];
+        });
+      }
+
+      flashToast(`+${adds.length} photos from bib #${extraBib}`);
+    } catch (e) {
+      console.warn("addBib server fetch failed, falling back to catalog:", e);
+      // Local fallback — won't return all photos when the catalog is
+      // capped, but better than nothing.
+      const adds = dedupe(catalog.filter((p) => p.bibs?.includes(n)));
+      setResultPhotos([...resultPhotos, ...adds]);
+      flashToast(`+${adds.length} photos from bib #${extraBib}`);
+    }
   }
 
   /**

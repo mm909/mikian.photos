@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Headline } from "../Headline";
 import { PhotoThumb } from "../PhotoThumb";
 import { FaceSuggestBanner } from "../FaceSuggestBanner";
@@ -37,6 +37,20 @@ export function ResultsScreen() {
     expandingCluster,
     confirmFaceCluster,
   } = useRunner();
+
+  // Pre-select the only face when there's just one candidate. No need to
+  // make the runner click — the disambiguation only matters with 2+
+  // faces in the bib's photos. Guarded so we don't re-fire while a
+  // confirmation request is already in flight.
+  useEffect(() => {
+    if (
+      faceCandidates.length === 1 &&
+      !confirmedClusterId &&
+      !expandingCluster
+    ) {
+      void confirmFaceCluster(faceCandidates[0].clusterId);
+    }
+  }, [faceCandidates, confirmedClusterId, expandingCluster, confirmFaceCluster]);
 
   // Real event totals derived from the fetched catalog. The synthetic
   // currentEvent.photoCount / .photographers are placeholders — don't show
@@ -319,6 +333,10 @@ export function ResultsScreen() {
           confirmedClusterId={confirmedClusterId}
           expandingCluster={expandingCluster}
           onConfirm={confirmFaceCluster}
+          // "+N more photos" reflects only photos NOT already on screen —
+          // accounts for bib match, Add-a-bib expansions, and previously
+          // confirmed face clusters.
+          resultPhotoIds={resultPhotos.map((p) => p.id)}
         />
       )}
 
@@ -514,18 +532,27 @@ function FaceCandidateStrip({
   confirmedClusterId,
   expandingCluster,
   onConfirm,
+  resultPhotoIds,
 }: {
   candidates: FaceCandidate[];
   confirmedClusterId: string | null;
   expandingCluster: boolean;
   onConfirm: (clusterId: string | null) => void | Promise<void>;
+  /** IDs of photos already on screen. Drives the "+N more photos"
+   *  subtitle so we don't double-count what the runner already sees. */
+  resultPhotoIds: string[];
 }) {
+  // Memoize the set lookup so each candidate row doesn't pay an O(N) walk.
+  const alreadyShown = new Set(resultPhotoIds);
   return (
     <section
       style={{
         maxWidth: 1280,
         margin: "0 auto",
-        padding: "0 32px",
+        // Breathing room above the box so it doesn't hug the photo strip
+        // above it — the candidate row deserves to feel like its own
+        // moment ("hey, is this you?") rather than a tag-on.
+        padding: "20px 32px 0",
       }}
     >
       <div
@@ -589,6 +616,10 @@ function FaceCandidateStrip({
           )}
         </div>
 
+        {/* Split into "selected" (left, kept visible after confirm so the
+            runner can see what they picked) and "others" (right) with a
+            vertical divider between. Switching picks just moves a tile
+            from one side to the other. */}
         <div
           style={{
             display: "flex",
@@ -596,83 +627,106 @@ function FaceCandidateStrip({
             overflowX: "auto",
             paddingBottom: 4,
             flex: 1,
+            alignItems: "center",
           }}
         >
-          {candidates.map((c) => {
-            const selected = c.clusterId === confirmedClusterId;
-            // Cap "more in event" subtitle by subtracting the bib-tagged
-            // appearances — what we're advertising is the *new* photos
-            // the runner unlocks by confirming.
-            const newPhotosUnlocked = Math.max(
-              0,
-              c.photoCountInEvent - c.photoCountInBib
+          {(() => {
+            const selected = candidates.filter(
+              (c) => c.clusterId === confirmedClusterId
             );
-            const subtitle =
-              newPhotosUnlocked > 0
-                ? `+${newPhotosUnlocked} more photo${newPhotosUnlocked === 1 ? "" : "s"}`
-                : `in ${c.photoCountInBib} photo${c.photoCountInBib === 1 ? "" : "s"}`;
-            return (
-              <button
-                key={c.clusterId}
-                type="button"
-                onClick={() => onConfirm(selected ? null : c.clusterId)}
-                disabled={expandingCluster}
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  padding: 0,
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  minWidth: 84,
-                }}
-              >
-                <div
+            const others = candidates.filter(
+              (c) => c.clusterId !== confirmedClusterId
+            );
+            const renderTile = (c: FaceCandidate, isSelected: boolean) => {
+              const newPhotosUnlocked = c.photoIdsInEvent.reduce(
+                (n, id) => (alreadyShown.has(id) ? n : n + 1),
+                0
+              );
+              const subtitle = isSelected
+                ? "✓ added"
+                : newPhotosUnlocked > 0
+                  ? `+${newPhotosUnlocked} more photo${newPhotosUnlocked === 1 ? "" : "s"}`
+                  : `already in results`;
+              return (
+                <button
+                  key={c.clusterId}
+                  type="button"
+                  onClick={() => onConfirm(isSelected ? null : c.clusterId)}
+                  disabled={expandingCluster}
                   style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 999,
-                    overflow: "hidden",
-                    border: selected
-                      ? "3px solid var(--accent)"
-                      : "2px solid var(--line)",
-                    boxShadow: selected ? "var(--shadow)" : "none",
-                    transition: "border-color 0.12s, box-shadow 0.12s",
-                    background: "var(--surface)",
+                    background: "transparent",
+                    border: 0,
+                    padding: 0,
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    minWidth: 84,
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.sampleFaceUrl}
-                    alt="Face candidate"
-                    width={72}
-                    height={72}
+                  <div
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
+                      width: 72,
+                      height: 72,
+                      borderRadius: 999,
+                      overflow: "hidden",
+                      border: isSelected
+                        ? "3px solid var(--accent)"
+                        : "2px solid var(--line)",
+                      boxShadow: isSelected ? "var(--shadow)" : "none",
+                      transition: "border-color 0.12s, box-shadow 0.12s",
+                      background: "var(--surface)",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.sampleFaceUrl}
+                      alt="Face candidate"
+                      width={72}
+                      height={72}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      letterSpacing: ".08em",
+                      textTransform: "uppercase",
+                      color: isSelected ? "var(--accent)" : "var(--muted)",
+                      textAlign: "center",
+                      fontWeight: isSelected ? 500 : 400,
+                    }}
+                  >
+                    {subtitle}
+                  </div>
+                </button>
+              );
+            };
+            return (
+              <>
+                {selected.map((c) => renderTile(c, true))}
+                {selected.length > 0 && others.length > 0 && (
+                  <div
+                    aria-hidden
+                    style={{
+                      width: 1,
+                      alignSelf: "stretch",
+                      background: "var(--line)",
+                      margin: "0 4px",
                     }}
                   />
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 10,
-                    letterSpacing: ".08em",
-                    textTransform: "uppercase",
-                    color: selected ? "var(--accent)" : "var(--muted)",
-                    textAlign: "center",
-                    fontWeight: selected ? 500 : 400,
-                  }}
-                >
-                  {selected ? "✓ you" : subtitle}
-                </div>
-              </button>
+                )}
+                {others.map((c) => renderTile(c, false))}
+              </>
             );
-          })}
+          })()}
         </div>
       </div>
     </section>

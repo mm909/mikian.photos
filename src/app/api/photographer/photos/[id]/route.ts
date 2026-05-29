@@ -50,6 +50,21 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         select: { id: true, bib: true, confidence: true, source: true, createdAt: true },
         orderBy: { confidence: "desc" },
       },
+      faces: {
+        select: {
+          id: true,
+          rekognitionFaceId: true,
+          faceClusterId: true,
+          confidence: true,
+          x0: true,
+          y0: true,
+          x1: true,
+          y1: true,
+          source: true,
+          createdAt: true,
+        },
+        orderBy: { confidence: "desc" },
+      },
     },
   });
 
@@ -73,6 +88,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       bibs: row.bibs.map((b) => ({
         ...b,
         createdAt: b.createdAt.toISOString(),
+      })),
+      faces: row.faces.map((f) => ({
+        ...f,
+        createdAt: f.createdAt.toISOString(),
       })),
       previewUrl: publicBase
         ? `${publicBase}/previews/${row.id}.jpg`

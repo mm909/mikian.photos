@@ -3,18 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Headline } from "../Headline";
-import { CourseCard } from "../CourseCard";
-import { FinishTimeChart } from "../FinishTimeChart";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent, racers } from "@/lib/data";
-import type { DistanceKey } from "@/lib/gpx";
+import { currentEvent } from "@/lib/data";
 
-const REQUIRED_DISTANCES: DistanceKey[] = ["5k", "10k", "half"];
-// Show the finish-time distribution only when every distance has results.
-// Right now only the half is populated, so the chart hides on its own.
-const hasFinishTimesForAllDistances = REQUIRED_DISTANCES.every((d) =>
-  racers.some((r) => r.distance === d)
-);
+// CourseCard + FinishTimeChart imports removed — components currently
+// unmounted from this page (they belong on the not-yet-built Race Director
+// dashboard). Re-import + drop into the empty right column when RD ships.
 
 export function LandingScreen() {
   const router = useRouter();
@@ -53,19 +47,17 @@ export function LandingScreen() {
 
   return (
     <main className="screen" style={{ padding: "64px 32px 96px" }}>
+      {/* Right column (CourseCard + finish-time chart) was moved to the
+          not-yet-built RD dashboard; with no right pane we drop the grid
+          and center the search card on the page. Original two-column
+          layout will come back when the right rail has content again. */}
       <div
         className="landing-grid"
         style={{
-          maxWidth: 1120,
+          maxWidth: 600,
           margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-          gap: 64,
-          // Stretch both columns to the same height so the search card on
-          // the left matches the course-card stack on the right. The search
-          // card uses flex-column with the LegalFooter pinned to the bottom
-          // (no dead space because we dropped the inner minHeight).
-          alignItems: "stretch",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {/* Left — hook + search. Flex column so the search card can stretch
@@ -229,11 +221,6 @@ export function LandingScreen() {
           </div>
         </div>
 
-        {/* Right — course / GPX / elevation + finish-time distribution (when all distances have data) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <CourseCard />
-          {hasFinishTimesForAllDistances && <FinishTimeChart />}
-        </div>
       </div>
     </main>
   );

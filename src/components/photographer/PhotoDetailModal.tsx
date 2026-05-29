@@ -16,6 +16,29 @@ export type BibTag = {
   createdAt: string;
 };
 
+/**
+ * Detected face on a photo. Bbox is in NORMALIZED [0,1] coordinates
+ * (Rekognition's native format); multiply by the image's natural
+ * dimensions to draw on top.
+ *
+ * `faceClusterId` groups the same runner across multiple photos. Same
+ * cluster id = same person (per Rekognition's similarity threshold).
+ * Both ID fields are nullable because manual-source rows have no
+ * Rekognition identity.
+ */
+export type PhotoFaceTag = {
+  id: string;
+  rekognitionFaceId: string | null;
+  faceClusterId: string | null;
+  confidence: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  source: string;
+  createdAt: string;
+};
+
 export type DetailPhoto = {
   id: string;
   eventId: string;
@@ -26,6 +49,9 @@ export type DetailPhoto = {
   hidden: boolean;
   photographer: { id: string; name: string; email: string };
   bibs: BibTag[];
+  /** PhotoFace rows for this photo — may be empty when face detection
+   *  hasn't run or detected nothing. */
+  faces?: PhotoFaceTag[];
   previewUrl: string;
   r2OriginalKey: string;
   r2PreviewKey: string;
@@ -54,6 +80,17 @@ type Props = {
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   onToggleHidden: () => void;
+  /** Optional: callback to untag a specific bib from this photo. When set,
+   *  the Bibs section renders each chip as a click-to-remove button (with
+   *  confirm). When unset (default), chips are static labels. Coverage
+   *  screen passes this; library doesn't. */
+  onUntagBib?: (bib: number) => void | Promise<void>;
+  /** Face-detection rerun. Same shape as OCR rerun — when set, replaces
+   *  the placeholder "Re-run face (coming)" button with a real one and
+   *  shows running/ok/err state. Optional so library mode (no rerun) just
+   *  hides it. */
+  rerunFaceState?: RerunState;
+  onRerunFace?: () => void;
 };
 
 /**
@@ -88,22 +125,31 @@ export function PhotoDetailModal({
   onConfirmDelete,
   onCancelDelete,
   onToggleHidden,
+  onUntagBib,
+  rerunFaceState,
+  onRerunFace,
 }: Props) {
   // OCR debug state — per photo. Reset whenever the user navigates.
   const [ocrState, setOcrState] = useState<OcrState>("idle");
   const [ocrDebug, setOcrDebug] = useState<DebugPayload | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
-  /** When true and ocrDebug is loaded, left pane renders the Tesseract view
-   *  instead of the original preview. Auto-flips to true on first OCR success. */
-  const [showOcrView, setShowOcrView] = useState(false);
 
-  // Reset OCR state on photo change so we don't show a stale overlay over
-  // the wrong image.
+  /** Which view fills the left pane: the original photo, the OCR-preprocessed
+   *  image with bbox overlays, or the original with face-detection bboxes. */
+  const [viewMode, setViewMode] = useState<"original" | "ocr" | "face">("original");
+
+  /** Natural dimensions of the preview image — needed to size the face
+   *  overlay SVG (Rekognition gives us normalized [0,1] coords; we
+   *  multiply by width/height to draw). Set on image load. */
+  const [previewDims, setPreviewDims] = useState<{ w: number; h: number } | null>(null);
+
+  // Reset OCR + view state on photo change so we don't show a stale overlay.
   useEffect(() => {
     setOcrState("idle");
     setOcrDebug(null);
     setOcrError(null);
-    setShowOcrView(false);
+    setViewMode("original");
+    setPreviewDims(null);
   }, [currentId]);
 
   const photo = useMemo(
@@ -165,32 +211,76 @@ export function PhotoDetailModal({
       setOcrState("ok");
       // Auto-flip to the Tesseract view once we have one — that's the
       // whole point of running it.
-      setShowOcrView(true);
+      setViewMode("ocr");
     } catch (e) {
       setOcrError(e instanceof Error ? e.message : String(e));
       setOcrState("err");
     }
   }
 
-  // Scroll the active thumbnail into view when the user navigates with the
-  // keyboard. Without this, the strip stays still and the active marker
-  // disappears past the viewport edge.
+  // Body scroll lock removed. It was a belt+suspenders defense against
+  // the old scrollIntoView jump (now gone), and instead trapped the
+  // user at their current scroll position when the modal opened —
+  // reading as "page is stuck half way down" in their feedback. With
+  // scrollIntoView gone there's nothing trying to scroll the window,
+  // so letting the body scroll freely is harmless and feels normal.
+
+  // Keep the active thumb in view. We do this manually on the strip's
+  // own scroll container rather than scrollIntoView, which would walk
+  // up to scrollable ancestors (including the now-locked body) and
+  // could re-trigger the very jump we just fixed.
   const thumbRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const thumbStripRef = useRef<HTMLDivElement | null>(null);
+  // Skip the very first run so opening the modal doesn't scroll the
+  // strip; only react to subsequent currentId changes (arrow nav,
+  // thumbnail clicks).
+  const didMount = useRef(false);
   useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     const el = thumbRefs.current[currentId];
-    if (el) {
-      el.scrollIntoView({
+    const strip = thumbStripRef.current;
+    if (!el || !strip) return;
+    const elLeft = el.offsetLeft;
+    const elRight = elLeft + el.offsetWidth;
+    const viewLeft = strip.scrollLeft;
+    const viewRight = viewLeft + strip.clientWidth;
+    // Only scroll if the thumb is actually outside the strip's viewport.
+    if (elLeft < viewLeft) {
+      strip.scrollTo({ left: elLeft - 8, behavior: "smooth" });
+    } else if (elRight > viewRight) {
+      strip.scrollTo({
+        left: elRight - strip.clientWidth + 8,
         behavior: "smooth",
-        block: "nearest",
-        inline: "center",
       });
     }
   }, [currentId]);
 
   if (!photo) return null;
 
-  const ocrViewActive = showOcrView && ocrState === "ok" && ocrDebug !== null;
-  const ocrToggleAvailable = ocrState === "ok" && ocrDebug !== null;
+  const ocrViewAvailable = ocrState === "ok" && ocrDebug !== null;
+  const faces = photo.faces ?? [];
+  const faceViewAvailable = faces.length > 0;
+  // OCR is allowed to be the active view even while the fetch is in flight —
+  // we render a loading placeholder so the click feels responsive instead
+  // of the old behavior where the first click silently bounced back to
+  // Original until data landed. Face still falls back to Original when the
+  // photo has no detected faces (no async fetch to wait on).
+  const effectiveViewMode: "original" | "ocr" | "face" = (() => {
+    if (viewMode === "ocr") {
+      // Show OCR view while running, ok, or err — anything but plain idle.
+      // Original wins only when the user genuinely hasn't engaged OCR.
+      if (ocrState !== "idle") return "ocr";
+      return "original";
+    }
+    if (viewMode === "face") {
+      return faceViewAvailable ? "face" : "original";
+    }
+    return "original";
+  })();
+
   const ocrBibs = photo.bibs.filter((b) => b.source.startsWith("ocr-"));
   const manualBibs = photo.bibs.filter(
     (b) => b.source === "manual" || b.source === "user-tag"
@@ -227,11 +317,58 @@ export function PhotoDetailModal({
             padding: 20,
             display: "flex",
             flexDirection: "column",
-            gap: 14,
+            gap: 10,
             minHeight: 360,
             minWidth: 0,
           }}
         >
+          {/* View toggle moved out of the image overlay and into its own
+              row above the preview. Easier to scan + doesn't overlap the
+              photo at small sizes. */}
+          {(ocrViewAvailable || faceViewAvailable) && (
+            <div
+              role="tablist"
+              style={{
+                display: "inline-flex",
+                alignSelf: "flex-start",
+                background: "var(--surface)",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: 2,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                letterSpacing: ".12em",
+                textTransform: "uppercase",
+              }}
+            >
+              <ToggleChip
+                active={effectiveViewMode === "original"}
+                onClick={() => setViewMode("original")}
+                label="Original"
+              />
+              <ToggleChip
+                active={effectiveViewMode === "ocr"}
+                onClick={() => {
+                  if (!ocrViewAvailable && ocrState !== "running") {
+                    void runOcrDebug();
+                  }
+                  // Flip view immediately — the image area renders a
+                  // loading placeholder until ocrDebug lands, then
+                  // automatically swaps in the Tesseract overlay.
+                  setViewMode("ocr");
+                }}
+                label={ocrState === "running" ? "OCR…" : "OCR view"}
+              />
+              {faceViewAvailable && (
+                <ToggleChip
+                  active={effectiveViewMode === "face"}
+                  onClick={() => setViewMode("face")}
+                  label="Face view"
+                />
+              )}
+            </div>
+          )}
+
           {/* Image area — fills the remaining height above the strip */}
           <div
             style={{
@@ -243,8 +380,40 @@ export function PhotoDetailModal({
               justifyContent: "center",
             }}
           >
-            {ocrViewActive ? (
-              <OcrTesseractView debug={ocrDebug!} />
+            {effectiveViewMode === "ocr" && ocrDebug ? (
+              <OcrTesseractView debug={ocrDebug} />
+            ) : effectiveViewMode === "ocr" ? (
+              // OCR fetch is in flight (or just errored) — render a quiet
+              // placeholder so the toggle click feels responsive. As soon
+              // as ocrDebug lands, this swaps to the overlay above.
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 24,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                }}
+              >
+                <span>
+                  {ocrState === "err"
+                    ? "OCR failed — retry from the panel ↓"
+                    : "Preparing OCR view…"}
+                </span>
+                <span style={{ fontSize: 10 }}>~5–25s</span>
+              </div>
+            ) : effectiveViewMode === "face" && previewDims ? (
+              <FaceOverlayView
+                previewUrl={photo.previewUrl}
+                width={previewDims.w}
+                height={previewDims.h}
+                faces={faces}
+              />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -254,6 +423,18 @@ export function PhotoDetailModal({
                     ? `Bibs ${photo.bibs.map((b) => b.bib).join(", ")}`
                     : "Race photo"
                 }
+                onLoad={(e) => {
+                  // Capture natural dimensions so the face overlay can
+                  // render in image pixel space. Skip if dims are already
+                  // set (avoid a useless re-render).
+                  const img = e.currentTarget;
+                  if (!previewDims) {
+                    setPreviewDims({
+                      w: img.naturalWidth,
+                      h: img.naturalHeight,
+                    });
+                  }
+                }}
                 style={{
                   maxWidth: "100%",
                   maxHeight: "100%",
@@ -285,37 +466,8 @@ export function PhotoDetailModal({
               </span>
             )}
 
-            {/* View toggle — only appears once OCR debug has produced a payload */}
-            {ocrToggleAvailable && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  right: 0,
-                  display: "inline-flex",
-                  background: "rgba(245,242,236,.92)",
-                  border: "1px solid var(--line)",
-                  borderRadius: 6,
-                  padding: 2,
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 10,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  backdropFilter: "blur(4px)",
-                }}
-              >
-                <ToggleChip
-                  active={!showOcrView}
-                  onClick={() => setShowOcrView(false)}
-                  label="Original"
-                />
-                <ToggleChip
-                  active={showOcrView}
-                  onClick={() => setShowOcrView(true)}
-                  label="OCR view"
-                />
-              </div>
-            )}
+            {/* View toggle moved above the image — see toggle bar at the
+                top of the .library-detail-photo column. */}
 
             {/* Prev/Next overlay arrows — visual cue that keyboard nav works.
                 Only render when there's something to navigate between. */}
@@ -345,6 +497,9 @@ export function PhotoDetailModal({
               onSelect={onSelect}
               registerRef={(id, el) => {
                 thumbRefs.current[id] = el;
+              }}
+              registerStripRef={(el) => {
+                thumbStripRef.current = el;
               }}
               counterLabel={
                 currentIndex >= 0 ? `${currentIndex + 1} / ${photos.length}` : ""
@@ -397,7 +552,12 @@ export function PhotoDetailModal({
                     key={b.id}
                     text={`#${b.bib}`}
                     color="ink"
-                    title={`manual · ${b.source}`}
+                    title={
+                      onUntagBib
+                        ? `Click to remove bib #${b.bib} from this photo`
+                        : `manual · ${b.source}`
+                    }
+                    onRemove={onUntagBib ? () => onUntagBib(b.bib) : undefined}
                   />
                 ))}
                 {ocrBibs.map((b) => (
@@ -405,7 +565,34 @@ export function PhotoDetailModal({
                     key={b.id}
                     text={`#${b.bib} · ${Math.round(b.confidence * 100)}%`}
                     color="accent"
-                    title={`${b.source} · conf ${(b.confidence * 100).toFixed(1)}%`}
+                    title={
+                      onUntagBib
+                        ? `Click to remove bib #${b.bib} from this photo`
+                        : `${b.source} · conf ${(b.confidence * 100).toFixed(1)}%`
+                    }
+                    onRemove={onUntagBib ? () => onUntagBib(b.bib) : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* Faces section — mirrors bibs. Cluster id (shortened) +
+              confidence on each chip. Chips aren't removable yet; face
+              edits go through rerun. */}
+          <Section title="Faces">
+            {faces.length === 0 ? (
+              <Muted>No faces detected.</Muted>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {faces.map((f) => (
+                  <FaceThumbChip
+                    key={f.id}
+                    cropUrl={`/api/photos/${photo.id}/face/${f.id}`}
+                    confidence={f.confidence}
+                    title={`${f.source} · cluster ${
+                      f.faceClusterId ?? "—"
+                    } · face id ${f.rekognitionFaceId ?? "—"}`}
                   />
                 ))}
               </div>
@@ -425,7 +612,6 @@ export function PhotoDetailModal({
             <KV label="Uploaded" value={fmtDate(photo.createdAt)} />
             <KV label="Photographer" value={photo.photographer.name} />
             <KV label="Email" value={photo.photographer.email} muted />
-            <KV label="Face match" value="not yet built" muted />
           </Section>
 
           <Section title="Storage">
@@ -448,14 +634,30 @@ export function PhotoDetailModal({
                       ? "↻ Retry OCR"
                       : "Re-run bib OCR"}
               </button>
-              <button
-                className="btn btn--ghost btn--sm"
-                disabled
-                title="Face detection isn't built yet"
-                style={{ opacity: 0.6, cursor: "not-allowed" }}
-              >
-                Re-run face (coming)
-              </button>
+              {onRerunFace ? (
+                <button
+                  className="btn btn--ghost btn--sm"
+                  onClick={onRerunFace}
+                  disabled={rerunFaceState === "running"}
+                >
+                  {rerunFaceState === "running"
+                    ? "Indexing faces…"
+                    : rerunFaceState === "ok"
+                      ? "✓ Re-run face"
+                      : rerunFaceState === "err"
+                        ? "↻ Retry face"
+                        : "Re-run face detection"}
+                </button>
+              ) : (
+                <button
+                  className="btn btn--ghost btn--sm"
+                  disabled
+                  title="Face re-detection not wired in this view"
+                  style={{ opacity: 0.6, cursor: "not-allowed" }}
+                >
+                  Re-run face (not wired)
+                </button>
+              )}
               <a
                 className="btn btn--ghost btn--sm"
                 href={`/api/photographer/photos/${photo.id}/download`}
@@ -499,6 +701,19 @@ export function PhotoDetailModal({
             >
               Open in OCR Lab →
             </a>
+          </Section>
+
+          {/* Face debug — there's no separate intermediate fetch (Rekognition
+              gives us bboxes directly on index, not a preprocessed image),
+              so the panel summarizes what we have on the photo row + the
+              rerun control. The bbox overlay is the "Face view" in the left
+              pane (toggle above the image). */}
+          <Section title="Face debug">
+            <FaceDebugPanel
+              faces={faces}
+              rerunState={rerunFaceState}
+              onRerun={onRerunFace}
+            />
           </Section>
 
           <Section title="Danger zone">
@@ -583,6 +798,295 @@ export function PhotoDetailModal({
   );
 }
 
+/**
+ * Modal-left-pane Face view: original preview with face bbox overlays.
+ *
+ * Rekognition stores bboxes in normalized [0,1] coords. We render as a
+ * single SVG with the preview embedded — preserveAspectRatio="xMidYMid
+ * meet" handles letterboxing, so the rects always align with the visible
+ * image regardless of container size.
+ *
+ * Cluster id (or face id when no cluster) is shown above each box so you
+ * can sanity-check the match against the per-photo Faces chips on the right.
+ */
+/**
+ * Face chip with thumbnail. The thumbnail is the server-cropped face
+ * (via /api/photos/[photoId]/face/[faceId]) — much more useful at a
+ * glance than a truncated cluster id.
+ *
+ * Confidence is shown as a small overlay in the corner. Cluster + face
+ * id move to the title tooltip so the chip stays compact.
+ */
+function FaceThumbChip({
+  cropUrl,
+  confidence,
+  title,
+}: {
+  cropUrl: string;
+  confidence: number;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        width: 48,
+        height: 48,
+        borderRadius: 4,
+        overflow: "hidden",
+        background: "var(--cream)",
+        border: "1px solid var(--line)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cropUrl}
+        alt=""
+        loading="lazy"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "1px 4px",
+          background: "rgba(28,26,23,.78)",
+          color: "var(--paper)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 9,
+          letterSpacing: ".05em",
+          textAlign: "center",
+        }}
+      >
+        {Math.round(confidence)}%
+      </span>
+    </span>
+  );
+}
+
+function FaceOverlayView({
+  previewUrl,
+  width,
+  height,
+  faces,
+}: {
+  previewUrl: string;
+  width: number;
+  height: number;
+  faces: PhotoFaceTag[];
+}) {
+  // Aspect-locked wrapper mirrors the Original-view sizing: maxWidth +
+  // maxHeight of 100%, aspectRatio fixed to the natural image dimensions.
+  // Without this, an SVG with `width: 100%` + `viewBox` claimed the full
+  // pane width regardless of natural aspect, blowing past the modal's
+  // visual budget on landscape photos.
+  return (
+    <div
+      style={{
+        position: "relative",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        aspectRatio: `${width} / ${height}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        // Width/height auto so the aspect ratio + max constraints
+        // determine the box; SVG fills it.
+        width: "auto",
+        height: "auto",
+      }}
+    >
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "block",
+        borderRadius: 4,
+        boxShadow: "var(--shadow)",
+      }}
+    >
+      <image href={previewUrl} width={width} height={height} />
+      {faces.map((f) => {
+        const x = f.x0 * width;
+        const y = f.y0 * height;
+        const w = (f.x1 - f.x0) * width;
+        const h = (f.y1 - f.y0) * height;
+        const stroke = "#3fd17d";
+        const idShort = (f.faceClusterId ?? f.rekognitionFaceId ?? f.id).slice(0, 8);
+        return (
+          <g key={f.id}>
+            <rect
+              x={x}
+              y={y}
+              width={w}
+              height={h}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={Math.max(w, h) * 0.012}
+            />
+            <text
+              x={x}
+              y={Math.max(y - 8, 18)}
+              fill={stroke}
+              fontSize={Math.max(h * 0.13, 16)}
+              fontFamily="ui-monospace, monospace"
+              fontWeight={700}
+            >
+              {idShort}·{Math.round(f.confidence)}%
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+    </div>
+  );
+}
+
+/**
+ * Right-pane face debug — analogue of OcrDebugPanel but the data lives
+ * directly on the photo row (no separate intermediates endpoint needed).
+ * Shows summary counts + per-face confidence/cluster, plus a rerun button
+ * when the parent wired one up.
+ */
+function FaceDebugPanel({
+  faces,
+  rerunState,
+  onRerun,
+}: {
+  faces: PhotoFaceTag[];
+  rerunState: RerunState | undefined;
+  onRerun: (() => void) | undefined;
+}) {
+  const totalFaces = faces.length;
+  const clusters = new Set(
+    faces.map((f) => f.faceClusterId).filter((c): c is string => !!c)
+  ).size;
+  const avgConf =
+    totalFaces > 0 ? faces.reduce((s, f) => s + f.confidence, 0) / totalFaces : 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {totalFaces === 0 ? (
+        <Muted>
+          No faces on this photo. Click re-run to index against Rekognition.
+        </Muted>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+              gap: 6,
+            }}
+          >
+            <MiniStat label="Faces" value={String(totalFaces)} />
+            <MiniStat label="Clusters" value={String(clusters)} />
+            <MiniStat label="Avg conf" value={`${avgConf.toFixed(0)}%`} />
+          </div>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              padding: 10,
+              background: "var(--surface)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              maxHeight: 200,
+              overflowY: "auto",
+            }}
+          >
+            {faces.map((f) => (
+              <div
+                key={f.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr auto",
+                  gap: 8,
+                  fontSize: 11,
+                  alignItems: "baseline",
+                }}
+              >
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
+                  {(f.faceClusterId ?? f.rekognitionFaceId ?? f.id).slice(0, 10)}
+                </span>
+                <span style={{ color: "var(--muted)" }}>{f.source}</span>
+                <span style={{ color: "var(--muted)", fontFamily: "var(--font-mono)" }}>
+                  {f.confidence.toFixed(0)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {onRerun && (
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={onRerun}
+          disabled={rerunState === "running"}
+          style={{ width: "100%" }}
+        >
+          {rerunState === "running"
+            ? "Indexing faces… (~5–15s)"
+            : rerunState === "err"
+              ? "↻ Retry face indexing"
+              : totalFaces === 0
+                ? "Run face detection"
+                : "↻ Re-run face detection"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        background: "var(--cream)",
+        border: "1px solid var(--line)",
+        borderRadius: 5,
+        padding: "6px 8px",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 9,
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: 17,
+          fontWeight: 500,
+          color: "var(--ink)",
+          marginTop: 1,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function ToggleChip({
   active,
   onClick,
@@ -662,17 +1166,22 @@ function ThumbStrip({
   currentId,
   onSelect,
   registerRef,
+  registerStripRef,
   counterLabel,
 }: {
   photos: DetailPhoto[];
   currentId: string;
   onSelect: (id: string) => void;
   registerRef: (id: string, el: HTMLButtonElement | null) => void;
+  /** Hands the strip's scroll container back up so the parent can
+   *  scroll it on arrow nav without touching the window. */
+  registerStripRef: (el: HTMLDivElement | null) => void;
   counterLabel: string;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div
+        ref={registerStripRef}
         style={{
           flex: 1,
           minWidth: 0,
@@ -806,32 +1315,73 @@ function KV({
   );
 }
 
+/**
+ * Bib chip. When `onRemove` is set, the whole chip becomes a button — click
+ * confirms then removes the tagging. The trailing × glyph signals it.
+ * When unset, it renders as a static span (the library uses this mode).
+ */
 function Chip({
   text,
   color,
   title,
+  onRemove,
 }: {
   text: string;
   color: "ink" | "accent";
   title?: string;
+  onRemove?: () => void | Promise<void>;
 }) {
   const bg = color === "ink" ? "var(--ink)" : "var(--accent)";
+  const baseStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 10px",
+    background: bg,
+    color: "var(--paper)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    letterSpacing: ".08em",
+    borderRadius: 4,
+  };
+
+  if (!onRemove) {
+    return (
+      <span title={title} style={baseStyle}>
+        {text}
+      </span>
+    );
+  }
+
   return (
-    <span
+    <button
+      type="button"
       title={title}
+      onClick={() => {
+        // Confirm so a mis-click in the modal doesn't silently nuke the
+        // tagging. Server still validates, but the prompt prevents most
+        // accidents and signals destructiveness.
+        if (window.confirm(title || "Remove this tagging?")) void onRemove();
+      }}
       style={{
-        display: "inline-block",
-        padding: "4px 10px",
-        background: bg,
-        color: "var(--paper)",
-        fontFamily: "var(--font-mono)",
-        fontSize: 11,
-        letterSpacing: ".08em",
-        borderRadius: 4,
+        ...baseStyle,
+        border: 0,
+        cursor: "pointer",
       }}
     >
-      {text}
-    </span>
+      <span>{text}</span>
+      <span
+        aria-hidden
+        style={{
+          fontSize: 14,
+          lineHeight: 1,
+          opacity: 0.75,
+          marginLeft: 2,
+        }}
+      >
+        ×
+      </span>
+    </button>
   );
 }
 

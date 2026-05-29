@@ -549,74 +549,21 @@ export function OcrLab({
                 {mode === "ocr" && showOcrView && debug ? (
                   <ResultOverlay debug={debug} fitHeight />
                 ) : selectedPhoto ? (
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "100%",
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedPhoto.previewUrl}
-                      alt=""
-                      style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        objectFit: "contain",
-                        display: "block",
-                      }}
-                    />
-                    {/* Faces-mode bbox overlay. Each box is a clickable
-                        target that opens the cluster panel in the right
-                        rail. We use percent units so they scale with the
-                        rendered image. */}
-                    {mode === "faces" && selectedPhoto.faces.length > 0 && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        {selectedPhoto.faces.map((f) => {
-                          const isActive = f.id === activeFaceId;
-                          return (
-                            <button
-                              key={f.id}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void loadCluster(f);
-                              }}
-                              title={`conf ${(f.confidence * 100).toFixed(0)}%`}
-                              style={{
-                                position: "absolute",
-                                left: `${f.bbox.x0 * 100}%`,
-                                top: `${f.bbox.y0 * 100}%`,
-                                width: `${(f.bbox.x1 - f.bbox.x0) * 100}%`,
-                                height: `${(f.bbox.y1 - f.bbox.y0) * 100}%`,
-                                border: isActive
-                                  ? "3px solid var(--accent)"
-                                  : "2px solid #5dbf85",
-                                background: "transparent",
-                                cursor: "pointer",
-                                padding: 0,
-                                borderRadius: 2,
-                                pointerEvents: "auto",
-                                boxShadow: isActive
-                                  ? "0 0 0 1px var(--accent) inset"
-                                  : "none",
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  // The overlay div used percent units relative to the
+                  // OUTER container, but the <img> uses object-fit:
+                  // contain — meaning the rendered image only fills the
+                  // letterbox-bound sub-rect of the container. That
+                  // mismatch made bbox highlights drift off the face.
+                  // FaceImageWithBoxes measures the image's natural
+                  // dimensions on load and sizes a wrapper to that
+                  // aspect ratio so percent units land precisely on the
+                  // pixels they describe.
+                  <FaceImageWithBoxes
+                    previewUrl={selectedPhoto.previewUrl}
+                    faces={mode === "faces" ? selectedPhoto.faces : []}
+                    activeFaceId={activeFaceId}
+                    onFaceClick={(f) => void loadCluster(f)}
+                  />
                 ) : null}
 
                 {/* Status badge — when OCR is running or failed, surface that
@@ -1154,6 +1101,130 @@ export function OcrLab({
  * event. The force-re-index button up top drops + re-runs
  * IndexFaces for this photo.
  * ============================================================ */
+/* ============================================================
+ * FaceImageWithBoxes
+ * ------------------------------------------------------------
+ * Wraps the preview image in a div whose aspect ratio matches
+ * the image's NATURAL dimensions. With aspect-locked sizing,
+ * object-fit: contain inside the wrapper produces zero
+ * letterbox — so percent-positioned bbox overlays land exactly
+ * on the face pixels. (Rekognition gives normalized [0,1]
+ * coords; multiplying by 100% works.)
+ *
+ * Natural dims are captured on the image's onLoad. Until they
+ * arrive, the image renders without overlays (one render flicker,
+ * unnoticeable in practice).
+ * ============================================================ */
+function FaceImageWithBoxes({
+  previewUrl,
+  faces,
+  activeFaceId,
+  onFaceClick,
+}: {
+  previewUrl: string;
+  faces: LabFace[];
+  activeFaceId: string | null;
+  onFaceClick: (f: LabFace) => void;
+}) {
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+
+  // Reset measured dims when the source changes — otherwise we'd briefly
+  // render the new image inside the prior photo's aspect wrapper.
+  useEffect(() => {
+    setDims(null);
+  }, [previewUrl]);
+
+  const aspect = dims ? dims.w / dims.h : null;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        // Lock the wrapper to the image's native aspect ratio so the
+        // contain-fit image fills 100% of it — no letterbox, percent
+        // bboxes align perfectly.
+        ...(aspect
+          ? {
+              aspectRatio: `${dims!.w} / ${dims!.h}`,
+              maxWidth: "100%",
+              maxHeight: "100%",
+              // Cap by both axes so very-portrait or very-landscape
+              // images stay inside their parent's box.
+              width: "auto",
+              height: "auto",
+            }
+          : {
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }),
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={previewUrl}
+        alt=""
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (!dims) setDims({ w: img.naturalWidth, h: img.naturalHeight });
+        }}
+        style={{
+          width: aspect ? "100%" : "auto",
+          height: aspect ? "100%" : "auto",
+          maxWidth: aspect ? undefined : "100%",
+          maxHeight: aspect ? undefined : "100%",
+          objectFit: "contain",
+          display: "block",
+        }}
+      />
+      {dims && faces.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+          }}
+        >
+          {faces.map((f) => {
+            const isActive = f.id === activeFaceId;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFaceClick(f);
+                }}
+                title={`conf ${(f.confidence * 100).toFixed(0)}%`}
+                style={{
+                  position: "absolute",
+                  left: `${f.bbox.x0 * 100}%`,
+                  top: `${f.bbox.y0 * 100}%`,
+                  width: `${(f.bbox.x1 - f.bbox.x0) * 100}%`,
+                  height: `${(f.bbox.y1 - f.bbox.y0) * 100}%`,
+                  border: isActive
+                    ? "3px solid var(--accent)"
+                    : "2px solid #5dbf85",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: 0,
+                  borderRadius: 2,
+                  pointerEvents: "auto",
+                  boxShadow: isActive
+                    ? "0 0 0 1px var(--accent) inset"
+                    : "none",
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FacesPanel({
   photo,
   activeFaceId,

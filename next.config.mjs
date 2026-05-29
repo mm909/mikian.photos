@@ -10,8 +10,12 @@ const nextConfig = {
   //
   //  - sharp ships a native binary per platform and shouldn't be re-bundled
   //    either (webpack happily duplicates it, doubling cold-start memory).
+  //
+  //  - archiver uses Node-conditional package exports that webpack's
+  //    "default condition must be last" rule rejects when bundled. Ship
+  //    it from node_modules at runtime.
   experimental: {
-    serverComponentsExternalPackages: ["tesseract.js", "sharp"],
+    serverComponentsExternalPackages: ["tesseract.js", "sharp", "archiver"],
   },
 };
 

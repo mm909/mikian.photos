@@ -23,10 +23,9 @@ type Props = {
  * exclusive to the modal so the grid stays calm and you reach for actions only
  * after deciding which photo you want.
  *
- * - Tile is a square; photo fills it with object-fit: cover so the grid stays
- *   dense — letterboxed contain showed too much cream around portrait shots.
- *   The detail modal still uses contain so the full frame is always visible
- *   on click.
+ * - Tile takes the image's natural aspect ratio — no fixed cell shape, no
+ *   crop, no letterbox cream. Parent container should use a column-flow
+ *   layout (CSS columns / masonry) so variable heights stack naturally.
  * - Hidden photos render at half-opacity with a Hidden chip.
  * - Pulse dot in the corner while OCR is running in the background.
  */
@@ -45,11 +44,20 @@ export function LibraryTile({ p, running = false, onOpen }: Props) {
       title={p.bibs.length ? `Bibs ${p.bibs.map((b) => b.bib).join(", ")}` : "Open photo"}
       style={{
         position: "relative",
-        aspectRatio: "1 / 1",
+        // No fixed aspectRatio — each tile takes whatever shape its photo
+        // came in as. The parent grid uses CSS columns so variable
+        // heights pack without leaving gaps.
         background: "var(--cream)",
         cursor: "pointer",
         overflow: "hidden",
         borderRadius: 2,
+        // `display: block` + the masonry parent's `break-inside: avoid`
+        // make sure tiles don't tear across columns.
+        display: "block",
+        width: "100%",
+        // Margin instead of grid gap — CSS columns doesn't use `gap`
+        // for inter-tile vertical spacing.
+        marginBottom: 2,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -59,8 +67,7 @@ export function LibraryTile({ p, running = false, onOpen }: Props) {
         loading="lazy"
         style={{
           width: "100%",
-          height: "100%",
-          objectFit: "cover",
+          height: "auto",
           display: "block",
           opacity: p.hidden ? 0.45 : 1,
         }}

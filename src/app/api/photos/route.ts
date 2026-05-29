@@ -103,6 +103,10 @@ export async function GET(req: Request) {
       clusterId: string;
       photoCountInBib: number;
       photoCountInEvent: number;
+      /** Full set of event-wide photo IDs for this cluster — the client
+       *  subtracts these against the on-screen result set to compute the
+       *  truly-new count rendered as "+N more photos". */
+      photoIdsInEvent: string[];
       sample: { photoId: string; faceId: string };
     };
     let faceCandidates: FaceCandidate[] = [];
@@ -141,8 +145,11 @@ export async function GET(req: Request) {
         }
       }
 
-      // Look up event-wide photo counts for the top clusters so the UI can
-      // promise "see N more photos of this face."
+      // Look up the photo IDs (event-wide) for the top clusters. We return
+      // the full id list rather than just a count so the client can compute
+      // "how many of these are NEW to my current results" — accounting for
+      // photos already pulled in via the bib match, an Add-a-bib, or a
+      // previously-confirmed face cluster.
       const topClusterIds = [...aggregate.entries()]
         .sort(
           (a, b) =>
@@ -152,22 +159,29 @@ export async function GET(req: Request) {
         .slice(0, MAX_FACE_CANDIDATES)
         .map(([id]) => id);
 
-      const eventWideCounts = await db.photoFace.groupBy({
-        by: ["faceClusterId"],
+      const eventWideRows = await db.photoFace.findMany({
         where: { eventId, faceClusterId: { in: topClusterIds } },
-        _count: { photoId: true },
+        select: { faceClusterId: true, photoId: true },
       });
-      const eventCountByCluster = new Map<string, number>();
-      for (const row of eventWideCounts) {
-        if (row.faceClusterId) eventCountByCluster.set(row.faceClusterId, row._count.photoId);
+      const eventPhotoIdsByCluster = new Map<string, Set<string>>();
+      for (const r of eventWideRows) {
+        if (!r.faceClusterId) continue;
+        const set = eventPhotoIdsByCluster.get(r.faceClusterId) ?? new Set<string>();
+        set.add(r.photoId);
+        eventPhotoIdsByCluster.set(r.faceClusterId, set);
       }
 
       faceCandidates = topClusterIds.map((cid) => {
         const slot = aggregate.get(cid)!;
+        const eventIds = eventPhotoIdsByCluster.get(cid) ?? new Set<string>();
         return {
           clusterId: cid,
           photoCountInBib: slot.photoIds.size,
-          photoCountInEvent: eventCountByCluster.get(cid) ?? slot.photoIds.size,
+          photoCountInEvent: eventIds.size || slot.photoIds.size,
+          // Explicit id list so the client can subtract whatever's already
+          // on screen. Capped at a few dozen ids per cluster in practice —
+          // cheap enough to ship and avoids re-roundtripping.
+          photoIdsInEvent: Array.from(eventIds),
           sample: { photoId: slot.samplePhotoId, faceId: slot.sampleId },
         };
       });

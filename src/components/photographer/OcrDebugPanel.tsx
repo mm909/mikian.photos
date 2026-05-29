@@ -95,6 +95,12 @@ export function OcrTesseractView({ debug }: { debug: DebugPayload }) {
     if (bibSet.has(n)) keptDigitWords.add(`${w.bbox.x0},${w.bbox.y0},${w.bbox.x1},${w.bbox.y1}`);
   }
 
+  // Aspect-locked wrapper sized to BOTH the parent's width AND height
+  // constraints. The prior styling used `width: 100% + maxHeight: 82vh`,
+  // which always claimed full parent width and then computed height from
+  // aspect ratio — at modal-pane widths this could push past the image
+  // area's flex slot and pop the toggle bar up into the modal's
+  // overflow-hidden top edge ("OCR view is covered").
   return (
     <div
       style={{
@@ -102,9 +108,11 @@ export function OcrTesseractView({ debug }: { debug: DebugPayload }) {
         background: "#111",
         borderRadius: 6,
         overflow: "hidden",
-        width: "100%",
-        maxHeight: "82vh",
+        maxWidth: "100%",
+        maxHeight: "100%",
         aspectRatio: `${debug.preparedWidth} / ${Math.max(debug.preparedHeight, 1)}`,
+        width: "auto",
+        height: "auto",
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

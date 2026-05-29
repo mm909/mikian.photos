@@ -18,6 +18,13 @@ type EventRow = {
   eventCity: string | null;
   photoCount: number;
   lastUploadAt: string | null;
+  /** Number of paid orders that pulled in at least one of this
+   *  photographer's photos for this event. Optional — server may not
+   *  ship it on every deploy yet. Treated as 0 + dimmed when missing. */
+  salesCount?: number;
+  /** Estimated photographer split (USD) attributable to those orders.
+   *  Same optionality story as salesCount. */
+  splitUsd?: number;
 };
 
 /**
@@ -195,7 +202,10 @@ function EventTable({ rows }: { rows: EventRow[] }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.6fr 100px 120px 140px",
+          // Browse → library column removed. Whole row is already a link,
+          // so the dedicated "View library →" cell was redundant. Added
+          // Sales + Split cols in its place.
+          gridTemplateColumns: "1.6fr 100px 120px 80px 110px",
           gap: 12,
           padding: "12px 18px",
           background: "var(--cream)",
@@ -210,7 +220,8 @@ function EventTable({ rows }: { rows: EventRow[] }) {
         <span>Event</span>
         <span style={{ textAlign: "right" }}>Photos</span>
         <span style={{ textAlign: "right" }}>Last upload</span>
-        <span style={{ textAlign: "right" }}>Browse</span>
+        <span style={{ textAlign: "right" }}>Sales</span>
+        <span style={{ textAlign: "right" }}>Your split</span>
       </div>
       {rows.map((r) => (
         <Link
@@ -218,7 +229,7 @@ function EventTable({ rows }: { rows: EventRow[] }) {
           href={`/photographer/photos?eventId=${encodeURIComponent(r.eventId)}`}
           style={{
             display: "grid",
-            gridTemplateColumns: "1.6fr 100px 120px 140px",
+            gridTemplateColumns: "1.6fr 100px 120px 80px 110px",
             gap: 12,
             padding: "14px 18px",
             borderBottom: "1px solid var(--line)",
@@ -283,17 +294,38 @@ function EventTable({ rows }: { rows: EventRow[] }) {
           >
             {r.lastUploadAt ? fmtRelative(r.lastUploadAt) : "—"}
           </span>
+          {/* Sales count — dim/em-dash when not yet wired through. */}
           <span
             style={{
               textAlign: "right",
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--ink)",
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 18,
+              fontVariantNumeric: "tabular-nums",
+              color:
+                r.salesCount && r.salesCount > 0
+                  ? "var(--ink)"
+                  : "var(--line)",
             }}
           >
-            View library →
+            {r.salesCount == null ? "—" : r.salesCount.toLocaleString()}
+          </span>
+          {/* Photographer split (USD) — same treatment as sales count.
+              Server will fill this in once order attribution lands. */}
+          <span
+            style={{
+              textAlign: "right",
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 18,
+              fontVariantNumeric: "tabular-nums",
+              color:
+                r.splitUsd && r.splitUsd > 0
+                  ? "var(--ink)"
+                  : "var(--line)",
+            }}
+          >
+            {r.splitUsd == null ? "—" : `$${r.splitUsd.toFixed(2)}`}
           </span>
         </Link>
       ))}

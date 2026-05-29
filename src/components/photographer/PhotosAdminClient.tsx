@@ -17,9 +17,6 @@ import { Pager } from "@/components/photographer/Pager";
 type BibTag = DetailPhoto["bibs"][number];
 type AdminPhoto = DetailPhoto;
 
-/** Compact directory entry for the photographer-filter dropdown. */
-type PhotographerOption = { id: string; name: string; email: string };
-
 /**
  * Photo library — single-pane browse-and-manage surface.
  *
@@ -40,7 +37,6 @@ type PhotographerOption = { id: string; name: string; email: string };
 export function PhotosAdminClient() {
   const params = useSearchParams();
   const eventIdParam = params?.get("eventId") ?? null;
-  const photographerIdParam = params?.get("photographerId") ?? null;
 
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<AdminPhoto[]>([]);
@@ -52,8 +48,6 @@ export function PhotosAdminClient() {
   const [hideStateMap, setHideStateMap] = useState<Record<string, HideState>>({});
 
   const [search, setSearch] = useState("");
-  /** Admin-only photographer filter; null = "all photographers". */
-  const [photographerId, setPhotographerId] = useState<string | null>(photographerIdParam);
 
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -62,10 +56,6 @@ export function PhotosAdminClient() {
   const [pageSize] = useState(48);
   const [total, setTotal] = useState(0);
   const [pageCount, setPageCount] = useState(1);
-
-  // Directory of photographers for the admin filter dropdown. Loaded once
-  // when we learn the caller is admin.
-  const [photographers, setPhotographers] = useState<PhotographerOption[]>([]);
 
   const fetchPageNum = useCallback(
     async (n: number) => {
@@ -76,7 +66,6 @@ export function PhotosAdminClient() {
           pageSize: String(pageSize),
         });
         if (eventIdParam) qs.set("eventId", eventIdParam);
-        if (photographerId) qs.set("photographerId", photographerId);
         const r = await fetch(`/api/photographer/photos/catalog?${qs}`, {
           cache: "no-store",
         });
@@ -103,7 +92,7 @@ export function PhotosAdminClient() {
         setLoading(false);
       }
     },
-    [pageSize, eventIdParam, photographerId]
+    [pageSize, eventIdParam]
   );
 
   const fetchCatalog = useCallback(() => fetchPageNum(1), [fetchPageNum]);
@@ -112,38 +101,10 @@ export function PhotosAdminClient() {
     void fetchCatalog();
   }, [fetchCatalog]);
 
-  // Once we know the caller is admin, fetch the photographer directory for
-  // the filter dropdown. Owner-only endpoint — non-admins won't see the
-  // option anyway.
-  useEffect(() => {
-    if (!isAdmin) return;
-    let cancelled = false;
-    fetch("/api/admin/users", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`users ${r.status}`))))
-      .then(
-        (d: {
-          users: {
-            id: string;
-            name: string;
-            email: string;
-            photoCount: number;
-          }[];
-        }) => {
-          if (cancelled) return;
-          // Only show photographers who actually have photos — keeps the
-          // dropdown short and useful.
-          setPhotographers(
-            d.users
-              .filter((u) => u.photoCount > 0)
-              .map((u) => ({ id: u.id, name: u.name, email: u.email }))
-          );
-        }
-      )
-      .catch((e) => console.warn("photographers fetch failed:", e));
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin]);
+  // Photographer-directory fetch was here for the now-removed admin
+  // filter dropdown. With the filter gone we don't need the list at all,
+  // so we skip the /api/admin/users call entirely — saves a round trip
+  // every time owner lands on the library.
 
   async function rerunOcr(photoId: string) {
     setRerun((s) => ({ ...s, [photoId]: "running" }));
@@ -265,22 +226,10 @@ export function PhotosAdminClient() {
   const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
 
   // Build the scope summary line: "Admin · all photographers · 2,345 photos"
-  // or "Your uploads · 145 photos" with extra qualifiers when filters are on.
-  const photographerNameById = useMemo(
-    () => new Map(photographers.map((p) => [p.id, p.name])),
-    [photographers]
-  );
+  // or "Your uploads · 145 photos" with an event qualifier when set.
   const scopeLine = (() => {
     const parts: string[] = [];
-    if (isAdmin) {
-      if (photographerId) {
-        parts.push(`Admin · ${photographerNameById.get(photographerId) ?? "photographer"}`);
-      } else {
-        parts.push("Admin · all photographers");
-      }
-    } else {
-      parts.push("Your uploads");
-    }
+    parts.push(isAdmin ? "Admin · all photographers" : "Your uploads");
     if (eventIdParam) parts.push(`event ${eventIdParam}`);
     parts.push(`${total.toLocaleString()} photo${total === 1 ? "" : "s"}`);
     return parts.join(" · ");
@@ -352,27 +301,9 @@ export function PhotosAdminClient() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 240, padding: "8px 12px", fontSize: 14 }}
           />
-          {isAdmin && (
-            <select
-              value={photographerId ?? ""}
-              onChange={(e) => setPhotographerId(e.target.value || null)}
-              className="input"
-              style={{
-                padding: "8px 12px",
-                fontSize: 13,
-                minWidth: 220,
-                fontFamily: "var(--font-sans)",
-              }}
-              title="Filter by photographer"
-            >
-              <option value="">All photographers</option>
-              {photographers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.email})
-                </option>
-              ))}
-            </select>
-          )}
+          {/* Photographer-filter dropdown removed — owner sees everyone's
+              photos by default, non-owner is scoped to their own server-
+              side. No manual narrowing needed at this point in the flow. */}
         </div>
 
         {/* Grid — photo only, full frame, click to open detail modal */}
@@ -384,9 +315,14 @@ export function PhotosAdminClient() {
           <>
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                gap: 4,
+                // CSS columns (masonry-ish) so tiles preserve their
+                // native aspect ratio — variable heights pack into
+                // columns without leaving cream gaps. `columns` auto-
+                // determines the column count from the tile min width
+                // (220px). `column-gap` handles horizontal spacing;
+                // vertical spacing comes from each tile's marginBottom.
+                columns: "220px",
+                columnGap: 2,
               }}
             >
               {filteredPhotos.map((p) => (
