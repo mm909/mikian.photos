@@ -305,9 +305,12 @@ export function PhotosAdminClient() {
       style={{
         // Viewport-fit, no-scroll shell (mirrors the old Detection Lab):
         // the page never scrolls — only the detail view's right rail does.
-        // dvh respects mobile chrome; the nav-h fallback covers the sticky nav.
+        // A *definite* height (not just max-height) is required so the grid's
+        // height:100% resolves and the preview shrinks via object-fit instead
+        // of overflowing. .app-root is min-height:100vh, so we subtract the
+        // sticky nav (~63px) from the dynamic viewport here.
         padding: "12px 16px 14px",
-        maxHeight: "calc(100dvh - var(--nav-h, 80px))",
+        height: "calc(100dvh - 64px)",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
