@@ -3,36 +3,35 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Headline } from "@/components/runner/Headline";
 import {
-  PhotoDetailModal,
+  Lens,
   type DeleteState,
   type DetailPhoto,
   type HideState,
   type RerunState,
-} from "@/components/photographer/PhotoDetailModal";
-import { LibraryTile } from "@/components/photographer/LibraryTile";
+} from "@/components/photographer/Lens";
 import { Pager } from "@/components/photographer/Pager";
 
 type BibTag = DetailPhoto["bibs"][number];
 type AdminPhoto = DetailPhoto;
 
 /**
- * Photo library — single-pane browse-and-manage surface.
+ * Photo library — a single-page, no-scroll workbench (modeled on the old
+ * Detection Lab). One photo is always "current": a big preview fills the
+ * left pane with a thumbnail strip beneath it for picking siblings, and the
+ * right rail holds bibs / faces / cluster / metadata / actions / OCR + face
+ * debug. The page is viewport-fit; only the right rail scrolls.
  *
- * Reshaped (May 2026) to drop the stat pills, the all/tagged/untagged/hidden
- * tab strip, the bulk Re-run-OCR button, and the back-to-dashboard chip.
- * The dashboard now groups uploads by event, and clicking a row deep-links
- * here with `?eventId=<id>` (and optionally `?photographerId=<id>` so an
- * owner can scope to one photographer's work).
+ * The heavy lifting lives in PhotoDetailModal (rendered with `inline`), which
+ * doubles as the click-to-open modal on the Coverage / Roster screens.
  *
  * URL params (deep-linkable from the dashboard):
- *   eventId          - filter to photos for this event
- *   photographerId   - admin only: filter to this photographer's photos
+ *   eventId  - filter to photos for this event
+ *   photo    - deep-open a specific photo as the current one
  *
- * Quick-search box still does substring/exact-bib match on the loaded
- * page (kept because typing a bib number is the fastest way to confirm
- * "did OCR see this?").
+ * Quick-search box does substring/exact-bib match on the loaded page (typing
+ * a bib number is the fastest way to confirm "did OCR see this?"); it narrows
+ * the thumbnail strip.
  */
 export function PhotosAdminClient() {
   const params = useSearchParams();
@@ -53,7 +52,9 @@ export function PhotosAdminClient() {
 
   const [search, setSearch] = useState("");
 
-  const [openId, setOpenId] = useState<string | null>(null);
+  // The currently-previewed photo. Always set to something once the catalog
+  // loads (see the maintenance effect below); drives the whole workbench.
+  const [currentId, setCurrentId] = useState<string | null>(null);
 
   // Pages mode — replaces the previous cursor-based Load-more.
   const [page, setPage] = useState(1);
@@ -170,7 +171,11 @@ export function PhotosAdminClient() {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `delete ${r.status}`);
       }
-      setOpenId((curr) => (curr === photoId ? null : curr));
+      // Land on a neighbour so the workbench doesn't blank out — next photo
+      // if there is one, else the previous, else nothing.
+      const idx = photos.findIndex((p) => p.id === photoId);
+      const neighbor = photos[idx + 1] ?? photos[idx - 1] ?? null;
+      setCurrentId((curr) => (curr === photoId ? neighbor?.id ?? null : curr));
       setPhotos((curr) => curr.filter((p) => p.id !== photoId));
       setDelState((s) => {
         const next = { ...s };
@@ -215,7 +220,7 @@ export function PhotosAdminClient() {
   const jumpToPhoto = useCallback(
     async (id: string) => {
       if (photos.some((p) => p.id === id)) {
-        setOpenId(id);
+        setCurrentId(id);
         return;
       }
       try {
@@ -223,7 +228,7 @@ export function PhotosAdminClient() {
         if (!r.ok) throw new Error(`photo ${r.status}`);
         const d = (await r.json()) as { photo: AdminPhoto };
         setPhotos((curr) => (curr.some((p) => p.id === id) ? curr : [d.photo, ...curr]));
-        setOpenId(id);
+        setCurrentId(id);
       } catch (e) {
         console.error(e);
       }
@@ -259,17 +264,30 @@ export function PhotosAdminClient() {
     });
   }, [photos, search]);
 
-  const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
+  const currentPhoto = currentId
+    ? photos.find((p) => p.id === currentId) ?? null
+    : null;
 
-  // The modal browses the filtered grid set, but the open photo must always be
-  // present even when the active search would exclude it (e.g. a cluster hop to
-  // a photo that doesn't match the current query). Prepend it when missing.
-  const modalPhotos = useMemo(() => {
-    if (openPhoto && !filteredPhotos.some((p) => p.id === openPhoto.id)) {
-      return [openPhoto, ...filteredPhotos];
+  // Keep a valid current photo. Reset to the first visible photo whenever the
+  // current one disappears entirely (page change, delete) or was never set.
+  // A photo that's merely filtered-out by search — but still loaded — is kept
+  // (it stays reachable via the prepend below), so typing a query that
+  // excludes the current photo doesn't yank the preview away mid-inspection.
+  useEffect(() => {
+    if (loading) return;
+    if (currentId && photos.some((p) => p.id === currentId)) return;
+    setCurrentId(filteredPhotos[0]?.id ?? photos[0]?.id ?? null);
+  }, [loading, photos, filteredPhotos, currentId]);
+
+  // The strip browses the filtered set, but the current photo must always be
+  // present even when the active search would exclude it (e.g. a cluster hop
+  // to a photo that doesn't match the query, or a hidden photo). Prepend it.
+  const viewPhotos = useMemo(() => {
+    if (currentPhoto && !filteredPhotos.some((p) => p.id === currentPhoto.id)) {
+      return [currentPhoto, ...filteredPhotos];
     }
     return filteredPhotos;
-  }, [filteredPhotos, openPhoto]);
+  }, [filteredPhotos, currentPhoto]);
 
   // Build the scope summary line: "Admin · all photographers · 2,345 photos"
   // or "Your uploads · 145 photos" with an event qualifier when set.
@@ -282,103 +300,132 @@ export function PhotosAdminClient() {
   })();
 
   return (
-    <main className="screen" style={{ padding: "40px 24px 96px" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        {/* Header — vert-aligned title + CTA. The title block carries the
-            scope summary right below the headline so the user always knows
-            what they're looking at without a separate pill row. */}
+    <main
+      className="screen"
+      style={{
+        // Viewport-fit, no-scroll shell (mirrors the old Detection Lab):
+        // the page never scrolls — only the detail view's right rail does.
+        // dvh respects mobile chrome; the nav-h fallback covers the sticky nav.
+        padding: "12px 16px 14px",
+        maxHeight: "calc(100dvh - var(--nav-h, 80px))",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1320,
+          margin: "0 auto",
+          width: "100%",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          minHeight: 0,
+        }}
+      >
+        {/* Compact header — title + scope on the left, search + Upload on the
+            right. Single row so the preview gets the maximum vertical budget. */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            gap: 18,
+            gap: 12,
             flexWrap: "wrap",
-            marginBottom: 22,
           }}
         >
-          <div>
-            <Headline
-              as="h1"
-              text="Photo library."
-              accent="library."
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <span
               style={{
-                margin: 0,
                 fontFamily: "var(--font-serif)",
                 fontWeight: 500,
-                fontSize: 36,
-                letterSpacing: "-.015em",
+                fontSize: 20,
+                letterSpacing: "-.012em",
+                color: "var(--ink)",
               }}
-            />
-            <div
+            >
+              Photo{" "}
+              <em className="acc-l" style={{ fontStyle: "italic" }}>
+                library
+              </em>
+            </span>
+            <span
               style={{
-                marginTop: 8,
                 fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".14em",
+                fontSize: 10,
+                letterSpacing: ".12em",
                 textTransform: "uppercase",
                 color: "var(--muted)",
               }}
             >
               {scopeLine}
-            </div>
+            </span>
           </div>
-          <Link href="/photographer/upload" className="btn btn--primary">
-            Upload →
-          </Link>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              className="input"
+              placeholder="Search bib, photo ID, photographer…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 280, maxWidth: "50vw", padding: "7px 12px", fontSize: 14 }}
+            />
+            <Link href="/photographer/upload" className="btn btn--primary">
+              Upload →
+            </Link>
+          </div>
         </div>
 
-        {/* Filter row — search + (admin-only) photographer dropdown.
-            Drops the previous all/tagged/untagged/hidden tab strip and
-            the bulk Re-run OCR button. */}
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            marginBottom: 18,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <input
-            className="input"
-            placeholder="Search bib, photo ID, photographer…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 240, padding: "8px 12px", fontSize: 14 }}
-          />
-          {/* Photographer-filter dropdown removed — owner sees everyone's
-              photos by default, non-owner is scoped to their own server-
-              side. No manual narrowing needed at this point in the flow. */}
-        </div>
-
-        {/* Grid — photo only, full frame, click to open detail modal */}
+        {/* Body — the inline detail workbench fills the remaining height. */}
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading…</p>
-        ) : filteredPhotos.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No photos match this filter.</p>
+        ) : !currentPhoto ? (
+          <p style={{ color: "var(--muted)" }}>
+            {photos.length === 0
+              ? "No photos uploaded yet."
+              : "No photos match this search."}
+          </p>
         ) : (
-          <>
-            <div
-              style={{
-                // CSS columns (masonry-ish) so tiles preserve their
-                // native aspect ratio — variable heights pack into
-                // columns without leaving cream gaps. `columns` auto-
-                // determines the column count from the tile min width
-                // (220px). `column-gap` handles horizontal spacing;
-                // vertical spacing comes from each tile's marginBottom.
-                columns: "220px",
-                columnGap: 2,
-              }}
-            >
-              {filteredPhotos.map((p) => (
-                <LibraryTile
-                  key={p.id}
-                  p={p}
-                  running={rerun[p.id] === "running"}
-                  onOpen={() => setOpenId(p.id)}
-                />
-              ))}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <Lens
+                inline
+                photos={viewPhotos}
+                currentId={currentPhoto.id}
+                onSelect={setCurrentId}
+                isOwner={isAdmin}
+                onJumpToPhoto={(id) => void jumpToPhoto(id)}
+                rerunState={rerun[currentPhoto.id] ?? "idle"}
+                rerunFaceState={rerunFace[currentPhoto.id] ?? "idle"}
+                onRerunFace={() => rerunFaceIndex(currentPhoto.id)}
+                deleteState={delState[currentPhoto.id] ?? "idle"}
+                hideState={hideStateMap[currentPhoto.id] ?? "idle"}
+                onClose={() => {}}
+                onRerun={() => rerunOcr(currentPhoto.id)}
+                onAskDelete={() =>
+                  setDelState((s) => ({
+                    ...s,
+                    [currentPhoto.id]:
+                      s[currentPhoto.id] === "confirm" ? "idle" : "confirm",
+                  }))
+                }
+                onConfirmDelete={() => deletePhoto(currentPhoto.id)}
+                onCancelDelete={() =>
+                  setDelState((s) => ({ ...s, [currentPhoto.id]: "idle" }))
+                }
+                onToggleHidden={() => toggleHidden(currentPhoto.id)}
+              />
             </div>
 
             {pageCount > 1 && (
@@ -391,35 +438,9 @@ export function PhotosAdminClient() {
                 disabled={loading}
               />
             )}
-          </>
+          </div>
         )}
       </div>
-
-      {openPhoto && (
-        <PhotoDetailModal
-          photos={modalPhotos}
-          currentId={openPhoto.id}
-          onSelect={(id) => setOpenId(id)}
-          isOwner={isAdmin}
-          onJumpToPhoto={(id) => void jumpToPhoto(id)}
-          rerunState={rerun[openPhoto.id] ?? "idle"}
-          rerunFaceState={rerunFace[openPhoto.id] ?? "idle"}
-          onRerunFace={() => rerunFaceIndex(openPhoto.id)}
-          deleteState={delState[openPhoto.id] ?? "idle"}
-          hideState={hideStateMap[openPhoto.id] ?? "idle"}
-          onClose={() => setOpenId(null)}
-          onRerun={() => rerunOcr(openPhoto.id)}
-          onAskDelete={() =>
-            setDelState((s) => ({
-              ...s,
-              [openPhoto.id]: s[openPhoto.id] === "confirm" ? "idle" : "confirm",
-            }))
-          }
-          onConfirmDelete={() => deletePhoto(openPhoto.id)}
-          onCancelDelete={() => setDelState((s) => ({ ...s, [openPhoto.id]: "idle" }))}
-          onToggleHidden={() => toggleHidden(openPhoto.id)}
-        />
-      )}
     </main>
   );
 }
