@@ -541,111 +541,6 @@ export function FaceTab({
 }
 
 // ============================================================================
-// Coverage gaps
-// ============================================================================
-
-export function GapsTab({
-  eventId,
-  totals,
-}: {
-  eventId: string;
-  totals: CoverageResponse["gaps"];
-}) {
-  const [bucket, setBucket] = useState<GapKey>(() => {
-    if (totals.unreachable.count > 0) return "unreachable";
-    if (totals.bibOnly.count > 0) return "bibOnly";
-    if (totals.faceOnly.count > 0) return "faceOnly";
-    return "unreachable";
-  });
-
-  const meta: Record<GapKey, { label: string; helper: string; count: number }> = {
-    unreachable: {
-      label: "Unreachable",
-      helper: "No bib, no face. Can only be found by browsing.",
-      count: totals.unreachable.count,
-    },
-    bibOnly: {
-      label: "Bib-only",
-      helper: "Bib detected, no face. Face search misses these.",
-      count: totals.bibOnly.count,
-    },
-    faceOnly: {
-      label: "Face-only",
-      helper: "Face detected, no bib. Bib search misses.",
-      count: totals.faceOnly.count,
-    },
-  };
-  const active = meta[bucket];
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {(Object.keys(meta) as GapKey[]).map((k) => (
-          <BucketBtn
-            key={k}
-            label={meta[k].label}
-            count={meta[k].count}
-            active={bucket === k}
-            onClick={() => setBucket(k)}
-          />
-        ))}
-      </div>
-      <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>{active.helper}</p>
-      <CoveragePhotoGrid filter={{ eventId, gap: bucket }} emptyLabel="Empty bucket." />
-    </div>
-  );
-}
-
-function BucketBtn({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 10px",
-        background: active ? "var(--surface)" : "var(--cream)",
-        border: active ? "1px solid var(--ink)" : "1px solid var(--line)",
-        borderRadius: 5,
-        cursor: active ? "default" : "pointer",
-        fontFamily: "var(--font-mono)",
-        fontSize: 10,
-        letterSpacing: ".12em",
-        textTransform: "uppercase",
-        color: active ? "var(--ink)" : "var(--muted)",
-        fontWeight: active ? 700 : 400,
-      }}
-    >
-      <span>{label}</span>
-      <span
-        style={{
-          padding: "1px 5px",
-          background: active ? "var(--ink)" : "var(--surface)",
-          color: active ? "var(--paper)" : "var(--muted)",
-          borderRadius: 3,
-          fontSize: 9,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {count}
-      </span>
-    </button>
-  );
-}
-
-// ============================================================================
 // Photo grid (paginated; click → PhotoDetailModal)
 // ============================================================================
 
@@ -1182,11 +1077,6 @@ function Muted({ children }: { children: React.ReactNode }) {
 export function fmtCount(n: number | undefined): string {
   if (n == null) return "—";
   return n.toLocaleString();
-}
-
-export function pctValue(num: number | undefined, denom: number | undefined): string {
-  if (num == null || denom == null || denom === 0) return "—";
-  return `${Math.round((num / denom) * 100)}%`;
 }
 
 function prettySources(sources: string[]): string {
