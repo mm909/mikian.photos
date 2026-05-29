@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Headline } from "@/components/runner/Headline";
 import {
   PhotoDetailModal,
   type DeleteState,
@@ -11,7 +10,7 @@ import {
   type RerunState,
 } from "@/components/photographer/PhotoDetailModal";
 
-type CoverageResponse = {
+export type CoverageResponse = {
   event: { id: string; name: string };
   totals: {
     photos: number;
@@ -52,7 +51,6 @@ type PhotosResponse = {
   photos: DetailPhoto[];
 };
 
-type Tab = "bib" | "face" | "gaps";
 type BibSortKey = "bib" | "photos" | "sources" | "conf" | "faces" | "runner";
 type GapKey = "unreachable" | "bibOnly" | "faceOnly";
 
@@ -61,36 +59,26 @@ type PhotoFilter =
   | { eventId: string; faceClusterId: string }
   | { eventId: string; gap: GapKey };
 
-type Props = {
-  defaultEventId: string;
-  defaultEventName: string;
-};
-
 const ROW_PAGE_SIZE = 30; // bib/face rows per table page
 const PHOTO_PAGE_SIZE = 24;
 
 /**
- * Coverage / insights screen — owner-only.
+ * Owner-only coverage data hook.
  *
- * - By bib: searchable + sortable + paginated table. Click a row → it
- *   expands inline (no modal) with the photo grid for that bib + Delete-
- *   bib + per-photo untag actions.
- * - By face: same shape; expand reveals photos for the cluster.
- * - Coverage gaps: picker + paginated grid using the same photo endpoint.
- * - Click any photo → opens PhotoDetailModal with arrow-key nav across the
- *   current page's set + the standard library actions.
+ * Fetches the aggregated coverage rollup (`/api/admin/coverage`) once for an
+ * event and exposes a `refetch` so callers can refresh totals after a
+ * mutation (e.g. untagging a photo from a bib). The coverage tabs
+ * (`BibTab` / `FaceTab` / `GapsTab`) consume the returned `data`.
  *
- * Layout is tightened (compact stats, denser rows) to maximize "what fits
- * on one screen without scrolling".
+ * Lives here (rather than inside a screen component) because the combined
+ * Roster surface owns the screen chrome now — it just borrows these tabs.
  */
-export function CoverageClient({ defaultEventId, defaultEventName }: Props) {
-  const [eventId] = useState(defaultEventId);
+export function useCoverageData(eventId: string) {
   const [data, setData] = useState<CoverageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("bib");
 
-  const fetchData = useCallback(async () => {
+  const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -110,127 +98,17 @@ export function CoverageClient({ defaultEventId, defaultEventName }: Props) {
   }, [eventId]);
 
   useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    void refetch();
+  }, [refetch]);
 
-  return (
-    <main className="screen" style={{ padding: "28px 24px 64px" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        {/* Header — compacted from the original */}
-        <div style={{ marginBottom: 18 }}>
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              letterSpacing: ".14em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-              marginBottom: 4,
-            }}
-          >
-            Owner · Coverage · {data?.event.name ?? defaultEventName}
-          </div>
-          <Headline
-            as="h1"
-            text="Detection coverage."
-            accent="coverage."
-            style={{
-              margin: 0,
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 30,
-              letterSpacing: "-.015em",
-            }}
-          />
-        </div>
-
-        {error && (
-          <div
-            role="alert"
-            style={{
-              padding: "10px 14px",
-              border: "1px solid var(--accent)",
-              borderRadius: 6,
-              color: "var(--accent)",
-              marginBottom: 14,
-              fontSize: 13,
-            }}
-          >
-            Could not load coverage: {error}
-          </div>
-        )}
-
-        {/* Compact stat strip */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          <Stat label="Photos" value={fmtCount(data?.totals.photos)} />
-          <Stat
-            label="Bibs"
-            value={pctValue(data?.totals.withBib, data?.totals.photos)}
-            sub={fmtCount(data?.totals.withBib)}
-          />
-          <Stat
-            label="Faces"
-            value={pctValue(data?.totals.withFace, data?.totals.photos)}
-            sub={fmtCount(data?.totals.withFace)}
-            muted={data?.totals.withFace === 0}
-          />
-          <Stat
-            label="Covered"
-            value={pctValue(
-              (data?.totals.withBib ?? 0) +
-                (data?.totals.withFace ?? 0) -
-                (data?.totals.withBoth ?? 0),
-              data?.totals.photos
-            )}
-            sub={`${fmtCount(data?.totals.withBoth)} both`}
-          />
-        </div>
-
-        {/* Tab strip */}
-        <div
-          role="tablist"
-          style={{
-            display: "inline-flex",
-            border: "1px solid var(--line)",
-            borderRadius: 6,
-            background: "var(--cream)",
-            padding: 2,
-            marginBottom: 12,
-          }}
-        >
-          <TabBtn active={tab === "bib"} onClick={() => setTab("bib")} label="By bib" />
-          <TabBtn active={tab === "face"} onClick={() => setTab("face")} label="By face" />
-          <TabBtn active={tab === "gaps"} onClick={() => setTab("gaps")} label="Coverage gaps" />
-        </div>
-
-        {loading && <p style={{ color: "var(--muted)" }}>Loading coverage…</p>}
-
-        {!loading && data && tab === "bib" && (
-          <BibTab eventId={eventId} rows={data.bibs} onMutated={fetchData} />
-        )}
-        {!loading && data && tab === "face" && (
-          <FaceTab eventId={eventId} rows={data.faces} />
-        )}
-        {!loading && data && tab === "gaps" && (
-          <GapsTab eventId={eventId} totals={data.gaps} />
-        )}
-      </div>
-    </main>
-  );
+  return { data, loading, error, refetch };
 }
 
 // ============================================================================
 // By bib
 // ============================================================================
 
-function BibTab({
+export function BibTab({
   eventId,
   rows,
   onMutated,
@@ -529,7 +407,7 @@ function BibDrawer({
 // By face
 // ============================================================================
 
-function FaceTab({
+export function FaceTab({
   eventId,
   rows,
 }: {
@@ -666,7 +544,7 @@ function FaceTab({
 // Coverage gaps
 // ============================================================================
 
-function GapsTab({
+export function GapsTab({
   eventId,
   totals,
 }: {
@@ -1152,7 +1030,7 @@ function PageBtn({
   );
 }
 
-function Stat({
+export function Stat({
   label,
   value,
   sub,
@@ -1211,7 +1089,7 @@ function Stat({
   );
 }
 
-function TabBtn({
+export function TabBtn({
   active,
   onClick,
   label,
@@ -1301,12 +1179,12 @@ function Muted({ children }: { children: React.ReactNode }) {
   return <p style={{ color: "var(--muted)", fontSize: 13, margin: 0 }}>{children}</p>;
 }
 
-function fmtCount(n: number | undefined): string {
+export function fmtCount(n: number | undefined): string {
   if (n == null) return "—";
   return n.toLocaleString();
 }
 
-function pctValue(num: number | undefined, denom: number | undefined): string {
+export function pctValue(num: number | undefined, denom: number | undefined): string {
   if (num == null || denom == null || denom === 0) return "—";
   return `${Math.round((num / denom) * 100)}%`;
 }
