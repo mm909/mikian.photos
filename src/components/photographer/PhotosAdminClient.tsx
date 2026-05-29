@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Headline } from "@/components/runner/Headline";
 import {
@@ -37,6 +37,10 @@ type AdminPhoto = DetailPhoto;
 export function PhotosAdminClient() {
   const params = useSearchParams();
   const eventIdParam = params?.get("eventId") ?? null;
+  // Deep-open a specific photo's detail modal (e.g. the old OCR/Face Lab
+  // bookmarks now redirect here with ?photo=, and the in-modal cluster panel
+  // hops between photos via the same mechanism).
+  const photoParam = params?.get("photo") ?? null;
 
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<AdminPhoto[]>([]);
@@ -205,6 +209,38 @@ export function PhotosAdminClient() {
     }
   }
 
+  // Open a photo by id. If it's on the loaded page we just open it; otherwise
+  // (a cluster hop or a ?photo deep-link to a photo on another page) we fetch
+  // its detail and splice it into the loaded set so the modal can render it.
+  const jumpToPhoto = useCallback(
+    async (id: string) => {
+      if (photos.some((p) => p.id === id)) {
+        setOpenId(id);
+        return;
+      }
+      try {
+        const r = await fetch(`/api/photographer/photos/${id}`, { cache: "no-store" });
+        if (!r.ok) throw new Error(`photo ${r.status}`);
+        const d = (await r.json()) as { photo: AdminPhoto };
+        setPhotos((curr) => (curr.some((p) => p.id === id) ? curr : [d.photo, ...curr]));
+        setOpenId(id);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [photos]
+  );
+
+  // Honour ?photo= once after the first catalog load lands. The ref guard keeps
+  // it from re-firing as the user navigates the modal (which doesn't touch the
+  // URL param).
+  const didDeepOpen = useRef(false);
+  useEffect(() => {
+    if (didDeepOpen.current || loading || !photoParam) return;
+    didDeepOpen.current = true;
+    void jumpToPhoto(photoParam);
+  }, [loading, photoParam, jumpToPhoto]);
+
   // In-page search across what's currently loaded. Numeric input is an
   // exact bib match (mirrors /api/photos?bib= semantics); free-text is a
   // substring match on photo id and photographer name.
@@ -224,6 +260,16 @@ export function PhotosAdminClient() {
   }, [photos, search]);
 
   const openPhoto = openId ? photos.find((p) => p.id === openId) ?? null : null;
+
+  // The modal browses the filtered grid set, but the open photo must always be
+  // present even when the active search would exclude it (e.g. a cluster hop to
+  // a photo that doesn't match the current query). Prepend it when missing.
+  const modalPhotos = useMemo(() => {
+    if (openPhoto && !filteredPhotos.some((p) => p.id === openPhoto.id)) {
+      return [openPhoto, ...filteredPhotos];
+    }
+    return filteredPhotos;
+  }, [filteredPhotos, openPhoto]);
 
   // Build the scope summary line: "Admin · all photographers · 2,345 photos"
   // or "Your uploads · 145 photos" with an event qualifier when set.
@@ -351,9 +397,11 @@ export function PhotosAdminClient() {
 
       {openPhoto && (
         <PhotoDetailModal
-          photos={filteredPhotos}
+          photos={modalPhotos}
           currentId={openPhoto.id}
           onSelect={(id) => setOpenId(id)}
+          isOwner={isAdmin}
+          onJumpToPhoto={(id) => void jumpToPhoto(id)}
           rerunState={rerun[openPhoto.id] ?? "idle"}
           rerunFaceState={rerunFace[openPhoto.id] ?? "idle"}
           onRerunFace={() => rerunFaceIndex(openPhoto.id)}

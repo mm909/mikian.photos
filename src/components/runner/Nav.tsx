@@ -48,23 +48,19 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
+    // The unified photo viewer + operations surface. Browse every upload,
+    // search bibs, and open any photo's detail modal to re-run / debug OCR
+    // and faces, inspect metadata, and delete / hide / download. The old
+    // owner-only OCR + Face Lab folded into this modal (owners additionally
+    // get the OCR tuning knobs + cross-event face-cluster inspector there),
+    // so the legacy /ocr-lab + /face-lab URLs now redirect here.
     label: "Library",
     href: "/photographer/photos",
-    match: (p) => p.startsWith("/photographer/photos"),
-    roles: ["photographer", "owner"],
-  },
-  {
-    // Owner-only — combined OCR + Faces tuning/inspection surface. One tab
-    // with an internal mode toggle: OCR for bib detection knobs, Faces for
-    // Rekognition cluster inspection + force re-index. Photographers get
-    // the per-photo "OCR view" inside the library detail modal; this lab
-    // is for cross-photo experimentation.
-    label: "Lab",
-    href: "/photographer/ocr-lab",
     match: (p) =>
+      p.startsWith("/photographer/photos") ||
       p.startsWith("/photographer/ocr-lab") ||
       p.startsWith("/photographer/face-lab"),
-    roles: ["owner"],
+    roles: ["photographer", "owner"],
   },
   {
     // Owner-only insights — bib & face coverage table. Sits alongside Admin

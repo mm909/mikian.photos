@@ -1,16 +1,19 @@
 import { redirect } from "next/navigation";
 
 /**
- * Face Lab merged into the OCR Lab (mode toggle inside). Permanent
- * redirect kept so any prior URLs / bookmarks still land in the right
- * place — with the faces mode pre-selected.
+ * Face Lab folded into the unified photo library — face-cluster inspection now
+ * lives in the per-photo detail modal at /photographer/photos. Permanent
+ * redirect kept so prior URLs / bookmarks still land somewhere useful;
+ * `?photo` deep-opens that photo's modal.
  */
 export default function FaceLabRedirect({
   searchParams,
 }: {
   searchParams?: { photo?: string };
 }) {
-  const qs = new URLSearchParams({ mode: "faces" });
-  if (searchParams?.photo) qs.set("photo", searchParams.photo);
-  redirect(`/photographer/ocr-lab?${qs.toString()}`);
+  redirect(
+    searchParams?.photo
+      ? `/photographer/photos?photo=${encodeURIComponent(searchParams.photo)}`
+      : "/photographer/photos"
+  );
 }
