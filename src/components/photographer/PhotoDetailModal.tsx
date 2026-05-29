@@ -7,6 +7,8 @@ import {
   type DebugPayload,
   type OcrState,
 } from "./OcrDebugPanel";
+import { OcrSettingsPanel } from "./OcrSettingsPanel";
+import { DEFAULT_OCR_SETTINGS, type OcrSettings } from "@/lib/bibOcrTypes";
 
 export type BibTag = {
   id: string;
@@ -61,6 +63,10 @@ export type RerunState = "idle" | "running" | "ok" | "err";
 export type DeleteState = "idle" | "confirm" | "running" | "err";
 export type HideState = "idle" | "running" | "err";
 
+/** One PhotoFace in the same cluster, used by the "Cluster across event"
+ *  panel (folded in from the retired Face Lab). */
+type ClusterMember = { photoId: string; faceId: string; confidence: number };
+
 type Props = {
   /** Full photo set the user is browsing through. Drives the thumbnail strip
    *  and arrow-key navigation. Order = visual order in the parent grid. */
@@ -91,6 +97,15 @@ type Props = {
    *  hides it. */
   rerunFaceState?: RerunState;
   onRerunFace?: () => void;
+  /** Owner unlocks the OCR settings tuning knobs (provider, preprocessing,
+   *  bib-filter thresholds) inside the OCR-debug section. Photographers keep
+   *  the plain "show intermediates" run with server defaults. Folded in from
+   *  the retired owner-only OCR Lab. */
+  isOwner?: boolean;
+  /** Jump to a photo by id — used by the face-cluster panel to hop to another
+   *  photo of the same runner. The parent resolves photos that aren't on the
+   *  current grid page. Falls back to in-set `onSelect` when unset. */
+  onJumpToPhoto?: (photoId: string) => void;
 };
 
 /**
@@ -128,11 +143,26 @@ export function PhotoDetailModal({
   onUntagBib,
   rerunFaceState,
   onRerunFace,
+  isOwner = false,
+  onJumpToPhoto,
 }: Props) {
   // OCR debug state — per photo. Reset whenever the user navigates.
   const [ocrState, setOcrState] = useState<OcrState>("idle");
   const [ocrDebug, setOcrDebug] = useState<DebugPayload | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
+
+  // OCR tuning knobs (owner only). Persist across photo navigation so the
+  // owner can sweep a setting across several photos without re-dialing it.
+  // In-session cache keyed by (photoId + settings) avoids re-hitting the
+  // provider when nothing changed — mirrors the old lab behaviour.
+  const [ocrSettings, setOcrSettings] = useState<OcrSettings>(DEFAULT_OCR_SETTINGS);
+  const ocrCache = useRef<Map<string, DebugPayload>>(new Map());
+
+  // Face-cluster panel (folded in from the Face Lab). activeFaceId drives the
+  // cross-event member grid; both reset on photo change.
+  const [activeFaceId, setActiveFaceId] = useState<string | null>(null);
+  const [clusterMembers, setClusterMembers] = useState<ClusterMember[] | null>(null);
+  const [clusterLoading, setClusterLoading] = useState(false);
 
   /** Which view fills the left pane: the original photo, the OCR-preprocessed
    *  image with bbox overlays, or the original with face-detection bboxes. */
@@ -143,13 +173,16 @@ export function PhotoDetailModal({
    *  multiply by width/height to draw). Set on image load. */
   const [previewDims, setPreviewDims] = useState<{ w: number; h: number } | null>(null);
 
-  // Reset OCR + view state on photo change so we don't show a stale overlay.
+  // Reset OCR + view + cluster state on photo change so we don't show a stale
+  // overlay or a prior photo's cluster picks.
   useEffect(() => {
     setOcrState("idle");
     setOcrDebug(null);
     setOcrError(null);
     setViewMode("original");
     setPreviewDims(null);
+    setActiveFaceId(null);
+    setClusterMembers(null);
   }, [currentId]);
 
   const photo = useMemo(
@@ -194,19 +227,44 @@ export function PhotoDetailModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, goPrev, goNext]);
 
-  async function runOcrDebug() {
+  function patchOcrSetting<K extends keyof OcrSettings>(key: K, value: OcrSettings[K]) {
+    setOcrSettings((s) => ({ ...s, [key]: value }));
+  }
+
+  // Owner runs against the tuned settings; photographers run with server
+  // defaults (no body). The cache key folds the photo id + the request body
+  // so a re-run with identical config returns instantly. A re-run from the
+  // ok/err state forces a fresh provider call (the user clicked "re-run" to
+  // see a change), bypassing the cache.
+  async function runOcrDebug(opts: { force?: boolean } = {}) {
     if (!photo) return;
+    const body = isOwner ? JSON.stringify({ settings: ocrSettings }) : null;
+    const key = `${photo.id}|${body ?? "default"}`;
+    const force = opts.force ?? ocrState === "ok";
+    if (!force) {
+      const cached = ocrCache.current.get(key);
+      if (cached) {
+        setOcrDebug(cached);
+        setOcrState("ok");
+        setViewMode("ocr");
+        return;
+      }
+    }
     setOcrState("running");
     setOcrError(null);
     try {
       const r = await fetch(`/api/photographer/photos/${photo.id}/ocr-debug`, {
         method: "POST",
+        ...(body
+          ? { headers: { "Content-Type": "application/json" }, body }
+          : {}),
       });
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error || `${r.status}`);
       }
       const d = (await r.json()) as DebugPayload;
+      ocrCache.current.set(key, d);
       setOcrDebug(d);
       setOcrState("ok");
       // Auto-flip to the Tesseract view once we have one — that's the
@@ -216,6 +274,41 @@ export function PhotoDetailModal({
       setOcrError(e instanceof Error ? e.message : String(e));
       setOcrState("err");
     }
+  }
+
+  // Load the cross-event cluster for a clicked face — every PhotoFace sharing
+  // its faceClusterId, so the owner can see the same runner on other photos
+  // and hop between them. No-op for faces with no cluster id (manual rows).
+  const loadCluster = useCallback(
+    async (face: PhotoFaceTag) => {
+      if (!photo || !face.faceClusterId) return;
+      setActiveFaceId(face.id);
+      setClusterMembers(null);
+      setClusterLoading(true);
+      try {
+        const qs = new URLSearchParams({
+          eventId: photo.eventId,
+          cluster: face.faceClusterId,
+        });
+        const r = await fetch(`/api/photographer/face-lab/cluster?${qs}`, {
+          cache: "no-store",
+        });
+        if (!r.ok) throw new Error(`${r.status}`);
+        const d = (await r.json()) as { members: ClusterMember[] };
+        setClusterMembers(d.members);
+      } catch (e) {
+        console.warn("cluster fetch failed:", e);
+        setClusterMembers([]);
+      } finally {
+        setClusterLoading(false);
+      }
+    },
+    [photo]
+  );
+
+  function jumpToPhoto(pid: string) {
+    if (onJumpToPhoto) onJumpToPhoto(pid);
+    else if (photos.some((p) => p.id === pid)) onSelect(pid);
   }
 
   // Body scroll lock removed. It was a belt+suspenders defense against
@@ -413,6 +506,8 @@ export function PhotoDetailModal({
                 width={previewDims.w}
                 height={previewDims.h}
                 faces={faces}
+                activeFaceId={activeFaceId}
+                onFaceClick={(f) => void loadCluster(f)}
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
@@ -590,14 +685,74 @@ export function PhotoDetailModal({
                     key={f.id}
                     cropUrl={`/api/photos/${photo.id}/face/${f.id}`}
                     confidence={f.confidence}
-                    title={`${f.source} · cluster ${
-                      f.faceClusterId ?? "—"
-                    } · face id ${f.rekognitionFaceId ?? "—"}`}
+                    active={f.id === activeFaceId}
+                    title={
+                      f.faceClusterId
+                        ? `Click to see this runner across the event · ${f.source} · cluster ${f.faceClusterId} · face id ${f.rekognitionFaceId ?? "—"}`
+                        : `${f.source} · no cluster · face id ${f.rekognitionFaceId ?? "—"}`
+                    }
+                    onClick={f.faceClusterId ? () => void loadCluster(f) : undefined}
                   />
                 ))}
               </div>
             )}
           </Section>
+
+          {/* Cluster across event — appears once a face is picked. Mirrors the
+              retired Face Lab's cluster grid: every photo in this event that
+              Rekognition believes shows the same runner. Click a thumbnail to
+              hop to that photo. */}
+          {activeFaceId && (
+            <Section title="Cluster across event">
+              {clusterLoading ? (
+                <Muted>Loading cluster…</Muted>
+              ) : !clusterMembers ? null : clusterMembers.length === 0 ? (
+                <Muted>No other photos found in this cluster.</Muted>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(56px, 1fr))",
+                    gap: 6,
+                  }}
+                >
+                  {clusterMembers.map((m) => (
+                    <button
+                      key={`${m.photoId}-${m.faceId}`}
+                      type="button"
+                      onClick={() => jumpToPhoto(m.photoId)}
+                      title={`Conf ${(m.confidence * 100).toFixed(0)}% — open this photo`}
+                      style={{
+                        padding: 0,
+                        border:
+                          m.photoId === photo.id
+                            ? "2px solid var(--accent)"
+                            : "1px solid var(--line)",
+                        borderRadius: 4,
+                        background: "var(--cream)",
+                        cursor: "pointer",
+                        aspectRatio: "1 / 1",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/photos/${m.photoId}/face/${m.faceId}`}
+                        alt=""
+                        loading="lazy"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
 
           <Section title="Metadata">
             <KV label="Taken" value={fmtDate(photo.takenAt)} />
@@ -685,22 +840,25 @@ export function PhotoDetailModal({
             )}
           </Section>
 
-          {/* OCR debug — controls + readouts only. The big overlay lives in
-              the left pane and replaces the original preview on success. */}
+          {/* OCR debug — controls + readouts. The big overlay lives in the
+              left pane and replaces the original preview on success. Owners
+              additionally get the full tuning panel (provider, preprocessing,
+              bib-filter thresholds), folded in from the retired OCR Lab; runs
+              are dispatched against those settings and cached per config. */}
           <Section title="OCR debug">
+            {isOwner && (
+              <OcrSettingsPanel
+                settings={ocrSettings}
+                onPatch={patchOcrSetting}
+                onReset={() => setOcrSettings(DEFAULT_OCR_SETTINGS)}
+              />
+            )}
             <OcrDebugPanel
               debug={ocrDebug}
               state={ocrState}
               error={ocrError}
-              onRun={runOcrDebug}
+              onRun={() => void runOcrDebug()}
             />
-            <a
-              href={`/photographer/ocr-lab?photo=${photo.id}`}
-              className="btn btn--ghost btn--sm"
-              style={{ marginTop: 8, textAlign: "center", textDecoration: "none" }}
-            >
-              Open in OCR Lab →
-            </a>
           </Section>
 
           {/* Face debug — there's no separate intermediate fetch (Rekognition
@@ -821,25 +979,31 @@ function FaceThumbChip({
   cropUrl,
   confidence,
   title,
+  active,
+  onClick,
 }: {
   cropUrl: string;
   confidence: number;
   title?: string;
+  /** Highlights the chip when its cluster is the one currently inspected. */
+  active?: boolean;
+  /** When set, the chip becomes a button that opens the cross-event cluster. */
+  onClick?: () => void;
 }) {
-  return (
-    <span
-      title={title}
-      style={{
-        position: "relative",
-        display: "inline-block",
-        width: 48,
-        height: 48,
-        borderRadius: 4,
-        overflow: "hidden",
-        background: "var(--cream)",
-        border: "1px solid var(--line)",
-      }}
-    >
+  const sharedStyle: React.CSSProperties = {
+    position: "relative",
+    display: "inline-block",
+    width: 48,
+    height: 48,
+    padding: 0,
+    borderRadius: 4,
+    overflow: "hidden",
+    background: "var(--cream)",
+    border: active ? "2px solid var(--accent)" : "1px solid var(--line)",
+    cursor: onClick ? "pointer" : "default",
+  };
+  const inner = (
+    <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={cropUrl}
@@ -869,6 +1033,18 @@ function FaceThumbChip({
       >
         {Math.round(confidence)}%
       </span>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title={title} style={sharedStyle}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <span title={title} style={sharedStyle}>
+      {inner}
     </span>
   );
 }
@@ -878,11 +1054,15 @@ function FaceOverlayView({
   width,
   height,
   faces,
+  activeFaceId,
+  onFaceClick,
 }: {
   previewUrl: string;
   width: number;
   height: number;
   faces: PhotoFaceTag[];
+  activeFaceId?: string | null;
+  onFaceClick?: (face: PhotoFaceTag) => void;
 }) {
   // Aspect-locked wrapper mirrors the Original-view sizing: maxWidth +
   // maxHeight of 100%, aspectRatio fixed to the natural image dimensions.
@@ -922,18 +1102,25 @@ function FaceOverlayView({
         const y = f.y0 * height;
         const w = (f.x1 - f.x0) * width;
         const h = (f.y1 - f.y0) * height;
-        const stroke = "#3fd17d";
+        const isActive = f.id === activeFaceId;
+        const clickable = !!onFaceClick && !!f.faceClusterId;
+        const stroke = isActive ? "var(--accent)" : "#3fd17d";
         const idShort = (f.faceClusterId ?? f.rekognitionFaceId ?? f.id).slice(0, 8);
         return (
-          <g key={f.id}>
+          <g
+            key={f.id}
+            onClick={clickable ? () => onFaceClick!(f) : undefined}
+            style={{ cursor: clickable ? "pointer" : "default" }}
+          >
             <rect
               x={x}
               y={y}
               width={w}
               height={h}
-              fill="none"
+              fill={clickable ? "transparent" : "none"}
               stroke={stroke}
-              strokeWidth={Math.max(w, h) * 0.012}
+              strokeWidth={Math.max(w, h) * (isActive ? 0.02 : 0.012)}
+              style={{ pointerEvents: clickable ? "all" : "none" }}
             />
             <text
               x={x}
@@ -942,6 +1129,7 @@ function FaceOverlayView({
               fontSize={Math.max(h * 0.13, 16)}
               fontFamily="ui-monospace, monospace"
               fontWeight={700}
+              style={{ pointerEvents: "none" }}
             >
               {idShort}·{Math.round(f.confidence)}%
             </text>
