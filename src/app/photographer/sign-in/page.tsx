@@ -1,9 +1,29 @@
-"use client";
-
-import { signIn } from "next-auth/react";
 import { Headline } from "@/components/runner/Headline";
+import { isSiteGateOn } from "@/lib/siteGate";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
+// Copy depends on the live gate state, so render per-request rather than
+// baking the build-time value into static HTML.
+export const dynamic = "force-dynamic";
+
+/**
+ * Sign-in screen. Wears two hats depending on the site gate (see siteGate.ts):
+ *
+ *   - Gate ON  (private preview): the door to the whole site. The one allowed
+ *     account signs in here; everyone else is redirected here by middleware.
+ *   - Gate OFF (public site): back to its original job — photographers sign in
+ *     to upload.
+ */
 export default function SignInPage() {
+  const gateOn = isSiteGateOn();
+
+  const eyebrow = gateOn ? "Private preview" : "Photographer access";
+  const headlineText = gateOn ? "In private preview." : "Sign in to upload.";
+  const headlineAccent = gateOn ? "private preview." : "upload.";
+  const blurb = gateOn
+    ? "Mikian.Photos isn’t open to the public yet. Sign in to continue."
+    : "Photographers shooting Mikian events use their Google account to upload, credit, and manage their photos.";
+
   return (
     <main className="screen" style={{ padding: "96px 24px" }}>
       <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
@@ -17,12 +37,12 @@ export default function SignInPage() {
             marginBottom: 14,
           }}
         >
-          Photographer access
+          {eyebrow}
         </div>
         <Headline
           as="h1"
-          text="Sign in to upload."
-          accent="upload."
+          text={headlineText}
+          accent={headlineAccent}
           style={{
             margin: 0,
             fontFamily: "var(--font-serif)",
@@ -34,24 +54,9 @@ export default function SignInPage() {
           }}
         />
         <p style={{ color: "var(--muted)", fontSize: 15, marginTop: 16, lineHeight: 1.55 }}>
-          Photographers shooting Mikian events use their Google account to upload, credit,
-          and manage their photos. Runners don&rsquo;t need an account.
+          {blurb}
         </p>
-        <button
-          className="btn btn--primary btn--lg"
-          style={{ marginTop: 28, padding: "14px 22px" }}
-          onClick={() => {
-            // Honor the gate's ?callbackUrl=… (only same-origin paths), so the
-            // user returns to wherever they were headed. Falls back to the
-            // photographer dashboard for direct visits.
-            const cb = new URLSearchParams(window.location.search).get("callbackUrl");
-            const callbackUrl =
-              cb && cb.startsWith("/") && !cb.startsWith("//") ? cb : "/photographer";
-            signIn("google", { callbackUrl });
-          }}
-        >
-          Continue with Google
-        </button>
+        <GoogleSignInButton />
         <p style={{ marginTop: 18, color: "var(--muted)", fontSize: 12 }}>
           By signing in you agree to our{" "}
           <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.
