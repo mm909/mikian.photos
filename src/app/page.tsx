@@ -1,5 +1,5 @@
-import { LandingScreen } from "@/components/runner/screens/LandingScreen";
+import { RunnerFlow } from "@/components/runner/screens/RunnerFlow";
 
 export default function Page() {
-  return <LandingScreen />;
+  return <RunnerFlow />;
 }

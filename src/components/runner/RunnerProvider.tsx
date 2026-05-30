@@ -13,10 +13,8 @@ import {
   currentEvent,
   findRacerByBib,
   prices,
-  type BibSuggest,
   type Cart,
   type CartItem,
-  type FaceSuggest,
   type Order,
   type Photo,
   type Racer,
@@ -49,16 +47,27 @@ type RunnerCtx = {
   // catalog (real photos fetched from /api/photos)
   catalog: Photo[];
   catalogLoading: boolean;
+  /** True when persisted state on mount indicated a prior search, so the
+   *  flow can resume on the "all photos" step instead of flashing search. */
+  hasHydratedSearch: boolean;
+  /** True once the localStorage hydrate effect has run (whether or not it
+   *  found anything) — lets the flow defer its initial-step decision until
+   *  persisted state is available, avoiding a wrong "search" flash. */
+  didHydrate: boolean;
   // results state
   resultPhotos: Photo[];
+  /** Uncapped count of the current matched set (bib total, or face match
+   *  count) — drives the teaser's "showing 6 of 142". null until known. */
+  resultTotal: number | null;
+  /** True while a bib search's server fetch is in flight — the teaser shows a
+   *  loading screen instead of the optimistic (often undercounted) results. */
+  searchLoading: boolean;
   matchedRacer: Racer | null;
   searchedBib: string | null;
   /** Last search returned 0 direct matches and we fell back to showing the
    *  whole event. Lets the results screen avoid claiming "N photos found"
    *  for a bib that didn't actually match. */
   searchFellBack: boolean;
-  faceSuggest: FaceSuggest | null;
-  bibSuggest: BibSuggest | null;
   faceDone: boolean;
   // selection + cart
   selected: Set<string>;
@@ -67,20 +76,22 @@ type RunnerCtx = {
   cartCappedToBundle: boolean;
   // lightbox
   lightbox: Photo | null;
+  /** The set the lightbox pages through (the teaser's shown few, or the full
+   *  results when null). */
+  lightboxScope: Photo[] | null;
   // order
   order: Order;
   // toast
   toast: string;
   // actions
   runSearch: (s: { kind: "bib" | "face" | "browse"; value?: string }) => void;
-  acceptFaceSuggest: () => void;
-  dismissFaceSuggest: () => void;
-  acceptBibSuggest: () => void;
-  dismissBibSuggest: () => void;
   addBib: (bib: string) => void;
   /** Network face-search: send the file to /api/photos/face-search, replace
    *  resultPhotos with the matches. Resolves on completion; no return. */
   runFaceSearch: (file: File) => Promise<void>;
+  /** Additive face-search for friends/family: merges matches into the
+   *  current result set instead of replacing it. */
+  addFaceSearch: (file: File) => Promise<void>;
   /** True while runFaceSearch's network call is in flight — UI can show a
    *  spinner or disable the button. */
   faceScanning: boolean;
@@ -111,7 +122,7 @@ type RunnerCtx = {
   addBundle: () => void;
   removeFromCart: (uid: string) => void;
   upgradeToBundle: () => void;
-  openLightbox: (p: Photo) => void;
+  openLightbox: (p: Photo, scope?: Photo[]) => void;
   closeLightbox: () => void;
   lbPrev: () => void;
   lbNext: () => void;
@@ -128,8 +139,6 @@ type Persisted = {
   resultPhotoIds: string[];
   searchedBib: string | null;
   matchedRacerBib: number | null;
-  faceSuggest: FaceSuggest | null;
-  bibSuggest: BibSuggest | null;
   faceDone: boolean;
   cart: Cart;
   order: Order;
@@ -214,11 +223,13 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [catalog, setCatalog] = useState<Photo[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
+  const [resultTotal, setResultTotal] = useState<number | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [hasHydratedSearch, setHasHydratedSearch] = useState(false);
+  const [didHydrate, setDidHydrate] = useState(false);
   const [matchedRacer, setMatchedRacer] = useState<Racer | null>(null);
   const [searchedBib, setSearchedBib] = useState<string | null>(null);
   const [searchFellBack, setSearchFellBack] = useState<boolean>(false);
-  const [faceSuggest, setFaceSuggest] = useState<FaceSuggest | null>(null);
-  const [bibSuggest, setBibSuggest] = useState<BibSuggest | null>(null);
   const [faceDone, setFaceDone] = useState(false);
   // In-flight + last-outcome state for runFaceSearch — surfaced via ctx so
   // the results screen can show "scanning…" / "no face found" states.
@@ -234,6 +245,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<Cart>({ items: [] });
   const [cartCappedToBundle, setCartCapped] = useState<boolean>(false);
   const [lightbox, setLightbox] = useState<Photo | null>(null);
+  // Optional subset the lightbox pages through (e.g. the teaser's shown few)
+  // instead of the full resultPhotos. null = use resultPhotos.
+  const [lightboxScope, setLightboxScope] = useState<Photo[] | null>(null);
   const [order, setOrder] = useState<Order>({ id: "", amount: 0 });
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
@@ -270,15 +284,15 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     const p = loadPersisted();
     if (p) {
       pendingResultIds.current = p.resultPhotoIds ?? null;
+      setHasHydratedSearch(Boolean(p.resultPhotoIds?.length) || p.searchedBib != null);
       setSearchedBib(p.searchedBib);
       setMatchedRacer(p.matchedRacerBib ? findRacerByBib(p.matchedRacerBib) ?? null : null);
-      setFaceSuggest(p.faceSuggest);
-      setBibSuggest(p.bibSuggest);
       setFaceDone(p.faceDone);
       setCart(p.cart);
       setOrder(p.order);
     }
     hydrated.current = true;
+    setDidHydrate(true);
   }, []);
 
   // Once the catalog lands, rebuild resultPhotos from any stashed IDs.
@@ -292,18 +306,24 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   // Persist relevant state.
   useEffect(() => {
-    if (!hydrated.current) return;
+    // Gate on the didHydrate *state*, not the hydrated *ref*. The ref flips
+    // true mid-mount-commit (set in the hydrate effect just above), so the
+    // old `!hydrated.current` guard let this effect run on the very first
+    // commit with stale pre-hydration state and clobber the just-loaded
+    // localStorage. The state only flips on the next render, by which point
+    // searchedBib/cart/order are restored. Also wait for the catalog so we
+    // never persist the transient empty resultPhotos before the id-rebuild
+    // (the effect below) has run.
+    if (!didHydrate || catalogLoading) return;
     savePersisted({
       resultPhotoIds: resultPhotos.map((p) => p.id),
       searchedBib,
       matchedRacerBib: matchedRacer?.bib ?? null,
-      faceSuggest,
-      bibSuggest,
       faceDone,
       cart,
       order,
     });
-  }, [resultPhotos, searchedBib, matchedRacer, faceSuggest, bibSuggest, faceDone, cart, order]);
+  }, [didHydrate, catalogLoading, resultPhotos, searchedBib, matchedRacer, faceDone, cart, order]);
 
   const flashToast = useCallback((msg: string) => {
     setToast(msg);
@@ -333,12 +353,16 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       // "Is this you?" face candidates the runner can then confirm to
       // pull in additional photos that only show their face.
       const matches = catalog.filter((p) => p.bibs?.includes(n));
+      // Loading until the server returns the true set/count — the teaser shows
+      // a loading screen rather than the optimistic (capped, undercounted) hits.
+      setSearchLoading(true);
       setMatchedRacer(racer);
       setSearchedBib(value);
       setSearchFellBack(matches.length === 0);
       setResultPhotos(matches);
-      setFaceSuggest(null);
-      setBibSuggest(null);
+      // Clear the prior total so the teaser shows "…" rather than the last
+      // bib's count until the server reports this bib's true total.
+      setResultTotal(null);
       setFaceDone(false);
       // New bib search → drop any prior confirmation; the candidate strip
       // will re-render against the new bib's face clusters.
@@ -356,15 +380,19 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
           (d: {
             photos: Parameters<typeof apiPhotoToUi>[0][];
             faceCandidates?: FaceCandidate[];
+            total?: number;
           }) => {
             const ui = (d.photos ?? []).map(apiPhotoToUi);
             setResultPhotos(ui);
+            setResultTotal(d.total ?? ui.length);
             setSearchFellBack(ui.length === 0);
             setFaceCandidates(d.faceCandidates ?? []);
+            setSearchLoading(false);
         })
         .catch((e) => {
           // Keep optimistic client results on failure — don't disrupt UX.
           console.warn("bib server search failed:", e);
+          setSearchLoading(false);
         });
     } else if (s.kind === "face") {
       // Face search isn't built yet — show the whole catalog so buyers can browse.
@@ -372,8 +400,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchedBib(null);
       setSearchFellBack(true); // face match is a stub today
       setResultPhotos(catalog);
-      setFaceSuggest(null);
-      setBibSuggest(null);
+      setResultTotal(catalog.length);
       setFaceDone(true);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
@@ -382,8 +409,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchedBib(null);
       setSearchFellBack(false);
       setResultPhotos(catalog);
-      setFaceSuggest(null);
-      setBibSuggest(null);
+      setResultTotal(catalog.length);
       setFaceDone(false);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
@@ -419,9 +445,11 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
         photos: Parameters<typeof apiPhotoToUi>[0][];
         faceCandidates?: FaceCandidate[];
         crossLinked?: number;
+        total?: number;
       };
       const ui = (d.photos ?? []).map(apiPhotoToUi);
       setResultPhotos(ui);
+      setResultTotal(d.total ?? ui.length);
       setSearchFellBack(ui.length === 0);
       // Refresh the strip from the server response, but ONLY overwrite
       // when the server returns a non-empty list. After a cluster confirm
@@ -441,27 +469,6 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setExpandingCluster(false);
     }
-  }
-
-  function acceptFaceSuggest() {
-    if (!faceSuggest) return;
-    const adds = catalog.filter(
-      (p) => faceSuggest.ids.includes(p.id) && !resultPhotos.some((rp) => rp.id === p.id)
-    );
-    setResultPhotos([...resultPhotos, ...adds]);
-    flashToast(`+${adds.length} photos from face match`);
-    setFaceSuggest(null);
-    setFaceDone(true);
-  }
-
-  function acceptBibSuggest() {
-    if (!bibSuggest) return;
-    const adds = catalog.filter(
-      (p) => bibSuggest.ids.includes(p.id) && !resultPhotos.some((rp) => rp.id === p.id)
-    );
-    setResultPhotos([...resultPhotos, ...adds]);
-    flashToast(`+${adds.length} photos from bib #${bibSuggest.bib}`);
-    setBibSuggest(null);
   }
 
   /**
@@ -496,6 +503,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const ui = (d.photos ?? []).map(apiPhotoToUi);
       const adds = dedupe(ui);
       setResultPhotos([...resultPhotos, ...adds]);
+      setResultTotal((prev) => (prev == null ? null : prev + adds.length));
 
       // Merge the added bib's face candidates into the existing "Is this
       // you?" strip so the runner can disambiguate against the expanded
@@ -559,11 +567,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       // overwrite rather than append: the buyer asked for face matches,
       // not "bib results plus face matches glued together."
       setResultPhotos(data.photos);
+      setResultTotal(data.matchCount);
       setMatchedRacer(null);
       setSearchedBib(null);
       setSearchFellBack(false);
-      setFaceSuggest(null);
-      setBibSuggest(null);
       setFaceDone(true);
       setFaceScanStatus("matched");
       flashToast(`${data.matchCount} photo${data.matchCount === 1 ? "" : "s"} matched.`);
@@ -571,6 +578,49 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const msg = e instanceof Error ? e.message : String(e);
       flashToast(`Face search failed: ${msg}`);
       setFaceScanStatus("empty");
+    } finally {
+      setFaceScanning(false);
+    }
+  }
+
+  /**
+   * Additive face search — like runFaceSearch but MERGES the matched photos
+   * into the current result set (dedupe by id, mirroring addBib) instead of
+   * replacing it, and leaves searchedBib/matchedRacer/faceCandidates intact.
+   * Powers the Step-3 "add another face" affordance for friends/family, where
+   * the runner is augmenting their set rather than starting a new search.
+   */
+  async function addFaceSearch(file: File): Promise<void> {
+    if (faceScanning) return;
+    setFaceScanning(true);
+    try {
+      const form = new FormData();
+      form.append("selfie", file);
+      form.append("eventId", currentEvent.id);
+      const res = await fetch("/api/photos/face-search", { method: "POST", body: form });
+      if (!res.ok) {
+        const msg = await res
+          .json()
+          .then((j) => (j as { error?: string }).error ?? `HTTP ${res.status}`)
+          .catch(() => `HTTP ${res.status}`);
+        flashToast(`Face search failed: ${msg}`);
+        return;
+      }
+      const data = (await res.json()) as FaceSearchResponse;
+      if (data.matchCount === 0) {
+        flashToast("No new photos from that face.");
+        return;
+      }
+      // Merge against the current set (closure value, like addBib): keep
+      // what's on screen, append only ids we don't already have.
+      const seen = new Set(resultPhotos.map((p) => p.id));
+      const fresh = data.photos.filter((p) => !seen.has(p.id));
+      setResultPhotos([...resultPhotos, ...fresh]);
+      setResultTotal((prev) => (prev == null ? null : prev + fresh.length));
+      flashToast(`+${fresh.length} photo${fresh.length === 1 ? "" : "s"} from face match`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      flashToast(`Face search failed: ${msg}`);
     } finally {
       setFaceScanning(false);
     }
@@ -654,22 +704,32 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   /* --- Lightbox helpers ---------------------------------------------- */
-  const openLightbox = useCallback((p: Photo) => setLightbox(p), []);
-  const closeLightbox = useCallback(() => setLightbox(null), []);
+  const openLightbox = useCallback((p: Photo, scope?: Photo[]) => {
+    setLightboxScope(scope ?? null);
+    setLightbox(p);
+  }, []);
+  const closeLightbox = useCallback(() => {
+    setLightbox(null);
+    setLightboxScope(null);
+  }, []);
   const lbPrev = useCallback(() => {
     setLightbox((cur) => {
       if (!cur) return cur;
-      const i = resultPhotos.findIndex((p) => p.id === cur.id);
-      return resultPhotos[(i - 1 + resultPhotos.length) % resultPhotos.length];
+      const set = lightboxScope ?? resultPhotos;
+      if (set.length === 0) return cur;
+      const i = set.findIndex((p) => p.id === cur.id);
+      return set[(i - 1 + set.length) % set.length];
     });
-  }, [resultPhotos]);
+  }, [resultPhotos, lightboxScope]);
   const lbNext = useCallback(() => {
     setLightbox((cur) => {
       if (!cur) return cur;
-      const i = resultPhotos.findIndex((p) => p.id === cur.id);
-      return resultPhotos[(i + 1) % resultPhotos.length];
+      const set = lightboxScope ?? resultPhotos;
+      if (set.length === 0) return cur;
+      const i = set.findIndex((p) => p.id === cur.id);
+      return set[(i + 1) % set.length];
     });
-  }, [resultPhotos]);
+  }, [resultPhotos, lightboxScope]);
 
   /* --- Order --------------------------------------------------------- */
   function beginOrder(total: number) {
@@ -696,8 +756,6 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setSelected(new Set());
     setCart({ items: [] });
     setCartCapped(false);
-    setFaceSuggest(null);
-    setBibSuggest(null);
     setFaceDone(false);
     setLightbox(null);
     setOrder({ id: "", amount: 0 });
@@ -722,27 +780,27 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     () => ({
       catalog,
       catalogLoading,
+      hasHydratedSearch,
+      didHydrate,
       resultPhotos,
+      resultTotal,
+      searchLoading,
       matchedRacer,
       searchedBib,
       searchFellBack,
-      faceSuggest,
-      bibSuggest,
       faceDone,
       selected,
       cart,
       bundleInCart,
       cartCappedToBundle,
       lightbox,
+      lightboxScope,
       order,
       toast,
       runSearch,
-      acceptFaceSuggest,
-      dismissFaceSuggest: () => setFaceSuggest(null),
-      acceptBibSuggest,
-      dismissBibSuggest: () => setBibSuggest(null),
       addBib,
       runFaceSearch,
+      addFaceSearch,
       faceScanning,
       faceScanStatus,
       faceCandidates,
@@ -767,7 +825,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, resultPhotos, matchedRacer, searchedBib, searchFellBack, faceSuggest, bibSuggest, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, selected, cart, cartCappedToBundle, lightbox, order, toast]
+    [catalog, catalogLoading, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

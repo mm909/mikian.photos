@@ -217,6 +217,17 @@ export async function GET(req: Request) {
       }
     }
 
+    // True (uncapped) count of the matched set — the teaser advertises
+    // "6 of N". Mirrors the baseRows where clause; independent of the
+    // maxPhotos() cap that bounds how many rows we actually return.
+    const total = await db.photo.count({
+      where: {
+        eventId,
+        hidden: false,
+        ...(bib !== null ? { bibs: { some: { bib } } } : {}),
+      },
+    });
+
     const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
     const combined = [...baseRows, ...expansionRows];
 
@@ -254,6 +265,7 @@ export async function GET(req: Request) {
       })),
       confirmedCluster: clusterParam ?? null,
       cap,
+      total,
       crossLinked: expansionRows.length,
     });
   } catch (e) {

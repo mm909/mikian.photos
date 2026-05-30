@@ -127,7 +127,7 @@ export function Lightbox({
               color: "var(--muted)",
             }}
           >
-            {idx + 1} / {totalCount}
+            {idx + 1} / {photos.length}
           </div>
         </div>
 
@@ -142,18 +142,7 @@ export function Lightbox({
             gap: 22,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: ".14em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-              }}
-            >
-              {currentEvent.name.join(" ")}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             <button className="icon-btn" onClick={onClose} aria-label="Close">
               ×
             </button>
@@ -172,7 +161,8 @@ export function Lightbox({
             }}
           />
           <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--muted)" }}>
-            Shot by {photo.photographer} · {photo.time}
+            Shot by {photo.photographer.split(" ")[0]}
+            {photo.time ? ` · ${photo.time}` : ""}
           </div>
 
           {/* price block — bundle only */}
@@ -199,7 +189,7 @@ export function Lightbox({
                     marginTop: 2,
                   }}
                 >
-                  All {totalCount} photos · full resolution · yours to keep
+                  All {totalCount} photos
                 </div>
               </div>
               <span className="price" style={{ fontSize: 28 }}>

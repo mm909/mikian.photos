@@ -8,7 +8,7 @@ import { useRunner } from "./RunnerProvider";
 
 export function RunnerChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { cart, lightbox, resultPhotos, bundleInCart, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle, flashToast } = useRunner();
+  const { cart, lightbox, lightboxScope, resultPhotos, bundleInCart, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle, flashToast } = useRunner();
 
   function gotoCart() {
     if (cart.items.length === 0) {
@@ -25,7 +25,7 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
       {lightbox && (
         <Lightbox
           photo={lightbox}
-          photos={resultPhotos}
+          photos={lightboxScope ?? resultPhotos}
           cart={cart}
           totalCount={resultPhotos.length}
           bundleInCart={bundleInCart}

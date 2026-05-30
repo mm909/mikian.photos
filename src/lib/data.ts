@@ -95,26 +95,12 @@ export type CartItem = SingleCartItem | BundleCartItem;
 
 export type Cart = { items: CartItem[] };
 
-export type FaceSuggest = {
-  bib: string;
-  count: number;
-  tones: [string, string, string][];
-  ids: string[];
-};
-
 export type Order = {
   id: string;
   amount: number;
   items?: CartItem[];
   paidAt?: number;
   email?: string;
-};
-
-export type BibSuggest = {
-  bib: string;
-  count: number;
-  tones: [string, string, string][];
-  ids: string[];
 };
 
 export const currentEvent: CurrentEvent = {
@@ -229,6 +215,18 @@ export function findRacerByBib(bib: number | string): Racer | undefined {
   };
 }
 
-// Bib that face-search "matches" — the seeded face-suggest banner proposes this bib.
-// Pick a real Lighthouse runner so it lands credibly (current half winner).
-export const FACE_SEED_BIB = 340;
+/**
+ * Resolve a typed name to a racer so the search box can accept names as well as
+ * bibs. Prefers an exact full-name match, then a prefix match, then any
+ * substring — case-insensitive. Returns the first match (good enough for the
+ * runner-facing search; ambiguous names just land on the first entrant).
+ */
+export function findRacerByName(query: string): Racer | undefined {
+  const q = query.trim().toLowerCase();
+  if (!q) return undefined;
+  return (
+    racers.find((r) => r.name.toLowerCase() === q) ??
+    racers.find((r) => r.name.toLowerCase().startsWith(q)) ??
+    racers.find((r) => r.name.toLowerCase().includes(q))
+  );
+}
