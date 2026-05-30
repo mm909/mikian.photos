@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Logo } from "./Logo";
 import { AccountWidget } from "@/components/auth/AccountWidget";
+import { useViewAs, rolesForView } from "@/lib/viewAs";
 
 type Props = {
   onLogo: () => void;
@@ -39,13 +40,21 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
-    // Owner-only roster + coverage surface. Roster lists race entrants joined
-    // with per-runner photo/face counts; the same page carries the bib/face/
-    // gaps coverage tabs. (/admin/coverage redirects here.)
+    // Roster + coverage surface (owner + race director). Roster lists race
+    // entrants joined with per-runner photo/face counts; the same page carries
+    // the bib/face/gaps coverage tabs. (/admin/coverage redirects here.)
     label: "Roster",
     href: "/admin/roster",
     match: (p) => p.startsWith("/admin/roster") || p.startsWith("/admin/coverage"),
-    roles: ["owner"],
+    roles: ["race_director", "owner"],
+  },
+  {
+    // Orders dashboard — every order for the run, with sum stats + search.
+    // Owner gets refund / resend per row; race directors see it read-only.
+    label: "Orders",
+    href: "/admin/orders",
+    match: (p) => p.startsWith("/admin/orders"),
+    roles: ["race_director", "owner"],
   },
 ];
 
@@ -63,11 +72,14 @@ export function Nav({ onLogo }: Props) {
   const pathname = usePathname() ?? "/";
   const { data: session } = useSession();
   const sessionRoles = session?.roles;
+  const [viewAs] = useViewAs();
 
-  // Filter to views the current actor is permitted to see. Unauthenticated
-  // users get only the always-public views (Runners). Signed-in users see
-  // the views their roles unlock.
-  const visibleViews = VIEWS.filter((v) => hasRoleAny(sessionRoles, v.roles));
+  // Owners can preview the site as a lower role via "view as" (set in the
+  // account menu); everyone else sees the views their real roles unlock.
+  // Unauthenticated users get only the always-public views.
+  const isActualOwner = Boolean(sessionRoles?.includes("owner"));
+  const effectiveRoles = isActualOwner ? rolesForView(viewAs) : sessionRoles;
+  const visibleViews = VIEWS.filter((v) => hasRoleAny(effectiveRoles, v.roles));
 
   return (
     <nav className="nav">

@@ -59,6 +59,7 @@ export function OrderPhotoGrid({
 }: Props) {
   const [zipBusy, setZipBusy] = useState(false);
   const [page, setPage] = useState(1);
+  const [zipErr, setZipErr] = useState<string | null>(null);
 
   function downloadHref(id: string): string {
     return `/api/photos/${id}/download?token=${encodeURIComponent(downloadToken)}`;
@@ -67,19 +68,32 @@ export function OrderPhotoGrid({
   /** ZIP URL — token goes as `?key=` (matches the order-page route param). */
   const zipHref = `/api/orders/MK-${String(orderNumber).padStart(6, "0")}/zip?key=${encodeURIComponent(downloadToken)}`;
 
-  function downloadZip() {
+  async function downloadZip() {
     setZipBusy(true);
-    // Browsers handle the 200 + Content-Disposition as a save automatically.
-    // We use a real anchor so the download survives popup blockers.
-    const a = document.createElement("a");
-    a.href = zipHref;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    // The stream takes seconds-to-minutes server-side; we surface the
-    // "downloading" affordance briefly so the click feels acknowledged.
-    setTimeout(() => setZipBusy(false), 3500);
+    setZipErr(null);
+    try {
+      // Fetch the zip (rather than navigating an anchor) so we can surface a
+      // server error instead of failing silently — and so a dev-mode streaming
+      // hiccup doesn't leave the buyer with nothing.
+      const res = await fetch(zipHref);
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `ZIP download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `MK-${String(orderNumber).padStart(6, "0")}-photos.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) {
+      setZipErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setZipBusy(false);
+    }
   }
 
   /* --- Add to Photos (Web Share, chunked) ----------------------------- */
@@ -266,6 +280,21 @@ export function OrderPhotoGrid({
             </button>
           )}
         </DeliveryRow>
+
+        {zipErr && (
+          <div
+            role="alert"
+            style={{
+              padding: "8px 12px",
+              border: "1px solid var(--accent)",
+              borderRadius: 6,
+              color: "var(--accent)",
+              fontSize: 13,
+            }}
+          >
+            {zipErr}
+          </div>
+        )}
 
         {/* Method 2 — to Dropbox (only when configured on this deploy) */}
         {dropboxAvailable && (

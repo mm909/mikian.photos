@@ -62,32 +62,34 @@ export function Lightbox({
             minHeight: 460,
           }}
         >
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 480,
-              aspectRatio: "2/3",
-              borderRadius: 6,
-              overflow: "hidden",
-              boxShadow: "var(--shadow-lg)",
-              background: photo.previewUrl ? "var(--cream)" : photoBg(photo),
-            }}
-          >
-            {photo.previewUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={photo.previewUrl}
-                alt=""
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            )}
-          </div>
+          {photo.previewUrl ? (
+            // Contain (not cover) + natural aspect so the full photo shows —
+            // race shots are mostly landscape and were getting cropped.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photo.previewUrl}
+              alt=""
+              style={{
+                maxWidth: "100%",
+                maxHeight: "min(74vh, 660px)",
+                objectFit: "contain",
+                borderRadius: 6,
+                boxShadow: "var(--shadow-lg)",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 480,
+                aspectRatio: "2/3",
+                borderRadius: 6,
+                background: photoBg(photo),
+                boxShadow: "var(--shadow-lg)",
+              }}
+            />
+          )}
 
           <button
             onClick={onPrev}

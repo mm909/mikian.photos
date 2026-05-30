@@ -223,6 +223,19 @@ model Order {
   paidAt          DateTime  @default(now())
   createdAt       DateTime  @default(now())
 
+  // --- Owner ops: receipt-email tracking + refunds ------------------
+  // Receipt delivery outcome, recorded by createPaidOrder() and the owner
+  // "resend receipt" action. emailError holds the last failure (e.g.
+  // Resend "domain not verified") so the Orders admin can surface why a
+  // buyer never got their email.
+  emailSentAt     DateTime?
+  emailError      String?
+  // Refund state. refundedAt + refundId are set when an owner issues a
+  // PayPal refund via /api/admin/orders/[orderNumber]/refund.
+  refundedAt      DateTime?
+  refundId        String?
+
   @@index([email])
   @@index([userId])
+  @@index([eventIdCovered])
 }

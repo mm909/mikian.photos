@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
+import { useViewAs, type ViewAsRole } from "@/lib/viewAs";
+
+const VIEW_AS_OPTIONS: { value: ViewAsRole; label: string }[] = [
+  { value: "owner", label: "Owner" },
+  { value: "race_director", label: "Race director" },
+  { value: "photographer", label: "Photographer" },
+  { value: "runner", label: "Runner" },
+];
 
 /**
  * Right-edge account affordance that lives in the global Nav.
@@ -18,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 export function AccountWidget() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
+  const [viewAs, setViewAs] = useViewAs();
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Close on outside-click + escape
@@ -65,7 +74,12 @@ export function AccountWidget() {
   }
 
   const name = session.user.name || session.user.email || "Account";
-  const isOwner = Boolean(session.roles?.includes("owner"));
+  const actualOwner = Boolean(session.roles?.includes("owner"));
+  // While previewing a lower role, hide owner-only items — but keep the
+  // switcher itself, so the owner can always switch back.
+  const effectiveOwner = actualOwner && viewAs === "owner";
+  // The signed-in person's actual role(s), for the menu header.
+  const roleLabel = roleDisplayFor(session.roles ?? []);
   const initials = name
     .split(/\s+/)
     .map((p) => p[0])
@@ -121,7 +135,7 @@ export function AccountWidget() {
             position: "absolute",
             top: "calc(100% + 6px)",
             right: 0,
-            minWidth: 220,
+            minWidth: 240,
             background: "var(--surface)",
             border: "1px solid var(--line)",
             borderRadius: 8,
@@ -161,19 +175,80 @@ export function AccountWidget() {
             >
               {session.user.email ?? name}
             </div>
+            {roleLabel && (
+              <div
+                style={{
+                  marginTop: 5,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".1em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                }}
+              >
+                {roleLabel}
+              </div>
+            )}
           </div>
           <MenuLink href="/runner" onClick={() => setOpen(false)}>
             My orders
           </MenuLink>
-          {isOwner && (
+          {effectiveOwner && (
             <MenuLink href="/admin/users" onClick={() => setOpen(false)}>
               Settings
             </MenuLink>
           )}
+          {actualOwner && (
+            <div style={{ borderTop: "1px solid var(--line)", marginTop: 6, paddingTop: 8 }}>
+              <div
+                style={{
+                  padding: "0 12px 6px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 9,
+                  letterSpacing: ".12em",
+                  textTransform: "uppercase",
+                  color: viewAs === "owner" ? "var(--muted)" : "var(--accent)",
+                }}
+              >
+                View as{viewAs === "owner" ? "" : " · previewing"}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 4,
+                  padding: "0 8px",
+                }}
+              >
+                {VIEW_AS_OPTIONS.map((o) => {
+                  const active = viewAs === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      onClick={() => setViewAs(o.value)}
+                      style={{
+                        padding: "6px 8px",
+                        fontFamily: "var(--font-sans)",
+                        fontSize: 12,
+                        borderRadius: 4,
+                        border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
+                        background: active ? "var(--accent)" : "transparent",
+                        color: active ? "var(--paper)" : "var(--ink)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <button
             role="menuitem"
             onClick={() => signOut({ callbackUrl: "/" })}
-            style={menuItemStyle()}
+            style={{ ...menuItemStyle(), marginTop: 6 }}
           >
             Sign out
           </button>
@@ -197,6 +272,22 @@ function MenuLink({
       {children}
     </Link>
   );
+}
+
+/** Human label for the actor's real role(s). Owner collapses to just
+ *  "Owner" (it implies the rest); otherwise list the non-default roles, or
+ *  "Runner" for a plain account. */
+function roleDisplayFor(roles: readonly string[]): string {
+  const labels: Record<string, string> = {
+    owner: "Owner",
+    race_director: "Race director",
+    photographer: "Photographer",
+    runner: "Runner",
+  };
+  if (roles.includes("owner")) return "Owner";
+  const meaningful = roles.filter((r) => r !== "runner");
+  if (meaningful.length === 0) return "Runner";
+  return meaningful.map((r) => labels[r] ?? r).join(" · ");
 }
 
 function menuItemStyle(): React.CSSProperties {

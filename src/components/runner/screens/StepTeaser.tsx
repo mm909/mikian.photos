@@ -187,7 +187,10 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+              // Cap the column width so a 1–2 photo result doesn't blow each
+              // tile up to full width; center the (possibly short) row.
+              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 160px))",
+              justifyContent: "center",
               gap: 12,
               opacity: filtering ? 0.3 : 1,
               transition: "opacity .2s ease",

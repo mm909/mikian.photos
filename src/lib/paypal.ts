@@ -124,6 +124,36 @@ export async function captureOrder(orderId: string): Promise<CapturedOrder> {
   };
 }
 
+export type RefundResult = { id: string; status: string };
+
+/**
+ * Full refund of a captured payment.
+ *
+ * POST /v2/payments/captures/{captureId}/refund with an empty body refunds
+ * the entire captured amount. We send a stable PayPal-Request-Id derived from
+ * the capture id so a double-click or network retry is idempotent on PayPal's
+ * side (same request id → the same refund is returned, not a second one).
+ */
+export async function refundCapture(captureId: string): Promise<RefundResult> {
+  const token = await getAccessToken();
+  const res = await fetch(`${API_BASE}/v2/payments/captures/${captureId}/refund`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "PayPal-Request-Id": `refund-${captureId}`,
+    },
+    body: "{}",
+    cache: "no-store",
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const json = (await res.json()) as any;
+  if (!res.ok) {
+    throw new Error(`PayPal refund failed (${res.status}): ${JSON.stringify(json)}`);
+  }
+  return { id: json.id, status: json.status };
+}
+
 export function paypalEnv(): "live" | "sandbox" {
   return ENV;
 }

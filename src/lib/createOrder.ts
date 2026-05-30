@@ -10,6 +10,7 @@ import "server-only";
 import { db } from "./db";
 import { mintDownloadToken } from "./downloadToken";
 import { sendReceiptEmail } from "./email";
+import type { ReceiptInput } from "./receiptHtml";
 import { formatOrderNumber } from "./orderId";
 import { prices } from "./data";
 
@@ -147,33 +148,78 @@ export async function createPaidOrder(
     data: { downloadToken: token },
   });
 
-  // Receipt email — best-effort. Never throws into the caller.
-  const orderTag = formatOrderNumber(orderWithToken.orderNumber);
-  const orderUrl = `${baseUrl}/orders/${orderTag}?key=${encodeURIComponent(token)}`;
-  const zipUrl = `${baseUrl}/api/orders/${orderTag}/zip?key=${encodeURIComponent(token)}`;
-  const subtotal = amountUsd - +(amountUsd * prices.stripeRate + prices.stripeFlat).toFixed(2);
-  const itemLabel =
-    kind === "bundle"
-      ? `All photos bundle · ${eventName}`
-      : `${photoIds.length} photo${photoIds.length === 1 ? "" : "s"} · ${eventName}`;
-
-  void sendReceiptEmail(email, {
+  // Receipt email — awaited so it actually completes (a non-awaited promise
+  // can be frozen by the serverless runtime before it sends), but it never
+  // throws into the caller: payment must not roll back because email is
+  // flaky. We record the outcome on the row so the Orders admin can see
+  // whether the buyer got their receipt — and why not when it failed.
+  const receipt = buildReceiptInput({
     orderNumber: orderWithToken.orderNumber,
     paidAt: orderWithToken.paidAt,
     email,
     amountUsd,
     eventName,
+    kind,
     photoCount: photoIds.length,
+    token,
+    baseUrl,
+  });
+  try {
+    const sent = await sendReceiptEmail(email, receipt);
+    await db.order
+      .update({
+        where: { id: order.id },
+        data: sent.ok
+          ? { emailSentAt: new Date(), emailError: null }
+          : { emailError: sent.error.slice(0, 500) },
+      })
+      .catch(() => {});
+  } catch {
+    /* never block the caller on receipt delivery */
+  }
+
+  return { ok: true, order: orderWithToken };
+}
+
+/**
+ * Build the ReceiptInput for an order. Shared by createPaidOrder (the initial
+ * send) and the owner "resend receipt" action so both render identically. The
+ * order-page + ZIP links carry the magic ?key=token so the buyer needs no
+ * account to open them.
+ */
+export function buildReceiptInput(args: {
+  orderNumber: number;
+  paidAt: Date;
+  email: string;
+  amountUsd: number;
+  eventName: string;
+  kind: string;
+  photoCount: number;
+  token: string;
+  baseUrl: string;
+}): ReceiptInput {
+  const orderTag = formatOrderNumber(args.orderNumber);
+  const base = args.baseUrl.replace(/\/$/, "");
+  const orderUrl = `${base}/orders/${orderTag}?key=${encodeURIComponent(args.token)}`;
+  const zipUrl = `${base}/api/orders/${orderTag}/zip?key=${encodeURIComponent(args.token)}`;
+  const subtotal =
+    args.amountUsd - +(args.amountUsd * prices.stripeRate + prices.stripeFlat).toFixed(2);
+  const itemLabel =
+    args.kind === "bundle"
+      ? `All photos bundle · ${args.eventName}`
+      : `${args.photoCount} photo${args.photoCount === 1 ? "" : "s"} · ${args.eventName}`;
+  return {
+    orderNumber: args.orderNumber,
+    paidAt: args.paidAt,
+    email: args.email,
+    amountUsd: args.amountUsd,
+    eventName: args.eventName,
+    photoCount: args.photoCount,
     lineItems: [
       { label: itemLabel, amountUsd: Math.max(subtotal, 0) },
-      {
-        label: "Processing fee",
-        amountUsd: Math.max(amountUsd - Math.max(subtotal, 0), 0),
-      },
+      { label: "Processing fee", amountUsd: Math.max(args.amountUsd - Math.max(subtotal, 0), 0) },
     ],
     orderUrl,
     zipUrl,
-  });
-
-  return { ok: true, order: orderWithToken };
+  };
 }

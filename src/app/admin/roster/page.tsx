@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getEffectiveActor } from "@/lib/permissions";
+import { getEffectiveActor, hasRole } from "@/lib/permissions";
 import { RosterClient } from "@/components/admin/RosterClient";
 import { currentEvent } from "@/lib/data";
 
@@ -10,7 +10,8 @@ import { currentEvent } from "@/lib/data";
  */
 export default async function RosterPage() {
   const actor = await getEffectiveActor();
-  if (!actor || !actor.roles.includes("owner")) {
+  // Owner + race director (owner implies race_director via hasRole).
+  if (!actor || !hasRole(actor, "race_director")) {
     redirect("/");
   }
   const eventName = Array.isArray(currentEvent.name)
