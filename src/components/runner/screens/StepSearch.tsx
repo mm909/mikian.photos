@@ -121,7 +121,7 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
                 <input
                   id="bib-in"
                   className="input"
-                  placeholder="e.g. Julian Rojas or 1248"
+                  placeholder="e.g. your name or bib number"
                   autoComplete="off"
                   value={query}
                   onChange={(e) => {

@@ -111,10 +111,16 @@ type RunnerCtx = {
   confirmedClusterId: string | null;
   /** True while the post-confirmation refetch is in flight. */
   expandingCluster: boolean;
-  /** Confirm a face cluster: re-issues the bib search with ?cluster=<id>
-   *  so the server returns the cross-link-expanded set. Pass null to
-   *  un-confirm (rarely needed; useful for "actually no, that's not me"). */
-  confirmFaceCluster: (clusterId: string | null) => Promise<void>;
+  /** True once a bib search auto-confirmed a single confident face cluster —
+   *  the teaser hides the "Is this you?" prompt when this is set. */
+  autoConfirmed: boolean;
+  /** Owner-set bundle price (dollars) for the current event; the static
+   *  default until the server reports one via /api/photos. */
+  bundlePrice: number;
+  /** Confirm a face cluster. faceOnly=true FILTERS results to only photos
+   *  containing that face (the "This is me" action); faceOnly=false UNIONs the
+   *  cluster onto the bib set. Pass clusterId=null to un-confirm. */
+  confirmFaceCluster: (clusterId: string | null, faceOnly?: boolean) => Promise<void>;
   toggleSel: (id: string) => void;
   clearSel: () => void;
   addSelToCart: () => void;
@@ -241,6 +247,12 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [faceCandidates, setFaceCandidates] = useState<FaceCandidate[]>([]);
   const [confirmedClusterId, setConfirmedClusterId] = useState<string | null>(null);
   const [expandingCluster, setExpandingCluster] = useState(false);
+  // True once a bib search auto-confirmed a single confident face cluster —
+  // lets the teaser suppress the "Is this you?" prompt entirely.
+  const [autoConfirmed, setAutoConfirmed] = useState(false);
+  // Owner-set bundle price (dollars) for the current event, reported by the
+  // server (/api/photos). Falls back to the static default until then.
+  const [bundlePrice, setBundlePrice] = useState<number>(prices.bundle);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<Cart>({ items: [] });
   const [cartCappedToBundle, setCartCapped] = useState<boolean>(false);
@@ -260,10 +272,11 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setCatalogLoading(true);
     fetch(`/api/photos?eventId=${encodeURIComponent(currentEvent.id)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`/api/photos ${r.status}`))))
-      .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][] }) => {
+      .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][]; bundlePrice?: number }) => {
         if (cancelled) return;
         const ui = (d.photos ?? []).map(apiPhotoToUi);
         setCatalog(ui);
+        if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
       })
       .catch((e) => {
         console.warn("photo catalog fetch failed:", e);
@@ -367,6 +380,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       // New bib search → drop any prior confirmation; the candidate strip
       // will re-render against the new bib's face clusters.
       setConfirmedClusterId(null);
+      setAutoConfirmed(false);
       setFaceCandidates([]);
 
       // Fire-and-forget server fetch — populates faceCandidates and
@@ -381,13 +395,31 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
             photos: Parameters<typeof apiPhotoToUi>[0][];
             faceCandidates?: FaceCandidate[];
             total?: number;
+            autoConfirmClusterId?: string | null;
+            bundlePrice?: number;
           }) => {
             const ui = (d.photos ?? []).map(apiPhotoToUi);
             setResultPhotos(ui);
             setResultTotal(d.total ?? ui.length);
             setSearchFellBack(ui.length === 0);
             setFaceCandidates(d.faceCandidates ?? []);
+            if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
             setSearchLoading(false);
+            // If the bib confidently maps to a single face, expand by it
+            // silently (union — keeps bib photos where the face wasn't
+            // detected) and suppress the "Is this you?" prompt. Pass the
+            // numeric bib explicitly so we don't race on searchedBib state.
+            if (d.autoConfirmClusterId) {
+              setAutoConfirmed(true);
+              void expandByCluster({
+                bib: n,
+                clusterId: d.autoConfirmClusterId,
+                faceOnly: false,
+                silent: true,
+              });
+            } else {
+              setAutoConfirmed(false);
+            }
         })
         .catch((e) => {
           // Keep optimistic client results on failure — don't disrupt UX.
@@ -404,6 +436,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setFaceDone(true);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
+      setAutoConfirmed(false);
     } else {
       setMatchedRacer(null);
       setSearchedBib(null);
@@ -413,32 +446,38 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setFaceDone(false);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
+      setAutoConfirmed(false);
     }
     setSelected(new Set());
   }
 
   /**
-   * Confirm one of the "Is this you?" face candidates. Re-runs the bib
-   * search with `?cluster=<id>` so the server returns the cross-link-
-   * expanded result set (bib-tagged photos + every photo in the event
-   * whose PhotoFaces share that cluster).
+   * Low-level cluster expansion shared by silent auto-confirm and the explicit
+   * "This is me" confirm. Re-issues the bib search with `?cluster=<id>` (and
+   * `&faceOnly=1` when we want to FILTER to just that face instead of UNION it
+   * onto the bib set), then swaps in the returned photos.
    *
-   * Pass null to undo a prior confirmation — useful for an "actually
-   * no" button.
+   * Takes the bib explicitly so callers firing inside an in-flight search
+   * don't race on the async `searchedBib` state.
    */
-  async function confirmFaceCluster(clusterId: string | null): Promise<void> {
-    if (!searchedBib) return;
+  async function expandByCluster(opts: {
+    bib: number;
+    clusterId: string | null;
+    faceOnly: boolean;
+    /** Suppress the "+N more" toast (used by silent auto-confirm). */
+    silent?: boolean;
+  }): Promise<void> {
+    const { bib, clusterId, faceOnly, silent = false } = opts;
     setConfirmedClusterId(clusterId);
-
-    const n = Number(searchedBib);
-    if (!Number.isFinite(n) || n <= 0) return;
+    if (!Number.isFinite(bib) || bib <= 0) return;
 
     setExpandingCluster(true);
     try {
       const url = new URL("/api/photos", window.location.origin);
       url.searchParams.set("eventId", currentEvent.id);
-      url.searchParams.set("bib", String(n));
+      url.searchParams.set("bib", String(bib));
       if (clusterId) url.searchParams.set("cluster", clusterId);
+      if (clusterId && faceOnly) url.searchParams.set("faceOnly", "1");
       const res = await fetch(url.pathname + "?" + url.searchParams.toString());
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = (await res.json()) as {
@@ -446,29 +485,45 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
         faceCandidates?: FaceCandidate[];
         crossLinked?: number;
         total?: number;
+        bundlePrice?: number;
       };
       const ui = (d.photos ?? []).map(apiPhotoToUi);
       setResultPhotos(ui);
       setResultTotal(d.total ?? ui.length);
       setSearchFellBack(ui.length === 0);
-      // Refresh the strip from the server response, but ONLY overwrite
-      // when the server returns a non-empty list. After a cluster confirm
-      // the server occasionally returns 0 candidates (e.g. the bib's
-      // photos are now all face-tagged via the expansion); clearing them
-      // would yank the strip out from under the user mid-flow. The
-      // existing candidates stay valid until they kick off a new bib
-      // search.
+      if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
+      // Refresh the strip from the server response, but ONLY overwrite when the
+      // server returns a non-empty list (a confirm sometimes returns 0
+      // candidates; clearing would yank the strip out from under the user).
       const fresh = d.faceCandidates ?? [];
       if (fresh.length > 0) setFaceCandidates(fresh);
-      if (clusterId && d.crossLinked && d.crossLinked > 0) {
+      if (!silent && clusterId && d.crossLinked && d.crossLinked > 0) {
         flashToast(`+${d.crossLinked} more found by face match`);
       }
     } catch (e) {
-      console.warn("cluster confirmation failed:", e);
+      console.warn("cluster expansion failed:", e);
       // Leave the prior result set in place; user can retry.
     } finally {
       setExpandingCluster(false);
     }
+  }
+
+  /**
+   * Confirm a "Is this you?" face candidate from the UI.
+   *
+   * `faceOnly=true` (the explicit "This is me" action): FILTER — replace
+   * results with ONLY photos containing that face, dropping bib-tagged photos
+   * that don't show it. `faceOnly=false`: UNION — add the cluster's other
+   * photos on top of the bib set. Pass clusterId=null to undo.
+   */
+  async function confirmFaceCluster(
+    clusterId: string | null,
+    faceOnly = false
+  ): Promise<void> {
+    if (!searchedBib) return;
+    const n = Number(searchedBib);
+    if (!Number.isFinite(n) || n <= 0) return;
+    await expandByCluster({ bib: n, clusterId, faceOnly });
   }
 
   /**
@@ -686,7 +741,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   function addBundle() {
     if (cart.items.some((i) => i.kind === "bundle")) return;
-    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: prices.bundle }] });
+    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: bundlePrice }] });
     setCartCapped(true);
     flashToast("Bundle added to cart");
   }
@@ -698,7 +753,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   function upgradeToBundle() {
-    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: prices.bundle }] });
+    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: bundlePrice }] });
     setCartCapped(true);
     flashToast("Upgraded to bundle");
   }
@@ -806,6 +861,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       faceCandidates,
       confirmedClusterId,
       expandingCluster,
+      autoConfirmed,
+      bundlePrice,
       confirmFaceCluster,
       toggleSel,
       clearSel,
@@ -825,7 +882,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
+    [catalog, catalogLoading, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, autoConfirmed, bundlePrice, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,7 +1,10 @@
-import { RunnerFlow } from "@/components/runner/screens/RunnerFlow";
+import { redirect } from "next/navigation";
 
+/**
+ * The standalone full-grid results screen was folded into the in-flow photo
+ * viewer (the teaser's "See all my photos" opens it directly). Keep this route
+ * as a redirect so old links / bookmarks land on the search landing.
+ */
 export default function Page() {
-  // Back-compat alias — deep links and the cart "back to photos" land on the
-  // full grid. The flow otherwise lives entirely at "/".
-  return <RunnerFlow initialStep="all" />;
+  redirect("/");
 }

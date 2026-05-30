@@ -7,9 +7,7 @@ import { Logo } from "./Logo";
 import { AccountWidget } from "@/components/auth/AccountWidget";
 
 type Props = {
-  cartCount: number;
   onLogo: () => void;
-  onCart: () => void;
 };
 
 type View = {
@@ -28,7 +26,6 @@ const VIEWS: View[] = [
     match: (p) =>
       p === "/" ||
       p.startsWith("/results") ||
-      p.startsWith("/cart") ||
       p.startsWith("/checkout") ||
       p.startsWith("/success"),
   },
@@ -90,7 +87,7 @@ function hasRoleAny(
   return allowed.some((r) => sessionRoles.includes(r));
 }
 
-export function Nav({ cartCount, onLogo, onCart }: Props) {
+export function Nav({ onLogo }: Props) {
   const pathname = usePathname() ?? "/";
   const { data: session } = useSession();
   const sessionRoles = session?.roles;
@@ -161,11 +158,6 @@ export function Nav({ cartCount, onLogo, onCart }: Props) {
         })}
       </ul>
       <span className="nav__spacer" />
-      {cartCount > 0 && (
-        <button className="nav__cart" onClick={onCart}>
-          Cart <span className="nav__count">{cartCount}</span>
-        </button>
-      )}
       <AccountWidget />
     </nav>
   );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
+import { currentEvent } from "@/lib/data";
 
 type Role = "runner" | "photographer" | "race_director" | "owner";
 
@@ -130,6 +131,8 @@ export function UsersAdminClient() {
             ← Photographer dashboard
           </Link>
         </div>
+
+        <PricingPanel />
 
         <div
           style={{
@@ -370,5 +373,132 @@ function SaveBadge({
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * Owner-editable bundle price for the current event. Reads/writes
+ * /api/admin/pricing (Event.bundlePriceCents). The price set here is what
+ * checkout charges and the runner UI displays.
+ */
+function PricingPanel() {
+  const [loading, setLoading] = useState(true);
+  const [dollars, setDollars] = useState("");
+  const [isDefault, setIsDefault] = useState(true);
+  const [save, setSave] = useState<"idle" | "saving" | "ok" | "err">("idle");
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/pricing", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`pricing ${r.status}`))))
+      .then((d: { priceDollars: number; isDefault: boolean }) => {
+        if (cancelled) return;
+        setDollars(d.priceDollars.toFixed(2));
+        setIsDefault(d.isDefault);
+      })
+      .catch((e) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function onSave() {
+    const value = Number(dollars);
+    if (!Number.isFinite(value) || value < 0) {
+      setErr("Enter a valid dollar amount.");
+      setSave("err");
+      return;
+    }
+    setSave("saving");
+    setErr(null);
+    try {
+      const r = await fetch("/api/admin/pricing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceCents: Math.round(value * 100) }),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `patch ${r.status}`);
+      }
+      const d = (await r.json()) as { priceDollars: number; isDefault: boolean };
+      setDollars(d.priceDollars.toFixed(2));
+      setIsDefault(d.isDefault);
+      setSave("ok");
+      setTimeout(() => setSave("idle"), 1600);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setSave("err");
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+        padding: "16px 18px",
+        marginBottom: 22,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 220 }}>
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 10,
+            letterSpacing: ".12em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+          }}
+        >
+          Bundle price · {currentEvent.name.join(" ")}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 18,
+            color: "var(--ink)",
+            marginTop: 2,
+          }}
+        >
+          What buyers pay for every photo from their race
+          {isDefault && !loading && (
+            <span style={{ color: "var(--muted)", fontSize: 13, marginLeft: 8 }}>
+              (using default)
+            </span>
+          )}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--ink)" }}>$</span>
+        <input
+          className="input"
+          inputMode="decimal"
+          value={dollars}
+          disabled={loading || save === "saving"}
+          onChange={(e) => setDollars(e.target.value)}
+          style={{ width: 110, padding: "8px 12px", fontSize: 16 }}
+          aria-label="Bundle price in dollars"
+        />
+        <button className="btn btn--primary" onClick={onSave} disabled={loading || save === "saving"}>
+          {save === "saving" ? "Saving…" : save === "ok" ? "✓ Saved" : "Save"}
+        </button>
+      </div>
+      {err && (
+        <div style={{ flexBasis: "100%", color: "var(--accent)", fontSize: 13 }}>{err}</div>
+      )}
+    </div>
   );
 }

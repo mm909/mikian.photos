@@ -194,6 +194,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                     body: JSON.stringify({
                       kind: cartShape.kind,
                       count: cartShape.kind === "multi" ? cartShape.photoIds.length : 0,
+                      eventId: currentEvent.id,
                     }),
                   });
                   if (!res.ok) {
@@ -278,7 +279,7 @@ export function CheckoutScreen({ unlocked }: Props) {
             </div>
 
             <button
-              onClick={() => router.push("/cart")}
+              onClick={() => router.push("/")}
               style={{
                 marginTop: 18,
                 background: "transparent",
@@ -289,7 +290,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                 cursor: "pointer",
               }}
             >
-              ← Back to cart
+              ← Back to photos
             </button>
           </div>
 

@@ -1,40 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useRunner } from "../RunnerProvider";
 import { StepSearch } from "./StepSearch";
 import { StepTeaser } from "./StepTeaser";
-import { StepAll } from "./StepAll";
 
-export type FlowStep = "search" | "teaser" | "all";
+export type FlowStep = "search" | "teaser";
 
 /**
- * RunnerFlow — the runner search funnel.
+ * RunnerFlow — the runner search funnel: search → teaser.
  *
- *   "/"        → search → teaser   (in-memory steps; "/" is ALWAYS the landing)
- *   "/results" → all photos        (initialStep="all")
- *
- * The full grid lives on its own route so it has a stable URL: "back from
- * checkout" returns to the grid, while a fresh visit to "/" always shows the
- * search landing instead of resuming a stale prior search. The provider holds
- * the search state, so navigating "/" → "/results" carries the results over;
- * a cold load of "/results" rebuilds them from the persisted photo ids.
+ * "/" is always the landing. A bib (or name) search advances to the teaser,
+ * which shows the matches and opens the full-gallery photo viewer in place
+ * (there's no separate grid screen anymore). The provider holds the search
+ * state so the teaser survives opening/closing the viewer within a session.
  */
-export function RunnerFlow({ initialStep }: { initialStep?: FlowStep }) {
-  const router = useRouter();
+export function RunnerFlow() {
   const { faceScanStatus } = useRunner();
-
-  const [step, setStep] = useState<FlowStep>(initialStep ?? "search");
+  const [step, setStep] = useState<FlowStep>("search");
 
   // Face-first path: once a selfie scan matches while on Search, advance to the
-  // teaser. (The bib path advances synchronously from StepSearch.) The teaser
-  // owns face-cluster confirmation via its best-guess UI.
+  // teaser. (The bib path advances synchronously from StepSearch.)
   useEffect(() => {
     if (step === "search" && faceScanStatus === "matched") setStep("teaser");
   }, [step, faceScanStatus]);
 
-  if (step === "all") return <StepAll />;
-  if (step === "teaser") return <StepTeaser onSeeAll={() => router.push("/results")} />;
+  if (step === "teaser") return <StepTeaser />;
   return <StepSearch onAdvance={() => setStep("teaser")} />;
 }

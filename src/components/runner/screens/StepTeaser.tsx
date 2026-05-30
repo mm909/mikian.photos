@@ -11,12 +11,17 @@ const TEASER_COUNT = 6;
 
 /**
  * Step 2 — Teaser. After a bib (or name) search we show a handful of matches
- * plus the true total. We also present our single best guess at the runner's
- * face: they can accept it (pulls in the photos the bib OCR missed), say "Not
- * me" to see the next guess, or scan their face to find themselves directly.
- * When the suggestions run out we keep a blank-avatar "scan your face" option.
+ * plus the true total, then (below the photos) our best guess at the runner's
+ * face. They can confirm it with "This is me" — which FILTERS results to just
+ * photos containing that face, dropping bib photos that don't show them — or
+ * say "Not me" to see the next guess. Only once the guesses run out do we offer
+ * a face scan. When a bib confidently maps to a single face we skip the
+ * question entirely (autoConfirmed).
+ *
+ * "See all my photos" opens the photo viewer over the full result set rather
+ * than navigating to a separate grid screen.
  */
-export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
+export function StepTeaser() {
   const {
     resultPhotos,
     resultTotal,
@@ -24,6 +29,7 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
     searchedBib,
     matchedRacer,
     faceCandidates,
+    autoConfirmed,
     expandingCluster,
     confirmFaceCluster,
     openLightbox,
@@ -38,10 +44,6 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const bestGuess = faceCandidates.find((c) => !rejected.has(c.clusterId)) ?? null;
-  const shownIds = new Set(resultPhotos.map((p) => p.id));
-  const addCount = bestGuess
-    ? bestGuess.photoIdsInEvent.filter((id) => !shownIds.has(id)).length
-    : 0;
   // Did we ever have face suggestions to offer? (Latches via the rejected set
   // so the blank-avatar fallback shows only after they've run out, never
   // during the initial load when candidates haven't arrived yet.)
@@ -50,10 +52,15 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
   function acceptGuess() {
     if (!bestGuess) return;
     setAccepted(true);
-    void confirmFaceCluster(bestGuess.clusterId);
+    // FILTER to just this face — drop bib photos that don't show the runner.
+    void confirmFaceCluster(bestGuess.clusterId, true);
   }
   function notMe() {
     if (bestGuess) setRejected((prev) => new Set(prev).add(bestGuess.clusterId));
+  }
+
+  function seeAll() {
+    if (resultPhotos.length > 0) openLightbox(resultPhotos[0], resultPhotos);
   }
 
   // Searching → show a loading screen rather than the optimistic, capped
@@ -104,8 +111,7 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
     );
   }
 
-  // Zero matches → reuse the shared empty state (face-scan nudge for bibs),
-  // but still let the runner continue to the full gallery.
+  // Zero matches → reuse the shared empty state (face-scan nudge for bibs).
   if (resultPhotos.length === 0) {
     return (
       <main className="screen" style={{ padding: "56px 24px 96px" }}>
@@ -114,11 +120,6 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
             matchedRacer={matchedRacer ? { name: matchedRacer.name, bib: matchedRacer.bib } : null}
             searchedBib={searchedBib}
           />
-          <div style={{ textAlign: "center", marginTop: 24 }}>
-            <button className="btn btn--ghost" onClick={onSeeAll}>
-              See the full gallery →
-            </button>
-          </div>
         </div>
       </main>
     );
@@ -132,7 +133,7 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
   const headlineText = `${total} photo${total === 1 ? "" : "s"} of you.`;
 
   const cardStyle: React.CSSProperties = {
-    marginTop: 26,
+    marginTop: 28,
     padding: "22px 24px",
     display: "flex",
     flexDirection: "column",
@@ -174,11 +175,31 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
           }}
         />
 
-        {/* Best guess at the runner's face — accept to pull in the photos the
-            bib OCR missed, "Not me" to try the next guess, or scan to find
-            yourself directly. Once the guesses run out we keep a blank-avatar
-            "scan your face" option. */}
-        {searchedBib && !accepted && sawCandidates && (
+        {/* A handful of matches — small previews only. Clicking any opens the
+            full gallery viewer at that photo. */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+            gap: 12,
+            marginTop: 28,
+          }}
+        >
+          {shownPhotos.map((p) => (
+            <PhotoThumb
+              key={p.id}
+              photo={p}
+              onClick={() => openLightbox(p, resultPhotos)}
+              onExpand={() => openLightbox(p, resultPhotos)}
+            />
+          ))}
+        </div>
+
+        {/* Best guess at the runner's face — moved BELOW the photos. Accept
+            ("This is me") to filter results to just this face; "Not me" tries
+            the next guess. Hidden entirely when we auto-confirmed a single
+            confident face. Once the guesses run out we offer a face scan. */}
+        {searchedBib && !accepted && !autoConfirmed && sawCandidates && (
           <div className="card" style={cardStyle}>
             {bestGuess ? (
               <>
@@ -203,7 +224,7 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />
                 </div>
-                {addCount > 0 && (
+                {bestGuess.photoCountInEvent > 0 && (
                   <div
                     style={{
                       fontFamily: "var(--font-serif)",
@@ -212,7 +233,8 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
                       fontWeight: 500,
                     }}
                   >
-                    Adds {addCount} more photo{addCount === 1 ? "" : "s"}
+                    {bestGuess.photoCountInEvent} photo
+                    {bestGuess.photoCountInEvent === 1 ? "" : "s"} with your face
                   </div>
                 )}
                 <button
@@ -221,20 +243,11 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
                   disabled={expandingCluster}
                   style={{ minWidth: 200, justifyContent: "center" }}
                 >
-                  {expandingCluster ? "Adding…" : "Yes, that's me"}
+                  {expandingCluster ? "Finding your photos…" : "This is me"}
                 </button>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <button className="btn btn--ghost btn--sm" onClick={notMe} disabled={expandingCluster}>
-                    Not me
-                  </button>
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => setScannerOpen(true)}
-                    disabled={faceScanning}
-                  >
-                    {faceScanning ? "Scanning…" : "Scan your face"}
-                  </button>
-                </div>
+                <button className="btn btn--ghost btn--sm" onClick={notMe} disabled={expandingCluster}>
+                  Not me
+                </button>
               </>
             ) : (
               <>
@@ -280,29 +293,8 @@ export function StepTeaser({ onSeeAll }: { onSeeAll: () => void }) {
           </div>
         )}
 
-        {/* A handful of matches — small previews only, full grid comes next.
-            The preview window is scoped to just these so it doesn't page
-            through the whole capped result set. */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-            gap: 12,
-            marginTop: 28,
-          }}
-        >
-          {shownPhotos.map((p) => (
-            <PhotoThumb
-              key={p.id}
-              photo={p}
-              onClick={() => openLightbox(p, shownPhotos)}
-              onExpand={() => openLightbox(p, shownPhotos)}
-            />
-          ))}
-        </div>
-
         <div style={{ marginTop: 32, display: "flex", justifyContent: "center" }}>
-          <button className="btn btn--primary btn--lg" onClick={onSeeAll}>
+          <button className="btn btn--primary btn--lg" onClick={seeAll}>
             See all my photos →
           </button>
         </div>

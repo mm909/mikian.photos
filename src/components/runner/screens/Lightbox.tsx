@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Headline } from "../Headline";
-import { currentEvent, photoBg, prices, type Cart, type Photo } from "@/lib/data";
+import { Pager } from "@/components/photographer/Pager";
+import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
 
 type Props = {
   photo: Photo;
@@ -7,6 +11,8 @@ type Props = {
   cart: Cart;
   totalCount: number;
   bundleInCart: boolean;
+  /** Owner-set bundle price (dollars) for the event. */
+  price: number;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
@@ -16,11 +22,15 @@ type Props = {
   onBundle: (alreadyIn: boolean) => void;
 };
 
+/** Thumbnails per page in the right-rail gallery grid. */
+const PAGE_SIZE = 12;
+
 export function Lightbox({
   photo,
   photos,
   totalCount,
   bundleInCart,
+  price,
   onClose,
   onPrev,
   onNext,
@@ -28,7 +38,17 @@ export function Lightbox({
   onBundle,
 }: Props) {
   const idx = photos.findIndex((p) => p.id === photo.id);
-  const more = photos.slice(0, 8);
+
+  // Paged thumbnail grid over the FULL result set. The page follows the
+  // selected photo (arrow keys / prev-next), but the runner can also page
+  // manually to browse ahead.
+  const pageCount = Math.max(1, Math.ceil(photos.length / PAGE_SIZE));
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    if (idx >= 0) setPage(Math.floor(idx / PAGE_SIZE) + 1);
+  }, [idx]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pagePhotos = photos.slice(pageStart, pageStart + PAGE_SIZE);
 
   return (
     <div className="overlay" onClick={onClose} style={{ background: "rgba(28,26,23,.78)" }}>
@@ -115,106 +135,47 @@ export function Lightbox({
           >
             ›
           </button>
-          <div
-            style={{
-              position: "absolute",
-              bottom: 16,
-              left: 20,
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-            }}
-          >
-            {idx + 1} / {photos.length}
-          </div>
         </div>
 
-        {/* buy pane */}
+        {/* buy pane — scrollable gallery up top, sticky price + CTA at the
+            bottom (below the images). */}
         <div
           className="lightbox-buy-pane"
           style={{
-            padding: 28,
-            overflowY: "auto",
             display: "flex",
             flexDirection: "column",
-            gap: 22,
+            minHeight: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          {/* header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "20px 28px 0",
+            }}
+          >
+            <Headline
+              as="h2"
+              text={currentEvent.name.join(" ")}
+              accent={currentEvent.name[0]}
+              style={{
+                margin: 0,
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: 26,
+                lineHeight: 1.1,
+                letterSpacing: "-.012em",
+              }}
+            />
             <button className="icon-btn" onClick={onClose} aria-label="Close">
               ×
             </button>
           </div>
-          <Headline
-            as="h2"
-            text={currentEvent.name.join(" ")}
-            accent={currentEvent.name[0]}
-            style={{
-              margin: 0,
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 30,
-              lineHeight: 1.1,
-              letterSpacing: "-.012em",
-            }}
-          />
-          <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--muted)" }}>
-            Shot by {photo.photographer.split(" ")[0]}
-            {photo.time ? ` · ${photo.time}` : ""}
-          </div>
 
-          {/* price block — bundle only */}
-          <div
-            style={{
-              borderTop: "1px solid var(--line)",
-              borderBottom: "1px solid var(--line)",
-              padding: "18px 0",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <div>
-                <div style={{ fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--ink)" }}>
-                  Every photo from your race
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: 12,
-                    color: "var(--muted)",
-                    marginTop: 2,
-                  }}
-                >
-                  All {totalCount} photos
-                </div>
-              </div>
-              <span className="price" style={{ fontSize: 28 }}>
-                ${prices.bundle}
-              </span>
-            </div>
-          </div>
-
-          {bundleInCart ? (
-            <button
-              className="btn btn--green btn--block btn--lg"
-              onClick={() => onBundle(true)}
-            >
-              ✓ Added — Checkout →
-            </button>
-          ) : (
-            <button
-              className="btn btn--primary btn--block btn--lg"
-              onClick={() => onBundle(false)}
-            >
-              Get all {totalCount} photos — ${prices.bundle}
-            </button>
-          )}
-
-          <div>
+          {/* scrollable gallery grid over all photos */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "18px 28px 8px", minHeight: 0 }}>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
@@ -225,10 +186,10 @@ export function Lightbox({
                 marginBottom: 10,
               }}
             >
-              More photos of you
+              All {totalCount} photos
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {more.map((p) => {
+              {pagePhotos.map((p) => {
                 const isCurr = p.id === photo.id;
                 return (
                   <div
@@ -250,6 +211,7 @@ export function Lightbox({
                       <img
                         src={p.previewUrl}
                         alt=""
+                        loading="lazy"
                         style={{
                           width: "100%",
                           height: "100%",
@@ -262,6 +224,66 @@ export function Lightbox({
                 );
               })}
             </div>
+            {pageCount > 1 && (
+              <div style={{ marginTop: 14 }}>
+                <Pager
+                  page={page}
+                  pageCount={pageCount}
+                  total={photos.length}
+                  pageSize={PAGE_SIZE}
+                  onGo={setPage}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* sticky footer — price block + CTA, below the images */}
+          <div
+            style={{
+              borderTop: "1px solid var(--line)",
+              padding: "18px 28px 24px",
+              background: "var(--paper)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div>
+                <div style={{ fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--ink)" }}>
+                  Every photo from your race
+                </div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12,
+                    color: "var(--muted)",
+                    marginTop: 2,
+                  }}
+                >
+                  All {totalCount} photos
+                </div>
+              </div>
+              <span className="price" style={{ fontSize: 28 }}>
+                ${price}
+              </span>
+            </div>
+
+            {bundleInCart ? (
+              <button
+                className="btn btn--green btn--block btn--lg"
+                onClick={() => onBundle(true)}
+              >
+                ✓ Added — Checkout →
+              </button>
+            ) : (
+              <button
+                className="btn btn--primary btn--block btn--lg"
+                onClick={() => onBundle(false)}
+              >
+                Get all {totalCount} photos — ${price}
+              </button>
+            )}
           </div>
         </div>
       </div>
