@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
+import { UploadPanel } from "./UploadPanel";
 
 type Props = {
   /** First name to greet with. Passed from the server actor lookup. */
@@ -18,31 +18,22 @@ type EventRow = {
   eventCity: string | null;
   photoCount: number;
   lastUploadAt: string | null;
-  /** Number of paid orders that pulled in at least one of this
-   *  photographer's photos for this event. Optional — server may not
-   *  ship it on every deploy yet. Treated as 0 + dimmed when missing. */
-  salesCount?: number;
-  /** Estimated photographer split (USD) attributable to those orders.
-   *  Same optionality story as salesCount. */
-  splitUsd?: number;
+  /** Revenue (USD) earned from this event's orders. Optional — server only
+   *  populates it for the owner; dimmed / em-dash when missing. */
+  earnedUsd?: number;
 };
 
 /**
  * Photographer dashboard — landing page for everyone with a photographer role.
  *
- * Re-scoped (May 2026) from a per-photographer photo grid into a per-event
- * rollup table. The reasoning:
- *   - The grid here was a near-duplicate of /photographer/photos, which
- *     confused the "where do I go to manage my photos" path.
- *   - At MVP scale (10s of events at most), an event table gives the
- *     photographer the right mental model: "here are the races I've shot;
- *     click into one to browse its library."
+ * Per-event rollup table. Clicking a row expands it in place to reveal a
+ * drag-and-drop ingest panel (the same <UploadPanel> the standalone
+ * /photographer/upload screen uses) so the photographer can drop a batch
+ * without leaving the dashboard. Upload progress, ETA, bib + face detection,
+ * and duplicate/fail handling all surface inline.
  *
- * The owner sees every event in the system here (cross-photographer
- * overview); non-owner sees only events they've personally uploaded to.
- *
- * Clicking a row deep-links to /photographer/photos?eventId=<id> which
- * filters the library page to that event.
+ * The owner sees every event in the system here; non-owner sees only events
+ * they've personally uploaded to.
  */
 export function PhotographerDashboardClient({ name, email }: Props) {
   const [loading, setLoading] = useState(true);
@@ -50,79 +41,59 @@ export function PhotographerDashboardClient({ name, email }: Props) {
   const [totalPhotos, setTotalPhotos] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetch("/api/photographer/events", { cache: "no-store" })
+  const loadEvents = useCallback(() => {
+    return fetch("/api/photographer/events", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`events ${r.status}`))))
       .then((d: { events: EventRow[]; totalPhotos: number; isAdmin: boolean }) => {
-        if (cancelled) return;
         setEvents(d.events);
         setTotalPhotos(d.totalPhotos);
         setIsAdmin(d.isAdmin);
       })
       .catch((e) => {
         console.warn("dashboard events fetch failed:", e);
-        if (!cancelled) setEvents([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setEvents([]);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    loadEvents().finally(() => setLoading(false));
+  }, [loadEvents]);
 
   const firstName = name.split(" ")[0] || name;
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
-        {/* Header — center-aligned so the Ingest button sits middle-aligned
-            with the headline block. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 18,
-            flexWrap: "wrap",
-            marginBottom: 32,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".14em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-                marginBottom: 6,
-              }}
-            >
-              Photographer · {email}
-            </div>
-            <Headline
-              as="h1"
-              text={`Hi, ${firstName}.`}
-              accent={firstName}
-              style={{
-                margin: 0,
-                fontFamily: "var(--font-serif)",
-                fontWeight: 500,
-                fontSize: 44,
-                letterSpacing: "-.018em",
-              }}
-            />
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+              marginBottom: 6,
+            }}
+          >
+            Photographer · {email}
           </div>
-          <Link href="/photographer/upload" className="btn btn--primary">
-            Ingest photos →
-          </Link>
+          <Headline
+            as="h1"
+            text={`Hi, ${firstName}.`}
+            accent={firstName}
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 44,
+              letterSpacing: "-.018em",
+            }}
+          />
         </div>
 
-        {/* Section heading + total. Single line replaces the old pill stats
-            row. Admins see "all events"; non-admins see their own work. */}
+        {/* Section heading + total. */}
         <div
           style={{
             display: "flex",
@@ -172,24 +143,25 @@ export function PhotographerDashboardClient({ name, email }: Props) {
               fontSize: 15,
             }}
           >
-            No events yet. Drop your first batch via the Ingest button above.
+            No events yet.
           </div>
         ) : (
-          <EventTable rows={events} />
+          <EventTable rows={events} onChanged={loadEvents} />
         )}
       </div>
     </main>
   );
 }
 
+const GRID_COLS = "1.6fr 100px 120px 110px";
+
 /**
- * Per-event rollup table. Each row links to the library page scoped to
- * that event so the photographer can browse + manage individual photos.
- *
- * Mobile: the columns collapse via grid-template gracefully — we don't
- * try to be clever, just keep the row clickable as a whole.
+ * Per-event rollup table. Clicking a row toggles an inline ingest panel
+ * below it — no navigation, no separate screen needed for the common case.
  */
-function EventTable({ rows }: { rows: EventRow[] }) {
+function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => void }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   return (
     <div
       style={{
@@ -202,10 +174,7 @@ function EventTable({ rows }: { rows: EventRow[] }) {
       <div
         style={{
           display: "grid",
-          // Browse → library column removed. Whole row is already a link,
-          // so the dedicated "View library →" cell was redundant. Added
-          // Sales + Split cols in its place.
-          gridTemplateColumns: "1.6fr 100px 120px 80px 110px",
+          gridTemplateColumns: GRID_COLS,
           gap: 12,
           padding: "12px 18px",
           background: "var(--cream)",
@@ -220,115 +189,152 @@ function EventTable({ rows }: { rows: EventRow[] }) {
         <span>Event</span>
         <span style={{ textAlign: "right" }}>Photos</span>
         <span style={{ textAlign: "right" }}>Last upload</span>
-        <span style={{ textAlign: "right" }}>Sales</span>
-        <span style={{ textAlign: "right" }}>Your split</span>
+        <span style={{ textAlign: "right" }}>Earned</span>
       </div>
-      {rows.map((r) => (
-        <Link
-          key={r.eventId}
-          href={`/photographer/photos?eventId=${encodeURIComponent(r.eventId)}`}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 100px 120px 80px 110px",
-            gap: 12,
-            padding: "14px 18px",
-            borderBottom: "1px solid var(--line)",
-            textDecoration: "none",
-            color: "var(--ink)",
-            fontSize: 14,
-            alignItems: "center",
-            transition: "background 0.12s",
-          }}
-        >
-          <span style={{ minWidth: 0 }}>
-            <span
+      {rows.map((r) => {
+        const expanded = expandedId === r.eventId;
+        return (
+          <div key={r.eventId}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={expanded}
+              onClick={() => setExpandedId(expanded ? null : r.eventId)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setExpandedId(expanded ? null : r.eventId);
+                }
+              }}
               style={{
-                display: "block",
-                fontFamily: "var(--font-serif)",
-                fontWeight: 500,
-                fontSize: 16,
+                display: "grid",
+                gridTemplateColumns: GRID_COLS,
+                gap: 12,
+                padding: "14px 18px",
+                borderBottom: "1px solid var(--line)",
                 color: "var(--ink)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                fontSize: 14,
+                alignItems: "center",
+                cursor: "pointer",
+                background: expanded ? "var(--cream)" : "var(--surface)",
+                transition: "background 0.12s",
               }}
             >
-              {r.eventName}
-            </span>
-            <span
-              style={{
-                display: "block",
-                marginTop: 2,
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: ".06em",
-                color: "var(--muted)",
-              }}
-            >
-              {[
-                r.eventDate ? fmtDate(r.eventDate) : null,
-                r.eventCity,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </span>
-          <span
-            style={{
-              textAlign: "right",
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 20,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {r.photoCount.toLocaleString()}
-          </span>
-          <span
-            style={{
-              textAlign: "right",
-              fontSize: 13,
-              color: "var(--muted)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {r.lastUploadAt ? fmtRelative(r.lastUploadAt) : "—"}
-          </span>
-          {/* Sales count — dim/em-dash when not yet wired through. */}
-          <span
-            style={{
-              textAlign: "right",
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 18,
-              fontVariantNumeric: "tabular-nums",
-              color:
-                r.salesCount && r.salesCount > 0
-                  ? "var(--ink)"
-                  : "var(--line)",
-            }}
-          >
-            {r.salesCount == null ? "—" : r.salesCount.toLocaleString()}
-          </span>
-          {/* Photographer split (USD) — same treatment as sales count.
-              Server will fill this in once order attribution lands. */}
-          <span
-            style={{
-              textAlign: "right",
-              fontFamily: "var(--font-serif)",
-              fontWeight: 500,
-              fontSize: 18,
-              fontVariantNumeric: "tabular-nums",
-              color:
-                r.splitUsd && r.splitUsd > 0
-                  ? "var(--ink)"
-                  : "var(--line)",
-            }}
-          >
-            {r.splitUsd == null ? "—" : `$${r.splitUsd.toFixed(2)}`}
-          </span>
-        </Link>
-      ))}
+              <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  aria-hidden
+                  style={{
+                    color: "var(--muted)",
+                    fontSize: 11,
+                    transform: expanded ? "rotate(90deg)" : "none",
+                    transition: "transform 0.15s",
+                  }}
+                >
+                  ▸
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontFamily: "var(--font-serif)",
+                      fontWeight: 500,
+                      fontSize: 16,
+                      color: "var(--ink)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {r.eventName}
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      marginTop: 2,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      letterSpacing: ".06em",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    {[r.eventDate ? fmtDate(r.eventDate) : null, r.eventCity]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </span>
+              </span>
+              <span
+                style={{
+                  textAlign: "right",
+                  fontFamily: "var(--font-serif)",
+                  fontWeight: 500,
+                  fontSize: 20,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {r.photoCount.toLocaleString()}
+              </span>
+              <span
+                style={{
+                  textAlign: "right",
+                  fontSize: 13,
+                  color: "var(--muted)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {r.lastUploadAt ? fmtRelative(r.lastUploadAt) : "—"}
+              </span>
+              {/* Earned (USD) — dim/em-dash until there's revenue to show. */}
+              <span
+                style={{
+                  textAlign: "right",
+                  fontFamily: "var(--font-serif)",
+                  fontWeight: 500,
+                  fontSize: 18,
+                  fontVariantNumeric: "tabular-nums",
+                  color: r.earnedUsd && r.earnedUsd > 0 ? "var(--ink)" : "var(--line)",
+                }}
+              >
+                {r.earnedUsd == null ? "—" : `$${r.earnedUsd.toFixed(2)}`}
+              </span>
+            </div>
+
+            {expanded && (
+              <div
+                style={{
+                  padding: "18px 18px 24px",
+                  background: "var(--cream)",
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    letterSpacing: ".14em",
+                    textTransform: "uppercase",
+                    color: "var(--muted)",
+                    marginBottom: 14,
+                  }}
+                >
+                  Upload to {r.eventName}
+                </div>
+                <UploadPanel
+                  event={{
+                    id: r.eventId,
+                    name: r.eventName,
+                    date: r.eventDate ?? "",
+                    city: r.eventCity ?? "",
+                  }}
+                  compact
+                  onChanged={onChanged}
+                  onDone={() => setExpandedId(null)}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

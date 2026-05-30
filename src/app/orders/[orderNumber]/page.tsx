@@ -216,8 +216,7 @@ export default async function OrderPage({
             style={{ color: "var(--ink)", textDecoration: "underline" }}
           >
             mikian.photos@gmail.com
-          </a>{" "}
-          · We&rsquo;ll respond within a day.
+          </a>
           {access.via !== "token" && (
             <>
               {" "}

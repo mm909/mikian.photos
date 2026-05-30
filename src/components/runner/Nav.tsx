@@ -21,18 +21,12 @@ type View = {
 
 const VIEWS: View[] = [
   {
-    label: "Runners",
+    label: "Lighthouse Half",
     href: "/",
     match: (p) =>
       p === "/" ||
       p.startsWith("/results") ||
-      p.startsWith("/checkout") ||
-      p.startsWith("/success"),
-  },
-  {
-    label: "Race Directors",
-    // Visible only to RDs + owner. Disabled (no href) until the dashboards land.
-    roles: ["race_director", "owner"],
+      p.startsWith("/checkout"),
   },
   {
     // Photographer dashboard — landing place for "I shot this race" view.
@@ -45,34 +39,12 @@ const VIEWS: View[] = [
     roles: ["photographer", "owner"],
   },
   {
-    // The unified photo viewer + operations surface. Browse every upload,
-    // search bibs, and open any photo's detail modal to re-run / debug OCR
-    // and faces, inspect metadata, and delete / hide / download. The old
-    // owner-only OCR + Face Lab folded into this modal (owners additionally
-    // get the OCR tuning knobs + cross-event face-cluster inspector there),
-    // so the legacy /ocr-lab + /face-lab URLs now redirect here.
-    label: "Library",
-    href: "/photographer/photos",
-    match: (p) =>
-      p.startsWith("/photographer/photos") ||
-      p.startsWith("/photographer/ocr-lab") ||
-      p.startsWith("/photographer/face-lab"),
-    roles: ["photographer", "owner"],
-  },
-  {
     // Owner-only roster + coverage surface. Roster lists race entrants joined
     // with per-runner photo/face counts; the same page carries the bib/face/
     // gaps coverage tabs. (/admin/coverage redirects here.)
     label: "Roster",
     href: "/admin/roster",
     match: (p) => p.startsWith("/admin/roster") || p.startsWith("/admin/coverage"),
-    roles: ["owner"],
-  },
-  {
-    label: "Admin",
-    href: "/admin/users",
-    // Narrowed from /admin/* so Roster doesn't double-highlight this chip.
-    match: (p) => p.startsWith("/admin/users"),
     roles: ["owner"],
   },
 ];

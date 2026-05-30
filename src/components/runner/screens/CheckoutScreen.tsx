@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
@@ -30,6 +31,7 @@ type Props = { unlocked: boolean };
 
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
   const { cart, resultPhotos, finalizeOrder, addBundle } = useRunner();
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
@@ -119,6 +121,36 @@ export function CheckoutScreen({ unlocked }: Props) {
         </p>
       </main>
     );
+  }
+
+  const isOwner = Boolean(session?.roles?.includes("owner"));
+
+  async function simulatePayment() {
+    setProcessing(true);
+    setError(null);
+    try {
+      const cartShape = describeCart(cart.items);
+      const res = await fetch("/api/dev/fake-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: currentEvent.id,
+          kind: cartShape.kind,
+          photoIds:
+            cartShape.kind === "multi" ? cartShape.photoIds : resultPhotos.map((p) => p.id),
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Could not simulate order");
+      }
+      const captured = (await res.json()) as { orderUrl?: string; amountUsd?: number };
+      finalizeOrder(captured.amountUsd ?? total);
+      router.push(captured.orderUrl ?? "/runner");
+    } catch (e) {
+      setProcessing(false);
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -215,9 +247,12 @@ export function CheckoutScreen({ unlocked }: Props) {
                         orderId: data.orderID,
                         eventId: currentEvent.id,
                         kind: cartShape.kind,
-                        // photoIds is only meaningful for multi; server
-                        // ignores it for bundle (snapshots event-wide).
-                        photoIds: cartShape.kind === "multi" ? cartShape.photoIds : undefined,
+                        // The order covers exactly the photos the runner is
+                        // looking at — their matched set, not the whole event.
+                        photoIds:
+                          cartShape.kind === "multi"
+                            ? cartShape.photoIds
+                            : resultPhotos.map((p) => p.id),
                       }),
                     });
                     if (!res.ok) {
@@ -256,6 +291,18 @@ export function CheckoutScreen({ unlocked }: Props) {
                 }}
               />
             </PayPalScriptProvider>
+
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => void simulatePayment()}
+                disabled={processing}
+                className="btn btn--ghost"
+                style={{ marginTop: 12, width: "100%", justifyContent: "center" }}
+              >
+                Simulate payment (no charge) — owner
+              </button>
+            )}
 
             {error && (
               <div

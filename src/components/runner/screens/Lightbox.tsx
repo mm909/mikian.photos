@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Headline } from "../Headline";
-import { Pager } from "@/components/photographer/Pager";
 import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
 
 type Props = {
@@ -22,9 +20,6 @@ type Props = {
   onBundle: (alreadyIn: boolean) => void;
 };
 
-/** Thumbnails per page in the right-rail gallery grid. */
-const PAGE_SIZE = 12;
-
 export function Lightbox({
   photo,
   photos,
@@ -37,19 +32,6 @@ export function Lightbox({
   onJump,
   onBundle,
 }: Props) {
-  const idx = photos.findIndex((p) => p.id === photo.id);
-
-  // Paged thumbnail grid over the FULL result set. The page follows the
-  // selected photo (arrow keys / prev-next), but the runner can also page
-  // manually to browse ahead.
-  const pageCount = Math.max(1, Math.ceil(photos.length / PAGE_SIZE));
-  const [page, setPage] = useState(1);
-  useEffect(() => {
-    if (idx >= 0) setPage(Math.floor(idx / PAGE_SIZE) + 1);
-  }, [idx]);
-  const pageStart = (page - 1) * PAGE_SIZE;
-  const pagePhotos = photos.slice(pageStart, pageStart + PAGE_SIZE);
-
   return (
     <div className="overlay" onClick={onClose} style={{ background: "rgba(28,26,23,.78)" }}>
       <div
@@ -145,6 +127,10 @@ export function Lightbox({
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
+            // Size to content (header + capped gallery + CTA) rather than
+            // stretching to the tall photo column — keeps the buy CTA on
+            // screen even on shorter viewports.
+            alignSelf: "start",
           }}
         >
           {/* header */}
@@ -174,22 +160,25 @@ export function Lightbox({
             </button>
           </div>
 
-          {/* scrollable gallery grid over all photos */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "18px 28px 8px", minHeight: 0 }}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: ".12em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-                marginBottom: 10,
-              }}
-            >
-              All {totalCount} photos
-            </div>
+          {/* "All N photos" — stays put above the scroll area. */}
+          <div
+            style={{
+              padding: "16px 28px 8px",
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            All {totalCount} photos
+          </div>
+
+          {/* Scrollable gallery — capped to ~2–3 rows so the buy CTA below
+              always stays visible; the rest scrolls. */}
+          <div style={{ overflowY: "auto", padding: "0 28px 12px", maxHeight: "min(46vh, 440px)" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {pagePhotos.map((p) => {
+              {photos.map((p) => {
                 const isCurr = p.id === photo.id;
                 return (
                   <div
@@ -224,22 +213,12 @@ export function Lightbox({
                 );
               })}
             </div>
-            {pageCount > 1 && (
-              <div style={{ marginTop: 14 }}>
-                <Pager
-                  page={page}
-                  pageCount={pageCount}
-                  total={photos.length}
-                  pageSize={PAGE_SIZE}
-                  onGo={setPage}
-                />
-              </div>
-            )}
           </div>
 
-          {/* sticky footer — price block + CTA, below the images */}
+          {/* footer — price block + CTA, pinned to the bottom below the images */}
           <div
             style={{
+              marginTop: "auto",
               borderTop: "1px solid var(--line)",
               padding: "18px 28px 24px",
               background: "var(--paper)",

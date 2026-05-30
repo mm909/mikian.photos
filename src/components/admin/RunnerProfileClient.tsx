@@ -551,12 +551,11 @@ function AssignedFaceThumb({
       </div>
     );
   }
-  const pct = Math.round(assigned.photoShare * 100);
   return (
     <div
       title={`Cluster ${assigned.faceClusterId.slice(0, 14)}… · ${assigned.photoCount} photo${
         assigned.photoCount === 1 ? "" : "s"
-      } (${pct}% of this runner's photos)`}
+      }`}
       style={{
         position: "relative",
         width: 72,
@@ -579,23 +578,6 @@ function AssignedFaceThumb({
           display: "block",
         }}
       />
-      <span
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "2px 4px",
-          background: "rgba(28,26,23,.78)",
-          color: "var(--paper)",
-          fontFamily: "var(--font-mono)",
-          fontSize: 9,
-          letterSpacing: ".05em",
-          textAlign: "center",
-        }}
-      >
-        {pct}%
-      </span>
     </div>
   );
 }

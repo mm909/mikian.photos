@@ -16,7 +16,7 @@ export type FlowStep = "search" | "teaser";
  * state so the teaser survives opening/closing the viewer within a session.
  */
 export function RunnerFlow() {
-  const { faceScanStatus } = useRunner();
+  const { faceScanStatus, clearSearch } = useRunner();
   const [step, setStep] = useState<FlowStep>("search");
 
   // Face-first path: once a selfie scan matches while on Search, advance to the
@@ -25,6 +25,14 @@ export function RunnerFlow() {
     if (step === "search" && faceScanStatus === "matched") setStep("teaser");
   }, [step, faceScanStatus]);
 
-  if (step === "teaser") return <StepTeaser />;
+  // Back / "search again" — reset the search and return to the landing so a
+  // mistyped bib can be re-entered. clearSearch() also drops the matched
+  // face status so the effect above doesn't immediately bounce us forward.
+  function goSearchAgain() {
+    clearSearch();
+    setStep("search");
+  }
+
+  if (step === "teaser") return <StepTeaser onBack={goSearchAgain} />;
   return <StepSearch onAdvance={() => setStep("teaser")} />;
 }

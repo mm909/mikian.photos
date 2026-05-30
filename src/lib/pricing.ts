@@ -42,3 +42,24 @@ export async function resolveBundlePriceCents(eventId: string): Promise<number> 
 export function centsToDollars(cents: number): number {
   return +(cents / 100).toFixed(2);
 }
+
+/**
+ * Buyer total (USD) for a cart kind + photo count, including the processing
+ * fee. Authoritative — both the real PayPal create-order route and the
+ * owner-only fake-order route compute the charge through here so they always
+ * agree. Bundle ignores `count` and uses the event's owner-set price.
+ */
+export async function orderTotalUsd(
+  kind: "bundle" | "multi",
+  count: number,
+  eventId?: string
+): Promise<number> {
+  const subtotal =
+    kind === "bundle"
+      ? eventId
+        ? centsToDollars(await resolveBundlePriceCents(eventId))
+        : prices.bundle
+      : Math.max(0, count) * prices.single;
+  const total = subtotal + subtotal * prices.stripeRate + prices.stripeFlat;
+  return +total.toFixed(2);
+}

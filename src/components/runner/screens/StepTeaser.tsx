@@ -6,6 +6,7 @@ import { PhotoThumb } from "../PhotoThumb";
 import { EmptyResultsState } from "../FaceCandidateStrip";
 import { FaceScanner } from "../FaceScanner";
 import { useRunner } from "../RunnerProvider";
+import { DISTANCE_LABELS } from "@/lib/gpx";
 
 const TEASER_COUNT = 6;
 
@@ -21,7 +22,7 @@ const TEASER_COUNT = 6;
  * "See all my photos" opens the photo viewer over the full result set rather
  * than navigating to a separate grid screen.
  */
-export function StepTeaser() {
+export function StepTeaser({ onBack }: { onBack: () => void }) {
   const {
     resultPhotos,
     resultTotal,
@@ -116,6 +117,7 @@ export function StepTeaser() {
     return (
       <main className="screen" style={{ padding: "56px 24px 96px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <BackButton onBack={onBack} />
           <EmptyResultsState
             matchedRacer={matchedRacer ? { name: matchedRacer.name, bib: matchedRacer.bib } : null}
             searchedBib={searchedBib}
@@ -131,6 +133,9 @@ export function StepTeaser() {
   // headline stays "photos of you" (true for bib + face matches alike).
   const total = Math.max(resultTotal ?? 0, resultPhotos.length);
   const headlineText = `${total} photo${total === 1 ? "" : "s"} of you.`;
+  // While the explicit "This is me" filter refetches, overlay a spinner on the
+  // grid so it doesn't visibly reflow as non-matching photos drop out.
+  const filtering = accepted && expandingCluster;
 
   const cardStyle: React.CSSProperties = {
     marginTop: 28,
@@ -156,7 +161,7 @@ export function StepTeaser() {
       <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
         <div style={{ ...eyebrowStyle, marginBottom: 12 }}>
           {matchedRacer
-            ? `Bib #${matchedRacer.bib} · ${matchedRacer.name} · finished ${matchedRacer.finishTime}`
+            ? `Bib #${matchedRacer.bib} · ${matchedRacer.name} · ${DISTANCE_LABELS[matchedRacer.distance]} · finished ${matchedRacer.finishTime}`
             : "We found your photos"}
         </div>
 
@@ -176,23 +181,63 @@ export function StepTeaser() {
         />
 
         {/* A handful of matches — small previews only. Clicking any opens the
-            full gallery viewer at that photo. */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-            gap: 12,
-            marginTop: 28,
-          }}
-        >
-          {shownPhotos.map((p) => (
-            <PhotoThumb
-              key={p.id}
-              photo={p}
-              onClick={() => openLightbox(p, resultPhotos)}
-              onExpand={() => openLightbox(p, resultPhotos)}
-            />
-          ))}
+            full gallery viewer at that photo. While the "This is me" filter
+            runs we overlay a spinner so the grid doesn't jump. */}
+        <div style={{ position: "relative", marginTop: 28 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+              gap: 12,
+              opacity: filtering ? 0.3 : 1,
+              transition: "opacity .2s ease",
+              pointerEvents: filtering ? "none" : "auto",
+            }}
+          >
+            {shownPhotos.map((p) => (
+              <PhotoThumb
+                key={p.id}
+                photo={p}
+                onClick={() => openLightbox(p, resultPhotos)}
+                onExpand={() => openLightbox(p, resultPhotos)}
+              />
+            ))}
+          </div>
+          {filtering && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  border: "3px solid var(--line)",
+                  borderTopColor: "var(--accent)",
+                  borderRadius: "50%",
+                  animation: "spin .8s linear infinite",
+                }}
+              />
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  letterSpacing: ".14em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                }}
+              >
+                Finding your photos…
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Best guess at the runner's face — moved BELOW the photos. Accept
@@ -293,7 +338,18 @@ export function StepTeaser() {
           </div>
         )}
 
-        <div style={{ marginTop: 32, display: "flex", justifyContent: "center" }}>
+        <div
+          style={{
+            marginTop: 32,
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <button className="btn btn--ghost btn--lg" onClick={onBack}>
+            ← Search again
+          </button>
           <button className="btn btn--primary btn--lg" onClick={seeAll}>
             See all my photos →
           </button>
@@ -308,5 +364,29 @@ export function StepTeaser() {
         subtitle="Center your face in the circle. We only use this to find your race photos."
       />
     </main>
+  );
+}
+
+/** "← Search again" — returns to the landing search (e.g. after a typo). */
+function BackButton({ onBack }: { onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      style={{
+        background: "transparent",
+        border: 0,
+        color: "var(--muted)",
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+        letterSpacing: ".14em",
+        textTransform: "uppercase",
+        cursor: "pointer",
+        padding: 0,
+        marginBottom: 16,
+      }}
+    >
+      ← Search again
+    </button>
   );
 }

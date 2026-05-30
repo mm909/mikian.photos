@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Pager } from "@/components/photographer/Pager";
 
 type Props = {
   photos: { id: string }[];
@@ -15,28 +16,40 @@ type Props = {
 };
 
 /**
- * Order-page photo grid + download toolbar.
+ * How many photos we hand to the Web Share sheet per tap. iOS rejects large
+ * file batches (and holding many full-res blobs in memory can crash mobile
+ * Safari), so we save the set a chunk at a time. For a single photo or a
+ * small pick this is one tap; for a bundle it's a short stepper.
+ */
+const SHARE_CHUNK = 6;
+
+/** Photos per page in the order grid. */
+const PHOTOS_PER_PAGE = 24;
+
+/**
+ * Order-page photo grid + delivery toolbar.
  *
- * The toolbar above the grid surfaces all the ways a buyer can take
- * their photos away:
+ * Two ways to take photos away, mapped to how buyers actually asked for them:
  *
- *   - Download ZIP — the primary; one file, no permission prompts.
- *     Hits /api/orders/[N]/zip?key= which streams everything.
- *   - Save to Dropbox — Dropbox Saver widget; user confirms in a
- *     popup, Dropbox fetches each URL server-side and lands them in
- *     their account. Hidden when NEXT_PUBLIC_DROPBOX_APP_KEY isn't
- *     configured.
- *   - Save to Photos / Share — Web Share API. On mobile this opens
- *     the native share sheet (iOS includes "Save N Images" to the
- *     Photos app; Android includes Photos, Google Photos, etc).
- *     Hidden on desktop where the share API doesn't include the
- *     Photos-app target.
- *   - Per-tile click — single photo download for cherry-picking.
+ *   1. To your device
+ *      - Download all (ZIP) — the everywhere path. One file, no prompts.
+ *        Hits /api/orders/[N]/zip?key= which streams the whole order. On
+ *        desktop it lands in Downloads; on iPhone it lands in Files.
+ *      - Add to Photos — Web Share API. On iPhone the share sheet's
+ *        "Save N Images" drops them straight into the Apple Photos library
+ *        (Android: the gallery / Photos). Because iOS caps batch size we
+ *        share SHARE_CHUNK at a time and advance a cursor, so the *whole*
+ *        set reaches Photos — not just the first handful. Hidden on desktop
+ *        where the share sheet has no Photos target.
+ *      - Per-tile click — single photo download for cherry-picking.
+ *   2. To Dropbox
+ *      - Dropbox Saver widget; Dropbox fetches each /download URL server-side
+ *        and lands them in the buyer's account. Hidden until
+ *        NEXT_PUBLIC_DROPBOX_APP_KEY is configured on the deploy.
  *
- * The previous "sequential download all" loop (one anchor click per
- * file with a stagger) is gone — the ZIP path is strictly better
- * (one prompt, one connection, faster) and the per-tile click handles
- * the cherry-pick case.
+ * (Google Photos is intentionally not a dedicated target — on Android it's
+ * already one of the share-sheet options, and a first-party integration
+ * needs Google's restricted-scope verification, which we're deferring.)
  */
 export function OrderPhotoGrid({
   photos,
@@ -44,30 +57,8 @@ export function OrderPhotoGrid({
   orderNumber,
   dropboxAppKey,
 }: Props) {
-  const [downloading, setDownloading] = useState<Set<string>>(new Set());
   const [zipBusy, setZipBusy] = useState(false);
-
-  // Web Share API support detection. We feature-test for `canShare` with
-  // a file (Share API with `files` is the level-2 spec; older browsers
-  // expose `share` but not file sharing). On desktop Chrome the native
-  // share sheet is OS-dependent, so we additionally hide the button
-  // when no `files` capability is reported.
-  const [canShareFiles, setCanShareFiles] = useState(false);
-  useEffect(() => {
-    if (typeof navigator === "undefined") return;
-    // Probe with a tiny dummy file — `canShare` checks the OS capability
-    // without actually sharing anything.
-    try {
-      const probe = new File(["x"], "x.jpg", { type: "image/jpeg" });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav = navigator as any;
-      if (typeof nav.canShare === "function" && nav.canShare({ files: [probe] })) {
-        setCanShareFiles(true);
-      }
-    } catch {
-      /* no support — leave false */
-    }
-  }, []);
+  const [page, setPage] = useState(1);
 
   function downloadHref(id: string): string {
     return `/api/photos/${id}/download?token=${encodeURIComponent(downloadToken)}`;
@@ -91,41 +82,58 @@ export function OrderPhotoGrid({
     setTimeout(() => setZipBusy(false), 3500);
   }
 
-  function downloadOne(id: string) {
-    setDownloading((s) => new Set(s).add(id));
-    const a = document.createElement("a");
-    a.href = downloadHref(id);
-    a.rel = "noopener";
-    a.download = `${id}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => {
-      setDownloading((s) => {
-        const next = new Set(s);
-        next.delete(id);
-        return next;
-      });
-    }, 800);
-  }
+  /* --- Add to Photos (Web Share, chunked) ----------------------------- */
+
+  // Web Share API support detection. We feature-test for `canShare` with a
+  // file (Share API with `files` is the level-2 spec; older browsers expose
+  // `share` but not file sharing). On desktop the native share sheet has no
+  // Photos target, so we hide the button when no `files` capability exists.
+  const [canShareFiles, setCanShareFiles] = useState(false);
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    try {
+      const probe = new File(["x"], "x.jpg", { type: "image/jpeg" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nav = navigator as any;
+      if (typeof nav.canShare === "function" && nav.canShare({ files: [probe] })) {
+        setCanShareFiles(true);
+      }
+    } catch {
+      /* no support — leave false */
+    }
+  }, []);
+
+  // Cursor into `photos`: index of the next photo not yet handed to a share
+  // sheet. Each successful share advances it by up to SHARE_CHUNK, so a
+  // multi-photo order is saved to Photos a batch per tap.
+  const [shareCursor, setShareCursor] = useState(0);
+  const [sharing, setSharing] = useState(false);
+  const total = photos.length;
+  // Paginate the grid so a large order doesn't render hundreds of tiles at
+  // once. Bulk download/share still operate over the whole set.
+  const pageCount = Math.max(1, Math.ceil(total / PHOTOS_PER_PAGE));
+  const pagePhotos = photos.slice((page - 1) * PHOTOS_PER_PAGE, page * PHOTOS_PER_PAGE);
+  const shareDone = total > 0 && shareCursor >= total;
+  const multiChunk = total > SHARE_CHUNK;
+  const chunkEnd = Math.min(shareCursor + SHARE_CHUNK, total);
 
   /**
-   * Share via the Web Share API. We fetch each photo as a Blob then hand
-   * the File array to navigator.share. On iOS Safari the OS share sheet
-   * includes "Save N Images" → Photos app. On Android Chrome it shows
-   * Google Photos, Drive, Dropbox, etc as targets.
+   * Share the next chunk via the Web Share API. We fetch each photo as a Blob
+   * then hand the File array to navigator.share. On iOS Safari the OS share
+   * sheet includes "Save N Images" → Photos; on Android it lists Photos,
+   * Drive, Dropbox, etc.
    *
-   * Caveats:
-   *  - Limited to small batches; iOS rejects ~10+ files in one share.
-   *    We cap at 6 and tell the user.
-   *  - Failure is silent (user cancellation throws AbortError).
+   * Each navigator.share() needs a fresh user gesture, so we can't loop it —
+   * the button re-arms for the next batch after each success. We advance the
+   * cursor only when the share resolves; a user-cancel (AbortError) leaves the
+   * same batch queued so the next tap retries it.
    */
-  async function shareToDevice() {
-    const CAP = 6;
-    const slice = photos.slice(0, CAP);
+  async function addToPhotos() {
+    if (sharing || shareDone) return;
+    const slice = photos.slice(shareCursor, shareCursor + SHARE_CHUNK);
+    if (slice.length === 0) return;
+    setSharing(true);
     try {
-      // Fetch all files in parallel; on a 5G mobile this is a couple
-      // seconds for a half-dozen JPEGs.
       const files = await Promise.all(
         slice.map(async (p) => {
           const res = await fetch(downloadHref(p.id));
@@ -139,26 +147,30 @@ export function OrderPhotoGrid({
         text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
         files,
       });
+      setShareCursor((c) => Math.min(c + slice.length, total));
     } catch (e) {
       const name = (e as { name?: string }).name;
-      if (name === "AbortError") return; // user dismissed; not an error
+      if (name === "AbortError") return; // user dismissed — keep batch queued
       console.warn("share failed:", e);
       alert(
-        "Couldn't open the share sheet here. Try Download ZIP, or download photos one at a time."
+        "Couldn't open the share sheet here. Use Download all (ZIP), or tap a photo to save it on its own."
       );
+    } finally {
+      setSharing(false);
     }
   }
 
-  /**
-   * Open the Dropbox Saver. The widget needs each file as an absolute
-   * URL Dropbox's servers can fetch — they hit our /download endpoint
-   * directly with the token in the URL. The token is valid for 30 days
-   * (DOWNLOAD_TOKEN_TTL_DAYS) so Dropbox has plenty of time to retry.
-   *
-   * We only render the button when both:
-   *   - NEXT_PUBLIC_DROPBOX_APP_KEY is set (script will refuse without it)
-   *   - The Dropbox script has finished loading (we lazy-inject it)
-   */
+  let addLabel: string;
+  if (sharing) addLabel = "Opening share sheet…";
+  else if (shareDone) addLabel = multiChunk ? `All ${total} added ✓` : "Added to Photos ✓";
+  else if (multiChunk)
+    addLabel = `Add to Photos (${shareCursor + 1}–${chunkEnd} of ${total})`;
+  else addLabel = "Add to Photos";
+
+  /* --- Save to Dropbox (Saver widget) --------------------------------- */
+
+  // We render the button only when both the app key is set (the script
+  // refuses without it) and the lazily-injected dropins.js has loaded.
   const [dropboxReady, setDropboxReady] = useState(false);
   useEffect(() => {
     if (!dropboxAppKey || typeof window === "undefined") return;
@@ -182,87 +194,100 @@ export function OrderPhotoGrid({
     const dbx = (window as unknown as { Dropbox?: any }).Dropbox;
     if (!dbx) return;
     const origin = window.location.origin;
+    // Dropbox's servers fetch each absolute URL directly — the token rides in
+    // the URL and is valid for 30 days (DOWNLOAD_TOKEN_TTL_DAYS), so they have
+    // ample time to pull every file.
     dbx.save({
       files: photos.map((p) => ({
         url: `${origin}${downloadHref(p.id)}`,
         filename: `${p.id}.jpg`,
       })),
-      // Drops the photos into a subfolder named after the order so the
-      // buyer's Dropbox doesn't fill with loose race shots.
       success: () => console.info("dropbox save dispatched"),
       cancel: () => console.info("dropbox save cancelled"),
       error: (err: unknown) => console.warn("dropbox save error:", err),
     });
   }
 
+  const dropboxAvailable = Boolean(dropboxAppKey && dropboxReady);
+
   return (
     <div>
-      {/* Toolbar — primary ZIP CTA + secondary save targets */}
-      <div
+      {/* Delivery panel — how the buyer takes their photos away. */}
+      <section
+        aria-label="Delivery"
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 14,
+          background: "var(--cream)",
+          border: "1px solid var(--line)",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 24,
+          display: "grid",
+          gap: 18,
         }}
       >
-        <button
-          className="btn btn--primary"
-          onClick={downloadZip}
-          disabled={zipBusy || photos.length === 0}
-        >
-          {zipBusy ? "Preparing ZIP…" : `Download ZIP (${photos.length})`}
-        </button>
-
-        {dropboxAppKey && dropboxReady && (
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={saveToDropbox}
-            disabled={photos.length === 0}
-            title="Save all photos to your Dropbox"
-          >
-            Save to Dropbox
-          </button>
-        )}
-
-        {canShareFiles && (
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={shareToDevice}
-            disabled={photos.length === 0}
-            title={
-              photos.length > 6
-                ? "Opens your device's share sheet — limited to the first 6 photos. Use ZIP for the full set."
-                : "Open your device's share sheet to save to Photos / Google Photos / etc."
-            }
-          >
-            Save to Photos…
-          </button>
-        )}
-      </div>
-
-      {/* Help text when share is shown — explains the 6-cap. */}
-      {canShareFiles && photos.length > 6 && (
         <div
           style={{
-            marginTop: -8,
-            marginBottom: 12,
-            textAlign: "right",
             fontFamily: "var(--font-mono)",
             fontSize: 10,
-            letterSpacing: ".1em",
-            color: "var(--muted)",
+            letterSpacing: ".14em",
             textTransform: "uppercase",
+            color: "var(--muted)",
           }}
         >
-          Save to Photos sends the first 6 — use ZIP for the full set
+          Get your {total} photo{total === 1 ? "" : "s"}
         </div>
-      )}
 
+        {/* Method 1 — to your device */}
+        <DeliveryRow
+          title="To your device"
+          help={
+            canShareFiles
+              ? "“Download all” saves one ZIP to your Files. “Add to Photos” drops them straight into your Photos library — on iPhone they save a batch at a time, so tap again for each set."
+              : "One ZIP with every photo, saved to your Downloads."
+          }
+        >
+          <button
+            className="btn btn--primary"
+            onClick={downloadZip}
+            disabled={zipBusy || total === 0}
+          >
+            {zipBusy ? "Preparing ZIP…" : `Download all (${total}) as ZIP`}
+          </button>
+
+          {canShareFiles && (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={addToPhotos}
+              disabled={sharing || shareDone || total === 0}
+              title="Save into your device's Photos library"
+            >
+              {addLabel}
+            </button>
+          )}
+        </DeliveryRow>
+
+        {/* Method 2 — to Dropbox (only when configured on this deploy) */}
+        {dropboxAvailable && (
+          <DeliveryRow
+            title="To Dropbox"
+            help={`Sends all ${total} photo${total === 1 ? "" : "s"} to your Dropbox — confirm in the popup and Dropbox pulls them in for you.`}
+          >
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={saveToDropbox}
+              disabled={total === 0}
+              title="Save all photos to your Dropbox"
+            >
+              Save to Dropbox
+            </button>
+          </DeliveryRow>
+        )}
+      </section>
+
+      {/* Photo grid — a preview of the photos in this order. Downloads happen
+          via the buttons above (your whole set at once). */}
       <div
         style={{
           display: "grid",
@@ -270,84 +295,91 @@ export function OrderPhotoGrid({
           gap: 8,
         }}
       >
-        {photos.map((p) => {
-          const isDown = downloading.has(p.id);
-          return (
-            <div
-              key={p.id}
+        {pagePhotos.map((p) => (
+          <div
+            key={p.id}
+            style={{
+              aspectRatio: "3 / 2",
+              background: "var(--cream)",
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              overflow: "hidden",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/photos/${p.id}/preview`}
+              alt=""
+              loading="lazy"
               style={{
-                position: "relative",
-                aspectRatio: "3 / 2",
-                background: "var(--cream)",
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                overflow: "hidden",
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
               }}
-            >
-              <a
-                href={downloadHref(p.id)}
-                onClick={(e) => {
-                  // Browser handles the redirect + save; we just flash the
-                  // "downloading" affordance for feedback.
-                  void e;
-                  downloadOne(p.id);
-                }}
-                download={`${p.id}.jpg`}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  height: "100%",
-                  position: "relative",
-                  textDecoration: "none",
-                }}
-                title="Click to download full resolution"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/photos/${p.id}/preview`}
-                  alt=""
-                  loading="lazy"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background:
-                      "linear-gradient(to top, rgba(28,26,23,.55) 0%, rgba(28,26,23,0) 50%)",
-                    pointerEvents: "none",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: 6,
-                    left: 8,
-                    right: 8,
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 10,
-                    letterSpacing: ".14em",
-                    textTransform: "uppercase",
-                    color: "var(--paper)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <span>Hi-res</span>
-                  <span>{isDown ? "Downloading…" : "Download ↓"}</span>
-                </span>
-              </a>
-            </div>
-          );
-        })}
+            />
+          </div>
+        ))}
       </div>
+
+      {pageCount > 1 && (
+        <Pager
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          pageSize={PHOTOS_PER_PAGE}
+          onGo={setPage}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * One delivery method: a title, a short "what happens" line, and the
+ * action button(s). Keeps the panel rows visually consistent.
+ */
+function DeliveryRow({
+  title,
+  help,
+  children,
+}: {
+  title: string;
+  help: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 10,
+        paddingTop: 4,
+        borderTop: "1px solid var(--line)",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: 17,
+          fontWeight: 500,
+          color: "var(--ink)",
+          marginTop: 8,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{children}</div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: "var(--muted)",
+          maxWidth: 560,
+        }}
+      >
+        {help}
+      </p>
     </div>
   );
 }

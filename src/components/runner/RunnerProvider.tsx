@@ -47,6 +47,9 @@ type RunnerCtx = {
   // catalog (real photos fetched from /api/photos)
   catalog: Photo[];
   catalogLoading: boolean;
+  /** True (uncapped) total of the event's visible photos. The `catalog` array
+   *  is capped by the API's cost guardrail, so use this for "N photos live". */
+  catalogTotal: number | null;
   /** True when persisted state on mount indicated a prior search, so the
    *  flow can resume on the "all photos" step instead of flashing search. */
   hasHydratedSearch: boolean;
@@ -85,6 +88,10 @@ type RunnerCtx = {
   toast: string;
   // actions
   runSearch: (s: { kind: "bib" | "face" | "browse"; value?: string }) => void;
+  /** Reset to a pristine search state so the runner can search again. Clears
+   *  results, matched racer, face candidates + scan status; keeps catalog,
+   *  cart, and order. */
+  clearSearch: () => void;
   addBib: (bib: string) => void;
   /** Network face-search: send the file to /api/photos/face-search, replace
    *  resultPhotos with the matches. Resolves on completion; no return. */
@@ -228,6 +235,7 @@ function apiPhotoToUi(p: {
 export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const [catalog, setCatalog] = useState<Photo[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogTotal, setCatalogTotal] = useState<number | null>(null);
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
   const [resultTotal, setResultTotal] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -272,12 +280,21 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setCatalogLoading(true);
     fetch(`/api/photos?eventId=${encodeURIComponent(currentEvent.id)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`/api/photos ${r.status}`))))
-      .then((d: { photos: Parameters<typeof apiPhotoToUi>[0][]; bundlePrice?: number }) => {
-        if (cancelled) return;
-        const ui = (d.photos ?? []).map(apiPhotoToUi);
-        setCatalog(ui);
-        if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
-      })
+      .then(
+        (d: {
+          photos: Parameters<typeof apiPhotoToUi>[0][];
+          bundlePrice?: number;
+          total?: number;
+        }) => {
+          if (cancelled) return;
+          const ui = (d.photos ?? []).map(apiPhotoToUi);
+          setCatalog(ui);
+          // `total` is the true uncapped event count; the photos array is
+          // capped. Use total for the live count, fall back to length.
+          setCatalogTotal(typeof d.total === "number" ? d.total : ui.length);
+          if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
+        }
+      )
       .catch((e) => {
         console.warn("photo catalog fetch failed:", e);
         if (!cancelled) setCatalog([]);
@@ -804,6 +821,26 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     return o;
   }
 
+  /**
+   * Reset just the search — used by the "search again" / back affordances so
+   * the runner can re-enter a bib (e.g. after a typo). Leaves catalog, cart,
+   * and order untouched.
+   */
+  function clearSearch() {
+    setResultPhotos([]);
+    setResultTotal(null);
+    setSearchLoading(false);
+    setMatchedRacer(null);
+    setSearchedBib(null);
+    setSearchFellBack(false);
+    setFaceDone(false);
+    setFaceCandidates([]);
+    setConfirmedClusterId(null);
+    setAutoConfirmed(false);
+    setFaceScanStatus("none");
+    setSelected(new Set());
+  }
+
   function resetAll() {
     setResultPhotos([]);
     setMatchedRacer(null);
@@ -835,6 +872,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     () => ({
       catalog,
       catalogLoading,
+      catalogTotal,
       hasHydratedSearch,
       didHydrate,
       resultPhotos,
@@ -853,6 +891,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       order,
       toast,
       runSearch,
+      clearSearch,
       addBib,
       runFaceSearch,
       addFaceSearch,
@@ -882,7 +921,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, autoConfirmed, bundlePrice, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
+    [catalog, catalogLoading, catalogTotal, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, autoConfirmed, bundlePrice, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

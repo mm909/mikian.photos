@@ -62,6 +62,16 @@ export function isOwner(actor: { roles?: readonly string[] | null }): boolean {
 }
 
 /**
+ * Is the current request's effective actor an owner? Async wrapper for places
+ * that just need a yes/no (e.g. opening the buy flow for the owner regardless
+ * of the global payment lock).
+ */
+export async function isOwnerActor(): Promise<boolean> {
+  const actor = await getEffectiveActor();
+  return Boolean(actor && actor.roles.includes("owner"));
+}
+
+/**
  * Resolve the caller's identity + roles.
  *
  * Order of precedence:

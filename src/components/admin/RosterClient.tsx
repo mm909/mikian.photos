@@ -3,14 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
-import {
-  BibTab,
-  FaceTab,
-  Stat,
-  TabBtn,
-  fmtCount,
-  useCoverageData,
-} from "@/components/admin/CoverageClient";
+import { Stat, fmtCount, useCoverageData } from "@/components/admin/CoverageClient";
 
 type Runner = {
   bib: number;
@@ -36,11 +29,6 @@ type RosterResponse = {
 
 type SortKey = "bib" | "face" | "name" | "gender" | "age" | "city" | "chip" | "photos";
 
-/** Top-level surface tabs. "runners" is the roster table; the rest borrow
- *  the coverage tabs so this one page answers both "who do we have photos
- *  of?" and "what did detection actually tag?". */
-type Tab = "runners" | "bib" | "face";
-
 // Approx pixel height of one rendered roster row — used to size a page so
 // the table fits the viewport without scrolling. Keep in sync with the row
 // padding/font below.
@@ -63,7 +51,6 @@ type Props = { defaultEventId: string; defaultEventName: string };
  */
 export function RosterClient({ defaultEventId, defaultEventName }: Props) {
   const [eventId] = useState(defaultEventId);
-  const [tab, setTab] = useState<Tab>("runners");
 
   const [data, setData] = useState<RosterResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +83,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
     recompute();
     window.addEventListener("resize", recompute);
     return () => window.removeEventListener("resize", recompute);
-  }, [tab, loading, data]);
+  }, [loading, data]);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,7 +171,6 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
 
   // Aggregate summary above the table.
   const total = data?.runners.length ?? 0;
-  const withPhotos = (data?.runners ?? []).filter((r) => r.photoCount > 0).length;
   const cov = coverage.data?.totals;
 
   return (
@@ -244,67 +230,17 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
         >
           <Stat label="Runners" value={total.toString()} />
           <Stat label="Photos" value={fmtCount(cov?.photos)} />
-          <Stat
-            label="Coverage"
-            value={total ? `${Math.round((withPhotos / total) * 100)}%` : "—"}
-            sub={total ? `${withPhotos} of ${total} runners` : undefined}
-          />
         </div>
 
-        {/* Surface tabs */}
         <div
-          role="tablist"
           style={{
-            display: "inline-flex",
-            border: "1px solid var(--line)",
-            borderRadius: 6,
-            background: "var(--cream)",
-            padding: 2,
-            marginBottom: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 10,
           }}
         >
-          <TabBtn active={tab === "runners"} onClick={() => setTab("runners")} label="Runners" />
-          <TabBtn active={tab === "bib"} onClick={() => setTab("bib")} label="By bib" />
-          <TabBtn active={tab === "face"} onClick={() => setTab("face")} label="By face" />
-        </div>
-
-        {/* Coverage-tab load/error chrome (the runners tab has its own). */}
-        {tab !== "runners" && coverage.loading && (
-          <p style={{ color: "var(--muted)" }}>Loading coverage…</p>
-        )}
-        {tab !== "runners" && coverage.error && (
-          <div
-            role="alert"
-            style={{
-              padding: "10px 14px",
-              border: "1px solid var(--accent)",
-              borderRadius: 6,
-              color: "var(--accent)",
-              fontSize: 13,
-            }}
-          >
-            Could not load coverage: {coverage.error}
-          </div>
-        )}
-
-        {tab === "bib" && coverage.data && (
-          <BibTab eventId={eventId} rows={coverage.data.bibs} onMutated={coverage.refetch} />
-        )}
-        {tab === "face" && coverage.data && (
-          <FaceTab eventId={eventId} rows={coverage.data.faces} />
-        )}
-
-        {tab === "runners" && (
-          <>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                flexWrap: "wrap",
-                marginBottom: 10,
-              }}
-            >
               <input
                 className="input"
                 type="search"
@@ -531,8 +467,6 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                 )}
               </>
             )}
-          </>
-        )}
       </div>
     </main>
   );

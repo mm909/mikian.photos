@@ -65,6 +65,7 @@ export function AccountWidget() {
   }
 
   const name = session.user.name || session.user.email || "Account";
+  const isOwner = Boolean(session.roles?.includes("owner"));
   const initials = name
     .split(/\s+/)
     .map((p) => p[0])
@@ -164,12 +165,11 @@ export function AccountWidget() {
           <MenuLink href="/runner" onClick={() => setOpen(false)}>
             My orders
           </MenuLink>
-          <MenuLink href="/photographer" onClick={() => setOpen(false)}>
-            Photographer dashboard
-          </MenuLink>
-          <MenuLink href="/photographer/upload" onClick={() => setOpen(false)}>
-            Upload photos
-          </MenuLink>
+          {isOwner && (
+            <MenuLink href="/admin/users" onClick={() => setOpen(false)}>
+              Settings
+            </MenuLink>
+          )}
           <button
             role="menuitem"
             onClick={() => signOut({ callbackUrl: "/" })}

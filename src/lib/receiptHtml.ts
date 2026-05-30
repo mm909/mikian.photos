@@ -145,7 +145,7 @@ export function renderReceiptHtml(r: ReceiptInput): string {
       </tr>
     </table>
     <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">
-      On a phone? Open the order page and tap <strong style="color:${INK};font-weight:600;">Save to Photos…</strong> to drop the photos straight into your Apple Photos or Google Photos. Dropbox is also one click from there.
+      On a phone? Open your order and tap <strong style="color:${INK};font-weight:600;">Add to Photos</strong> to save them straight into your Apple Photos library (or Android gallery), or <strong style="color:${INK};font-weight:600;">Save to Dropbox</strong> to send the whole set to Dropbox.
     </p>
     <div style="margin-top:14px;font-size:12px;color:${MUTED};word-break:break-all;">
       Direct link: <a href="${r.orderUrl}" style="color:${MUTED};">${r.orderUrl}</a>
@@ -190,7 +190,7 @@ export function renderReceiptText(r: ReceiptInput): string {
   }
   lines.push("");
   lines.push(
-    "On a phone, open the order page and tap Save to Photos for Apple/Google Photos, or Save to Dropbox."
+    "On a phone, open your order and tap “Add to Photos” to save them into your Apple Photos library (or Android gallery), or “Save to Dropbox” to send the set to Dropbox."
   );
   lines.push("");
   lines.push("Reply to this email if anything isn't right.");

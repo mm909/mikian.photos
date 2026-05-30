@@ -48,6 +48,21 @@ export async function GET() {
       : [];
   const eventById = new Map(events.map((e) => [e.id, e]));
 
+  // Revenue per event from captured orders. Owner-only — a non-owner
+  // photographer's split isn't modeled yet, so we leave Earned blank for them
+  // rather than crediting them with the whole event's take.
+  const earnedByEvent = new Map<string, number>();
+  if (admin && eventIds.length > 0) {
+    const orderAgg = await db.order.groupBy({
+      by: ["eventIdCovered"],
+      where: { eventIdCovered: { in: eventIds } },
+      _sum: { amount: true },
+    });
+    for (const o of orderAgg) {
+      if (o.eventIdCovered) earnedByEvent.set(o.eventIdCovered, o._sum.amount ?? 0);
+    }
+  }
+
   const rows = grouped
     .map((g) => {
       const ev = eventById.get(g.eventId);
@@ -58,6 +73,7 @@ export async function GET() {
         eventCity: ev?.city ?? null,
         photoCount: g._count.id,
         lastUploadAt: g._max.createdAt?.toISOString() ?? null,
+        earnedUsd: admin ? earnedByEvent.get(g.eventId) ?? 0 : undefined,
       };
     })
     // Most recently active event first — that's almost always what the

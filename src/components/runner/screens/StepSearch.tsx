@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Headline } from "../Headline";
 import { FaceScanner } from "../FaceScanner";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent, findRacerByName } from "@/lib/data";
+import { BibSearchForm } from "../BibSearchForm";
+import { currentEvent } from "@/lib/data";
 
 /**
  * Step 1 — Search. The runner lands here. Bib number is the primary path
@@ -16,36 +17,15 @@ import { currentEvent, findRacerByName } from "@/lib/data";
  * orchestrator (RunnerFlow) advances to the teaser by watching faceScanStatus.
  */
 export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
-  const { runSearch, runFaceSearch, faceScanning, catalog, catalogLoading } = useRunner();
-  const [query, setQuery] = useState("");
-  const [err, setErr] = useState("");
+  const { runFaceSearch, faceScanning, catalog, catalogLoading, catalogTotal } = useRunner();
   const [scannerOpen, setScannerOpen] = useState(false);
-
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) {
-      setErr("Enter your name or bib number to search.");
-      return;
-    }
-    // Numeric → bib. Otherwise resolve the name to a bib via the roster.
-    let bib = q;
-    if (!/^\d+$/.test(q)) {
-      const racer = findRacerByName(q);
-      if (!racer) {
-        setErr("No runner found by that name — try your bib number.");
-        return;
-      }
-      bib = String(racer.bib);
-    }
-    setErr("");
-    runSearch({ kind: "bib", value: bib });
-    onAdvance();
-  }
 
   const raceName = `${currentEvent.name[0]} ${currentEvent.name[1]} ${currentEvent.name[2]}`.trim();
   const raceAccent = currentEvent.name[0];
-  const photoCount = !catalogLoading && catalog.length > 0 ? catalog.length : null;
+  // Live count = the true uncapped event total. The catalog array is capped by
+  // the API cost guardrail, so catalog.length undercounts; fall back to it only
+  // if the total didn't come back.
+  const photoCount = catalogLoading ? null : catalogTotal ?? (catalog.length || null);
 
   return (
     <main className="screen" style={{ padding: "64px 32px 96px" }}>
@@ -112,32 +92,9 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
             className="card"
             style={{ padding: 24, marginTop: 28, display: "flex", flexDirection: "column" }}
           >
-            {/* Primary: bib number */}
-            <form onSubmit={submitSearch}>
-              <label className="field-label" htmlFor="bib-in">
-                Name or bib number
-              </label>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  id="bib-in"
-                  className="input"
-                  placeholder="e.g. your name or bib number"
-                  autoComplete="off"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    if (err) setErr("");
-                  }}
-                  autoFocus
-                />
-                <button type="submit" className="btn btn--primary">
-                  Search
-                </button>
-              </div>
-              {err && (
-                <div style={{ fontSize: 12, color: "var(--accent)", marginTop: 6 }}>{err}</div>
-              )}
-            </form>
+            {/* Primary: bib number — shared search model (also reused in the
+                empty-results state). */}
+            <BibSearchForm onSearched={onAdvance} autoFocus />
 
             {/* Softer secondary: face scan for those without a bib */}
             <div

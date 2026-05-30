@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { Headline } from "./Headline";
 import { useRunner, type FaceCandidate } from "./RunnerProvider";
+import { BibSearchForm } from "./BibSearchForm";
 
 /* ============================================================
  * Shared runner-flow pieces extracted from the old ResultsScreen so
@@ -45,9 +46,35 @@ export function NoBibMatchPrompt({ searchedBib }: { searchedBib: string }) {
         }}
       />
       <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12, lineHeight: 1.5 }}>
-        Bib auto-detection misses sometimes. A face scan finds your photos
-        even when the bib didn&rsquo;t come through clean.
+        Double-check the bib and search again — or scan your face, which finds
+        your photos even when bib auto-detection missed.
       </p>
+
+      {/* Search another bib — the same search model from the landing page. */}
+      <div style={{ maxWidth: 380, margin: "18px auto 0", textAlign: "left" }}>
+        <BibSearchForm />
+      </div>
+
+      {/* or */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          maxWidth: 380,
+          margin: "18px auto 0",
+          color: "var(--muted)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+          letterSpacing: ".14em",
+          textTransform: "uppercase",
+        }}
+      >
+        <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+        <span>or</span>
+        <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+      </div>
+
       <button
         className="btn btn--primary"
         onClick={() => fileRef.current?.click()}

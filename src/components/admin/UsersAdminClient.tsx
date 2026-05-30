@@ -1,11 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 import { currentEvent } from "@/lib/data";
+import {
+  getDuplicatePolicy,
+  setDuplicatePolicy,
+  type DuplicatePolicy,
+} from "@/lib/uploadSettings";
 
 type Role = "runner" | "photographer" | "race_director" | "owner";
+type ListRole = "photographer" | "race_director";
 
 type AdminUser = {
   id: string;
@@ -18,23 +23,20 @@ type AdminUser = {
   isYou: boolean;
 };
 
-// Roles the owner can grant. "runner" is always present (the baseline) so
-// we don't surface it as a toggle — only the upgrades.
-const GRANTABLE_ROLES: { role: Role; label: string; desc: string }[] = [
-  { role: "photographer", label: "Photographer", desc: "Upload + manage their own photos" },
-  { role: "race_director", label: "Race Director", desc: "Sees race-director dashboards (WIP)" },
-  { role: "owner", label: "Owner", desc: "Full control — including user management" },
-];
-
-type SaveState = "idle" | "saving" | "ok" | "err";
-
+/**
+ * Owner-only admin. Two responsibilities now:
+ *   1. Bundle price for the event (PricingPanel).
+ *   2. Access allow-lists — who is a Race Director and who is a Photographer.
+ *      Everyone not on a list is just a runner. You can add an email before
+ *      that person ever signs in; their first Google login claims the row and
+ *      inherits the role (see src/lib/auth.ts).
+ */
 export function UsersAdminClient() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
+  const [mutating, setMutating] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const r = await fetch("/api/admin/users", { cache: "no-store" });
       if (!r.ok) throw new Error(`users ${r.status}`);
@@ -52,41 +54,53 @@ export function UsersAdminClient() {
     void load();
   }, [load]);
 
-  async function setUserRoles(userId: string, nextRoles: Role[]) {
-    setSaveState((s) => ({ ...s, [userId]: "saving" }));
+  async function addMember(role: ListRole, email: string): Promise<boolean> {
+    setMutating(true);
     try {
-      const r = await fetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
+      const r = await fetch("/api/admin/users", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roles: nextRoles }),
+        body: JSON.stringify({ email, role }),
       });
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `patch ${r.status}`);
+        alert(j.error ?? `Could not add (${r.status})`);
+        return false;
       }
-      const d = (await r.json()) as { user: { id: string; roles: Role[] } };
-      setUsers((curr) =>
-        curr.map((u) => (u.id === userId ? { ...u, roles: d.user.roles } : u))
-      );
-      setSaveState((s) => ({ ...s, [userId]: "ok" }));
-      setTimeout(() => setSaveState((s) => ({ ...s, [userId]: "idle" })), 1400);
-    } catch (e) {
-      console.error(e);
-      setSaveState((s) => ({ ...s, [userId]: "err" }));
+      await load();
+      return true;
+    } finally {
+      setMutating(false);
     }
   }
 
-  function toggleRole(user: AdminUser, role: Role) {
-    const hasIt = user.roles.includes(role);
-    const next = hasIt
-      ? user.roles.filter((r) => r !== role)
-      : ([...user.roles, role] as Role[]);
-    void setUserRoles(user.id, next);
+  async function removeMember(role: ListRole, email: string): Promise<void> {
+    setMutating(true);
+    try {
+      const r = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role }),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        alert(j.error ?? `Could not remove (${r.status})`);
+        return;
+      }
+      await load();
+    } finally {
+      setMutating(false);
+    }
   }
 
-  const ownerCount = users.filter((u) => u.roles.includes("owner")).length;
-  const photographerCount = users.filter((u) => u.roles.includes("photographer")).length;
-  const rdCount = users.filter((u) => u.roles.includes("race_director")).length;
+  // Owners hold every role implicitly, so exclude them from the grant lists —
+  // the lists are for granting access to non-owners.
+  const photographers = users.filter(
+    (u) => u.roles.includes("photographer") && !u.roles.includes("owner")
+  );
+  const raceDirectors = users.filter(
+    (u) => u.roles.includes("race_director") && !u.roles.includes("owner")
+  );
 
   return (
     <main className="screen" style={{ padding: "40px 24px 96px" }}>
@@ -116,8 +130,8 @@ export function UsersAdminClient() {
             </div>
             <Headline
               as="h1"
-              text="Users + roles."
-              accent="roles."
+              text="Access + pricing."
+              accent="pricing."
               style={{
                 margin: 0,
                 fontFamily: "var(--font-serif)",
@@ -127,183 +141,231 @@ export function UsersAdminClient() {
               }}
             />
           </div>
-          <Link href="/photographer" className="btn btn--ghost">
-            ← Photographer dashboard
-          </Link>
         </div>
 
         <PricingPanel />
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 10,
-            marginBottom: 22,
-          }}
-        >
-          <Stat label="Total users" value={users.length.toString()} />
-          <Stat label="Owners" value={ownerCount.toString()} />
-          <Stat label="Photographers" value={photographerCount.toString()} />
-          <Stat label="Race directors" value={rdCount.toString()} />
-        </div>
+        <DuplicatePolicyPanel />
 
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading…</p>
-        ) : users.length === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No users yet.</p>
         ) : (
           <div
             style={{
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: 10,
-              overflow: "hidden",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gap: 18,
             }}
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(220px, 2fr) repeat(3, minmax(120px, 1fr)) 80px",
-                padding: "10px 14px",
-                background: "var(--cream)",
-                borderBottom: "1px solid var(--line)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: ".12em",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-                alignItems: "center",
-              }}
-            >
-              <span>User</span>
-              {GRANTABLE_ROLES.map((r) => (
-                <span key={r.role} title={r.desc}>
-                  {r.label}
-                </span>
-              ))}
-              <span style={{ textAlign: "right" }}>Photos</span>
-            </div>
-
-            {users.map((u) => {
-              const ss = saveState[u.id] ?? "idle";
-              return (
-                <div
-                  key={u.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "minmax(220px, 2fr) repeat(3, minmax(120px, 1fr)) 80px",
-                    padding: "12px 14px",
-                    borderBottom: "1px solid var(--line)",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-sans)",
-                        fontSize: 14,
-                        color: "var(--ink)",
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                      }}
-                    >
-                      {u.name}
-                      {u.isYou && (
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 9,
-                            letterSpacing: ".12em",
-                            textTransform: "uppercase",
-                            background: "var(--accent)",
-                            color: "var(--paper)",
-                            padding: "2px 6px",
-                            borderRadius: 3,
-                          }}
-                        >
-                          You
-                        </span>
-                      )}
-                      {ss === "saving" && <SaveBadge>saving…</SaveBadge>}
-                      {ss === "ok" && <SaveBadge>✓ saved</SaveBadge>}
-                      {ss === "err" && <SaveBadge tone="err">failed</SaveBadge>}
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 10,
-                        letterSpacing: ".06em",
-                        color: "var(--muted)",
-                        marginTop: 2,
-                      }}
-                    >
-                      {u.email}
-                      {!u.googleLinked && " · not yet signed in"}
-                    </div>
-                  </div>
-
-                  {GRANTABLE_ROLES.map((r) => {
-                    const checked = u.roles.includes(r.role);
-                    const isSelfOwner = u.isYou && r.role === "owner";
-                    return (
-                      <label
-                        key={r.role}
-                        title={isSelfOwner ? "Can't remove your own owner role" : r.desc}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          cursor: isSelfOwner ? "not-allowed" : "pointer",
-                          opacity: isSelfOwner ? 0.6 : 1,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isSelfOwner || ss === "saving"}
-                          onChange={() => toggleRole(u, r.role)}
-                          style={{
-                            accentColor: "var(--accent)",
-                            width: 16,
-                            height: 16,
-                            cursor: isSelfOwner ? "not-allowed" : "pointer",
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontFamily: "var(--font-sans)",
-                            fontSize: 12,
-                            color: "var(--ink)",
-                          }}
-                        >
-                          {r.label}
-                        </span>
-                      </label>
-                    );
-                  })}
-
-                  <div
-                    style={{
-                      textAlign: "right",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 13,
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {u.photoCount}
-                  </div>
-                </div>
-              );
-            })}
+            <WhitelistPanel
+              title="Photographers"
+              desc="Can upload and manage photos for events."
+              members={photographers}
+              busy={mutating}
+              onAdd={(email) => addMember("photographer", email)}
+              onRemove={(email) => removeMember("photographer", email)}
+            />
+            <WhitelistPanel
+              title="Race Directors"
+              desc="Can see race-director dashboards (coming soon)."
+              members={raceDirectors}
+              busy={mutating}
+              onAdd={(email) => addMember("race_director", email)}
+              onRemove={(email) => removeMember("race_director", email)}
+            />
           </div>
         )}
+      </div>
+    </main>
+  );
+}
 
+/**
+ * One allow-list (Photographers or Race Directors). Add an email to grant the
+ * role — works whether or not that person already has an account. Remove takes
+ * them off the list (they fall back to a plain runner).
+ */
+function WhitelistPanel({
+  title,
+  desc,
+  members,
+  busy,
+  onAdd,
+  onRemove,
+}: {
+  title: string;
+  desc: string;
+  members: AdminUser[];
+  busy: boolean;
+  onAdd: (email: string) => Promise<boolean>;
+  onRemove: (email: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    const e = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) {
+      setErr("Enter a valid email address.");
+      return;
+    }
+    setErr(null);
+    const ok = await onAdd(e);
+    if (ok) setEmail("");
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-serif)",
+              fontWeight: 500,
+              fontSize: 20,
+              color: "var(--ink)",
+            }}
+          >
+            {title}
+          </h2>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              color: "var(--muted)",
+            }}
+          >
+            {members.length}
+          </span>
+        </div>
+        <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{desc}</div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+          style={{ display: "flex", gap: 8, marginTop: 12 }}
+        >
+          <input
+            className="input"
+            type="email"
+            placeholder="name@email.com"
+            value={email}
+            disabled={busy}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ flex: 1, padding: "8px 10px", fontSize: 14 }}
+          />
+          <button type="submit" className="btn btn--primary" disabled={busy || !email.trim()}>
+            Add
+          </button>
+        </form>
+        {err && <div style={{ color: "var(--accent)", fontSize: 12, marginTop: 6 }}>{err}</div>}
+      </div>
+
+      {members.length === 0 ? (
+        <div style={{ padding: "20px 18px", color: "var(--muted)", fontSize: 13 }}>
+          No one yet.
+        </div>
+      ) : (
+        members.map((u) => (
+          <div
+            key={u.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "11px 18px",
+              borderBottom: "1px solid var(--line)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 14,
+                  color: "var(--ink)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {u.email}
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: ".06em",
+                  color: "var(--muted)",
+                  marginTop: 1,
+                }}
+              >
+                {u.googleLinked ? u.name : "not yet signed in"}
+                {u.photoCount > 0 && ` · ${u.photoCount} photo${u.photoCount === 1 ? "" : "s"}`}
+              </div>
+            </div>
+            <button
+              className="btn btn--ghost btn--sm"
+              disabled={busy}
+              onClick={() => void onRemove(u.email)}
+              style={{ color: "var(--accent)", flexShrink: 0 }}
+            >
+              Remove
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/**
+ * Default behavior when an upload's content hash collides with an existing
+ * photo in the event. Persisted client-side (localStorage) and read by the
+ * upload panel — see src/lib/uploadSettings.ts.
+ */
+function DuplicatePolicyPanel() {
+  const [policy, setPolicy] = useState<DuplicatePolicy>("skip");
+  useEffect(() => {
+    setPolicy(getDuplicatePolicy());
+  }, []);
+
+  function choose(p: DuplicatePolicy) {
+    setPolicy(p);
+    setDuplicatePolicy(p);
+  }
+
+  const options: { value: DuplicatePolicy; label: string; desc: string }[] = [
+    { value: "skip", label: "Skip", desc: "Leave the existing photo, drop the re-upload." },
+    { value: "overwrite", label: "Overwrite", desc: "Replace the existing photo with the new one." },
+  ];
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+        padding: "16px 18px",
+        marginBottom: 22,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 220 }}>
         <div
           style={{
-            marginTop: 14,
             fontFamily: "var(--font-mono)",
             fontSize: 10,
             letterSpacing: ".12em",
@@ -311,68 +373,60 @@ export function UsersAdminClient() {
             color: "var(--muted)",
           }}
         >
-          Every user has the runner baseline — these toggles grant the extras.
+          Duplicate uploads
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: 18,
+            color: "var(--ink)",
+            marginTop: 2,
+          }}
+        >
+          When the same photo is uploaded again
         </div>
       </div>
-    </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: "10px 12px",
-      }}
-    >
       <div
+        role="radiogroup"
+        aria-label="Duplicate upload policy"
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 10,
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "var(--muted)",
+          display: "inline-flex",
+          border: "1px solid var(--line)",
+          borderRadius: 6,
+          background: "var(--cream)",
+          padding: 2,
         }}
       >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 500,
-          fontSize: 22,
-          color: "var(--ink)",
-          marginTop: 2,
-        }}
-      >
-        {value}
+        {options.map((o) => {
+          const active = policy === o.value;
+          return (
+            <button
+              key={o.value}
+              role="radio"
+              aria-checked={active}
+              title={o.desc}
+              onClick={() => choose(o.value)}
+              style={{
+                padding: "7px 16px",
+                border: 0,
+                borderRadius: 4,
+                cursor: "pointer",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                background: active ? "var(--surface)" : "transparent",
+                color: active ? "var(--ink)" : "var(--muted)",
+                boxShadow: active ? "var(--shadow)" : "none",
+              }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
-  );
-}
-
-function SaveBadge({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone?: "err";
-}) {
-  return (
-    <span
-      style={{
-        fontFamily: "var(--font-mono)",
-        fontSize: 9,
-        letterSpacing: ".1em",
-        textTransform: "uppercase",
-        color: tone === "err" ? "var(--accent)" : "var(--muted)",
-      }}
-    >
-      {children}
-    </span>
   );
 }
 
