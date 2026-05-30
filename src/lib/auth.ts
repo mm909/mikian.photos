@@ -8,6 +8,7 @@ import {
   ownerEmail,
   type Role,
 } from "./permissions";
+import { isSiteGateOn, isAllowedGateEmail } from "./siteGate";
 
 /**
  * NextAuth config — Google OAuth, JWT sessions.
@@ -40,6 +41,12 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       if (!user.email || !account?.providerAccountId) return false;
       const email = user.email.toLowerCase().trim();
+
+      // Site gate: while the whole site is private, refuse to mint a session
+      // for any account other than the one allowed in — before any DB write.
+      // (See src/lib/siteGate.ts; disabled by SITE_PUBLIC=true.)
+      if (isSiteGateOn() && !isAllowedGateEmail(email)) return false;
+
       const displayName = user.name ?? user.email.split("@")[0];
       const isOwnerEmail = email === ownerEmail();
 

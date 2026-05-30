@@ -1,9 +1,18 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Headline } from "@/components/runner/Headline";
 
-export default function SignInPage() {
+/**
+ * Where the site gate sends a visitor who IS signed in with Google but with an
+ * account that isn't the one allowed in. Gives them a way to sign out and try
+ * the right account. Allow-listed in `src/middleware.ts` so it renders even
+ * while the gate is on.
+ */
+export default function NoAccessPage() {
+  const { data: session } = useSession();
+  const email = session?.user?.email;
+
   return (
     <main className="screen" style={{ padding: "96px 24px" }}>
       <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
@@ -17,12 +26,12 @@ export default function SignInPage() {
             marginBottom: 14,
           }}
         >
-          Photographer access
+          Private preview
         </div>
         <Headline
           as="h1"
-          text="Sign in to upload."
-          accent="upload."
+          text="This site isn't open yet."
+          accent="open yet."
           style={{
             margin: 0,
             fontFamily: "var(--font-serif)",
@@ -34,28 +43,22 @@ export default function SignInPage() {
           }}
         />
         <p style={{ color: "var(--muted)", fontSize: 15, marginTop: 16, lineHeight: 1.55 }}>
-          Photographers shooting Mikian events use their Google account to upload, credit,
-          and manage their photos. Runners don&rsquo;t need an account.
+          Mikian.Photos is still in private preview.
+          {email ? (
+            <>
+              {" "}
+              You&rsquo;re signed in as <strong>{email}</strong>, which isn&rsquo;t the
+              account that has access.
+            </>
+          ) : null}
         </p>
         <button
           className="btn btn--primary btn--lg"
           style={{ marginTop: 28, padding: "14px 22px" }}
-          onClick={() => {
-            // Honor the gate's ?callbackUrl=… (only same-origin paths), so the
-            // user returns to wherever they were headed. Falls back to the
-            // photographer dashboard for direct visits.
-            const cb = new URLSearchParams(window.location.search).get("callbackUrl");
-            const callbackUrl =
-              cb && cb.startsWith("/") && !cb.startsWith("//") ? cb : "/photographer";
-            signIn("google", { callbackUrl });
-          }}
+          onClick={() => signOut({ callbackUrl: "/photographer/sign-in" })}
         >
-          Continue with Google
+          Sign out and try another account
         </button>
-        <p style={{ marginTop: 18, color: "var(--muted)", fontSize: 12 }}>
-          By signing in you agree to our{" "}
-          <a href="/terms">Terms</a> and <a href="/privacy">Privacy</a>.
-        </p>
       </div>
     </main>
   );
