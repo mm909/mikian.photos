@@ -173,3 +173,54 @@ export async function computeFaceAssignments(
   }
   return out;
 }
+
+/**
+ * Decide whether a bib maps to ONE face confidently enough that we can skip
+ * the "Is this you?" question and auto-expand by that cluster.
+ *
+ * Returns the cluster id only when we're confident there's a single runner
+ * behind the bib: exactly one face cluster is geometrically linked to the bib
+ * AND that cluster appears in at least `MIN_PHOTOS` distinct photos ("only ever
+ * one person … multiple times"). Any ambiguity — multiple clusters linked to
+ * the bib, a single-photo sighting, or no geometric links at all (no bib boxes
+ * / un-indexed faces) — returns null so the UI falls back to asking.
+ *
+ * Scoped to one bib and deliberately strict; this is the safe side to err on,
+ * since a wrong auto-confirm would silently hide a runner's real photos.
+ */
+const AUTO_CONFIRM_MIN_PHOTOS = 2;
+
+export async function autoConfirmClusterForBib(
+  eventId: string,
+  bib: number
+): Promise<string | null> {
+  // Faces in THIS bib's photos that geometry linked to THIS bib, with a
+  // cluster. Mirrors the filter in computeFaceAssignments but bib-scoped.
+  const faces = await db.photoFace.findMany({
+    where: {
+      eventId,
+      bib,
+      faceClusterId: { not: null },
+      photo: { hidden: false },
+    },
+    select: { photoId: true, faceClusterId: true },
+  });
+  if (faces.length === 0) return null;
+
+  // cluster → distinct photo set
+  const photosByCluster = new Map<string, Set<string>>();
+  for (const f of faces) {
+    const cid = f.faceClusterId!;
+    const set = photosByCluster.get(cid) ?? new Set<string>();
+    set.add(f.photoId);
+    photosByCluster.set(cid, set);
+  }
+
+  // Ambiguous when more than one face cluster is linked to the bib — that's
+  // exactly when we should ask rather than guess.
+  if (photosByCluster.size !== 1) return null;
+
+  const [[clusterId, photos]] = [...photosByCluster.entries()];
+  if (photos.size < AUTO_CONFIRM_MIN_PHOTOS) return null;
+  return clusterId;
+}

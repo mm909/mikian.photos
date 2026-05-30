@@ -21,6 +21,10 @@ model Event {
   date          DateTime
   city          String
   org           String
+  // Owner-editable bundle price in whole cents (e.g. 2500 = $25.00). Stored
+  // as an Int to avoid float drift; nullable so events created before this
+  // field fall back to the static `prices.bundle` default at read time.
+  bundlePriceCents Int?
   photographers Photographer[]
   photos        Photo[]
   createdAt     DateTime       @default(now())
