@@ -89,7 +89,11 @@ export async function createOrder(input: CreateOrderInput): Promise<{ id: string
 }
 
 export type CapturedOrder = {
+  /** PayPal ORDER id (the capture response's top-level `id`). */
   id: string;
+  /** PayPal CAPTURE id (purchase_units[].payments.captures[].id) — the id a
+   *  refund must target. Optional in case a response ever omits it. */
+  captureId?: string;
   status: string;
   payerEmail?: string;
   payerName?: string;
@@ -115,6 +119,7 @@ export async function captureOrder(orderId: string): Promise<CapturedOrder> {
   const capture = captures[0];
   return {
     id: json.id,
+    captureId: capture?.id,
     status: capture?.status ?? json.status,
     payerEmail: json?.payer?.email_address,
     payerName: [json?.payer?.name?.given_name, json?.payer?.name?.surname]
@@ -152,6 +157,25 @@ export async function refundCapture(captureId: string): Promise<RefundResult> {
     throw new Error(`PayPal refund failed (${res.status}): ${JSON.stringify(json)}`);
   }
   return { id: json.id, status: json.status };
+}
+
+/**
+ * Resolve the real capture id for a PayPal *order* id. Repairs legacy orders
+ * that stored the order id in paypalCaptureId (the capture response's top-level
+ * `id` is the order id, not the capture id) so a refund can target the right
+ * resource. Returns null if the order can't be read or has no capture.
+ */
+export async function getCaptureIdFromOrder(orderId: string): Promise<string | null> {
+  const token = await getAccessToken();
+  const res = await fetch(`${API_BASE}/v2/checkout/orders/${orderId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const json = (await res.json()) as any;
+  const cap = json?.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+  return typeof cap === "string" ? cap : null;
 }
 
 export function paypalEnv(): "live" | "sandbox" {

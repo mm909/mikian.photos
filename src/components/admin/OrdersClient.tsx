@@ -35,7 +35,13 @@ type RowState = { busy: null | "resend" | "refund"; msg: string | null; error: b
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 /**
  * Orders admin table. Owner gets refund + resend per row; race directors see

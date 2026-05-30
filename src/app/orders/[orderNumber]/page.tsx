@@ -357,9 +357,11 @@ function SumRow({
 }
 
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }

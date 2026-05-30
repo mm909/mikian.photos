@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Headline } from "../Headline";
 import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
 
@@ -32,6 +33,19 @@ export function Lightbox({
   onJump,
   onBundle,
 }: Props) {
+  // Paged thumbnail gallery — show PAGE at a time instead of a long scroll.
+  // The page follows the current photo (so arrow-key nav shifts the page), and
+  // the ‹ › buttons below browse pages directly.
+  const PAGE = 8;
+  const idx = photos.findIndex((p) => p.id === photo.id);
+  const pages = Math.max(1, Math.ceil(photos.length / PAGE));
+  const [galleryPage, setGalleryPage] = useState(0);
+  useEffect(() => {
+    if (idx >= 0) setGalleryPage(Math.floor(idx / PAGE));
+  }, [idx]);
+  const galStart = galleryPage * PAGE;
+  const pagePhotos = photos.slice(galStart, galStart + PAGE);
+
   return (
     <div className="overlay" onClick={onClose} style={{ background: "rgba(28,26,23,.78)" }}>
       <div
@@ -176,11 +190,11 @@ export function Lightbox({
             All {totalCount} photos
           </div>
 
-          {/* Scrollable gallery — capped to ~2–3 rows so the buy CTA below
-              always stays visible; the rest scrolls. */}
-          <div style={{ overflowY: "auto", padding: "0 28px 12px", maxHeight: "min(46vh, 440px)" }}>
+          {/* Paged gallery — show PAGE thumbnails at a time (no long scroll).
+              Landscape 3/2 tiles so race shots aren't cropped top-and-bottom. */}
+          <div style={{ padding: "0 28px 12px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {photos.map((p) => {
+              {pagePhotos.map((p) => {
                 const isCurr = p.id === photo.id;
                 return (
                   <div
@@ -188,7 +202,7 @@ export function Lightbox({
                     onClick={() => onJump(p)}
                     style={{
                       position: "relative",
-                      aspectRatio: "2/3",
+                      aspectRatio: "3 / 2",
                       borderRadius: 4,
                       cursor: "pointer",
                       background: p.previewUrl ? "var(--cream)" : photoBg(p),
@@ -215,6 +229,48 @@ export function Lightbox({
                 );
               })}
             </div>
+
+            {pages > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  marginTop: 10,
+                }}
+              >
+                <button
+                  className="icon-btn"
+                  onClick={() => setGalleryPage((g) => Math.max(0, g - 1))}
+                  disabled={galleryPage <= 0}
+                  aria-label="Previous photos"
+                  style={{ background: "#fff" }}
+                >
+                  ‹
+                </button>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10,
+                    letterSpacing: ".1em",
+                    textTransform: "uppercase",
+                    color: "var(--muted)",
+                  }}
+                >
+                  {galStart + 1}–{Math.min(galStart + PAGE, photos.length)} of {photos.length}
+                </span>
+                <button
+                  className="icon-btn"
+                  onClick={() => setGalleryPage((g) => Math.min(pages - 1, g + 1))}
+                  disabled={galleryPage >= pages - 1}
+                  aria-label="More photos"
+                  style={{ background: "#fff" }}
+                >
+                  ›
+                </button>
+              </div>
+            )}
           </div>
 
           {/* footer — price block + CTA, pinned to the bottom below the images */}
@@ -252,10 +308,10 @@ export function Lightbox({
 
             {bundleInCart ? (
               <button
-                className="btn btn--green btn--block btn--lg"
+                className="btn btn--primary btn--block btn--lg"
                 onClick={() => onBundle(true)}
               >
-                ✓ Added — Checkout →
+                Checkout →
               </button>
             ) : (
               <button

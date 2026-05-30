@@ -63,6 +63,9 @@ export async function POST(req: Request) {
         { status: 402 }
       );
     }
+    // PayPal's capture response top-level id is the ORDER id; the real capture
+    // id (what a refund must target) is nested per purchase unit. Store that.
+    const captureId = captured.captureId ?? captured.id;
     const amountUsd = captured.amountUsd ?? 0;
     const payerEmail = captured.payerEmail?.toLowerCase().trim();
     if (!payerEmail) {
@@ -75,7 +78,7 @@ export async function POST(req: Request) {
     // Idempotency: PayPal occasionally retries on flaky networks. If we've
     // already saved this capture, return the existing row.
     const existing = await db.order.findUnique({
-      where: { paypalCaptureId: captured.id },
+      where: { paypalCaptureId: captureId },
     });
     if (existing) {
       return NextResponse.json(buildOrderPayload(existing));
@@ -94,7 +97,7 @@ export async function POST(req: Request) {
       eventId,
       clientPhotoIds,
       amountUsd,
-      paypalCaptureId: captured.id,
+      paypalCaptureId: captureId,
       baseUrl: resolveBaseUrl(req),
     });
     if (!result.ok) {

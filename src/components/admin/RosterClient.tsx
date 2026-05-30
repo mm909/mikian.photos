@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
 import { Stat, fmtCount, useCoverageData } from "@/components/admin/CoverageClient";
+import { DISTANCE_LABELS, type DistanceKey } from "@/lib/gpx";
 
 type Runner = {
   bib: number;
@@ -14,6 +15,7 @@ type Runner = {
   state: string;
   chipTime: string;
   chipMinutes: number;
+  distance: DistanceKey;
   photoCount: number;
   // The single face we've identified for this runner (face-above-bib geometry
   // + one-face-per-runner). null when no face is matched yet. Renders the row
@@ -27,7 +29,7 @@ type RosterResponse = {
   officialResultsUrl: string | null;
 };
 
-type SortKey = "bib" | "face" | "name" | "gender" | "age" | "city" | "chip" | "photos";
+type SortKey = "bib" | "face" | "name" | "race" | "gender" | "age" | "city" | "chip" | "photos";
 
 // Approx pixel height of one rendered roster row — used to size a page so
 // the table fits the viewport without scrolling. Keep in sync with the row
@@ -135,6 +137,11 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
           return (a.bib - b.bib) * dir;
         case "name":
           return a.name.localeCompare(b.name) * dir;
+        case "race":
+          return (
+            ((RACE_RANK[a.distance] ?? 99) - (RACE_RANK[b.distance] ?? 99)) * dir ||
+            a.bib - b.bib
+          );
         case "gender":
           return a.gender.localeCompare(b.gender) * dir;
         case "age":
@@ -165,7 +172,11 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
     if (sort === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(k);
-      setSortDir(k === "name" || k === "gender" || k === "city" || k === "bib" ? "asc" : "desc");
+      setSortDir(
+        k === "name" || k === "gender" || k === "city" || k === "bib" || k === "race"
+          ? "asc"
+          : "desc"
+      );
     }
   }
 
@@ -299,7 +310,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "60px 34px 1.6fr 60px 50px 1fr 80px 70px",
+                      gridTemplateColumns: "60px 34px 1.6fr 56px 60px 50px 1fr 80px 70px",
                       gap: 10,
                       padding: "8px 12px",
                       background: "var(--cream)",
@@ -309,6 +320,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                     <SortBtn label="Bib" k="bib" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Face" k="face" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Name" k="name" active={sort} dir={sortDir} onClick={toggleSort} />
+                    <SortBtn label="Race" k="race" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Sex" k="gender" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="Age" k="age" active={sort} dir={sortDir} onClick={toggleSort} />
                     <SortBtn label="City" k="city" active={sort} dir={sortDir} onClick={toggleSort} />
@@ -326,7 +338,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                       key={r.bib}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "60px 34px 1.6fr 60px 50px 1fr 80px 70px",
+                        gridTemplateColumns: "60px 34px 1.6fr 56px 60px 50px 1fr 80px 70px",
                         gap: 10,
                         padding: "7px 12px",
                         borderBottom: "1px solid var(--line)",
@@ -369,6 +381,7 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                       >
                         {r.name}
                       </Link>
+                      <RaceBadge distance={r.distance} />
                       <span style={{ color: "var(--muted)" }}>{r.gender[0]}</span>
                       <span
                         style={{
@@ -554,6 +567,38 @@ function SortBtn({
       {label}
       {isActive ? (dir === "asc" ? " ↑" : " ↓") : ""}
     </button>
+  );
+}
+
+const RACE_STYLES: Record<DistanceKey, { color: string; bg: string }> = {
+  "5k": { color: "#2f7d4f", bg: "rgba(47,125,79,.12)" },
+  "10k": { color: "#2f6db0", bg: "rgba(47,109,176,.12)" },
+  half: { color: "#c8401a", bg: "rgba(200,64,26,.12)" },
+};
+
+const RACE_RANK: Record<DistanceKey, number> = { "5k": 0, "10k": 1, half: 2 };
+
+/** Color-coded race/distance chip (5K / 10K / Half). */
+function RaceBadge({ distance }: { distance: DistanceKey }) {
+  const s = RACE_STYLES[distance] ?? { color: "var(--muted)", bg: "var(--cream)" };
+  return (
+    <span
+      title={DISTANCE_LABELS[distance] ?? distance}
+      style={{
+        display: "inline-block",
+        padding: "2px 7px",
+        borderRadius: 4,
+        fontFamily: "var(--font-mono)",
+        fontSize: 10,
+        letterSpacing: ".06em",
+        textTransform: "uppercase",
+        color: s.color,
+        background: s.bg,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {DISTANCE_LABELS[distance] ?? distance}
+    </span>
   );
 }
 

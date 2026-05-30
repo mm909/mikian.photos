@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { parseOrderNumber } from "@/lib/orderId";
-import { refundCapture } from "@/lib/paypal";
+import { refundCapture, getCaptureIdFromOrder } from "@/lib/paypal";
 
 /**
  * POST /api/admin/orders/[orderNumber]/refund — owner only.
@@ -43,17 +43,45 @@ export async function POST(
     );
   }
 
+  // Refund. Some orders stored the PayPal *order* id in paypalCaptureId (the
+  // capture response's top-level `id`), so /captures/{id}/refund 404s with
+  // INVALID_RESOURCE_ID. On that error, resolve the real capture id from the
+  // order id, retry once, and persist the correction.
+  let captureId = order.paypalCaptureId;
   let refund: { id: string; status: string };
   try {
-    refund = await refundCapture(order.paypalCaptureId);
+    refund = await refundCapture(captureId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 502 });
+    const wrongId = /INVALID_RESOURCE_ID|RESOURCE_NOT_FOUND|\(404\)/.test(msg);
+    const resolved = wrongId
+      ? await getCaptureIdFromOrder(captureId).catch(() => null)
+      : null;
+    if (!resolved || resolved === captureId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: wrongId
+            ? `PayPal couldn't find that capture. If the order was paid in a different PayPal environment than PAYPAL_ENV points to, the refund can't reach it. (${msg})`
+            : msg,
+        },
+        { status: 502 }
+      );
+    }
+    try {
+      refund = await refundCapture(resolved);
+      captureId = resolved;
+    } catch (e2) {
+      return NextResponse.json(
+        { ok: false, error: e2 instanceof Error ? e2.message : String(e2) },
+        { status: 502 }
+      );
+    }
   }
 
   const updated = await db.order.update({
     where: { id: order.id },
-    data: { refundedAt: new Date(), refundId: refund.id },
+    data: { refundedAt: new Date(), refundId: refund.id, paypalCaptureId: captureId },
     select: { refundedAt: true },
   });
 
