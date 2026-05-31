@@ -105,15 +105,32 @@ export function Lightbox({
             />
           )}
 
+          {/* Mobile: big invisible left/right tap zones so you can flick through
+              photos by tapping the sides — not just the small arrows. They're
+              transparent (don't cover the photo) and sit below the arrows. */}
+          <button
+            type="button"
+            onClick={onPrev}
+            className="lightbox-tapzone lightbox-tapzone--left"
+            aria-label="Previous photo"
+          />
+          <button
+            type="button"
+            onClick={onNext}
+            className="lightbox-tapzone lightbox-tapzone--right"
+            aria-label="Next photo"
+          />
+
           <button
             onClick={onPrev}
             className="icon-btn"
             style={{
               position: "absolute",
-              left: 16,
+              left: 12,
               top: "50%",
               transform: "translateY(-50%)",
               background: "#fff",
+              zIndex: 3,
             }}
             aria-label="Previous"
           >
@@ -124,10 +141,11 @@ export function Lightbox({
             className="icon-btn"
             style={{
               position: "absolute",
-              right: 16,
+              right: 12,
               top: "50%",
               transform: "translateY(-50%)",
               background: "#fff",
+              zIndex: 3,
             }}
             aria-label="Next"
           >
@@ -139,7 +157,7 @@ export function Lightbox({
           <button
             onClick={onClose}
             className="icon-btn lightbox-mobile-close"
-            style={{ position: "absolute", top: 14, right: 14, background: "#fff" }}
+            style={{ position: "absolute", top: 12, right: 12, background: "#fff", zIndex: 4 }}
             aria-label="Close"
           >
             ×

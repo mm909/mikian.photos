@@ -59,11 +59,15 @@ export function OrderPhotoGrid({
   dropboxAppKey,
 }: Props) {
   const [zipBusy, setZipBusy] = useState(false);
+  const [zipReady, setZipReady] = useState(false);
   const [page, setPage] = useState(1);
   const [zipErr, setZipErr] = useState<string | null>(null);
   /** Live ZIP download progress while building: { received bytes, total bytes
    *  (0 when the server streams without a Content-Length) }. */
   const [zipProgress, setZipProgress] = useState<{ received: number; total: number } | null>(null);
+  /** Built ZIP, cached for the session so re-clicking re-saves it instantly
+   *  instead of rebuilding (the order's photo set doesn't change). */
+  const zipBlobRef = useRef<Blob | null>(null);
 
   function downloadHref(id: string): string {
     return `/api/photos/${id}/download?token=${encodeURIComponent(downloadToken)}`;
@@ -73,7 +77,23 @@ export function OrderPhotoGrid({
   const orderTag = formatOrderNumber(orderNumber);
   const zipHref = `/api/orders/${orderTag}/zip?key=${encodeURIComponent(downloadToken)}`;
 
+  function saveBlob(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${orderTag}-photos.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
   async function downloadZip() {
+    // Already built this session → just re-save it, no rebuild.
+    if (zipBlobRef.current) {
+      saveBlob(zipBlobRef.current);
+      return;
+    }
     setZipBusy(true);
     setZipErr(null);
     setZipProgress({ received: 0, total: 0 });
@@ -108,14 +128,9 @@ export function OrderPhotoGrid({
       } else {
         blob = await res.blob();
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${orderTag}-photos.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      zipBlobRef.current = blob; // cache for instant re-download
+      setZipReady(true);
+      saveBlob(blob);
     } catch (e) {
       setZipErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -165,6 +180,9 @@ export function OrderPhotoGrid({
   // open the share sheet." We hold one chunk in memory at a time.
   const [readyFiles, setReadyFiles] = useState<File[]>([]);
   const [prepping, setPrepping] = useState(false);
+  /** How many of the current chunk's files have downloaded (for the progress
+   *  label, so "Preparing photos…" visibly moves). */
+  const [prepDone, setPrepDone] = useState(0);
   const readyCursorRef = useRef(-1);
   useEffect(() => {
     if (!canShareFiles || shareDone || total === 0) return;
@@ -172,13 +190,19 @@ export function OrderPhotoGrid({
     const slice = photos.slice(shareCursor, shareCursor + SHARE_CHUNK);
     if (slice.length === 0) return;
     let cancelled = false;
+    let done = 0;
     setPrepping(true);
+    setPrepDone(0);
     setReadyFiles([]);
     Promise.all(
       slice.map(async (p) => {
         const res = await fetch(downloadHref(p.id));
         if (!res.ok) throw new Error(`fetch ${p.id} ${res.status}`);
         const blob = await res.blob();
+        if (!cancelled) {
+          done += 1;
+          setPrepDone(done);
+        }
         return new File([blob], `${p.id}.jpg`, { type: "image/jpeg" });
       })
     )
@@ -198,6 +222,9 @@ export function OrderPhotoGrid({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canShareFiles, shareCursor, shareDone, total]);
+
+  /** Size of the chunk currently being prepped (for the progress label). */
+  const prepChunkSize = Math.max(0, chunkEnd - shareCursor);
 
   /**
    * Save the prepped chunk to the device's Photos library via the Web Share
@@ -234,7 +261,8 @@ export function OrderPhotoGrid({
   let addLabel: string;
   if (sharing) addLabel = "Opening share sheet…";
   else if (shareDone) addLabel = multiChunk ? `All ${total} saved ✓` : "Saved to Photos ✓";
-  else if (prepping || readyFiles.length === 0) addLabel = "Preparing photos…";
+  else if (prepping || readyFiles.length === 0)
+    addLabel = `Preparing photos… ${prepDone}/${prepChunkSize}`;
   else if (multiChunk)
     addLabel = `Save ${shareCursor + 1}–${chunkEnd} of ${total} to Photos`;
   else addLabel = `Save all ${total} to Photos`;
@@ -310,14 +338,7 @@ export function OrderPhotoGrid({
         </div>
 
         {/* Method 1 — to your device */}
-        <DeliveryRow
-          title="To your device"
-          help={
-            canShareFiles
-              ? "“Download all” saves one ZIP to your Files. “Add to Photos” drops them straight into your Photos library — on iPhone they save a batch at a time, so tap again for each set."
-              : "One ZIP with every photo, saved to your Downloads."
-          }
-        >
+        <DeliveryRow title="To your device" help="">
           <button
             className="btn btn--primary"
             onClick={downloadZip}
@@ -331,7 +352,9 @@ export function OrderPhotoGrid({
                       : ""
                   }`
                 : "Preparing ZIP…"
-              : `Download all (${total}) as ZIP`}
+              : zipReady
+                ? `Download ZIP again (${total})`
+                : `Download all (${total}) as ZIP`}
           </button>
 
           {canShareFiles && (
@@ -464,17 +487,19 @@ function DeliveryRow({
         {title}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{children}</div>
-      <p
-        style={{
-          margin: 0,
-          fontSize: 12.5,
-          lineHeight: 1.5,
-          color: "var(--muted)",
-          maxWidth: 560,
-        }}
-      >
-        {help}
-      </p>
+      {help && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            color: "var(--muted)",
+            maxWidth: 560,
+          }}
+        >
+          {help}
+        </p>
+      )}
     </div>
   );
 }

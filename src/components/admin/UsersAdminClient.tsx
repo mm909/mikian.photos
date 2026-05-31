@@ -243,7 +243,9 @@ function WhitelistPanel({
         background: "var(--surface)",
         border: "1px solid var(--line)",
         borderRadius: 10,
-        overflow: "hidden",
+        // Not "hidden" — the typeahead dropdown needs to overflow the panel
+        // instead of being clipped at its bottom edge.
+        overflow: "visible",
       }}
     >
       <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--line)" }}>

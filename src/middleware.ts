@@ -26,12 +26,22 @@ const OPEN_PATHS = [
   "/api/unlock", // owner unlock-key bypass (drops the bypass cookie)
   "/api/lock", // clears the bypass cookie
   "/api/photographer/unlock", // legacy alias that forwards to /api/unlock
+  "/api/cron", // Vercel Cron jobs (self-gated by CRON_SECRET; no session)
 ];
 
 function isOpenPath(pathname: string): boolean {
   return OPEN_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
+}
+
+// Roles the owner can grant that let someone past the beta gate. The JWT
+// carries `roles` (set in auth.ts), so this needs no DB query at the edge. A
+// plain "runner" does NOT pass — the site stays private to granted accounts.
+const GATE_PASS_ROLES = ["photographer", "race_director", "owner"];
+function hasGatePassRole(token: { roles?: unknown } | null): boolean {
+  const roles = token?.roles;
+  return Array.isArray(roles) && roles.some((r) => GATE_PASS_ROLES.includes(r as string));
 }
 
 export async function middleware(req: NextRequest) {
@@ -54,7 +64,9 @@ export async function middleware(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  if (isAllowedGateEmail(token?.email)) {
+  // The one allowed account, OR anyone the owner granted a role (a director
+  // added to the access list can get past the beta blocker once signed in).
+  if (isAllowedGateEmail(token?.email) || hasGatePassRole(token)) {
     return NextResponse.next();
   }
 

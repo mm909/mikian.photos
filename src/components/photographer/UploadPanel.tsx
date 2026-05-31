@@ -416,11 +416,32 @@ export function UploadPanel({
     await processUntilEmpty();
   }
 
+  /** Retry a single failed photo — re-queue it at the FRONT of the line so it's
+   *  the next one picked up, not stuck behind everything else. */
+  function retryOne(uid: string) {
+    setItems((curr) => {
+      const item = curr.find((i) => i.uid === uid);
+      if (!item) return curr;
+      const rest = curr.filter((i) => i.uid !== uid);
+      return [{ ...item, stage: "queued" as Stage, errorMsg: undefined }, ...rest];
+    });
+    void processUntilEmpty();
+  }
+
   /**
    * Abort the batch: stop both pools, wipe the local queue, and delete any
    * photo that already made it to R2 so a cancel leaves nothing behind.
    */
   async function cancel() {
+    const uploadedSoFar = items.filter((i) => i.photoId).length;
+    const ok = window.confirm(
+      uploadedSoFar > 0
+        ? `Cancel this upload?\n\nThe ${uploadedSoFar} photo${
+            uploadedSoFar === 1 ? "" : "s"
+          } already uploaded in this batch will be REMOVED from the library. This can't be undone.`
+        : "Cancel this upload? Nothing has been uploaded yet."
+    );
+    if (!ok) return;
     pausedRef.current = true;
     runningRef.current = false;
     detectingRef.current = false;
@@ -737,19 +758,23 @@ export function UploadPanel({
                 </div>
               )}
 
-              {detectingInBackground && (
+              {(detectingInBackground || isDetecting) && (
                 <div
                   style={{
                     marginTop: 10,
-                    fontFamily: "var(--font-sans)",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--line)",
+                    background: "var(--cream)",
                     fontSize: 12.5,
-                    color: "var(--muted)",
+                    color: "var(--ink)",
                     lineHeight: 1.5,
                   }}
                 >
-                  All {active} uploaded and live — bib OCR + face detection are still
-                  running in the background. You can keep this open to watch, or close
-                  it; tagging continues.
+                  All {active} uploaded and live. Bib OCR + face detection are still
+                  running — <strong>keep this tab open until tagging finishes.</strong>{" "}
+                  Closing it stops detection (your photos stay safe; you can re-run
+                  detection later).
                 </div>
               )}
 
@@ -798,11 +823,82 @@ export function UploadPanel({
                 <Metric
                   label="Failed"
                   value={`${failed}`}
-                  sub={failed > 0 ? "need retry" : "none"}
+                  sub={failed > 0 ? "see below" : "none"}
                   tone={failed > 0 ? "error" : undefined}
                   muted={failed === 0}
                 />
               </div>
+
+              {/* Failed photos — show which files failed (filename is all the
+                  browser exposes — no full local path) + a per-photo retry that
+                  re-queues it as the next one up. */}
+              {failed > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      letterSpacing: ".12em",
+                      textTransform: "uppercase",
+                      color: "var(--muted)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Failed photos
+                  </div>
+                  <div
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {items
+                      .filter((i) => i.stage === "error")
+                      .map((i) => (
+                        <div
+                          key={i.uid}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 10,
+                            padding: "8px 12px",
+                            borderTop: "1px solid var(--line)",
+                            background: "var(--surface)",
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                color: "var(--ink)",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={i.file.name}
+                            >
+                              {i.file.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--accent)" }}>
+                              {i.errorMsg ?? "upload failed"}
+                            </div>
+                          </div>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            style={{ flexShrink: 0 }}
+                            onClick={() => retryOne(i.uid)}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -818,9 +914,6 @@ export function UploadPanel({
           >
             {isRunning ? (
               <>
-                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
-                  Upload more
-                </button>
                 <button className="btn btn--ghost" onClick={pause}>
                   Pause
                 </button>
@@ -830,9 +923,6 @@ export function UploadPanel({
               </>
             ) : isPaused ? (
               <>
-                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
-                  Upload more
-                </button>
                 <button className="btn btn--primary" onClick={resume}>
                   Resume{queued > 0 ? ` (${queued})` : ""}
                 </button>
@@ -853,12 +943,9 @@ export function UploadPanel({
               <>
                 {failed > 0 && (
                   <button className="btn btn--ghost" onClick={retryFailed}>
-                    Retry {failed}
+                    Retry all {failed}
                   </button>
                 )}
-                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
-                  Upload more
-                </button>
                 <button className="btn btn--primary" onClick={finish}>
                   Done
                 </button>

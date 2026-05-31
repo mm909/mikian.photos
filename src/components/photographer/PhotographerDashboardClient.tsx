@@ -20,6 +20,8 @@ type EventRow = {
   lastUploadAt: string | null;
   /** Number of orders covering this event. */
   orderCount: number;
+  /** Finalized photos that never got bib/face detection ("dead photos"). */
+  undetectedCount: number;
   /** Revenue (USD) earned from this event's orders. Optional — server only
    *  populates it for the owner; dimmed / em-dash when missing. */
   earnedUsd?: number;
@@ -287,6 +289,7 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                 dropFiles(r.eventId, e.dataTransfer.files);
               }}
               style={{
+                position: "relative",
                 display: "grid",
                 gridTemplateColumns: GRID_COLS,
                 gap: 12,
@@ -296,30 +299,15 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                 fontSize: 14,
                 alignItems: "center",
                 cursor: "pointer",
-                background: dragOver
-                  ? "rgba(200,64,26,.06)"
-                  : expanded
-                    ? "var(--cream)"
-                    : "var(--surface)",
-                // Only the row highlights when collapsed; when expanded the
-                // panel area below owns the drop highlight (avoid two boxes).
-                boxShadow: dragOver && !expanded ? "inset 0 0 0 2px var(--accent)" : "none",
+                background: expanded ? "var(--cream)" : "var(--surface)",
                 transition: "background 0.12s",
               }}
               title="Click to open, or drop photos here to upload"
             >
+              {/* Drag-over: show the dropzone prompt instead of an outline box.
+                  Only on collapsed rows — the expanded panel owns its own prompt. */}
+              <DropPrompt active={dragOver && !expanded} compact />
               <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  aria-hidden
-                  style={{
-                    color: "var(--muted)",
-                    fontSize: 11,
-                    transform: expanded ? "rotate(90deg)" : "none",
-                    transition: "transform 0.15s",
-                  }}
-                >
-                  ▸
-                </span>
                 <span style={{ minWidth: 0 }}>
                   <span
                     style={{
@@ -416,14 +404,21 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                   dropFiles(r.eventId, e.dataTransfer.files);
                 }}
                 style={{
+                  position: "relative",
                   display: expanded ? "block" : "none",
                   padding: "18px 18px 24px",
                   background: "var(--cream)",
                   borderBottom: "1px solid var(--line)",
-                  outline: dragOver ? "2px solid var(--accent)" : "none",
-                  outlineOffset: -2,
                 }}
               >
+                {/* Drag-over the open panel (even mid-upload) → show the drop
+                    prompt instead of an outline box. */}
+                <DropPrompt active={dragOver} />
+                <FixDeadPhotos
+                  eventId={r.eventId}
+                  initialCount={r.undetectedCount}
+                  onChanged={onChanged}
+                />
                 <div
                   style={{
                     fontFamily: "var(--font-mono)",
@@ -456,6 +451,137 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * "Fix dead photos" — finalized photos that never got bib/face detection (e.g.
+ * an upload tab closed mid-tagging). Loops the per-event backfill endpoint
+ * (server-side detection, a batch at a time) until none remain. It's resumable:
+ * each click processes whatever's still untagged.
+ */
+function FixDeadPhotos({
+  eventId,
+  initialCount,
+  onChanged,
+}: {
+  eventId: string;
+  initialCount: number;
+  onChanged: () => void;
+}) {
+  const [remaining, setRemaining] = useState(initialCount);
+  const [processed, setProcessed] = useState(0);
+  const [fixing, setFixing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRemaining(initialCount);
+  }, [initialCount]);
+
+  async function fix() {
+    setFixing(true);
+    setErr(null);
+    setProcessed(0);
+    try {
+      let done = 0;
+      // Loop the bounded backfill until the server reports nothing left.
+      for (let guard = 0; guard < 100000; guard++) {
+        const res = await fetch(`/api/photographer/events/${eventId}/backfill`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
+        const d = (await res.json()) as { processed: number; remaining: number };
+        done += d.processed;
+        setProcessed(done);
+        setRemaining(d.remaining);
+        if (d.remaining <= 0) break;
+        if (d.processed === 0) {
+          setErr("Some photos couldn't be tagged (they may be unreadable). Try again later.");
+          break;
+        }
+      }
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFixing(false);
+    }
+  }
+
+  if (remaining <= 0 && !fixing) return null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+        padding: "12px 14px",
+        marginBottom: 14,
+        borderRadius: 8,
+        border: "1px solid var(--accent)",
+        background: "rgba(200,64,26,.05)",
+      }}
+    >
+      <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5, minWidth: 0 }}>
+        <strong style={{ fontVariantNumeric: "tabular-nums" }}>{remaining}</strong> photo
+        {remaining === 1 ? "" : "s"} still need tagging (bib + face) — detection didn&rsquo;t
+        finish. Run it now (on the server, no need to re-upload).
+        {err && (
+          <div style={{ color: "var(--accent)", marginTop: 4, fontSize: 12 }}>{err}</div>
+        )}
+      </div>
+      <button
+        className="btn btn--primary btn--sm"
+        style={{ flexShrink: 0 }}
+        onClick={() => void fix()}
+        disabled={fixing}
+      >
+        {fixing
+          ? `Fixing… ${processed} done · ${remaining} left`
+          : `Fix ${remaining} dead photo${remaining === 1 ? "" : "s"}`}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Drag-over affordance — an absolute dashed "drop here" prompt shown over a row
+ * or the open panel while files are dragged across it (instead of an outline).
+ * pointer-events:none so the drop still lands on the element underneath.
+ */
+function DropPrompt({ active, compact }: { active: boolean; compact?: boolean }) {
+  if (!active) return null;
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: compact ? 0 : 8,
+        zIndex: 5,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 8,
+        border: "2px dashed var(--accent)",
+        // Opaque so it fully covers whatever's behind (no see-through doubling
+        // with the panel's own dropzone text, and no blur artifact).
+        background: "var(--cream)",
+        pointerEvents: "none",
+        fontFamily: "var(--font-mono)",
+        fontSize: compact ? 11 : 13,
+        letterSpacing: ".1em",
+        textTransform: "uppercase",
+        color: "var(--accent)",
+      }}
+    >
+      Drop photos here
     </div>
   );
 }

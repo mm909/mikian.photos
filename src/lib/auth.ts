@@ -42,10 +42,22 @@ export const authOptions: NextAuthOptions = {
       if (!user.email || !account?.providerAccountId) return false;
       const email = user.email.toLowerCase().trim();
 
-      // Site gate: while the whole site is private, refuse to mint a session
-      // for any account other than the one allowed in — before any DB write.
+      // Site gate: while the whole site is private, only let in the one allowed
+      // account OR anyone the owner has already granted a role (photographer /
+      // race director / owner) — so an added director can get past the beta
+      // blocker. Everyone else is refused before any DB write.
       // (See src/lib/siteGate.ts; disabled by SITE_PUBLIC=true.)
-      if (isSiteGateOn() && !isAllowedGateEmail(email)) return false;
+      if (isSiteGateOn() && !isAllowedGateEmail(email)) {
+        const granted = await db.photographer.findUnique({
+          where: { email },
+          select: { roles: true },
+        });
+        const roles = granted ? normalizeRoles(granted.roles) : [];
+        const hasGatePass = roles.some(
+          (r) => r === "photographer" || r === "race_director" || r === "owner"
+        );
+        if (!hasGatePass) return false;
+      }
 
       const displayName = user.name ?? user.email.split("@")[0];
       const isOwnerEmail = email === ownerEmail();

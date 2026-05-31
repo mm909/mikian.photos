@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { RunnerProvider } from "@/components/runner/RunnerProvider";
 import { RunnerChrome } from "@/components/runner/RunnerChrome";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </RunnerProvider>
         </SessionProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );

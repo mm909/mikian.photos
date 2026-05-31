@@ -68,6 +68,24 @@ export async function GET() {
     }
   }
 
+  // "Dead" photos per event — finalized but never face-indexed (detection never
+  // completed, e.g. an upload tab closed mid-tagging). Drives the dashboard's
+  // "Fix dead photos" affordance. Scoped the same way as the photo rollup.
+  const deadByEvent = new Map<string, number>();
+  if (eventIds.length > 0) {
+    const deadAgg = await db.photo.groupBy({
+      by: ["eventId"],
+      where: {
+        ...where,
+        hidden: false,
+        facesIndexedAt: null,
+        NOT: { r2OriginalKey: "pending" },
+      },
+      _count: { id: true },
+    });
+    for (const d of deadAgg) deadByEvent.set(d.eventId, d._count.id);
+  }
+
   const rows = grouped
     .map((g) => {
       const ev = eventById.get(g.eventId);
@@ -79,6 +97,7 @@ export async function GET() {
         photoCount: g._count.id,
         lastUploadAt: g._max.createdAt?.toISOString() ?? null,
         orderCount: orderCountByEvent.get(g.eventId) ?? 0,
+        undetectedCount: deadByEvent.get(g.eventId) ?? 0,
         earnedUsd: admin ? earnedByEvent.get(g.eventId) ?? 0 : undefined,
       };
     })

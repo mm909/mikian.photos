@@ -760,7 +760,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     if (cart.items.some((i) => i.kind === "bundle")) return;
     setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: bundlePrice }] });
     setCartCapped(true);
-    flashToast("Bundle added to cart");
+    // No toast — there's no cart surface in the bundle-only flow; the bundle
+    // just carries straight to checkout.
   }
 
   function removeFromCart(uid: string) {
