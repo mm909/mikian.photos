@@ -143,10 +143,9 @@ export function Lightbox({
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
-            // Size to content (header + capped gallery + CTA) rather than
-            // stretching to the tall photo column — keeps the buy CTA on
-            // screen even on shorter viewports.
-            alignSelf: "start",
+            // Stretch to the full height of the photo column so the gallery
+            // scrolls in the middle and the price + checkout CTA stay pinned
+            // to the bottom of the panel.
           }}
         >
           {/* header */}
@@ -191,8 +190,18 @@ export function Lightbox({
           </div>
 
           {/* Paged gallery — show PAGE thumbnails at a time (no long scroll).
-              Landscape 3/2 tiles so race shots aren't cropped top-and-bottom. */}
-          <div style={{ padding: "0 28px 12px" }}>
+              Each tile uses object-fit:contain so the whole frame shows exactly
+              as shot — never cropped. (Top padding keeps the selected tile's
+              outline from being clipped by the scroll area.) Scrolls between the
+              header and the pinned checkout footer below. */}
+          <div
+            style={{
+              padding: "4px 28px 12px",
+              flex: "1 1 auto",
+              minHeight: 0,
+              overflowY: "auto",
+            }}
+          >
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
               {pagePhotos.map((p) => {
                 const isCurr = p.id === photo.id;
@@ -202,7 +211,7 @@ export function Lightbox({
                     onClick={() => onJump(p)}
                     style={{
                       position: "relative",
-                      aspectRatio: "3 / 2",
+                      aspectRatio: "2 / 3",
                       borderRadius: 4,
                       cursor: "pointer",
                       background: p.previewUrl ? "var(--cream)" : photoBg(p),
@@ -220,7 +229,7 @@ export function Lightbox({
                         style={{
                           width: "100%",
                           height: "100%",
-                          objectFit: "cover",
+                          objectFit: "contain",
                           display: "block",
                         }}
                       />

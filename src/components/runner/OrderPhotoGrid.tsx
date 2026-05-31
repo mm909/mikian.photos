@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Pager } from "@/components/photographer/Pager";
+import { formatOrderNumber } from "@/lib/orderId";
 
 type Props = {
   photos: { id: string }[];
@@ -66,7 +67,8 @@ export function OrderPhotoGrid({
   }
 
   /** ZIP URL — token goes as `?key=` (matches the order-page route param). */
-  const zipHref = `/api/orders/MK-${String(orderNumber).padStart(6, "0")}/zip?key=${encodeURIComponent(downloadToken)}`;
+  const orderTag = formatOrderNumber(orderNumber);
+  const zipHref = `/api/orders/${orderTag}/zip?key=${encodeURIComponent(downloadToken)}`;
 
   async function downloadZip() {
     setZipBusy(true);
@@ -84,7 +86,7 @@ export function OrderPhotoGrid({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `MK-${String(orderNumber).padStart(6, "0")}-photos.zip`;
+      a.download = `${orderTag}-photos.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -328,7 +330,7 @@ export function OrderPhotoGrid({
           <div
             key={p.id}
             style={{
-              aspectRatio: "3 / 2",
+              aspectRatio: "2 / 3",
               background: "var(--cream)",
               border: "1px solid var(--line)",
               borderRadius: 6,
@@ -343,7 +345,7 @@ export function OrderPhotoGrid({
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: "cover",
+                objectFit: "contain",
                 display: "block",
               }}
             />

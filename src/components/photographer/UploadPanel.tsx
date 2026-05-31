@@ -48,7 +48,27 @@ async function fingerprintFile(file: File): Promise<string> {
   return out;
 }
 
-const CONCURRENCY = 3;
+// Parallel upload+finalize workers. The browser caps ~6 concurrent connections
+// per origin (sign + finalize are same-origin), so 6 is the practical ceiling
+// before requests just queue in the browser anyway.
+const CONCURRENCY = 6;
+
+/** Compact progress summary the dashboard reads to badge a collapsed row. */
+export type UploadStatus = {
+  total: number;
+  done: number;
+  skipped: number;
+  failed: number;
+  queued: number;
+  inFlight: number;
+  running: boolean;
+  paused: boolean;
+  finished: boolean;
+  pct: number;
+  /** True while there's anything in motion (so the row keeps its panel mounted
+   *  and shows a badge even when collapsed). */
+  working: boolean;
+};
 
 /**
  * The upload engine + progress UI, with no page chrome of its own. Rendered
@@ -62,11 +82,25 @@ const CONCURRENCY = 3;
 export function UploadPanel({
   event,
   compact = false,
+  autoStart = false,
+  pendingFiles,
+  onPendingConsumed,
+  onStatus,
   onChanged,
   onDone,
 }: {
   event: EventLite;
   compact?: boolean;
+  /** When true, adding files (drop / pick / injected) starts the upload
+   *  immediately — no "Upload N" click. Used by the dashboard drop-to-upload. */
+  autoStart?: boolean;
+  /** Files handed in from outside (e.g. dropped onto a collapsed dashboard
+   *  row). Consumed once when this changes; parent clears via onPendingConsumed. */
+  pendingFiles?: File[];
+  onPendingConsumed?: () => void;
+  /** Progress callback so a parent (the dashboard) can badge a collapsed row
+   *  and keep the panel mounted while work is in flight. */
+  onStatus?: (s: UploadStatus) => void;
   /** Fired when a batch finishes draining — lets the dashboard refresh counts. */
   onChanged?: () => void;
   /** "Done" handler — e.g. collapse the dashboard row, or route home. When
@@ -76,9 +110,23 @@ export function UploadPanel({
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setDragging] = useState(false);
   const [isRunning, setRunning] = useState(false);
+  /** Paused: workers finished their current item and stopped pulling new ones,
+   *  but the queue is preserved so Resume can pick up where it left off. */
+  const [isPaused, setPaused] = useState(false);
   /** Pause flag — workers finish their current item and bail out when set.
-   *  Used by Cancel to stop the pool. */
+   *  Used by Pause and Cancel to stop the pool. */
   const pausedRef = useRef(false);
+  /** Ref mirror of isRunning so autoStart can avoid spawning a second worker
+   *  pool from a stale closure. */
+  const runningRef = useRef(false);
+  /** Ref mirror of items so uploadOne can read the freshest fingerprint even
+   *  when an item was claimed before its hash finished computing. */
+  const itemsRef = useRef<QueueItem[]>([]);
+  itemsRef.current = items;
+  /** Ref to onStatus so the report effect fires on status *value* changes only,
+   *  not when the parent passes a fresh inline callback (which would loop). */
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
   /** When the queue drains (or the user clicks "Upload more") we flip this
    *  true to bring the dropzone back. */
   const [showMoreZone, setShowMoreZone] = useState(false);
@@ -94,7 +142,7 @@ export function UploadPanel({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function addFiles(files: FileList | null) {
+  function addFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     const next: QueueItem[] = Array.from(files)
       .filter((f) => f.type.startsWith("image/"))
@@ -104,8 +152,10 @@ export function UploadPanel({
         previewUrl: URL.createObjectURL(f),
         stage: "queued",
       }));
+    if (next.length === 0) return;
     setItems((curr) => [...curr, ...next]);
     setShowMoreZone(false);
+    setPaused(false);
 
     for (const it of next) {
       fingerprintFile(it.file)
@@ -113,6 +163,12 @@ export function UploadPanel({
         .catch(() => {
           /* fingerprint failure is silent — dedup just won't fire for it. */
         });
+    }
+
+    // Drop-to-upload: start the engine right away unless it's already draining
+    // (existing workers pick up newly-queued items on their own).
+    if (autoStart && !runningRef.current) {
+      void processUntilEmpty();
     }
   }
 
@@ -123,13 +179,18 @@ export function UploadPanel({
   async function uploadOne(item: QueueItem, opts: { force?: boolean } = {}): Promise<void> {
     updateItem(item.uid, { stage: "uploading" });
 
+    // Read the freshest fingerprint — the hash is computed async on enqueue and
+    // may have landed after this item was claimed (esp. with autoStart).
+    const fingerprint =
+      itemsRef.current.find((i) => i.uid === item.uid)?.fingerprint ?? item.fingerprint;
+
     const signRes = await fetch("/api/photographer/photos/sign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventId: event.id,
         contentType: item.file.type || "image/jpeg",
-        fingerprint: item.fingerprint,
+        fingerprint,
         force: opts.force ?? false,
       }),
     });
@@ -185,7 +246,10 @@ export function UploadPanel({
   }
 
   async function processUntilEmpty() {
+    if (runningRef.current) return; // already draining — don't double the pool
+    runningRef.current = true;
     setRunning(true);
+    setPaused(false);
     setShowMoreZone(false);
     pausedRef.current = false;
     if (batchStartRef.current === null) batchStartRef.current = Date.now();
@@ -193,9 +257,25 @@ export function UploadPanel({
       const workers = Array.from({ length: CONCURRENCY }, () => worker());
       await Promise.all(workers);
     } finally {
+      runningRef.current = false;
       setRunning(false);
+      // Stay "paused" only if pause() asked us to; otherwise we're truly idle.
+      if (!pausedRef.current) setPaused(false);
       onChanged?.();
     }
+  }
+
+  /** Pause: workers finish their current item, then stop pulling new ones. The
+   *  queue is preserved so Resume continues where it left off. */
+  function pause() {
+    pausedRef.current = true;
+    setPaused(true);
+  }
+
+  /** Resume a paused batch. */
+  function resume() {
+    if (runningRef.current) return;
+    void processUntilEmpty();
   }
 
   async function worker() {
@@ -238,7 +318,9 @@ export function UploadPanel({
    */
   async function cancel() {
     pausedRef.current = true;
+    runningRef.current = false;
     setRunning(false);
+    setPaused(false);
     const photoIds = items.map((i) => i.photoId).filter((x): x is string => Boolean(x));
     items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
     setItems([]);
@@ -289,15 +371,44 @@ export function UploadPanel({
     return Math.round((perItem * remaining) / 1000); // seconds
   }, [isRunning, done, failed, skipped, total]);
 
+  // Report progress up (dashboard badges the collapsed row + keeps us mounted).
+  useEffect(() => {
+    onStatusRef.current?.({
+      total,
+      done,
+      skipped,
+      failed,
+      queued,
+      inFlight,
+      running: isRunning,
+      paused: isPaused,
+      finished: isFinished,
+      pct: progressPct,
+      working: isRunning || isPaused || queued > 0 || inFlight > 0,
+    });
+  }, [total, done, skipped, failed, queued, inFlight, isRunning, isPaused, isFinished, progressPct]);
+
+  // Consume files injected from outside (e.g. dropped onto a collapsed row).
+  // Parent passes a fresh array per drop and clears it via onPendingConsumed.
+  useEffect(() => {
+    if (pendingFiles && pendingFiles.length > 0) {
+      addFiles(pendingFiles);
+      onPendingConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFiles]);
+
   const showDropzone = items.length === 0 || showMoreZone;
 
   const title = isFinished
     ? "Upload complete"
     : isRunning
       ? "Uploading…"
-      : queued > 0
-        ? `${queued} ready to upload`
-        : "Upload";
+      : isPaused
+        ? "Paused"
+        : queued > 0
+          ? `${queued} ready to upload`
+          : "Upload";
 
   return (
     <div>
@@ -443,6 +554,9 @@ export function UploadPanel({
                 <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
                   Upload more
                 </button>
+                <button className="btn btn--ghost" onClick={pause}>
+                  Pause
+                </button>
                 <button className="btn btn--ghost" style={{ color: "var(--accent)" }} onClick={cancel}>
                   Cancel
                 </button>
@@ -459,6 +573,18 @@ export function UploadPanel({
                 </button>
                 <button className="btn btn--primary" onClick={finish}>
                   Done
+                </button>
+              </>
+            ) : isPaused ? (
+              <>
+                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
+                  Upload more
+                </button>
+                <button className="btn btn--primary" onClick={resume}>
+                  Resume{queued > 0 ? ` (${queued})` : ""}
+                </button>
+                <button className="btn btn--ghost" style={{ color: "var(--accent)" }} onClick={cancel}>
+                  Cancel
                 </button>
               </>
             ) : (

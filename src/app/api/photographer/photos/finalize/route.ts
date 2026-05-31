@@ -93,37 +93,42 @@ export async function POST(req: Request) {
     select: { id: true, eventId: true, takenAt: true, gpsLat: true, gpsLng: true },
   });
 
-  // Best-effort bib OCR. Never blocks the upload — failures are silent.
-  // Run against the resized preview (faster) so Tesseract sees consistent
-  // dimensions regardless of source camera.
+  // Bib OCR and face indexing are independent and both only read the preview
+  // bytes, so run them concurrently — roughly halves per-photo detection time
+  // vs. the old sequential pass. Both are best-effort; neither blocks (or
+  // fails) the upload, and detection results just surface as live progress.
   let detectedBibs: BibDetection[] = [];
-  try {
-    detectedBibs = await extractBibsFromImage(processed.previewBytes);
-    if (detectedBibs.length > 0) {
-      await db.photoBib.createMany({
-        data: detectedBibs.map((d) => ({
-          photoId: photo.id,
-          bib: d.bib,
-          confidence: d.confidence,
-          source: "ocr-tesseract",
-          x0: d.bbox?.x0 ?? null,
-          y0: d.bbox?.y0 ?? null,
-          x1: d.bbox?.x1 ?? null,
-          y1: d.bbox?.y1 ?? null,
-        })),
-        skipDuplicates: true,
-      });
-    }
-  } catch (e) {
-    // Don't fail the upload over an OCR hiccup.
-    console.warn(`bib OCR failed for photo ${photo.id}:`, e);
-  }
+  let indexedFaceCount = 0;
 
-  // Best-effort face indexing. Same shape as OCR: never blocks the upload.
+  const ocrTask = (async () => {
+    try {
+      // Run against the resized preview (faster) so Tesseract sees consistent
+      // dimensions regardless of source camera.
+      detectedBibs = await extractBibsFromImage(processed.previewBytes);
+      if (detectedBibs.length > 0) {
+        await db.photoBib.createMany({
+          data: detectedBibs.map((d) => ({
+            photoId: photo.id,
+            bib: d.bib,
+            confidence: d.confidence,
+            source: "ocr-tesseract",
+            x0: d.bbox?.x0 ?? null,
+            y0: d.bbox?.y0 ?? null,
+            x1: d.bbox?.x1 ?? null,
+            y1: d.bbox?.y1 ?? null,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } catch (e) {
+      console.warn(`bib OCR failed for photo ${photo.id}:`, e);
+    }
+  })();
+
   // Skipped silently when Rekognition env isn't configured (e.g. preview
   // deploys without AWS creds).
-  let indexedFaceCount = 0;
-  if (faceRecConfigured()) {
+  const faceTask = (async () => {
+    if (!faceRecConfigured()) return;
     try {
       const indexed = await indexFacesForPhoto({
         photoId: photo.id,
@@ -134,7 +139,9 @@ export async function POST(req: Request) {
     } catch (e) {
       console.warn(`face indexing failed for photo ${photo.id}:`, e);
     }
-  }
+  })();
+
+  await Promise.all([ocrTask, faceTask]);
 
   // Link each face to the bib directly below it (face-above-bib geometry).
   // Runs after both detectors so it sees the full set of boxes. Best-effort —

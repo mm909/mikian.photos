@@ -16,7 +16,7 @@ export function PhotoThumb({ photo, onClick, onExpand }: Props) {
           alt=""
           loading="lazy"
           className="thumb__img"
-          style={{ objectFit: "cover", display: "block", width: "100%", height: "100%" }}
+          style={{ objectFit: "contain", display: "block", width: "100%", height: "100%" }}
         />
       ) : (
         <div className="thumb__img" style={{ background: photoBg(photo) }} />

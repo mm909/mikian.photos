@@ -48,18 +48,23 @@ export async function GET() {
       : [];
   const eventById = new Map(events.map((e) => [e.id, e]));
 
-  // Revenue per event from captured orders. Owner-only — a non-owner
+  // Orders per event (count for everyone; revenue $ owner-only — a non-owner
   // photographer's split isn't modeled yet, so we leave Earned blank for them
-  // rather than crediting them with the whole event's take.
+  // rather than crediting them with the whole event's take).
+  const orderCountByEvent = new Map<string, number>();
   const earnedByEvent = new Map<string, number>();
-  if (admin && eventIds.length > 0) {
+  if (eventIds.length > 0) {
     const orderAgg = await db.order.groupBy({
       by: ["eventIdCovered"],
       where: { eventIdCovered: { in: eventIds } },
       _sum: { amount: true },
+      _count: { _all: true },
     });
     for (const o of orderAgg) {
-      if (o.eventIdCovered) earnedByEvent.set(o.eventIdCovered, o._sum.amount ?? 0);
+      if (o.eventIdCovered) {
+        orderCountByEvent.set(o.eventIdCovered, o._count._all);
+        earnedByEvent.set(o.eventIdCovered, o._sum.amount ?? 0);
+      }
     }
   }
 
@@ -73,6 +78,7 @@ export async function GET() {
         eventCity: ev?.city ?? null,
         photoCount: g._count.id,
         lastUploadAt: g._max.createdAt?.toISOString() ?? null,
+        orderCount: orderCountByEvent.get(g.eventId) ?? 0,
         earnedUsd: admin ? earnedByEvent.get(g.eventId) ?? 0 : undefined,
       };
     })

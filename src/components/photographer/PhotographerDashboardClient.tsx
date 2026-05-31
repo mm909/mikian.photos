@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Headline } from "@/components/runner/Headline";
-import { UploadPanel } from "./UploadPanel";
+import { UploadPanel, type UploadStatus } from "./UploadPanel";
 
 type Props = {
   /** First name to greet with. Passed from the server actor lookup. */
@@ -18,6 +18,8 @@ type EventRow = {
   eventCity: string | null;
   photoCount: number;
   lastUploadAt: string | null;
+  /** Number of orders covering this event. */
+  orderCount: number;
   /** Revenue (USD) earned from this event's orders. Optional — server only
    *  populates it for the owner; dimmed / em-dash when missing. */
   earnedUsd?: number;
@@ -156,11 +158,64 @@ export function PhotographerDashboardClient({ name, email }: Props) {
 const GRID_COLS = "1.6fr 100px 120px 110px";
 
 /**
- * Per-event rollup table. Clicking a row toggles an inline ingest panel
- * below it — no navigation, no separate screen needed for the common case.
+ * Per-event rollup table. Clicking a row toggles an inline ingest panel below
+ * it; you can also drag-drop photos straight onto a row to start uploading
+ * without opening it first. Active uploads keep running when a row is collapsed
+ * (the panel stays mounted, hidden) and the row shows a live status badge.
  */
 function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => void }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Events whose UploadPanel is mounted. We keep a panel mounted after collapse
+  // (it just hides) so an in-flight upload isn't torn down — only Done unmounts.
+  const [mountedIds, setMountedIds] = useState<Set<string>>(new Set());
+  const [statuses, setStatuses] = useState<Record<string, UploadStatus>>({});
+  // Files dropped onto a row, handed to that event's panel to ingest.
+  const [pending, setPending] = useState<Record<string, File[]>>({});
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleStatus = useCallback((id: string, s: UploadStatus) => {
+    setStatuses((prev) => ({ ...prev, [id]: s }));
+  }, []);
+
+  function toggle(id: string) {
+    if (expandedId === id) {
+      setExpandedId(null); // collapse — keep the panel mounted so upload continues
+    } else {
+      setMountedIds((s) => new Set(s).add(id));
+      setExpandedId(id);
+    }
+  }
+
+  function dropFiles(id: string, fileList: FileList) {
+    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
+    if (files.length === 0) return;
+    setPending((p) => ({ ...p, [id]: [...(p[id] ?? []), ...files] }));
+    setMountedIds((s) => new Set(s).add(id));
+    setExpandedId(id);
+  }
+
+  function consumePending(id: string) {
+    setPending((p) => {
+      if (!(id in p)) return p;
+      const n = { ...p };
+      delete n[id];
+      return n;
+    });
+  }
+
+  function done(id: string) {
+    setExpandedId((curr) => (curr === id ? null : curr));
+    setMountedIds((s) => {
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
+    setStatuses((prev) => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+  }
 
   return (
     <div
@@ -188,23 +243,44 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
       >
         <span>Event</span>
         <span style={{ textAlign: "right" }}>Photos</span>
-        <span style={{ textAlign: "right" }}>Last upload</span>
+        <span style={{ textAlign: "right" }}>Orders</span>
         <span style={{ textAlign: "right" }}>Earned</span>
       </div>
       {rows.map((r) => {
         const expanded = expandedId === r.eventId;
+        const mounted = mountedIds.has(r.eventId);
+        const st = statuses[r.eventId];
+        const working = Boolean(st?.working);
+        const dragOver = dragOverId === r.eventId;
         return (
           <div key={r.eventId}>
             <div
               role="button"
               tabIndex={0}
               aria-expanded={expanded}
-              onClick={() => setExpandedId(expanded ? null : r.eventId)}
+              onClick={() => toggle(r.eventId)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setExpandedId(expanded ? null : r.eventId);
+                  toggle(r.eventId);
                 }
+              }}
+              // Drag photos straight onto the row to upload — no need to open it.
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragOverId !== r.eventId) setDragOverId(r.eventId);
+              }}
+              onDragLeave={(e) => {
+                // Only clear when the pointer actually leaves the row (not when
+                // moving between child cells).
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDragOverId((cur) => (cur === r.eventId ? null : cur));
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverId(null);
+                dropFiles(r.eventId, e.dataTransfer.files);
               }}
               style={{
                 display: "grid",
@@ -216,9 +292,15 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                 fontSize: 14,
                 alignItems: "center",
                 cursor: "pointer",
-                background: expanded ? "var(--cream)" : "var(--surface)",
+                background: dragOver
+                  ? "rgba(200,64,26,.06)"
+                  : expanded
+                    ? "var(--cream)"
+                    : "var(--surface)",
+                boxShadow: dragOver ? "inset 0 0 0 2px var(--accent)" : "none",
                 transition: "background 0.12s",
               }}
+              title="Click to open, or drop photos here to upload"
             >
               <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
                 <span
@@ -247,20 +329,26 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                   >
                     {r.eventName}
                   </span>
-                  <span
-                    style={{
-                      display: "block",
-                      marginTop: 2,
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 11,
-                      letterSpacing: ".06em",
-                      color: "var(--muted)",
-                    }}
-                  >
-                    {[r.eventDate ? fmtDate(r.eventDate) : null, r.eventCity]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
+                  {/* While work is in flight, the meta line becomes a live status
+                      badge; otherwise it shows the event date + city. */}
+                  {working && st ? (
+                    <UploadBadge st={st} />
+                  ) : (
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: 2,
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        letterSpacing: ".06em",
+                        color: "var(--muted)",
+                      }}
+                    >
+                      {[r.eventDate ? fmtDate(r.eventDate) : null, r.eventCity]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                 </span>
               </span>
               <span
@@ -277,12 +365,14 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
               <span
                 style={{
                   textAlign: "right",
-                  fontSize: 13,
-                  color: "var(--muted)",
+                  fontFamily: "var(--font-serif)",
+                  fontWeight: 500,
+                  fontSize: 18,
                   fontVariantNumeric: "tabular-nums",
+                  color: r.orderCount > 0 ? "var(--ink)" : "var(--line)",
                 }}
               >
-                {r.lastUploadAt ? fmtRelative(r.lastUploadAt) : "—"}
+                {r.orderCount.toLocaleString()}
               </span>
               {/* Earned (USD) — dim/em-dash until there's revenue to show. */}
               <span
@@ -299,9 +389,12 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
               </span>
             </div>
 
-            {expanded && (
+            {/* The panel stays mounted once opened/dropped-on (just hidden when
+                collapsed) so an in-flight upload survives minimizing the row. */}
+            {mounted && (
               <div
                 style={{
+                  display: expanded ? "block" : "none",
                   padding: "18px 18px 24px",
                   background: "var(--cream)",
                   borderBottom: "1px solid var(--line)",
@@ -327,8 +420,12 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                     city: r.eventCity ?? "",
                   }}
                   compact
+                  autoStart
+                  pendingFiles={pending[r.eventId]}
+                  onPendingConsumed={() => consumePending(r.eventId)}
+                  onStatus={(s) => handleStatus(r.eventId, s)}
                   onChanged={onChanged}
-                  onDone={() => setExpandedId(null)}
+                  onDone={() => done(r.eventId)}
                 />
               </div>
             )}
@@ -339,6 +436,50 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
   );
 }
 
+/**
+ * Live status pill shown on a collapsed (or open) row while an upload is in
+ * flight — so closing the panel clearly doesn't stop the work.
+ */
+function UploadBadge({ st }: { st: UploadStatus }) {
+  const active = Math.max(st.total - st.skipped, 0);
+  const label = st.running ? "Uploading" : st.paused ? "Paused" : "Finishing";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 3,
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+        letterSpacing: ".06em",
+        color: "var(--accent)",
+      }}
+    >
+      {st.running ? (
+        <span
+          aria-hidden
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: "50%",
+            border: "2px solid var(--line)",
+            borderTopColor: "var(--accent)",
+            animation: "spin .8s linear infinite",
+            display: "inline-block",
+          }}
+        />
+      ) : st.paused ? (
+        <span aria-hidden>⏸</span>
+      ) : null}
+      <span>
+        {label} {st.done}/{active}
+        {st.failed > 0 ? ` · ${st.failed} failed` : ""}
+      </span>
+    </span>
+  );
+}
+
 function fmtDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString("en-US", {
@@ -346,28 +487,6 @@ function fmtDate(iso: string): string {
       day: "numeric",
       year: "numeric",
     });
-  } catch {
-    return iso;
-  }
-}
-
-/**
- * "3 days ago" / "just now" — coarse buckets are enough for the dashboard.
- * Falls back to absolute date once we're past the week boundary.
- */
-function fmtRelative(iso: string): string {
-  try {
-    const then = new Date(iso).getTime();
-    const now = Date.now();
-    const diff = Math.max(0, now - then);
-    const minutes = Math.floor(diff / 60_000);
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return fmtDate(iso);
   } catch {
     return iso;
   }

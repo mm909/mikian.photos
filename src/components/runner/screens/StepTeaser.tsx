@@ -8,7 +8,9 @@ import { FaceScanner } from "../FaceScanner";
 import { useRunner } from "../RunnerProvider";
 import { DISTANCE_LABELS } from "@/lib/gpx";
 
-const TEASER_COUNT = 6;
+// Show a single tidy row of previews (4 across on desktop) rather than a
+// second, partially-filled row — the full set opens in the viewer below.
+const TEASER_COUNT = 4;
 
 /**
  * Step 2 — Teaser. After a bib (or name) search we show a handful of matches
@@ -285,17 +287,31 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
                     {bestGuess.photoCountInEvent === 1 ? "" : "s"} with your face
                   </div>
                 )}
-                <button
-                  className="btn btn--primary"
-                  onClick={acceptGuess}
-                  disabled={expandingCluster}
-                  style={{ minWidth: 200, justifyContent: "center" }}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
                 >
-                  {expandingCluster ? "Finding your photos…" : "This is me"}
-                </button>
-                <button className="btn btn--ghost btn--sm" onClick={notMe} disabled={expandingCluster}>
-                  Not me
-                </button>
+                  <button
+                    className="btn btn--primary"
+                    onClick={acceptGuess}
+                    disabled={expandingCluster}
+                    style={{ justifyContent: "center" }}
+                  >
+                    {expandingCluster ? "Finding your photos…" : "This is me"}
+                  </button>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={notMe}
+                    disabled={expandingCluster}
+                  >
+                    Not me
+                  </button>
+                </div>
               </>
             ) : (
               <>

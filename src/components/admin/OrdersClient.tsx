@@ -54,9 +54,12 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [rowState, setRowState] = useState<Record<number, RowState>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // `silent` skips the loading flag so the 1-minute auto-refresh doesn't flash
+  // the table into a "Loading…" state — it just swaps in fresh rows.
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/orders", { cache: "no-store" });
@@ -65,15 +68,22 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
         throw new Error(j.error || `HTTP ${res.status}`);
       }
       setData((await res.json()) as ApiResponse);
+      setLastUpdated(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Auto-refresh every 60s so the table stays current without a manual click.
+  useEffect(() => {
+    const id = setInterval(() => void load(true), 60_000);
+    return () => clearInterval(id);
   }, [load]);
 
   const orders = data?.orders ?? [];
@@ -224,9 +234,16 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
           >
             {loading ? "Loading…" : "Refresh"}
           </button>
-          <span style={{ fontSize: 13, color: "var(--muted)" }}>
-            {filtered.length} of {orders.length}
-          </span>
+          {lastUpdated && (
+            <span style={{ fontSize: 13, color: "var(--muted)" }}>
+              Updated{" "}
+              {lastUpdated.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </span>
+          )}
         </div>
 
         {error && (
@@ -419,6 +436,10 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)" }}>
+          {filtered.length} of {orders.length}
         </div>
 
         {!isOwner && (

@@ -11,11 +11,11 @@ const nextConfig = {
   //  - sharp ships a native binary per platform and shouldn't be re-bundled
   //    either (webpack happily duplicates it, doubling cold-start memory).
   //
-  //  - archiver uses Node-conditional package exports that webpack's
-  //    "default condition must be last" rule rejects when bundled. Ship
-  //    it from node_modules at runtime.
+  // (archiver is pinned to v7 — the last CommonJS release; v8 went ESM-only and
+  // dropped the `archiver(format, opts)` factory, which broke webpack's default
+  // import. v7 bundles cleanly, so it does NOT need to be externalized.)
   experimental: {
-    serverComponentsExternalPackages: ["tesseract.js", "sharp", "archiver"],
+    serverComponentsExternalPackages: ["tesseract.js", "sharp"],
   },
 };
 

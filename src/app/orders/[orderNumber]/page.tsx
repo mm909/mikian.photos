@@ -125,7 +125,6 @@ export default async function OrderPage({
             <KV label="Email" value={order.email} muted />
             <KV label="Event" value={eventName} />
             <KV label="Photos" value={`${order.photoIds.length} included`} />
-            <KV label="Total paid" value={`$${order.amount.toFixed(2)}`} strong />
           </div>
 
           {/* Line items */}

@@ -286,15 +286,6 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
               />
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Link
-              href={`/admin/coverage`}
-              className="btn btn--ghost btn--sm"
-              style={{ textDecoration: "none" }}
-            >
-              Coverage view →
-            </Link>
-          </div>
         </div>
 
         {/* Stat strip — chip time + photo/face counts */}

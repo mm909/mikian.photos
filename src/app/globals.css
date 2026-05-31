@@ -226,6 +226,13 @@ input, textarea, select, button {
   background: none; border: 0; cursor: pointer; padding: 0; line-height: 1;
 }
 .nav__spacer { flex: 1; }
+/* Keep the nav on one line within the viewport at any width: the middle link
+   list shrinks + scrolls horizontally instead of pushing the page wider than
+   the screen (the cause of mobile horizontal-scroll). Logo + account widget
+   stay pinned at the edges. */
+.nav > ul { min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.nav > ul::-webkit-scrollbar { display: none; }
+.nav > :first-child, .nav > :last-child { flex: 0 0 auto; }
 .nav__link {
   font-family: var(--font-sans); font-size: 14px; color: var(--ink);
   text-decoration: none; padding: 6px 10px; border-radius: 4px;
@@ -314,7 +321,8 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
   padding: 24px;
 }
 
-/* Photo thumb */
+/* Photo thumb — 2/3 portrait (race photos are shot portrait), object-fit:
+   contain so the full frame shows exactly as shot and nothing gets cropped. */
 .thumb {
   position: relative; aspect-ratio: 2/3; border-radius: 5px;
   overflow: hidden; border: 1px solid var(--line);
@@ -411,6 +419,11 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
 .legal-prose a { color: var(--accent); text-decoration-color: var(--accent); }
 
 /* Responsive helpers used by screens */
+@media (max-width: 640px) {
+  /* Tighter nav on phones so the logo + links + account widget fit the row. */
+  .nav { gap: 10px; padding: 14px 16px; }
+  .nav > ul { margin-left: 8px !important; }
+}
 @media (max-width: 800px) {
   .landing-grid { grid-template-columns: 1fr !important; gap: 36px !important; text-align: center; }
   .landing-grid h1 { text-align: center; }

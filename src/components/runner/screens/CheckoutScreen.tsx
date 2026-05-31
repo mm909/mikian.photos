@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
@@ -31,7 +31,7 @@ type Props = { unlocked: boolean };
 
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { cart, resultPhotos, finalizeOrder, addBundle } = useRunner();
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
@@ -96,6 +96,16 @@ export function CheckoutScreen({ unlocked }: Props) {
 
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Require a signed-in Google account before payment. We want a real identity
+  // on every order so the buyer can find their photos again and the receipt
+  // has a home. Owner is always signed in, so the simulate path is unaffected.
+  if (status === "loading") {
+    return <main className="screen" style={{ padding: "96px 32px" }} />;
+  }
+  if (!session) {
+    return <SignInGate />;
+  }
 
   if (cart.items.length === 0 && !processing) {
     return <main className="screen" style={{ padding: "96px 32px" }} />;
@@ -448,6 +458,57 @@ export function CheckoutScreen({ unlocked }: Props) {
           </div>
         </div>
       )}
+    </main>
+  );
+}
+
+/**
+ * Pre-payment sign-in wall. Shown when no session is present — the buyer
+ * continues with Google, then returns to /checkout (their cart survives the
+ * round-trip via RunnerProvider's localStorage persistence).
+ */
+function SignInGate() {
+  return (
+    <main className="screen" style={{ padding: "64px 24px 96px" }}>
+      <div style={{ maxWidth: 540, margin: "0 auto", textAlign: "center" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: ".14em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+            marginBottom: 14,
+          }}
+        >
+          Step 1 of 2 · Sign in
+        </div>
+        <Headline
+          as="h1"
+          text="Sign in to check out."
+          accent="check out."
+          style={{
+            margin: 0,
+            fontFamily: "var(--font-serif)",
+            fontWeight: 500,
+            fontSize: "clamp(32px, 4vw, 44px)",
+            lineHeight: 1.05,
+            letterSpacing: "-.015em",
+            color: "var(--ink)",
+          }}
+        />
+        <p style={{ color: "var(--muted)", fontSize: 16, marginTop: 18, lineHeight: 1.55 }}>
+          Create your account so your photos are saved to you and your receipt has a
+          home. It&rsquo;s one tap with Google — no password to remember.
+        </p>
+        <button
+          className="btn btn--primary btn--lg"
+          onClick={() => signIn("google", { callbackUrl: "/checkout" })}
+          style={{ marginTop: 28, padding: "14px 22px" }}
+        >
+          Continue with Google
+        </button>
+      </div>
     </main>
   );
 }

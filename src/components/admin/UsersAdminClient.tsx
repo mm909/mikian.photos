@@ -102,6 +102,13 @@ export function UsersAdminClient() {
     (u) => u.roles.includes("race_director") && !u.roles.includes("owner")
   );
 
+  // Already-signed-in accounts the owner can pick from when granting a role —
+  // every Google-linked non-owner who doesn't already hold that role. (They can
+  // still type a brand-new email for someone who hasn't signed in yet.)
+  const signedIn = users.filter((u) => u.googleLinked && !u.roles.includes("owner"));
+  const photographerCandidates = signedIn.filter((u) => !u.roles.includes("photographer"));
+  const raceDirectorCandidates = signedIn.filter((u) => !u.roles.includes("race_director"));
+
   return (
     <main className="screen" style={{ padding: "40px 24px 96px" }}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
@@ -160,6 +167,7 @@ export function UsersAdminClient() {
               title="Photographers"
               desc="Can upload and manage photos for events."
               members={photographers}
+              candidates={photographerCandidates}
               busy={mutating}
               onAdd={(email) => addMember("photographer", email)}
               onRemove={(email) => removeMember("photographer", email)}
@@ -168,6 +176,7 @@ export function UsersAdminClient() {
               title="Race Directors"
               desc="Can see race-director dashboards (coming soon)."
               members={raceDirectors}
+              candidates={raceDirectorCandidates}
               busy={mutating}
               onAdd={(email) => addMember("race_director", email)}
               onRemove={(email) => removeMember("race_director", email)}
@@ -188,6 +197,7 @@ function WhitelistPanel({
   title,
   desc,
   members,
+  candidates,
   busy,
   onAdd,
   onRemove,
@@ -195,22 +205,36 @@ function WhitelistPanel({
   title: string;
   desc: string;
   members: AdminUser[];
+  /** Already-signed-in accounts the owner can pick from (typeahead). */
+  candidates: AdminUser[];
   busy: boolean;
   onAdd: (email: string) => Promise<boolean>;
   onRemove: (email: string) => Promise<void>;
 }) {
   const [email, setEmail] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
 
-  async function submit() {
-    const e = email.trim().toLowerCase();
+  // Typeahead over already-signed-in accounts: match the typed text against
+  // email or name. Empty query → show all candidates (a plain browse list).
+  const q = email.trim().toLowerCase();
+  const suggestions = candidates
+    .filter((u) => !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q))
+    .slice(0, 6);
+  const showSuggest = focused && suggestions.length > 0;
+
+  async function addEmail(raw: string) {
+    const e = raw.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) {
       setErr("Enter a valid email address.");
       return;
     }
     setErr(null);
     const ok = await onAdd(e);
-    if (ok) setEmail("");
+    if (ok) {
+      setEmail("");
+      setFocused(false);
+    }
   }
 
   return (
@@ -250,19 +274,89 @@ function WhitelistPanel({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void submit();
+            void addEmail(email);
           }}
           style={{ display: "flex", gap: 8, marginTop: 12 }}
         >
-          <input
-            className="input"
-            type="email"
-            placeholder="name@email.com"
-            value={email}
-            disabled={busy}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ flex: 1, padding: "8px 10px", fontSize: 14 }}
-          />
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              className="input"
+              type="text"
+              placeholder="Search a signed-in user, or type an email…"
+              value={email}
+              disabled={busy}
+              autoComplete="off"
+              onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setTimeout(() => setFocused(false), 120)}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 14 }}
+            />
+            {showSuggest && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  right: 0,
+                  background: "var(--surface)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                  boxShadow: "var(--shadow)",
+                  zIndex: 20,
+                  maxHeight: 240,
+                  overflowY: "auto",
+                }}
+              >
+                {suggestions.map((u) => {
+                  const extraRoles = u.roles.filter((r) => r !== "runner");
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      // mousedown (not click) so it fires before the input blur
+                      // hides the list.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        void addEmail(u.email);
+                      }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        border: 0,
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--ink)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {u.email}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 10,
+                          color: "var(--muted)",
+                          marginTop: 1,
+                        }}
+                      >
+                        {u.name}
+                        {extraRoles.length > 0 ? ` · ${extraRoles.join(", ")}` : ""}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <button type="submit" className="btn btn--primary" disabled={busy || !email.trim()}>
             Add
           </button>

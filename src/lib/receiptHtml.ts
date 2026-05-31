@@ -147,15 +147,10 @@ export function renderReceiptHtml(r: ReceiptInput): string {
     <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">
       On a phone? Open your order and tap <strong style="color:${INK};font-weight:600;">Add to Photos</strong> to save them straight into your Apple Photos library (or Android gallery), or <strong style="color:${INK};font-weight:600;">Save to Dropbox</strong> to send the whole set to Dropbox.
     </p>
-    <div style="margin-top:14px;font-size:12px;color:${MUTED};word-break:break-all;">
-      Direct link: <a href="${r.orderUrl}" style="color:${MUTED};">${r.orderUrl}</a>
-    </div>
   </div>
 
   <div style="margin-top:32px;font-size:12px;color:${MUTED};line-height:1.5;">
-    Mikian.Photos · mikian.photos@gmail.com<br/>
-    If something isn't right with this order, reply to this email and we'll
-    sort it out within a day.
+    Mikian.Photos · mikian.photos@gmail.com
   </div>
 </div>`.trim();
 }
@@ -192,8 +187,6 @@ export function renderReceiptText(r: ReceiptInput): string {
   lines.push(
     "On a phone, open your order and tap “Add to Photos” to save them into your Apple Photos library (or Android gallery), or “Save to Dropbox” to send the set to Dropbox."
   );
-  lines.push("");
-  lines.push("Reply to this email if anything isn't right.");
   return lines.join("\n");
 }
 
