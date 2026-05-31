@@ -205,6 +205,10 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
 
   function done(id: string) {
     setExpandedId((curr) => (curr === id ? null : curr));
+    // If detection is still backfilling in the background, keep the panel
+    // mounted (just collapsed) so it keeps running — the row badge shows
+    // progress. Only fully unmount once everything's idle.
+    if (statuses[id]?.working) return;
     setMountedIds((s) => {
       const n = new Set(s);
       n.delete(id);
@@ -390,14 +394,32 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
             </div>
 
             {/* The panel stays mounted once opened/dropped-on (just hidden when
-                collapsed) so an in-flight upload survives minimizing the row. */}
+                collapsed) so an in-flight upload survives minimizing the row.
+                The whole expanded area is a drop target too (the inner dropzone
+                stops propagation, so drops there don't double-add). */}
             {mounted && (
               <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragOverId !== r.eventId) setDragOverId(r.eventId);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setDragOverId((cur) => (cur === r.eventId ? null : cur));
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverId(null);
+                  dropFiles(r.eventId, e.dataTransfer.files);
+                }}
                 style={{
                   display: expanded ? "block" : "none",
                   padding: "18px 18px 24px",
                   background: "var(--cream)",
                   borderBottom: "1px solid var(--line)",
+                  outline: dragOver ? "2px solid var(--accent)" : "none",
+                  outlineOffset: -2,
                 }}
               >
                 <div
@@ -442,7 +464,23 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
  */
 function UploadBadge({ st }: { st: UploadStatus }) {
   const active = Math.max(st.total - st.skipped, 0);
-  const label = st.running ? "Uploading" : st.paused ? "Paused" : "Finishing";
+  // Upload phase shows uploaded/active; once uploads are in, the badge flips to
+  // the background detection phase (tagging) showing detected/active.
+  let label: string;
+  let count: string;
+  let spinning = false;
+  if (st.running) {
+    label = "Uploading";
+    count = `${st.uploaded}/${active}`;
+    spinning = true;
+  } else if (st.paused) {
+    label = "Paused";
+    count = `${st.uploaded}/${active}`;
+  } else {
+    label = "Tagging";
+    count = `${st.done}/${active}`;
+    spinning = st.detectingPhase;
+  }
   return (
     <span
       style={{
@@ -456,7 +494,7 @@ function UploadBadge({ st }: { st: UploadStatus }) {
         color: "var(--accent)",
       }}
     >
-      {st.running ? (
+      {spinning ? (
         <span
           aria-hidden
           style={{
@@ -473,7 +511,7 @@ function UploadBadge({ st }: { st: UploadStatus }) {
         <span aria-hidden>⏸</span>
       ) : null}
       <span>
-        {label} {st.done}/{active}
+        {label} {count}
         {st.failed > 0 ? ` · ${st.failed} failed` : ""}
       </span>
     </span>

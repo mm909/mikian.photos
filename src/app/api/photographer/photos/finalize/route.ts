@@ -3,14 +3,14 @@ import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys, r2Put } from "@/lib/r2";
 import { processUpload } from "@/lib/imagePipeline";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
-import { extractBibsFromImage, type BibDetection } from "@/lib/bibOcr";
-import { indexFacesForPhoto, faceRecConfigured } from "@/lib/faceRec";
-import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
 
 /**
  * Finalize a presigned upload: the client has PUT the original JPEG to R2,
  * now we pull it back, run EXIF + preview pipeline, write the preview, and
  * patch the Photo row with the real R2 keys + EXIF data.
+ *
+ * Detection (bib OCR + face indexing) is split out into a separate /detect
+ * pass so the upload completes fast and detection backfills in the background.
  *
  * Body: { photoId: string }
  */
@@ -93,71 +93,14 @@ export async function POST(req: Request) {
     select: { id: true, eventId: true, takenAt: true, gpsLat: true, gpsLng: true },
   });
 
-  // Bib OCR and face indexing are independent and both only read the preview
-  // bytes, so run them concurrently — roughly halves per-photo detection time
-  // vs. the old sequential pass. Both are best-effort; neither blocks (or
-  // fails) the upload, and detection results just surface as live progress.
-  let detectedBibs: BibDetection[] = [];
-  let indexedFaceCount = 0;
-
-  const ocrTask = (async () => {
-    try {
-      // Run against the resized preview (faster) so Tesseract sees consistent
-      // dimensions regardless of source camera.
-      detectedBibs = await extractBibsFromImage(processed.previewBytes);
-      if (detectedBibs.length > 0) {
-        await db.photoBib.createMany({
-          data: detectedBibs.map((d) => ({
-            photoId: photo.id,
-            bib: d.bib,
-            confidence: d.confidence,
-            source: "ocr-tesseract",
-            x0: d.bbox?.x0 ?? null,
-            y0: d.bbox?.y0 ?? null,
-            x1: d.bbox?.x1 ?? null,
-            y1: d.bbox?.y1 ?? null,
-          })),
-          skipDuplicates: true,
-        });
-      }
-    } catch (e) {
-      console.warn(`bib OCR failed for photo ${photo.id}:`, e);
-    }
-  })();
-
-  // Skipped silently when Rekognition env isn't configured (e.g. preview
-  // deploys without AWS creds).
-  const faceTask = (async () => {
-    if (!faceRecConfigured()) return;
-    try {
-      const indexed = await indexFacesForPhoto({
-        photoId: photo.id,
-        eventId: updated.eventId,
-        bytes: processed.previewBytes,
-      });
-      indexedFaceCount = indexed.length;
-    } catch (e) {
-      console.warn(`face indexing failed for photo ${photo.id}:`, e);
-    }
-  })();
-
-  await Promise.all([ocrTask, faceTask]);
-
-  // Link each face to the bib directly below it (face-above-bib geometry).
-  // Runs after both detectors so it sees the full set of boxes. Best-effort —
-  // a failure here just leaves faces unlinked until the next rerun.
-  try {
-    await linkFacesToBibsForPhoto(photo.id);
-  } catch (e) {
-    console.warn(`face↔bib linking failed for photo ${photo.id}:`, e);
-  }
-
+  // Detection (bib OCR + face indexing) is deliberately NOT done here anymore —
+  // it's the slow part. The photo is now "live" (preview + DB written); the
+  // client runs the separate /detect pass in the background so the upload
+  // itself completes fast and bib/face tags backfill afterward.
   return NextResponse.json({
     photo: {
       ...updated,
       previewUrl: `/api/photos/${updated.id}/preview`,
-      detectedBibs: detectedBibs.map((d) => d.bib),
-      indexedFaceCount,
     },
   });
 }

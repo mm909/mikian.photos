@@ -54,11 +54,15 @@ type ProfileResponse = {
 };
 
 export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<PhotosResponse | null>(null);
+  const [page, setPage] = useState(1); // client-side page over allPhotos
+  const [allPhotos, setAllPhotos] = useState<DetailPhoto[]>([]);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Face cleanup: pick a face cluster, then untag this bib from photos that
+  // don't show that face (so only the real runner's photos remain).
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   // Modal state mirrors CoverageClient.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -89,45 +93,114 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
     return cancel;
   }, [fetchProfile]);
 
-  const queryString = useMemo(() => {
-    const qs = new URLSearchParams({
-      eventId,
-      bib: String(runner.bib),
-      page: String(page),
-      pageSize: String(PHOTO_PAGE_SIZE),
-    });
-    return qs.toString();
-  }, [eventId, runner.bib, page]);
-
-  const refetch = useCallback(() => {
-    let cancelled = false;
+  // Load EVERY photo carrying this runner's bib (looping past the 96/page cap)
+  // so the detail modal can page through all of them — not just the grid page —
+  // and the face tools can reason over the whole set.
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
-    fetch(`/api/admin/coverage/photos?${queryString}`, { cache: "no-store" })
-      .then(async (r) => {
+    try {
+      const FETCH_PAGE = 96;
+      let pageN = 1;
+      let pages = 1;
+      let acc: DetailPhoto[] = [];
+      do {
+        const qs = new URLSearchParams({
+          eventId,
+          bib: String(runner.bib),
+          page: String(pageN),
+          pageSize: String(FETCH_PAGE),
+        });
+        const r = await fetch(`/api/admin/coverage/photos?${qs}`, { cache: "no-store" });
         if (!r.ok) {
           const j = (await r.json().catch(() => ({}))) as { error?: string };
           throw new Error(j.error || `${r.status}`);
         }
-        return (await r.json()) as PhotosResponse;
-      })
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [queryString]);
+        const d = (await r.json()) as PhotosResponse;
+        acc = acc.concat(d.photos);
+        pages = d.pageCount;
+        pageN += 1;
+      } while (pageN <= pages);
+      setAllPhotos(acc);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, runner.bib]);
 
   useEffect(() => {
-    refetch();
-  }, [refetch]);
+    void fetchAll();
+  }, [fetchAll]);
+
+  // Keep the client-side page in range as the set shrinks (e.g. after removal).
+  const total = allPhotos.length;
+  const pageCount = Math.max(1, Math.ceil(total / PHOTO_PAGE_SIZE));
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+  const pagePhotos = allPhotos.slice((page - 1) * PHOTO_PAGE_SIZE, page * PHOTO_PAGE_SIZE);
+
+  // Face clusters present across all of this runner's photos (each photo counted
+  // once per cluster), most-common first — drives the face picker.
+  const clusters = useMemo(() => {
+    const map = new Map<
+      string,
+      { clusterId: string; sample: { photoId: string; faceId: string }; count: number }
+    >();
+    for (const p of allPhotos) {
+      const seen = new Set<string>();
+      for (const f of p.faces ?? []) {
+        if (!f.faceClusterId || seen.has(f.faceClusterId)) continue;
+        seen.add(f.faceClusterId);
+        const cur = map.get(f.faceClusterId);
+        if (cur) cur.count += 1;
+        else
+          map.set(f.faceClusterId, {
+            clusterId: f.faceClusterId,
+            sample: { photoId: p.id, faceId: f.id },
+            count: 1,
+          });
+      }
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count);
+  }, [allPhotos]);
+
+  const photoHasCluster = (p: DetailPhoto, clusterId: string) =>
+    (p.faces ?? []).some((f) => f.faceClusterId === clusterId);
+  const withoutSelectedFace = selectedCluster
+    ? allPhotos.filter((p) => !photoHasCluster(p, selectedCluster))
+    : [];
+
+  async function removeWithoutFace() {
+    if (!selectedCluster) return;
+    const targets = withoutSelectedFace;
+    if (targets.length === 0) return;
+    const ok = window.confirm(
+      `Untag bib #${runner.bib} from ${targets.length} photo${
+        targets.length === 1 ? "" : "s"
+      } that don't show this face?\n\nThey'll no longer appear for this runner. (The photos themselves aren't deleted.)`
+    );
+    if (!ok) return;
+    setRemoving(true);
+    try {
+      await Promise.all(
+        targets.map((p) =>
+          fetch("/api/admin/coverage/photo-bib", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ photoId: p.id, bib: runner.bib }),
+          })
+        )
+      );
+      setSelectedCluster(null);
+      await fetchAll();
+    } catch (e) {
+      alert(`Could not remove: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   async function rerunOcr(photoId: string) {
     setRerun((s) => ({ ...s, [photoId]: "running" }));
@@ -136,7 +209,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
         method: "POST",
       });
       if (!r.ok) throw new Error(`rerun ${r.status}`);
-      refetch();
+      void fetchAll();
       setRerun((s) => ({ ...s, [photoId]: "ok" }));
       setTimeout(() => setRerun((s) => ({ ...s, [photoId]: "idle" })), 1500);
     } catch (e) {
@@ -155,7 +228,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error || `rerun-faces ${r.status}`);
       }
-      refetch();
+      void fetchAll();
       setRerunFace((s) => ({ ...s, [photoId]: "ok" }));
       setTimeout(() => setRerunFace((s) => ({ ...s, [photoId]: "idle" })), 1500);
     } catch (e) {
@@ -170,7 +243,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
       const r = await fetch(`/api/photographer/photos/${photoId}`, { method: "DELETE" });
       if (!r.ok) throw new Error(`delete ${r.status}`);
       setOpenId((curr) => (curr === photoId ? null : curr));
-      refetch();
+      void fetchAll();
       setDelState((s) => {
         const { [photoId]: _gone, ...rest } = s;
         void _gone;
@@ -183,7 +256,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
   }
 
   async function toggleHidden(photoId: string) {
-    const photo = data?.photos.find((p) => p.id === photoId);
+    const photo = allPhotos.find((p) => p.id === photoId);
     if (!photo) return;
     const nextHidden = !photo.hidden;
     setHideStateMap((s) => ({ ...s, [photoId]: "running" }));
@@ -194,7 +267,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
         body: JSON.stringify({ hidden: nextHidden }),
       });
       if (!r.ok) throw new Error(`patch ${r.status}`);
-      refetch();
+      void fetchAll();
       setHideStateMap((s) => {
         const { [photoId]: _gone, ...rest } = s;
         void _gone;
@@ -217,10 +290,10 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
       alert(`Could not untag: ${j.error ?? r.status}`);
       return;
     }
-    refetch();
+    void fetchAll();
   }
 
-  const openPhoto = openId ? data?.photos.find((p) => p.id === openId) ?? null : null;
+  const openPhoto = openId ? allPhotos.find((p) => p.id === openId) ?? null : null;
 
   return (
     <main className="screen" style={{ padding: "28px 24px 64px" }}>
@@ -298,24 +371,12 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
           }}
         >
           <Stat label="Chip time" value={runner.chipTime} />
-          <Stat
-            label="Photos"
-            value={data ? data.total.toString() : "—"}
-            muted={data?.total === 0}
-          />
+          <Stat label="Photos" value={total.toString()} muted={total === 0} />
           <Stat
             label="Faces"
-            value={
-              data
-                ? new Set(
-                    data.photos.flatMap((p) =>
-                      (p.faces ?? []).map((f) => f.faceClusterId ?? f.id)
-                    )
-                  ).size.toString()
-                : "—"
-            }
-            sub="this page"
-            muted
+            value={clusters.length.toString()}
+            sub="distinct"
+            muted={clusters.length === 0}
           />
         </div>
 
@@ -336,9 +397,9 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
           </div>
         )}
 
-        {loading && !data ? (
+        {loading && total === 0 ? (
           <p style={{ color: "var(--muted)" }}>Loading photos…</p>
-        ) : !data || data.total === 0 ? (
+        ) : total === 0 ? (
           <div
             style={{
               padding: "32px 24px",
@@ -354,6 +415,58 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
           </div>
         ) : (
           <>
+            {/* Face picker — pick this runner's face, then drop the bib photos
+                that don't show it (bib-OCR false matches, other runners, etc.). */}
+            {clusters.length > 0 && (
+              <FacePicker
+                clusters={clusters}
+                selected={selectedCluster}
+                onSelect={(id) => setSelectedCluster((cur) => (cur === id ? null : id))}
+              />
+            )}
+
+            {selectedCluster && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  padding: "10px 14px",
+                  marginBottom: 12,
+                  borderRadius: 8,
+                  border: "1px solid var(--accent)",
+                  background: "rgba(200,64,26,.05)",
+                }}
+              >
+                <span style={{ fontSize: 13, color: "var(--ink)" }}>
+                  <strong style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {withoutSelectedFace.length}
+                  </strong>{" "}
+                  of {total} photo{total === 1 ? "" : "s"} don&rsquo;t show this face.
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setSelectedCluster(null)}
+                    disabled={removing}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => void removeWithoutFace()}
+                    disabled={removing || withoutSelectedFace.length === 0}
+                  >
+                    {removing
+                      ? "Removing…"
+                      : `Remove ${withoutSelectedFace.length} without this face`}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 fontFamily: "var(--font-mono)",
@@ -364,49 +477,74 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                 marginBottom: 8,
               }}
             >
-              {data.total.toLocaleString()} photo
-              {data.total === 1 ? "" : "s"}
-              {data.pageCount > 1 && ` · page ${data.page} of ${data.pageCount}`}
+              {total.toLocaleString()} photo
+              {total === 1 ? "" : "s"}
+              {pageCount > 1 && ` · page ${page} of ${pageCount}`}
             </div>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
                 gap: 6,
                 opacity: loading ? 0.55 : 1,
                 transition: "opacity 0.15s",
               }}
             >
-              {data.photos.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => setOpenId(p.id)}
-                  style={{
-                    aspectRatio: "3 / 2",
-                    background: "var(--cream)",
-                    borderRadius: 3,
-                    overflow: "hidden",
-                    cursor: "pointer",
-                  }}
-                  title={p.id}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.previewUrl}
-                    alt=""
-                    loading="lazy"
+              {pagePhotos.map((p) => {
+                const dim = selectedCluster ? !photoHasCluster(p, selectedCluster) : false;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => setOpenId(p.id)}
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                      display: "block",
+                      position: "relative",
+                      aspectRatio: "2 / 3",
+                      background: "var(--cream)",
+                      borderRadius: 3,
+                      overflow: "hidden",
+                      cursor: "pointer",
+                      opacity: dim ? 0.4 : 1,
+                      transition: "opacity 0.15s",
                     }}
-                  />
-                </div>
-              ))}
+                    title={p.id}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.previewUrl}
+                      alt=""
+                      loading="lazy"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                    {dim && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 6,
+                          left: 6,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          background: "rgba(28,26,23,.72)",
+                          color: "#fff",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 9,
+                          letterSpacing: ".08em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        no match
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {data.pageCount > 1 && (
+            {pageCount > 1 && (
               <div
                 style={{
                   display: "flex",
@@ -418,7 +556,7 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
               >
                 <PageBtn
                   label="←"
-                  disabled={data.page <= 1}
+                  disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 />
                 <label
@@ -435,11 +573,11 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                   <input
                     type="number"
                     min={1}
-                    max={data.pageCount}
-                    value={data.page}
+                    max={pageCount}
+                    value={page}
                     onChange={(e) => {
                       const n = Number(e.target.value);
-                      if (Number.isFinite(n) && n >= 1 && n <= data.pageCount) setPage(n);
+                      if (Number.isFinite(n) && n >= 1 && n <= pageCount) setPage(n);
                     }}
                     style={{
                       width: 50,
@@ -452,12 +590,12 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                       textAlign: "center",
                     }}
                   />
-                  / {data.pageCount}
+                  / {pageCount}
                 </label>
                 <PageBtn
                   label="→"
-                  disabled={data.page >= data.pageCount}
-                  onClick={() => setPage((p) => Math.min(data.pageCount, p + 1))}
+                  disabled={page >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
                 />
               </div>
             )}
@@ -465,9 +603,9 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
         )}
       </div>
 
-      {openPhoto && data && (
+      {openPhoto && (
         <PhotoDetailModal
-          photos={data.photos}
+          photos={allPhotos}
           currentId={openPhoto.id}
           onSelect={(id) => setOpenId(id)}
           rerunState={rerun[openPhoto.id] ?? "idle"}
@@ -490,6 +628,102 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Face picker — one circular thumbnail per distinct face cluster found across
+ * the runner's photos, most-common first. Tapping one selects it; the caller
+ * then offers to drop every photo that doesn't show that face.
+ */
+function FacePicker({
+  clusters,
+  selected,
+  onSelect,
+}: {
+  clusters: { clusterId: string; sample: { photoId: string; faceId: string }; count: number }[];
+  selected: string | null;
+  onSelect: (clusterId: string) => void;
+}) {
+  // Crowd shots can spawn dozens of one-off clusters (bystanders). The runner's
+  // own face is the most common, so show the top handful (already sorted by
+  // count) — enough to pick the runner without a wall of stranger thumbnails.
+  const MAX = 12;
+  const shown = clusters.slice(0, MAX);
+  const extra = clusters.length - shown.length;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+          letterSpacing: ".12em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+          marginBottom: 8,
+        }}
+      >
+        Faces in these photos — tap one to keep just that runner
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {shown.map((c) => {
+          const active = selected === c.clusterId;
+          return (
+            <button
+              key={c.clusterId}
+              type="button"
+              onClick={() => onSelect(c.clusterId)}
+              title={`${c.count} photo${c.count === 1 ? "" : "s"} with this face`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+                padding: 2,
+                border: 0,
+                background: "transparent",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  overflow: "hidden",
+                  background: "var(--cream)",
+                  border: active ? "3px solid var(--accent)" : "2px solid var(--line)",
+                  boxShadow: active ? "var(--shadow)" : "none",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/photos/${c.sample.photoId}/face/${c.sample.faceId}`}
+                  alt=""
+                  loading="lazy"
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  fontVariantNumeric: "tabular-nums",
+                  color: active ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                {c.count}
+              </span>
+            </button>
+          );
+        })}
+        {extra > 0 && (
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)" }}>
+            +{extra} more
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

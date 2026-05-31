@@ -6,17 +6,18 @@ import { getDuplicatePolicy } from "@/lib/uploadSettings";
 export type EventLite = { id: string; name: string; date: string; city: string };
 
 /**
- * Per-file pipeline stage.
+ * Per-file pipeline stage. Upload and detection are now two phases:
  *
- *   queued       → picked but Upload hasn't started this one
- *   uploading    → presigned PUT to R2
- *   processing   → /finalize is running: preview build + bib OCR + face index
- *   done         → all stages complete, photo is in the library
- *   skipped      → fingerprint collided with an existing photo and the
- *                  duplicate policy is "skip" (see src/lib/uploadSettings.ts)
- *   error        → any step failed; user can retry the failed bucket
+ *   queued     → picked but the upload pool hasn't started this one
+ *   uploading  → presigned PUT to R2 + /finalize (preview + DB)
+ *   uploaded   → photo is LIVE (preview ready); waiting for detection
+ *   detecting  → /detect is running: bib OCR + face indexing
+ *   done       → detection complete; bib/face tags written
+ *   skipped    → fingerprint collided with an existing photo and the duplicate
+ *                policy is "skip" — no upload, no detection (see uploadSettings)
+ *   error      → an upload step failed; user can retry the failed bucket
  */
-type Stage = "queued" | "uploading" | "processing" | "done" | "skipped" | "error";
+type Stage = "queued" | "uploading" | "uploaded" | "detecting" | "done" | "skipped" | "error";
 
 type QueueItem = {
   uid: string;
@@ -26,9 +27,9 @@ type QueueItem = {
   photoId?: string;
   /** Client-side SHA-256 of the file bytes, computed once on enqueue. */
   fingerprint?: string;
-  /** Bibs detected by OCR during finalize (set when stage === "done"). */
+  /** Bibs detected by OCR during detect (set when stage === "done"). */
   bibCount?: number;
-  /** Faces indexed by Rekognition during finalize (set when stage === "done"). */
+  /** Faces indexed by Rekognition during detect (set when stage === "done"). */
   faceCount?: number;
   errorMsg?: string;
 };
@@ -48,25 +49,37 @@ async function fingerprintFile(file: File): Promise<string> {
   return out;
 }
 
-// Parallel upload+finalize workers. The browser caps ~6 concurrent connections
-// per origin (sign + finalize are same-origin), so 6 is the practical ceiling
-// before requests just queue in the browser anyway.
-const CONCURRENCY = 6;
+// Parallel workers per phase. The browser caps ~6 concurrent connections per
+// origin (sign/finalize/detect are same-origin), so 6 is the practical ceiling.
+const UPLOAD_CONCURRENCY = 6;
+const DETECT_CONCURRENCY = 6;
 
 /** Compact progress summary the dashboard reads to badge a collapsed row. */
 export type UploadStatus = {
   total: number;
+  /** Past the upload step (uploaded + detecting + done). */
+  uploaded: number;
+  /** Detection complete. */
   done: number;
+  /** Detection in flight. */
+  detecting: number;
   skipped: number;
   failed: number;
   queued: number;
-  inFlight: number;
+  /** Currently PUT/finalizing. */
+  uploadInFlight: number;
+  /** Upload phase pool is running. */
   running: boolean;
+  /** Detection phase pool is running. */
+  detectingPhase: boolean;
   paused: boolean;
-  finished: boolean;
-  pct: number;
-  /** True while there's anything in motion (so the row keeps its panel mounted
-   *  and shows a badge even when collapsed). */
+  /** Every active photo has been uploaded (detection may still be running). */
+  uploadComplete: boolean;
+  /** Uploaded AND detected — fully finished. */
+  allDone: boolean;
+  uploadPct: number;
+  detectPct: number;
+  /** True while anything's in motion (keeps the panel mounted + badged). */
   working: boolean;
 };
 
@@ -75,9 +88,9 @@ export type UploadStatus = {
  * full-bleed on /photographer/upload and inline (compact) inside an expanded
  * event row on the dashboard, so both ingest surfaces share one code path.
  *
- * Deliberately no per-photo thumbnails — the focus is the progress of each
- * step (upload, bib OCR, face detection) plus skipped-duplicate and failure
- * counts and an ETA.
+ * Two phases: an upload pool (sign → PUT → finalize, makes the photo live) and
+ * a detection pool (bib OCR + face indexing) that runs in the background after
+ * upload — so a big batch is "done uploading" in minutes while tags backfill.
  */
 export function UploadPanel({
   event,
@@ -101,7 +114,7 @@ export function UploadPanel({
   /** Progress callback so a parent (the dashboard) can badge a collapsed row
    *  and keep the panel mounted while work is in flight. */
   onStatus?: (s: UploadStatus) => void;
-  /** Fired when a batch finishes draining — lets the dashboard refresh counts. */
+  /** Fired when a phase finishes draining — lets the dashboard refresh counts. */
   onChanged?: () => void;
   /** "Done" handler — e.g. collapse the dashboard row, or route home. When
    *  omitted, Done just resets the panel back to an empty dropzone. */
@@ -109,38 +122,42 @@ export function UploadPanel({
 }) {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isDragging, setDragging] = useState(false);
-  const [isRunning, setRunning] = useState(false);
+  const [isRunning, setRunning] = useState(false); // upload phase
+  const [isDetecting, setDetecting] = useState(false); // detection phase
   /** Paused: workers finished their current item and stopped pulling new ones,
    *  but the queue is preserved so Resume can pick up where it left off. */
   const [isPaused, setPaused] = useState(false);
-  /** Pause flag — workers finish their current item and bail out when set.
-   *  Used by Pause and Cancel to stop the pool. */
+  /** Pause flag — workers finish their current item and bail out when set. */
   const pausedRef = useRef(false);
-  /** Ref mirror of isRunning so autoStart can avoid spawning a second worker
-   *  pool from a stale closure. */
+  /** Ref mirrors so callbacks avoid stale-closure double-spawns. */
   const runningRef = useRef(false);
-  /** Ref mirror of items so uploadOne can read the freshest fingerprint even
-   *  when an item was claimed before its hash finished computing. */
+  const detectingRef = useRef(false);
+  /** Ref mirror of items so workers/uploadOne read the freshest state. */
   const itemsRef = useRef<QueueItem[]>([]);
   itemsRef.current = items;
-  /** Ref to onStatus so the report effect fires on status *value* changes only,
-   *  not when the parent passes a fresh inline callback (which would loop). */
+  /** In-flight fingerprint hashes, keyed by uid — so uploadOne can AWAIT the
+   *  hash before signing (otherwise fast auto-start uploads race past dedup). */
+  const fpPromises = useRef<Map<string, Promise<string>>>(new Map());
+  /** Ref to onStatus so the report effect fires on status *value* changes only. */
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
-  /** When the queue drains (or the user clicks "Upload more") we flip this
-   *  true to bring the dropzone back. */
+  /** When the queue drains (or "Upload more") we flip this to bring back the zone. */
   const [showMoreZone, setShowMoreZone] = useState(false);
 
   /** Per-batch timing for ETA. */
   const batchStartRef = useRef<number | null>(null);
   const [, forceTick] = useState(0); // rerender every second for ETA
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning && !isDetecting) return;
     const t = setInterval(() => forceTick((x) => x + 1), 1000);
     return () => clearInterval(t);
-  }, [isRunning]);
+  }, [isRunning, isDetecting]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function updateItem(uid: string, patch: Partial<QueueItem>) {
+    setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
+  }
 
   function addFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
@@ -157,32 +174,39 @@ export function UploadPanel({
     setShowMoreZone(false);
     setPaused(false);
 
+    // Kick off the hash for each file and STASH the promise — uploadOne awaits
+    // it before signing so duplicate detection never gets skipped by a race.
     for (const it of next) {
-      fingerprintFile(it.file)
-        .then((fp) => updateItem(it.uid, { fingerprint: fp }))
-        .catch(() => {
-          /* fingerprint failure is silent — dedup just won't fire for it. */
-        });
+      const p = fingerprintFile(it.file).then(
+        (fp) => {
+          updateItem(it.uid, { fingerprint: fp });
+          return fp;
+        },
+        () => "" // hash failure → empty string; dedup just won't fire for it
+      );
+      fpPromises.current.set(it.uid, p);
     }
 
-    // Drop-to-upload: start the engine right away unless it's already draining
-    // (existing workers pick up newly-queued items on their own).
+    // Drop-to-upload: start the upload engine right away unless it's already
+    // draining (existing workers pick up newly-queued items on their own).
     if (autoStart && !runningRef.current) {
       void processUntilEmpty();
     }
   }
 
-  function updateItem(uid: string, patch: Partial<QueueItem>) {
-    setItems((curr) => curr.map((i) => (i.uid === uid ? { ...i, ...patch } : i)));
-  }
+  /* --- Upload phase: sign → PUT → finalize (preview + DB) → "uploaded" ---- */
 
   async function uploadOne(item: QueueItem, opts: { force?: boolean } = {}): Promise<void> {
     updateItem(item.uid, { stage: "uploading" });
 
-    // Read the freshest fingerprint — the hash is computed async on enqueue and
-    // may have landed after this item was claimed (esp. with autoStart).
-    const fingerprint =
-      itemsRef.current.find((i) => i.uid === item.uid)?.fingerprint ?? item.fingerprint;
+    // Ensure the fingerprint is ready before signing — wait on the in-flight
+    // hash if it hasn't landed yet. This is what makes dedup reliable under
+    // auto-start (workers can claim an item before its hash finishes).
+    let fingerprint = itemsRef.current.find((i) => i.uid === item.uid)?.fingerprint;
+    if (!fingerprint) {
+      const pending = fpPromises.current.get(item.uid);
+      if (pending) fingerprint = (await pending) || undefined;
+    }
 
     const signRes = await fetch("/api/photographer/photos/sign", {
       method: "POST",
@@ -200,7 +224,9 @@ export function UploadPanel({
       | { duplicate: true; existing: { id: string; createdAt: string } };
 
     if ("duplicate" in signJson) {
-      // Apply the admin-set duplicate policy automatically — no prompt.
+      // Apply the admin-set duplicate policy automatically — no prompt. A skip
+      // returns here with NO upload and NO detection (the existing photo keeps
+      // its tags); we never re-run OCR/face on a duplicate.
       if (getDuplicatePolicy() === "overwrite") {
         try {
           await fetch(`/api/photographer/photos/${signJson.existing.id}`, { method: "DELETE" });
@@ -224,8 +250,6 @@ export function UploadPanel({
     });
     if (!putRes.ok) throw new Error(`PUT ${putRes.status}`);
 
-    updateItem(item.uid, { stage: "processing" });
-
     const finRes = await fetch("/api/photographer/photos/finalize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -233,52 +257,11 @@ export function UploadPanel({
     });
     if (!finRes.ok) throw new Error(`finalize ${finRes.status}`);
 
-    // Finalize reports what detection found — surface it as live progress.
-    const fin = (await finRes.json().catch(() => null)) as {
-      photo?: { detectedBibs?: number[]; indexedFaceCount?: number };
-    } | null;
-    const det = fin?.photo;
-    updateItem(item.uid, {
-      stage: "done",
-      bibCount: Array.isArray(det?.detectedBibs) ? det!.detectedBibs!.length : 0,
-      faceCount: typeof det?.indexedFaceCount === "number" ? det!.indexedFaceCount : 0,
-    });
+    // Photo is live (preview + DB). Detection happens in the background phase.
+    updateItem(item.uid, { stage: "uploaded" });
   }
 
-  async function processUntilEmpty() {
-    if (runningRef.current) return; // already draining — don't double the pool
-    runningRef.current = true;
-    setRunning(true);
-    setPaused(false);
-    setShowMoreZone(false);
-    pausedRef.current = false;
-    if (batchStartRef.current === null) batchStartRef.current = Date.now();
-    try {
-      const workers = Array.from({ length: CONCURRENCY }, () => worker());
-      await Promise.all(workers);
-    } finally {
-      runningRef.current = false;
-      setRunning(false);
-      // Stay "paused" only if pause() asked us to; otherwise we're truly idle.
-      if (!pausedRef.current) setPaused(false);
-      onChanged?.();
-    }
-  }
-
-  /** Pause: workers finish their current item, then stop pulling new ones. The
-   *  queue is preserved so Resume continues where it left off. */
-  function pause() {
-    pausedRef.current = true;
-    setPaused(true);
-  }
-
-  /** Resume a paused batch. */
-  function resume() {
-    if (runningRef.current) return;
-    void processUntilEmpty();
-  }
-
-  async function worker() {
+  async function uploadWorker() {
     while (true) {
       if (pausedRef.current) return;
       const next: QueueItem | undefined = await new Promise((resolve) => {
@@ -289,9 +272,7 @@ export function UploadPanel({
             return curr;
           }
           resolve(target);
-          return curr.map((i) =>
-            i.uid === target.uid ? { ...i, stage: "uploading" } : i
-          );
+          return curr.map((i) => (i.uid === target.uid ? { ...i, stage: "uploading" } : i));
         });
       });
       if (!next) return;
@@ -305,6 +286,117 @@ export function UploadPanel({
     }
   }
 
+  async function processUntilEmpty() {
+    if (runningRef.current) return; // already draining — don't double the pool
+    runningRef.current = true;
+    setRunning(true);
+    setPaused(false);
+    setShowMoreZone(false);
+    pausedRef.current = false;
+    if (batchStartRef.current === null) batchStartRef.current = Date.now();
+    try {
+      const workers = Array.from({ length: UPLOAD_CONCURRENCY }, () => uploadWorker());
+      await Promise.all(workers);
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+      if (!pausedRef.current) setPaused(false);
+      onChanged?.();
+    }
+    // Upload phase is complete (or paused). Kick detection in the background —
+    // it does NOT block the "upload complete" state.
+    if (!pausedRef.current) void runDetectPhase();
+  }
+
+  /* --- Detection phase: /detect (bib OCR + faces) → "done" -------------- */
+
+  async function detectOne(item: QueueItem): Promise<void> {
+    if (!item.photoId) {
+      updateItem(item.uid, { stage: "done", bibCount: 0, faceCount: 0 });
+      return;
+    }
+    const res = await fetch(`/api/photographer/photos/${item.photoId}/detect`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      // Best-effort: the photo is live regardless. Mark done (untagged) + log.
+      console.warn(`detect ${item.photoId} ${res.status}`);
+      updateItem(item.uid, { stage: "done", bibCount: 0, faceCount: 0 });
+      return;
+    }
+    const d = (await res.json().catch(() => null)) as {
+      detectedBibs?: number[];
+      indexedFaceCount?: number;
+    } | null;
+    updateItem(item.uid, {
+      stage: "done",
+      bibCount: Array.isArray(d?.detectedBibs) ? d!.detectedBibs!.length : 0,
+      faceCount: typeof d?.indexedFaceCount === "number" ? d!.indexedFaceCount : 0,
+    });
+  }
+
+  async function detectWorker() {
+    while (true) {
+      if (pausedRef.current) return;
+      const next: QueueItem | undefined = await new Promise((resolve) => {
+        setItems((curr) => {
+          const target = curr.find((i) => i.stage === "uploaded");
+          if (!target) {
+            resolve(undefined);
+            return curr;
+          }
+          resolve(target);
+          return curr.map((i) => (i.uid === target.uid ? { ...i, stage: "detecting" } : i));
+        });
+      });
+      if (!next) return;
+      try {
+        await detectOne(next);
+      } catch (e) {
+        console.warn("detect failed:", e);
+        updateItem(next.uid, { stage: "done", bibCount: 0, faceCount: 0 });
+      }
+    }
+  }
+
+  async function runDetectPhase() {
+    if (detectingRef.current) return; // already running
+    if (pausedRef.current) return;
+    detectingRef.current = true;
+    setDetecting(true);
+    try {
+      const workers = Array.from({ length: DETECT_CONCURRENCY }, () => detectWorker());
+      await Promise.all(workers);
+    } finally {
+      detectingRef.current = false;
+      setDetecting(false);
+      onChanged?.();
+      // Race guard: an item may have become "uploaded" as we wound down.
+      if (!pausedRef.current && itemsRef.current.some((i) => i.stage === "uploaded")) {
+        void runDetectPhase();
+      }
+    }
+  }
+
+  /* --- Controls --------------------------------------------------------- */
+
+  /** Pause: workers finish their current item, then stop pulling new ones. */
+  function pause() {
+    pausedRef.current = true;
+    setPaused(true);
+  }
+
+  /** Resume a paused batch — restarts upload (re-kicks detection at the end). */
+  function resume() {
+    pausedRef.current = false;
+    setPaused(false);
+    if (!runningRef.current) void processUntilEmpty();
+    // Catch any already-uploaded-but-undetected items if upload had nothing left.
+    if (!detectingRef.current && itemsRef.current.some((i) => i.stage === "uploaded")) {
+      void runDetectPhase();
+    }
+  }
+
   async function retryFailed() {
     setItems((curr) =>
       curr.map((i) => (i.stage === "error" ? { ...i, stage: "queued", errorMsg: undefined } : i))
@@ -313,17 +405,20 @@ export function UploadPanel({
   }
 
   /**
-   * Abort the batch: stop the workers, wipe the local queue, and delete any
+   * Abort the batch: stop both pools, wipe the local queue, and delete any
    * photo that already made it to R2 so a cancel leaves nothing behind.
    */
   async function cancel() {
     pausedRef.current = true;
     runningRef.current = false;
+    detectingRef.current = false;
     setRunning(false);
+    setDetecting(false);
     setPaused(false);
     const photoIds = items.map((i) => i.photoId).filter((x): x is string => Boolean(x));
     items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
     setItems([]);
+    fpPromises.current.clear();
     batchStartRef.current = null;
     setShowMoreZone(true);
     await Promise.allSettled(
@@ -340,56 +435,88 @@ export function UploadPanel({
     }
     items.forEach((i) => URL.revokeObjectURL(i.previewUrl));
     setItems([]);
+    fpPromises.current.clear();
     batchStartRef.current = null;
     setShowMoreZone(true);
   }
 
-  // Aggregate counts
+  /* --- Aggregate counts ------------------------------------------------- */
   const total = items.length;
   const queued = items.filter((i) => i.stage === "queued").length;
   const uploading = items.filter((i) => i.stage === "uploading").length;
-  const processing = items.filter((i) => i.stage === "processing").length;
+  const uploadedStage = items.filter((i) => i.stage === "uploaded").length;
+  const detecting = items.filter((i) => i.stage === "detecting").length;
   const done = items.filter((i) => i.stage === "done").length;
   const skipped = items.filter((i) => i.stage === "skipped").length;
   const failed = items.filter((i) => i.stage === "error").length;
-  const inFlight = uploading + processing;
-  const isFinished = total > 0 && queued === 0 && inFlight === 0;
-  // Items actually being uploaded (skips excluded from the denominators).
   const active = Math.max(total - skipped, 0);
   const denom = Math.max(active, 1);
-  const uploaded = done + processing; // PUT complete (processing = finalizing)
-  const progressPct = Math.round((done / denom) * 100);
+  const uploadedCount = uploadedStage + detecting + done; // past the upload step
+  const detectPending = uploadedStage + detecting; // not yet detected
+  const uploadComplete = active > 0 && queued === 0 && uploading === 0;
+  const allDone = uploadComplete && detectPending === 0;
+  const uploadPct = Math.round((uploadedCount / denom) * 100);
+  const detectPct = Math.round((done / denom) * 100);
   const totalBibs = items.reduce((s, i) => s + (i.bibCount ?? 0), 0);
   const totalFaces = items.reduce((s, i) => s + (i.faceCount ?? 0), 0);
 
+  // ETA for the (long) upload phase, based on uploads completed so far.
   const eta = useMemo(() => {
-    if (!isRunning || done === 0 || total === done + failed + skipped) return null;
+    if (!isRunning || uploadedCount === 0) return null;
     const elapsed = batchStartRef.current ? Date.now() - batchStartRef.current : 0;
     if (elapsed <= 0) return null;
-    const perItem = elapsed / done;
-    const remaining = total - done - failed - skipped;
+    const remaining = active - uploadedCount - failed;
+    if (remaining <= 0) return null;
+    const perItem = elapsed / uploadedCount;
     return Math.round((perItem * remaining) / 1000); // seconds
-  }, [isRunning, done, failed, skipped, total]);
+  }, [isRunning, uploadedCount, active, failed]);
 
   // Report progress up (dashboard badges the collapsed row + keeps us mounted).
   useEffect(() => {
     onStatusRef.current?.({
       total,
+      uploaded: uploadedCount,
       done,
+      detecting,
       skipped,
       failed,
       queued,
-      inFlight,
+      uploadInFlight: uploading,
       running: isRunning,
+      detectingPhase: isDetecting,
       paused: isPaused,
-      finished: isFinished,
-      pct: progressPct,
-      working: isRunning || isPaused || queued > 0 || inFlight > 0,
+      uploadComplete,
+      allDone,
+      uploadPct,
+      detectPct,
+      working:
+        isRunning ||
+        isDetecting ||
+        isPaused ||
+        queued > 0 ||
+        uploading > 0 ||
+        detectPending > 0,
     });
-  }, [total, done, skipped, failed, queued, inFlight, isRunning, isPaused, isFinished, progressPct]);
+  }, [
+    total,
+    uploadedCount,
+    done,
+    detecting,
+    skipped,
+    failed,
+    queued,
+    uploading,
+    isRunning,
+    isDetecting,
+    isPaused,
+    uploadComplete,
+    allDone,
+    uploadPct,
+    detectPct,
+    detectPending,
+  ]);
 
   // Consume files injected from outside (e.g. dropped onto a collapsed row).
-  // Parent passes a fresh array per drop and clears it via onPendingConsumed.
   useEffect(() => {
     if (pendingFiles && pendingFiles.length > 0) {
       addFiles(pendingFiles);
@@ -400,15 +527,20 @@ export function UploadPanel({
 
   const showDropzone = items.length === 0 || showMoreZone;
 
-  const title = isFinished
+  const title = allDone
     ? "Upload complete"
     : isRunning
       ? "Uploading…"
       : isPaused
         ? "Paused"
-        : queued > 0
-          ? `${queued} ready to upload`
-          : "Upload";
+        : isDetecting || detectPending > 0
+          ? "Tagging photos…"
+          : queued > 0
+            ? `${queued} ready to upload`
+            : "Upload";
+
+  // Detection-still-running banner state (upload done, tags backfilling).
+  const detectingInBackground = uploadComplete && !allDone && !isRunning && !isPaused;
 
   return (
     <div>
@@ -416,11 +548,13 @@ export function UploadPanel({
         <div
           onDragOver={(e) => {
             e.preventDefault();
+            e.stopPropagation(); // don't also trigger a parent drop target
             setDragging(true);
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             setDragging(false);
             addFiles(e.dataTransfer.files);
           }}
@@ -470,7 +604,7 @@ export function UploadPanel({
       {/* Progress view */}
       {items.length > 0 && (
         <div style={{ marginTop: showDropzone ? (compact ? 16 : 22) : 0 }}>
-          {/* Header — title + ETA */}
+          {/* Header — title + phase progress */}
           <div
             style={{
               display: "flex",
@@ -487,14 +621,35 @@ export function UploadPanel({
           >
             <span style={{ color: "var(--ink)" }}>{title}</span>
             <span>
-              {done}/{active} done
+              {!uploadComplete
+                ? `${uploadedCount}/${active} done · ${uploadPct}%`
+                : `${done}/${active} tagged · ${detectPct}%`}
               {eta != null && ` · ~${formatEta(eta)} left`}
             </span>
           </div>
 
-          <ProgressBar pct={progressPct} hasFailures={failed > 0 && isFinished} />
+          <ProgressBar
+            pct={uploadComplete ? detectPct : uploadPct}
+            hasFailures={failed > 0 && allDone}
+          />
 
-          {/* Per-step + tallies — no photo previews, just progress. */}
+          {detectingInBackground && (
+            <div
+              style={{
+                marginTop: 10,
+                fontFamily: "var(--font-sans)",
+                fontSize: 12.5,
+                color: "var(--muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              All {active} uploaded and live — bib OCR + face detection are still
+              running in the background. You can keep this open to watch, or close
+              it; tagging continues.
+            </div>
+          )}
+
+          {/* Per-step + tallies. Upload fills fast; Bib OCR + Face rec backfill. */}
           <div
             style={{
               marginTop: 14,
@@ -505,29 +660,33 @@ export function UploadPanel({
           >
             <Metric
               label="Upload"
-              value={`${uploaded}/${active}`}
+              value={`${uploadedCount}/${active}`}
               sub={uploading > 0 ? `pushing ${uploading}…` : "to storage"}
-              pct={Math.round((uploaded / denom) * 100)}
+              pct={uploadPct}
             />
             <Metric
               label="Bib OCR"
               value={`${done}/${active}`}
               sub={
-                processing > 0
-                  ? `scanning ${processing}…`
-                  : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
+                detecting > 0
+                  ? `scanning ${detecting}…`
+                  : detectPending > 0
+                    ? "queued…"
+                    : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
               }
-              pct={progressPct}
+              pct={detectPct}
             />
             <Metric
               label="Face rec"
               value={`${done}/${active}`}
               sub={
-                processing > 0
-                  ? `detecting ${processing}…`
-                  : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
+                detecting > 0
+                  ? `detecting ${detecting}…`
+                  : detectPending > 0
+                    ? "queued…"
+                    : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
               }
-              pct={progressPct}
+              pct={detectPct}
             />
             <Metric label="Skipped" value={`${skipped}`} sub="duplicates" muted={skipped === 0} />
             <Metric
@@ -561,20 +720,6 @@ export function UploadPanel({
                   Cancel
                 </button>
               </>
-            ) : isFinished ? (
-              <>
-                {failed > 0 && (
-                  <button className="btn btn--ghost" onClick={retryFailed}>
-                    Retry {failed}
-                  </button>
-                )}
-                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
-                  Upload more
-                </button>
-                <button className="btn btn--primary" onClick={finish}>
-                  Done
-                </button>
-              </>
             ) : isPaused ? (
               <>
                 <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
@@ -587,15 +732,27 @@ export function UploadPanel({
                   Cancel
                 </button>
               </>
-            ) : (
+            ) : !uploadComplete && queued > 0 ? (
               <>
-                {queued > 0 && (
-                  <button className="btn btn--primary" onClick={processUntilEmpty}>
-                    Upload {queued}
-                  </button>
-                )}
+                <button className="btn btn--primary" onClick={processUntilEmpty}>
+                  Upload {queued}
+                </button>
                 <button className="btn btn--ghost" style={{ color: "var(--accent)" }} onClick={cancel}>
                   Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                {failed > 0 && (
+                  <button className="btn btn--ghost" onClick={retryFailed}>
+                    Retry {failed}
+                  </button>
+                )}
+                <button className="btn btn--ghost" onClick={() => setShowMoreZone(true)}>
+                  Upload more
+                </button>
+                <button className="btn btn--primary" onClick={finish}>
+                  Done
                 </button>
               </>
             )}
@@ -627,7 +784,7 @@ function ProgressBar({ pct, hasFailures }: { pct: number; hasFailures: boolean }
       <div
         style={{
           height: "100%",
-          width: `${pct}%`,
+          width: `${Math.max(0, Math.min(100, pct))}%`,
           background: hasFailures ? "var(--accent)" : "var(--green)",
           transition: "width 0.3s ease",
         }}
@@ -636,8 +793,8 @@ function ProgressBar({ pct, hasFailures }: { pct: number; hasFailures: boolean }
   );
 }
 
-/** A single progress/tally tile. `pct` adds a thin step progress bar; omit it
- *  for plain counts (skipped / failed). */
+/** A single progress/tally tile. `pct` adds a thin step progress bar (and a %
+ *  in the label); omit it for plain counts (skipped / failed). */
 function Metric({
   label,
   value,
@@ -666,6 +823,10 @@ function Metric({
     >
       <div
         style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: 6,
           fontFamily: "var(--font-mono)",
           fontSize: 10,
           letterSpacing: ".14em",
@@ -673,7 +834,12 @@ function Metric({
           color: "var(--muted)",
         }}
       >
-        {label}
+        <span>{label}</span>
+        {pct != null && (
+          <span style={{ color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+            {Math.max(0, Math.min(100, pct))}%
+          </span>
+        )}
       </div>
       <div
         style={{

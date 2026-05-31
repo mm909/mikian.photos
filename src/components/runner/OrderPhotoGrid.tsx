@@ -61,6 +61,9 @@ export function OrderPhotoGrid({
   const [zipBusy, setZipBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [zipErr, setZipErr] = useState<string | null>(null);
+  /** Live ZIP download progress while building: { received bytes, total bytes
+   *  (0 when the server streams without a Content-Length) }. */
+  const [zipProgress, setZipProgress] = useState<{ received: number; total: number } | null>(null);
 
   function downloadHref(id: string): string {
     return `/api/photos/${id}/download?token=${encodeURIComponent(downloadToken)}`;
@@ -73,6 +76,7 @@ export function OrderPhotoGrid({
   async function downloadZip() {
     setZipBusy(true);
     setZipErr(null);
+    setZipProgress({ received: 0, total: 0 });
     try {
       // Fetch the zip (rather than navigating an anchor) so we can surface a
       // server error instead of failing silently — and so a dev-mode streaming
@@ -82,7 +86,28 @@ export function OrderPhotoGrid({
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error || `ZIP download failed (${res.status})`);
       }
-      const blob = await res.blob();
+      // Stream the body so we can show live progress as the server builds the
+      // zip. It's streamed without a Content-Length, so we report MB received
+      // (and a % when a length happens to be present).
+      const total = Number(res.headers.get("Content-Length")) || 0;
+      let blob: Blob;
+      const reader = res.body?.getReader();
+      if (reader) {
+        const chunks: BlobPart[] = [];
+        let received = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.length;
+            setZipProgress({ received, total });
+          }
+        }
+        blob = new Blob(chunks, { type: "application/zip" });
+      } else {
+        blob = await res.blob();
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -95,6 +120,7 @@ export function OrderPhotoGrid({
       setZipErr(e instanceof Error ? e.message : String(e));
     } finally {
       setZipBusy(false);
+      setZipProgress(null);
     }
   }
 
@@ -267,7 +293,15 @@ export function OrderPhotoGrid({
             onClick={downloadZip}
             disabled={zipBusy || total === 0}
           >
-            {zipBusy ? "Preparing ZIP…" : `Download all (${total}) as ZIP`}
+            {zipBusy
+              ? zipProgress
+                ? `Preparing ZIP… ${(zipProgress.received / 1048576).toFixed(1)} MB${
+                    zipProgress.total > 0
+                      ? ` · ${Math.round((zipProgress.received / zipProgress.total) * 100)}%`
+                      : ""
+                  }`
+                : "Preparing ZIP…"
+              : `Download all (${total}) as ZIP`}
           </button>
 
           {canShareFiles && (
