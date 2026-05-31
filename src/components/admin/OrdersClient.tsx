@@ -360,20 +360,22 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                         ) : (
                           <Pill tone="green">Paid</Pill>
                         )}
-                        <div style={{ marginTop: 4 }}>
-                          {o.emailError ? (
-                            <span
-                              style={{ fontSize: 11, color: "var(--accent)" }}
-                              title={o.emailError}
-                            >
-                              ✉ failed
-                            </span>
-                          ) : o.emailSentAt ? (
-                            <span style={{ fontSize: 11, color: "var(--muted)" }}>✉ sent</span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: "var(--muted)" }}>✉ not sent</span>
-                          )}
-                        </div>
+                        {/* Only surface a problem — a successfully-sent receipt
+                            shows nothing (no "✉ sent" noise). */}
+                        {(o.emailError || !o.emailSentAt) && (
+                          <div style={{ marginTop: 4 }}>
+                            {o.emailError ? (
+                              <span
+                                style={{ fontSize: 11, color: "var(--accent)" }}
+                                title={o.emailError}
+                              >
+                                ✉ failed
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "var(--muted)" }}>✉ not sent</span>
+                            )}
+                          </div>
+                        )}
                       </Td>
                       {isOwner && (
                         <Td align="right" onClick={(e) => e.stopPropagation()}>

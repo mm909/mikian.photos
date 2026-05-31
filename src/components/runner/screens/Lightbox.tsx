@@ -133,6 +133,17 @@ export function Lightbox({
           >
             ›
           </button>
+
+          {/* Close — only shown on mobile, where the buy-pane header (with its
+              own ×) is hidden and the photo sits on top. */}
+          <button
+            onClick={onClose}
+            className="icon-btn lightbox-mobile-close"
+            style={{ position: "absolute", top: 14, right: 14, background: "#fff" }}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         {/* buy pane — scrollable gallery up top, sticky price + CTA at the
@@ -150,6 +161,7 @@ export function Lightbox({
         >
           {/* header */}
           <div
+            className="lightbox-header"
             style={{
               display: "flex",
               alignItems: "center",
@@ -177,6 +189,7 @@ export function Lightbox({
 
           {/* "All N photos" — stays put above the scroll area. */}
           <div
+            className="lightbox-gallery"
             style={{
               padding: "16px 28px 8px",
               fontFamily: "var(--font-mono)",
@@ -195,6 +208,7 @@ export function Lightbox({
               outline from being clipped by the scroll area.) Scrolls between the
               header and the pinned checkout footer below. */}
           <div
+            className="lightbox-gallery"
             style={{
               padding: "4px 28px 12px",
               flex: "1 1 auto",

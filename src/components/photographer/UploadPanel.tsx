@@ -144,9 +144,13 @@ export function UploadPanel({
   /** When the queue drains (or "Upload more") we flip this to bring back the zone. */
   const [showMoreZone, setShowMoreZone] = useState(false);
 
-  /** Per-batch timing for ETA. */
+  /** Per-batch timing. batchStartRef = upload start; detectStartRef = when the
+   *  detection phase began. *Ms states freeze each phase's total on completion. */
   const batchStartRef = useRef<number | null>(null);
-  const [, forceTick] = useState(0); // rerender every second for ETA
+  const detectStartRef = useRef<number | null>(null);
+  const [uploadMs, setUploadMs] = useState<number | null>(null);
+  const [detectMs, setDetectMs] = useState<number | null>(null);
+  const [, forceTick] = useState(0); // rerender every second for live timers
   useEffect(() => {
     if (!isRunning && !isDetecting) return;
     const t = setInterval(() => forceTick((x) => x + 1), 1000);
@@ -173,6 +177,9 @@ export function UploadPanel({
     setItems((curr) => [...curr, ...next]);
     setShowMoreZone(false);
     setPaused(false);
+    // Recompute phase timers to include this fresh set.
+    setUploadMs(null);
+    setDetectMs(null);
 
     // Kick off the hash for each file and STASH the promise — uploadOne awaits
     // it before signing so duplicate detection never gets skipped by a race.
@@ -293,7 +300,12 @@ export function UploadPanel({
     setPaused(false);
     setShowMoreZone(false);
     pausedRef.current = false;
-    if (batchStartRef.current === null) batchStartRef.current = Date.now();
+    if (batchStartRef.current === null) {
+      batchStartRef.current = Date.now();
+      detectStartRef.current = null;
+      setUploadMs(null);
+      setDetectMs(null);
+    }
     try {
       const workers = Array.from({ length: UPLOAD_CONCURRENCY }, () => uploadWorker());
       await Promise.all(workers);
@@ -420,6 +432,9 @@ export function UploadPanel({
     setItems([]);
     fpPromises.current.clear();
     batchStartRef.current = null;
+    detectStartRef.current = null;
+    setUploadMs(null);
+    setDetectMs(null);
     setShowMoreZone(true);
     await Promise.allSettled(
       photoIds.map((id) => fetch(`/api/photographer/photos/${id}`, { method: "DELETE" }))
@@ -437,6 +452,9 @@ export function UploadPanel({
     setItems([]);
     fpPromises.current.clear();
     batchStartRef.current = null;
+    detectStartRef.current = null;
+    setUploadMs(null);
+    setDetectMs(null);
     setShowMoreZone(true);
   }
 
@@ -459,6 +477,14 @@ export function UploadPanel({
   const detectPct = Math.round((done / denom) * 100);
   const totalBibs = items.reduce((s, i) => s + (i.bibCount ?? 0), 0);
   const totalFaces = items.reduce((s, i) => s + (i.faceCount ?? 0), 0);
+  // Every item collided with an existing photo — nothing new to upload/detect.
+  const allSkipped = total > 0 && active === 0 && skipped > 0;
+
+  // Per-phase elapsed time (live while running via the 1s ticker; frozen once
+  // each phase finishes). `now` is read each render so the timers advance.
+  const now = Date.now();
+  const uploadElapsedMs = uploadMs ?? (batchStartRef.current ? now - batchStartRef.current : null);
+  const detectElapsedMs = detectMs ?? (detectStartRef.current ? now - detectStartRef.current : null);
 
   // ETA for the (long) upload phase, based on uploads completed so far.
   const eta = useMemo(() => {
@@ -470,6 +496,37 @@ export function UploadPanel({
     const perItem = elapsed / uploadedCount;
     return Math.round((perItem * remaining) / 1000); // seconds
   }, [isRunning, uploadedCount, active, failed]);
+
+  // Freeze each phase's total time on completion; live timers tick meanwhile.
+  useEffect(() => {
+    if (uploadComplete && uploadMs === null && batchStartRef.current) {
+      setUploadMs(Date.now() - batchStartRef.current);
+    }
+  }, [uploadComplete, uploadMs]);
+  useEffect(() => {
+    if (isDetecting && detectStartRef.current === null) detectStartRef.current = Date.now();
+  }, [isDetecting]);
+  useEffect(() => {
+    if (allDone && detectMs === null && detectStartRef.current) {
+      setDetectMs(Date.now() - detectStartRef.current);
+    }
+  }, [allDone, detectMs]);
+
+  // Warn before leaving/refreshing while work is in flight. A refresh can't
+  // truly resume (the browser drops File handles), but uploaded photos are safe
+  // and re-dropping the same set skips them via dedup — so this just guards
+  // against losing the in-progress queue by accident.
+  useEffect(() => {
+    const working =
+      isRunning || isDetecting || queued > 0 || uploading > 0 || detectPending > 0;
+    if (!working) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isRunning, isDetecting, queued, uploading, detectPending]);
 
   // Report progress up (dashboard badges the collapsed row + keeps us mounted).
   useEffect(() => {
@@ -527,17 +584,29 @@ export function UploadPanel({
 
   const showDropzone = items.length === 0 || showMoreZone;
 
-  const title = allDone
-    ? "Upload complete"
-    : isRunning
-      ? "Uploading…"
-      : isPaused
-        ? "Paused"
-        : isDetecting || detectPending > 0
-          ? "Tagging photos…"
-          : queued > 0
-            ? `${queued} ready to upload`
-            : "Upload";
+  const title = allSkipped
+    ? "All duplicates"
+    : allDone
+      ? "Upload complete"
+      : isRunning
+        ? "Uploading…"
+        : isPaused
+          ? "Paused"
+          : isDetecting || detectPending > 0
+            ? "Tagging photos…"
+            : queued > 0
+              ? `${queued} ready to upload`
+              : "Upload";
+
+  // Per-phase timing label (e.g. "Upload 1m 04s · Tagging 3m 12s").
+  const timingLabel =
+    uploadElapsedMs != null
+      ? `Upload ${formatEta(Math.round(uploadElapsedMs / 1000))}${
+          detectElapsedMs != null
+            ? ` · Tagging ${formatEta(Math.round(detectElapsedMs / 1000))}`
+            : ""
+        }`
+      : null;
 
   // Detection-still-running banner state (upload done, tags backfilling).
   const detectingInBackground = uploadComplete && !allDone && !isRunning && !isPaused;
@@ -621,82 +690,121 @@ export function UploadPanel({
           >
             <span style={{ color: "var(--ink)" }}>{title}</span>
             <span>
-              {!uploadComplete
-                ? `${uploadedCount}/${active} done · ${uploadPct}%`
-                : `${done}/${active} tagged · ${detectPct}%`}
+              {allSkipped
+                ? `${skipped} skipped`
+                : !uploadComplete
+                  ? `${uploadedCount}/${active} done · ${uploadPct}%`
+                  : `${done}/${active} tagged · ${detectPct}%`}
               {eta != null && ` · ~${formatEta(eta)} left`}
             </span>
           </div>
 
-          <ProgressBar
-            pct={uploadComplete ? detectPct : uploadPct}
-            hasFailures={failed > 0 && allDone}
-          />
-
-          {detectingInBackground && (
+          {allSkipped ? (
             <div
               style={{
-                marginTop: 10,
-                fontFamily: "var(--font-sans)",
-                fontSize: 12.5,
-                color: "var(--muted)",
+                padding: "14px 16px",
+                background: "var(--surface)",
+                border: "1px solid var(--line)",
+                borderRadius: 10,
+                fontSize: 13.5,
+                color: "var(--ink)",
                 lineHeight: 1.5,
               }}
             >
-              All {active} uploaded and live — bib OCR + face detection are still
-              running in the background. You can keep this open to watch, or close
-              it; tagging continues.
+              All {skipped} {skipped === 1 ? "photo was" : "photos were"} already in your
+              library — nothing new was uploaded, and no bib OCR or face detection was
+              run.
             </div>
-          )}
+          ) : (
+            <>
+              <ProgressBar
+                pct={uploadComplete ? detectPct : uploadPct}
+                hasFailures={failed > 0 && allDone}
+              />
 
-          {/* Per-step + tallies. Upload fills fast; Bib OCR + Face rec backfill. */}
-          <div
-            style={{
-              marginTop: 14,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 10,
-            }}
-          >
-            <Metric
-              label="Upload"
-              value={`${uploadedCount}/${active}`}
-              sub={uploading > 0 ? `pushing ${uploading}…` : "to storage"}
-              pct={uploadPct}
-            />
-            <Metric
-              label="Bib OCR"
-              value={`${done}/${active}`}
-              sub={
-                detecting > 0
-                  ? `scanning ${detecting}…`
-                  : detectPending > 0
-                    ? "queued…"
-                    : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
-              }
-              pct={detectPct}
-            />
-            <Metric
-              label="Face rec"
-              value={`${done}/${active}`}
-              sub={
-                detecting > 0
-                  ? `detecting ${detecting}…`
-                  : detectPending > 0
-                    ? "queued…"
-                    : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
-              }
-              pct={detectPct}
-            />
-            <Metric label="Skipped" value={`${skipped}`} sub="duplicates" muted={skipped === 0} />
-            <Metric
-              label="Failed"
-              value={`${failed}`}
-              sub={failed > 0 ? "need retry" : "none"}
-              tone={failed > 0 ? "error" : undefined}
-              muted={failed === 0}
-            />
-          </div>
+              {timingLabel && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10.5,
+                    letterSpacing: ".08em",
+                    textTransform: "uppercase",
+                    color: "var(--muted)",
+                  }}
+                >
+                  {timingLabel}
+                </div>
+              )}
+
+              {detectingInBackground && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12.5,
+                    color: "var(--muted)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  All {active} uploaded and live — bib OCR + face detection are still
+                  running in the background. You can keep this open to watch, or close
+                  it; tagging continues.
+                </div>
+              )}
+
+              {/* Per-step + tallies. Upload fills fast; Bib OCR + Face rec backfill. */}
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                <Metric
+                  label="Upload"
+                  value={`${uploadedCount}/${active}`}
+                  sub={uploading > 0 ? `pushing ${uploading}…` : "to storage"}
+                  pct={uploadPct}
+                />
+                <Metric
+                  label="Bib OCR"
+                  value={`${done}/${active}`}
+                  sub={
+                    detecting > 0
+                      ? `scanning ${detecting}…`
+                      : detectPending > 0
+                        ? "queued…"
+                        : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
+                  }
+                  pct={detectPct}
+                />
+                <Metric
+                  label="Face rec"
+                  value={`${done}/${active}`}
+                  sub={
+                    detecting > 0
+                      ? `detecting ${detecting}…`
+                      : detectPending > 0
+                        ? "queued…"
+                        : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
+                  }
+                  pct={detectPct}
+                />
+                {skipped > 0 && (
+                  <Metric label="Skipped" value={`${skipped}`} sub="duplicates" />
+                )}
+                <Metric
+                  label="Failed"
+                  value={`${failed}`}
+                  sub={failed > 0 ? "need retry" : "none"}
+                  tone={failed > 0 ? "error" : undefined}
+                  muted={failed === 0}
+                />
+              </div>
+            </>
+          )}
 
           {/* Action row */}
           <div

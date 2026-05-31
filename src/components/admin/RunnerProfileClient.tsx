@@ -60,7 +60,9 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Face cleanup: pick a face cluster, then untag this bib from photos that
-  // don't show that face (so only the real runner's photos remain).
+  // don't show that face (so only the real runner's photos remain). The picker
+  // is revealed by clicking the runner's profile photo.
+  const [showFacePicker, setShowFacePicker] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
 
@@ -330,7 +332,11 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                 "most-common cluster" heuristic on the server). Renders
                 an empty cream placeholder until face detection produces
                 clusters for this runner. */}
-            <AssignedFaceThumb assigned={profile?.assignedFace ?? null} />
+            <AssignedFaceThumb
+              assigned={profile?.assignedFace ?? null}
+              active={showFacePicker}
+              onClick={() => setShowFacePicker((s) => !s)}
+            />
             <div>
               <div
                 style={{
@@ -415,11 +421,13 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
           </div>
         ) : (
           <>
-            {/* Face picker — pick this runner's face, then drop the bib photos
-                that don't show it (bib-OCR false matches, other runners, etc.). */}
-            {clusters.length > 0 && (
+            {/* Face picker — revealed by clicking the runner's profile photo.
+                Pick this runner's face, then drop the bib photos that don't show
+                it (bib-OCR false matches, other runners, etc.). */}
+            {showFacePicker && clusters.length > 0 && (
               <FacePicker
                 clusters={clusters}
+                total={total}
                 selected={selectedCluster}
                 onSelect={(id) => setSelectedCluster((cur) => (cur === id ? null : id))}
               />
@@ -638,16 +646,20 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
  */
 function FacePicker({
   clusters,
+  total,
   selected,
   onSelect,
 }: {
   clusters: { clusterId: string; sample: { photoId: string; faceId: string }; count: number }[];
+  /** Total photos for this runner — denominator for the likelihood %. */
+  total: number;
   selected: string | null;
   onSelect: (clusterId: string) => void;
 }) {
   // Crowd shots can spawn dozens of one-off clusters (bystanders). The runner's
   // own face is the most common, so show the top handful (already sorted by
-  // count) — enough to pick the runner without a wall of stranger thumbnails.
+  // count = likelihood, most-likely first) — enough to pick the runner without
+  // a wall of stranger thumbnails.
   const MAX = 12;
   const shown = clusters.slice(0, MAX);
   const extra = clusters.length - shown.length;
@@ -663,17 +675,18 @@ function FacePicker({
           marginBottom: 8,
         }}
       >
-        Faces in these photos — tap one to keep just that runner
+        Faces in these photos — most likely first · tap one to keep just that runner
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
         {shown.map((c) => {
           const active = selected === c.clusterId;
+          const likelihood = total > 0 ? Math.round((c.count / total) * 100) : 0;
           return (
             <button
               key={c.clusterId}
               type="button"
               onClick={() => onSelect(c.clusterId)}
-              title={`${c.count} photo${c.count === 1 ? "" : "s"} with this face`}
+              title={`In ${c.count} of ${total} photos · ${likelihood}% likely this runner`}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -707,12 +720,23 @@ function FacePicker({
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 10,
+                  fontSize: 11,
+                  fontWeight: 500,
                   fontVariantNumeric: "tabular-nums",
-                  color: active ? "var(--accent)" : "var(--muted)",
+                  color: active ? "var(--accent)" : "var(--ink)",
                 }}
               >
-                {c.count}
+                {likelihood}%
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 9,
+                  color: "var(--muted)",
+                  marginTop: -2,
+                }}
+              >
+                {c.count} pic{c.count === 1 ? "" : "s"}
               </span>
             </button>
           );
@@ -740,6 +764,8 @@ function FacePicker({
  */
 function AssignedFaceThumb({
   assigned,
+  active,
+  onClick,
 }: {
   assigned: {
     faceClusterId: string;
@@ -747,16 +773,22 @@ function AssignedFaceThumb({
     photoShare: number;
     photoCount: number;
   } | null;
+  /** Whether the face picker it opens is currently shown. */
+  active?: boolean;
+  /** Click to reveal/hide the face picker. */
+  onClick?: () => void;
 }) {
   if (!assigned) {
     return (
-      <div
-        title="No face assigned yet — run face detection on this runner's photos"
+      <button
+        type="button"
+        onClick={onClick}
+        title="Pick this runner's face to clean up their photos"
         style={{
           width: 72,
           height: 72,
           background: "var(--cream)",
-          border: "1px dashed var(--line)",
+          border: active ? "2px solid var(--accent)" : "1px dashed var(--line)",
           borderRadius: 6,
           display: "flex",
           alignItems: "center",
@@ -768,19 +800,21 @@ function AssignedFaceThumb({
           color: "var(--muted)",
           textAlign: "center",
           lineHeight: 1.2,
+          cursor: "pointer",
+          padding: 0,
         }}
       >
-        no face
+        pick
         <br />
-        yet
-      </div>
+        face
+      </button>
     );
   }
   return (
-    <div
-      title={`Cluster ${assigned.faceClusterId.slice(0, 14)}… · ${assigned.photoCount} photo${
-        assigned.photoCount === 1 ? "" : "s"
-      }`}
+    <button
+      type="button"
+      onClick={onClick}
+      title="Click to pick this runner's face and clean up their photos"
       style={{
         position: "relative",
         width: 72,
@@ -788,7 +822,9 @@ function AssignedFaceThumb({
         borderRadius: 6,
         overflow: "hidden",
         background: "var(--cream)",
-        border: "1px solid var(--line)",
+        border: active ? "2px solid var(--accent)" : "1px solid var(--line)",
+        cursor: "pointer",
+        padding: 0,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -803,7 +839,7 @@ function AssignedFaceThumb({
           display: "block",
         }}
       />
-    </div>
+    </button>
   );
 }
 

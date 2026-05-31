@@ -123,7 +123,10 @@ export const photographersRoster: Photographer[] = [
 
 export const prices: Prices = {
   single: 10,
-  bundle: 1,
+  // Fallback bundle price shown until the server reports the event's real
+  // price (/api/photos → bundlePrice). Kept in sync with the live price so a
+  // slow/cached client never flashes a stale amount (was $1 test pricing).
+  bundle: 2,
   stripeRate: 0.029,
   stripeFlat: 0.3,
 };

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -81,20 +82,26 @@ export function Nav({ onLogo }: Props) {
   const effectiveRoles = isActualOwner ? rolesForView(viewAs) : sessionRoles;
   const visibleViews = VIEWS.filter((v) => hasRoleAny(effectiveRoles, v.roles));
 
+  // Mobile hamburger menu. Closes on navigation.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   return (
     <nav className="nav">
       <Logo onClick={onLogo} />
-      <ul
-        style={{
-          display: "flex",
-          gap: 4,
-          margin: 0,
-          marginLeft: 18,
-          padding: 0,
-          listStyle: "none",
-          alignItems: "center",
-        }}
+      {/* Hamburger — visible only on mobile (CSS). Toggles the link dropdown. */}
+      <button
+        type="button"
+        className="nav__hamburger"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
       >
+        {menuOpen ? "✕" : "☰"}
+      </button>
+      <ul className={`nav__links${menuOpen ? " nav__links--open" : ""}`}>
         {visibleViews.map((v) => {
           const active = v.href && v.match?.(pathname);
           return (

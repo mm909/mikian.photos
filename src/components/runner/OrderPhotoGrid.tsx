@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pager } from "@/components/photographer/Pager";
 import { formatOrderNumber } from "@/lib/orderId";
 
@@ -22,7 +22,7 @@ type Props = {
  * Safari), so we save the set a chunk at a time. For a single photo or a
  * small pick this is one tap; for a bundle it's a short stepper.
  */
-const SHARE_CHUNK = 6;
+const SHARE_CHUNK = 20;
 
 /** Photos per page in the order grid. */
 const PHOTOS_PER_PAGE = 24;
@@ -159,55 +159,85 @@ export function OrderPhotoGrid({
   const multiChunk = total > SHARE_CHUNK;
   const chunkEnd = Math.min(shareCursor + SHARE_CHUNK, total);
 
-  /**
-   * Share the next chunk via the Web Share API. We fetch each photo as a Blob
-   * then hand the File array to navigator.share. On iOS Safari the OS share
-   * sheet includes "Save N Images" → Photos; on Android it lists Photos,
-   * Drive, Dropbox, etc.
-   *
-   * Each navigator.share() needs a fresh user gesture, so we can't loop it —
-   * the button re-arms for the next batch after each success. We advance the
-   * cursor only when the share resolves; a user-cancel (AbortError) leaves the
-   * same batch queued so the next tap retries it.
-   */
-  async function addToPhotos() {
-    if (sharing || shareDone) return;
+  // Pre-fetch the current chunk's files so the actual navigator.share() can run
+  // SYNCHRONOUSLY on tap. iOS Safari drops the user-activation if you await
+  // anything (like a fetch) before share() — that's what produced "Couldn't
+  // open the share sheet." We hold one chunk in memory at a time.
+  const [readyFiles, setReadyFiles] = useState<File[]>([]);
+  const [prepping, setPrepping] = useState(false);
+  const readyCursorRef = useRef(-1);
+  useEffect(() => {
+    if (!canShareFiles || shareDone || total === 0) return;
+    if (readyCursorRef.current === shareCursor) return; // already prepped
     const slice = photos.slice(shareCursor, shareCursor + SHARE_CHUNK);
     if (slice.length === 0) return;
+    let cancelled = false;
+    setPrepping(true);
+    setReadyFiles([]);
+    Promise.all(
+      slice.map(async (p) => {
+        const res = await fetch(downloadHref(p.id));
+        if (!res.ok) throw new Error(`fetch ${p.id} ${res.status}`);
+        const blob = await res.blob();
+        return new File([blob], `${p.id}.jpg`, { type: "image/jpeg" });
+      })
+    )
+      .then((files) => {
+        if (cancelled) return;
+        setReadyFiles(files);
+        readyCursorRef.current = shareCursor;
+      })
+      .catch((e) => {
+        if (!cancelled) console.warn("prep share chunk failed:", e);
+      })
+      .finally(() => {
+        if (!cancelled) setPrepping(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canShareFiles, shareCursor, shareDone, total]);
+
+  /**
+   * Save the prepped chunk to the device's Photos library via the Web Share
+   * API. Called SYNCHRONOUSLY from the tap (files are already fetched) so iOS
+   * keeps the user-activation and actually opens the share sheet. On success
+   * we advance the cursor; the effect above then preps the next chunk.
+   */
+  function addToPhotos() {
+    if (sharing || shareDone || readyFiles.length === 0) return;
+    const files = readyFiles;
     setSharing(true);
-    try {
-      const files = await Promise.all(
-        slice.map(async (p) => {
-          const res = await fetch(downloadHref(p.id));
-          if (!res.ok) throw new Error(`fetch ${p.id} ${res.status}`);
-          const blob = await res.blob();
-          return new File([blob], `${p.id}.jpg`, { type: "image/jpeg" });
-        })
-      );
-      await navigator.share({
+    navigator
+      .share({
         title: "Race photos",
         text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
         files,
-      });
-      setShareCursor((c) => Math.min(c + slice.length, total));
-    } catch (e) {
-      const name = (e as { name?: string }).name;
-      if (name === "AbortError") return; // user dismissed — keep batch queued
-      console.warn("share failed:", e);
-      alert(
-        "Couldn't open the share sheet here. Use Download all (ZIP), or tap a photo to save it on its own."
-      );
-    } finally {
-      setSharing(false);
-    }
+      })
+      .then(() => {
+        setReadyFiles([]);
+        readyCursorRef.current = -1;
+        setShareCursor((c) => Math.min(c + files.length, total));
+      })
+      .catch((e) => {
+        const name = (e as { name?: string }).name;
+        if (name === "AbortError") return; // user dismissed — keep the prepped chunk
+        console.warn("share failed:", e);
+        alert(
+          "Couldn't open the share sheet here. Use Download all (ZIP), or tap a photo to save it on its own."
+        );
+      })
+      .finally(() => setSharing(false));
   }
 
   let addLabel: string;
   if (sharing) addLabel = "Opening share sheet…";
-  else if (shareDone) addLabel = multiChunk ? `All ${total} added ✓` : "Added to Photos ✓";
+  else if (shareDone) addLabel = multiChunk ? `All ${total} saved ✓` : "Saved to Photos ✓";
+  else if (prepping || readyFiles.length === 0) addLabel = "Preparing photos…";
   else if (multiChunk)
-    addLabel = `Add to Photos (${shareCursor + 1}–${chunkEnd} of ${total})`;
-  else addLabel = "Add to Photos";
+    addLabel = `Save ${shareCursor + 1}–${chunkEnd} of ${total} to Photos`;
+  else addLabel = `Save all ${total} to Photos`;
 
   /* --- Save to Dropbox (Saver widget) --------------------------------- */
 
@@ -309,7 +339,7 @@ export function OrderPhotoGrid({
               type="button"
               className="btn btn--ghost"
               onClick={addToPhotos}
-              disabled={sharing || shareDone || total === 0}
+              disabled={sharing || shareDone || total === 0 || prepping || readyFiles.length === 0}
               title="Save into your device's Photos library"
             >
               {addLabel}

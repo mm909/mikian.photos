@@ -301,7 +301,9 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                   : expanded
                     ? "var(--cream)"
                     : "var(--surface)",
-                boxShadow: dragOver ? "inset 0 0 0 2px var(--accent)" : "none",
+                // Only the row highlights when collapsed; when expanded the
+                // panel area below owns the drop highlight (avoid two boxes).
+                boxShadow: dragOver && !expanded ? "inset 0 0 0 2px var(--accent)" : "none",
                 transition: "background 0.12s",
               }}
               title="Click to open, or drop photos here to upload"
