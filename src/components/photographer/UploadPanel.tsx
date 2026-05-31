@@ -518,6 +518,22 @@ export function UploadPanel({
     return Math.round((perItem * remaining) / 1000); // seconds
   }, [isRunning, uploadedCount, active, failed]);
 
+  // ETA for the detection (tagging) phase, based on photos tagged so far.
+  // Detection starts at done=0 when the phase begins, so `done` is this phase's
+  // throughput. Recomputes as each photo finishes (done is a dep); the 1s ticker
+  // keeps the surrounding render fresh. Mirrors the upload eta above.
+  const detectEta = useMemo(() => {
+    if (!isDetecting || done === 0) return null;
+    const start = detectStartRef.current;
+    if (!start) return null;
+    const elapsed = Date.now() - start;
+    if (elapsed <= 0) return null;
+    const remaining = detectPending; // uploaded-but-not-yet-tagged
+    if (remaining <= 0) return null;
+    const perItem = elapsed / done;
+    return Math.round((perItem * remaining) / 1000); // seconds
+  }, [isDetecting, done, detectPending]);
+
   // Freeze each phase's total time on completion; live timers tick meanwhile.
   useEffect(() => {
     if (uploadComplete && uploadMs === null && batchStartRef.current) {
@@ -716,7 +732,9 @@ export function UploadPanel({
                 : !uploadComplete
                   ? `${uploadedCount}/${active} done · ${uploadPct}%`
                   : `${done}/${active} tagged · ${detectPct}%`}
-              {eta != null && ` · ~${formatEta(eta)} left`}
+              {!uploadComplete
+                ? eta != null && ` · ~${formatEta(eta)} left`
+                : detectEta != null && ` · ~${formatEta(detectEta)} left`}
             </span>
           </div>
 
@@ -772,7 +790,8 @@ export function UploadPanel({
                   }}
                 >
                   All {active} uploaded and live. Bib OCR + face detection are still
-                  running — <strong>keep this tab open until tagging finishes.</strong>{" "}
+                  running{detectEta != null ? <> — <strong>~{formatEta(detectEta)} left</strong></> : ""}.{" "}
+                  <strong>Keep this tab open until tagging finishes.</strong>{" "}
                   Closing it stops detection (your photos stay safe; you can re-run
                   detection later).
                 </div>

@@ -1,8 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Headline } from "../Headline";
 import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
+
+/** Instagram-style windowed position dots.
+ *  Returns up to MAX visible indices centered on `current` (clamped into range),
+ *  each tagged with a size that tapers toward any edge that has MORE photos
+ *  beyond it: outermost = "sm", next in = "md", everything else "lg". An edge
+ *  that's already at the very start/end stays full-size ("lg"). */
+function dotWindow(total: number, current: number) {
+  const MAX = 7;
+  if (total <= 0) return [] as { index: number; size: "sm" | "md" | "lg" }[];
+  const size = Math.min(MAX, total);
+  const half = Math.floor(MAX / 2); // 3
+  // Clamp the window so it never runs past either end of the list.
+  const start = Math.max(0, Math.min(current - half, total - size));
+  const end = start + size - 1;
+  const hasMoreBefore = start > 0;
+  const hasMoreAfter = end < total - 1;
+  const dots: { index: number; size: "sm" | "md" | "lg" }[] = [];
+  for (let i = start; i <= end; i++) {
+    const fromStart = i - start;
+    const fromEnd = end - i;
+    let s: "sm" | "md" | "lg" = "lg";
+    if (hasMoreBefore) {
+      if (fromStart === 0) s = "sm";
+      else if (fromStart === 1) s = "md";
+    }
+    if (hasMoreAfter) {
+      if (fromEnd === 0) s = "sm";
+      else if (fromEnd === 1) s = "md";
+    }
+    dots.push({ index: i, size: s });
+  }
+  return dots;
+}
 
 type Props = {
   photo: Photo;
@@ -46,6 +79,57 @@ export function Lightbox({
   const galStart = galleryPage * PAGE;
   const pagePhotos = photos.slice(galStart, galStart + PAGE);
 
+  // Mobile browse affordances ------------------------------------------------
+  // One-time "Swipe or tap to browse" hint that auto-fades shortly after the
+  // lightbox first opens. (Only ever shown once per mount; harmless on desktop.)
+  const [showHint, setShowHint] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowHint(false), 2500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Swipe: track the touch start so a horizontal drag past the threshold flips
+  // photos, while guarding the tap zones from double-firing after a swipe.
+  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  // Set true when the last gesture was a real swipe, so the synthetic click the
+  // browser fires afterwards on a tap zone gets swallowed (no double advance).
+  // Reset on the next touchstart rather than in touchend, since the click fires
+  // AFTER touchend and needs to still see this flag.
+  const swipedRef = useRef(false);
+  const SWIPE_PX = 50;
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchRef.current = { x: t.clientX, y: t.clientY };
+    swipedRef.current = false;
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const s = touchRef.current;
+    touchRef.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    // Only treat as a swipe when the gesture is dominantly horizontal and past
+    // the threshold. Mark it so the trailing synthetic tap-zone click is ignored.
+    if (Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
+      swipedRef.current = true;
+      if (dx < 0) onNext();
+      else onPrev();
+    }
+  }
+  // If a tap zone's click lands right after a real swipe, swallow it.
+  function onTapZone(go: () => void) {
+    return () => {
+      if (swipedRef.current) {
+        swipedRef.current = false;
+        return;
+      }
+      go();
+    };
+  }
+
+  const dots = dotWindow(photos.length, idx < 0 ? 0 : idx);
+
   return (
     <div className="overlay" onClick={onClose} style={{ background: "rgba(28,26,23,.78)" }}>
       <div
@@ -66,6 +150,8 @@ export function Lightbox({
         {/* photo pane */}
         <div
           className="lightbox-photo-pane"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
           style={{
             position: "relative",
             background: "var(--cream)",
@@ -76,6 +162,20 @@ export function Lightbox({
             minHeight: 460,
           }}
         >
+          {/* Mobile-only top control row — sits cleanly ABOVE the image so the
+              close × never overlaps the photo subject. A thin scrim keeps it
+              legible over light photos. Hidden on desktop (the buy-pane header
+              owns the × there). */}
+          <div className="lightbox-topbar" aria-hidden={false}>
+            <button
+              onClick={onClose}
+              className="icon-btn lightbox-mobile-close"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
           {photo.previewUrl ? (
             // Contain (not cover) + natural aspect so the full photo shows —
             // race shots are mostly landscape and were getting cropped.
@@ -107,23 +207,25 @@ export function Lightbox({
 
           {/* Mobile: big invisible left/right tap zones so you can flick through
               photos by tapping the sides — not just the small arrows. They're
-              transparent (don't cover the photo) and sit below the arrows. */}
+              transparent (don't cover the photo). The guard swallows the click
+              when it lands right after a swipe so you never advance twice. */}
           <button
             type="button"
-            onClick={onPrev}
+            onClick={onTapZone(onPrev)}
             className="lightbox-tapzone lightbox-tapzone--left"
             aria-label="Previous photo"
           />
           <button
             type="button"
-            onClick={onNext}
+            onClick={onTapZone(onNext)}
             className="lightbox-tapzone lightbox-tapzone--right"
             aria-label="Next photo"
           />
 
+          {/* Desktop arrows — hidden on mobile (use tap/swipe there instead). */}
           <button
             onClick={onPrev}
-            className="icon-btn"
+            className="icon-btn lightbox-arrow"
             style={{
               position: "absolute",
               left: 12,
@@ -138,7 +240,7 @@ export function Lightbox({
           </button>
           <button
             onClick={onNext}
-            className="icon-btn"
+            className="icon-btn lightbox-arrow"
             style={{
               position: "absolute",
               right: 12,
@@ -152,16 +254,34 @@ export function Lightbox({
             ›
           </button>
 
-          {/* Close — only shown on mobile, where the buy-pane header (with its
-              own ×) is hidden and the photo sits on top. */}
-          <button
-            onClick={onClose}
-            className="icon-btn lightbox-mobile-close"
-            style={{ position: "absolute", top: 12, right: 12, background: "#fff", zIndex: 4 }}
-            aria-label="Close"
-          >
-            ×
-          </button>
+          {/* Instagram-style position dots — a windowed set (max 7) that tapers
+              toward whichever side has more photos. Tap a dot to jump. Shows on
+              all sizes; on desktop the arrows stay the primary control. */}
+          {photos.length > 1 && (
+            <div className="lightbox-dots" role="tablist" aria-label="Photo position">
+              {dots.map((d) => {
+                const isActive = d.index === idx;
+                return (
+                  <button
+                    key={d.index}
+                    type="button"
+                    onClick={() => onJump(photos[d.index])}
+                    className={`lightbox-dot lightbox-dot--${d.size}${
+                      isActive ? " lightbox-dot--active" : ""
+                    }`}
+                    aria-label={`Photo ${d.index + 1}`}
+                    aria-current={isActive ? "true" : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* One-time, auto-fading hint that the photo is tap/swipe-able.
+              Mobile-only (see CSS); soft + on-brand. */}
+          <div className={`lightbox-hint${showHint ? " lightbox-hint--show" : ""}`} aria-hidden="true">
+            Swipe or tap to browse
+          </div>
         </div>
 
         {/* buy pane — scrollable gallery up top, sticky price + CTA at the

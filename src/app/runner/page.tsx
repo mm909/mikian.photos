@@ -95,9 +95,6 @@ export default async function RunnerDashboardPage() {
               }}
             />
           </div>
-          <Link href="/" className="btn btn--ghost">
-            Browse races →
-          </Link>
         </div>
 
         <h2

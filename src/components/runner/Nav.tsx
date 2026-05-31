@@ -91,7 +91,8 @@ export function Nav({ onLogo }: Props) {
   return (
     <nav className="nav">
       <Logo onClick={onLogo} />
-      {/* Hamburger — visible only on mobile (CSS). Toggles the link dropdown. */}
+      {/* Hamburger — visible only on mobile (CSS). Toggles the link dropdown.
+          margin-left:auto (set in CSS) pushes it to the far right of the bar. */}
       <button
         type="button"
         className="nav__hamburger"
@@ -147,9 +148,12 @@ export function Nav({ onLogo }: Props) {
             </li>
           );
         })}
+        {/* Account widget lives INSIDE the link list so it sits inline at the
+            right on desktop and folds into the hamburger dropdown on mobile. */}
+        <li className="nav__account">
+          <AccountWidget />
+        </li>
       </ul>
-      <span className="nav__spacer" />
-      <AccountWidget />
     </nav>
   );
 }

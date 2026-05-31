@@ -36,13 +36,16 @@ const PHOTOS_PER_PAGE = 24;
  *      - Download all (ZIP) — the everywhere path. One file, no prompts.
  *        Hits /api/orders/[N]/zip?key= which streams the whole order. On
  *        desktop it lands in Downloads; on iPhone it lands in Files.
- *      - Add to Photos — Web Share API. On iPhone the share sheet's
- *        "Save N Images" drops them straight into the Apple Photos library
- *        (Android: the gallery / Photos). Because iOS caps batch size we
- *        share SHARE_CHUNK at a time and advance a cursor, so the *whole*
- *        set reaches Photos — not just the first handful. Hidden on desktop
- *        where the share sheet has no Photos target.
- *      - Per-tile click — single photo download for cherry-picking.
+ *      - Save to device — Web Share API (mobile only; the share sheet has no
+ *        Photos target on desktop, so the button is hidden there). On iPhone
+ *        the share sheet's "Save N Images" drops them straight into the Apple
+ *        Photos library (Android: the gallery / Photos). Because iOS caps
+ *        batch size we share SHARE_CHUNK at a time in a loop, so the *whole*
+ *        target set reaches Photos — not just the first handful. Operates on
+ *        the buyer's tap-selection, or the whole order when nothing is picked.
+ *      - Tap a tile to select it (accent outline + check) for the bulk
+ *        actions; tap-and-hold the full-res tile image for the browser's
+ *        native "Save to Photos" on a single shot.
  *   2. To Dropbox
  *      - Dropbox Saver widget; Dropbox fetches each /download URL server-side
  *        and lands them in the buyer's account. Hidden until
@@ -139,133 +142,151 @@ export function OrderPhotoGrid({
     }
   }
 
-  /* --- Add to Photos (Web Share, chunked) ----------------------------- */
-
-  // Web Share API support detection. We feature-test for `canShare` with a
-  // file (Share API with `files` is the level-2 spec; older browsers expose
-  // `share` but not file sharing). On desktop the native share sheet has no
-  // Photos target, so we hide the button when no `files` capability exists.
-  const [canShareFiles, setCanShareFiles] = useState(false);
-  useEffect(() => {
-    if (typeof navigator === "undefined") return;
-    try {
-      const probe = new File(["x"], "x.jpg", { type: "image/jpeg" });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav = navigator as any;
-      if (typeof nav.canShare === "function" && nav.canShare({ files: [probe] })) {
-        setCanShareFiles(true);
-      }
-    } catch {
-      /* no support — leave false */
-    }
-  }, []);
-
-  // Cursor into `photos`: index of the next photo not yet handed to a share
-  // sheet. Each successful share advances it by up to SHARE_CHUNK, so a
-  // multi-photo order is saved to Photos a batch per tap.
-  const [shareCursor, setShareCursor] = useState(0);
-  const [sharing, setSharing] = useState(false);
   const total = photos.length;
   // Paginate the grid so a large order doesn't render hundreds of tiles at
-  // once. Bulk download/share still operate over the whole set.
+  // once. Bulk download/share still operate over the whole set (or selection).
   const pageCount = Math.max(1, Math.ceil(total / PHOTOS_PER_PAGE));
   const pagePhotos = photos.slice((page - 1) * PHOTOS_PER_PAGE, page * PHOTOS_PER_PAGE);
-  const shareDone = total > 0 && shareCursor >= total;
-  const multiChunk = total > SHARE_CHUNK;
-  const chunkEnd = Math.min(shareCursor + SHARE_CHUNK, total);
 
-  // Pre-fetch the current chunk's files so the actual navigator.share() can run
-  // SYNCHRONOUSLY on tap. iOS Safari drops the user-activation if you await
-  // anything (like a fetch) before share() — that's what produced "Couldn't
-  // open the share sheet." We hold one chunk in memory at a time.
-  const [readyFiles, setReadyFiles] = useState<File[]>([]);
-  const [prepping, setPrepping] = useState(false);
-  /** How many of the current chunk's files have downloaded (for the progress
-   *  label, so "Preparing photos…" visibly moves). */
-  const [prepDone, setPrepDone] = useState(0);
-  const readyCursorRef = useRef(-1);
+  /* --- Device detection ----------------------------------------------- */
+
+  // The "Add to Photos" (Web Share) path only has a Photos target on a phone;
+  // on desktop the share sheet (when present at all) has nowhere to put images.
+  // Detected in an effect so the server and first client render agree (no SSR
+  // mismatch), then the mobile-only UI appears after hydration.
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    if (!canShareFiles || shareDone || total === 0) return;
-    if (readyCursorRef.current === shareCursor) return; // already prepped
-    const slice = photos.slice(shareCursor, shareCursor + SHARE_CHUNK);
-    if (slice.length === 0) return;
-    let cancelled = false;
-    let done = 0;
-    setPrepping(true);
-    setPrepDone(0);
-    setReadyFiles([]);
-    Promise.all(
-      slice.map(async (p) => {
-        const res = await fetch(downloadHref(p.id));
-        if (!res.ok) throw new Error(`fetch ${p.id} ${res.status}`);
-        const blob = await res.blob();
-        if (!cancelled) {
-          done += 1;
-          setPrepDone(done);
-        }
-        return new File([blob], `${p.id}.jpg`, { type: "image/jpeg" });
-      })
-    )
-      .then((files) => {
-        if (cancelled) return;
-        setReadyFiles(files);
-        readyCursorRef.current = shareCursor;
-      })
-      .catch((e) => {
-        if (!cancelled) console.warn("prep share chunk failed:", e);
-      })
-      .finally(() => {
-        if (!cancelled) setPrepping(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canShareFiles, shareCursor, shareDone, total]);
+    if (typeof navigator === "undefined") return;
+    setIsMobile(/iphone|ipad|ipod|android/i.test(navigator.userAgent));
+  }, []);
 
-  /** Size of the chunk currently being prepped (for the progress label). */
-  const prepChunkSize = Math.max(0, chunkEnd - shareCursor);
+  /* --- Tap-to-select --------------------------------------------------- */
 
-  /**
-   * Save the prepped chunk to the device's Photos library via the Web Share
-   * API. Called SYNCHRONOUSLY from the tap (files are already fetched) so iOS
-   * keeps the user-activation and actually opens the share sheet. On success
-   * we advance the cursor; the effect above then preps the next chunk.
-   */
-  function addToPhotos() {
-    if (sharing || shareDone || readyFiles.length === 0) return;
-    const files = readyFiles;
-    setSharing(true);
-    navigator
-      .share({
-        title: "Race photos",
-        text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
-        files,
-      })
-      .then(() => {
-        setReadyFiles([]);
-        readyCursorRef.current = -1;
-        setShareCursor((c) => Math.min(c + files.length, total));
-      })
-      .catch((e) => {
-        const name = (e as { name?: string }).name;
-        if (name === "AbortError") return; // user dismissed — keep the prepped chunk
-        console.warn("share failed:", e);
-        alert(
-          "Couldn't open the share sheet here. Use Download all (ZIP), or tap a photo to save it on its own."
-        );
-      })
-      .finally(() => setSharing(false));
+  // Ids the buyer has tapped. Empty set === "act on everything" (so a single
+  // tap on a bulk button still grabs the whole order). A non-empty set narrows
+  // device-save and Dropbox to just those photos.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+  const selectedCount = selected.size;
+  // The set the actions operate on: the explicit selection, or everything when
+  // nothing is picked.
+  const targetPhotos = selectedCount > 0 ? photos.filter((p) => selected.has(p.id)) : photos;
+  const targetCount = targetPhotos.length;
+
+  /* --- Add to Photos (Web Share) -------------------------------------- */
+
+  const [sharing, setSharing] = useState(false);
+  /** Live device-save progress while fetching blobs: { done, total }. Null
+   *  whenever a save isn't in flight — it is ALWAYS reset to null in a finally
+   *  block so the "Preparing…" label can never stick at 0/N. */
+  const [shareProgress, setShareProgress] = useState<{ done: number; total: number } | null>(null);
+
+  /** Can this browser actually share image *files*? Probes
+   *  `canShare({ files })` (Web Share level 2) — `share` alone isn't enough,
+   *  and on desktop there's no Photos target regardless. */
+  function canShareFiles(files: File[]): boolean {
+    if (typeof navigator === "undefined") return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = navigator as any;
+    if (typeof nav.share !== "function") return false;
+    if (typeof nav.canShare === "function") {
+      try {
+        return nav.canShare({ files });
+      } catch {
+        return false;
+      }
+    }
+    // Older spec level: `share` exists but no `canShare` to confirm files.
+    // Treat as unsupported for files to avoid the stuck-progress trap.
+    return false;
   }
 
-  let addLabel: string;
-  if (sharing) addLabel = "Opening share sheet…";
-  else if (shareDone) addLabel = multiChunk ? `All ${total} saved ✓` : "Saved to Photos ✓";
-  else if (prepping || readyFiles.length === 0)
-    addLabel = `Preparing photos… ${prepDone}/${prepChunkSize}`;
-  else if (multiChunk)
-    addLabel = `Save ${shareCursor + 1}–${chunkEnd} of ${total} to Photos`;
-  else addLabel = `Save all ${total} to Photos`;
+  /**
+   * Save the target photos (selection, else all) into the device's Photos
+   * library via the Web Share API.
+   *
+   * Robustness contract (fixes the "stuck at 0/N preparing" bug):
+   *   - Feature-detect FIRST. If files can't be shared, alert and return early
+   *     WITHOUT ever setting shareProgress — so no "preparing" UI appears.
+   *   - shareProgress increments as each blob downloads.
+   *   - shareProgress is reset to null in `finally`, so it never sticks at 0/N
+   *     on error, on cancel (AbortError), or on success.
+   *   - iOS caps batch size, so we hand the share sheet SHARE_CHUNK files at a
+   *     time and loop until the whole target set is delivered.
+   */
+  async function shareAll() {
+    if (sharing || targetCount === 0) return;
+
+    // Feature-detect with a tiny probe BEFORE showing any progress UI.
+    const probe = new File(["x"], "x.jpg", { type: "image/jpeg" });
+    if (!canShareFiles([probe])) {
+      alert(
+        "This device or browser can't save photos directly to your library. " +
+          "Use Save to Dropbox, the ZIP download, or tap and hold a photo to save it."
+      );
+      return; // never leaves shareProgress set
+    }
+
+    setSharing(true);
+    setShareProgress({ done: 0, total: targetCount });
+    try {
+      let done = 0;
+      // Walk the target set in iOS-friendly chunks.
+      for (let start = 0; start < targetCount; start += SHARE_CHUNK) {
+        const chunk = targetPhotos.slice(start, start + SHARE_CHUNK);
+        const files: File[] = [];
+        for (const p of chunk) {
+          const res = await fetch(downloadHref(p.id));
+          if (!res.ok) throw new Error(`Couldn't fetch a photo (${res.status}).`);
+          const blob = await res.blob();
+          files.push(new File([blob], `${p.id}.jpg`, { type: "image/jpeg" }));
+          done += 1;
+          setShareProgress({ done, total: targetCount });
+        }
+        // Re-check this exact batch — canShare can reject a too-large set.
+        if (!canShareFiles(files)) {
+          throw new Error("This batch is too large for your device to share at once.");
+        }
+        await navigator.share({
+          title: "Race photos",
+          text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
+          files,
+        });
+      }
+    } catch (e) {
+      const name = (e as { name?: string }).name;
+      if (name !== "AbortError") {
+        // AbortError === the user dismissed the share sheet; stay quiet.
+        console.warn("share failed:", e);
+        alert(
+          (e instanceof Error && e.message ? e.message + " " : "") +
+            "Use Save to Dropbox, the ZIP download, or tap and hold a photo to save it."
+        );
+      }
+    } finally {
+      // Always clear — success, cancel, or error — so it never sticks at 0/N.
+      setShareProgress(null);
+      setSharing(false);
+    }
+  }
+
+  // Label for the device-save button: reflects real fetch progress, and the
+  // selection-vs-all target so the buyer knows what one tap will grab.
+  let deviceLabel: string;
+  if (shareProgress) deviceLabel = `Preparing… ${shareProgress.done}/${shareProgress.total}`;
+  else if (sharing) deviceLabel = "Opening share sheet…";
+  else if (selectedCount > 0) deviceLabel = `Save ${selectedCount} selected to device`;
+  else deviceLabel = `Save all ${total} to device`;
 
   /* --- Save to Dropbox (Saver widget) --------------------------------- */
 
@@ -294,11 +315,13 @@ export function OrderPhotoGrid({
     const dbx = (window as unknown as { Dropbox?: any }).Dropbox;
     if (!dbx) return;
     const origin = window.location.origin;
+    // Operate on the current target set: the buyer's selection, or the whole
+    // order when nothing is picked.
     // Dropbox's servers fetch each absolute URL directly — the token rides in
     // the URL and is valid for 30 days (DOWNLOAD_TOKEN_TTL_DAYS), so they have
     // ample time to pull every file.
     dbx.save({
-      files: photos.map((p) => ({
+      files: targetPhotos.map((p) => ({
         url: `${origin}${downloadHref(p.id)}`,
         filename: `${p.id}.jpg`,
       })),
@@ -357,15 +380,17 @@ export function OrderPhotoGrid({
                 : `Download all (${total}) as ZIP`}
           </button>
 
-          {canShareFiles && (
+          {/* Device save is mobile-only: the share sheet has no Photos target
+              on desktop. Hidden until hydration confirms a phone. */}
+          {isMobile && (
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={addToPhotos}
-              disabled={sharing || shareDone || total === 0 || prepping || readyFiles.length === 0}
+              onClick={shareAll}
+              disabled={sharing || total === 0 || shareProgress !== null}
               title="Save into your device's Photos library"
             >
-              {addLabel}
+              {deviceLabel}
             </button>
           )}
         </DeliveryRow>
@@ -389,23 +414,85 @@ export function OrderPhotoGrid({
         {dropboxAvailable && (
           <DeliveryRow
             title="To Dropbox"
-            help={`Sends all ${total} photo${total === 1 ? "" : "s"} to your Dropbox — confirm in the popup and Dropbox pulls them in for you.`}
+            help={
+              selectedCount > 0
+                ? `Sends your ${selectedCount} selected photo${selectedCount === 1 ? "" : "s"} to your Dropbox — confirm in the popup and Dropbox pulls them in for you.`
+                : `Sends all ${total} photo${total === 1 ? "" : "s"} to your Dropbox — confirm in the popup and Dropbox pulls them in for you.`
+            }
           >
             <button
               type="button"
               className="btn btn--ghost"
               onClick={saveToDropbox}
               disabled={total === 0}
-              title="Save all photos to your Dropbox"
+              title="Save photos to your Dropbox"
             >
-              Save to Dropbox
+              {selectedCount > 0
+                ? `Save ${selectedCount} selected to Dropbox`
+                : `Save all ${total} to Dropbox`}
             </button>
           </DeliveryRow>
         )}
       </section>
 
-      {/* Photo grid — a preview of the photos in this order. Downloads happen
-          via the buttons above (your whole set at once). */}
+      {/* Selection / status bar — sits above the grid. Shows what one tap on
+          a save button will grab, a way to clear the selection, and an
+          "Updated <date, time>" stamp. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            fontSize: 13,
+            color: "var(--ink)",
+          }}
+        >
+          {selectedCount > 0 ? (
+            <strong>{selectedCount} selected</strong>
+          ) : (
+            <span style={{ color: "var(--muted)" }}>
+              Tap photos to pick some — or save all {total}
+            </span>
+          )}
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={clearSelection}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                color: "var(--muted)",
+                fontSize: 12,
+                padding: "3px 9px",
+                cursor: "pointer",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Photo grid. Each tile shows the 1600px preview — fast + cached +
+          zero-egress (full-res across a whole page would be ~100MB on mobile).
+          A tap-and-hold on mobile still surfaces the browser's native "Save to
+          Photos / Add to Library" option for a one-off save (of the preview).
+          A quick tap toggles selection for the bulk save buttons, which fetch
+          the full-resolution originals. We don't preventDefault, so the
+          long-press menu and tap-to-select coexist. Full-resolution downloads
+          go through the Save-to-device / Dropbox / ZIP actions above. */}
       <div
         style={{
           display: "grid",
@@ -413,31 +500,66 @@ export function OrderPhotoGrid({
           gap: 8,
         }}
       >
-        {pagePhotos.map((p) => (
-          <div
-            key={p.id}
-            style={{
-              aspectRatio: "2 / 3",
-              background: "var(--cream)",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/photos/${p.id}/preview`}
-              alt=""
-              loading="lazy"
+        {pagePhotos.map((p) => {
+          const isSel = selected.has(p.id);
+          return (
+            <div
+              key={p.id}
+              role="button"
+              aria-pressed={isSel}
+              aria-label={isSel ? "Selected — tap to deselect" : "Tap to select"}
+              onClick={() => toggleSelect(p.id)}
               style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
+                position: "relative",
+                aspectRatio: "2 / 3",
+                background: "var(--cream)",
+                border: isSel ? "2px solid var(--accent)" : "1px solid var(--line)",
+                borderRadius: 6,
+                overflow: "hidden",
+                cursor: "pointer",
               }}
-            />
-          </div>
-        ))}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/photos/${p.id}/preview`}
+                alt=""
+                loading="lazy"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+              {/* Selection checkmark badge. pointerEvents:none so a tap on it
+                  still toggles the tile (and long-press still hits the image). */}
+              {isSel && (
+                <span
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: "var(--accent)",
+                    color: "var(--paper)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 13,
+                    lineHeight: 1,
+                    boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  ✓
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {pageCount > 1 && (

@@ -18,7 +18,6 @@
  */
 
 import { formatOrderNumber } from "./orderId";
-import { DOWNLOAD_TOKEN_TTL_DAYS } from "./downloadToken";
 
 export type ReceiptInput = {
   orderNumber: number;
@@ -118,7 +117,7 @@ export function renderReceiptHtml(r: ReceiptInput): string {
       Your photos
     </div>
     <p style="margin:0 0 14px;font-size:14px;line-height:1.45;color:${INK};">
-      All ${r.photoCount} of your race photos are ready. The links below work for ${DOWNLOAD_TOKEN_TTL_DAYS} days, no account needed.
+      All ${r.photoCount} of your race photos are ready. Sign in any time to download them again — your photos stay in your account.
     </p>
     <!-- Two-button row. Outlook + some Apple-mail variants stretch <a>
          oddly when nested in flex containers, so we use a table for
@@ -144,9 +143,6 @@ export function renderReceiptHtml(r: ReceiptInput): string {
         }
       </tr>
     </table>
-    <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">
-      On a phone? Open your order and tap <strong style="color:${INK};font-weight:600;">Add to Photos</strong> to save them straight into your Apple Photos library (or Android gallery), or <strong style="color:${INK};font-weight:600;">Save to Dropbox</strong> to send the whole set to Dropbox.
-    </p>
   </div>
 
   <div style="margin-top:32px;font-size:12px;color:${MUTED};line-height:1.5;">
@@ -183,10 +179,6 @@ export function renderReceiptText(r: ReceiptInput): string {
     lines.push("Or grab everything in one go:");
     lines.push(`  ${r.zipUrl}`);
   }
-  lines.push("");
-  lines.push(
-    "On a phone, open your order and tap “Add to Photos” to save them into your Apple Photos library (or Android gallery), or “Save to Dropbox” to send the set to Dropbox."
-  );
   return lines.join("\n");
 }
 

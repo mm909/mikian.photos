@@ -414,11 +414,20 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                 {/* Drag-over the open panel (even mid-upload) → show the drop
                     prompt instead of an outline box. */}
                 <DropPrompt active={dragOver} />
-                <FixDeadPhotos
-                  eventId={r.eventId}
-                  initialCount={r.undetectedCount}
-                  onChanged={onChanged}
-                />
+                {/* Hide the "fix dead photos" banner while this event is
+                    actively uploading/tagging. Mid-tagging, photos that haven't
+                    been detected YET look "undetected" to the server, so the
+                    banner would claim there are dead photos right next to the
+                    live tagging progress — wrong and confusing. Once work
+                    settles, onChanged refetches and the banner reappears only if
+                    photos genuinely failed to tag. */}
+                {!working && (
+                  <FixDeadPhotos
+                    eventId={r.eventId}
+                    initialCount={r.undetectedCount}
+                    onChanged={onChanged}
+                  />
+                )}
                 <div
                   style={{
                     fontFamily: "var(--font-mono)",

@@ -13,13 +13,13 @@ import { DISTANCE_LABELS } from "@/lib/gpx";
 const TEASER_COUNT = 4;
 
 /**
- * Step 2 — Teaser. After a bib (or name) search we show a handful of matches
- * plus the true total, then (below the photos) our best guess at the runner's
- * face. They can confirm it with "This is me" — which FILTERS results to just
- * photos containing that face, dropping bib photos that don't show them — or
- * say "Not me" to see the next guess. Only once the guesses run out do we offer
- * a face scan. When a bib confidently maps to a single face we skip the
- * question entirely (autoConfirmed).
+ * Step 2 — Teaser. After a bib (or name) search we show our best guess at the
+ * runner's face FIRST (so they can confirm who they are before reading their
+ * stats), then the matched photos plus the true total. Confirming with
+ * "This is me" FILTERS results to just photos containing that face, dropping
+ * bib photos that don't show them; "Not me" tries the next guess. Only once the
+ * guesses run out do we offer a face scan. When a bib confidently maps to a
+ * single face we skip the question entirely (autoConfirmed).
  *
  * "See all my photos" opens the photo viewer over the full result set rather
  * than navigating to a separate grid screen.
@@ -158,9 +158,127 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
     color: "var(--muted)",
   };
 
+  // Best guess at the runner's face. Rendered ABOVE the stats (the
+  // "Bib · finished" meta line) and the headline/photo count so the runner
+  // confirms who they are before reading their numbers. Accept ("This is me")
+  // to filter results to just this face; "Not me" tries the next guess. Hidden
+  // entirely when we auto-confirmed a single confident face. Once the guesses
+  // run out we offer a face scan.
+  const faceBlock =
+    searchedBib && !accepted && !autoConfirmed && sawCandidates ? (
+      <div className="card" style={{ ...cardStyle, marginTop: 0, marginBottom: 28 }}>
+        {bestGuess ? (
+          <>
+            <div style={eyebrowStyle}>Is this you?</div>
+            <div
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: 999,
+                overflow: "hidden",
+                border: "3px solid var(--accent)",
+                boxShadow: "var(--shadow)",
+                background: "var(--surface)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={bestGuess.sampleFaceUrl}
+                alt="Best guess at your face"
+                width={88}
+                height={88}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            </div>
+            {bestGuess.photoCountInEvent > 0 && (
+              <div
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 17,
+                  color: "var(--ink)",
+                  fontWeight: 500,
+                }}
+              >
+                {bestGuess.photoCountInEvent} photo
+                {bestGuess.photoCountInEvent === 1 ? "" : "s"} with your face
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                className="btn btn--primary"
+                onClick={acceptGuess}
+                disabled={expandingCluster}
+                style={{ justifyContent: "center" }}
+              >
+                {expandingCluster ? "Finding your photos…" : "This is me"}
+              </button>
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={notMe}
+                disabled={expandingCluster}
+              >
+                Not me
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={eyebrowStyle}>Don&rsquo;t see yourself?</div>
+            <div
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "2px dashed var(--line)",
+                background: "var(--cream)",
+              }}
+            >
+              <svg
+                width={46}
+                height={46}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--warm)"
+                strokeWidth={1.6}
+                aria-hidden
+              >
+                <circle cx="12" cy="8.5" r="3.5" />
+                <path d="M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.5 }}>
+              Scan your face and we&rsquo;ll find your photos.
+            </div>
+            <button
+              className="btn btn--primary"
+              onClick={() => setScannerOpen(true)}
+              disabled={faceScanning}
+              style={{ minWidth: 200, justifyContent: "center" }}
+            >
+              {faceScanning ? "Scanning…" : "Scan your face"}
+            </button>
+          </>
+        )}
+      </div>
+    ) : null;
+
   return (
     <main className="screen" style={{ padding: "56px 24px 96px" }}>
       <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+        {/* Face selection — ABOVE the stats (Bib · finished) + photo count. */}
+        {faceBlock}
+
         <div style={{ ...eyebrowStyle, marginBottom: 12 }}>
           {matchedRacer
             ? `Bib #${matchedRacer.bib} · ${matchedRacer.name} · ${DISTANCE_LABELS[matchedRacer.distance]} · finished ${matchedRacer.finishTime}`
@@ -244,118 +362,6 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
             </div>
           )}
         </div>
-
-        {/* Best guess at the runner's face — moved BELOW the photos. Accept
-            ("This is me") to filter results to just this face; "Not me" tries
-            the next guess. Hidden entirely when we auto-confirmed a single
-            confident face. Once the guesses run out we offer a face scan. */}
-        {searchedBib && !accepted && !autoConfirmed && sawCandidates && (
-          <div className="card" style={cardStyle}>
-            {bestGuess ? (
-              <>
-                <div style={eyebrowStyle}>Is this you?</div>
-                <div
-                  style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: 999,
-                    overflow: "hidden",
-                    border: "3px solid var(--accent)",
-                    boxShadow: "var(--shadow)",
-                    background: "var(--surface)",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={bestGuess.sampleFaceUrl}
-                    alt="Best guess at your face"
-                    width={88}
-                    height={88}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                </div>
-                {bestGuess.photoCountInEvent > 0 && (
-                  <div
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: 17,
-                      color: "var(--ink)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {bestGuess.photoCountInEvent} photo
-                    {bestGuess.photoCountInEvent === 1 ? "" : "s"} with your face
-                  </div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    className="btn btn--primary"
-                    onClick={acceptGuess}
-                    disabled={expandingCluster}
-                    style={{ justifyContent: "center" }}
-                  >
-                    {expandingCluster ? "Finding your photos…" : "This is me"}
-                  </button>
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    onClick={notMe}
-                    disabled={expandingCluster}
-                  >
-                    Not me
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={eyebrowStyle}>Don&rsquo;t see yourself?</div>
-                <div
-                  style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: 999,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "2px dashed var(--line)",
-                    background: "var(--cream)",
-                  }}
-                >
-                  <svg
-                    width={46}
-                    height={46}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--warm)"
-                    strokeWidth={1.6}
-                    aria-hidden
-                  >
-                    <circle cx="12" cy="8.5" r="3.5" />
-                    <path d="M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" strokeLinecap="round" />
-                  </svg>
-                </div>
-                <div style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.5 }}>
-                  Scan your face and we&rsquo;ll find your photos.
-                </div>
-                <button
-                  className="btn btn--primary"
-                  onClick={() => setScannerOpen(true)}
-                  disabled={faceScanning}
-                  style={{ minWidth: 200, justifyContent: "center" }}
-                >
-                  {faceScanning ? "Scanning…" : "Scan your face"}
-                </button>
-              </>
-            )}
-          </div>
-        )}
 
         <div
           style={{

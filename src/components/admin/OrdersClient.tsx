@@ -237,7 +237,10 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
           {lastUpdated && (
             <span style={{ fontSize: 13, color: "var(--muted)" }}>
               Updated{" "}
-              {lastUpdated.toLocaleTimeString("en-US", {
+              {lastUpdated.toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
                 hour: "numeric",
                 minute: "2-digit",
                 second: "2-digit",

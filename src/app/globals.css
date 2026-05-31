@@ -225,17 +225,27 @@ input, textarea, select, button {
   letter-spacing: -.01em; color: var(--ink);
   background: none; border: 0; cursor: pointer; padding: 0; line-height: 1;
 }
-.nav__spacer { flex: 1; }
-/* Logo + account widget stay pinned at the edges; the link list takes the
-   middle (and shrinks/scrolls if cramped on desktop). On mobile it collapses
-   into the hamburger dropdown (see the media query below). */
-.nav > :first-child, .nav > :last-child { flex: 0 0 auto; }
+/* Logo + hamburger stay fixed-width at the left edge; the link list takes the
+   rest of the bar and the account widget rides its right edge. On mobile the
+   link list collapses into the hamburger dropdown (see the media query below). */
+.nav__logo, .nav__hamburger { flex: 0 0 auto; }
 .nav__links {
-  display: flex; gap: 4px; margin: 0 0 0 18px; padding: 0;
+  display: flex; flex: 1; gap: 4px; margin: 0 0 0 18px; padding: 0;
   list-style: none; align-items: center;
-  min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  /* overflow:visible (not auto) so the account widget's absolute dropdown isn't
+     clipped now that it lives at the tail of this list. Only a few links, so we
+     don't need the horizontal scroller here. */
+  min-width: 0; overflow: visible; scrollbar-width: none;
 }
 .nav__links::-webkit-scrollbar { display: none; }
+/* Account widget lives at the tail of the link list. On desktop it sits inline
+   at the far right (the auto margin pushes it past the link group); on mobile it
+   folds into the hamburger dropdown (see the media query below). overflow:visible
+   so its own absolute-positioned dropdown isn't clipped by the scroller. */
+.nav__account {
+  display: inline-flex; align-items: center; flex: 0 0 auto;
+  margin-left: auto; padding-left: 8px; overflow: visible;
+}
 /* Hamburger — hidden on desktop, shown on mobile. */
 .nav__hamburger {
   display: none;
@@ -433,7 +443,8 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
 @media (max-width: 640px) {
   /* Mobile: links collapse into the hamburger dropdown. */
   .nav { gap: 10px; padding: 14px 16px; position: relative; }
-  .nav__hamburger { display: inline-flex; }
+  /* Hamburger pushed to the far right of the bar: [Logo] ...... [☰] */
+  .nav__hamburger { display: inline-flex; margin-left: auto; }
   .nav__links { display: none; }
   .nav__links--open {
     display: flex; flex-direction: column; align-items: stretch;
@@ -447,19 +458,74 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
     display: block !important; width: 100%; padding: 12px 12px !important;
     font-size: 13px !important;
   }
+  /* Account widget becomes a full-width row inside the open dropdown, set off
+     from the links above by a divider. Its own menu pops over the dropdown. */
+  .nav__account {
+    width: 100%; margin: 4px 0 0; padding: 10px 12px 4px;
+    border-top: 1px solid var(--line); justify-content: flex-start;
+  }
 }
 @media (max-width: 800px) {
   .landing-grid { grid-template-columns: 1fr !important; gap: 36px !important; text-align: center; }
   .landing-grid h1 { text-align: center; }
   .landing-grid p { margin-left: auto; margin-right: auto; }
 }
+/* ---- Lightbox photo-pane controls ----------------------------------------
+   Defaults are desktop-first; the mobile @media block below flips them on. */
+
+/* Mobile-only top control row that holds the close × ABOVE the image so it
+   never sits on the photo subject. Hidden on desktop (the buy-pane header
+   owns the ×). */
+.lightbox-topbar { display: none; }
 /* Mobile-only close button on the lightbox photo (hidden on desktop). */
 .lightbox-mobile-close { display: none; }
 /* Mobile-only big side tap zones for prev/next (hidden on desktop). */
 .lightbox-tapzone { display: none; }
+
+/* Instagram-style position dots under the photo. Centered row, soft + tappable.
+   Shows on all sizes; sizes taper via the --sm/--md/--lg modifiers. */
+.lightbox-dots {
+  position: absolute; left: 0; right: 0; bottom: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  z-index: 3; pointer-events: none;
+}
+.lightbox-dot {
+  flex: 0 0 auto; padding: 0; border: 0; cursor: pointer;
+  border-radius: 999px; background: rgba(255,255,255,.45);
+  box-shadow: 0 1px 2px rgba(14,13,12,.18);
+  pointer-events: auto; -webkit-tap-highlight-color: transparent;
+  transition: width var(--dur-hover) var(--ease),
+              height var(--dur-hover) var(--ease),
+              background var(--dur-hover) var(--ease),
+              transform var(--dur-hover) var(--ease);
+}
+.lightbox-dot--sm { width: 4px; height: 4px; }
+.lightbox-dot--md { width: 6px; height: 6px; }
+.lightbox-dot--lg { width: 8px; height: 8px; }
+.lightbox-dot--active {
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(14,13,12,.32);
+}
+.lightbox-dot:hover { background: rgba(255,255,255,.75); }
+
+/* One-time "swipe or tap" hint pill. Mobile-only; fades in on open, then out. */
+.lightbox-hint {
+  display: none;
+  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(4px);
+  padding: 7px 14px; border-radius: 999px;
+  background: rgba(28,26,23,.62); color: var(--paper);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; white-space: nowrap;
+  box-shadow: var(--shadow); backdrop-filter: blur(4px);
+  z-index: 4; pointer-events: none;
+  opacity: 0;
+  transition: opacity 600ms var(--ease), transform 600ms var(--ease);
+}
+.lightbox-hint--show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 @media (max-width: 820px) {
   .lightbox-tapzone {
-    display: block; position: absolute; top: 0; bottom: 0; width: 38%;
+    display: block; position: absolute; top: 0; bottom: 0; width: 40%;
     background: transparent; border: 0; padding: 0; cursor: pointer; z-index: 2;
     -webkit-tap-highlight-color: transparent;
   }
@@ -470,12 +536,31 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
   .lightbox-grid { grid-template-columns: 1fr !important; }
   /* Mobile lightbox: just the photo on top, price + Checkout below it. The
      thumbnail gallery + "all N photos" header are hidden — one image at a time,
-     stepped with the ‹ › arrows. */
-  .lightbox-grid > .lightbox-photo-pane { order: 1; min-height: 360px !important; }
+     flipped by tap or swipe (dots show position). */
+  .lightbox-grid > .lightbox-photo-pane {
+    order: 1; min-height: 360px !important;
+    /* Room for the top control row (close) and the dots row at the bottom so
+       neither overlaps the image. */
+    padding: 8px 16px 30px !important;
+  }
   .lightbox-grid > .lightbox-buy-pane  { order: 2; }
   .lightbox-gallery { display: none !important; }
   .lightbox-header { display: none !important; }
-  .lightbox-mobile-close { display: inline-flex !important; }
+  /* Desktop ‹ › arrows are removed on mobile — tap/swipe instead. */
+  .lightbox-arrow { display: none !important; }
+  /* Top control row, pinned top-right, off the image. Subtle scrim keeps the
+     close legible without obscuring the photo. */
+  .lightbox-topbar {
+    display: flex !important; justify-content: flex-end;
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 8px 8px 0; z-index: 5; pointer-events: none;
+    background: linear-gradient(rgba(28,26,23,.16), rgba(28,26,23,0));
+  }
+  .lightbox-mobile-close {
+    display: inline-flex !important; pointer-events: auto;
+    background: rgba(245,242,236,.92); border-color: var(--line);
+  }
+  .lightbox-hint { display: block; }
   .cart-grid { grid-template-columns: 1fr !important; }
   .checkout-grid { grid-template-columns: 1fr !important; }
 }

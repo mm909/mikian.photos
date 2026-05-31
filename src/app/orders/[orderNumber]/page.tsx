@@ -180,7 +180,7 @@ export default async function OrderPage({
               color: "var(--muted)",
             }}
           >
-            Click a photo to download · full resolution
+            Tap photos to select · tap &amp; hold to save · full resolution
           </div>
         </div>
 

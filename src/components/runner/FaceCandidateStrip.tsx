@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Headline } from "./Headline";
 import { useRunner, type FaceCandidate } from "./RunnerProvider";
 import { BibSearchForm } from "./BibSearchForm";
@@ -193,7 +193,15 @@ export function EmptyResultsState({
  * Visual: a horizontal scroller (works on narrow viewports) of
  * 72px face crops with the photo count below each. Selected
  * cluster has an accent ring + "✓ you" label.
+ *
+ * When there are many "other" faces we show only the first few and
+ * collapse the rest behind a clickable "+N more faces" tile — tap it
+ * to reveal (and re-tap to collapse) the remaining selectable faces.
  * ============================================================ */
+// How many non-selected face tiles to show before collapsing the rest
+// behind the "+N more faces" toggle.
+const MAX_VISIBLE_OTHERS = 6;
+
 export function FaceCandidateStrip({
   candidates,
   confirmedClusterId,
@@ -209,6 +217,8 @@ export function FaceCandidateStrip({
    *  subtitle so we don't double-count what the runner already sees. */
   resultPhotoIds: string[];
 }) {
+  // Reveal-all toggle for the collapsed "other faces" overflow.
+  const [showAllFaces, setShowAllFaces] = useState(false);
   // Memoize the set lookup so each candidate row doesn't pay an O(N) walk.
   const alreadyShown = new Set(resultPhotoIds);
   return (
@@ -286,7 +296,8 @@ export function FaceCandidateStrip({
         {/* Split into "selected" (left, kept visible after confirm so the
             runner can see what they picked) and "others" (right) with a
             vertical divider between. Switching picks just moves a tile
-            from one side to the other. */}
+            from one side to the other. The "others" list collapses past
+            MAX_VISIBLE_OTHERS behind a clickable "+N more faces" tile. */}
         <div
           style={{
             display: "flex",
@@ -304,6 +315,11 @@ export function FaceCandidateStrip({
             const others = candidates.filter(
               (c) => c.clusterId !== confirmedClusterId
             );
+            const hiddenCount = Math.max(0, others.length - MAX_VISIBLE_OTHERS);
+            const visibleOthers =
+              showAllFaces || hiddenCount === 0
+                ? others
+                : others.slice(0, MAX_VISIBLE_OTHERS);
             const renderTile = (c: FaceCandidate, isSelected: boolean) => {
               const newPhotosUnlocked = c.photoIdsInEvent.reduce(
                 (n, id) => (alreadyShown.has(id) ? n : n + 1),
@@ -379,7 +395,7 @@ export function FaceCandidateStrip({
             return (
               <>
                 {selected.map((c) => renderTile(c, true))}
-                {selected.length > 0 && others.length > 0 && (
+                {selected.length > 0 && visibleOthers.length > 0 && (
                   <div
                     aria-hidden
                     style={{
@@ -390,7 +406,63 @@ export function FaceCandidateStrip({
                     }}
                   />
                 )}
-                {others.map((c) => renderTile(c, false))}
+                {visibleOthers.map((c) => renderTile(c, false))}
+                {/* Clickable overflow affordance. Tapping reveals the rest of
+                    the faces (each still selectable); tapping again collapses
+                    them back to the first MAX_VISIBLE_OTHERS. */}
+                {hiddenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllFaces((v) => !v)}
+                    aria-expanded={showAllFaces}
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      padding: 0,
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 6,
+                      minWidth: 84,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 999,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "2px dashed var(--line)",
+                        background: "var(--surface)",
+                        color: "var(--accent)",
+                        fontFamily: "var(--font-serif)",
+                        fontWeight: 500,
+                        fontSize: 18,
+                        transition: "border-color 0.12s, background 0.12s",
+                      }}
+                    >
+                      {showAllFaces ? "–" : `+${hiddenCount}`}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        letterSpacing: ".08em",
+                        textTransform: "uppercase",
+                        color: "var(--accent)",
+                        textAlign: "center",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {showAllFaces
+                        ? "Show fewer"
+                        : `${hiddenCount} more face${hiddenCount === 1 ? "" : "s"}`}
+                    </div>
+                  </button>
+                )}
               </>
             );
           })()}
