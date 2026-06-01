@@ -36,6 +36,13 @@ type SortKey = "bib" | "face" | "name" | "race" | "gender" | "age" | "city" | "c
 // padding/font below.
 const ROW_PX = 31;
 
+// Shared grid template for the header + every row, so they can never drift out
+// of alignment. Defined once and reused below.
+const GRID_COLS = "60px 34px 1.6fr 56px 60px 50px 1fr 80px 70px";
+// Minimum table width before the columns would crush — below this (e.g. a
+// phone) the table scrolls horizontally instead of squeezing/clipping.
+const TABLE_MIN_WIDTH = 740;
+
 type Props = {
   defaultEventId: string;
   defaultEventName: string;
@@ -315,10 +322,21 @@ export function RosterClient({ defaultEventId, defaultEventName, isOwner }: Prop
                     overflow: "hidden",
                   }}
                 >
+                  {/* Horizontal scroll on narrow screens. The inner wrapper
+                      holds a min-width so the columns never crush; header + rows
+                      share GRID_COLS and the same width, so they stay aligned
+                      and the whole table scrolls as one unit on a phone. */}
+                  <div
+                    style={{
+                      overflowX: "auto",
+                      WebkitOverflowScrolling: "touch",
+                    }}
+                  >
+                    <div style={{ minWidth: TABLE_MIN_WIDTH }}>
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "60px 34px 1.6fr 56px 60px 50px 1fr 80px 70px",
+                      gridTemplateColumns: GRID_COLS,
                       gap: 10,
                       padding: "8px 12px",
                       background: "var(--cream)",
@@ -346,7 +364,7 @@ export function RosterClient({ defaultEventId, defaultEventName, isOwner }: Prop
                       key={r.bib}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "60px 34px 1.6fr 56px 60px 50px 1fr 80px 70px",
+                        gridTemplateColumns: GRID_COLS,
                         gap: 10,
                         padding: "7px 12px",
                         borderBottom: "1px solid var(--line)",
@@ -439,6 +457,8 @@ export function RosterClient({ defaultEventId, defaultEventName, isOwner }: Prop
                       </span>
                     </div>
                   ))}
+                    </div>
+                  </div>
                 </div>
 
                 {pageCount > 1 && (

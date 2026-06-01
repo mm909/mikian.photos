@@ -70,7 +70,6 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
   // is revealed by clicking the runner's profile photo.
   const [showFacePicker, setShowFacePicker] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
   // Persisting a human-confirmed face (the authoritative pick).
   const [savingFace, setSavingFace] = useState(false);
   // Once a face is confirmed we hide the candidate-face wall (no need to keep
@@ -213,18 +212,58 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
 
   const photoHasCluster = (p: DetailPhoto, clusterId: string) =>
     (p.faces ?? []).some((f) => f.faceClusterId === clusterId);
+  const photoHasBib = (p: DetailPhoto) =>
+    (p.bibs ?? []).some((b) => b.bib === runner.bib);
   const withoutSelectedFace = selectedCluster
     ? allPhotos.filter((p) => !photoHasCluster(p, selectedCluster))
     : [];
 
-  // Persist (or clear) the human-confirmed face for this runner. This is the
-  // authoritative pick: once saved, the profile unions bib ∪ face photos, the
-  // roster count matches, and the public find-photos flow auto-expands by it
-  // and skips the "Is this you?" prompt. Refetching the profile flips
-  // confirmedClusterId, which re-runs fetchAll to pull in the face photos.
+  // Confirm (or clear) this runner's face — ONE action that both persists the
+  // authoritative pick AND cleans up. Confirming a face means "this is the
+  // runner," so any photo that carries the bib but DOESN'T show this face is a
+  // bib-OCR false match (another runner, a misread) — we untag the bib from
+  // those in the same step, leaving the runner's set as exactly their face.
+  //
+  // Once saved: the profile shows bib ∪ face photos, the roster count matches,
+  // and the public find-photos flow auto-expands by it and skips the
+  // "Is this you?" prompt. Refetching flips confirmedClusterId → re-runs
+  // fetchAll to pull in the (now face-defined) set.
+  //
+  // clusterId === null clears the confirmation (no untagging — that's not
+  // reversible and there's nothing to clean).
   async function confirmFace(clusterId: string | null) {
+    // Photos that have the bib but not this face → untagged on confirm.
+    const toUntag =
+      clusterId === null
+        ? []
+        : allPhotos.filter((p) => photoHasBib(p) && !photoHasCluster(p, clusterId));
+
+    if (clusterId !== null) {
+      const ok = window.confirm(
+        toUntag.length > 0
+          ? `Set this as bib #${runner.bib}'s face?\n\nThis also untags the bib from ${toUntag.length} photo${
+              toUntag.length === 1 ? "" : "s"
+            } that don't show this face, so only their real photos remain. (The photos themselves aren't deleted.)`
+          : `Set this as bib #${runner.bib}'s face?`
+      );
+      if (!ok) return;
+    }
+
     setSavingFace(true);
     try {
+      // 1) Untag the non-matching bib photos (skipped when clearing or none).
+      if (toUntag.length > 0) {
+        await Promise.all(
+          toUntag.map((p) =>
+            fetch("/api/admin/coverage/photo-bib", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ photoId: p.id, bib: runner.bib }),
+            })
+          )
+        );
+      }
+      // 2) Persist (or clear) the confirmed face.
       const r = await fetch(`/api/admin/roster/${runner.bib}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,36 +280,6 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
       alert(`Could not save face: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSavingFace(false);
-    }
-  }
-
-  async function removeWithoutFace() {
-    if (!selectedCluster) return;
-    const targets = withoutSelectedFace;
-    if (targets.length === 0) return;
-    const ok = window.confirm(
-      `Untag bib #${runner.bib} from ${targets.length} photo${
-        targets.length === 1 ? "" : "s"
-      } that don't show this face?\n\nThey'll no longer appear for this runner. (The photos themselves aren't deleted.)`
-    );
-    if (!ok) return;
-    setRemoving(true);
-    try {
-      await Promise.all(
-        targets.map((p) =>
-          fetch("/api/admin/coverage/photo-bib", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ photoId: p.id, bib: runner.bib }),
-          })
-        )
-      );
-      setSelectedCluster(null);
-      await fetchAll();
-    } catch (e) {
-      alert(`Could not remove: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setRemoving(false);
     }
   }
 
@@ -581,33 +590,25 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                   of {total} photo{total === 1 ? "" : "s"}.
                   {confirmedClusterId === selectedCluster
                     ? " It's this runner's confirmed face."
-                    : ""}
+                    : withoutSelectedFace.length > 0
+                      ? ` Confirming untags the bib from the other ${withoutSelectedFace.length}.`
+                      : ""}
                 </span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     className="btn btn--ghost btn--sm"
                     onClick={() => setSelectedCluster(null)}
-                    disabled={removing || savingFace}
+                    disabled={savingFace}
                   >
                     Clear
                   </button>
-                  {/* Destructive cleanup (kept): untag the bib from photos that
-                      don't show this face. Secondary to confirming. */}
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    style={{ color: "var(--accent)" }}
-                    onClick={() => void removeWithoutFace()}
-                    disabled={removing || savingFace || withoutSelectedFace.length === 0}
-                  >
-                    {removing
-                      ? "Removing…"
-                      : `Untag ${withoutSelectedFace.length} without this face`}
-                  </button>
-                  {/* Primary: confirm this as the runner's authoritative face. */}
+                  {/* One action: confirm this as the runner's authoritative
+                      face AND untag the bib from photos that don't show it
+                      (handled inside confirmFace). */}
                   <button
                     className="btn btn--primary btn--sm"
                     onClick={() => void confirmFace(selectedCluster)}
-                    disabled={savingFace || removing || confirmedClusterId === selectedCluster}
+                    disabled={savingFace || confirmedClusterId === selectedCluster}
                   >
                     {confirmedClusterId === selectedCluster
                       ? "✓ This runner's face"
