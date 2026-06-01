@@ -171,6 +171,35 @@ model PhotoBib {
   @@index([bib])
 }
 
+/// Human-confirmed face for a runner (bib) in an event.
+///
+/// The app can GUESS a runner's face from geometry + clustering
+/// (computeFaceAssignments / autoConfirmClusterForBib), but that guess is
+/// ephemeral and only auto-applies when a bib maps to exactly one cluster.
+/// This table records a face an OWNER explicitly confirmed on the runner
+/// profile page — which then becomes AUTHORITATIVE:
+///   - the runner profile shows bib-tagged ∪ face-cluster photos
+///   - the roster photo count is the same union
+///   - the public find-photos flow auto-expands by this cluster and skips
+///     the "Is this you?" prompt (we already confirmed it by hand)
+///
+/// One confirmed face per (event, bib). Re-confirming upserts; clearing
+/// deletes the row (falls back to the heuristic guess).
+model FaceAssignment {
+  id            String   @id @default(cuid())
+  eventId       String
+  bib           Int
+  faceClusterId String
+  /// Who confirmed it (actor id or email) — audit only, nullable.
+  assignedBy    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([eventId, bib])
+  @@index([eventId])
+  @@index([eventId, faceClusterId])
+}
+
 /// Order is what the buyer paid for. One row per successful PayPal capture.
 ///
 /// Identifiers:

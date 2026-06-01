@@ -190,6 +190,73 @@ export async function computeFaceAssignments(
  */
 const AUTO_CONFIRM_MIN_PHOTOS = 2;
 
+/* ------------------------------------------------------------------ *
+ * Human-confirmed assignments (FaceAssignment table).
+ *
+ * These OVERRIDE the heuristics above: once an owner confirms a runner's
+ * face on the profile page, that cluster is authoritative for the bib —
+ * roster counts, the profile grid, and the public find-photos flow all
+ * union bib-tagged ∪ this cluster's photos and skip the "Is this you?"
+ * prompt.
+ *
+ * Every read here is wrapped in try/catch: the FaceAssignment table may
+ * not exist yet on a deploy where `prisma db push` hasn't run. In that
+ * case we degrade gracefully to the heuristic behavior (empty map / null)
+ * rather than 500-ing the whole roster or photo search.
+ * ------------------------------------------------------------------ */
+
+/** Every confirmed (bib → faceClusterId) for an event. Empty map if none —
+ *  or if the table doesn't exist yet (pre-migration). */
+export async function getConfirmedClusters(
+  eventId: string
+): Promise<Map<number, string>> {
+  try {
+    const rows = await db.faceAssignment.findMany({
+      where: { eventId },
+      select: { bib: true, faceClusterId: true },
+    });
+    return new Map(rows.map((r) => [r.bib, r.faceClusterId]));
+  } catch {
+    // Table missing (P2021) or other read error — fall back to heuristics.
+    return new Map();
+  }
+}
+
+/** The confirmed face cluster for one bib, or null when none is confirmed
+ *  (or the table doesn't exist yet). */
+export async function getConfirmedCluster(
+  eventId: string,
+  bib: number
+): Promise<string | null> {
+  try {
+    const row = await db.faceAssignment.findUnique({
+      where: { eventId_bib: { eventId, bib } },
+      select: { faceClusterId: true },
+    });
+    return row?.faceClusterId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** A representative (highest-confidence) face crop for a cluster, for the
+ *  profile thumbnail. null when the cluster has no faces (or on error). */
+export async function sampleFaceForCluster(
+  eventId: string,
+  faceClusterId: string
+): Promise<{ photoId: string; faceId: string } | null> {
+  try {
+    const f = await db.photoFace.findFirst({
+      where: { eventId, faceClusterId, photo: { hidden: false } },
+      orderBy: { confidence: "desc" },
+      select: { id: true, photoId: true },
+    });
+    return f ? { photoId: f.photoId, faceId: f.id } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function autoConfirmClusterForBib(
   eventId: string,
   bib: number

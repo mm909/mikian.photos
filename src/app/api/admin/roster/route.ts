@@ -24,7 +24,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/permissions";
 import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
-import { computeFaceAssignments } from "@/lib/faceAssignment";
+import { computeFaceAssignments, getConfirmedClusters } from "@/lib/faceAssignment";
 
 export const runtime = "nodejs";
 
@@ -73,6 +73,41 @@ export async function GET(req: Request) {
     photosByBib.set(r.bib, set);
   }
 
+  // Human-confirmed faces (bib → clusterId) override the heuristic. For a
+  // confirmed runner the photo count is the UNION of their bib-tagged photos
+  // and every photo carrying their confirmed face cluster — so the roster
+  // count matches what the runner profile + find-photos flow actually show.
+  const confirmedByBib = await getConfirmedClusters(eventId);
+  const confirmedClusterIds = [...new Set(confirmedByBib.values())];
+  const photosByCluster = new Map<string, Set<string>>();
+  if (confirmedClusterIds.length > 0) {
+    const faceRows = await db.photoFace.findMany({
+      where: {
+        eventId,
+        faceClusterId: { in: confirmedClusterIds },
+        photo: { hidden: false },
+      },
+      select: { faceClusterId: true, photoId: true },
+    });
+    for (const r of faceRows) {
+      if (!r.faceClusterId) continue;
+      const set = photosByCluster.get(r.faceClusterId) ?? new Set<string>();
+      set.add(r.photoId);
+      photosByCluster.set(r.faceClusterId, set);
+    }
+  }
+
+  /** Distinct photos for a bib: bib-tagged ∪ confirmed-face-cluster photos. */
+  function photoCountForBib(bib: number): number {
+    const bibSet = photosByBib.get(bib);
+    const clusterId = confirmedByBib.get(bib);
+    const faceSet = clusterId ? photosByCluster.get(clusterId) : undefined;
+    if (!faceSet || faceSet.size === 0) return bibSet?.size ?? 0;
+    const union = new Set<string>(bibSet ?? []);
+    for (const id of faceSet) union.add(id);
+    return union.size;
+  }
+
   // The single face we've identified for each runner, via the face-above-bib
   // geometry + one-face-per-runner assignment. Drives the row thumbnail and
   // the "face identified" marker.
@@ -94,7 +129,7 @@ export async function GET(req: Request) {
       chipTime: r.chipTime,
       chipMinutes: r.chipMinutes,
       distance: r.distance,
-      photoCount: photosByBib.get(r.bib)?.size ?? 0,
+      photoCount: photoCountForBib(r.bib),
       // The runner's identified face, or null if we haven't matched one. The
       // sample points the row thumbnail at /api/photos/[photoId]/face/[faceId].
       face: face

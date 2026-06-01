@@ -8,13 +8,19 @@ import { formatOrderNumber } from "@/lib/orderId";
 import { getOrderForViewer } from "@/lib/orderAccess";
 
 /**
- * Bulk ZIP download for an entire order.
+ * Bulk ZIP download for an order (whole order, or a buyer-picked subset).
  *
- *   GET /api/orders/[orderNumber]/zip?key=<jwt>
+ *   GET /api/orders/[orderNumber]/zip?key=<jwt>            → the whole order
+ *   GET /api/orders/[orderNumber]/zip?key=<jwt>&ids=a,b,c  → just those photos
  *
  * Streams every entitled photo from R2 through `archiver` into the
  * response body. The buyer's browser sees one continuous Content-
  * Disposition'd zip download — no temp files on the server.
+ *
+ * The optional `ids` querystring (comma-separated photo ids) lets the order
+ * page zip only the buyer's tap-selection. It is always intersected with the
+ * order's own photoIds (see below), so it can never be used to reach a photo
+ * the holder isn't entitled to — it can only ever *narrow* the set.
  *
  * Access mirrors the order page (`getOrderForViewer`):
  *   - signed-in user whose email matches Order.email
@@ -72,10 +78,27 @@ export async function GET(
     if (order.photoIds.length === 0) {
       return NextResponse.json({ error: "Order has no photos" }, { status: 404 });
     }
-    if (order.photoIds.length > MAX_PHOTOS_PER_ZIP) {
+
+    // Optional subset: `?ids=a,b,c` lets the order page zip just the buyer's
+    // tap-selection. SECURITY — we intersect the requested ids with this
+    // order's own photoIds, so any id not entitled to this order is silently
+    // dropped; `ids` can only ever *narrow* the set, never widen it. If `ids`
+    // is absent (or empty after filtering), we fall back to the full order.
+    const orderIdSet = new Set(order.photoIds);
+    const requestedIds = (url.searchParams.get("ids") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const entitledRequested = requestedIds.filter((id) => orderIdSet.has(id));
+    const effectiveIds = entitledRequested.length > 0 ? entitledRequested : order.photoIds;
+    // True only when the buyer actually narrowed to a valid subset — drives the
+    // count-tagged filename below.
+    const isSubset = entitledRequested.length > 0 && entitledRequested.length < order.photoIds.length;
+
+    if (effectiveIds.length > MAX_PHOTOS_PER_ZIP) {
       return NextResponse.json(
         {
-          error: `Order too large for one ZIP (${order.photoIds.length} photos, cap ${MAX_PHOTOS_PER_ZIP}). Use the per-photo downloads or contact support for a split delivery.`,
+          error: `Order too large for one ZIP (${effectiveIds.length} photos, cap ${MAX_PHOTOS_PER_ZIP}). Use the per-photo downloads or contact support for a split delivery.`,
         },
         { status: 413 }
       );
@@ -84,7 +107,7 @@ export async function GET(
     // Pre-resolve photo rows so we can skip hidden ones + warn on missing.
     // One round-trip keeps the streaming loop tight.
     const photos = await db.photo.findMany({
-      where: { id: { in: order.photoIds }, hidden: false },
+      where: { id: { in: effectiveIds }, hidden: false },
       select: { id: true, r2OriginalKey: true },
     });
 
@@ -96,6 +119,12 @@ export async function GET(
     }
 
     const orderTag = formatOrderNumber(order.orderNumber);
+    // Subset zips get a count in the filename (e.g. "RACE-0042-5-photos.zip")
+    // so a buyer who downloads "all" and later "5 selected" can tell the two
+    // files apart in their Downloads folder.
+    const zipFilename = isSubset
+      ? `${orderTag}-${photos.length}-photos.zip`
+      : `${orderTag}-photos.zip`;
 
     // archiver writes into a PassThrough; we hand that to NextResponse as a web
     // ReadableStream. Piping through the PassThrough (rather than reading the
@@ -151,7 +180,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${orderTag}-photos.zip"`,
+        "Content-Disposition": `attachment; filename="${zipFilename}"`,
         // Don't cache zips — the entitlement may change (refund, revocation).
         "Cache-Control": "no-store",
       },

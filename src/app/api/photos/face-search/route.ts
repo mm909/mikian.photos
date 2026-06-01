@@ -97,12 +97,12 @@ export async function POST(req: Request) {
       gpsLat: true,
       gpsLng: true,
       takenAt: true,
+      createdAt: true,
       photographer: { select: { id: true, name: true } },
       bibs: { select: { bib: true } },
     },
   });
 
-  // Preserve similarity ordering — db.findMany returns rows unordered.
   const rowById = new Map(rows.map((r) => [r.id, r]));
   const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
 
@@ -125,9 +125,19 @@ export async function POST(req: Request) {
           ? `${publicBase}/previews/${p.id}.jpg`
           : `/api/photos/${p.id}/preview`,
         faceSimilarity: m.similarity,
+        // Capture-time tiebreaker (not exposed in the response shape) — used
+        // only to sort below, mirroring the canonical takenAt→createdAt order.
+        _sortAt: new Date(p.takenAt ?? p.createdAt).getTime(),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  return NextResponse.json({ photos, matchCount: photos.length });
+  // The owner wants chronological (capture-time) order, not face-similarity
+  // order: takenAt ascending, falling back to createdAt when takenAt is null.
+  photos.sort((a, b) => a._sortAt - b._sortAt);
+
+  return NextResponse.json({
+    photos: photos.map(({ _sortAt, ...p }) => p),
+    matchCount: photos.length,
+  });
 }

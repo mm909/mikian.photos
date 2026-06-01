@@ -45,7 +45,7 @@ export default async function OrderPage({
     db.photo.findMany({
       where: { id: { in: order.photoIds } },
       select: { id: true, mile: true, takenAt: true },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
     }),
   ]);
 

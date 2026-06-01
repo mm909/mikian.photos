@@ -89,7 +89,7 @@ export async function GET(req: Request) {
     db.photo.count({ where }),
     db.photo.findMany({
       where,
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {

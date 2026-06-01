@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { r2Configured, r2PresignGet, r2Keys } from "@/lib/r2";
+import { r2Configured, r2PresignGet, r2GetStream, r2Keys } from "@/lib/r2";
 import { verifyDownloadToken } from "@/lib/downloadToken";
 import { formatOrderNumber } from "@/lib/orderId";
+import { Readable } from "node:stream";
 
 /**
  * Gated download: requires a valid JWT (minted at order capture).
@@ -17,7 +18,18 @@ import { formatOrderNumber } from "@/lib/orderId";
  *   4. The photo itself must exist and not be hidden (photographer
  *      moderation can pull a photo even after sale; buyer sees a 404).
  *
- * On success we 302 to a 15-minute presigned R2 URL for the hi-res original.
+ * Two response modes:
+ *   - default      → 302 to a 15-min presigned R2 URL (zero Vercel egress).
+ *                    Used by Dropbox (server-to-server fetch) and the direct
+ *                    single-photo download anchor (top-level navigation). CORS
+ *                    doesn't apply to either, so the cross-origin redirect is
+ *                    fine.
+ *   - ?inline=1    → stream the bytes THROUGH this route (same-origin). The
+ *                    "Save to device" (Web Share) path must read the bytes into
+ *                    a File via fetch(); a browser fetch() that follows the 302
+ *                    to R2 fails CORS in Safari ("Load failed") because the
+ *                    presigned R2 URL carries no Access-Control-Allow-Origin.
+ *                    Streaming same-origin sidesteps that entirely.
  */
 export const runtime = "nodejs";
 
@@ -58,6 +70,36 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       ? photo.r2OriginalKey
       : r2Keys.original(photo.id);
 
+  const orderTag = formatOrderNumber(order.orderNumber);
+  const filename = `${orderTag}-${photo.id}.jpg`;
+
+  // Inline mode — stream the original through this route so a same-origin
+  // fetch() can read the bytes (the Web Share "Save to device" path). A 302 to
+  // the cross-origin presigned R2 URL would fail CORS in Safari.
+  if (reqUrl.searchParams.get("inline") === "1") {
+    try {
+      const { body, contentType, contentLength } = await r2GetStream(key);
+      return new NextResponse(
+        Readable.toWeb(body) as unknown as ReadableStream<Uint8Array>,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": contentType ?? "image/jpeg",
+            ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
+            // inline (not attachment) — the caller wraps the bytes in a File;
+            // we just need them readable, not force-downloaded.
+            "Content-Disposition": `inline; filename="${filename}"`,
+            // Per-buyer, short-lived. Keeps a re-prep from re-hitting R2.
+            "Cache-Control": "private, max-age=3600",
+          },
+        }
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   const signed = await r2PresignGet(key, 900); // 15 min
 
   // R2 honors response-content-disposition as a query-string override on
@@ -65,8 +107,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // "MK-000123-<photoId>.jpg" instead of the raw R2 key (which would be
   // something like "originals/clxyz.jpg" → a useless filename for the buyer).
   const signedUrl = new URL(signed);
-  const orderTag = formatOrderNumber(order.orderNumber);
-  const filename = `${orderTag}-${photo.id}.jpg`;
   signedUrl.searchParams.set(
     "response-content-disposition",
     `attachment; filename="${filename}"`

@@ -42,9 +42,15 @@ const PHOTO_PAGE_SIZE = 24;
 type ProfileResponse = {
   event: { id: string; name: string };
   photoCount: number;
-  clusterCount: number;
-  /** Heuristic-picked face cluster for this runner (most photos, then
-   *  highest confidence). null until face detection produces clusters. */
+  /** Photos carrying this runner's bib. */
+  bibPhotoCount: number;
+  /** Photos with the confirmed face cluster but NOT the bib tag. */
+  faceOnlyCount: number;
+  /** The face cluster an owner CONFIRMED for this runner (authoritative), or
+   *  null. When set, the profile unions bib ∪ this cluster's photos. */
+  confirmedFaceClusterId: string | null;
+  assignedFaceConfirmed: boolean;
+  /** Confirmed face crop when one is set; otherwise the heuristic guess. */
   assignedFace: {
     faceClusterId: string;
     sample: { photoId: string; faceId: string };
@@ -65,6 +71,14 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
   const [showFacePicker, setShowFacePicker] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  // Persisting a human-confirmed face (the authoritative pick).
+  const [savingFace, setSavingFace] = useState(false);
+  // Once a face is confirmed we hide the candidate-face wall (no need to keep
+  // showing "faces in these photos" — we've picked). "Change face" reveals it.
+  const [changingFace, setChangingFace] = useState(false);
+  // The cluster the owner has CONFIRMED for this runner (from the profile API).
+  // When set, the grid below unions bib ∪ this cluster's photos.
+  const confirmedClusterId = profile?.confirmedFaceClusterId ?? null;
 
   // Modal state mirrors CoverageClient.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -95,41 +109,63 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
     return cancel;
   }, [fetchProfile]);
 
-  // Load EVERY photo carrying this runner's bib (looping past the 96/page cap)
-  // so the detail modal can page through all of them — not just the grid page —
-  // and the face tools can reason over the whole set.
+  // Load EVERY photo for this runner (looping past the 96/page cap) so the
+  // detail modal can page through all of them and the face tools can reason
+  // over the whole set. When a face is CONFIRMED, the set is the union of
+  // bib-tagged photos AND every photo carrying that face cluster — so face-only
+  // shots (bib obscured) show up on the profile too, kept in capture order.
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const FETCH_PAGE = 96;
-      let pageN = 1;
-      let pages = 1;
-      let acc: DetailPhoto[] = [];
-      do {
-        const qs = new URLSearchParams({
-          eventId,
-          bib: String(runner.bib),
-          page: String(pageN),
-          pageSize: String(FETCH_PAGE),
-        });
-        const r = await fetch(`/api/admin/coverage/photos?${qs}`, { cache: "no-store" });
-        if (!r.ok) {
-          const j = (await r.json().catch(() => ({}))) as { error?: string };
-          throw new Error(j.error || `${r.status}`);
-        }
-        const d = (await r.json()) as PhotosResponse;
-        acc = acc.concat(d.photos);
-        pages = d.pageCount;
-        pageN += 1;
-      } while (pageN <= pages);
-      setAllPhotos(acc);
+      // Fetch every page for a single coverage query (bib OR faceClusterId).
+      const fetchAllPages = async (params: Record<string, string>): Promise<DetailPhoto[]> => {
+        let pageN = 1;
+        let pages = 1;
+        let acc: DetailPhoto[] = [];
+        do {
+          const qs = new URLSearchParams({
+            ...params,
+            page: String(pageN),
+            pageSize: String(FETCH_PAGE),
+          });
+          const r = await fetch(`/api/admin/coverage/photos?${qs}`, { cache: "no-store" });
+          if (!r.ok) {
+            const j = (await r.json().catch(() => ({}))) as { error?: string };
+            throw new Error(j.error || `${r.status}`);
+          }
+          const d = (await r.json()) as PhotosResponse;
+          acc = acc.concat(d.photos);
+          pages = d.pageCount;
+          pageN += 1;
+        } while (pageN <= pages);
+        return acc;
+      };
+
+      const bibPhotos = await fetchAllPages({ eventId, bib: String(runner.bib) });
+      let union = bibPhotos;
+      if (confirmedClusterId) {
+        const facePhotos = await fetchAllPages({ eventId, faceClusterId: confirmedClusterId });
+        const byId = new Map<string, DetailPhoto>();
+        for (const p of bibPhotos) byId.set(p.id, p);
+        for (const p of facePhotos) if (!byId.has(p.id)) byId.set(p.id, p);
+        union = [...byId.values()];
+        // Re-sort the merged set chronologically (each source was ordered, the
+        // union isn't) — capture time, upload time as the tiebreaker.
+        union.sort(
+          (a, b) =>
+            new Date(a.takenAt ?? a.createdAt).getTime() -
+            new Date(b.takenAt ?? b.createdAt).getTime()
+        );
+      }
+      setAllPhotos(union);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [eventId, runner.bib]);
+  }, [eventId, runner.bib, confirmedClusterId]);
 
   useEffect(() => {
     void fetchAll();
@@ -137,6 +173,13 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
 
   // Keep the client-side page in range as the set shrinks (e.g. after removal).
   const total = allPhotos.length;
+  // Source breakdown (replaces the old "distinct faces" stat): how many of the
+  // shown photos carry the bib vs. came in by the confirmed face alone.
+  // bibCount + faceOnlyCount === total.
+  const bibCount = allPhotos.filter((p) =>
+    (p.bibs ?? []).some((b) => b.bib === runner.bib)
+  ).length;
+  const faceOnlyCount = total - bibCount;
   const pageCount = Math.max(1, Math.ceil(total / PHOTO_PAGE_SIZE));
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
@@ -173,6 +216,33 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
   const withoutSelectedFace = selectedCluster
     ? allPhotos.filter((p) => !photoHasCluster(p, selectedCluster))
     : [];
+
+  // Persist (or clear) the human-confirmed face for this runner. This is the
+  // authoritative pick: once saved, the profile unions bib ∪ face photos, the
+  // roster count matches, and the public find-photos flow auto-expands by it
+  // and skips the "Is this you?" prompt. Refetching the profile flips
+  // confirmedClusterId, which re-runs fetchAll to pull in the face photos.
+  async function confirmFace(clusterId: string | null) {
+    setSavingFace(true);
+    try {
+      const r = await fetch(`/api/admin/roster/${runner.bib}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, faceClusterId: clusterId }),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `${r.status}`);
+      }
+      setSelectedCluster(null);
+      setChangingFace(false); // collapse the candidate wall after a pick/clear
+      fetchProfile(); // updates confirmedFaceClusterId → triggers the union refetch
+    } catch (e) {
+      alert(`Could not save face: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSavingFace(false);
+    }
+  }
 
   async function removeWithoutFace() {
     if (!selectedCluster) return;
@@ -379,10 +449,16 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
           <Stat label="Chip time" value={runner.chipTime} />
           <Stat label="Photos" value={total.toString()} muted={total === 0} />
           <Stat
-            label="Faces"
-            value={clusters.length.toString()}
-            sub="distinct"
-            muted={clusters.length === 0}
+            label="From bib"
+            value={bibCount.toString()}
+            sub={`#${runner.bib}`}
+            muted={bibCount === 0}
+          />
+          <Stat
+            label="From face"
+            value={faceOnlyCount.toString()}
+            sub={confirmedClusterId ? "face only" : "no face set"}
+            muted={faceOnlyCount === 0}
           />
         </div>
 
@@ -424,13 +500,62 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
             {/* Face picker — revealed by clicking the runner's profile photo.
                 Pick this runner's face, then drop the bib photos that don't show
                 it (bib-OCR false matches, other runners, etc.). */}
-            {showFacePicker && clusters.length > 0 && (
-              <FacePicker
-                clusters={clusters}
-                total={total}
-                selected={selectedCluster}
-                onSelect={(id) => setSelectedCluster((cur) => (cur === id ? null : id))}
-              />
+            {/* Candidate-face wall. Once a face is CONFIRMED we hide it (the
+                "faces in these photos" grid is for picking — done once chosen);
+                "Change face" on the status bar below re-reveals it. */}
+            {showFacePicker &&
+              clusters.length > 0 &&
+              (!confirmedClusterId || changingFace) && (
+                <FacePicker
+                  clusters={clusters}
+                  total={total}
+                  selected={selectedCluster}
+                  confirmed={confirmedClusterId}
+                  onSelect={(id) => setSelectedCluster((cur) => (cur === id ? null : id))}
+                />
+              )}
+
+            {/* Confirmed-face status — shown in the picker even with nothing
+                actively selected, with a one-click clear (reverts to bib-only). */}
+            {showFacePicker && confirmedClusterId && !selectedCluster && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  padding: "10px 14px",
+                  marginBottom: 12,
+                  borderRadius: 8,
+                  border: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  fontSize: 13,
+                  color: "var(--ink)",
+                }}
+              >
+                <span>
+                  ✓ Face confirmed — this profile shows bib + face photos, and the
+                  buyer flow skips the &ldquo;is this you?&rdquo; step for bib #{runner.bib}.
+                </span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setChangingFace((v) => !v)}
+                    disabled={savingFace}
+                  >
+                    {changingFace ? "Done" : "Change face"}
+                  </button>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    style={{ color: "var(--accent)" }}
+                    onClick={() => void confirmFace(null)}
+                    disabled={savingFace}
+                  >
+                    {savingFace ? "…" : "Clear face"}
+                  </button>
+                </div>
+              </div>
             )}
 
             {selectedCluster && (
@@ -449,27 +574,46 @@ export function RunnerProfileClient({ eventId, eventName, runner }: Props) {
                 }}
               >
                 <span style={{ fontSize: 13, color: "var(--ink)" }}>
+                  This face is in{" "}
                   <strong style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {withoutSelectedFace.length}
+                    {total - withoutSelectedFace.length}
                   </strong>{" "}
-                  of {total} photo{total === 1 ? "" : "s"} don&rsquo;t show this face.
+                  of {total} photo{total === 1 ? "" : "s"}.
+                  {confirmedClusterId === selectedCluster
+                    ? " It's this runner's confirmed face."
+                    : ""}
                 </span>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     className="btn btn--ghost btn--sm"
                     onClick={() => setSelectedCluster(null)}
-                    disabled={removing}
+                    disabled={removing || savingFace}
                   >
                     Clear
                   </button>
+                  {/* Destructive cleanup (kept): untag the bib from photos that
+                      don't show this face. Secondary to confirming. */}
                   <button
-                    className="btn btn--primary btn--sm"
+                    className="btn btn--ghost btn--sm"
+                    style={{ color: "var(--accent)" }}
                     onClick={() => void removeWithoutFace()}
-                    disabled={removing || withoutSelectedFace.length === 0}
+                    disabled={removing || savingFace || withoutSelectedFace.length === 0}
                   >
                     {removing
                       ? "Removing…"
-                      : `Remove ${withoutSelectedFace.length} without this face`}
+                      : `Untag ${withoutSelectedFace.length} without this face`}
+                  </button>
+                  {/* Primary: confirm this as the runner's authoritative face. */}
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => void confirmFace(selectedCluster)}
+                    disabled={savingFace || removing || confirmedClusterId === selectedCluster}
+                  >
+                    {confirmedClusterId === selectedCluster
+                      ? "✓ This runner's face"
+                      : savingFace
+                        ? "Saving…"
+                        : "Use as this runner's face"}
                   </button>
                 </div>
               </div>
@@ -648,12 +792,15 @@ function FacePicker({
   clusters,
   total,
   selected,
+  confirmed,
   onSelect,
 }: {
   clusters: { clusterId: string; sample: { photoId: string; faceId: string }; count: number }[];
   /** Total photos for this runner — denominator for the likelihood %. */
   total: number;
   selected: string | null;
+  /** The currently-confirmed cluster (badged with a ✓), or null. */
+  confirmed: string | null;
   onSelect: (clusterId: string) => void;
 }) {
   // Crowd shots can spawn dozens of one-off clusters (bystanders). The runner's
@@ -675,18 +822,23 @@ function FacePicker({
           marginBottom: 8,
         }}
       >
-        Faces in these photos — most likely first · tap one to keep just that runner
+        Faces in these photos — most likely first · tap one to set this runner&rsquo;s face
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
         {shown.map((c) => {
           const active = selected === c.clusterId;
+          const isConfirmed = confirmed === c.clusterId;
           const likelihood = total > 0 ? Math.round((c.count / total) * 100) : 0;
           return (
             <button
               key={c.clusterId}
               type="button"
               onClick={() => onSelect(c.clusterId)}
-              title={`In ${c.count} of ${total} photos · ${likelihood}% likely this runner`}
+              title={
+                isConfirmed
+                  ? `This runner's confirmed face · in ${c.count} of ${total} photos`
+                  : `In ${c.count} of ${total} photos · ${likelihood}% likely this runner`
+              }
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -700,15 +852,44 @@ function FacePicker({
             >
               <span
                 style={{
+                  position: "relative",
                   width: 56,
                   height: 56,
                   borderRadius: 999,
                   overflow: "hidden",
                   background: "var(--cream)",
-                  border: active ? "3px solid var(--accent)" : "2px solid var(--line)",
-                  boxShadow: active ? "var(--shadow)" : "none",
+                  border:
+                    active || isConfirmed
+                      ? "3px solid var(--accent)"
+                      : "2px solid var(--line)",
+                  boxShadow: active || isConfirmed ? "var(--shadow)" : "none",
                 }}
               >
+                {isConfirmed && (
+                  <span
+                    aria-hidden
+                    title="Confirmed face"
+                    style={{
+                      position: "absolute",
+                      top: -2,
+                      right: -2,
+                      width: 20,
+                      height: 20,
+                      borderRadius: 999,
+                      background: "var(--accent)",
+                      color: "var(--paper)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      lineHeight: 1,
+                      zIndex: 1,
+                      boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`/api/photos/${c.sample.photoId}/face/${c.sample.faceId}`}

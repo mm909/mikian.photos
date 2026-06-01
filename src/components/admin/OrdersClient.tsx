@@ -33,6 +33,8 @@ type ApiResponse = {
 };
 type RowState = { busy: null | "resend" | "refund"; msg: string | null; error: boolean };
 
+const PAGE_SIZE = 25;
+
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("en-US", {
@@ -53,6 +55,7 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [rowState, setRowState] = useState<Record<number, RowState>>({});
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -97,6 +100,23 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
         String(o.orderNumber).includes(q)
     );
   }, [orders, query]);
+
+  // Pagination over the filtered+sorted rows. Row-level actions key off the
+  // order id (not the slice index), so paging is purely a render concern.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Jump back to page 1 whenever the search query changes — otherwise a search
+  // that returns few results while you're on a high page would look empty.
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  // Keep the page in range as the row set shrinks (refresh, refund filtering,
+  // a narrower search) — clamp into [1, pageCount] like RunnerProfileClient.
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   function setRow(n: number, patch: Partial<RowState>) {
     setRowState((s) => {
@@ -308,7 +328,7 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                     </td>
                   </tr>
                 )}
-                {filtered.map((o) => {
+                {pageRows.map((o) => {
                   const rs = rowState[o.orderNumber];
                   return (
                     <tr
@@ -442,6 +462,65 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
             </table>
           </div>
         </div>
+
+        {/* Pager — hidden when a single page holds every matching row. */}
+        {pageCount > 1 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 16,
+            }}
+          >
+            <PageBtn
+              label="←"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            />
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "0 6px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              page{" "}
+              <input
+                type="number"
+                min={1}
+                max={pageCount}
+                value={page}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n) && n >= 1 && n <= pageCount) setPage(n);
+                }}
+                style={{
+                  width: 50,
+                  padding: "4px 6px",
+                  border: "1px solid var(--line)",
+                  borderRadius: 4,
+                  background: "var(--surface)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  textAlign: "center",
+                  color: "var(--ink)",
+                }}
+              />
+              of {pageCount}
+            </label>
+            <PageBtn
+              label="→"
+              disabled={page >= pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            />
+          </div>
+        )}
 
         <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)" }}>
           {filtered.length} of {orders.length}
@@ -599,5 +678,36 @@ function Tag({ children }: { children: React.ReactNode }) {
     >
       {children}
     </span>
+  );
+}
+
+function PageBtn({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "5px 10px",
+        background: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderRadius: 4,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        fontFamily: "var(--font-mono)",
+        fontSize: 12,
+        color: "var(--ink)",
+      }}
+    >
+      {label}
+    </button>
   );
 }

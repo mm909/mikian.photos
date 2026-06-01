@@ -18,11 +18,12 @@ type Props = {
 
 /**
  * How many photos we hand to the Web Share sheet per tap. iOS rejects large
- * file batches (and holding many full-res blobs in memory can crash mobile
- * Safari), so we save the set a chunk at a time. For a single photo or a
- * small pick this is one tap; for a bundle it's a short stepper.
+ * file batches and holding many full-res blobs in memory can crash mobile
+ * Safari, so we save the set a chunk at a time. Kept small (10 ≈ ~50MB held
+ * briefly) for reliability — a selection saves in one tap; a big "save all" is
+ * a short stepper (and the ZIP is the better path for the whole set anyway).
  */
-const SHARE_CHUNK = 20;
+const SHARE_CHUNK = 10;
 
 /** Photos per page in the order grid. */
 const PHOTOS_PER_PAGE = 24;
@@ -69,8 +70,11 @@ export function OrderPhotoGrid({
    *  (0 when the server streams without a Content-Length) }. */
   const [zipProgress, setZipProgress] = useState<{ received: number; total: number } | null>(null);
   /** Built ZIP, cached for the session so re-clicking re-saves it instantly
-   *  instead of rebuilding (the order's photo set doesn't change). */
-  const zipBlobRef = useRef<Blob | null>(null);
+   *  instead of rebuilding. We tag the cached blob with the exact selection it
+   *  was built for (`sig`) so a zip built for "all" is never re-saved when the
+   *  buyer later picks a subset — and vice-versa. A null ref means "nothing
+   *  cached yet". */
+  const zipBlobRef = useRef<{ sig: string; blob: Blob } | null>(null);
 
   function downloadHref(id: string): string {
     return `/api/photos/${id}/download?token=${encodeURIComponent(downloadToken)}`;
@@ -78,13 +82,12 @@ export function OrderPhotoGrid({
 
   /** ZIP URL — token goes as `?key=` (matches the order-page route param). */
   const orderTag = formatOrderNumber(orderNumber);
-  const zipHref = `/api/orders/${orderTag}/zip?key=${encodeURIComponent(downloadToken)}`;
 
-  function saveBlob(blob: Blob) {
+  function saveBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${orderTag}-photos.zip`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -92,9 +95,18 @@ export function OrderPhotoGrid({
   }
 
   async function downloadZip() {
-    // Already built this session → just re-save it, no rebuild.
-    if (zipBlobRef.current) {
-      saveBlob(zipBlobRef.current);
+    // Selection-aware: zip the buyer's pick when there is one, else the whole
+    // order. `zipDownloadUrl`, `zipSig`, and `zipFilename` are all derived from
+    // the live selection further down in this component (safe to read here —
+    // this runs on click, long after the component body has evaluated).
+    const url = zipDownloadUrl;
+    const sig = zipSig;
+
+    // Re-save only if the cached blob was built for *this same* selection.
+    // Keying on the selection signature is what stops an "all" zip from being
+    // re-handed out when the buyer later narrows to 5 (and vice-versa).
+    if (zipBlobRef.current && zipBlobRef.current.sig === sig) {
+      saveBlob(zipBlobRef.current.blob, zipFilename);
       return;
     }
     setZipBusy(true);
@@ -104,7 +116,7 @@ export function OrderPhotoGrid({
       // Fetch the zip (rather than navigating an anchor) so we can surface a
       // server error instead of failing silently — and so a dev-mode streaming
       // hiccup doesn't leave the buyer with nothing.
-      const res = await fetch(zipHref);
+      const res = await fetch(url);
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error || `ZIP download failed (${res.status})`);
@@ -131,9 +143,9 @@ export function OrderPhotoGrid({
       } else {
         blob = await res.blob();
       }
-      zipBlobRef.current = blob; // cache for instant re-download
+      zipBlobRef.current = { sig, blob }; // cache, tagged with this selection
       setZipReady(true);
-      saveBlob(blob);
+      saveBlob(blob, zipFilename);
     } catch (e) {
       setZipErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -183,13 +195,70 @@ export function OrderPhotoGrid({
   const targetPhotos = selectedCount > 0 ? photos.filter((p) => selected.has(p.id)) : photos;
   const targetCount = targetPhotos.length;
 
-  /* --- Add to Photos (Web Share) -------------------------------------- */
+  /* --- ZIP: selection-aware URL, cache key, filename ------------------- */
 
-  const [sharing, setSharing] = useState(false);
-  /** Live device-save progress while fetching blobs: { done, total }. Null
-   *  whenever a save isn't in flight — it is ALWAYS reset to null in a finally
-   *  block so the "Preparing…" label can never stick at 0/N. */
-  const [shareProgress, setShareProgress] = useState<{ done: number; total: number } | null>(null);
+  // Ids in stable grid order (so the cache signature is order-independent of
+  // the tap order). Empty when nothing is picked → whole-order zip.
+  const selectedIds = targetPhotos.filter((p) => selected.has(p.id)).map((p) => p.id);
+
+  // When the buyer has a selection, pass it as a comma-separated `ids=` param;
+  // the route intersects it with the order's own photoIds (so it can only ever
+  // narrow, never widen). When nothing is picked we omit `ids` → the whole
+  // order. Orders are small, so a comma-joined querystring stays well within
+  // URL-length limits; a selection of many hundreds would need a POST body, but
+  // we're nowhere near that.
+  const zipDownloadUrl =
+    selectedCount > 0
+      ? `/api/orders/${orderTag}/zip?key=${encodeURIComponent(downloadToken)}&ids=${selectedIds
+          .map((id) => encodeURIComponent(id))
+          .join(",")}`
+      : `/api/orders/${orderTag}/zip?key=${encodeURIComponent(downloadToken)}`;
+
+  // Cache signature for the built zip: "all" when no selection, else the sorted
+  // id list. Sorted so picking the same photos in a different order reuses the
+  // cached blob; any change in *which* photos are picked invalidates it.
+  const zipSig = selectedCount > 0 ? [...selectedIds].sort().join(",") : "ALL";
+
+  // Mirrors the route's filename so the saved file matches the streamed one.
+  const zipFilename =
+    selectedCount > 0 ? `${orderTag}-${selectedCount}-photos.zip` : `${orderTag}-photos.zip`;
+
+  // Has THIS exact selection already been built this session? Drives the
+  // "Download again" label so it only appears when re-clicking would be instant
+  // (not after the buyer changes the selection to one we haven't zipped yet).
+  const zipCachedForSelection = zipReady && zipBlobRef.current?.sig === zipSig;
+
+  // Exactly one photo picked → hand back the single original directly instead
+  // of a one-file zip (a zip of one photo is clunky). The button becomes a
+  // plain download anchor in that case.
+  const singleSelectedId = selectedCount === 1 ? selectedIds[0] : null;
+
+  /* --- Save to device (Web Share, iOS-safe stepper) ------------------- *
+   *
+   * Saving full-res photos into the phone's Photos library has two iOS gotchas
+   * the share path MUST respect, or it fails with "Load failed" / silent
+   * NotAllowedError:
+   *
+   *   1. CORS. `navigator.share({files})` needs the bytes as File objects, so
+   *      we fetch() each original. The download route 302-redirects to a
+   *      cross-origin presigned R2 URL, and a browser fetch() that follows
+   *      that redirect can't read the body (R2 sends no CORS header) → Safari
+   *      throws "Load failed". Fix: fetch the `&inline=1` variant, which
+   *      streams the bytes same-origin through our route.
+   *
+   *   2. User activation. iOS only honors navigator.share() while the tap's
+   *      transient activation is alive. `await fetch(); share()` loses it
+   *      (the awaits outlast the window) → NotAllowedError. Fix: PRE-FETCH the
+   *      chunk's blobs in the background (an effect), so the tap calls share()
+   *      SYNCHRONOUSLY with files already in hand.
+   *
+   * Flow: the buyer taps "Save … to device" once to engage (kicks off the
+   * background prep); when the chunk is ready the label flips to "Save N to
+   * Photos" and a tap opens the share sheet immediately. After each saved
+   * chunk we advance a cursor and auto-prep the next, so subsequent chunks are
+   * a single tap. Prep is lazy (only after engaging) so buyers who prefer the
+   * ZIP/Dropbox never pay the bandwidth.
+   */
 
   /** Can this browser actually share image *files*? Probes
    *  `canShare({ files })` (Web Share level 2) — `share` alone isn't enough,
@@ -206,87 +275,153 @@ export function OrderPhotoGrid({
         return false;
       }
     }
-    // Older spec level: `share` exists but no `canShare` to confirm files.
-    // Treat as unsupported for files to avoid the stuck-progress trap.
     return false;
   }
 
-  /**
-   * Save the target photos (selection, else all) into the device's Photos
-   * library via the Web Share API.
-   *
-   * Robustness contract (fixes the "stuck at 0/N preparing" bug):
-   *   - Feature-detect FIRST. If files can't be shared, alert and return early
-   *     WITHOUT ever setting shareProgress — so no "preparing" UI appears.
-   *   - shareProgress increments as each blob downloads.
-   *   - shareProgress is reset to null in `finally`, so it never sticks at 0/N
-   *     on error, on cancel (AbortError), or on success.
-   *   - iOS caps batch size, so we hand the share sheet SHARE_CHUNK files at a
-   *     time and loop until the whole target set is delivered.
-   */
-  async function shareAll() {
-    if (sharing || targetCount === 0) return;
+  const [sharing, setSharing] = useState(false);
+  // Index into targetPhotos of the next photo not yet saved. Advances by the
+  // chunk size after each successful share.
+  const [shareCursor, setShareCursor] = useState(0);
+  // The buyer tapped "Save to device" at least once → start pre-fetching.
+  const [engaged, setEngaged] = useState(false);
+  // Pre-fetched File[] for the CURRENT chunk, ready to hand to share() with no
+  // await between gesture and share (iOS activation).
+  const [readyFiles, setReadyFiles] = useState<File[]>([]);
+  const [prepping, setPrepping] = useState(false);
+  const [prepDone, setPrepDone] = useState(0);
+  const [shareErr, setShareErr] = useState<string | null>(null);
+  // Bumped to force a re-prep after a failed chunk (retry).
+  const [prepNonce, setPrepNonce] = useState(0);
+  // Which cursor position readyFiles were fetched for (-1 = none ready).
+  const readyCursorRef = useRef(-1);
 
-    // Feature-detect with a tiny probe BEFORE showing any progress UI.
+  // Signature of the current target set — when the selection changes we reset
+  // the cursor and re-prep from the top.
+  const targetSig = targetPhotos.map((p) => p.id).join(",");
+  useEffect(() => {
+    setShareCursor(0);
+    setReadyFiles([]);
+    readyCursorRef.current = -1;
+    setShareErr(null);
+  }, [targetSig]);
+
+  const shareDone = engaged && targetCount > 0 && shareCursor >= targetCount;
+  const chunkEnd = Math.min(shareCursor + SHARE_CHUNK, targetCount);
+  const prepChunkSize = Math.max(0, chunkEnd - shareCursor);
+  const multiChunk = targetCount > SHARE_CHUNK;
+
+  // Pre-fetch the current chunk (same-origin inline bytes) once engaged.
+  useEffect(() => {
+    if (!isMobile || !engaged) return;
+    if (targetCount === 0 || shareCursor >= targetCount) return;
+    if (readyCursorRef.current === shareCursor) return; // already have this chunk
+    const chunk = targetPhotos.slice(shareCursor, shareCursor + SHARE_CHUNK);
+    if (chunk.length === 0) return;
+    let cancelled = false;
+    setPrepping(true);
+    setPrepDone(0);
+    setReadyFiles([]);
+    (async () => {
+      try {
+        let done = 0;
+        const files = await Promise.all(
+          chunk.map(async (p) => {
+            // &inline=1 → bytes stream same-origin (no cross-origin R2 CORS).
+            const res = await fetch(`${downloadHref(p.id)}&inline=1`);
+            if (!res.ok) throw new Error(`fetch ${res.status}`);
+            const blob = await res.blob();
+            if (!cancelled) {
+              done += 1;
+              setPrepDone(done);
+            }
+            return new File([blob], `${p.id}.jpg`, { type: "image/jpeg" });
+          })
+        );
+        if (cancelled) return;
+        setReadyFiles(files);
+        readyCursorRef.current = shareCursor;
+      } catch (e) {
+        if (!cancelled) {
+          console.warn("prep share chunk failed:", e);
+          setShareErr("Couldn't prepare those photos. Tap to retry, or use the ZIP.");
+        }
+      } finally {
+        if (!cancelled) setPrepping(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, engaged, shareCursor, targetSig, prepNonce, targetCount]);
+
+  /** Open the share sheet SYNCHRONOUSLY with the pre-fetched files (keeps iOS
+   *  user activation). Advances the cursor on success so the next chunk preps. */
+  function doShare(files: File[]) {
+    if (!canShareFiles(files)) {
+      setShareErr("This batch is too large to share at once. Use the ZIP instead.");
+      return;
+    }
+    setSharing(true);
+    setShareErr(null);
+    navigator
+      .share({
+        title: "Race photos",
+        text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
+        files,
+      })
+      .then(() => {
+        setReadyFiles([]);
+        readyCursorRef.current = -1;
+        setShareCursor((c) => Math.min(c + files.length, targetCount));
+      })
+      .catch((e) => {
+        if ((e as { name?: string }).name === "AbortError") return; // dismissed
+        console.warn("share failed:", e);
+        setShareErr(
+          "Couldn't open the share sheet. Tap to retry, or use the ZIP / tap-and-hold a photo."
+        );
+      })
+      .finally(() => setSharing(false));
+  }
+
+  /** The device-save button handler. First tap engages (starts prep); once the
+   *  chunk is ready, a tap shares; a tap after a prep error retries. */
+  function onDeviceTap() {
+    if (sharing || prepping || shareDone || targetCount === 0) return;
+    // Confirm the device can share files at all before engaging.
     const probe = new File(["x"], "x.jpg", { type: "image/jpeg" });
     if (!canShareFiles([probe])) {
-      alert(
-        "This device or browser can't save photos directly to your library. " +
-          "Use Save to Dropbox, the ZIP download, or tap and hold a photo to save it."
+      setShareErr(
+        "This device can't save straight to Photos. Use the ZIP, Dropbox, or tap-and-hold a photo to save it."
       );
-      return; // never leaves shareProgress set
+      return;
     }
-
-    setSharing(true);
-    setShareProgress({ done: 0, total: targetCount });
-    try {
-      let done = 0;
-      // Walk the target set in iOS-friendly chunks.
-      for (let start = 0; start < targetCount; start += SHARE_CHUNK) {
-        const chunk = targetPhotos.slice(start, start + SHARE_CHUNK);
-        const files: File[] = [];
-        for (const p of chunk) {
-          const res = await fetch(downloadHref(p.id));
-          if (!res.ok) throw new Error(`Couldn't fetch a photo (${res.status}).`);
-          const blob = await res.blob();
-          files.push(new File([blob], `${p.id}.jpg`, { type: "image/jpeg" }));
-          done += 1;
-          setShareProgress({ done, total: targetCount });
-        }
-        // Re-check this exact batch — canShare can reject a too-large set.
-        if (!canShareFiles(files)) {
-          throw new Error("This batch is too large for your device to share at once.");
-        }
-        await navigator.share({
-          title: "Race photos",
-          text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
-          files,
-        });
-      }
-    } catch (e) {
-      const name = (e as { name?: string }).name;
-      if (name !== "AbortError") {
-        // AbortError === the user dismissed the share sheet; stay quiet.
-        console.warn("share failed:", e);
-        alert(
-          (e instanceof Error && e.message ? e.message + " " : "") +
-            "Use Save to Dropbox, the ZIP download, or tap and hold a photo to save it."
-        );
-      }
-    } finally {
-      // Always clear — success, cancel, or error — so it never sticks at 0/N.
-      setShareProgress(null);
-      setSharing(false);
+    if (!engaged) {
+      setEngaged(true); // kicks the prefetch effect
+      return;
+    }
+    if (readyCursorRef.current === shareCursor && readyFiles.length > 0) {
+      doShare(readyFiles);
+      return;
+    }
+    // Engaged but nothing ready and not prepping → a prior prep errored; retry.
+    if (!prepping && readyFiles.length === 0) {
+      setShareErr(null);
+      readyCursorRef.current = -1;
+      setPrepNonce((n) => n + 1);
     }
   }
 
-  // Label for the device-save button: reflects real fetch progress, and the
-  // selection-vs-all target so the buyer knows what one tap will grab.
+  // Label reflects the stepper state + selection-vs-all target.
   let deviceLabel: string;
-  if (shareProgress) deviceLabel = `Preparing… ${shareProgress.done}/${shareProgress.total}`;
-  else if (sharing) deviceLabel = "Opening share sheet…";
-  else if (selectedCount > 0) deviceLabel = `Save ${selectedCount} selected to device`;
-  else deviceLabel = `Save all ${total} to device`;
+  if (sharing) deviceLabel = "Opening share sheet…";
+  else if (shareDone) deviceLabel = multiChunk ? `All ${targetCount} saved ✓` : "Saved to Photos ✓";
+  else if (!engaged)
+    deviceLabel = selectedCount > 0 ? `Save ${targetCount} to device` : `Save all ${targetCount} to device`;
+  else if (prepping || readyFiles.length === 0) deviceLabel = `Preparing… ${prepDone}/${prepChunkSize}`;
+  else if (multiChunk) deviceLabel = `Save ${shareCursor + 1}–${chunkEnd} to Photos`;
+  else deviceLabel = `Save ${targetCount} to Photos`;
 
   /* --- Save to Dropbox (Saver widget) --------------------------------- */
 
@@ -362,23 +497,41 @@ export function OrderPhotoGrid({
 
         {/* Method 1 — to your device */}
         <DeliveryRow title="To your device" help="">
-          <button
-            className="btn btn--primary"
-            onClick={downloadZip}
-            disabled={zipBusy || total === 0}
-          >
-            {zipBusy
-              ? zipProgress
-                ? `Preparing ZIP… ${(zipProgress.received / 1048576).toFixed(1)} MB${
-                    zipProgress.total > 0
-                      ? ` · ${Math.round((zipProgress.received / zipProgress.total) * 100)}%`
-                      : ""
-                  }`
-                : "Preparing ZIP…"
-              : zipReady
-                ? `Download ZIP again (${total})`
-                : `Download all (${total}) as ZIP`}
-          </button>
+          {/* Exactly one photo picked → a plain download anchor for that single
+              original (skips the clunky one-file zip). 2+ or none → the ZIP
+              button, which zips the selection (or the whole order). The anchor
+              is styled as the primary button so the row looks identical. */}
+          {singleSelectedId ? (
+            <a
+              className="btn btn--primary"
+              href={downloadHref(singleSelectedId)}
+              download={`${singleSelectedId}.jpg`}
+            >
+              Download 1 selected photo
+            </a>
+          ) : (
+            <button
+              className="btn btn--primary"
+              onClick={downloadZip}
+              disabled={zipBusy || total === 0}
+            >
+              {zipBusy
+                ? zipProgress
+                  ? `Preparing ZIP… ${(zipProgress.received / 1048576).toFixed(1)} MB${
+                      zipProgress.total > 0
+                        ? ` · ${Math.round((zipProgress.received / zipProgress.total) * 100)}%`
+                        : ""
+                    }`
+                  : "Preparing ZIP…"
+                : selectedCount > 0
+                  ? zipCachedForSelection
+                    ? `Download ${selectedCount} selected again (ZIP)`
+                    : `Download ${selectedCount} selected (ZIP)`
+                  : zipCachedForSelection
+                    ? `Download ZIP again (${total})`
+                    : `Download all (${total}) as ZIP`}
+            </button>
+          )}
 
           {/* Device save is mobile-only: the share sheet has no Photos target
               on desktop. Hidden until hydration confirms a phone. */}
@@ -386,8 +539,11 @@ export function OrderPhotoGrid({
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={shareAll}
-              disabled={sharing || total === 0 || shareProgress !== null}
+              onClick={onDeviceTap}
+              // Tappable while ready (to share) or after a prep error (to
+              // retry); inert (disabled) while actively sharing/prepping or
+              // once the whole set is saved.
+              disabled={sharing || prepping || shareDone || targetCount === 0}
               title="Save into your device's Photos library"
             >
               {deviceLabel}
@@ -395,7 +551,15 @@ export function OrderPhotoGrid({
           )}
         </DeliveryRow>
 
-        {zipErr && (
+        {/* On a phone, once they've saved everything, point them at the ZIP for
+            anything that didn't land — keeps the path honest. */}
+        {isMobile && shareDone && (
+          <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+            Saved to your Photos. Missing any? Grab the ZIP above.
+          </div>
+        )}
+
+        {(zipErr || shareErr) && (
           <div
             role="alert"
             style={{
@@ -406,7 +570,7 @@ export function OrderPhotoGrid({
               fontSize: 13,
             }}
           >
-            {zipErr}
+            {zipErr ?? shareErr}
           </div>
         )}
 

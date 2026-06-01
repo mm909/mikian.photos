@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { autoConfirmClusterForBib } from "@/lib/faceAssignment";
+import { autoConfirmClusterForBib, getConfirmedCluster } from "@/lib/faceAssignment";
 import { resolveBundlePriceCents, centsToDollars } from "@/lib/pricing";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Public photo catalog for the runner-facing flow.
@@ -277,13 +278,19 @@ export async function GET(req: Request) {
       combined = [...baseRows, ...expansionRows];
       crossLinked = expansionRows.length;
       // True (uncapped) count of the matched set — the teaser advertises
-      // "6 of N". Mirrors the baseRows where clause; independent of the
+      // "6 of N". When a cluster is applied (the runner confirmed a face, or
+      // we auto-confirmed one), the matched set is the UNION of bib-tagged and
+      // face-cluster photos, so the count must be that union — not bib-only
+      // (which was the bug behind "showing 36 but says 23"). Independent of the
       // maxPhotos() cap that bounds how many rows we actually return.
+      const orClauses: Prisma.PhotoWhereInput[] = [];
+      if (bib !== null) orClauses.push({ bibs: { some: { bib } } });
+      if (clusterParam) orClauses.push({ faces: { some: { faceClusterId: clusterParam } } });
       total = await db.photo.count({
         where: {
           eventId,
           hidden: false,
-          ...(bib !== null ? { bibs: { some: { bib } } } : {}),
+          ...(orClauses.length > 0 ? { OR: orClauses } : {}),
         },
       });
     }
@@ -293,7 +300,13 @@ export async function GET(req: Request) {
     // query, before a cluster has been chosen.
     let autoConfirmClusterId: string | null = null;
     if (bib !== null && !clusterParam && baseRows.length > 0) {
-      autoConfirmClusterId = await autoConfirmClusterForBib(eventId, bib);
+      // A face the owner CONFIRMED on the runner profile wins — we already
+      // vouched for it by hand, so the client auto-expands (union) and skips
+      // the "Is this you?" prompt entirely. Fall back to the geometry
+      // heuristic (single confident cluster) when nothing is confirmed.
+      autoConfirmClusterId =
+        (await getConfirmedCluster(eventId, bib)) ??
+        (await autoConfirmClusterForBib(eventId, bib));
     }
 
     const bundlePrice = centsToDollars(await resolveBundlePriceCents(eventId));
