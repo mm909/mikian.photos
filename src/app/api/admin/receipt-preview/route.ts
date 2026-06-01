@@ -55,9 +55,12 @@ function sampleReceipt(): ReceiptInput {
 }
 
 export async function GET() {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
   const html = renderReceiptHtml(sampleReceipt());
   // Wrap with a minimal <html>/<body> so the browser renders it correctly
@@ -70,9 +73,12 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   let body: { to?: string } = {};

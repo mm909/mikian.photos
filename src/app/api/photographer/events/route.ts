@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 
 /**
  * Per-event rollup for the photographer dashboard.
@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ error: "Photographer access required" }, { status: 401 });
   }
 
-  const admin = isOwner(actor);
+  const admin = isAdmin(actor);
 
   const where = admin ? {} : { photographerId: actor.photographerId };
 

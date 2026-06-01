@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { UploadClient } from "@/components/photographer/UploadClient";
-import { getEffectiveActor } from "@/lib/permissions";
+import { getEffectiveActor, hasRole } from "@/lib/permissions";
 import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
 export default async function UploadPage() {
@@ -8,7 +8,7 @@ export default async function UploadPage() {
   if (!actor) {
     return <NoPhotographerAccess reason="signed-out" />;
   }
-  if (!actor.roles.includes("photographer") && !actor.roles.includes("owner")) {
+  if (!hasRole(actor, "photographer")) {
     return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
 

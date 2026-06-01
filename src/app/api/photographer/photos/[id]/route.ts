@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 import { r2Configured, r2Delete, r2Keys } from "@/lib/r2";
 import { deleteFacesForPhoto, faceRecConfigured } from "@/lib/faceRec";
 
 /**
  * Resolve the caller for photo-edit/delete routes.
  *
- * Returns null when the actor doesn't have photographer or owner role —
- * runners can't touch photo rows. `isAdmin` is true when the actor has the
- * owner role, granting cross-photographer permissions. Owner status comes
- * from the user's roles[] column — set on the Google-signed-in account via
- * the upsert in auth.ts AND on the unlock-cookie admin row.
+ * Returns null when the actor doesn't have photographer (or higher) role —
+ * runners can't touch photo rows. `isAdmin` is true for the admin tier (owner
+ * OR race director), granting cross-photographer permissions. Roles come from
+ * the user's roles[] column — set on the Google-signed-in account via the
+ * upsert in auth.ts AND on the unlock-cookie admin row.
  */
 async function resolveActor(): Promise<{ photographerId: string; isAdmin: boolean } | null> {
   const actor = await getEffectiveActor();
   if (!actor) return null;
-  if (!hasRole(actor, "photographer")) return null; // owner implies photographer
-  return { photographerId: actor.photographerId, isAdmin: isOwner(actor) };
+  if (!hasRole(actor, "photographer")) return null; // owner/RD imply photographer
+  return { photographerId: actor.photographerId, isAdmin: isAdmin(actor) };
 }
 
 /**

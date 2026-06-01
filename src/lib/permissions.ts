@@ -17,10 +17,14 @@ import {
  * Valid roles:
  *   - "runner"         default; minimal account, just for receipts + past orders
  *   - "photographer"   can upload, edit, hide, delete their own photos
- *   - "race_director"  can see RD dashboards (built later)
- *   - "owner"          all of the above + manage user roles
+ *   - "race_director"  senior admin: everything EXCEPT the owner-only settings
+ *                      panel (/admin/users: roles, pricing, duplicate policy)
+ *                      and issuing refunds. Implies photographer + runner.
+ *   - "owner"          all of the above + the settings panel + refunds
  *
- * Owner implies every other role. The `hasRole` helper enforces that.
+ * Owner implies every other role; race_director implies photographer + runner.
+ * The `hasRole` helper enforces that, and `isAdmin` captures the owner-or-RD
+ * "admin" tier used for see-all / manage-any-content decisions.
  */
 
 export const ALL_ROLES = ["runner", "photographer", "race_director", "owner"] as const;
@@ -49,16 +53,33 @@ export function normalizeRoles(input: unknown): Role[] {
 export const OWNER_IMPLIED_ROLES: Role[] = ["runner", "photographer", "race_director", "owner"];
 
 /**
- * Does the actor have this role? Owner is treated as having every role.
+ * Does the actor have this role? Owner is treated as having every role, and
+ * race_director implies photographer + runner (so it clears every
+ * photographer-gated surface). Neither implication grants owner.
  */
 export function hasRole(actor: { roles?: readonly string[] | null }, role: Role): boolean {
   const rs = actor.roles ?? [];
   if (rs.includes("owner")) return true;
+  if (rs.includes("race_director") && (role === "photographer" || role === "runner")) {
+    return true;
+  }
   return rs.includes(role);
 }
 
 export function isOwner(actor: { roles?: readonly string[] | null }): boolean {
   return Boolean(actor.roles?.includes("owner"));
+}
+
+/**
+ * The "admin" tier: owner OR race_director. This is full admin over content and
+ * orders — the photo library see-all, coverage curation, editing any
+ * photographer's photos, viewing any order. It is everything an owner can do
+ * EXCEPT the owner-only settings panel (/admin/users) and issuing refunds, which
+ * keep using `isOwner`. Prefer this over `isOwner` for content/support powers.
+ */
+export function isAdmin(actor: { roles?: readonly string[] | null }): boolean {
+  const rs = actor.roles ?? [];
+  return rs.includes("owner") || rs.includes("race_director");
 }
 
 /**

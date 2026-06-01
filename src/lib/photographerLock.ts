@@ -50,7 +50,11 @@ export async function getEffectivePhotographerId(): Promise<string | null> {
     const session = await getServerSession(authOptions);
     if (session?.photographerId) {
       const roles = session.roles ?? [];
-      if (roles.includes("photographer") || roles.includes("owner")) {
+      if (
+        roles.includes("photographer") ||
+        roles.includes("race_director") ||
+        roles.includes("owner")
+      ) {
         return session.photographerId;
       }
       return null;

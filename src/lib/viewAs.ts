@@ -33,7 +33,8 @@ export function rolesForView(view: ViewAsRole): string[] {
     case "owner":
       return ["runner", "photographer", "race_director", "owner"];
     case "race_director":
-      return ["runner", "race_director"];
+      // Race director implies photographer (senior admin minus settings).
+      return ["runner", "photographer", "race_director"];
     case "photographer":
       return ["runner", "photographer"];
     case "runner":

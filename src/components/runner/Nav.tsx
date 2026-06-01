@@ -38,7 +38,10 @@ const VIEWS: View[] = [
     href: "/photographer",
     match: (p) =>
       p === "/photographer" || p.startsWith("/photographer/upload"),
-    roles: ["photographer", "owner"],
+    // Race directors are senior admins (everything but settings/refunds), so
+    // they get the photographer surface too. The server-side hasRole already
+    // implies photographer for them; this just shows the chip.
+    roles: ["photographer", "race_director", "owner"],
   },
   {
     // Roster + coverage surface (owner + race director). Roster lists race

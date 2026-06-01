@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { extractBibsDebug, withDefaults, type OcrSettings } from "@/lib/bibOcr";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 
 /**
  * Debug OCR for one photo — returns the preprocessed image (as a base64 PNG)
@@ -36,7 +36,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     select: { id: true, photographerId: true },
   });
   if (!photo) return NextResponse.json({ error: "unknown photo" }, { status: 404 });
-  if (photo.photographerId !== actor.photographerId && !isOwner(actor)) {
+  if (photo.photographerId !== actor.photographerId && !isAdmin(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 

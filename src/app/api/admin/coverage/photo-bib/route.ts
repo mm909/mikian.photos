@@ -7,7 +7,7 @@
  * tagger linked the wrong bib to one specific photo. The bib stays valid
  * on other photos in the event; only this one row goes away.
  *
- * Owner-only. 404 if no matching row.
+ * Owner + race director. 404 if no matching row.
  */
 
 import { NextResponse } from "next/server";
@@ -19,9 +19,12 @@ export const runtime = "nodejs";
 type Body = { photoId?: string; bib?: number };
 
 export async function DELETE(req: Request) {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
   let body: Body;
   try {

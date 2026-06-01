@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { faceRecConfigured, indexFacesForPhoto } from "@/lib/faceRec";
 import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 
 /**
  * Re-run face indexing for a single photo.
@@ -41,7 +41,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
   if (!photo) return NextResponse.json({ error: "unknown photo" }, { status: 404 });
 
-  if (photo.photographerId !== actor.photographerId && !isOwner(actor)) {
+  if (photo.photographerId !== actor.photographerId && !isAdmin(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 

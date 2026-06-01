@@ -8,7 +8,7 @@ import { sendReceiptEmail } from "@/lib/email";
 import { currentEvent } from "@/lib/data";
 
 /**
- * POST /api/admin/orders/[orderNumber]/resend — owner only.
+ * POST /api/admin/orders/[orderNumber]/resend — owner + race director.
  *
  * Re-sends the receipt email for an existing order (e.g. after fixing the
  * Resend domain, or if the buyer lost it). Rebuilds the same ReceiptInput
@@ -20,8 +20,13 @@ export async function POST(
   req: Request,
   { params }: { params: { orderNumber: string } }
 ) {
-  const actor = await requireRole("owner");
-  if (!actor) return NextResponse.json({ error: "Owner only" }, { status: 403 });
+  const actor = await requireRole("race_director");
+  if (!actor) {
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
+  }
 
   const n = parseOrderNumber(params.orderNumber);
   if (n == null) return NextResponse.json({ error: "Bad order number" }, { status: 400 });

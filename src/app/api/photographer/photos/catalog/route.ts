@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { normalizeRoles } from "@/lib/permissions";
 
 /**
  * Admin photo catalog with full metadata — used by /photographer/photos.
@@ -19,14 +20,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Photographer access required" }, { status: 401 });
   }
 
-  // If the caller authenticated via the unlock cookie, getEffectivePhotographerId
-  // returned the admin row — give them every photo. Otherwise scope to their own.
-  // Quick admin check: pull the row and look at isAdmin.
+  // Admin tier (owner OR race director) sees every photographer's photos;
+  // everyone else is scoped to their own uploads. Derive from the row's roles
+  // rather than the legacy isAdmin column so race directors get the see-all view.
   const pg = await db.photographer.findUnique({
     where: { id: photographerId },
-    select: { isAdmin: true },
+    select: { roles: true },
   });
-  const isAdmin = pg?.isAdmin ?? false;
+  const roles = normalizeRoles(pg?.roles);
+  const isAdmin = roles.includes("owner") || roles.includes("race_director");
 
   const url = new URL(req.url);
   // Pagination: pages-based when `page` is set, cursor-based otherwise.

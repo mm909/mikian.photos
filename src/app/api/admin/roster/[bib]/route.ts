@@ -1,7 +1,7 @@
 /**
  * /api/admin/roster/[bib]?eventId=...
  *
- * Owner-only. One runner's profile context.
+ * Owner + race director. One runner's profile context.
  *
  * GET  — roster entry + photo counts + the face cluster we believe is theirs.
  *        A HUMAN-CONFIRMED face (FaceAssignment table) wins over the geometry
@@ -32,9 +32,12 @@ export async function GET(
   req: Request,
   { params }: { params: { bib: string } }
 ) {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);
@@ -148,9 +151,12 @@ export async function POST(
   req: Request,
   { params }: { params: { bib: string } }
 ) {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   const bibNumber = Number(params.bib);

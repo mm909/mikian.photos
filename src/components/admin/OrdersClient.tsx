@@ -301,7 +301,7 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                 width: "100%",
                 borderCollapse: "collapse",
                 fontSize: 14,
-                minWidth: isOwner ? 880 : 720,
+                minWidth: 880,
               }}
             >
               <thead>
@@ -312,14 +312,14 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                   <Th align="right">Photos</Th>
                   <Th align="right">Amount</Th>
                   <Th>Status</Th>
-                  {isOwner && <Th align="right">Actions</Th>}
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
               <tbody>
                 {!loading && filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={isOwner ? 7 : 6}
+                      colSpan={7}
                       style={{ padding: "40px 16px", textAlign: "center", color: "var(--muted)" }}
                     >
                       {orders.length === 0
@@ -400,25 +400,27 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                           </div>
                         )}
                       </Td>
-                      {isOwner && (
-                        <Td align="right" onClick={(e) => e.stopPropagation()}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              justifyContent: "flex-end",
-                              flexWrap: "wrap",
-                            }}
+                      <Td align="right" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            justifyContent: "flex-end",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {/* Resend is available to race directors + owner. */}
+                          <button
+                            type="button"
+                            className="btn btn--ghost"
+                            style={smallBtn}
+                            disabled={rs?.busy != null}
+                            onClick={() => void resend(o)}
                           >
-                            <button
-                              type="button"
-                              className="btn btn--ghost"
-                              style={smallBtn}
-                              disabled={rs?.busy != null}
-                              onClick={() => void resend(o)}
-                            >
-                              {rs?.busy === "resend" ? "Sending…" : "Resend"}
-                            </button>
+                            {rs?.busy === "resend" ? "Sending…" : "Resend"}
+                          </button>
+                          {/* Refund moves money via PayPal — owner only. */}
+                          {isOwner && (
                             <button
                               type="button"
                               className="btn btn--ghost"
@@ -439,22 +441,22 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
                                   ? "Refunded"
                                   : "Refund"}
                             </button>
-                          </div>
-                          {rs?.msg && (
-                            <div
-                              style={{
-                                marginTop: 4,
-                                fontSize: 11,
-                                color: rs.error ? "var(--accent)" : "var(--muted)",
-                                maxWidth: 240,
-                                marginLeft: "auto",
-                              }}
-                            >
-                              {rs.msg}
-                            </div>
                           )}
-                        </Td>
-                      )}
+                        </div>
+                        {rs?.msg && (
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 11,
+                              color: rs.error ? "var(--accent)" : "var(--muted)",
+                              maxWidth: 240,
+                              marginLeft: "auto",
+                            }}
+                          >
+                            {rs.msg}
+                          </div>
+                        )}
+                      </Td>
                     </tr>
                   );
                 })}
@@ -528,7 +530,7 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
 
         {!isOwner && (
           <p style={{ marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
-            Viewing as race director — refund and resend are owner-only.
+            Viewing as race director — issuing refunds is owner-only.
           </p>
         )}
       </div>

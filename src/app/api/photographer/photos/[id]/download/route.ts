@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2PresignGet, r2Keys } from "@/lib/r2";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 
 /**
  * Photographer / admin original-download endpoint.
@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     select: { id: true, photographerId: true, r2OriginalKey: true },
   });
   if (!photo) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (photo.photographerId !== actor.photographerId && !isOwner(actor)) {
+  if (photo.photographerId !== actor.photographerId && !isAdmin(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 

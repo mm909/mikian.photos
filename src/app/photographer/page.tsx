@@ -1,4 +1,4 @@
-import { getEffectiveActor } from "@/lib/permissions";
+import { getEffectiveActor, hasRole } from "@/lib/permissions";
 import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 import { PhotographerDashboardClient } from "@/components/photographer/PhotographerDashboardClient";
 
@@ -13,7 +13,7 @@ import { PhotographerDashboardClient } from "@/components/photographer/Photograp
 export default async function PhotographerOverviewPage() {
   const actor = await getEffectiveActor();
   if (!actor) return <NoPhotographerAccess reason="signed-out" />;
-  if (!actor.roles.includes("photographer") && !actor.roles.includes("owner")) {
+  if (!hasRole(actor, "photographer")) {
     return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
   return <PhotographerDashboardClient name={actor.name} email={actor.email} />;

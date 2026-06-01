@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { r2Configured } from "@/lib/r2";
-import { getEffectiveActor, hasRole, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 import { deadPhotoWhere, backfillDeadPhotos } from "@/lib/detection";
 
 /**
@@ -28,7 +28,7 @@ async function scopedWhere(eventId: string): Promise<Prisma.PhotoWhereInput | nu
   if (!actor || !hasRole(actor, "photographer")) return null;
   return {
     ...deadPhotoWhere(eventId),
-    ...(isOwner(actor) ? {} : { photographerId: actor.photographerId }),
+    ...(isAdmin(actor) ? {} : { photographerId: actor.photographerId }),
   };
 }
 

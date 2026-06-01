@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getEffectiveActor } from "@/lib/permissions";
+import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { verifyDownloadToken } from "@/lib/downloadToken";
 import { parseOrderNumber } from "@/lib/orderId";
 
@@ -9,7 +9,7 @@ import { parseOrderNumber } from "@/lib/orderId";
  * Three valid paths:
  *   1. Signed-in user whose email (case-insensitive) matches Order.email —
  *      this is the path linked accounts take from /runner.
- *   2. Owner — sees every order for support purposes.
+ *   2. Admin (owner or race director) — sees every order for support purposes.
  *   3. Anyone with a valid download token whose claimed orderId matches —
  *      this is how the magic link from the receipt email works for guest
  *      buyers who never created an account.
@@ -19,7 +19,7 @@ import { parseOrderNumber } from "@/lib/orderId";
  * on `email` is the durable check.
  */
 export type OrderAccess =
-  | { ok: true; order: NonNullable<Awaited<ReturnType<typeof loadOrderRaw>>>; via: "session" | "owner" | "token" }
+  | { ok: true; order: NonNullable<Awaited<ReturnType<typeof loadOrderRaw>>>; via: "session" | "admin" | "token" }
   | { ok: false; reason: "not-found" | "forbidden" };
 
 async function loadOrderRaw(orderNumber: number) {
@@ -48,8 +48,8 @@ export async function getOrderForViewer(
   // Path 1 + 2: session.
   const actor = await getEffectiveActor();
   if (actor) {
-    if (actor.roles.includes("owner")) {
-      return { ok: true, order, via: "owner" };
+    if (isAdmin(actor)) {
+      return { ok: true, order, via: "admin" };
     }
     if (actor.email.toLowerCase() === order.email.toLowerCase()) {
       return { ok: true, order, via: "session" };

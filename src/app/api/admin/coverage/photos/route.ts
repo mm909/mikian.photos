@@ -1,7 +1,7 @@
 /**
  * GET /api/admin/coverage/photos
  *
- * Owner-only. Resolves "show me the photos for X" where X is one of:
+ * Owner + race director. Resolves "show me the photos for X" where X is one of:
  *   - ?bib=<n>            — every visible photo in the event with this bib
  *   - ?faceClusterId=<id> — every visible photo with this face cluster
  *   - ?gap=unreachable    — no bib AND no face
@@ -33,9 +33,12 @@ function isGap(v: string | null): v is Gap {
 }
 
 export async function GET(req: Request) {
-  const actor = await requireRole("owner");
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);

@@ -69,8 +69,8 @@ export default async function OrderPage({
             }}
           >
             Order {formatOrderNumber(order.orderNumber)} ·{" "}
-            {access.via === "owner"
-              ? "Viewing as owner"
+            {access.via === "admin"
+              ? "Staff view"
               : access.via === "token"
                 ? "Magic link"
                 : "Signed in"}

@@ -46,8 +46,8 @@ const TABLE_MIN_WIDTH = 740;
 type Props = {
   defaultEventId: string;
   defaultEventName: string;
-  /** Owner sees clickable rows that drill into the per-runner curation
-   *  profile. Race directors get the read-only list (rows are static). */
+  /** Drives the header role label only. Both owner and race director drill into
+   *  the per-runner profile, so the row links are live for both. */
   isOwner: boolean;
 };
 
@@ -55,9 +55,9 @@ type Props = {
  * Combined Roster + Coverage surface — owner + race director.
  *
  * - **Runners** (default): searchable, sortable list of every entrant joined
- *   with per-runner photo + face counts. For owners, click a row → that
- *   runner's profile (the curation drill-in); race directors get the
- *   read-only list. This is the "someone got first, find their photos" lookup.
+ *   with per-runner photo + face counts. Click a row → that runner's profile
+ *   (owner + race director both drill in). This is the "someone got first,
+ *   find their photos" lookup.
  * - **By bib / By face / Coverage gaps**: the detection-coverage tabs, so the
  *   owner can audit what OCR + face detection actually tagged without leaving
  *   the page.
@@ -380,43 +380,33 @@ export function RosterClient({ defaultEventId, defaultEventName, isOwner }: Prop
                         ((e.currentTarget as HTMLDivElement).style.background = "var(--surface)")
                       }
                     >
-                      {isOwner ? (
-                        <Link
-                          href={`/admin/roster/${r.bib}`}
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            color: "var(--ink)",
-                            textDecoration: "none",
-                          }}
-                        >
-                          #{r.bib}
-                        </Link>
-                      ) : (
-                        <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
-                          #{r.bib}
-                        </span>
-                      )}
+                      <Link
+                        href={`/admin/roster/${r.bib}`}
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: "var(--ink)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        #{r.bib}
+                      </Link>
                       <FaceThumb face={r.face} name={r.name} />
-                      {isOwner ? (
-                        <Link
-                          href={`/admin/roster/${r.bib}`}
-                          style={{
-                            color: "var(--ink)",
-                            textDecoration: "none",
-                          }}
-                          onMouseEnter={(e) =>
-                            ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
-                              "underline")
-                          }
-                          onMouseLeave={(e) =>
-                            ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")
-                          }
-                        >
-                          {r.name}
-                        </Link>
-                      ) : (
-                        <span style={{ color: "var(--ink)" }}>{r.name}</span>
-                      )}
+                      <Link
+                        href={`/admin/roster/${r.bib}`}
+                        style={{
+                          color: "var(--ink)",
+                          textDecoration: "none",
+                        }}
+                        onMouseEnter={(e) =>
+                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
+                            "underline")
+                        }
+                        onMouseLeave={(e) =>
+                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")
+                        }
+                      >
+                        {r.name}
+                      </Link>
                       <RaceBadge distance={r.distance} />
                       <span style={{ color: "var(--muted)" }}>{r.gender[0]}</span>
                       <span
