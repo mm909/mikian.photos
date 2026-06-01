@@ -1,9 +1,9 @@
 /**
  * GET /api/admin/coverage?eventId=...
  *
- * Owner-only insights endpoint. Returns server-aggregated rollups so the
- * client can render the coverage screen without ever shipping the full
- * photo list.
+ * Owner + race director insights endpoint. Returns server-aggregated rollups
+ * so the client can render the coverage screen without ever shipping the full
+ * photo list. Read-only — it only feeds the roster stat strip.
  *
  * Shape:
  *   {
@@ -35,9 +35,13 @@ export const runtime = "nodejs";
 const GAP_SAMPLE_SIZE = 12;
 
 export async function GET(req: Request) {
-  const actor = await requireRole("owner");
+  // Owner + race director (owner implies race_director). Read-only rollups.
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);

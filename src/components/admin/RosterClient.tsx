@@ -36,14 +36,21 @@ type SortKey = "bib" | "face" | "name" | "race" | "gender" | "age" | "city" | "c
 // padding/font below.
 const ROW_PX = 31;
 
-type Props = { defaultEventId: string; defaultEventName: string };
+type Props = {
+  defaultEventId: string;
+  defaultEventName: string;
+  /** Owner sees clickable rows that drill into the per-runner curation
+   *  profile. Race directors get the read-only list (rows are static). */
+  isOwner: boolean;
+};
 
 /**
- * Combined Roster + Coverage surface — owner-only.
+ * Combined Roster + Coverage surface — owner + race director.
  *
  * - **Runners** (default): searchable, sortable list of every entrant joined
- *   with per-runner photo + face counts. Click a row → that runner's profile.
- *   This is the "someone got first, find their photos" lookup.
+ *   with per-runner photo + face counts. For owners, click a row → that
+ *   runner's profile (the curation drill-in); race directors get the
+ *   read-only list. This is the "someone got first, find their photos" lookup.
  * - **By bib / By face / Coverage gaps**: the detection-coverage tabs, so the
  *   owner can audit what OCR + face detection actually tagged without leaving
  *   the page.
@@ -51,7 +58,7 @@ type Props = { defaultEventId: string; defaultEventName: string };
  * Click the official-results link to verify a runner's time on the
  * third-party timing site.
  */
-export function RosterClient({ defaultEventId, defaultEventName }: Props) {
+export function RosterClient({ defaultEventId, defaultEventName, isOwner }: Props) {
   const [eventId] = useState(defaultEventId);
 
   const [data, setData] = useState<RosterResponse | null>(null);
@@ -198,7 +205,8 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
               marginBottom: 4,
             }}
           >
-            Owner · Roster &amp; coverage · {data?.event.name ?? defaultEventName}
+            {isOwner ? "Owner" : "Race director"} · Roster &amp; coverage ·{" "}
+            {data?.event.name ?? defaultEventName}
           </div>
           <Headline
             as="h1"
@@ -354,33 +362,43 @@ export function RosterClient({ defaultEventId, defaultEventName }: Props) {
                         ((e.currentTarget as HTMLDivElement).style.background = "var(--surface)")
                       }
                     >
-                      <Link
-                        href={`/admin/roster/${r.bib}`}
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          color: "var(--ink)",
-                          textDecoration: "none",
-                        }}
-                      >
-                        #{r.bib}
-                      </Link>
+                      {isOwner ? (
+                        <Link
+                          href={`/admin/roster/${r.bib}`}
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            color: "var(--ink)",
+                            textDecoration: "none",
+                          }}
+                        >
+                          #{r.bib}
+                        </Link>
+                      ) : (
+                        <span style={{ fontFamily: "var(--font-mono)", color: "var(--ink)" }}>
+                          #{r.bib}
+                        </span>
+                      )}
                       <FaceThumb face={r.face} name={r.name} />
-                      <Link
-                        href={`/admin/roster/${r.bib}`}
-                        style={{
-                          color: "var(--ink)",
-                          textDecoration: "none",
-                        }}
-                        onMouseEnter={(e) =>
-                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
-                            "underline")
-                        }
-                        onMouseLeave={(e) =>
-                          ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")
-                        }
-                      >
-                        {r.name}
-                      </Link>
+                      {isOwner ? (
+                        <Link
+                          href={`/admin/roster/${r.bib}`}
+                          style={{
+                            color: "var(--ink)",
+                            textDecoration: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            ((e.currentTarget as HTMLAnchorElement).style.textDecoration =
+                              "underline")
+                          }
+                          onMouseLeave={(e) =>
+                            ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")
+                          }
+                        >
+                          {r.name}
+                        </Link>
+                      ) : (
+                        <span style={{ color: "var(--ink)" }}>{r.name}</span>
+                      )}
                       <RaceBadge distance={r.distance} />
                       <span style={{ color: "var(--muted)" }}>{r.gender[0]}</span>
                       <span

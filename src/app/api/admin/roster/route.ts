@@ -1,7 +1,7 @@
 /**
  * GET /api/admin/roster?eventId=lighthouse-half-2026
  *
- * Owner-only. Joins the static event roster (LIGHTHOUSE_RACERS for the
+ * Owner + race director. Joins the static event roster (LIGHTHOUSE_RACERS for the
  * Lighthouse Half) with per-bib photo + face counts so the roster screen
  * can show "we have N photos for runner X".
  *
@@ -41,9 +41,14 @@ const OFFICIAL_RESULTS_URLS: Record<string, string> = {
 };
 
 export async function GET(req: Request) {
-  const actor = await requireRole("owner");
+  // Owner + race director (owner implies race_director, so requireRole
+  // admits both). Read-only roster view — no curation actions live here.
+  const actor = await requireRole("race_director");
   if (!actor) {
-    return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Race director or owner role required" },
+      { status: 403 }
+    );
   }
 
   const url = new URL(req.url);
