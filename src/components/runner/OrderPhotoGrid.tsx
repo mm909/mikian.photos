@@ -19,11 +19,12 @@ type Props = {
 /**
  * How many photos we hand to the Web Share sheet per tap. iOS rejects large
  * file batches and holding many full-res blobs in memory can crash mobile
- * Safari, so we save the set a chunk at a time. Kept small (10 ≈ ~50MB held
- * briefly) for reliability — a selection saves in one tap; a big "save all" is
- * a short stepper (and the ZIP is the better path for the whole set anyway).
+ * Safari, so we save the set a chunk at a time. Sized for fewer taps while
+ * staying within reach of mobile memory (20 ≈ ~100MB held briefly) — a
+ * selection saves in one tap; a big "save all" is a short stepper (and the ZIP
+ * is the better path for the whole set anyway).
  */
-const SHARE_CHUNK = 10;
+const SHARE_CHUNK = 20;
 
 /** Photos per page in the order grid. */
 const PHOTOS_PER_PAGE = 24;

@@ -10,15 +10,26 @@ import { prices, type CartItem } from "@/lib/data";
 
 /**
  * Reduce the cart to the shape the API expects:
- *   - any bundle item → kind=bundle, server snapshots all event photos
- *   - otherwise       → kind=multi with the explicit photo ids
+ *   - any bundle item → kind=bundle, carrying the ids it snapshotted at add
+ *     time (the buyer's matched set). An EMPTY id list = whole-event bundle;
+ *     the server fills it with every event photo.
+ *   - otherwise       → kind=multi with the explicit single photo ids
+ *
+ * The bundle's ids come from the cart item itself, NOT from the live
+ * resultPhotos — the cart is restored verbatim from localStorage across the
+ * sign-in reload, whereas resultPhotos gets rebuilt from the (capped) catalog
+ * and can come back empty for a face match. Reading the cart is what keeps a
+ * 9-photo match from ballooning into the whole event.
  *
  * Bundle wins if both kinds coexist (defensive — shouldn't normally happen).
  */
 function describeCart(items: CartItem[]):
-  | { kind: "bundle" }
+  | { kind: "bundle"; photoIds: string[] }
   | { kind: "multi"; photoIds: string[] } {
-  if (items.some((i) => i.kind === "bundle")) return { kind: "bundle" };
+  const bundle = items.find(
+    (i): i is Extract<CartItem, { kind: "bundle" }> => i.kind === "bundle"
+  );
+  if (bundle) return { kind: "bundle", photoIds: bundle.photoIds ?? [] };
   const photoIds = items
     .filter((i): i is Extract<CartItem, { kind: "single" }> => i.kind === "single")
     .map((i) => i.id);
@@ -32,7 +43,7 @@ type Props = { unlocked: boolean };
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { cart, resultPhotos, finalizeOrder, addBundle, activeEventId, isFree } = useRunner();
+  const { cart, finalizeOrder, addBundle, activeEventId, isFree } = useRunner();
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
   // Show a friendly "Coming soon" panel and let the visitor go back to browsing.
@@ -188,8 +199,7 @@ export function CheckoutScreen({ unlocked }: Props) {
         body: JSON.stringify({
           eventId: activeEventId ?? "",
           kind: cartShape.kind,
-          photoIds:
-            cartShape.kind === "multi" ? cartShape.photoIds : resultPhotos.map((p) => p.id),
+          photoIds: cartShape.photoIds,
         }),
       });
       if (!res.ok) {
@@ -221,8 +231,7 @@ export function CheckoutScreen({ unlocked }: Props) {
         body: JSON.stringify({
           eventId: activeEventId ?? "",
           kind: cartShape.kind,
-          photoIds:
-            cartShape.kind === "multi" ? cartShape.photoIds : resultPhotos.map((p) => p.id),
+          photoIds: cartShape.photoIds,
         }),
       });
       if (!res.ok) {
@@ -357,10 +366,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                         kind: cartShape.kind,
                         // The order covers exactly the photos the runner is
                         // looking at — their matched set, not the whole event.
-                        photoIds:
-                          cartShape.kind === "multi"
-                            ? cartShape.photoIds
-                            : resultPhotos.map((p) => p.id),
+                        photoIds: cartShape.photoIds,
                       }),
                     });
                     if (!res.ok) {
@@ -498,7 +504,9 @@ export function CheckoutScreen({ unlocked }: Props) {
                   <span>
                     {it.kind === "single"
                       ? "Photo"
-                      : `All photos bundle (${resultPhotos.length || 36})`}
+                      : it.photoIds && it.photoIds.length > 0
+                        ? `All ${it.photoIds.length} photos`
+                        : "All photos bundle"}
                   </span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>
                     ${(isZero ? 0 : it.price).toFixed(2)}

@@ -38,6 +38,10 @@ export type EventDTO = {
   colorGroupLabels: Record<string, string> | null;
   /** Owner-set bundle price in cents; null falls back to the static default. */
   bundlePriceCents: number | null;
+  /** Optional external "browse all" URL (e.g. a shared Google Photos album).
+   *  When set, the runner's "Browse all photos" button links out here instead
+   *  of opening the in-app gallery. null → in-app browse. */
+  externalBrowseUrl: string | null;
 };
 
 // Columns that make up an EventDTO. secretLinkToken/ocrSettings are deliberately
@@ -57,6 +61,7 @@ const EVENT_DTO_SELECT = {
   colorGroupEnabled: true,
   colorGroupLabels: true,
   bundlePriceCents: true,
+  externalBrowseUrl: true,
 } as const;
 
 type EventRow = {
@@ -74,6 +79,7 @@ type EventRow = {
   colorGroupEnabled: boolean;
   colorGroupLabels: unknown;
   bundlePriceCents: number | null;
+  externalBrowseUrl: string | null;
 };
 
 function toDTO(row: EventRow): EventDTO {
@@ -93,6 +99,7 @@ function toDTO(row: EventRow): EventDTO {
     colorGroupEnabled: row.colorGroupEnabled,
     colorGroupLabels: normalizeColorGroupLabels(row.colorGroupLabels),
     bundlePriceCents: row.bundlePriceCents,
+    externalBrowseUrl: row.externalBrowseUrl,
   };
 }
 

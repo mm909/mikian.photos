@@ -66,6 +66,11 @@ model Event {
   // Jays" }. Null → use the palette's built-in label per key. Lets an owner
   // relabel groups later without re-running detection (editor deferred).
   colorGroupLabels  Json?
+  // Optional external "browse all photos" destination (e.g. a shared Google
+  // Photos album). When set, a camp event's "Browse all photos" button links
+  // out to this URL instead of opening the in-app browse gallery — the album's
+  // own unlisted-link sharing is the access boundary. Null → in-app browse.
+  externalBrowseUrl String?
 
   // --- v2.1 general platform ---------------------------------------------
   // Event type drives the runner UX + capability defaults (see

@@ -33,8 +33,12 @@ export type RunnerEvent = {
   /** ISO date string. */
   date: string;
   city: string;
-  /** Event type — "race" | "gallery". Drives the runner UX (see capabilities). */
+  /** Event type — "race" | "camp". Drives the runner UX (see capabilities). */
   type: string;
+  /** Optional external "browse all" destination (e.g. a shared Google Photos
+   *  album). When set, "Browse all photos" links out here instead of opening
+   *  the in-app gallery. */
+  externalBrowseUrl?: string | null;
 };
 
 /** Extract the event slug from a /e/[slug][/...] pathname; null elsewhere. */
@@ -957,7 +961,21 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
 
   function addBundle() {
     if (cart.items.some((i) => i.kind === "bundle")) return;
-    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: bundlePrice }] });
+    // Snapshot the exact matched set NOW (while resultPhotos is in memory) so the
+    // order covers the buyer's photos — not the whole event — after the cart is
+    // persisted and restored across the Google sign-in reload. resultPhotos is a
+    // face/bib match here; an empty snapshot (a browse with no search) lets the
+    // server fall back to the whole event.
+    setCart({
+      items: [
+        {
+          uid: `bundle-${Date.now()}`,
+          kind: "bundle",
+          price: bundlePrice,
+          photoIds: resultPhotos.map((p) => p.id),
+        },
+      ],
+    });
     setCartCapped(true);
     // No toast — there's no cart surface in the bundle-only flow; the bundle
     // just carries straight to checkout.
@@ -970,7 +988,16 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   function upgradeToBundle() {
-    setCart({ items: [{ uid: `bundle-${Date.now()}`, kind: "bundle", price: bundlePrice }] });
+    setCart({
+      items: [
+        {
+          uid: `bundle-${Date.now()}`,
+          kind: "bundle",
+          price: bundlePrice,
+          photoIds: resultPhotos.map((p) => p.id),
+        },
+      ],
+    });
     setCartCapped(true);
     flashToast("Upgraded to bundle");
   }

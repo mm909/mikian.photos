@@ -395,6 +395,7 @@ export async function GET(req: Request) {
             date: evDto.date.toISOString(),
             city: evDto.city,
             type: evDto.type,
+            externalBrowseUrl: evDto.externalBrowseUrl,
           }
         : null,
       capabilities: evDto ? eventCapabilities(evDto) : null,

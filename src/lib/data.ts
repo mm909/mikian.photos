@@ -89,6 +89,14 @@ export type BundleCartItem = {
   uid: string;
   kind: "bundle";
   price: number;
+  /** The exact photo ids this bundle covers — the buyer's matched set (their
+   *  face / bib photos) snapshotted when the bundle was added. Empty/undefined
+   *  means a whole-event bundle (a browse-all "get them all"); the server then
+   *  fills it with every event photo. Snapshotting the ids HERE — rather than
+   *  re-reading the volatile `resultPhotos` at checkout — is what makes a
+   *  face-search set survive the full-page reload of the Google sign-in step.
+   *  (Without it, a face match of 9 came back as the whole 1,143-photo event.) */
+  photoIds?: string[];
 };
 
 export type CartItem = SingleCartItem | BundleCartItem;

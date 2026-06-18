@@ -26,6 +26,7 @@ export type AdminEvent = {
   faceRecEnabled: boolean;
   colorGroupEnabled: boolean;
   colorGroupLabels: Record<string, string> | null;
+  externalBrowseUrl: string | null;
   ownerId: string | null;
   createdAt: string;
   photoCount: number;
@@ -242,6 +243,7 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
   const [ocrEnabled, setOcrEnabled] = useState(ev.ocrEnabled);
   const [faceRecEnabled, setFaceRecEnabled] = useState(ev.faceRecEnabled);
   const [colorGroupEnabled, setColorGroupEnabled] = useState(ev.colorGroupEnabled);
+  const [externalBrowseUrl, setExternalBrowseUrl] = useState(ev.externalBrowseUrl ?? "");
   const [date, setDate] = useState(isoToDateInput(ev.date));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -259,6 +261,7 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
         ocrEnabled,
         faceRecEnabled,
         colorGroupEnabled,
+        externalBrowseUrl: externalBrowseUrl.trim() || null,
         date,
         bundlePriceCents:
           priceDollars.trim() === "" ? null : Math.round(parseFloat(priceDollars) * 100),
@@ -278,6 +281,16 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
   }
 
   async function rotate() {
+    // Rotating mints a new token and invalidates the current one — anyone you've
+    // already shared the ?k= link with loses access until you resend the new
+    // link. Confirm before the destructive change (mirrors RerunDetection).
+    if (
+      !window.confirm(
+        "Rotate the secure link?\n\nThe current link (the one ending in ?k=…) will stop working immediately. Anyone you've already shared it with will lose access until you send them the new link.\n\nContinue?"
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -374,6 +387,20 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
           </div>
         </Labeled>
       </Row>
+
+      {type === "camp" && (
+        <Row>
+          <Labeled label="Browse-all link (Google Photos album)">
+            <input
+              style={FIELD}
+              type="url"
+              value={externalBrowseUrl}
+              onChange={(e) => setExternalBrowseUrl(e.target.value)}
+              placeholder="https://photos.app.goo.gl/…  (leave blank for in-app browse)"
+            />
+          </Labeled>
+        </Row>
+      )}
 
       {secureUrl && (
         <div style={{ display: "grid", gap: 6 }}>

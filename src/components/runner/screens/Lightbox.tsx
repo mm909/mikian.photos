@@ -45,6 +45,9 @@ type Props = {
   bundleInCart: boolean;
   /** Owner-set bundle price (dollars) for the event. */
   price: number;
+  /** Free event — suppress the dollar amount entirely (show "Free" instead of
+   *  "$0", and drop the "— $price" from the CTA). */
+  isFree: boolean;
   /** Event display name for the lightbox header (multi-event). */
   eventName?: string;
   onClose: () => void;
@@ -62,6 +65,7 @@ export function Lightbox({
   totalCount,
   bundleInCart,
   price,
+  isFree,
   eventName,
   onClose,
   onPrev,
@@ -466,7 +470,7 @@ export function Lightbox({
                 </div>
               </div>
               <span className="price" style={{ fontSize: 28 }}>
-                ${price}
+                {isFree ? "Free" : `$${price}`}
               </span>
             </div>
 
@@ -482,7 +486,9 @@ export function Lightbox({
                 className="btn btn--primary btn--block btn--lg"
                 onClick={() => onBundle(false)}
               >
-                Get all {totalCount} photos — ${price}
+                {isFree
+                  ? `Get all ${totalCount} photos`
+                  : `Get all ${totalCount} photos — $${price}`}
               </button>
             )}
           </div>

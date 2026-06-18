@@ -89,6 +89,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  // External "browse all" URL (e.g. a shared Google Photos album). Empty string
+  // or null clears it; a non-empty value must be a well-formed http(s) URL.
+  if (body.externalBrowseUrl !== undefined) {
+    const v = body.externalBrowseUrl;
+    if (v === null || (typeof v === "string" && v.trim() === "")) {
+      data.externalBrowseUrl = null;
+    } else if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (!/^https?:\/\/\S+$/i.test(trimmed)) {
+        return NextResponse.json(
+          { error: "externalBrowseUrl must be an http(s) URL" },
+          { status: 400 }
+        );
+      }
+      data.externalBrowseUrl = trimmed;
+    } else {
+      return NextResponse.json({ error: "invalid externalBrowseUrl" }, { status: 400 });
+    }
+  }
+
   if (body.bundlePriceCents !== undefined) {
     if (body.bundlePriceCents === null) {
       data.bundlePriceCents = null;

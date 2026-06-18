@@ -26,6 +26,7 @@ export function adminEventShape(ev: {
   faceRecEnabled: boolean;
   colorGroupEnabled: boolean;
   colorGroupLabels?: unknown;
+  externalBrowseUrl?: string | null;
   ownerId: string | null;
   createdAt: Date;
   _count?: { photos: number; eventPhotographers: number };
@@ -49,6 +50,7 @@ export function adminEventShape(ev: {
       ev.colorGroupLabels && typeof ev.colorGroupLabels === "object" && !Array.isArray(ev.colorGroupLabels)
         ? (ev.colorGroupLabels as Record<string, string>)
         : null,
+    externalBrowseUrl: ev.externalBrowseUrl ?? null,
     ownerId: ev.ownerId,
     createdAt: ev.createdAt.toISOString(),
     photoCount: ev._count?.photos ?? 0,

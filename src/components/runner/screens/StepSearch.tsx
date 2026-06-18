@@ -56,10 +56,21 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
   const headlineText = hasBib && raceName ? `Find your ${raceName} photos.` : "Find your photos.";
   const headlineAccent = hasBib && raceName ? raceAccent : "photos.";
 
+  // When the owner has set an external album link (e.g. a shared Google Photos
+  // album), "Browse all photos" links out to it instead of opening the in-app
+  // gallery — the album's own unlisted-link sharing is the access boundary.
+  const externalBrowse = event?.externalBrowseUrl || null;
+
   function browseAll() {
+    if (externalBrowse) {
+      window.open(externalBrowse, "_blank", "noopener,noreferrer");
+      return;
+    }
     runSearch({ kind: "browse" });
     onAdvance();
   }
+
+  const browseLabel = `Browse all photos${externalBrowse ? " ↗" : ""}`;
 
   return (
     <main className="screen" style={{ padding: "64px 32px 96px" }}>
@@ -166,13 +177,13 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
                 </button>
                 <Divider label="or" />
                 <button className="btn btn--ghost btn--block" onClick={browseAll}>
-                  Browse all photos
+                  {browseLabel}
                 </button>
               </>
             ) : (
               // Browse-only gallery (no face/bib).
               <button className="btn btn--primary btn--block" onClick={browseAll}>
-                Browse all photos
+                {browseLabel}
               </button>
             )}
 
