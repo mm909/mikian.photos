@@ -960,12 +960,14 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   function addBundle() {
-    if (cart.items.some((i) => i.kind === "bundle")) return;
-    // Snapshot the exact matched set NOW (while resultPhotos is in memory) so the
-    // order covers the buyer's photos — not the whole event — after the cart is
-    // persisted and restored across the Google sign-in reload. resultPhotos is a
-    // face/bib match here; an empty snapshot (a browse with no search) lets the
-    // server fall back to the whole event.
+    // Always (re)snapshot the matched set NOW (while resultPhotos is in memory)
+    // and REPLACE any existing bundle. A bundle carries the specific photo ids
+    // it covers, so a stale bundle left over from an earlier attempt (or an
+    // empty one created by the checkout auto-add before hydration) must be
+    // overwritten — never kept — or checkout would deliver that old/empty set,
+    // which the server then expands to the WHOLE event. (This is the "9 photos
+    // came back as all 1,143" bug.) An empty snapshot only happens on a browse
+    // with no search; that legitimately means "every photo".
     setCart({
       items: [
         {

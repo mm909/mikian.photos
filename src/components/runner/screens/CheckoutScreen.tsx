@@ -43,7 +43,7 @@ type Props = { unlocked: boolean };
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { cart, finalizeOrder, addBundle, activeEventId, isFree } = useRunner();
+  const { cart, finalizeOrder, addBundle, activeEventId, isFree, didHydrate } = useRunner();
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
   // Show a friendly "Coming soon" panel and let the visitor go back to browsing.
@@ -94,12 +94,16 @@ export function CheckoutScreen({ unlocked }: Props) {
   }
 
   // Bundle-only MVP: if the user lands here without a cart, drop the bundle in
-  // automatically. Re-runs after RunnerProvider hydrates from localStorage so the
-  // bundle isn't overwritten by an empty persisted cart.
+  // automatically. WAIT for the provider to hydrate from localStorage first —
+  // otherwise, on the post-sign-in full reload, this fires on the empty initial
+  // state and snapshots an EMPTY bundle (resultPhotos hasn't rebuilt yet), which
+  // the server then expands to the whole event. Gating on didHydrate guarantees
+  // the persisted cart (with the buyer's matched ids) is already restored, so
+  // this only ever adds a bundle for a genuine cart-less arrival.
   useEffect(() => {
-    if (cart.items.length === 0) addBundle();
+    if (didHydrate && cart.items.length === 0) addBundle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart.items.length]);
+  }, [didHydrate, cart.items.length]);
 
   const subtotal = cart.items.reduce((s, i) => s + i.price, 0);
   // Treat a $0 order as free regardless of the isFree flag. A free event whose

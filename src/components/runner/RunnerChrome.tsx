@@ -41,9 +41,12 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
             }
             addOneToCart(p);
           }}
-          onBundle={(alreadyIn) => {
+          onBundle={() => {
+            // Always re-snapshot to the photos currently in view before going to
+            // checkout — even if a bundle is already in the cart, it may be a
+            // stale/empty one whose ids no longer match this search.
             closeLightbox();
-            if (!alreadyIn) addBundle();
+            addBundle();
             router.push("/checkout");
           }}
         />

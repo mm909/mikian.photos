@@ -101,6 +101,20 @@ export async function createPaidOrder(
       photoIds = [];
     }
     if (photoIds.length === 0) {
+      // No specific selection came through. For a PAID bundle this is the
+      // legitimate "buy the whole event" purchase, so snapshot every photo.
+      // For a FREE claim an empty selection is never intentional — a real
+      // face/bib match always carries ids, and in-app browse-all sends the
+      // catalog ids — so it means the selection was lost in transit. Refuse,
+      // rather than hand the entire event over for free (the "9 photos came
+      // back as all 1,143" failure). The buyer reopens their photos + retries.
+      if (amountUsd <= 0) {
+        return {
+          ok: false,
+          status: 400,
+          error: "No photos selected — reopen your photos and try again.",
+        };
+      }
       const all = await db.photo.findMany({
         where: { eventId: ev.id, hidden: false },
         select: { id: true },
