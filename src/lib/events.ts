@@ -42,6 +42,9 @@ export type EventDTO = {
    *  When set, the runner's "Browse all photos" button links out here instead
    *  of opening the in-app gallery. null → in-app browse. */
   externalBrowseUrl: string | null;
+  /** Optional override for the runner's "Find your photos." headline. null →
+   *  the computed default. */
+  searchHeadline: string | null;
 };
 
 // Columns that make up an EventDTO. secretLinkToken/ocrSettings are deliberately
@@ -62,6 +65,7 @@ const EVENT_DTO_SELECT = {
   colorGroupLabels: true,
   bundlePriceCents: true,
   externalBrowseUrl: true,
+  searchHeadline: true,
 } as const;
 
 type EventRow = {
@@ -80,6 +84,7 @@ type EventRow = {
   colorGroupLabels: unknown;
   bundlePriceCents: number | null;
   externalBrowseUrl: string | null;
+  searchHeadline: string | null;
 };
 
 function toDTO(row: EventRow): EventDTO {
@@ -100,6 +105,7 @@ function toDTO(row: EventRow): EventDTO {
     colorGroupLabels: normalizeColorGroupLabels(row.colorGroupLabels),
     bundlePriceCents: row.bundlePriceCents,
     externalBrowseUrl: row.externalBrowseUrl,
+    searchHeadline: row.searchHeadline,
   };
 }
 
@@ -141,7 +147,10 @@ export async function getEvent(idOrSlug: string): Promise<EventDTO | null> {
 
 /**
  * List events, newest first.
- *   - publicOnly: only published + public events (the marketing directory).
+ *   - publicOnly: published events that are publicly listable — "public" plus
+ *     "password" (password galleries are discoverable on the directory, but the
+ *     event page gates viewing behind the password). secure-link / account-only
+ *     / private stay unlisted.
  *   - includeArchived: include archived events (admin full list). Ignored when
  *     publicOnly is set (archived is never public-listed).
  * Default (no opts): all non-archived events.
@@ -151,7 +160,7 @@ export async function listEvents(opts?: {
   includeArchived?: boolean;
 }): Promise<EventDTO[]> {
   const where = opts?.publicOnly
-    ? { status: "published", accessMode: "public" }
+    ? { status: "published", accessMode: { in: ["public", "password"] } }
     : opts?.includeArchived
       ? {}
       : { status: { not: "archived" } };
@@ -217,9 +226,11 @@ export async function canUploadToEvent(opts: {
           photographerId: opts.photographerId,
         },
       },
-      select: { id: true },
+      select: { status: true },
     });
-    return Boolean(m);
+    // Only an APPROVED membership grants upload — a "pending" self-request does
+    // not (the owner must approve it first).
+    return m?.status === "approved";
   } catch {
     return false;
   }

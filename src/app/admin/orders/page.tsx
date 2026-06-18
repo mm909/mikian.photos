@@ -4,9 +4,9 @@ import { OrdersClient } from "@/components/admin/OrdersClient";
 import { getDefaultEvent, getEvent } from "@/lib/events";
 
 /**
- * Orders admin — scoped to one event (?eventId=, else the default). Gated by
- * canManageEvent: the platform owner OR the event's own owner. Owners get
- * refund / resend per row; the action routes are owner-gated regardless.
+ * Orders admin — one event (?eventId=, else the default). Gated by
+ * canManageEvent: the platform owner OR the event's own owner. The all-events
+ * view lives at /admin/orders/all. Owners get refund / resend per row.
  */
 export const dynamic = "force-dynamic";
 
@@ -23,5 +23,12 @@ export default async function OrdersPage({
 
   const ev = await getEvent(eventId);
   const isOwner = hasRole(actor, "owner");
-  return <OrdersClient isOwner={isOwner} eventId={eventId} eventName={ev?.name ?? "Orders"} />;
+  return (
+    <OrdersClient
+      isOwner={isOwner}
+      allEvents={false}
+      eventId={eventId}
+      eventName={ev?.name ?? "Orders"}
+    />
+  );
 }

@@ -212,7 +212,7 @@ export function CheckoutScreen({ unlocked }: Props) {
       }
       const captured = (await res.json()) as { orderUrl?: string; amountUsd?: number };
       finalizeOrder(captured.amountUsd ?? total);
-      router.push(captured.orderUrl ?? "/runner");
+      router.push(captured.orderUrl ?? "/orders");
     } catch (e) {
       inFlight.current = false;
       setProcessing(false);
@@ -244,7 +244,7 @@ export function CheckoutScreen({ unlocked }: Props) {
       }
       const claimed = (await res.json()) as { orderUrl?: string };
       finalizeOrder(0);
-      router.push(claimed.orderUrl ?? "/runner");
+      router.push(claimed.orderUrl ?? "/orders");
     } catch (e) {
       inFlight.current = false;
       setProcessing(false);
@@ -392,9 +392,9 @@ export function CheckoutScreen({ unlocked }: Props) {
                       router.push(captured.orderUrl);
                     } else {
                       // Shouldn't happen — server always returns orderUrl on
-                      // success — but if it does, send them to /runner so
+                      // success — but if it does, send them to /orders so
                       // they at least land somewhere useful.
-                      router.push("/runner");
+                      router.push("/orders");
                     }
                   } catch (e) {
                     setProcessing(false);

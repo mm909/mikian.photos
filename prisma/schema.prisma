@@ -71,6 +71,13 @@ model Event {
   // out to this URL instead of opening the in-app browse gallery — the album's
   // own unlisted-link sharing is the access boundary. Null → in-app browse.
   externalBrowseUrl String?
+  // Optional override for the runner's "Find your photos." headline. Null →
+  // the computed default (race events personalize with the event name).
+  searchHeadline    String?
+  // Gallery-password access: when accessMode == "password", visitors must type
+  // this shared password before they can search. Stored as a keyed hash (never
+  // plaintext); null when password mode isn't in use. See src/lib/eventAccess.ts.
+  galleryPasswordHash String?
 
   // --- v2.1 general platform ---------------------------------------------
   // Event type drives the runner UX + capability defaults (see
@@ -108,6 +115,10 @@ model EventPhotographer {
   photographerId String
   // Future per-event granularity; null = the binary "may upload" grant.
   role           String?
+  // Access state. "approved" = may upload (owner-added or owner-approved).
+  // "pending" = a self-service request awaiting the owner's approval. Default
+  // "approved" so existing rows (added by the owner) stay accessible on push.
+  status         String   @default("approved")
   // Audit: who added this membership (actor id or email).
   addedBy        String?
   createdAt      DateTime @default(now())

@@ -30,11 +30,20 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     select: {
       photographerId: true,
       createdAt: true,
+      status: true,
       photographer: { select: { id: true, name: true, email: true, roles: true } },
     },
     orderBy: { createdAt: "asc" },
   });
   const memberIds = new Set(memberships.map((m) => m.photographerId));
+
+  // How many photos each photographer has uploaded to this event (attribution).
+  const counts = await db.photo.groupBy({
+    by: ["photographerId"],
+    where: { eventId: params.id },
+    _count: { _all: true },
+  });
+  const countById = new Map(counts.map((c) => [c.photographerId, c._count._all]));
 
   // Candidates: anyone holding the photographer role who isn't already a member.
   const photographers = await db.photographer.findMany({
@@ -43,12 +52,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     orderBy: { name: "asc" },
   });
 
+  const approved = memberships.filter((m) => m.status !== "pending");
+  const pending = memberships.filter((m) => m.status === "pending");
+
   return NextResponse.json({
-    members: memberships.map((m) => ({
+    members: approved.map((m) => ({
       id: m.photographer.id,
       name: m.photographer.name,
       email: m.photographer.email,
       addedAt: m.createdAt.toISOString(),
+      photoCount: countById.get(m.photographerId) ?? 0,
+    })),
+    // Self-service upload requests awaiting the owner's approval.
+    pending: pending.map((m) => ({
+      id: m.photographer.id,
+      name: m.photographer.name,
+      email: m.photographer.email,
+      requestedAt: m.createdAt.toISOString(),
     })),
     candidates: photographers
       .filter((p) => !memberIds.has(p.id))
@@ -109,10 +129,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "Provide a photographer or email" }, { status: 400 });
   }
 
+  // Owner add OR owner approval — both land the membership as "approved" (this
+  // is the endpoint the "Approve" button hits for a pending self-request too).
   await db.eventPhotographer.upsert({
     where: { eventId_photographerId: { eventId: params.id, photographerId } },
-    update: {},
-    create: { eventId: params.id, photographerId, addedBy: actor.email },
+    update: { status: "approved" },
+    create: { eventId: params.id, photographerId, addedBy: actor.email, status: "approved" },
   });
   return NextResponse.json({ ok: true });
 }

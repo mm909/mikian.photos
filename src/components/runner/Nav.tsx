@@ -9,6 +9,14 @@ import { AccountWidget } from "@/components/auth/AccountWidget";
 
 type Props = {
   onLogo: () => void;
+  /** Current event's display name (from RunnerProvider) — a fallback for the
+   *  nav's "which gallery am I in" label when the per-event `me` fetch (authed
+   *  only) hasn't supplied one. */
+  eventName?: string | null;
+  /** The event the runner cart is scoped to (RunnerProvider). Used as a
+   *  SYNCHRONOUS fallback for the admin-surface event id so the contextual nav
+   *  doesn't flash to "Events"-only while the ?eventId= effect catches up. */
+  activeEventId?: string | null;
 };
 
 /** Extract the event slug from a /e/[slug][/...] pathname; null elsewhere. */
@@ -17,7 +25,13 @@ function eventSlugFromPath(p: string): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-type EventMe = { type: string; canManage: boolean; canUpload: boolean; hasRoster: boolean };
+type EventMe = {
+  name?: string;
+  type: string;
+  canManage: boolean;
+  canUpload: boolean;
+  hasRoster: boolean;
+};
 type View = { label: string; href: string; active: boolean };
 
 /**
@@ -28,7 +42,7 @@ type View = { label: string; href: string; active: boolean };
  *     capabilities come from GET /api/events/[slug]/me.
  * Account widget always shows on the right.
  */
-export function Nav({ onLogo }: Props) {
+export function Nav({ onLogo, eventName, activeEventId }: Props) {
   const pathname = usePathname() ?? "/";
   const { data: session, status } = useSession();
   // Only treat the viewer as authed once next-auth resolves — never during the
@@ -43,8 +57,11 @@ export function Nav({ onLogo }: Props) {
   // collapsed to just "Events" the moment you clicked Orders. Read it from the
   // live location in an effect (not useSearchParams) so the global root-layout
   // nav doesn't force every static page into client rendering.
+  // /admin/orders/all is the cross-event view — it is NOT scoped to one event,
+  // so don't let the nav inherit a (stale) event context there.
   const onAdminEventSurface =
-    pathname.startsWith("/admin/orders") || pathname.startsWith("/admin/roster");
+    (pathname.startsWith("/admin/orders") && !pathname.startsWith("/admin/orders/all")) ||
+    pathname.startsWith("/admin/roster");
   const [adminEventId, setAdminEventId] = useState<string | null>(null);
   useEffect(() => {
     if (!onAdminEventSurface || typeof window === "undefined") {
@@ -54,9 +71,16 @@ export function Nav({ onLogo }: Props) {
     setAdminEventId(new URLSearchParams(window.location.search).get("eventId"));
   }, [pathname, onAdminEventSurface]);
 
-  // The event the nav is scoped to: the /e/[slug] slug, or the ?eventId on an
-  // admin surface reached from an event.
-  const eventId = slug ?? adminEventId;
+  // The event the nav is scoped to: the /e/[slug] slug, or — on an admin event
+  // surface (Orders/Roster) — the ?eventId from the URL. `adminEventId` is read
+  // in an effect (post-mount), so fall back to the runner's activeEventId for
+  // the FIRST render to avoid the contextual nav flashing to "Events"-only.
+  // Only on admin event surfaces, so the events list / homepage never inherit a
+  // stale event context.
+  const adminEventIdResolved = onAdminEventSurface
+    ? adminEventId ?? activeEventId ?? null
+    : null;
+  const eventId = slug ?? adminEventIdResolved;
 
   const [me, setMe] = useState<EventMe | null>(null);
   useEffect(() => {
@@ -128,8 +152,8 @@ export function Nav({ onLogo }: Props) {
     // viewers still get just the logo + Sign in.
     views.push({
       label: "My orders",
-      href: "/runner",
-      active: pathname.startsWith("/runner") || pathname.startsWith("/orders"),
+      href: "/orders",
+      active: pathname.startsWith("/orders") || pathname.startsWith("/runner"),
     });
   }
 
@@ -146,6 +170,31 @@ export function Nav({ onLogo }: Props) {
         {menuOpen ? "✕" : "☰"}
       </button>
       <ul className={`nav__links${menuOpen ? " nav__links--open" : ""}`}>
+        {/* Which gallery you're in — a non-link context label, shown whenever the
+            nav is scoped to an event (event pages + admin ?eventId surfaces). */}
+        {eventId && (me?.name || eventName) && (
+          <li>
+            <span
+              title={me?.name || eventName || undefined}
+              style={{
+                display: "inline-block",
+                maxWidth: 220,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "middle",
+                padding: "6px 10px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--ink)",
+              }}
+            >
+              {me?.name || eventName}
+            </span>
+          </li>
+        )}
         {views.map((v) => (
           <li key={v.label}>
             <Link

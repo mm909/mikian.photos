@@ -27,6 +27,8 @@ export type AdminEvent = {
   colorGroupEnabled: boolean;
   colorGroupLabels: Record<string, string> | null;
   externalBrowseUrl: string | null;
+  searchHeadline: string | null;
+  hasGalleryPassword: boolean;
   ownerId: string | null;
   createdAt: string;
   photoCount: number;
@@ -242,8 +244,12 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
   );
   const [ocrEnabled, setOcrEnabled] = useState(ev.ocrEnabled);
   const [faceRecEnabled, setFaceRecEnabled] = useState(ev.faceRecEnabled);
-  const [colorGroupEnabled, setColorGroupEnabled] = useState(ev.colorGroupEnabled);
   const [externalBrowseUrl, setExternalBrowseUrl] = useState(ev.externalBrowseUrl ?? "");
+  const [searchHeadline, setSearchHeadline] = useState(ev.searchHeadline ?? "");
+  // Password input is write-only — we never receive the plaintext back. Empty =
+  // "leave unchanged"; we show whether one is already set via hasGalleryPassword.
+  const [galleryPassword, setGalleryPassword] = useState("");
+  const [hasGalleryPassword, setHasGalleryPassword] = useState(ev.hasGalleryPassword);
   const [date, setDate] = useState(isoToDateInput(ev.date));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -260,8 +266,10 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
         isFree,
         ocrEnabled,
         faceRecEnabled,
-        colorGroupEnabled,
         externalBrowseUrl: externalBrowseUrl.trim() || null,
+        searchHeadline: searchHeadline.trim() || null,
+        // Only send the password when the owner typed a new one (else keep it).
+        ...(galleryPassword.trim() ? { galleryPassword: galleryPassword.trim() } : {}),
         date,
         bundlePriceCents:
           priceDollars.trim() === "" ? null : Math.round(parseFloat(priceDollars) * 100),
@@ -271,6 +279,8 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
         body: JSON.stringify(body),
       });
       setToken(d.event.secretLinkToken);
+      setHasGalleryPassword(d.event.hasGalleryPassword);
+      setGalleryPassword("");
       setMsg("Saved.");
       await onChanged();
     } catch (e) {
@@ -315,9 +325,8 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
       : null;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div style={LABEL}>Configuration</div>
-      <Row>
+    <div style={{ display: "grid", gap: 26 }}>
+      <Section title="Basics">
         <Labeled label="Type">
           <select style={FIELD} value={type} onChange={(e) => setType(e.target.value)}>
             {EVENT_TYPES.map((t) => (
@@ -332,18 +341,62 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
             ))}
           </select>
         </Labeled>
-        <Labeled label="Access">
+        <Labeled label="Date">
+          <input style={FIELD} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </Labeled>
+      </Section>
+
+      <Section title="Access">
+        <Labeled label="Who can view">
           <select style={FIELD} value={accessMode} onChange={(e) => setAccessMode(e.target.value)}>
             {ACCESS_MODES.map((m) => (
               <option key={m} value={m}>{ACCESS_MODE_LABELS[m]}</option>
             ))}
           </select>
         </Labeled>
-        <Labeled label="Date">
-          <input style={FIELD} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Labeled>
-      </Row>
-      <Row>
+        {secureUrl && (
+          <Labeled label="Secret link">
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                style={{ ...FIELD, fontSize: 12, flex: 1, minWidth: 220 }}
+                readOnly
+                value={secureUrl}
+              />
+              <button
+                className="btn btn--ghost"
+                onClick={() => void navigator.clipboard?.writeText(secureUrl)}
+              >
+                Copy
+              </button>
+              <button className="btn btn--ghost" disabled={busy} onClick={() => void rotate()}>
+                Rotate
+              </button>
+            </div>
+          </Labeled>
+        )}
+        {accessMode === "password" && (
+          <Labeled label="Gallery password">
+            <input
+              style={FIELD}
+              type="text"
+              value={galleryPassword}
+              onChange={(e) => setGalleryPassword(e.target.value)}
+              placeholder={
+                hasGalleryPassword
+                  ? "•••••• (set — leave blank to keep)"
+                  : "Set a password (e.g. firefly2026)"
+              }
+              autoComplete="off"
+            />
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Visitors type this to enter the gallery — share it instead of a long link.{" "}
+              {hasGalleryPassword ? "A password is currently set." : "No password set yet."}
+            </div>
+          </Labeled>
+        )}
+      </Section>
+
+      <Section title="Pricing">
         <Labeled label="Pricing">
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
             <input type="checkbox" checked={isFree} onChange={(e) => setIsFree(e.target.checked)} />
@@ -360,36 +413,35 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
             inputMode="decimal"
           />
         </Labeled>
-      </Row>
-      <Row>
-        <Labeled label="Detection">
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-              <input type="checkbox" checked={ocrEnabled} onChange={(e) => setOcrEnabled(e.target.checked)} />
-              Bib OCR
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-              <input type="checkbox" checked={faceRecEnabled} onChange={(e) => setFaceRecEnabled(e.target.checked)} />
-              Face recognition
-            </label>
-            <label
-              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, opacity: faceRecEnabled ? 1 : 0.5 }}
-              title="Camp team colors — sampled from each person's shirt. Needs face recognition."
-            >
-              <input
-                type="checkbox"
-                checked={colorGroupEnabled}
-                disabled={!faceRecEnabled}
-                onChange={(e) => setColorGroupEnabled(e.target.checked)}
-              />
-              Color groups (camp)
-            </label>
+      </Section>
+
+      <Section title="Detection">
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input type="checkbox" checked={ocrEnabled} onChange={(e) => setOcrEnabled(e.target.checked)} />
+            Bib OCR
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input type="checkbox" checked={faceRecEnabled} onChange={(e) => setFaceRecEnabled(e.target.checked)} />
+            Face recognition
+          </label>
+        </div>
+      </Section>
+
+      <Section title="Runner page">
+        <Labeled label="Custom header (optional)">
+          <input
+            style={FIELD}
+            value={searchHeadline}
+            onChange={(e) => setSearchHeadline(e.target.value)}
+            placeholder="Find your photos."
+            maxLength={120}
+          />
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>
+            Replaces the “Find your photos.” headline on the search screen.
           </div>
         </Labeled>
-      </Row>
-
-      {type === "camp" && (
-        <Row>
+        {type === "camp" && (
           <Labeled label="Browse-all link (Google Photos album)">
             <input
               style={FIELD}
@@ -399,26 +451,8 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
               placeholder="https://photos.app.goo.gl/…  (leave blank for in-app browse)"
             />
           </Labeled>
-        </Row>
-      )}
-
-      {secureUrl && (
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={LABEL}>Secure link</div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input style={{ ...FIELD, fontSize: 12 }} readOnly value={secureUrl} />
-            <button
-              className="btn btn--ghost"
-              onClick={() => void navigator.clipboard?.writeText(secureUrl)}
-            >
-              Copy
-            </button>
-            <button className="btn btn--ghost" disabled={busy} onClick={() => void rotate()}>
-              Rotate
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </Section>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <button className="btn btn--primary" disabled={busy} onClick={() => void save()}>
@@ -426,6 +460,25 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
         </button>
         {msg && <span style={{ fontSize: 13, color: "var(--muted)" }}>{msg}</span>}
       </div>
+    </div>
+  );
+}
+
+/** A labeled, vertically-stacked group of fields with a section header. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div
+        style={{
+          ...LABEL,
+          color: "var(--ink)",
+          borderBottom: "1px solid var(--line)",
+          paddingBottom: 6,
+        }}
+      >
+        {title}
+      </div>
+      {children}
     </div>
   );
 }
@@ -561,7 +614,6 @@ export function RerunDetection({ ev }: { ev: AdminEvent }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Btn stage="ocr" label="Bib OCR" disabled={!ev.ocrEnabled} />
         <Btn stage="faces" label="Face rec" disabled={!ev.faceRecEnabled} />
-        <Btn stage="colors" label="Color groups" disabled={!ev.colorGroupEnabled} />
         <Btn stage="all" label="All" />
       </div>
       {resume && !running && (
@@ -575,99 +627,6 @@ export function RerunDetection({ ev }: { ev: AdminEvent }) {
         </div>
       )}
       {msg && <div style={{ fontSize: 13, color: "var(--muted)" }}>{msg}</div>}
-    </div>
-  );
-}
-
-type ColorGroupStat = { key: string; label: string; hex: string; photoCount: number; peopleCount: number };
-type ColorGroupsData = { groups: ColorGroupStat[]; photosWithGroups: number; totalPhotos: number };
-
-/**
- * Review the color groups detection has identified for the event — a read-only
- * audit so the owner can judge auto-detection quality (runner-facing matching
- * is paused until it's good enough). Hidden when the event has color groups off.
- */
-export function ColorGroupsReview({ ev }: { ev: AdminEvent }) {
-  const [data, setData] = useState<ColorGroupsData | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setErr(null);
-    try {
-      setData(await api<ColorGroupsData>(`/api/admin/events/${ev.id}/color-groups`));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  }, [ev.id]);
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!ev.colorGroupEnabled) return null;
-
-  return (
-    <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
-      <div style={LABEL}>Color groups identified</div>
-      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
-        Auto-detected team colors from each person&rsquo;s shirt. Runner-facing matching is
-        paused while accuracy is tuned — this is for review. Use Re-run detection → Color groups
-        after uploading.
-      </div>
-      {err && <div style={{ fontSize: 13, color: "var(--accent)" }}>{err}</div>}
-      {data ? (
-        data.groups.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--muted)" }}>
-            No color groups detected yet.
-          </div>
-        ) : (
-          <>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>
-              {data.photosWithGroups} of {data.totalPhotos} photos tagged with a group.
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {data.groups.map((g) => (
-                <div
-                  key={g.key}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 12px 6px 8px",
-                    border: "1px solid var(--line)",
-                    borderRadius: 999,
-                    fontSize: 13,
-                    color: "var(--ink)",
-                  }}
-                  title={`${g.peopleCount} ${g.peopleCount === 1 ? "person" : "people"} across ${g.photoCount} photo${g.photoCount === 1 ? "" : "s"}`}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      background: g.hex,
-                      border: "1px solid rgba(0,0,0,.15)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <strong style={{ fontWeight: 500 }}>{g.label}</strong>
-                  <span style={{ color: "var(--muted)" }}>
-                    {g.photoCount} photo{g.photoCount === 1 ? "" : "s"}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div>
-              <button className="btn btn--ghost btn--sm" onClick={() => void load()}>
-                Refresh
-              </button>
-            </div>
-          </>
-        )
-      ) : !err ? (
-        <div style={{ fontSize: 13, color: "var(--muted)" }}>Loading…</div>
-      ) : null}
     </div>
   );
 }
@@ -718,7 +677,7 @@ export function DeleteEvent({ ev, onDeleted }: { ev: AdminEvent; onDeleted?: () 
           <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.5 }}>
             This permanently deletes <strong>{ev.name}</strong> and its{" "}
             <strong>{ev.photoCount}</strong> photo{ev.photoCount === 1 ? "" : "s"} — the image
-            files, faces, and color groups are removed for good. Paid orders are kept for your
+            files and detected faces are removed for good. Paid orders are kept for your
             records. This cannot be undone.
           </div>
           <div style={{ fontSize: 13, color: "var(--muted)" }}>
@@ -759,23 +718,25 @@ export function DeleteEvent({ ev, onDeleted }: { ev: AdminEvent; onDeleted?: () 
   );
 }
 
-type Member = { id: string; name: string; email: string; addedAt: string };
+type Member = { id: string; name: string; email: string; addedAt: string; photoCount: number };
+type Pending = { id: string; name: string; email: string; requestedAt: string };
 type Candidate = { id: string; name: string; email: string };
 
 export function EventPhotographers({ eventId }: { eventId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
+  const [pending, setPending] = useState<Pending[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [pick, setPick] = useState("");
-  const [email, setEmail] = useState("");
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ members: Member[]; candidates: Candidate[] }>(
+      const d = await api<{ members: Member[]; pending: Pending[]; candidates: Candidate[] }>(
         `/api/admin/events/${eventId}/photographers`
       );
       setMembers(d.members);
+      setPending(d.pending ?? []);
       setCandidates(d.candidates);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -786,17 +747,17 @@ export function EventPhotographers({ eventId }: { eventId: string }) {
     void load();
   }, [load]);
 
-  async function add() {
-    if (!pick) return;
+  // POST grants OR approves access (creates an approved row, or flips a pending
+  // self-request to approved + grants the photographer role).
+  async function grant(body: { photographerId: string } | { email: string }, clearSearch = true) {
     setBusy(true);
     setMsg(null);
     try {
-      const isEmail = pick.includes("@");
       await api(`/api/admin/events/${eventId}/photographers`, {
         method: "POST",
-        body: JSON.stringify(isEmail ? { email: pick } : { photographerId: pick }),
+        body: JSON.stringify(body),
       });
-      setPick("");
+      if (clearSearch) setSearch("");
       await load();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -805,25 +766,8 @@ export function EventPhotographers({ eventId }: { eventId: string }) {
     }
   }
 
-  async function addEmail() {
-    const e = email.trim();
-    if (!e) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      await api(`/api/admin/events/${eventId}/photographers`, {
-        method: "POST",
-        body: JSON.stringify({ email: e }),
-      });
-      setEmail("");
-      await load();
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  // DELETE removes a membership — used for both "Remove" (approved) and "Deny"
+  // (pending request).
   async function remove(id: string) {
     setBusy(true);
     setMsg(null);
@@ -837,17 +781,64 @@ export function EventPhotographers({ eventId }: { eventId: string }) {
     }
   }
 
+  const q = search.trim().toLowerCase();
+  const matches = q
+    ? candidates
+        .filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q))
+        .slice(0, 8)
+    : [];
+  const looksLikeEmail = /\S+@\S+\.\S+/.test(search.trim());
+  const exactEmailExists =
+    candidates.some((c) => c.email.toLowerCase() === q) ||
+    members.some((m) => m.email.toLowerCase() === q);
+
   return (
-    <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
+    <div style={{ display: "grid", gap: 14, borderTop: "1px solid var(--line)", paddingTop: 16 }}>
       <div style={LABEL}>Photographer access</div>
+
+      {/* Self-service upload requests — approve grants access; deny removes it. */}
+      {pending.length > 0 && (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ ...LABEL, color: "var(--accent)" }}>Pending requests</div>
+          {pending.map((p) => (
+            <div
+              key={p.id}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontSize: 14 }}
+            >
+              <span style={{ minWidth: 0 }}>
+                {p.name} <span style={{ color: "var(--muted)" }}>&lt;{p.email}&gt;</span>
+              </span>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button
+                  className="btn btn--primary btn--sm"
+                  disabled={busy}
+                  onClick={() => void grant({ photographerId: p.id }, false)}
+                >
+                  Approve
+                </button>
+                <button className="btn btn--ghost btn--sm" disabled={busy} onClick={() => void remove(p.id)}>
+                  Deny
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {members.length === 0 ? (
         <div style={{ color: "var(--muted)", fontSize: 13 }}>No photographers added yet.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {members.map((m) => (
-            <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}>
-              <span>
+            <div
+              key={m.id}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontSize: 14 }}
+            >
+              <span style={{ minWidth: 0 }}>
                 {m.name} <span style={{ color: "var(--muted)" }}>&lt;{m.email}&gt;</span>
+                <span style={{ color: "var(--muted)", marginLeft: 8, fontSize: 12 }}>
+                  · {m.photoCount} photo{m.photoCount === 1 ? "" : "s"}
+                </span>
               </span>
               <button className="btn btn--ghost" disabled={busy} onClick={() => void remove(m.id)}>
                 Remove
@@ -856,39 +847,61 @@ export function EventPhotographers({ eventId }: { eventId: string }) {
           ))}
         </div>
       )}
-      {/* Primary: add anyone by email (creates a placeholder + grants access; a
-          first Google sign-in claims it). */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+
+      {/* Add by searching existing photographers (name/email), or by typing a
+          full email to invite someone who hasn't signed in yet. */}
+      <div style={{ display: "grid", gap: 6 }}>
         <input
-          style={{ ...FIELD, maxWidth: 320 }}
-          type="email"
-          placeholder="Add a photographer by email…"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void addEmail();
-          }}
+          style={FIELD}
+          placeholder="Add a photographer — search name or email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <button className="btn btn--ghost" disabled={busy || !email.trim()} onClick={() => void addEmail()}>
-          Add by email
-        </button>
-      </div>
-      {/* Convenience: pick an existing photographer. */}
-      {candidates.length > 0 && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select style={{ ...FIELD, maxWidth: 320 }} value={pick} onChange={(e) => setPick(e.target.value)}>
-            <option value="">Or pick an existing photographer…</option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.email})
-              </option>
+        {q && (matches.length > 0 || (looksLikeEmail && !exactEmailExists)) && (
+          <div style={{ border: "1px solid var(--line)", borderRadius: 6, overflow: "hidden" }}>
+            {matches.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => void grant({ photographerId: c.id })}
+                disabled={busy}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 12px",
+                  background: "transparent",
+                  border: 0,
+                  borderBottom: "1px solid var(--line)",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  color: "var(--ink)",
+                }}
+              >
+                {c.name} <span style={{ color: "var(--muted)" }}>&lt;{c.email}&gt;</span>
+              </button>
             ))}
-          </select>
-          <button className="btn btn--ghost" disabled={busy || !pick} onClick={() => void add()}>
-            Add
-          </button>
-        </div>
-      )}
+            {looksLikeEmail && !exactEmailExists && (
+              <button
+                onClick={() => void grant({ email: search.trim() })}
+                disabled={busy}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 12px",
+                  background: "var(--cream)",
+                  border: 0,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  color: "var(--ink)",
+                }}
+              >
+                Add <strong>{search.trim()}</strong> by email
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {msg && <div style={{ fontSize: 13, color: "var(--muted)" }}>{msg}</div>}
     </div>
   );

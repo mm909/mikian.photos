@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { normalizeAccessMode, normalizeStatus } from "@/lib/eventConfig";
@@ -21,8 +22,8 @@ import { normalizeAccessMode, normalizeStatus } from "@/lib/eventConfig";
  *   - needs-auth → account-only event, viewer signed out → send to sign-in.
  */
 export type EventAccess =
-  | { ok: true; via: "public" | "secure-link" | "account" | "admin" }
-  | { ok: false; reason: "not-found" | "needs-auth" };
+  | { ok: true; via: "public" | "secure-link" | "password" | "account" | "admin" }
+  | { ok: false; reason: "not-found" | "needs-auth" | "needs-password" };
 
 export const SECRET_LINK_COOKIE_PREFIX = "mk_evk_";
 
@@ -31,15 +32,40 @@ export function secretLinkCookieName(slug: string): string {
   return `${SECRET_LINK_COOKIE_PREFIX}${slug}`;
 }
 
+export const GALLERY_PASSWORD_COOKIE_PREFIX = "mk_gpw_";
+
+/** Cookie name carrying the gallery-password unlock marker for one event. */
+export function galleryPasswordCookieName(slug: string): string {
+  return `${GALLERY_PASSWORD_COOKIE_PREFIX}${slug}`;
+}
+
+/**
+ * Keyed hash of a gallery password. Stored on the Event row and also written to
+ * the unlock cookie after a correct entry, so the access check is a cheap string
+ * compare (cookie === stored hash) — no per-request KDF. Keyed by slug so the
+ * same password on two events yields different hashes (a leaked cookie can't be
+ * replayed across events). This is a low-stakes shared gallery PIN, not an
+ * account password; SHA-256 keyed by slug is sufficient here.
+ */
+export function hashGalleryPassword(slug: string, password: string): string {
+  return createHash("sha256").update(`${slug}:${password}`).digest("hex");
+}
+
 export async function resolveEventAccess(
   slug: string,
-  opts: { token?: string | null } = {}
+  opts: { token?: string | null; passwordToken?: string | null } = {}
 ): Promise<EventAccess> {
   if (!slug) return { ok: false, reason: "not-found" };
 
   const ev = await db.event.findUnique({
     where: { id: slug },
-    select: { id: true, status: true, accessMode: true, secretLinkToken: true },
+    select: {
+      id: true,
+      status: true,
+      accessMode: true,
+      secretLinkToken: true,
+      galleryPasswordHash: true,
+    },
   });
   if (!ev) return { ok: false, reason: "not-found" };
 
@@ -59,6 +85,17 @@ export async function resolveEventAccess(
   ) {
     return { ok: true, via: "secure-link" };
   }
+  // Password mode: the unlock cookie carries the stored hash after a correct
+  // entry, so this is a plain compare (the KDF ran once, at entry time).
+  if (
+    status === "published" &&
+    mode === "password" &&
+    opts.passwordToken &&
+    ev.galleryPasswordHash &&
+    opts.passwordToken === ev.galleryPasswordHash
+  ) {
+    return { ok: true, via: "password" };
+  }
 
   // Everything else needs the actor: admins preview drafts/unlisted events;
   // account-only events require any signed-in account.
@@ -71,6 +108,11 @@ export async function resolveEventAccess(
   if (mode === "secure-link") {
     // Wrong/absent token (and not admin) → 404, not 403.
     return { ok: false, reason: "not-found" };
+  }
+  if (mode === "password") {
+    // Unlike secure-link, password mode DOES reveal the gallery exists — that's
+    // the point: show a password prompt. (No valid unlock cookie → prompt.)
+    return { ok: false, reason: "needs-password" };
   }
   if (mode === "account-only") {
     return actor ? { ok: true, via: "account" } : { ok: false, reason: "needs-auth" };

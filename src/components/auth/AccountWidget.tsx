@@ -3,13 +3,6 @@
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
-import { useViewAs, type ViewAsRole } from "@/lib/viewAs";
-
-const VIEW_AS_OPTIONS: { value: ViewAsRole; label: string }[] = [
-  { value: "owner", label: "Owner" },
-  { value: "photographer", label: "Photographer" },
-  { value: "user", label: "User" },
-];
 
 /**
  * Right-edge account affordance that lives in the global Nav.
@@ -25,7 +18,6 @@ const VIEW_AS_OPTIONS: { value: ViewAsRole; label: string }[] = [
 export function AccountWidget() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
-  const [viewAs, setViewAs] = useViewAs();
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Close on outside-click + escape
@@ -54,7 +46,7 @@ export function AccountWidget() {
     return (
       <button
         type="button"
-        onClick={() => signIn("google", { callbackUrl: "/photographer" })}
+        onClick={() => signIn("google", { callbackUrl: "/" })}
         className="nav__link"
         style={{
           fontFamily: "var(--font-mono)",
@@ -73,10 +65,7 @@ export function AccountWidget() {
   }
 
   const name = session.user.name || session.user.email || "Account";
-  const actualOwner = Boolean(session.roles?.includes("owner"));
-  // While previewing a lower role, hide owner-only items — but keep the
-  // switcher itself, so the owner can always switch back.
-  const effectiveOwner = actualOwner && viewAs === "owner";
+  const isOwner = Boolean(session.roles?.includes("owner"));
   // The signed-in person's actual role(s), for the menu header.
   const roleLabel = roleDisplayFor(session.roles ?? []);
   const initials = name
@@ -189,60 +178,26 @@ export function AccountWidget() {
               </div>
             )}
           </div>
-          <MenuLink href="/runner" onClick={() => setOpen(false)}>
-            My orders
-          </MenuLink>
-          {effectiveOwner && (
-            <MenuLink href="/admin/users" onClick={() => setOpen(false)}>
-              Settings
+          {/* "My orders" is a BUYER's purchase history (→ /orders). The owner
+              has "All orders" for the business view, so this would just be an
+              empty/duplicate surface for them — show it only to non-owners. */}
+          {!isOwner && (
+            <MenuLink href="/orders" onClick={() => setOpen(false)}>
+              My orders
             </MenuLink>
           )}
-          {actualOwner && (
-            <div style={{ borderTop: "1px solid var(--line)", marginTop: 6, paddingTop: 8 }}>
-              <div
-                style={{
-                  padding: "0 12px 6px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 9,
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  color: viewAs === "owner" ? "var(--muted)" : "var(--accent)",
-                }}
-              >
-                View as{viewAs === "owner" ? "" : " · previewing"}
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 4,
-                  padding: "0 8px",
-                }}
-              >
-                {VIEW_AS_OPTIONS.map((o) => {
-                  const active = viewAs === o.value;
-                  return (
-                    <button
-                      key={o.value}
-                      onClick={() => setViewAs(o.value)}
-                      style={{
-                        padding: "6px 8px",
-                        fontFamily: "var(--font-sans)",
-                        fontSize: 12,
-                        borderRadius: 4,
-                        border: `1px solid ${active ? "var(--accent)" : "var(--line)"}`,
-                        background: active ? "var(--accent)" : "transparent",
-                        color: active ? "var(--paper)" : "var(--ink)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
-                    >
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          {isOwner && (
+            <>
+              {/* Explicit destinations — "Settings" used to point here and felt
+                  like a mislabel (it's the events list). Per-event settings live
+                  on the contextual nav once you're inside an event. */}
+              <MenuLink href="/admin/events" onClick={() => setOpen(false)}>
+                Events
+              </MenuLink>
+              <MenuLink href="/admin/orders/all" onClick={() => setOpen(false)}>
+                All orders
+              </MenuLink>
+            </>
           )}
           <button
             role="menuitem"

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireEventManager } from "@/lib/permissions";
 import { isAccessMode, isEventStatus, isEventType } from "@/lib/eventConfig";
 import { adminEventShape, mintSecretLinkToken, MAX_PRICE_CENTS } from "@/lib/eventAdmin";
+import { hashGalleryPassword } from "@/lib/eventAccess";
 import { r2Configured, r2Delete, r2Keys } from "@/lib/r2";
 import { faceRecConfigured, deleteCollectionForEvent } from "@/lib/faceRec";
 
@@ -109,6 +110,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  // Custom runner headline ("Find your photos."). Empty/null clears it.
+  if (body.searchHeadline !== undefined) {
+    const v = body.searchHeadline;
+    if (v === null || (typeof v === "string" && v.trim() === "")) {
+      data.searchHeadline = null;
+    } else if (typeof v === "string") {
+      data.searchHeadline = v.trim().slice(0, 120);
+    } else {
+      return NextResponse.json({ error: "invalid searchHeadline" }, { status: 400 });
+    }
+  }
+
+  // Gallery password (used by accessMode === "password"). A non-empty value sets
+  // a new keyed hash; an empty string leaves the existing one untouched (so the
+  // owner can save other fields without re-typing it). Clearing happens when
+  // accessMode switches away from "password" (handled below).
+  if (typeof body.galleryPassword === "string" && body.galleryPassword.trim()) {
+    data.galleryPasswordHash = hashGalleryPassword(params.id, body.galleryPassword.trim());
+  }
+
   if (body.bundlePriceCents !== undefined) {
     if (body.bundlePriceCents === null) {
       data.bundlePriceCents = null;
@@ -132,6 +153,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (!existing.secretLinkToken) data.secretLinkToken = mintSecretLinkToken();
     } else {
       data.secretLinkToken = null;
+    }
+    // Password mode owns galleryPasswordHash; switching away clears it so a
+    // later switch back doesn't silently reuse a stale password.
+    if (body.accessMode !== "password") {
+      data.galleryPasswordHash = null;
     }
   }
 

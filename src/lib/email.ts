@@ -94,10 +94,17 @@ export async function sendReceiptEmail(
     return { ok: true };
   }
 
+  // BCC the platform owner a copy of every receipt (their "a sale happened"
+  // notification). Skip the bcc when the buyer IS the owner so they don't get
+  // two copies of the same email.
+  const owner = (process.env.OWNER_EMAIL || DEFAULT_REPLY_TO).toLowerCase().trim();
+  const bcc = owner && owner !== to.toLowerCase().trim() ? [owner] : undefined;
+
   try {
     const res = await client.emails.send({
       from: fromAddr(),
       to,
+      ...(bcc ? { bcc } : {}),
       replyTo: replyTo(),
       subject,
       html,

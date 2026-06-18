@@ -17,17 +17,20 @@ export type EventStatus = (typeof EVENT_STATUSES)[number];
  * Per-event visibility:
  *   - "public"        listed in the directory + searchable by anyone
  *   - "secure-link"   unlisted; reachable only with the event's secretLinkToken
+ *   - "password"      unlisted; visitors type a shared gallery password to enter
+ *                     (friendlier to share than a long secret link)
  *   - "account-only"  must be signed in (any account) to view
  *   - "private"       MOST private: requires BOTH the secret link AND sign-in.
  *                     The default for kids'-camp / sensitive galleries.
  */
-export const ACCESS_MODES = ["public", "secure-link", "account-only", "private"] as const;
+export const ACCESS_MODES = ["public", "secure-link", "password", "account-only", "private"] as const;
 export type AccessMode = (typeof ACCESS_MODES)[number];
 
 /** Human labels for the access modes (UI). */
 export const ACCESS_MODE_LABELS: Record<AccessMode, string> = {
   public: "Public (listed)",
   "secure-link": "Secret link",
+  password: "Password",
   "account-only": "Sign-in required",
   private: "Secret link + sign-in (most private)",
 };

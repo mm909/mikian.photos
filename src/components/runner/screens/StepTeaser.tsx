@@ -31,7 +31,6 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
     searchLoading,
     searchedBib,
     matchedRacer,
-    searchColorGroup,
     faceCandidates,
     autoConfirmed,
     expandingCluster,
@@ -144,11 +143,7 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
   // the bib-direct total. The bib is shown in the racer line above, so the
   // headline stays "photos of you" (true for bib + face matches alike).
   const total = Math.max(resultTotal ?? 0, resultPhotos.length);
-  // Camp color-group search folds in teammates' photos, so "of you" would
-  // undercount the intent — say "photos" and explain the group below.
-  const headlineText = searchColorGroup
-    ? `${total} photo${total === 1 ? "" : "s"}.`
-    : `${total} photo${total === 1 ? "" : "s"} of you.`;
+  const headlineText = `${total} photo${total === 1 ? "" : "s"} of you.`;
   // While the explicit "This is me" filter refetches, overlay a spinner on the
   // grid so it doesn't visibly reflow as non-matching photos drop out.
   const filtering = accepted && expandingCluster;
@@ -321,7 +316,7 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
         <Headline
           as="h1"
           text={headlineText}
-          accent={searchColorGroup ? "photos." : "of you"}
+          accent="of you"
           style={{
             margin: 0,
             fontFamily: "var(--font-serif)",
@@ -332,34 +327,6 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
             color: "var(--ink)",
           }}
         />
-
-        {/* Camp color-group expansion — explain that teammates' photos are
-            included, since the result set is "you + your group". */}
-        {searchColorGroup && (
-          <div
-            style={{
-              marginTop: 12,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 12px",
-              borderRadius: 999,
-              border: "1px solid var(--line)",
-              background: "var(--cream)",
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".08em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-            }}
-          >
-            <span aria-hidden style={{ fontSize: 13 }}>
-              👥
-            </span>
-            You + your color group
-            <span style={{ color: "var(--ink)" }}>· +{searchColorGroup.extraCount}</span>
-          </div>
-        )}
 
         {/* A handful of matches — small previews only. Clicking any opens the
             full gallery viewer at that photo. While the "This is me" filter

@@ -39,6 +39,8 @@ export type RunnerEvent = {
    *  album). When set, "Browse all photos" links out here instead of opening
    *  the in-app gallery. */
   externalBrowseUrl?: string | null;
+  /** Optional owner-set override for the "Find your photos." headline. */
+  searchHeadline?: string | null;
 };
 
 /** Extract the event slug from a /e/[slug][/...] pathname; null elsewhere. */

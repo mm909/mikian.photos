@@ -52,9 +52,17 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
   // if the total didn't come back.
   const photoCount = catalogLoading ? null : catalogTotal ?? (catalog.length || null);
 
-  // Only a race (bib) event personalizes the headline with the event name.
-  const headlineText = hasBib && raceName ? `Find your ${raceName} photos.` : "Find your photos.";
-  const headlineAccent = hasBib && raceName ? raceAccent : "photos.";
+  // Owner-set custom headline wins; otherwise only a race (bib) event
+  // personalizes the headline with the event name. The accent (serif highlight)
+  // is the last word of a custom headline, else the event name / "photos.".
+  const customHeadline = event?.searchHeadline?.trim();
+  const headlineText =
+    customHeadline || (hasBib && raceName ? `Find your ${raceName} photos.` : "Find your photos.");
+  const headlineAccent = customHeadline
+    ? customHeadline.split(/\s+/).slice(-1)[0] || ""
+    : hasBib && raceName
+      ? raceAccent
+      : "photos.";
 
   // When the owner has set an external album link (e.g. a shared Google Photos
   // album), "Browse all photos" links out to it instead of opening the in-app

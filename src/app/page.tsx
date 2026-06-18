@@ -140,23 +140,6 @@ export default async function HomePage() {
             No public events yet — check back soon.
           </div>
         )}
-
-        {/* Race-director CTA */}
-        <div style={{ textAlign: "center", marginTop: 64 }}>
-          <Link
-            href="/contact"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-              textDecoration: "none",
-            }}
-          >
-            Sell your photos? Work with us →
-          </Link>
-        </div>
       </div>
     </main>
   );

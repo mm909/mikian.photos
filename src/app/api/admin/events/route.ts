@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/permissions";
+import { requireRole, ownerEmail } from "@/lib/permissions";
 import {
   isAccessMode,
   isEventStatus,
@@ -40,6 +40,15 @@ export async function POST(req: Request) {
   const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json({ error: "Owner role required" }, { status: 403 });
+  }
+  // Creating events is reserved for the single platform owner — not just anyone
+  // holding the "owner" role (which could be granted to others). Gate on the
+  // exact email so a future owner-role grant can't create events.
+  if (actor.email.toLowerCase().trim() !== ownerEmail()) {
+    return NextResponse.json(
+      { error: "Only the platform owner can create events." },
+      { status: 403 }
+    );
   }
 
   let body: Record<string, unknown>;

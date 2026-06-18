@@ -6,7 +6,11 @@ import { getEventPricing, centsToDollars } from "@/lib/pricing";
 import { getEvent } from "@/lib/events";
 import { eventCapabilities } from "@/lib/eventConfig";
 import { colorGroupLabel } from "@/lib/colorGroups";
-import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
+import {
+  resolveEventAccess,
+  secretLinkCookieName,
+  galleryPasswordCookieName,
+} from "@/lib/eventAccess";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -87,11 +91,15 @@ export async function GET(req: Request) {
     url.searchParams.get("k") ||
     cookies().get(secretLinkCookieName(eventId))?.value ||
     null;
-  const access = await resolveEventAccess(eventId, { token: accessToken });
+  const passwordToken = cookies().get(galleryPasswordCookieName(eventId))?.value || null;
+  const access = await resolveEventAccess(eventId, { token: accessToken, passwordToken });
   if (!access.ok) {
+    // needs-password (locked gallery) + needs-auth both surface as 401; missing/
+    // unlisted as 404.
+    const unauthorized = access.reason === "needs-auth" || access.reason === "needs-password";
     return NextResponse.json(
-      { error: access.reason === "needs-auth" ? "sign-in required" : "not found" },
-      { status: access.reason === "needs-auth" ? 401 : 404 }
+      { error: unauthorized ? "locked" : "not found" },
+      { status: unauthorized ? 401 : 404 }
     );
   }
 
@@ -396,6 +404,7 @@ export async function GET(req: Request) {
             city: evDto.city,
             type: evDto.type,
             externalBrowseUrl: evDto.externalBrowseUrl,
+            searchHeadline: evDto.searchHeadline,
           }
         : null,
       capabilities: evDto ? eventCapabilities(evDto) : null,

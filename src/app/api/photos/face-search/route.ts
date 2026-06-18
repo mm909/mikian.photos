@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { faceRecConfigured, searchFacesByImage } from "@/lib/faceRec";
-import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
+import {
+  resolveEventAccess,
+  secretLinkCookieName,
+  galleryPasswordCookieName,
+} from "@/lib/eventAccess";
 import { clientIp, envInt, rateLimit } from "@/lib/rateLimit";
 import { clusterColorGroup, colorGroupLabel } from "@/lib/colorGroups";
 
@@ -130,11 +134,13 @@ export async function POST(req: Request) {
     (form.get("k") as string | null)?.trim() ||
     cookies().get(secretLinkCookieName(eventId))?.value ||
     null;
-  const access = await resolveEventAccess(eventId, { token: accessToken });
+  const passwordToken = cookies().get(galleryPasswordCookieName(eventId))?.value || null;
+  const access = await resolveEventAccess(eventId, { token: accessToken, passwordToken });
   if (!access.ok) {
+    const unauthorized = access.reason === "needs-auth" || access.reason === "needs-password";
     return NextResponse.json(
-      { error: access.reason === "needs-auth" ? "sign-in required" : "not found" },
-      { status: access.reason === "needs-auth" ? 401 : 404 }
+      { error: unauthorized ? "locked" : "not found" },
+      { status: unauthorized ? 401 : 404 }
     );
   }
 

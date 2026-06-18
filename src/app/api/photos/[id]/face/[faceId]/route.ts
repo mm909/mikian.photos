@@ -3,7 +3,11 @@ import { cookies } from "next/headers";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream } from "@/lib/r2";
-import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
+import {
+  resolveEventAccess,
+  secretLinkCookieName,
+  galleryPasswordCookieName,
+} from "@/lib/eventAccess";
 import { clientIp, envInt, rateLimit } from "@/lib/rateLimit";
 
 /**
@@ -100,7 +104,8 @@ export async function GET(
     url.searchParams.get("k") ||
     cookies().get(secretLinkCookieName(face.photo.eventId))?.value ||
     null;
-  const access = await resolveEventAccess(face.photo.eventId, { token: accessToken });
+  const passwordToken = cookies().get(galleryPasswordCookieName(face.photo.eventId))?.value || null;
+  const access = await resolveEventAccess(face.photo.eventId, { token: accessToken, passwordToken });
   if (!access.ok) return new NextResponse("Not found", { status: 404 });
 
   // Pull preview bytes.

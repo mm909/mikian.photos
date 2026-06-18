@@ -27,6 +27,8 @@ export function adminEventShape(ev: {
   colorGroupEnabled: boolean;
   colorGroupLabels?: unknown;
   externalBrowseUrl?: string | null;
+  searchHeadline?: string | null;
+  galleryPasswordHash?: string | null;
   ownerId: string | null;
   createdAt: Date;
   _count?: { photos: number; eventPhotographers: number };
@@ -51,6 +53,9 @@ export function adminEventShape(ev: {
         ? (ev.colorGroupLabels as Record<string, string>)
         : null,
     externalBrowseUrl: ev.externalBrowseUrl ?? null,
+    searchHeadline: ev.searchHeadline ?? null,
+    // Never expose the hash — just whether a password is set.
+    hasGalleryPassword: Boolean(ev.galleryPasswordHash),
     ownerId: ev.ownerId,
     createdAt: ev.createdAt.toISOString(),
     photoCount: ev._count?.photos ?? 0,

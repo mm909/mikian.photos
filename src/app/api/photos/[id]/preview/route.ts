@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
-import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
+import {
+  resolveEventAccess,
+  secretLinkCookieName,
+  galleryPasswordCookieName,
+} from "@/lib/eventAccess";
 import { verifyDownloadToken } from "@/lib/downloadToken";
 import { Readable } from "node:stream";
 
@@ -43,7 +47,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     url.searchParams.get("k") ||
     cookies().get(secretLinkCookieName(photo.eventId))?.value ||
     null;
-  const access = await resolveEventAccess(photo.eventId, { token: accessToken });
+  const passwordToken = cookies().get(galleryPasswordCookieName(photo.eventId))?.value || null;
+  const access = await resolveEventAccess(photo.eventId, { token: accessToken, passwordToken });
   let allowed = access.ok;
 
   // Order-token path: the delivery page loads previews with ?key=<downloadToken>.

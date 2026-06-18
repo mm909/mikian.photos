@@ -10,6 +10,8 @@ type OrderRow = {
   kind: string;
   amount: number;
   photoCount: number;
+  eventId: string | null;
+  eventName: string;
   paidAt: string;
   refundedAt: string | null;
   emailSentAt: string | null;
@@ -28,12 +30,22 @@ type Stats = {
 type ApiResponse = {
   event: { id: string; name: string };
   isOwner: boolean;
+  allEvents?: boolean;
   stats: Stats;
   orders: OrderRow[];
 };
 type RowState = { busy: null | "resend" | "refund"; msg: string | null; error: boolean };
 
 const PAGE_SIZE = 25;
+
+const FILTER_SELECT: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 8,
+  border: "1px solid var(--line)",
+  background: "#fff",
+  fontSize: 14,
+  color: "var(--ink)",
+};
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const fmtDate = (iso: string) =>
@@ -52,17 +64,22 @@ const fmtDate = (iso: string) =>
  */
 export function OrdersClient({
   isOwner,
+  allEvents,
   eventId,
   eventName,
 }: {
   isOwner: boolean;
-  eventId: string;
+  allEvents: boolean;
+  eventId: string | null;
   eventName: string;
 }) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Event filter (all-events view only) + a "last N days" window (0 = all time).
+  const [eventFilter, setEventFilter] = useState("");
+  const [days, setDays] = useState(0);
   const [page, setPage] = useState(1);
   const [rowState, setRowState] = useState<Record<number, RowState>>({});
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -73,9 +90,10 @@ export function OrdersClient({
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/orders?eventId=${encodeURIComponent(eventId)}`, {
-        cache: "no-store",
-      });
+      const url = allEvents
+        ? `/api/admin/orders?all=1`
+        : `/api/admin/orders?eventId=${encodeURIComponent(eventId ?? "")}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `HTTP ${res.status}`);
@@ -87,7 +105,7 @@ export function OrdersClient({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [eventId]);
+  }, [eventId, allEvents]);
 
   useEffect(() => {
     void load();
@@ -100,27 +118,56 @@ export function OrdersClient({
   }, [load]);
 
   const orders = data?.orders ?? [];
+
+  // Distinct events present in the loaded orders — populates the event filter
+  // dropdown (all-events view only).
+  const eventOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of orders) if (o.eventId) m.set(o.eventId, o.eventName);
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [orders]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter(
-      (o) =>
+    const cutoff = days > 0 ? Date.now() - days * 86_400_000 : 0;
+    return orders.filter((o) => {
+      if (eventFilter && o.eventId !== eventFilter) return false;
+      if (cutoff && new Date(o.paidAt).getTime() < cutoff) return false;
+      if (!q) return true;
+      return (
         o.email.toLowerCase().includes(q) ||
         o.orderNumberDisplay.toLowerCase().includes(q) ||
-        String(o.orderNumber).includes(q)
-    );
-  }, [orders, query]);
+        String(o.orderNumber).includes(q) ||
+        (allEvents && o.eventName.toLowerCase().includes(q))
+      );
+    });
+  }, [orders, query, allEvents, eventFilter, days]);
+
+  // Stats reflect the ACTIVE filters (recomputed from the filtered rows) so the
+  // numbers match what's on screen, not the unfiltered server totals.
+  const viewStats = useMemo<Stats>(() => {
+    const gross = filtered.reduce((s, o) => s + o.amount, 0);
+    const refunded = filtered.filter((o) => o.refundedAt);
+    const refundedUsd = refunded.reduce((s, o) => s + o.amount, 0);
+    return {
+      count: filtered.length,
+      grossUsd: +gross.toFixed(2),
+      netUsd: +(gross - refundedUsd).toFixed(2),
+      refundedCount: refunded.length,
+      refundedUsd: +refundedUsd.toFixed(2),
+    };
+  }, [filtered]);
 
   // Pagination over the filtered+sorted rows. Row-level actions key off the
   // order id (not the slice index), so paging is purely a render concern.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Jump back to page 1 whenever the search query changes — otherwise a search
-  // that returns few results while you're on a high page would look empty.
+  // Jump back to page 1 whenever a filter changes — otherwise a filter that
+  // returns few results while you're on a high page would look empty.
   useEffect(() => {
     setPage(1);
-  }, [query]);
+  }, [query, eventFilter, days]);
 
   // Keep the page in range as the row set shrinks (refresh, refund filtering,
   // a narrower search) — clamp into [1, pageCount] like RunnerProfileClient.
@@ -188,7 +235,8 @@ export function OrdersClient({
     }
   }
 
-  const stats = data?.stats;
+  // Stat cards follow the active filters; "—" until the first load lands.
+  const stats = data ? viewStats : null;
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
@@ -238,15 +286,23 @@ export function OrdersClient({
           <StatCard label="Net revenue" value={stats ? usd(stats.netUsd) : "—"} strong />
         </div>
 
-        {/* Search + refresh */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
+        {/* Search + filters + refresh */}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            marginBottom: 14,
+            flexWrap: "wrap",
+          }}
+        >
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search order # or email…"
+            placeholder="Search buyer email or order #…"
             style={{
               flex: 1,
-              maxWidth: 360,
+              maxWidth: 320,
               padding: "10px 14px",
               borderRadius: 8,
               border: "1px solid var(--line)",
@@ -255,6 +311,32 @@ export function OrdersClient({
               color: "var(--ink)",
             }}
           />
+          {allEvents && eventOptions.length > 1 && (
+            <select
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+              style={FILTER_SELECT}
+              aria-label="Filter by event"
+            >
+              <option value="">All events</option>
+              {eventOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            style={FILTER_SELECT}
+            aria-label="Filter by date"
+          >
+            <option value={0}>All time</option>
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
           <button
             type="button"
             className="btn btn--ghost"
@@ -319,6 +401,7 @@ export function OrdersClient({
                   <Th>Order</Th>
                   <Th>Date</Th>
                   <Th>Buyer</Th>
+                  {allEvents && <Th>Event</Th>}
                   <Th align="right">Photos</Th>
                   <Th align="right">Amount</Th>
                   <Th>Status</Th>
@@ -329,11 +412,13 @@ export function OrdersClient({
                 {!loading && filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={allEvents ? 8 : 7}
                       style={{ padding: "40px 16px", textAlign: "center", color: "var(--muted)" }}
                     >
                       {orders.length === 0
-                        ? "No orders yet for this run."
+                        ? allEvents
+                          ? "No orders yet."
+                          : "No orders yet for this run."
                         : "No orders match your search."}
                     </td>
                   </tr>
@@ -373,6 +458,22 @@ export function OrdersClient({
                           {o.email}
                         </span>
                       </Td>
+                      {allEvents && (
+                        <Td muted>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              maxWidth: 180,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              verticalAlign: "bottom",
+                            }}
+                          >
+                            {o.eventName}
+                          </span>
+                        </Td>
+                      )}
                       <Td align="right" muted>
                         {o.photoCount}
                       </Td>

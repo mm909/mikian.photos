@@ -9,14 +9,20 @@ import { useRunner } from "./RunnerProvider";
 export function RunnerChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { cart, lightbox, lightboxScope, resultPhotos, bundleInCart, bundlePrice, isFree, event, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle } = useRunner();
+  const { cart, lightbox, lightboxScope, resultPhotos, bundleInCart, bundlePrice, isFree, event, activeEventId, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle } = useRunner();
 
   // The sign-in screen drops the nav chrome — nothing to navigate to yet.
   const bare = pathname === "/photographer/sign-in";
 
   return (
     <>
-      {!bare && <Nav onLogo={() => router.push("/")} />}
+      {!bare && (
+        <Nav
+          onLogo={() => router.push("/")}
+          eventName={event?.name}
+          activeEventId={activeEventId}
+        />
+      )}
       {children}
       {lightbox && (
         <Lightbox

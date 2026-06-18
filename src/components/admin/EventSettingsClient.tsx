@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   EventEditor,
   EventPhotographers,
-  ColorGroupsReview,
   RerunDetection,
   DeleteEvent,
   type AdminEvent,
@@ -107,7 +106,6 @@ export function EventSettingsClient({ slug }: { slug: string }) {
             </div>
             <EventEditor ev={ev} onChanged={load} />
             <EventPhotographers eventId={slug} />
-            <ColorGroupsReview ev={ev} />
             <RerunDetection ev={ev} />
             <DeleteEvent ev={ev} onDeleted={() => router.push("/admin/events")} />
           </div>

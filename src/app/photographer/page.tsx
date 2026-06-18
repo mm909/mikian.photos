@@ -1,20 +1,10 @@
-import { getEffectiveActor, hasRole } from "@/lib/permissions";
-import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
-import { PhotographerDashboardClient } from "@/components/photographer/PhotographerDashboardClient";
+import { redirect } from "next/navigation";
 
 /**
- * Photographer dashboard.
- *
- * Server-side gate (role check) → hand off to the dashboard client which
- * fetches the catalog (?mine=1), renders the LibraryTile grid, and owns the
- * detail-modal state. Sign-out lives in the global AccountWidget — no button
- * here.
+ * The photographer dashboard is retired for now — nothing links here anymore
+ * (sign-in lands on "/"; upload is reached per-event via /e/[slug]/upload or
+ * /photographer/upload). Redirect any stragglers/bookmarks to the home page.
  */
-export default async function PhotographerOverviewPage() {
-  const actor = await getEffectiveActor();
-  if (!actor) return <NoPhotographerAccess reason="signed-out" />;
-  if (!hasRole(actor, "photographer")) {
-    return <NoPhotographerAccess reason="no-role" name={actor.name} />;
-  }
-  return <PhotographerDashboardClient name={actor.name} email={actor.email} />;
+export default function PhotographerOverviewPage() {
+  redirect("/");
 }

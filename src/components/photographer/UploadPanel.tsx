@@ -514,14 +514,22 @@ export function UploadPanel({
   const detectPct = Math.round((done / denom) * 100);
   const totalBibs = items.reduce((s, i) => s + (i.bibCount ?? 0), 0);
   const totalFaces = items.reduce((s, i) => s + (i.faceCount ?? 0), 0);
-  // Distinct color groups seen across the batch (camp events).
-  const distinctColorGroups = Array.from(new Set(items.flatMap((i) => i.colorGroups ?? [])));
-  // Which result pills to show, from the event's detection config. Bib OCR is
-  // hidden for events that don't use it (camps); color groups shown when on.
+  // Which result pills to show, from the event's detection config. Bib OCR /
+  // face rec are hidden for events that don't use them (a camp turns OCR off; a
+  // browse-only gallery could turn both off).
   const showOcr = event.ocrEnabled !== false;
-  // Color groups need face rec (the color is sampled relative to face boxes), so
-  // only show the pill when both are on — mirrors detection's colorOn gate.
-  const showColorGroups = event.colorGroupEnabled === true && event.faceRecEnabled !== false;
+  const showFace = event.faceRecEnabled !== false;
+  // "Bib OCR + face detection" / "Bib OCR" / "Face detection" for the running
+  // banner, matching whichever stages this event actually runs.
+  const detectionLabel =
+    showOcr && showFace
+      ? "Bib OCR + face detection"
+      : showOcr
+        ? "Bib OCR"
+        : showFace
+          ? "Face detection"
+          : "Detection";
+  const detectionVerb = showOcr && showFace ? "are" : "is";
   // Every item collided with an existing photo — nothing new to upload/detect.
   const allSkipped = total > 0 && active === 0 && skipped > 0;
 
@@ -813,7 +821,7 @@ export function UploadPanel({
                     lineHeight: 1.5,
                   }}
                 >
-                  All {active} uploaded and live. {showOcr ? "Bib OCR + face detection" : "Face detection"} {showOcr ? "are" : "is"} still
+                  All {active} uploaded and live. {detectionLabel} {detectionVerb} still
                   running{detectEta != null ? <> — <strong>~{formatEta(detectEta)} left</strong></> : ""}.{" "}
                   <strong>Keep this tab open until tagging finishes.</strong>{" "}
                   Closing it stops detection (your photos stay safe; you can re-run
@@ -850,32 +858,16 @@ export function UploadPanel({
                     pct={detectPct}
                   />
                 )}
-                <Metric
-                  label="Face rec"
-                  value={`${done}/${active}`}
-                  sub={
-                    detecting > 0
-                      ? `detecting ${detecting}…`
-                      : detectPending > 0
-                        ? "queued…"
-                        : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
-                  }
-                  pct={detectPct}
-                />
-                {showColorGroups && (
+                {showFace && (
                   <Metric
-                    label="Color groups"
+                    label="Face rec"
                     value={`${done}/${active}`}
                     sub={
                       detecting > 0
-                        ? `sampling ${detecting}…`
+                        ? `detecting ${detecting}…`
                         : detectPending > 0
                           ? "queued…"
-                          : distinctColorGroups.length > 0
-                            ? `${distinctColorGroups.length} group${
-                                distinctColorGroups.length === 1 ? "" : "s"
-                              }`
-                            : "none yet"
+                          : `${totalFaces} face${totalFaces === 1 ? "" : "s"} found`
                     }
                     pct={detectPct}
                   />
@@ -1007,6 +999,17 @@ export function UploadPanel({
                 {failed > 0 && (
                   <button className="btn btn--ghost" onClick={retryFailed}>
                     Retry all {failed}
+                  </button>
+                )}
+                {/* Bulk-undo: stop and delete every photo from this batch at once
+                    (uploaded ones are removed from the library). */}
+                {items.some((i) => i.photoId) && (
+                  <button
+                    className="btn btn--ghost"
+                    style={{ color: "var(--accent)" }}
+                    onClick={cancel}
+                  >
+                    Delete this batch
                   </button>
                 )}
                 <button className="btn btn--primary" onClick={finish}>

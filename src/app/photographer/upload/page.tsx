@@ -53,6 +53,9 @@ export default async function UploadPage() {
         colorGroupEnabled: e.colorGroupEnabled,
       }))}
       defaultEventId={defaultEventId}
+      // The platform owner can manage who else may upload, right from here.
+      // (Per-event owners + the real enforcement live in the photographers API.)
+      canManagePhotographers={isAdmin(actor)}
     />
   );
 }

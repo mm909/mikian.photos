@@ -220,7 +220,7 @@ export default async function OrderPage({
             <>
               {" "}
               ·{" "}
-              <Link href="/runner" style={{ color: "var(--ink)" }}>
+              <Link href="/orders" style={{ color: "var(--ink)" }}>
                 ← All your orders
               </Link>
             </>
