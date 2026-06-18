@@ -5,7 +5,7 @@ import { parseOrderNumber } from "@/lib/orderId";
 import { mintDownloadToken } from "@/lib/downloadToken";
 import { buildReceiptInput, resolveBaseUrl } from "@/lib/createOrder";
 import { sendReceiptEmail } from "@/lib/email";
-import { currentEvent } from "@/lib/data";
+import { getDefaultEvent } from "@/lib/events";
 
 /**
  * POST /api/admin/orders/[orderNumber]/resend — owner + race director.
@@ -20,7 +20,7 @@ export async function POST(
   req: Request,
   { params }: { params: { orderNumber: string } }
 ) {
-  const actor = await requireRole("race_director");
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },
@@ -41,16 +41,18 @@ export async function POST(
     await db.order.update({ where: { id: order.id }, data: { downloadToken: token } });
   }
 
-  // Event display name (fall back to the current run, then a generic label).
-  let eventName = Array.isArray(currentEvent.name)
-    ? currentEvent.name.join(" ")
-    : String(currentEvent.name);
+  // Event display name from the order's covered event; fall back to the
+  // default event, then a generic label.
+  let eventName = "Mikian.Photos";
   if (order.eventIdCovered) {
     const ev = await db.event.findUnique({
       where: { id: order.eventIdCovered },
       select: { name: true },
     });
     if (ev?.name) eventName = ev.name;
+  } else {
+    const def = await getDefaultEvent();
+    if (def?.name) eventName = def.name;
   }
 
   const receipt = buildReceiptInput({

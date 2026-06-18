@@ -50,7 +50,15 @@ const fmtDate = (iso: string) =>
  * the same list read-only (the API omits the action affordances for them, and
  * the action routes are owner-gated regardless).
  */
-export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventName: string }) {
+export function OrdersClient({
+  isOwner,
+  eventId,
+  eventName,
+}: {
+  isOwner: boolean;
+  eventId: string;
+  eventName: string;
+}) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +73,9 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/orders", { cache: "no-store" });
+      const res = await fetch(`/api/admin/orders?eventId=${encodeURIComponent(eventId)}`, {
+        cache: "no-store",
+      });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `HTTP ${res.status}`);
@@ -77,7 +87,7 @@ export function OrdersClient({ isOwner, eventName }: { isOwner: boolean; eventNa
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [eventId]);
 
   useEffect(() => {
     void load();

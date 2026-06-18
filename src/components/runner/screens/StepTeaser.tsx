@@ -31,9 +31,11 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
     searchLoading,
     searchedBib,
     matchedRacer,
+    searchColorGroup,
     faceCandidates,
     autoConfirmed,
     expandingCluster,
+    confirmedClusterId,
     confirmFaceCluster,
     openLightbox,
     runFaceSearch,
@@ -60,6 +62,14 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
   }
   function notMe() {
     if (bestGuess) setRejected((prev) => new Set(prev).add(bestGuess.clusterId));
+  }
+  // Undo the face filter: restore the full bib set (the photos the filter
+  // dropped come back) and re-show the "Is this you?" guess from the top so
+  // the runner can pick a different face or keep all their bib photos.
+  function clearFace() {
+    setAccepted(false);
+    setRejected(new Set());
+    void confirmFaceCluster(null);
   }
 
   function seeAll() {
@@ -134,7 +144,11 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
   // the bib-direct total. The bib is shown in the racer line above, so the
   // headline stays "photos of you" (true for bib + face matches alike).
   const total = Math.max(resultTotal ?? 0, resultPhotos.length);
-  const headlineText = `${total} photo${total === 1 ? "" : "s"} of you.`;
+  // Camp color-group search folds in teammates' photos, so "of you" would
+  // undercount the intent — say "photos" and explain the group below.
+  const headlineText = searchColorGroup
+    ? `${total} photo${total === 1 ? "" : "s"}.`
+    : `${total} photo${total === 1 ? "" : "s"} of you.`;
   // While the explicit "This is me" filter refetches, overlay a spinner on the
   // grid so it doesn't visibly reflow as non-matching photos drop out.
   const filtering = accepted && expandingCluster;
@@ -164,8 +178,24 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
   // to filter results to just this face; "Not me" tries the next guess. Hidden
   // entirely when we auto-confirmed a single confident face. Once the guesses
   // run out we offer a face scan.
+  // Once a face is confirmed (explicit "This is me"), the active filter can be
+  // undone with the clear control below; the guess card returns afterward.
+  const faceFilterActive = accepted && Boolean(confirmedClusterId);
+  const clearControl = faceFilterActive ? (
+    <div className="card" style={{ ...cardStyle, marginTop: 0, marginBottom: 28 }}>
+      <div style={eyebrowStyle}>Showing photos with your face</div>
+      <button
+        className="btn btn--ghost btn--sm"
+        onClick={clearFace}
+        disabled={expandingCluster}
+      >
+        ← Show all my bib photos
+      </button>
+    </div>
+  ) : null;
+
   const faceBlock =
-    searchedBib && !accepted && !autoConfirmed && sawCandidates ? (
+    searchedBib && !confirmedClusterId && !autoConfirmed && sawCandidates ? (
       <div className="card" style={{ ...cardStyle, marginTop: 0, marginBottom: 28 }}>
         {bestGuess ? (
           <>
@@ -276,8 +306,11 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
   return (
     <main className="screen" style={{ padding: "56px 24px 96px" }}>
       <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
-        {/* Face selection — ABOVE the stats (Bib · finished) + photo count. */}
+        {/* Face selection — ABOVE the stats (Bib · finished) + photo count.
+            Only one of these is ever non-null: the guess card before a face is
+            confirmed, or the clear control while a face filter is active. */}
         {faceBlock}
+        {clearControl}
 
         <div style={{ ...eyebrowStyle, marginBottom: 12 }}>
           {matchedRacer
@@ -288,7 +321,7 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
         <Headline
           as="h1"
           text={headlineText}
-          accent="of you"
+          accent={searchColorGroup ? "photos." : "of you"}
           style={{
             margin: 0,
             fontFamily: "var(--font-serif)",
@@ -299,6 +332,34 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
             color: "var(--ink)",
           }}
         />
+
+        {/* Camp color-group expansion — explain that teammates' photos are
+            included, since the result set is "you + your group". */}
+        {searchColorGroup && (
+          <div
+            style={{
+              marginTop: 12,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              borderRadius: 999,
+              border: "1px solid var(--line)",
+              background: "var(--cream)",
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+              color: "var(--muted)",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 13 }}>
+              👥
+            </span>
+            You + your color group
+            <span style={{ color: "var(--ink)" }}>· +{searchColorGroup.extraCount}</span>
+          </div>
+        )}
 
         {/* A handful of matches — small previews only. Clicking any opens the
             full gallery viewer at that photo. While the "This is me" filter
@@ -386,7 +447,7 @@ export function StepTeaser({ onBack }: { onBack: () => void }) {
         onClose={() => setScannerOpen(false)}
         onCapture={runFaceSearch}
         busy={faceScanning}
-        subtitle="Center your face in the circle. We only use this to find your race photos."
+        subtitle="Center your face in the circle. We only use this to find your photos."
       />
     </main>
   );

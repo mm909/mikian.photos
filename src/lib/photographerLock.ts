@@ -50,11 +50,7 @@ export async function getEffectivePhotographerId(): Promise<string | null> {
     const session = await getServerSession(authOptions);
     if (session?.photographerId) {
       const roles = session.roles ?? [];
-      if (
-        roles.includes("photographer") ||
-        roles.includes("race_director") ||
-        roles.includes("owner")
-      ) {
+      if (roles.includes("photographer") || roles.includes("owner")) {
         return session.photographerId;
       }
       return null;
@@ -70,13 +66,13 @@ export async function getEffectivePhotographerId(): Promise<string | null> {
       where: { email: ADMIN_PHOTOGRAPHER_EMAIL },
       update: {
         isAdmin: true,
-        roles: ["runner", "photographer", "race_director", "owner"],
+        roles: ["user", "photographer", "owner"],
       },
       create: {
         email: ADMIN_PHOTOGRAPHER_EMAIL,
         name: ADMIN_PHOTOGRAPHER_NAME,
         isAdmin: true,
-        roles: ["runner", "photographer", "race_director", "owner"],
+        roles: ["user", "photographer", "owner"],
       },
       select: { id: true },
     });

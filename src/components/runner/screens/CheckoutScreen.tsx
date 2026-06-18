@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { Headline } from "../Headline";
 import { useRunner } from "../RunnerProvider";
-import { currentEvent, prices, type CartItem } from "@/lib/data";
+import { prices, type CartItem } from "@/lib/data";
 
 /**
  * Reduce the cart to the shape the API expects:
@@ -32,7 +32,7 @@ type Props = { unlocked: boolean };
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { cart, resultPhotos, finalizeOrder, addBundle } = useRunner();
+  const { cart, resultPhotos, finalizeOrder, addBundle, activeEventId, isFree } = useRunner();
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
   // Show a friendly "Coming soon" panel and let the visitor go back to browsing.
@@ -91,11 +91,44 @@ export function CheckoutScreen({ unlocked }: Props) {
   }, [cart.items.length]);
 
   const subtotal = cart.items.reduce((s, i) => s + i.price, 0);
-  const processingFee = +(subtotal * prices.stripeRate + prices.stripeFlat).toFixed(2);
-  const total = +(subtotal + processingFee).toFixed(2);
+  // Treat a $0 order as free regardless of the isFree flag. A free event whose
+  // flag was lost crossing to /checkout — or a $0-bundle misconfig — still has a
+  // $0 subtotal, and the server already returns 0 (no fee) for it (see
+  // pricing.ts orderTotalUsd) and PayPal rejects $0 orders. Branching on this
+  // (not just isFree) is what stops the "$0.00 bundle but $0.30 fee + PayPal
+  // that hangs" state: PayPal's create-order returns {free:true} with no id, so
+  // the button can never complete. Route $0 to the free claim instead.
+  const isZero = isFree || subtotal <= 0;
+  const processingFee = isZero ? 0 : +(subtotal * prices.stripeRate + prices.stripeFlat).toFixed(2);
+  const total = isZero ? 0 : +(subtotal + processingFee).toFixed(2);
 
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous in-flight latch — `disabled={processing}` only reflects after a
+  // React commit, so a fast double-tap can fire the handler twice (two $0 orders
+  // + two receipt emails). A ref blocks the second call in the same tick.
+  const inFlight = useRef(false);
+  // Set when createOrder redirects a $0 order to the free claim, so onError can
+  // swallow the abort without depending on the thrown Error surviving PayPal's
+  // boundary (its type only promises Record<string, unknown>, not Error).
+  const redirectingToFree = useRef(false);
+  // Free events have no payment step — auto-claim once we're signed in with a
+  // cart, then land on the order page ("Your photos are ready."). Latched so it
+  // fires exactly once even as isFree/cart settle.
+  const autoClaimedRef = useRef(false);
+  useEffect(() => {
+    if (
+      isZero &&
+      status === "authenticated" &&
+      cart.items.length > 0 &&
+      !autoClaimedRef.current &&
+      !inFlight.current
+    ) {
+      autoClaimedRef.current = true;
+      void claimFree();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isZero, status, cart.items.length]);
 
   // Require a signed-in Google account before payment. We want a real identity
   // on every order so the buyer can find their photos again and the receipt
@@ -111,7 +144,14 @@ export function CheckoutScreen({ unlocked }: Props) {
     return <main className="screen" style={{ padding: "96px 32px" }} />;
   }
 
-  if (!PAYPAL_CLIENT_ID) {
+  // Free event → no payment screen. The effect above auto-claims the photos;
+  // show a brief "Preparing your photos…" (or an error + retry) until we land
+  // on the order page.
+  if (isZero) {
+    return <FreePreparing error={error} onRetry={() => void claimFree()} />;
+  }
+
+  if (!isZero && !PAYPAL_CLIENT_ID) {
     return (
       <main className="screen" style={{ padding: "96px 32px", textAlign: "center" }}>
         <Headline
@@ -136,6 +176,8 @@ export function CheckoutScreen({ unlocked }: Props) {
   const isOwner = Boolean(session?.roles?.includes("owner"));
 
   async function simulatePayment() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setProcessing(true);
     setError(null);
     try {
@@ -144,7 +186,7 @@ export function CheckoutScreen({ unlocked }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eventId: currentEvent.id,
+          eventId: activeEventId ?? "",
           kind: cartShape.kind,
           photoIds:
             cartShape.kind === "multi" ? cartShape.photoIds : resultPhotos.map((p) => p.id),
@@ -158,6 +200,40 @@ export function CheckoutScreen({ unlocked }: Props) {
       finalizeOrder(captured.amountUsd ?? total);
       router.push(captured.orderUrl ?? "/runner");
     } catch (e) {
+      inFlight.current = false;
+      setProcessing(false);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // Free event: no PayPal. Claim the photos directly — the server mints the
+  // order, snapshots the entitlement, and emails the download link.
+  async function claimFree() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setProcessing(true);
+    setError(null);
+    try {
+      const cartShape = describeCart(cart.items);
+      const res = await fetch("/api/orders/free-claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: activeEventId ?? "",
+          kind: cartShape.kind,
+          photoIds:
+            cartShape.kind === "multi" ? cartShape.photoIds : resultPhotos.map((p) => p.id),
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Could not claim your photos");
+      }
+      const claimed = (await res.json()) as { orderUrl?: string };
+      finalizeOrder(0);
+      router.push(claimed.orderUrl ?? "/runner");
+    } catch (e) {
+      inFlight.current = false;
       setProcessing(false);
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -205,13 +281,26 @@ export function CheckoutScreen({ unlocked }: Props) {
                 color: "var(--ink)",
               }}
             >
-              Pay with PayPal or card
+              {isZero ? "Your photos are free" : "Pay with PayPal or card"}
             </h2>
             <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 0, marginBottom: 20 }}>
-              You&rsquo;ll see PayPal&rsquo;s Pay button below. You can pay with your PayPal
-              account or as a guest with any major card — no PayPal account needed.
+              {isZero
+                ? "No payment needed — claim your full-resolution photos and we’ll email your download link."
+                : "You’ll see PayPal’s Pay button below. You can pay with your PayPal account or as a guest with any major card — no PayPal account needed."}
             </p>
 
+            {isZero ? (
+              <button
+                type="button"
+                className="btn btn--primary btn--lg"
+                disabled={processing}
+                onClick={() => void claimFree()}
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                Get your photos (free)
+              </button>
+            ) : (
+              <>
             <PayPalScriptProvider
               options={{
                 clientId: PAYPAL_CLIENT_ID,
@@ -236,14 +325,23 @@ export function CheckoutScreen({ unlocked }: Props) {
                     body: JSON.stringify({
                       kind: cartShape.kind,
                       count: cartShape.kind === "multi" ? cartShape.photoIds.length : 0,
-                      eventId: currentEvent.id,
+                      eventId: activeEventId ?? "",
                     }),
                   });
                   if (!res.ok) {
                     const j = await res.json().catch(() => ({}));
                     throw new Error(j.error || "Could not create order");
                   }
-                  const j = (await res.json()) as { id: string };
+                  const j = (await res.json()) as { id?: string; free?: boolean };
+                  // Server resolved the order to $0 (free event / $0 misconfig):
+                  // there's no PayPal order to create. Switch to the free-claim
+                  // flow, then abort the PayPal handshake with a sentinel that
+                  // onError ignores (claimFree has already navigated away).
+                  if (j.free || !j.id) {
+                    redirectingToFree.current = true;
+                    void claimFree();
+                    throw new Error("__free__");
+                  }
                   return j.id;
                 }}
                 onApprove={async (data) => {
@@ -255,7 +353,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         orderId: data.orderID,
-                        eventId: currentEvent.id,
+                        eventId: activeEventId ?? "",
                         kind: cartShape.kind,
                         // The order covers exactly the photos the runner is
                         // looking at — their matched set, not the whole event.
@@ -294,9 +392,18 @@ export function CheckoutScreen({ unlocked }: Props) {
                   }
                 }}
                 onError={(e) => {
+                  // We redirected a $0 order to the free claim — swallow the
+                  // abort. Gate on our own ref, not the thrown Error's message:
+                  // PayPal's onError type only promises Record<string, unknown>,
+                  // so the "__free__" Error may not survive its boundary.
+                  if (redirectingToFree.current) {
+                    redirectingToFree.current = false;
+                    return;
+                  }
                   setError(e instanceof Error ? e.message : "Payment error");
                 }}
                 onCancel={() => {
+                  redirectingToFree.current = false;
                   setError(null);
                 }}
               />
@@ -312,6 +419,8 @@ export function CheckoutScreen({ unlocked }: Props) {
               >
                 Simulate payment (no charge) — owner
               </button>
+            )}
+              </>
             )}
 
             {error && (
@@ -392,7 +501,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                       : `All photos bundle (${resultPhotos.length || 36})`}
                   </span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                    ${it.price.toFixed(2)}
+                    ${(isZero ? 0 : it.price).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -406,7 +515,7 @@ export function CheckoutScreen({ unlocked }: Props) {
                   color: "var(--ink)",
                 }}
               >
-                <SumRow label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
+                <SumRow label="Subtotal" value={`$${(isZero ? 0 : subtotal).toFixed(2)}`} />
                 <SumRow label="Processing fee (est.)" value={`$${processingFee.toFixed(2)}`} muted />
               </div>
               <div
@@ -508,6 +617,62 @@ function SignInGate() {
         >
           Continue with Google
         </button>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Free-event interstitial — shown while the auto-claim runs (no payment step).
+ * Normally just a spinner that gives way to the order page; on failure it
+ * surfaces the error with a retry so the buyer isn't stranded.
+ */
+function FreePreparing({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  return (
+    <main
+      className="screen"
+      style={{ padding: "120px 24px 160px", display: "flex", justifyContent: "center" }}
+    >
+      <div style={{ textAlign: "center", maxWidth: 460 }}>
+        {error ? (
+          <>
+            <Headline
+              as="h1"
+              text="We couldn't get your photos."
+              accent="couldn't"
+              style={{
+                margin: 0,
+                fontFamily: "var(--font-serif)",
+                fontWeight: 500,
+                fontSize: "clamp(28px, 4vw, 40px)",
+                letterSpacing: "-.015em",
+                color: "var(--ink)",
+              }}
+            />
+            <p style={{ color: "var(--muted)", fontSize: 15, marginTop: 16 }}>{error}</p>
+            <button className="btn btn--primary btn--lg" onClick={onRetry} style={{ marginTop: 22 }}>
+              Try again
+            </button>
+          </>
+        ) : (
+          <div
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                border: "3px solid var(--line)",
+                borderTopColor: "var(--accent)",
+                borderRadius: "50%",
+                animation: "spin .8s linear infinite",
+              }}
+            />
+            <div style={{ fontFamily: "var(--font-serif)", fontSize: 24, color: "var(--ink)" }}>
+              Preparing your photos…
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

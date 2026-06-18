@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Headline } from "../Headline";
-import { currentEvent, photoBg, type Cart, type Photo } from "@/lib/data";
+import { photoBg, type Cart, type Photo } from "@/lib/data";
 
 /** Instagram-style windowed position dots.
  *  Returns up to MAX visible indices centered on `current` (clamped into range),
@@ -45,6 +45,8 @@ type Props = {
   bundleInCart: boolean;
   /** Owner-set bundle price (dollars) for the event. */
   price: number;
+  /** Event display name for the lightbox header (multi-event). */
+  eventName?: string;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
@@ -60,6 +62,7 @@ export function Lightbox({
   totalCount,
   bundleInCart,
   price,
+  eventName,
   onClose,
   onPrev,
   onNext,
@@ -309,8 +312,8 @@ export function Lightbox({
           >
             <Headline
               as="h2"
-              text={currentEvent.name.join(" ")}
-              accent={currentEvent.name[0]}
+              text={eventName || "Your photos"}
+              accent={(eventName || "Your").split(" ")[0]}
               style={{
                 margin: 0,
                 fontFamily: "var(--font-serif)",
@@ -449,7 +452,7 @@ export function Lightbox({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <div>
                 <div style={{ fontFamily: "var(--font-sans)", fontSize: 15, color: "var(--ink)" }}>
-                  Every photo from your race
+                  Every photo from this event
                 </div>
                 <div
                   style={{

@@ -35,8 +35,8 @@ export const runtime = "nodejs";
 const GAP_SAMPLE_SIZE = 12;
 
 export async function GET(req: Request) {
-  // Owner + race director (owner implies race_director). Read-only rollups.
-  const actor = await requireRole("race_director");
+  // Owner-tier (platform admin). Read-only rollups.
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },

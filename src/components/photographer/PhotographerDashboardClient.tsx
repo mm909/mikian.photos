@@ -16,6 +16,11 @@ type EventRow = {
   eventName: string;
   eventDate: string | null;
   eventCity: string | null;
+  /** Detection config — passed to the inline UploadPanel so the result pills
+   *  match the event type (camps hide Bib OCR, show Color groups). */
+  ocrEnabled?: boolean;
+  faceRecEnabled?: boolean;
+  colorGroupEnabled?: boolean;
   photoCount: number;
   lastUploadAt: string | null;
   /** Number of orders covering this event. */
@@ -446,6 +451,9 @@ function EventTable({ rows, onChanged }: { rows: EventRow[]; onChanged: () => vo
                     name: r.eventName,
                     date: r.eventDate ?? "",
                     city: r.eventCity ?? "",
+                    ocrEnabled: r.ocrEnabled,
+                    faceRecEnabled: r.faceRecEnabled,
+                    colorGroupEnabled: r.colorGroupEnabled,
                   }}
                   compact
                   autoStart

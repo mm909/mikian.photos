@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { r2Configured, r2GetStream } from "@/lib/r2";
+import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
+import { clientIp, envInt, rateLimit } from "@/lib/rateLimit";
 
 /**
  * Server-side face crop.
@@ -23,11 +26,24 @@ import { r2Configured, r2GetStream } from "@/lib/r2";
  * The output is always a 256x256 JPEG with face centered. We don't expose
  * the raw bbox crop because crops vary wildly in aspect ratio and we want
  * the candidate strip to look like uniform tiles.
+ *
+ * Abuse surface (sanity-checked when the site went public): much lower than
+ * face search — no per-call $ (R2 has zero egress; cost is just sharp CPU),
+ * and the real anti-scrape protection is the (photoId, faceId) binding below
+ * plus the immutable `Cache-Control`, so repeat views are served by the CDN /
+ * browser and rarely reach this origin. We still add a GENEROUS per-IP
+ * backstop: one results page legitimately fetches one crop per visible face
+ * (often 10–30 in parallel), so the ceiling sits far above any real session
+ * and only chokes someone enumerating crops in bulk.
  */
 export const runtime = "nodejs";
 
 /** Output size of the cropped face thumbnail (square). */
 const THUMB_SIZE = 256;
+
+/** Per-IP runaway backstop. High on purpose — see the abuse note above. */
+const CROP_LIMIT = envInt("FACE_CROP_LIMIT", 600);
+const CROP_WINDOW_SEC = envInt("FACE_CROP_WINDOW_SEC", 60);
 
 /** Padding around the bbox before cropping, as a fraction of the bbox's
  *  longer edge. Rekognition's bbox tightly hugs the face — without padding
@@ -35,11 +51,24 @@ const THUMB_SIZE = 256;
 const PAD_RATIO = 0.35;
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string; faceId: string } }
 ) {
   if (!r2Configured()) {
     return NextResponse.json({ error: "Photo storage not configured" }, { status: 503 });
+  }
+
+  // Generous per-IP backstop against bulk enumeration (see abuse note above).
+  const limit = await rateLimit({
+    key: `face-crop:${clientIp(req)}`,
+    limit: CROP_LIMIT,
+    windowSec: CROP_WINDOW_SEC,
+  });
+  if (!limit.ok) {
+    return new NextResponse("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": String(Math.max(1, limit.retryAfterSec)) },
+    });
   }
 
   // Join PhotoFace → Photo so we can verify hidden state + get the R2 key.
@@ -51,7 +80,7 @@ export async function GET(
       y0: true,
       x1: true,
       y1: true,
-      photo: { select: { hidden: true, r2PreviewKey: true } },
+      photo: { select: { hidden: true, r2PreviewKey: true, eventId: true } },
     },
   });
 
@@ -64,6 +93,15 @@ export async function GET(
   if (!face.photo || face.photo.hidden) {
     return new NextResponse("Not found", { status: 404 });
   }
+
+  // Enforce the event's access mode — a locked event must not leak face crops.
+  const url = new URL(req.url);
+  const accessToken =
+    url.searchParams.get("k") ||
+    cookies().get(secretLinkCookieName(face.photo.eventId))?.value ||
+    null;
+  const access = await resolveEventAccess(face.photo.eventId, { token: accessToken });
+  if (!access.ok) return new NextResponse("Not found", { status: 404 });
 
   // Pull preview bytes.
   let previewBytes: Buffer;

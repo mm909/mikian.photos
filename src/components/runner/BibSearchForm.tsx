@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRunner } from "./RunnerProvider";
-import { findRacerByName } from "@/lib/data";
+import { findRacerByName, ROSTER_EVENT_ID } from "@/lib/data";
 
 /**
  * The bib/name search form — the single search "model" reused on the landing
@@ -20,22 +20,28 @@ export function BibSearchForm({
   onSearched?: () => void;
   autoFocus?: boolean;
 }) {
-  const { runSearch } = useRunner();
+  const { runSearch, activeEventId } = useRunner();
   const [query, setQuery] = useState("");
   const [err, setErr] = useState("");
+  // Only the event with roster data (Lighthouse) supports name search.
+  const nameSearch = activeEventId === ROSTER_EVENT_ID;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const q = query.trim();
     if (!q) {
-      setErr("Enter your name or bib number to search.");
+      setErr(nameSearch ? "Enter your name or bib number." : "Enter your bib number.");
       return;
     }
     let bib = q;
     if (!/^\d+$/.test(q)) {
-      const racer = findRacerByName(q);
+      const racer = nameSearch ? findRacerByName(q) : undefined;
       if (!racer) {
-        setErr("No runner found by that name — try your bib number.");
+        setErr(
+          nameSearch
+            ? "No runner found by that name — try your bib number."
+            : "Enter your bib number to search."
+        );
         return;
       }
       bib = String(racer.bib);
@@ -49,13 +55,13 @@ export function BibSearchForm({
   return (
     <form onSubmit={submit}>
       <label className="field-label" htmlFor="bib-in">
-        Name or bib number
+        {nameSearch ? "Name or bib number" : "Bib number"}
       </label>
       <div style={{ display: "flex", gap: 10 }}>
         <input
           id="bib-in"
           className="input"
-          placeholder="e.g. your name or bib number"
+          placeholder={nameSearch ? "e.g. your name or bib number" : "e.g. your bib number"}
           autoComplete="off"
           value={query}
           onChange={(e) => {

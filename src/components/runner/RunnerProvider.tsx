@@ -9,16 +9,61 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
-  currentEvent,
   findRacerByBib,
   prices,
+  ROSTER_EVENT_ID,
   type Cart,
   type CartItem,
   type Order,
   type Photo,
   type Racer,
 } from "@/lib/data";
+import type { EventCapabilities } from "@/lib/eventConfig";
+
+/** Display metadata for the event the runner flow is currently scoped to.
+ *  Populated from the /api/photos response (multi-event: the event is derived
+ *  from the /e/[slug] URL, not a hardcoded constant). */
+export type RunnerEvent = {
+  id: string;
+  name: string;
+  /** 3-slot accent-headline tuple (e.g. ["Lighthouse","Half","Marathon"]). */
+  nameParts: [string, string, string];
+  /** ISO date string. */
+  date: string;
+  city: string;
+  /** Event type — "race" | "gallery". Drives the runner UX (see capabilities). */
+  type: string;
+};
+
+/** Extract the event slug from a /e/[slug][/...] pathname; null elsewhere. */
+function eventSlugFromPath(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const m = pathname.match(/^\/e\/([^/]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// The runner cart/search/order is scoped to one event; remember which event the
+// runner last engaged with so global surfaces (e.g. /checkout) know which event
+// the cart belongs to.
+const ACTIVE_EVENT_KEY = "mikian.activeEvent";
+function readActiveEvent(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ACTIVE_EVENT_KEY);
+  } catch {
+    return null;
+  }
+}
+function writeActiveEvent(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(ACTIVE_EVENT_KEY, id);
+  } catch {
+    /* quota — ignore */
+  }
+}
 
 /**
  * Server contract: POST /api/photos/face-search returns the same Photo
@@ -27,7 +72,17 @@ import {
 type FaceSearchResponse = {
   photos: (Photo & { faceSimilarity?: number })[];
   matchCount: number;
+  /** Camp color-group expansion: how many of the photos came from the runner's
+   *  own face vs. their inferred color group, and the group itself. Present
+   *  (non-null colorGroup) only for camp events with color grouping on. */
+  faceMatchCount?: number;
+  colorMatchCount?: number;
+  colorGroup?: { key: string; label: string } | null;
 };
+
+/** The color group a camp face search inferred for the runner, plus how many
+ *  extra teammates' photos it pulled in. null on race events / no inference. */
+export type SearchColorGroup = { key: string; label: string; extraCount: number };
 
 /** One row in the "Is this you?" candidate strip — a face cluster present
  *  in the bib's tagged photos, plus enough metadata for the UI to show
@@ -106,6 +161,10 @@ type RunnerCtx = {
    *  got hits, "empty" when the scan completed but found no faces. The
    *  ResultsScreen reads this to render an empty-state nudge. */
   faceScanStatus: "none" | "matched" | "empty";
+  /** Camp only: the color group the last face search inferred for the runner,
+   *  and the count of extra same-group photos folded into the results. null
+   *  when the event isn't a color-grouped camp or no group could be inferred. */
+  searchColorGroup: SearchColorGroup | null;
   /** Top face clusters from the most recent bib search. The "Is this you?"
    *  strip renders one tile per candidate; clicking confirms the cluster
    *  and re-runs the search with expansion enabled. Empty when the search
@@ -124,6 +183,18 @@ type RunnerCtx = {
   /** Owner-set bundle price (dollars) for the current event; the static
    *  default until the server reports one via /api/photos. */
   bundlePrice: number;
+  /** The event this runner flow is scoped to (derived from the /e/[slug] URL).
+   *  null on non-event surfaces or before the catalog fetch resolves it. */
+  event: RunnerEvent | null;
+  /** The event's capability set (search modes, roster, sells) — drives which
+   *  flow the runner sees. null until the catalog fetch resolves it. */
+  capabilities: EventCapabilities | null;
+  /** The active event's id — known from the URL (or persisted for /checkout)
+   *  even before `event` metadata loads. null when not scoped to an event. */
+  activeEventId: string | null;
+  /** True when the active event is free — checkout skips PayPal and claims the
+   *  photos directly via /api/orders/free-claim. */
+  isFree: boolean;
   /** Confirm a face cluster. faceOnly=true FILTERS results to only photos
    *  containing that face (the "This is me" action); faceOnly=false UNIONs the
    *  cluster onto the bib set. Pass clusterId=null to un-confirm. */
@@ -146,7 +217,11 @@ type RunnerCtx = {
 };
 
 const Ctx = createContext<RunnerCtx | null>(null);
-const STORAGE_KEY = "mikian.runner.v2"; // bumped (v1 stored photo objects directly)
+// Cart/search state is per-event (v2 multi-event) so a cart built on one event
+// never bleeds into another. v2 bumped from v1 (which stored photo objects).
+function storageKey(eventId: string | null): string {
+  return `mikian.runner.v2.${eventId ?? "none"}`;
+}
 
 type Persisted = {
   resultPhotoIds: string[];
@@ -157,10 +232,10 @@ type Persisted = {
   order: Order;
 };
 
-function loadPersisted(): Persisted | null {
+function loadPersisted(key: string): Persisted | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -168,10 +243,10 @@ function loadPersisted(): Persisted | null {
   }
 }
 
-function savePersisted(p: Persisted) {
+function savePersisted(key: string, p: Persisted) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    window.localStorage.setItem(key, JSON.stringify(p));
   } catch {
     /* quota — ignore */
   }
@@ -233,11 +308,36 @@ function apiPhotoToUi(p: {
 }
 
 export function RunnerProvider({ children }: { children: React.ReactNode }) {
+  // Which event the flow is scoped to. The slug in the /e/[slug] URL is the
+  // source of truth; fall back to the last engaged event so global surfaces
+  // (e.g. /checkout) still know which event the cart belongs to.
+  const pathname = usePathname();
+  const slugFromPath = eventSlugFromPath(pathname);
+  const [activeEventId, setActiveEventId] = useState<string | null>(
+    () => slugFromPath ?? readActiveEvent()
+  );
+  const [event, setEvent] = useState<RunnerEvent | null>(null);
+  const [capabilities, setCapabilities] = useState<EventCapabilities | null>(null);
+  const [isFree, setIsFree] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (slugFromPath && slugFromPath !== activeEventId) {
+      setActiveEventId(slugFromPath);
+      writeActiveEvent(slugFromPath);
+    }
+  }, [slugFromPath, activeEventId]);
+
   const [catalog, setCatalog] = useState<Photo[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogTotal, setCatalogTotal] = useState<number | null>(null);
   const [resultPhotos, setResultPhotos] = useState<Photo[]>([]);
   const [resultTotal, setResultTotal] = useState<number | null>(null);
+  // Snapshot of the pure bib result set ("all photos with the searched bib"),
+  // captured before any face filter is applied. Selecting a face FILTERS this
+  // set (dropping bib photos that don't show the face); clearing/changing the
+  // face restores this snapshot so the dropped photos come straight back.
+  const [bibBasePhotos, setBibBasePhotos] = useState<Photo[]>([]);
+  const [bibBaseTotal, setBibBaseTotal] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasHydratedSearch, setHasHydratedSearch] = useState(false);
   const [didHydrate, setDidHydrate] = useState(false);
@@ -249,6 +349,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   // the results screen can show "scanning…" / "no face found" states.
   const [faceScanning, setFaceScanning] = useState(false);
   const [faceScanStatus, setFaceScanStatus] = useState<"none" | "matched" | "empty">("none");
+  // Camp color-group expansion result from the last face search (null otherwise).
+  const [searchColorGroup, setSearchColorGroup] = useState<SearchColorGroup | null>(null);
   // "Is this you?" disambiguation — the bib search returns up to N face
   // candidates; clicking one moves the user from "show photos with bib N"
   // to "show photos with bib N OR sharing the runner's face cluster."
@@ -274,17 +376,33 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   const hydrated = useRef(false);
   const pendingResultIds = useRef<string[] | null>(null);
 
-  // Fetch the event's catalog from the API on mount.
+  // Fetch the active event's catalog (+ its display metadata + pricing) from
+  // the API whenever the scoped event changes. No active event (e.g. on the
+  // marketing homepage) → nothing to fetch.
   useEffect(() => {
+    if (!activeEventId) {
+      setCatalog([]);
+      setCatalogLoading(false);
+      return;
+    }
     let cancelled = false;
     setCatalogLoading(true);
-    fetch(`/api/photos?eventId=${encodeURIComponent(currentEvent.id)}`)
+    // Carry a secure-link token (?k=) on the first load, before SecureLinkCookie
+    // persists it — so the catalog fetch passes the same access gate the page did.
+    const catalogUrl = new URL("/api/photos", window.location.origin);
+    catalogUrl.searchParams.set("eventId", activeEventId);
+    const k = new URLSearchParams(window.location.search).get("k");
+    if (k) catalogUrl.searchParams.set("k", k);
+    fetch(catalogUrl.pathname + "?" + catalogUrl.searchParams.toString())
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`/api/photos ${r.status}`))))
       .then(
         (d: {
           photos: Parameters<typeof apiPhotoToUi>[0][];
           bundlePrice?: number;
+          isFree?: boolean;
           total?: number;
+          event?: RunnerEvent;
+          capabilities?: EventCapabilities;
         }) => {
           if (cancelled) return;
           const ui = (d.photos ?? []).map(apiPhotoToUi);
@@ -293,6 +411,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
           // capped. Use total for the live count, fall back to length.
           setCatalogTotal(typeof d.total === "number" ? d.total : ui.length);
           if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
+          if (typeof d.isFree === "boolean") setIsFree(d.isFree);
+          if (d.event) setEvent(d.event);
+          if (d.capabilities) setCapabilities(d.capabilities);
         }
       )
       .catch((e) => {
@@ -305,25 +426,29 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeEventId]);
 
-  // Hydrate non-photo state from localStorage once on mount. We can't rebuild
-  // `resultPhotos` here because the catalog hasn't loaded yet; we stash the IDs
-  // and apply them when the catalog arrives.
+  // Hydrate non-photo state from localStorage for the ACTIVE event. Re-runs when
+  // the scoped event changes so switching events loads that event's own cart /
+  // search (or an empty state) rather than bleeding one event's cart into
+  // another. We can't rebuild `resultPhotos` here (catalog not loaded yet); we
+  // stash the IDs and apply them when the catalog arrives.
   useEffect(() => {
-    const p = loadPersisted();
-    if (p) {
-      pendingResultIds.current = p.resultPhotoIds ?? null;
-      setHasHydratedSearch(Boolean(p.resultPhotoIds?.length) || p.searchedBib != null);
-      setSearchedBib(p.searchedBib);
-      setMatchedRacer(p.matchedRacerBib ? findRacerByBib(p.matchedRacerBib) ?? null : null);
-      setFaceDone(p.faceDone);
-      setCart(p.cart);
-      setOrder(p.order);
-    }
+    const p = activeEventId ? loadPersisted(storageKey(activeEventId)) : null;
+    pendingResultIds.current = p?.resultPhotoIds ?? null;
+    setHasHydratedSearch(Boolean(p?.resultPhotoIds?.length) || p?.searchedBib != null);
+    setSearchedBib(p?.searchedBib ?? null);
+    setMatchedRacer(
+      p?.matchedRacerBib && activeEventId === ROSTER_EVENT_ID
+        ? findRacerByBib(p.matchedRacerBib) ?? null
+        : null
+    );
+    setFaceDone(p?.faceDone ?? false);
+    setCart(p?.cart ?? { items: [] });
+    setOrder(p?.order ?? { id: "", amount: 0 });
     hydrated.current = true;
     setDidHydrate(true);
-  }, []);
+  }, [activeEventId]);
 
   // Once the catalog lands, rebuild resultPhotos from any stashed IDs.
   useEffect(() => {
@@ -344,8 +469,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     // searchedBib/cart/order are restored. Also wait for the catalog so we
     // never persist the transient empty resultPhotos before the id-rebuild
     // (the effect below) has run.
-    if (!didHydrate || catalogLoading) return;
-    savePersisted({
+    if (!didHydrate || catalogLoading || !activeEventId) return;
+    savePersisted(storageKey(activeEventId), {
       resultPhotoIds: resultPhotos.map((p) => p.id),
       searchedBib,
       matchedRacerBib: matchedRacer?.bib ?? null,
@@ -353,7 +478,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       cart,
       order,
     });
-  }, [didHydrate, catalogLoading, resultPhotos, searchedBib, matchedRacer, faceDone, cart, order]);
+  }, [didHydrate, catalogLoading, activeEventId, resultPhotos, searchedBib, matchedRacer, faceDone, cart, order]);
 
   const flashToast = useCallback((msg: string) => {
     setToast(msg);
@@ -377,7 +502,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     if (s.kind === "bib" && s.value) {
       const value = s.value;
       const n = Number(value);
-      const racer = findRacerByBib(value) ?? null;
+      // Racer-name greeting only for the event that actually has roster data
+      // (Lighthouse). Other race events don't borrow Lighthouse names — fixes
+      // "bib 225 → Louis" on test-one / any non-roster event.
+      const racer = activeEventId === ROSTER_EVENT_ID ? findRacerByBib(value) ?? null : null;
       // Optimistic client-side filter for instant feedback. The server
       // call below upgrades this with bib-tagged results + the
       // "Is this you?" face candidates the runner can then confirm to
@@ -390,6 +518,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchedBib(value);
       setSearchFellBack(matches.length === 0);
       setResultPhotos(matches);
+      // Snapshot the bib base optimistically; the server upgrades it below.
+      setBibBasePhotos(matches);
+      setBibBaseTotal(null);
       // Clear the prior total so the teaser shows "…" rather than the last
       // bib's count until the server reports this bib's true total.
       setResultTotal(null);
@@ -404,7 +535,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       // upgrades the bib-tagged photo set. On error we keep the client-
       // side fallback so the user isn't worse off.
       void fetch(
-        `/api/photos?eventId=${encodeURIComponent(currentEvent.id)}&bib=${n}`
+        `/api/photos?eventId=${encodeURIComponent(activeEventId ?? "")}&bib=${n}`
       )
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then(
@@ -418,6 +549,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
             const ui = (d.photos ?? []).map(apiPhotoToUi);
             setResultPhotos(ui);
             setResultTotal(d.total ?? ui.length);
+            // The authoritative bib base — this is "all photos with the bib"
+            // and is what a face clear/change restores to.
+            setBibBasePhotos(ui);
+            setBibBaseTotal(d.total ?? ui.length);
             setSearchFellBack(ui.length === 0);
             setFaceCandidates(d.faceCandidates ?? []);
             if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
@@ -450,6 +585,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchFellBack(true); // face match is a stub today
       setResultPhotos(catalog);
       setResultTotal(catalog.length);
+      // No bib base for a face/browse search — face clear/restore only
+      // applies to a bib search.
+      setBibBasePhotos([]);
+      setBibBaseTotal(null);
       setFaceDone(true);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
@@ -460,6 +599,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchFellBack(false);
       setResultPhotos(catalog);
       setResultTotal(catalog.length);
+      setBibBasePhotos([]);
+      setBibBaseTotal(null);
       setFaceDone(false);
       setFaceCandidates([]);
       setConfirmedClusterId(null);
@@ -488,10 +629,22 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setConfirmedClusterId(clusterId);
     if (!Number.isFinite(bib) || bib <= 0) return;
 
+    // Clearing the face (clusterId === null): restore the cached bib base
+    // INSTANTLY rather than refetching. This is what brings back the bib
+    // photos a face filter dropped — the whole point of the restore. We only
+    // fall through to a network refetch when the snapshot is empty (e.g. the
+    // page was reloaded mid-filter, so the base wasn't in memory).
+    if (clusterId === null && bibBasePhotos.length > 0) {
+      setResultPhotos(bibBasePhotos);
+      setResultTotal(bibBaseTotal ?? bibBasePhotos.length);
+      setSearchFellBack(false);
+      return;
+    }
+
     setExpandingCluster(true);
     try {
       const url = new URL("/api/photos", window.location.origin);
-      url.searchParams.set("eventId", currentEvent.id);
+      url.searchParams.set("eventId", activeEventId ?? "");
       url.searchParams.set("bib", String(bib));
       if (clusterId) url.searchParams.set("cluster", clusterId);
       if (clusterId && faceOnly) url.searchParams.set("faceOnly", "1");
@@ -562,10 +715,21 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const seen = new Set(resultPhotos.map((rp) => rp.id));
       return extras.filter((p) => !seen.has(p.id));
     };
+    // Keep the bib base ("all my bib photos") in sync when another bib is
+    // added, so clearing a face later restores BOTH bibs' photos.
+    const mergeIntoBase = (extras: Photo[]) => {
+      setBibBasePhotos((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        const fresh = extras.filter((p) => !seen.has(p.id));
+        if (fresh.length === 0) return prev;
+        setBibBaseTotal((t) => (t == null ? null : t + fresh.length));
+        return [...prev, ...fresh];
+      });
+    };
 
     try {
       const r = await fetch(
-        `/api/photos?eventId=${encodeURIComponent(currentEvent.id)}&bib=${n}`
+        `/api/photos?eventId=${encodeURIComponent(activeEventId ?? "")}&bib=${n}`
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = (await r.json()) as {
@@ -576,6 +740,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       const adds = dedupe(ui);
       setResultPhotos([...resultPhotos, ...adds]);
       setResultTotal((prev) => (prev == null ? null : prev + adds.length));
+      mergeIntoBase(ui);
 
       // Merge the added bib's face candidates into the existing "Is this
       // you?" strip so the runner can disambiguate against the expanded
@@ -594,8 +759,10 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       console.warn("addBib server fetch failed, falling back to catalog:", e);
       // Local fallback — won't return all photos when the catalog is
       // capped, but better than nothing.
-      const adds = dedupe(catalog.filter((p) => p.bibs?.includes(n)));
+      const local = catalog.filter((p) => p.bibs?.includes(n));
+      const adds = dedupe(local);
       setResultPhotos([...resultPhotos, ...adds]);
+      mergeIntoBase(local);
       flashToast(`+${adds.length} photos from bib #${extraBib}`);
     }
   }
@@ -611,11 +778,21 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
    */
   async function runFaceSearch(file: File): Promise<void> {
     if (faceScanning) return;
+    // No event scope → the server 400s anyway, and the doomed request would
+    // still burn a slot of the caller's rate-limit quota. Bail early.
+    if (!activeEventId) {
+      flashToast("Open an event first, then scan your face.");
+      return;
+    }
     setFaceScanning(true);
     try {
       const form = new FormData();
       form.append("selfie", file);
-      form.append("eventId", currentEvent.id);
+      form.append("eventId", activeEventId);
+      // Carry the secure-link token (if we arrived via ?k=) so a face search on
+      // a locked event authorizes even before the cookie is persisted.
+      const k = new URLSearchParams(window.location.search).get("k");
+      if (k) form.append("k", k);
       const res = await fetch("/api/photos/face-search", {
         method: "POST",
         body: form,
@@ -625,7 +802,9 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
           .json()
           .then((j) => (j as { error?: string }).error ?? `HTTP ${res.status}`)
           .catch(() => `HTTP ${res.status}`);
-        flashToast(`Face search failed: ${msg}`);
+        // 429 messages are already runner-friendly ("give it a few seconds…") —
+        // show them verbatim rather than under a "Face search failed:" prefix.
+        flashToast(res.status === 429 ? msg : `Face search failed: ${msg}`);
         setFaceScanStatus("empty");
         return;
       }
@@ -645,7 +824,21 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       setSearchFellBack(false);
       setFaceDone(true);
       setFaceScanStatus("matched");
-      flashToast(`${data.matchCount} photo${data.matchCount === 1 ? "" : "s"} matched.`);
+      // Camp color-group expansion: remember the inferred group so the results
+      // screen can explain that teammates' photos were folded in.
+      if (data.colorGroup && (data.colorMatchCount ?? 0) > 0) {
+        setSearchColorGroup({
+          key: data.colorGroup.key,
+          label: data.colorGroup.label,
+          extraCount: data.colorMatchCount ?? 0,
+        });
+        flashToast(
+          `${data.faceMatchCount ?? data.matchCount} of you · +${data.colorMatchCount} from your color group`
+        );
+      } else {
+        setSearchColorGroup(null);
+        flashToast(`${data.matchCount} photo${data.matchCount === 1 ? "" : "s"} matched.`);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       flashToast(`Face search failed: ${msg}`);
@@ -664,18 +857,24 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
    */
   async function addFaceSearch(file: File): Promise<void> {
     if (faceScanning) return;
+    if (!activeEventId) {
+      flashToast("Open an event first, then scan your face.");
+      return;
+    }
     setFaceScanning(true);
     try {
       const form = new FormData();
       form.append("selfie", file);
-      form.append("eventId", currentEvent.id);
+      form.append("eventId", activeEventId);
+      const k = new URLSearchParams(window.location.search).get("k");
+      if (k) form.append("k", k);
       const res = await fetch("/api/photos/face-search", { method: "POST", body: form });
       if (!res.ok) {
         const msg = await res
           .json()
           .then((j) => (j as { error?: string }).error ?? `HTTP ${res.status}`)
           .catch(() => `HTTP ${res.status}`);
-        flashToast(`Face search failed: ${msg}`);
+        flashToast(res.status === 429 ? msg : `Face search failed: ${msg}`);
         return;
       }
       const data = (await res.json()) as FaceSearchResponse;
@@ -830,6 +1029,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   function clearSearch() {
     setResultPhotos([]);
     setResultTotal(null);
+    setBibBasePhotos([]);
+    setBibBaseTotal(null);
     setSearchLoading(false);
     setMatchedRacer(null);
     setSearchedBib(null);
@@ -839,6 +1040,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     setConfirmedClusterId(null);
     setAutoConfirmed(false);
     setFaceScanStatus("none");
+    setSearchColorGroup(null);
     setSelected(new Set());
   }
 
@@ -898,11 +1100,16 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       addFaceSearch,
       faceScanning,
       faceScanStatus,
+      searchColorGroup,
       faceCandidates,
       confirmedClusterId,
       expandingCluster,
       autoConfirmed,
       bundlePrice,
+      event,
+      capabilities,
+      activeEventId,
+      isFree,
       confirmFaceCluster,
       toggleSel,
       clearSel,
@@ -922,7 +1129,7 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     // We intentionally rebuild on every state change — context update is cheap here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalog, catalogLoading, catalogTotal, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, faceCandidates, confirmedClusterId, expandingCluster, autoConfirmed, bundlePrice, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
+    [catalog, catalogLoading, catalogTotal, hasHydratedSearch, didHydrate, resultPhotos, resultTotal, bibBasePhotos, bibBaseTotal, searchLoading, matchedRacer, searchedBib, searchFellBack, faceDone, faceScanning, faceScanStatus, searchColorGroup, faceCandidates, confirmedClusterId, expandingCluster, autoConfirmed, bundlePrice, event, capabilities, activeEventId, isFree, selected, cart, cartCappedToBundle, lightbox, lightboxScope, order, toast]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

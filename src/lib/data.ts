@@ -14,7 +14,7 @@ export type CurrentEvent = {
   status: EventStatus;
 };
 
-export type Role = "runner" | "photographer" | "race_director" | "admin";
+export type Role = "user" | "photographer" | "owner";
 
 export type User = {
   id: string;
@@ -204,6 +204,14 @@ export const racers: Racer[] = LIGHTHOUSE_RACERS.map((r) => ({
   distance: r.distance,
   finishTime: r.chipTime,
 }));
+
+/**
+ * The one event that actually has roster data (the static Lighthouse roster
+ * below). Racer-name lookups + the Roster admin are scoped to this id so other
+ * race events don't borrow Lighthouse names. (When per-event rosters land, this
+ * becomes a per-event check instead of a constant.)
+ */
+export const ROSTER_EVENT_ID = "lighthouse-half-2026";
 
 export function findRacerByBib(bib: number | string): Racer | undefined {
   const r = racerByBib(bib);

@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
-import { getEffectiveActor, hasRole } from "@/lib/permissions";
-import { currentEvent } from "@/lib/data";
+import { getEffectiveActor, isAdmin } from "@/lib/permissions";
+import { getDefaultEvent } from "@/lib/events";
 import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
 import { RunnerProfileClient } from "@/components/admin/RunnerProfileClient";
 
@@ -24,7 +24,7 @@ export default async function RunnerProfilePage({
   params: { bib: string };
 }) {
   const actor = await getEffectiveActor();
-  if (!actor || !hasRole(actor, "race_director")) {
+  if (!actor || !isAdmin(actor)) {
     redirect("/");
   }
 
@@ -36,14 +36,13 @@ export default async function RunnerProfilePage({
   const runner = LIGHTHOUSE_RACERS.find((r) => r.bib === bibNumber);
   if (!runner) notFound();
 
-  const eventName = Array.isArray(currentEvent.name)
-    ? currentEvent.name.join(" ")
-    : (currentEvent.name as unknown as string);
+  const ev = await getDefaultEvent();
+  if (!ev) notFound();
 
   return (
     <RunnerProfileClient
-      eventId={currentEvent.id}
-      eventName={eventName}
+      eventId={ev.id}
+      eventName={ev.name}
       runner={runner}
     />
   );

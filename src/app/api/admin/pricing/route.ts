@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/permissions";
-import { currentEvent } from "@/lib/data";
+import { getDefaultEvent } from "@/lib/events";
 import {
   resolveBundlePriceCents,
   centsToDollars,
@@ -50,7 +50,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Owner role required" }, { status: 403 });
   }
   const url = new URL(req.url);
-  const eventId = url.searchParams.get("eventId") || currentEvent.id;
+  const eventId = url.searchParams.get("eventId") || (await getDefaultEvent())?.id;
+  if (!eventId) {
+    return NextResponse.json({ error: "No event configured" }, { status: 404 });
+  }
   return NextResponse.json(await readPayload(eventId));
 }
 
@@ -82,7 +85,12 @@ export async function PATCH(req: Request) {
   }
 
   const eventId =
-    typeof body.eventId === "string" && body.eventId ? body.eventId : currentEvent.id;
+    typeof body.eventId === "string" && body.eventId
+      ? body.eventId
+      : (await getDefaultEvent())?.id;
+  if (!eventId) {
+    return NextResponse.json({ error: "No event configured" }, { status: 404 });
+  }
 
   try {
     await db.event.update({

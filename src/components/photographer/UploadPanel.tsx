@@ -3,7 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getDuplicatePolicy } from "@/lib/uploadSettings";
 
-export type EventLite = { id: string; name: string; date: string; city: string };
+export type EventLite = {
+  id: string;
+  name: string;
+  date: string;
+  city: string;
+  /** Detection config — drives which result pills the upload screen shows. A
+   *  camp (no bib OCR) hides the Bib pill and shows Color groups instead.
+   *  Optional so existing callers keep working (undefined → treated as on for
+   *  OCR/face to preserve the original behavior). */
+  ocrEnabled?: boolean;
+  faceRecEnabled?: boolean;
+  colorGroupEnabled?: boolean;
+};
 
 /**
  * Per-file pipeline stage. Upload and detection are now two phases:
@@ -31,6 +43,8 @@ type QueueItem = {
   bibCount?: number;
   /** Faces indexed by Rekognition during detect (set when stage === "done"). */
   faceCount?: number;
+  /** Distinct color groups detected in this photo (camp events). */
+  colorGroups?: string[];
   errorMsg?: string;
 };
 
@@ -339,11 +353,13 @@ export function UploadPanel({
     const d = (await res.json().catch(() => null)) as {
       detectedBibs?: number[];
       indexedFaceCount?: number;
+      colorGroups?: string[];
     } | null;
     updateItem(item.uid, {
       stage: "done",
       bibCount: Array.isArray(d?.detectedBibs) ? d!.detectedBibs!.length : 0,
       faceCount: typeof d?.indexedFaceCount === "number" ? d!.indexedFaceCount : 0,
+      colorGroups: Array.isArray(d?.colorGroups) ? d!.colorGroups! : [],
     });
   }
 
@@ -498,6 +514,14 @@ export function UploadPanel({
   const detectPct = Math.round((done / denom) * 100);
   const totalBibs = items.reduce((s, i) => s + (i.bibCount ?? 0), 0);
   const totalFaces = items.reduce((s, i) => s + (i.faceCount ?? 0), 0);
+  // Distinct color groups seen across the batch (camp events).
+  const distinctColorGroups = Array.from(new Set(items.flatMap((i) => i.colorGroups ?? [])));
+  // Which result pills to show, from the event's detection config. Bib OCR is
+  // hidden for events that don't use it (camps); color groups shown when on.
+  const showOcr = event.ocrEnabled !== false;
+  // Color groups need face rec (the color is sampled relative to face boxes), so
+  // only show the pill when both are on — mirrors detection's colorOn gate.
+  const showColorGroups = event.colorGroupEnabled === true && event.faceRecEnabled !== false;
   // Every item collided with an existing photo — nothing new to upload/detect.
   const allSkipped = total > 0 && active === 0 && skipped > 0;
 
@@ -789,7 +813,7 @@ export function UploadPanel({
                     lineHeight: 1.5,
                   }}
                 >
-                  All {active} uploaded and live. Bib OCR + face detection are still
+                  All {active} uploaded and live. {showOcr ? "Bib OCR + face detection" : "Face detection"} {showOcr ? "are" : "is"} still
                   running{detectEta != null ? <> — <strong>~{formatEta(detectEta)} left</strong></> : ""}.{" "}
                   <strong>Keep this tab open until tagging finishes.</strong>{" "}
                   Closing it stops detection (your photos stay safe; you can re-run
@@ -812,18 +836,20 @@ export function UploadPanel({
                   sub={uploading > 0 ? `pushing ${uploading}…` : "to storage"}
                   pct={uploadPct}
                 />
-                <Metric
-                  label="Bib OCR"
-                  value={`${done}/${active}`}
-                  sub={
-                    detecting > 0
-                      ? `scanning ${detecting}…`
-                      : detectPending > 0
-                        ? "queued…"
-                        : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
-                  }
-                  pct={detectPct}
-                />
+                {showOcr && (
+                  <Metric
+                    label="Bib OCR"
+                    value={`${done}/${active}`}
+                    sub={
+                      detecting > 0
+                        ? `scanning ${detecting}…`
+                        : detectPending > 0
+                          ? "queued…"
+                          : `${totalBibs} bib${totalBibs === 1 ? "" : "s"} found`
+                    }
+                    pct={detectPct}
+                  />
+                )}
                 <Metric
                   label="Face rec"
                   value={`${done}/${active}`}
@@ -836,6 +862,24 @@ export function UploadPanel({
                   }
                   pct={detectPct}
                 />
+                {showColorGroups && (
+                  <Metric
+                    label="Color groups"
+                    value={`${done}/${active}`}
+                    sub={
+                      detecting > 0
+                        ? `sampling ${detecting}…`
+                        : detectPending > 0
+                          ? "queued…"
+                          : distinctColorGroups.length > 0
+                            ? `${distinctColorGroups.length} group${
+                                distinctColorGroups.length === 1 ? "" : "s"
+                              }`
+                            : "none yet"
+                    }
+                    pct={detectPct}
+                  />
+                )}
                 {skipped > 0 && (
                   <Metric label="Skipped" value={`${skipped}`} sub="duplicates" />
                 )}

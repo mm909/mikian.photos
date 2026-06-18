@@ -37,8 +37,10 @@ export async function getOrderForViewer(
   if (!order) return { ok: false, reason: "not-found" };
 
   // Path 3: token. Verify signature + match orderId. Done first because it
-  // works without any session lookup, which is the cheap path.
-  if (token) {
+  // works without any session lookup, which is the cheap path. A refunded order
+  // revokes the magic link — the buyer no longer has entitlement (admins still
+  // see it via the session path below for support).
+  if (token && !order.refundedAt) {
     const claims = await verifyDownloadToken(token);
     if (claims && claims.orderId === order.id) {
       return { ok: true, order, via: "token" };

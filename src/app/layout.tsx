@@ -7,8 +7,8 @@ import { DevBanner } from "@/components/dev/DevBanner";
 import { SessionProviderWrapper } from "@/components/auth/SessionProviderWrapper";
 
 export const metadata: Metadata = {
-  title: "Mikian.Photos — Long Beach Half Marathon",
-  description: "Find your Long Beach Half Marathon photos. Search by face scan or bib number.",
+  title: "Mikian.Photos",
+  description: "Find your photos. Search by face, bib number, or browse the gallery.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

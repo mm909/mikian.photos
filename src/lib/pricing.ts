@@ -19,23 +19,36 @@ export function defaultBundlePriceCents(): number {
 }
 
 /**
- * Resolve the bundle price (in cents) for an event: the owner-set
- * Event.bundlePriceCents if present and valid, else the static default.
+ * Resolve an event's pricing in one query: whether it's free, and the bundle
+ * price in cents (0 when free). A free event short-circuits to 0 regardless of
+ * any bundlePriceCents that may be set. One helper so resolveBundlePriceCents
+ * and orderTotalUsd agree and don't double-query.
  */
-export async function resolveBundlePriceCents(eventId: string): Promise<number> {
+export async function getEventPricing(
+  eventId: string
+): Promise<{ isFree: boolean; bundleCents: number }> {
   try {
     const ev = await db.event.findUnique({
       where: { id: eventId },
-      select: { bundlePriceCents: true },
+      select: { isFree: true, bundlePriceCents: true },
     });
+    if (ev?.isFree) return { isFree: true, bundleCents: 0 };
     const cents = ev?.bundlePriceCents;
     if (typeof cents === "number" && Number.isFinite(cents) && cents >= 0) {
-      return cents;
+      return { isFree: false, bundleCents: cents };
     }
   } catch {
     /* fall through to default */
   }
-  return defaultBundlePriceCents();
+  return { isFree: false, bundleCents: defaultBundlePriceCents() };
+}
+
+/**
+ * Resolve the bundle price (in cents) for an event: 0 when free, else the
+ * owner-set Event.bundlePriceCents if present and valid, else the static default.
+ */
+export async function resolveBundlePriceCents(eventId: string): Promise<number> {
+  return (await getEventPricing(eventId)).bundleCents;
 }
 
 /** Cents → dollars (number), rounded to 2 dp. */
@@ -57,9 +70,13 @@ export async function orderTotalUsd(
   const subtotal =
     kind === "bundle"
       ? eventId
-        ? centsToDollars(await resolveBundlePriceCents(eventId))
+        ? centsToDollars((await getEventPricing(eventId)).bundleCents)
         : prices.bundle
       : Math.max(0, count) * prices.single;
+  // Free → $0 with NO processing fee. (A free event resolves bundleCents to 0
+  // via getEventPricing; a $0 paid misconfig is treated as free here too, so it
+  // never tries to charge PayPal $0.30.)
+  if (subtotal <= 0) return 0;
   const total = subtotal + subtotal * prices.stripeRate + prices.stripeFlat;
   return +total.toFixed(2);
 }

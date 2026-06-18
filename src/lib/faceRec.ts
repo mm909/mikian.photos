@@ -39,6 +39,7 @@ import "server-only";
 import sharp from "sharp";
 import {
   CreateCollectionCommand,
+  DeleteCollectionCommand,
   DeleteFacesCommand,
   IndexFacesCommand,
   RekognitionClient,
@@ -126,6 +127,30 @@ export async function ensureCollection(eventId: string): Promise<void> {
     if (name !== "ResourceAlreadyExistsException") throw e;
   }
   ensuredCollections.add(id);
+}
+
+/**
+ * Delete an event's entire Rekognition collection (all of its indexed faces in
+ * one call) — used when an event is deleted. Swallows ResourceNotFoundException
+ * (already gone / never created) and only warns on other failures so a
+ * Rekognition hiccup can't strand the event delete. Clears the per-process
+ * ensured-collection cache so a future event with the same id re-creates it.
+ */
+export async function deleteCollectionForEvent(eventId: string): Promise<void> {
+  if (!faceRecConfigured()) return;
+  const id = collectionIdFor(eventId);
+  try {
+    await client().send(new DeleteCollectionCommand({ CollectionId: id }));
+  } catch (e: unknown) {
+    const name = (e as { name?: string }).name;
+    if (name !== "ResourceNotFoundException") {
+      console.warn(
+        `DeleteCollection failed for event ${eventId} (orphan collection may remain):`,
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+  ensuredCollections.delete(id);
 }
 
 /** Resize + re-encode an image to fit Rekognition's byte cap. JPEG quality
@@ -276,9 +301,20 @@ export async function indexFacesForPhoto(opts: {
 
   await ensureCollection(eventId);
 
-  // If forced, drop any prior indexing for this photo before re-running.
+  // For a forced re-index, capture the prior Rekognition FaceIds but do NOT
+  // delete them yet — we retire them only AFTER a successful IndexFaces below.
+  // Deleting first and then failing (a transient Rekognition throttle/5xx)
+  // would strand the photo with zero faces but a still-set facesIndexedAt,
+  // which the dead-photo backfill skips — i.e. permanent, invisible face loss.
+  let priorFaceIds: string[] = [];
   if (force) {
-    await deleteFacesForPhoto({ photoId, eventId });
+    const prior = await db.photoFace.findMany({
+      where: { photoId, rekognitionFaceId: { not: null } },
+      select: { rekognitionFaceId: true },
+    });
+    priorFaceIds = prior
+      .map((r) => r.rekognitionFaceId)
+      .filter((x): x is string => Boolean(x));
   }
 
   const collectionId = collectionIdFor(eventId);
@@ -306,6 +342,10 @@ export async function indexFacesForPhoto(opts: {
       `IndexFaces failed for photo ${photoId}:`,
       e instanceof Error ? e.message : e
     );
+    // Non-destructive: we never touched the prior faces, so the existing data
+    // remains valid. For a forced re-index, surface the failure so a bulk
+    // re-run can count it rather than report the photo as silently "processed".
+    if (force) throw e instanceof Error ? e : new Error(String(e));
     return [];
   }
 
@@ -336,6 +376,27 @@ export async function indexFacesForPhoto(opts: {
     eventId,
     newFaces: indexed.map((f) => ({ rekognitionFaceId: f.rekognitionFaceId })),
   });
+
+  // IndexFaces succeeded — now it's safe to retire the prior faces (Rekognition
+  // entries + DB rows) before writing the fresh ones. Clustering above ran with
+  // the prior faces still present, which actually helps continuity (the new
+  // face matches its own prior index). Only reached on success, so a failed
+  // re-index can never destroy the existing faces.
+  if (force) {
+    if (priorFaceIds.length > 0) {
+      try {
+        await client().send(
+          new DeleteFacesCommand({ CollectionId: collectionId, FaceIds: priorFaceIds })
+        );
+      } catch (e) {
+        console.warn(
+          `DeleteFaces (prior) failed for photo ${photoId} (orphans may remain):`,
+          e instanceof Error ? e.message : e
+        );
+      }
+    }
+    await db.photoFace.deleteMany({ where: { photoId } });
+  }
 
   if (indexed.length > 0) {
     await db.photoFace.createMany({

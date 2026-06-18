@@ -24,7 +24,7 @@ export const runtime = "nodejs";
 type Body = { eventId?: string; bib?: number };
 
 export async function DELETE(req: Request) {
-  const actor = await requireRole("race_director");
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },

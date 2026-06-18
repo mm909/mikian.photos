@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { cookies } from "next/headers";
 import { autoConfirmClusterForBib, getConfirmedCluster } from "@/lib/faceAssignment";
-import { resolveBundlePriceCents, centsToDollars } from "@/lib/pricing";
+import { getEventPricing, centsToDollars } from "@/lib/pricing";
+import { getEvent } from "@/lib/events";
+import { eventCapabilities } from "@/lib/eventConfig";
+import { colorGroupLabel } from "@/lib/colorGroups";
+import { resolveEventAccess, secretLinkCookieName } from "@/lib/eventAccess";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -75,6 +80,21 @@ export async function GET(req: Request) {
   const faceOnly = url.searchParams.get("faceOnly") === "1" && Boolean(clusterParam);
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
+  // Enforce the event's access mode HERE too — not just on the page — so a
+  // locked event can't leak its photos through this JSON endpoint. Token comes
+  // from ?k= (initial secure-link load) or the remembered cookie.
+  const accessToken =
+    url.searchParams.get("k") ||
+    cookies().get(secretLinkCookieName(eventId))?.value ||
+    null;
+  const access = await resolveEventAccess(eventId, { token: accessToken });
+  if (!access.ok) {
+    return NextResponse.json(
+      { error: access.reason === "needs-auth" ? "sign-in required" : "not found" },
+      { status: access.reason === "needs-auth" ? 401 : 404 }
+    );
+  }
+
   const bib = bibParam ? Number(bibParam) : null;
   if (bibParam && (!Number.isFinite(bib) || (bib as number) <= 0)) {
     return NextResponse.json({ error: "invalid bib" }, { status: 400 });
@@ -102,6 +122,7 @@ export async function GET(req: Request) {
         takenAt: true,
         photographer: { select: { id: true, name: true } },
         bibs: { select: { bib: true } },
+        colorGroups: { select: { colorGroup: true } },
       },
     });
 
@@ -226,6 +247,7 @@ export async function GET(req: Request) {
           takenAt: true,
           photographer: { select: { id: true, name: true } },
           bibs: { select: { bib: true } },
+          colorGroups: { select: { colorGroup: true } },
         },
       });
       const bibIdSet = new Set(baseRows.map((p) => p.id));
@@ -269,6 +291,7 @@ export async function GET(req: Request) {
             takenAt: true,
             photographer: { select: { id: true, name: true } },
             bibs: { select: { bib: true } },
+            colorGroups: { select: { colorGroup: true } },
           },
         });
         for (const p of expansionRows) {
@@ -309,8 +332,17 @@ export async function GET(req: Request) {
         (await autoConfirmClusterForBib(eventId, bib));
     }
 
-    const bundlePrice = centsToDollars(await resolveBundlePriceCents(eventId));
+    const { isFree, bundleCents } = await getEventPricing(eventId);
+    const bundlePrice = centsToDollars(bundleCents);
+    // Display metadata so the runner flow can render the event headline without
+    // a hardcoded constant (multi-event: the event comes from the /e/[slug] URL).
+    const evDto = await getEvent(eventId);
     const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+    // Only PUBLIC events serve previews straight from the public CDN domain.
+    // Locked events (secure-link / private / account-only) route previews
+    // through the access-gated /preview endpoint so their images can't be
+    // fetched by URL without the event's secret link.
+    const useCdn = Boolean(publicBase) && evDto?.accessMode === "public";
 
     return NextResponse.json({
       photos: combined.map((p) => {
@@ -327,12 +359,18 @@ export async function GET(req: Request) {
           eventId: p.eventId,
           bibs,
           bib: bibs[0] ?? 0, // backward-compat
+          // The camp color groups visible in this photo (display labels). Empty
+          // for race events / photos with no detected groups.
+          colorGroups: p.colorGroups.map((c) => ({
+            key: c.colorGroup,
+            label: colorGroupLabel(c.colorGroup, evDto?.colorGroupLabels),
+          })),
           mile: p.mile,
           gps: p.gpsLat !== null && p.gpsLng !== null ? [p.gpsLat, p.gpsLng] : null,
           takenAt: p.takenAt,
           photographer: p.photographer.name,
           photographerId: p.photographer.id,
-          previewUrl: publicBase
+          previewUrl: useCdn
             ? `${publicBase}/previews/${p.id}.jpg`
             : `/api/photos/${p.id}/preview`,
           matchedVia,
@@ -348,6 +386,18 @@ export async function GET(req: Request) {
       autoConfirmClusterId,
       faceOnly,
       bundlePrice,
+      isFree,
+      event: evDto
+        ? {
+            id: evDto.id,
+            name: evDto.name,
+            nameParts: evDto.nameParts,
+            date: evDto.date.toISOString(),
+            city: evDto.city,
+            type: evDto.type,
+          }
+        : null,
+      capabilities: evDto ? eventCapabilities(evDto) : null,
       cap,
       total,
       crossLinked,

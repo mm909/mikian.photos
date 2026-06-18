@@ -9,11 +9,10 @@ import { useRunner } from "./RunnerProvider";
 export function RunnerChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { cart, lightbox, lightboxScope, resultPhotos, bundleInCart, bundlePrice, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle } = useRunner();
+  const { cart, lightbox, lightboxScope, resultPhotos, bundleInCart, bundlePrice, event, toast, closeLightbox, lbPrev, lbNext, openLightbox, addOneToCart, addBundle } = useRunner();
 
-  // Bare screens (the gated sign-in + wrong-account page) drop the nav chrome —
-  // there's nothing to navigate to until you're past the gate.
-  const bare = pathname === "/photographer/sign-in" || pathname === "/no-access";
+  // The sign-in screen drops the nav chrome — nothing to navigate to yet.
+  const bare = pathname === "/photographer/sign-in";
 
   return (
     <>
@@ -27,6 +26,7 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
           totalCount={resultPhotos.length}
           bundleInCart={bundleInCart}
           price={bundlePrice}
+          eventName={event?.name}
           onClose={closeLightbox}
           onPrev={lbPrev}
           onNext={lbNext}

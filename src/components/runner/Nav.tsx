@@ -6,84 +6,78 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Logo } from "./Logo";
 import { AccountWidget } from "@/components/auth/AccountWidget";
-import { useViewAs, rolesForView } from "@/lib/viewAs";
 
 type Props = {
   onLogo: () => void;
 };
 
-type View = {
-  label: string;
-  href?: string;          // omitted → disabled
-  match?: (path: string) => boolean;
-  /** Roles that can see this view. Omitted = visible to everyone. Owner
-   *  implies every other role (handled by hasRoleAny). */
-  roles?: ReadonlyArray<"photographer" | "race_director" | "owner">;
-};
-
-const VIEWS: View[] = [
-  {
-    label: "Lighthouse Half",
-    href: "/",
-    match: (p) =>
-      p === "/" ||
-      p.startsWith("/results") ||
-      p.startsWith("/checkout"),
-  },
-  {
-    // Photographer dashboard — landing place for "I shot this race" view.
-    // Upload is a sub-surface of the photographer flow so the dashboard
-    // chip stays active there too. Library + OCR Lab have their own chips.
-    label: "Photographers",
-    href: "/photographer",
-    match: (p) =>
-      p === "/photographer" || p.startsWith("/photographer/upload"),
-    // Race directors are senior admins (everything but settings/refunds), so
-    // they get the photographer surface too. The server-side hasRole already
-    // implies photographer for them; this just shows the chip.
-    roles: ["photographer", "race_director", "owner"],
-  },
-  {
-    // Roster + coverage surface (owner + race director). Roster lists race
-    // entrants joined with per-runner photo/face counts; the same page carries
-    // the bib/face/gaps coverage tabs. (/admin/coverage redirects here.)
-    label: "Roster",
-    href: "/admin/roster",
-    match: (p) => p.startsWith("/admin/roster") || p.startsWith("/admin/coverage"),
-    roles: ["race_director", "owner"],
-  },
-  {
-    // Orders dashboard — every order for the run, with sum stats + search.
-    // Owner gets refund / resend per row; race directors see it read-only.
-    label: "Orders",
-    href: "/admin/orders",
-    match: (p) => p.startsWith("/admin/orders"),
-    roles: ["race_director", "owner"],
-  },
-];
-
-function hasRoleAny(
-  sessionRoles: readonly string[] | undefined,
-  allowed: ReadonlyArray<string> | undefined
-): boolean {
-  if (!allowed) return true; // public view
-  if (!sessionRoles) return false;
-  if (sessionRoles.includes("owner")) return true;
-  return allowed.some((r) => sessionRoles.includes(r));
+/** Extract the event slug from a /e/[slug][/...] pathname; null elsewhere. */
+function eventSlugFromPath(p: string): string | null {
+  const m = p.match(/^\/e\/([^/]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
 }
 
+type EventMe = { type: string; canManage: boolean; canUpload: boolean; hasRoster: boolean };
+type View = { label: string; href: string; active: boolean };
+
+/**
+ * Contextual navigation (v2.1):
+ *   - Off an event → the directory (logo) + a platform-owner "Events" link.
+ *   - Inside /e/[slug] → event-scoped links: Photos, Upload (if you may upload),
+ *     Orders + Settings (if you manage the event). The viewer's per-event
+ *     capabilities come from GET /api/events/[slug]/me.
+ * Account widget always shows on the right.
+ */
 export function Nav({ onLogo }: Props) {
   const pathname = usePathname() ?? "/";
-  const { data: session } = useSession();
-  const sessionRoles = session?.roles;
-  const [viewAs] = useViewAs();
+  const { data: session, status } = useSession();
+  // Only treat the viewer as authed once next-auth resolves — never during the
+  // "loading" first paint, so management links can't flash before the session
+  // lands (or linger after sign-out).
+  const isAuthed = status === "authenticated";
+  const isOwner = isAuthed && Boolean(session?.roles?.includes("owner"));
+  const slug = eventSlugFromPath(pathname);
 
-  // Owners can preview the site as a lower role via "view as" (set in the
-  // account menu); everyone else sees the views their real roles unlock.
-  // Unauthenticated users get only the always-public views.
-  const isActualOwner = Boolean(sessionRoles?.includes("owner"));
-  const effectiveRoles = isActualOwner ? rolesForView(viewAs) : sessionRoles;
-  const visibleViews = VIEWS.filter((v) => hasRoleAny(effectiveRoles, v.roles));
+  // The event-management admin surfaces (Orders, Roster) are NOT /e/[slug] URLs
+  // — they carry the event id in `?eventId=`. Without this the contextual nav
+  // collapsed to just "Events" the moment you clicked Orders. Read it from the
+  // live location in an effect (not useSearchParams) so the global root-layout
+  // nav doesn't force every static page into client rendering.
+  const onAdminEventSurface =
+    pathname.startsWith("/admin/orders") || pathname.startsWith("/admin/roster");
+  const [adminEventId, setAdminEventId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!onAdminEventSurface || typeof window === "undefined") {
+      setAdminEventId(null);
+      return;
+    }
+    setAdminEventId(new URLSearchParams(window.location.search).get("eventId"));
+  }, [pathname, onAdminEventSurface]);
+
+  // The event the nav is scoped to: the /e/[slug] slug, or the ?eventId on an
+  // admin surface reached from an event.
+  const eventId = slug ?? adminEventId;
+
+  const [me, setMe] = useState<EventMe | null>(null);
+  useEffect(() => {
+    // Clear immediately when there's no event scope OR the viewer isn't signed
+    // in — so canManage/canUpload can't stay stale-true across a sign-out and
+    // leak the management links. Re-runs on identity change (deps below).
+    if (!eventId || !isAuthed) {
+      setMe(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/events/${encodeURIComponent(eventId)}/me`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: EventMe | null) => {
+        if (!cancelled) setMe(d);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, isAuthed, session?.user?.email]);
 
   // Mobile hamburger menu. Closes on navigation.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -91,11 +85,57 @@ export function Nav({ onLogo }: Props) {
     setMenuOpen(false);
   }, [pathname]);
 
+  const views: View[] = [];
+  if (eventId) {
+    views.push({ label: "Photos", href: `/e/${eventId}`, active: pathname === `/e/${eventId}` });
+    // Management links are double-gated on isAuthed so even a stale `me` (mid
+    // sign-out) can never render them to a signed-out viewer.
+    if (me?.canUpload && isAuthed) {
+      views.push({
+        label: "Upload",
+        href: `/e/${eventId}/upload`,
+        active: pathname.startsWith(`/e/${eventId}/upload`),
+      });
+    }
+    if (me?.canManage && isAuthed) {
+      if (me.hasRoster) {
+        views.push({
+          label: "Roster",
+          href: `/admin/roster?eventId=${eventId}`,
+          active: pathname.startsWith("/admin/roster"),
+        });
+      }
+      views.push({
+        label: "Orders",
+        href: `/admin/orders?eventId=${eventId}`,
+        active: pathname.startsWith("/admin/orders"),
+      });
+      views.push({
+        label: "Settings",
+        href: `/e/${eventId}/settings`,
+        active: pathname.startsWith(`/e/${eventId}/settings`),
+      });
+    }
+  } else if (isOwner) {
+    views.push({
+      label: "Events",
+      href: "/admin/events",
+      active: pathname.startsWith("/admin"),
+    });
+  } else if (isAuthed) {
+    // Signed-in buyer off-event (e.g. their /orders/[n] receipt) — give them a
+    // way back to their orders instead of an empty bar. Signed-out / magic-link
+    // viewers still get just the logo + Sign in.
+    views.push({
+      label: "My orders",
+      href: "/runner",
+      active: pathname.startsWith("/runner") || pathname.startsWith("/orders"),
+    });
+  }
+
   return (
     <nav className="nav">
       <Logo onClick={onLogo} />
-      {/* Hamburger — visible only on mobile (CSS). Toggles the link dropdown.
-          margin-left:auto (set in CSS) pushes it to the far right of the bar. */}
       <button
         type="button"
         className="nav__hamburger"
@@ -106,53 +146,28 @@ export function Nav({ onLogo }: Props) {
         {menuOpen ? "✕" : "☰"}
       </button>
       <ul className={`nav__links${menuOpen ? " nav__links--open" : ""}`}>
-        {visibleViews.map((v) => {
-          const active = v.href && v.match?.(pathname);
-          return (
-            <li key={v.label}>
-              {v.href ? (
-                <Link
-                  href={v.href}
-                  aria-current={active ? "page" : undefined}
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 10px",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    letterSpacing: ".14em",
-                    textTransform: "uppercase",
-                    textDecoration: "none",
-                    borderRadius: 4,
-                    color: active ? "var(--ink)" : "var(--muted)",
-                    background: active ? "var(--cream)" : "transparent",
-                  }}
-                >
-                  {v.label}
-                </Link>
-              ) : (
-                <span
-                  aria-disabled="true"
-                  title="Coming soon"
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 10px",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    letterSpacing: ".14em",
-                    textTransform: "uppercase",
-                    color: "var(--line)",
-                    cursor: "not-allowed",
-                    userSelect: "none",
-                  }}
-                >
-                  {v.label}
-                </span>
-              )}
-            </li>
-          );
-        })}
-        {/* Account widget lives INSIDE the link list so it sits inline at the
-            right on desktop and folds into the hamburger dropdown on mobile. */}
+        {views.map((v) => (
+          <li key={v.label}>
+            <Link
+              href={v.href}
+              aria-current={v.active ? "page" : undefined}
+              style={{
+                display: "inline-block",
+                padding: "6px 10px",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".14em",
+                textTransform: "uppercase",
+                textDecoration: "none",
+                borderRadius: 4,
+                color: v.active ? "var(--ink)" : "var(--muted)",
+                background: v.active ? "var(--cream)" : "transparent",
+              }}
+            >
+              {v.label}
+            </Link>
+          </li>
+        ))}
         <li className="nav__account">
           <AccountWidget />
         </li>

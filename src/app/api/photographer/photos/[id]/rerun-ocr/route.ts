@@ -27,7 +27,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const photo = await db.photo.findUnique({
     where: { id: params.id },
-    select: { id: true, photographerId: true },
+    select: { id: true, eventId: true, photographerId: true },
   });
   if (!photo) return NextResponse.json({ error: "unknown photo" }, { status: 404 });
 
@@ -36,6 +36,18 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   // unlock-cookie admin row) so admins don't need the legacy cookie to act.
   if (photo.photographerId !== actor.photographerId && !isAdmin(actor)) {
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
+  }
+
+  // Respect the per-event toggle — don't re-populate bibs the owner turned off.
+  const ev = await db.event.findUnique({
+    where: { id: photo.eventId },
+    select: { ocrEnabled: true },
+  });
+  if (ev && ev.ocrEnabled === false) {
+    return NextResponse.json(
+      { error: "Bib OCR is disabled for this event" },
+      { status: 409 }
+    );
   }
 
   const previewKey = r2Keys.preview(photo.id);

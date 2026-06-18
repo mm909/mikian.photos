@@ -33,7 +33,7 @@ function isGap(v: string | null): v is Gap {
 }
 
 export async function GET(req: Request) {
-  const actor = await requireRole("race_director");
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },

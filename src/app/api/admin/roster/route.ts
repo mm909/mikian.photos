@@ -41,9 +41,8 @@ const OFFICIAL_RESULTS_URLS: Record<string, string> = {
 };
 
 export async function GET(req: Request) {
-  // Owner + race director (owner implies race_director, so requireRole
-  // admits both). Read-only roster view — no curation actions live here.
-  const actor = await requireRole("race_director");
+  // Owner-tier (platform admin). Read-only roster view — no curation here.
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },

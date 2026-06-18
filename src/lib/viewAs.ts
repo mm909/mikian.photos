@@ -3,19 +3,19 @@
 import { useEffect, useState } from "react";
 
 /**
- * Owner-only "view as role" preview. Lets the owner see the site as a runner /
- * photographer / race director would (nav tabs, owner-only menu items) without
- * signing out. Client-side only — the owner still has full server-side access;
- * this just changes what the UI chooses to show.
+ * Owner-only "view as role" preview. Lets the owner see the site as a user /
+ * photographer would (nav tabs, owner-only menu items) without signing out.
+ * Client-side only — the owner still has full server-side access; this just
+ * changes what the UI chooses to show.
  *
  * Persisted in localStorage with a same-tab "storage" event so the Nav and the
  * account menu stay in sync (mirrors src/lib/devSettings.ts).
  */
-export type ViewAsRole = "owner" | "race_director" | "photographer" | "runner";
+export type ViewAsRole = "owner" | "photographer" | "user";
 
 const KEY = "mikian.viewas.v1";
 
-const VALID: ViewAsRole[] = ["owner", "race_director", "photographer", "runner"];
+const VALID: ViewAsRole[] = ["owner", "photographer", "user"];
 
 export function readViewAs(): ViewAsRole {
   if (typeof window === "undefined") return "owner";
@@ -31,15 +31,12 @@ export function readViewAs(): ViewAsRole {
 export function rolesForView(view: ViewAsRole): string[] {
   switch (view) {
     case "owner":
-      return ["runner", "photographer", "race_director", "owner"];
-    case "race_director":
-      // Race director implies photographer (senior admin minus settings).
-      return ["runner", "photographer", "race_director"];
+      return ["user", "photographer", "owner"];
     case "photographer":
-      return ["runner", "photographer"];
-    case "runner":
+      return ["user", "photographer"];
+    case "user":
     default:
-      return ["runner"];
+      return ["user"];
   }
 }
 

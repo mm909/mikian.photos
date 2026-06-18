@@ -14,20 +14,18 @@ import {
  * Roles are stored as a `roles: string[]` column on the Photographer row
  * (which is really the User table — see schema.prisma's comment).
  *
- * Valid roles:
- *   - "runner"         default; minimal account, just for receipts + past orders
- *   - "photographer"   can upload, edit, hide, delete their own photos
- *   - "race_director"  senior admin: everything EXCEPT the owner-only settings
- *                      panel (/admin/users: roles, pricing, duplicate policy)
- *                      and issuing refunds. Implies photographer + runner.
- *   - "owner"          all of the above + the settings panel + refunds
+ * Valid roles (v2.1 — race_director removed, runner renamed to user):
+ *   - "user"           default; minimal account, just for receipts + past orders
+ *   - "photographer"   platform photographer; can be granted per-event upload
+ *   - "owner"          platform super-admin: creates events, admins everything
  *
- * Owner implies every other role; race_director implies photographer + runner.
- * The `hasRole` helper enforces that, and `isAdmin` captures the owner-or-RD
- * "admin" tier used for see-all / manage-any-content decisions.
+ * Owner implies every other role. Per-EVENT authority (manage a specific
+ * event's settings / photographers / orders) is the platform owner OR the
+ * event's own owner — see `canManageEvent`. `isAdmin` is the platform admin
+ * tier (= owner), used for see-all / manage-any-content decisions.
  */
 
-export const ALL_ROLES = ["runner", "photographer", "race_director", "owner"] as const;
+export const ALL_ROLES = ["user", "photographer", "owner"] as const;
 export type Role = (typeof ALL_ROLES)[number];
 
 const OWNER_DEFAULT = "mikian.photos@gmail.com";
@@ -38,19 +36,22 @@ export function ownerEmail(): string {
 
 /** Normalize a free-form roles array from the DB to known roles only. */
 export function normalizeRoles(input: unknown): Role[] {
-  if (!Array.isArray(input)) return ["runner"];
+  // Legacy values ("runner", "race_director") aren't in ALL_ROLES anymore, so
+  // they're dropped here; an all-legacy array falls back to ["user"]. This makes
+  // the new code safe to run against pre-migration rows.
+  if (!Array.isArray(input)) return ["user"];
   const out = new Set<Role>();
   for (const v of input) {
     if (typeof v === "string" && (ALL_ROLES as readonly string[]).includes(v)) {
       out.add(v as Role);
     }
   }
-  if (out.size === 0) out.add("runner");
+  if (out.size === 0) out.add("user");
   return Array.from(out);
 }
 
 /** Roles an owner implicitly carries. */
-export const OWNER_IMPLIED_ROLES: Role[] = ["runner", "photographer", "race_director", "owner"];
+export const OWNER_IMPLIED_ROLES: Role[] = ["user", "photographer", "owner"];
 
 /**
  * Does the actor have this role? Owner is treated as having every role, and
@@ -60,9 +61,6 @@ export const OWNER_IMPLIED_ROLES: Role[] = ["runner", "photographer", "race_dire
 export function hasRole(actor: { roles?: readonly string[] | null }, role: Role): boolean {
   const rs = actor.roles ?? [];
   if (rs.includes("owner")) return true;
-  if (rs.includes("race_director") && (role === "photographer" || role === "runner")) {
-    return true;
-  }
   return rs.includes(role);
 }
 
@@ -71,15 +69,28 @@ export function isOwner(actor: { roles?: readonly string[] | null }): boolean {
 }
 
 /**
- * The "admin" tier: owner OR race_director. This is full admin over content and
- * orders — the photo library see-all, coverage curation, editing any
- * photographer's photos, viewing any order. It is everything an owner can do
- * EXCEPT the owner-only settings panel (/admin/users) and issuing refunds, which
- * keep using `isOwner`. Prefer this over `isOwner` for content/support powers.
+ * The platform "admin" tier (v2.1: = owner, since race_director was removed).
+ * Full admin over content/orders platform-wide. For authority over ONE event
+ * (event owner can manage their own event), use `canManageEvent` instead.
  */
 export function isAdmin(actor: { roles?: readonly string[] | null }): boolean {
-  const rs = actor.roles ?? [];
-  return rs.includes("owner") || rs.includes("race_director");
+  return Boolean(actor.roles?.includes("owner"));
+}
+
+/**
+ * Per-event authority: the platform owner, OR the event's own owner, may manage
+ * that event — its settings, photographer access, pricing, orders. Everyone
+ * else is a viewer/buyer. Use this for event-scoped admin instead of `isAdmin`.
+ */
+export function canManageEvent(
+  actor: { photographerId?: string; roles?: readonly string[] | null } | null,
+  event: { ownerId?: string | null }
+): boolean {
+  if (!actor) return false;
+  if (actor.roles?.includes("owner")) return true;
+  return Boolean(
+    event.ownerId && actor.photographerId && event.ownerId === actor.photographerId
+  );
 }
 
 /**
@@ -169,4 +180,20 @@ export async function requireRole(role: Role): Promise<Actor | null> {
   if (!actor) return null;
   if (!hasRole(actor, role)) return null;
   return actor;
+}
+
+/**
+ * Resolve the actor and assert they may manage this event — platform owner OR
+ * the event's own owner (see canManageEvent). Returns the Actor, or null to
+ * respond 403/404. The event-scoped analogue of requireRole.
+ */
+export async function requireEventManager(eventId: string): Promise<Actor | null> {
+  const actor = await getEffectiveActor();
+  if (!actor) return null;
+  const ev = await db.event.findUnique({
+    where: { id: eventId },
+    select: { ownerId: true },
+  });
+  if (!ev) return null;
+  return canManageEvent(actor, ev) ? actor : null;
 }

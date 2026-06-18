@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     select: { roles: true },
   });
   const roles = normalizeRoles(pg?.roles);
-  const isAdmin = roles.includes("owner") || roles.includes("race_director");
+  const isAdmin = roles.includes("owner");
 
   const url = new URL(req.url);
   // Pagination: pages-based when `page` is set, cursor-based otherwise.

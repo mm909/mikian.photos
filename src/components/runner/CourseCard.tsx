@@ -10,11 +10,13 @@ import {
   type DistanceKey,
   type GpxTrack,
 } from "@/lib/gpx";
-import { currentEvent, racers } from "@/lib/data";
+import { racers } from "@/lib/data";
+import { useRunner } from "./RunnerProvider";
 
 const TABS: DistanceKey[] = ["5k", "10k", "half"];
 
 export function CourseCard() {
+  const { event } = useRunner();
   const [tab, setTab] = useState<DistanceKey>("half");
   const [track, setTrack] = useState<GpxTrack | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export function CourseCard() {
         }}
       >
         <span className="live-dot" />
-        {currentEvent.name.join(" ")} · Photos Live
+        {event?.name ?? "Race"} · Photos Live
       </div>
 
       {/* Distance tabs */}

@@ -7,9 +7,8 @@ import { useViewAs, type ViewAsRole } from "@/lib/viewAs";
 
 const VIEW_AS_OPTIONS: { value: ViewAsRole; label: string }[] = [
   { value: "owner", label: "Owner" },
-  { value: "race_director", label: "Race director" },
   { value: "photographer", label: "Photographer" },
-  { value: "runner", label: "Runner" },
+  { value: "user", label: "User" },
 ];
 
 /**
@@ -280,13 +279,12 @@ function MenuLink({
 function roleDisplayFor(roles: readonly string[]): string {
   const labels: Record<string, string> = {
     owner: "Owner",
-    race_director: "Race director",
     photographer: "Photographer",
-    runner: "Runner",
+    user: "User",
   };
   if (roles.includes("owner")) return "Owner";
-  const meaningful = roles.filter((r) => r !== "runner");
-  if (meaningful.length === 0) return "Runner";
+  const meaningful = roles.filter((r) => r !== "user" && r !== "runner");
+  if (meaningful.length === 0) return "User";
   return meaningful.map((r) => labels[r] ?? r).join(" · ");
 }
 

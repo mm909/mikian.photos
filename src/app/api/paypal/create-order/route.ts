@@ -44,10 +44,17 @@ export async function POST(req: Request) {
     }
 
     const total = await orderTotalUsd(kind, count, eventId);
+
+    // Free event (or a $0 total): PayPal rejects $0 orders, so skip it entirely.
+    // The client claims the photos via /api/orders/free-claim instead.
+    if (total <= 0) {
+      return NextResponse.json({ free: true, amount: 0 });
+    }
+
     const description =
       kind === "bundle"
-        ? "Mikian.Photos — all race photos bundle"
-        : `Mikian.Photos — ${count} race photo${count === 1 ? "" : "s"}`;
+        ? "Mikian.Photos — all photos bundle"
+        : `Mikian.Photos — ${count} photo${count === 1 ? "" : "s"}`;
 
     const order = await createOrder({
       amountUsd: total,

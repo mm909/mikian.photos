@@ -7,6 +7,7 @@
  * token minting, and the receipt.
  */
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { mintDownloadToken } from "./downloadToken";
 import { sendReceiptEmail } from "./email";
@@ -130,17 +131,34 @@ export async function createPaidOrder(
     photoIds = found.map((p) => p.id);
   }
 
-  const order = await db.order.create({
-    data: {
-      email,
-      userId,
-      kind,
-      amount: amountUsd,
-      eventIdCovered: eventId,
-      photoIds,
-      paypalCaptureId,
-    },
-  });
+  let order: { id: string; orderNumber: number; amount: number; downloadToken: string | null; paidAt: Date };
+  try {
+    order = await db.order.create({
+      data: {
+        email,
+        userId,
+        kind,
+        amount: amountUsd,
+        eventIdCovered: eventId,
+        photoIds,
+        paypalCaptureId,
+      },
+      select: { id: true, orderNumber: true, amount: true, downloadToken: true, paidAt: true },
+    });
+  } catch (e) {
+    // Idempotency: a repeat carrying the SAME paypalCaptureId (a PayPal
+    // re-capture, or a free-claim retry that reuses its deterministic id)
+    // collides on the unique index. Return the already-created order rather than
+    // inserting a duplicate (+ a second token + a second receipt email).
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const existing = await db.order.findUnique({
+        where: { paypalCaptureId },
+        select: { id: true, orderNumber: true, amount: true, downloadToken: true, paidAt: true },
+      });
+      if (existing) return { ok: true, order: existing };
+    }
+    throw e;
+  }
 
   const token = await mintDownloadToken({ orderId: order.id });
   const orderWithToken = await db.order.update({

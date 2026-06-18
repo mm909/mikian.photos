@@ -1,31 +1,32 @@
 import { NextResponse } from "next/server";
-import { requireRole, hasRole } from "@/lib/permissions";
+import { hasRole, requireEventManager } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { currentEvent } from "@/lib/data";
+import { getDefaultEvent, getEvent } from "@/lib/events";
 import { formatOrderNumber } from "@/lib/orderId";
 
 /**
- * GET /api/admin/orders — every order for the current run.
- *
- * Visible to owner AND race_director (owner implies race_director, so
- * requireRole("race_director") admits both). Refund/resend actions are
- * gated separately to owner on their own routes; here we just flag which
- * rows are refundable so the UI can show the button only to owners.
+ * GET /api/admin/orders?eventId= — every order for ONE event. Gated by
+ * canManageEvent (platform owner OR the event's own owner). Refund/resend
+ * actions are owner-gated on their own routes; here we just flag which rows are
+ * refundable so the UI shows the button only to owners.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const actor = await requireRole("race_director");
+export async function GET(req: Request) {
+  // Scope to ?eventId= if supplied, else the default (newest published) event.
+  const qEventId = new URL(req.url).searchParams.get("eventId");
+  const ev = qEventId ? await getEvent(qEventId) : await getDefaultEvent();
+  if (!ev) {
+    return NextResponse.json({ error: "No event configured" }, { status: 404 });
+  }
+  const eventId = ev.id;
+
+  const actor = await requireEventManager(eventId);
   if (!actor) {
-    return NextResponse.json(
-      { error: "Race director or owner role required" },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
   const isOwner = hasRole(actor, "owner");
-
-  const eventId = currentEvent.id;
   const rows = await db.order.findMany({
     where: { eventIdCovered: eventId },
     orderBy: { paidAt: "desc" },
@@ -80,9 +81,5 @@ export async function GET() {
     refundedUsd: +refundedUsd.toFixed(2),
   };
 
-  const eventName = Array.isArray(currentEvent.name)
-    ? currentEvent.name.join(" ")
-    : String(currentEvent.name);
-
-  return NextResponse.json({ event: { id: eventId, name: eventName }, isOwner, stats, orders });
+  return NextResponse.json({ event: { id: eventId, name: ev.name }, isOwner, stats, orders });
 }

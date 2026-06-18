@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { getEffectiveActor, hasRole } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 import { RosterClient } from "@/components/admin/RosterClient";
-import { currentEvent } from "@/lib/data";
+import { getDefaultEvent, getEvent } from "@/lib/events";
 
 /**
  * Roster screen — owner + race director. Lists every official entrant for the
@@ -12,20 +12,30 @@ import { currentEvent } from "@/lib/data";
  * profile (the per-runner curation tools: confirm face, untag, hide, delete),
  * so the per-runner links are owner-gated via `isOwner` below.
  */
-export default async function RosterPage() {
+export default async function RosterPage({
+  searchParams,
+}: {
+  searchParams: { eventId?: string };
+}) {
   const actor = await getEffectiveActor();
-  // Owner + race director (owner implies race_director via hasRole).
-  if (!actor || !hasRole(actor, "race_director")) {
+  // Platform admin (owner) only. (Per-event roster is race-only; event-owner
+  // scoping comes with the event settings work.)
+  if (!actor || !isAdmin(actor)) {
     redirect("/");
   }
   const isOwner = hasRole(actor, "owner");
-  const eventName = Array.isArray(currentEvent.name)
-    ? currentEvent.name.join(" ")
-    : (currentEvent.name as unknown as string);
+  // Honor ?eventId (the nav's Roster link carries it) so the page matches the
+  // event the nav is scoped to; fall back to the default event otherwise.
+  const requested =
+    typeof searchParams.eventId === "string" && searchParams.eventId
+      ? await getEvent(searchParams.eventId)
+      : null;
+  const ev = requested ?? (await getDefaultEvent());
+  if (!ev) redirect("/");
   return (
     <RosterClient
-      defaultEventId={currentEvent.id}
-      defaultEventName={eventName}
+      defaultEventId={ev.id}
+      defaultEventName={ev.name}
       isOwner={isOwner}
     />
   );

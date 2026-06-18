@@ -70,9 +70,9 @@ export async function POST(req: Request) {
   if (!isEmail(email)) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
-  if (role !== "photographer" && role !== "race_director") {
+  if (role !== "photographer") {
     return NextResponse.json(
-      { error: "role must be photographer or race_director" },
+      { error: "role must be photographer" },
       { status: 400 }
     );
   }
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
 
   if (existing) {
     const roles = new Set(normalizeRoles(existing.roles));
-    roles.add("runner");
+    roles.add("user");
     roles.add(role);
     await db.photographer.update({
       where: { id: existing.id },
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       data: {
         email,
         name: email.split("@")[0],
-        roles: ["runner", role],
+        roles: ["user", role],
         isAdmin: false,
       },
     });
@@ -125,9 +125,9 @@ export async function DELETE(req: Request) {
   if (!isEmail(email)) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
-  if (role !== "photographer" && role !== "race_director") {
+  if (role !== "photographer") {
     return NextResponse.json(
-      { error: "role must be photographer or race_director" },
+      { error: "role must be photographer" },
       { status: 400 }
     );
   }
@@ -150,8 +150,8 @@ export async function DELETE(req: Request) {
 
   const roles = new Set(normalizeRoles(row.roles));
   roles.delete(role);
-  roles.add("runner");
-  const onlyRunner = roles.size === 1 && roles.has("runner");
+  roles.add("user");
+  const onlyRunner = roles.size === 1 && roles.has("user");
 
   if (onlyRunner && !row.googleSubject && row._count.photos === 0) {
     await db.photographer.delete({ where: { id: row.id } });

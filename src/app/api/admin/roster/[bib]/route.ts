@@ -32,7 +32,7 @@ export async function GET(
   req: Request,
   { params }: { params: { bib: string } }
 ) {
-  const actor = await requireRole("race_director");
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },
@@ -151,7 +151,7 @@ export async function POST(
   req: Request,
   { params }: { params: { bib: string } }
 ) {
-  const actor = await requireRole("race_director");
+  const actor = await requireRole("owner");
   if (!actor) {
     return NextResponse.json(
       { error: "Race director or owner role required" },

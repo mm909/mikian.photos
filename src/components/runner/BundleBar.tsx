@@ -30,8 +30,8 @@ export function BundleBar({ price = prices.bundle, inCart, onClick }: Props) {
         <div style={{ flex: 1, minWidth: 240 }}>
           <Headline
             as="h3"
-            text="Every photo from your race."
-            accent="your race."
+            text="Every photo from this event."
+            accent="this event."
             style={{
               margin: 0,
               fontFamily: "var(--font-serif)",

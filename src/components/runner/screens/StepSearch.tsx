@@ -5,27 +5,61 @@ import { Headline } from "../Headline";
 import { FaceScanner } from "../FaceScanner";
 import { useRunner } from "../RunnerProvider";
 import { BibSearchForm } from "../BibSearchForm";
-import { currentEvent } from "@/lib/data";
+
+/** Format an ISO event date as MM.DD.YY (UTC, to match the stored event time). */
+function formatEventDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const yy = String(d.getUTCFullYear()).slice(-2);
+  return `${mm}.${dd}.${yy}`;
+}
 
 /**
- * Step 1 — Search. The runner lands here. Bib number is the primary path
- * (default, autofocused); "scan your face" is the softer secondary for those
- * without a bib. On a bib submit we advance to the teaser immediately — the
- * provider's optimistic results are already on screen and upgrade in place.
- *
- * The face path opens the live camera scanner; once a scan matches, the
- * orchestrator (RunnerFlow) advances to the teaser by watching faceScanStatus.
+ * Step 1 — Search. The landing screen, scoped to the event's TYPE:
+ *   - race    → bib number is the primary path (autofocused), face the softer
+ *               secondary. Bib submit advances to the teaser.
+ *   - gallery → no bib/roster. "Find yourself by selfie" (when face detection is
+ *               on) and/or "Browse all photos". No race distances or course.
  */
 export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
-  const { runFaceSearch, faceScanning, catalog, catalogLoading, catalogTotal } = useRunner();
+  const {
+    runFaceSearch,
+    runSearch,
+    faceScanning,
+    catalog,
+    catalogLoading,
+    catalogTotal,
+    event,
+    capabilities,
+  } = useRunner();
   const [scannerOpen, setScannerOpen] = useState(false);
 
-  const raceName = `${currentEvent.name[0]} ${currentEvent.name[1]} ${currentEvent.name[2]}`.trim();
-  const raceAccent = currentEvent.name[0];
+  // Render strictly from capabilities. Until they load, show a neutral loading
+  // state — never flash the race bib/name form (e.g. on a camp event).
+  const loadingCaps = !capabilities;
+  const hasBib = capabilities?.searchModes.includes("bib") ?? false;
+  const hasFace = capabilities?.searchModes.includes("face") ?? false;
+
+  const raceName = event
+    ? `${event.nameParts[0]} ${event.nameParts[1]} ${event.nameParts[2]}`.trim()
+    : "";
+  const raceAccent = event?.nameParts[0] || "";
+  const dateLabel = event ? formatEventDate(event.date) : "";
   // Live count = the true uncapped event total. The catalog array is capped by
   // the API cost guardrail, so catalog.length undercounts; fall back to it only
   // if the total didn't come back.
   const photoCount = catalogLoading ? null : catalogTotal ?? (catalog.length || null);
+
+  // Only a race (bib) event personalizes the headline with the event name.
+  const headlineText = hasBib && raceName ? `Find your ${raceName} photos.` : "Find your photos.";
+  const headlineAccent = hasBib && raceName ? raceAccent : "photos.";
+
+  function browseAll() {
+    runSearch({ kind: "browse" });
+    onAdvance();
+  }
 
   return (
     <main className="screen" style={{ padding: "64px 32px 96px" }}>
@@ -48,13 +82,14 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
             }}
           >
             <span className="live-dot" />
-            {photoCount ? `${photoCount.toLocaleString()} photos live` : "Photos live"} · {currentEvent.date}
+            {photoCount ? `${photoCount.toLocaleString()} photos live` : "Photos live"}
+            {dateLabel ? ` · ${dateLabel}` : ""}
           </div>
 
           <Headline
             as="h1"
-            text={`Find your ${raceName} photos.`}
-            accent={raceAccent}
+            text={headlineText}
+            accent={headlineAccent}
             style={{
               margin: 0,
               fontFamily: "var(--font-serif)",
@@ -67,8 +102,7 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
             }}
           />
 
-          {/* Event meta — date · city · distances · live count. One combined
-              event; the bib tells us which distance, so no chooser. */}
+          {/* Event meta — city (+ race distances only for race events). */}
           <div
             style={{
               marginTop: 16,
@@ -83,44 +117,64 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
               alignItems: "center",
             }}
           >
-            <span>{currentEvent.city}</span>
-            <span aria-hidden>·</span>
-            <span>Half · 10K · 5K</span>
+            {event?.city ? (
+              <>
+                <span>{event.city}</span>
+                {hasBib ? <span aria-hidden>·</span> : null}
+              </>
+            ) : null}
+            {hasBib ? <span>Half · 10K · 5K</span> : null}
           </div>
 
           <div
             className="card"
             style={{ padding: 24, marginTop: 28, display: "flex", flexDirection: "column" }}
           >
-            {/* Primary: bib number — shared search model (also reused in the
-                empty-results state). */}
-            <BibSearchForm onSearched={onAdvance} autoFocus />
-
-            {/* Softer secondary: face scan for those without a bib */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                margin: "20px 0 16px",
-                color: "var(--muted)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: ".14em",
-                textTransform: "uppercase",
-              }}
-            >
-              <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-              <span>No bib?</span>
-              <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
-            </div>
-            <button
-              className="btn btn--ghost btn--block"
-              onClick={() => setScannerOpen(true)}
-              disabled={faceScanning}
-            >
-              {faceScanning ? "Scanning…" : "Scan your face instead"}
-            </button>
+            {loadingCaps ? (
+              <div
+                style={{
+                  padding: "16px 0",
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  fontSize: 14,
+                }}
+              >
+                Loading…
+              </div>
+            ) : hasBib ? (
+              <>
+                {/* Primary: bib number (also reused in the empty-results state). */}
+                <BibSearchForm onSearched={onAdvance} autoFocus />
+                <Divider label="No bib?" />
+                <button
+                  className="btn btn--ghost btn--block"
+                  onClick={() => setScannerOpen(true)}
+                  disabled={faceScanning}
+                >
+                  {faceScanning ? "Scanning…" : "Scan your face instead"}
+                </button>
+              </>
+            ) : hasFace ? (
+              <>
+                {/* Gallery with face detection: selfie find, or browse everything. */}
+                <button
+                  className="btn btn--primary btn--block"
+                  onClick={() => setScannerOpen(true)}
+                  disabled={faceScanning}
+                >
+                  {faceScanning ? "Scanning…" : "Find yourself by selfie"}
+                </button>
+                <Divider label="or" />
+                <button className="btn btn--ghost btn--block" onClick={browseAll}>
+                  Browse all photos
+                </button>
+              </>
+            ) : (
+              // Browse-only gallery (no face/bib).
+              <button className="btn btn--primary btn--block" onClick={browseAll}>
+                Browse all photos
+              </button>
+            )}
 
             <div style={{ flex: 1 }} />
             <LegalFooter />
@@ -133,9 +187,31 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
         onClose={() => setScannerOpen(false)}
         onCapture={runFaceSearch}
         busy={faceScanning}
-        subtitle="Center your face in the circle. We only use this to find your race photos."
+        subtitle="Center your face in the circle. We only use this to find your photos."
       />
     </main>
+  );
+}
+
+function Divider({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        margin: "20px 0 16px",
+        color: "var(--muted)",
+        fontFamily: "var(--font-mono)",
+        fontSize: 10,
+        letterSpacing: ".14em",
+        textTransform: "uppercase",
+      }}
+    >
+      <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+      <span>{label}</span>
+      <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+    </div>
   );
 }
 

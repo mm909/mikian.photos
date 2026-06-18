@@ -29,12 +29,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "roles must be an array of role strings" }, { status: 400 });
   }
 
-  // Filter to valid roles only, then ensure "runner" baseline
+  // Filter to valid roles only, then ensure the "user" baseline
   const filtered = body.roles.filter(
     (r): r is Role => typeof r === "string" && (ALL_ROLES as readonly string[]).includes(r)
   );
   const rolesSet = new Set<Role>(filtered);
-  rolesSet.add("runner");
+  rolesSet.add("user");
   const nextRoles = Array.from(rolesSet);
 
   const target = await db.photographer.findUnique({

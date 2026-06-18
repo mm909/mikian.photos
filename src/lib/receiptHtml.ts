@@ -117,7 +117,7 @@ export function renderReceiptHtml(r: ReceiptInput): string {
       Your photos
     </div>
     <p style="margin:0 0 14px;font-size:14px;line-height:1.45;color:${INK};">
-      All ${r.photoCount} of your race photos are ready. Sign in any time to download them again — your photos stay in your account.
+      All ${r.photoCount} of your photos are ready. Sign in any time to download them again — your photos stay in your account.
     </p>
     <!-- Two-button row. Outlook + some Apple-mail variants stretch <a>
          oddly when nested in flex containers, so we use a table for

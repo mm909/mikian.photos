@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2Keys, r2PresignPut } from "@/lib/r2";
 import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { isAdmin, normalizeRoles } from "@/lib/permissions";
+import { canUploadToEvent } from "@/lib/events";
 
 /**
  * Mint a presigned PUT URL so the browser can upload the original JPEG straight
@@ -51,6 +53,21 @@ export async function POST(req: Request) {
   const event = await db.event.findUnique({ where: { id: body.eventId } });
   if (!event) {
     return NextResponse.json({ error: "unknown eventId" }, { status: 404 });
+  }
+
+  // Per-event upload access (the real gate — the picker is only UX). Owner +
+  // race_director may upload anywhere; a plain photographer needs a membership.
+  const uploader = await db.photographer.findUnique({
+    where: { id: photographerId },
+    select: { roles: true },
+  });
+  const admin = isAdmin({ roles: normalizeRoles(uploader?.roles) });
+  const allowed = await canUploadToEvent({ photographerId, isAdmin: admin, eventId: body.eventId });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "You don't have access to upload to this event" },
+      { status: 403 }
+    );
   }
 
   // Duplicate detection. Only meaningful when a fingerprint is provided AND

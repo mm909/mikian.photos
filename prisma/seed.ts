@@ -35,18 +35,20 @@ async function main() {
   // Test photographers — get the photographer role pre-seeded so they
   // can upload immediately on first Google sign-in. Existing rows will
   // also have their roles updated by the upsert (idempotent).
-  const photographerRoles = ["runner", "photographer"];
+  const photographerRoles = ["user", "photographer"];
   const pgs = [
     { email: "mara@mikian.photos",  name: "Mara K.",  primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
     { email: "jules@mikian.photos", name: "Jules C.", primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
     { email: "devon@mikian.photos", name: "Devon L.", primaryEventId: event.id, roles: photographerRoles, isAdmin: false },
   ];
+  const memberIds: string[] = [];
   for (const p of pgs) {
     const row = await db.photographer.upsert({
       where: { email: p.email },
       update: p,
       create: p,
     });
+    memberIds.push(row.id);
     console.log(`✓ photographer: ${row.name} <${row.email}> [${row.roles.join(", ")}]`);
   }
 
@@ -54,7 +56,7 @@ async function main() {
   // Google sign-in. signIn() in src/lib/auth.ts will link this row to the
   // Google subject when mikian.photos@gmail.com logs in for the first time.
   const ownerEmail = (process.env.OWNER_EMAIL || "mikian.photos@gmail.com").toLowerCase();
-  const ownerRoles = ["runner", "photographer", "race_director", "owner"];
+  const ownerRoles = ["user", "photographer", "owner"];
   const owner = await db.photographer.upsert({
     where: { email: ownerEmail },
     update: { roles: ownerRoles, isAdmin: true },
@@ -67,6 +69,20 @@ async function main() {
     },
   });
   console.log(`✓ owner: ${owner.name} <${owner.email}> [${owner.roles.join(", ")}]`);
+
+  // v2 multi-event: grant each seeded photographer (+ owner) upload access to
+  // the event via EventPhotographer. Idempotent on the [eventId, photographerId]
+  // unique. Without these rows, enabling upload enforcement would lock the
+  // existing photographers out of the live event.
+  memberIds.push(owner.id);
+  for (const photographerId of memberIds) {
+    await db.eventPhotographer.upsert({
+      where: { eventId_photographerId: { eventId: event.id, photographerId } },
+      update: {},
+      create: { eventId: event.id, photographerId, addedBy: "seed" },
+    });
+  }
+  console.log(`✓ event access: ${memberIds.length} photographers → ${event.id}`);
 }
 
 main()

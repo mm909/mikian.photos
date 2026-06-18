@@ -62,7 +62,7 @@ export async function GET(req: Request) {
         org: "Elite Sports California",
       },
     });
-    await db.photographer.upsert({
+    const admin = await db.photographer.upsert({
       where: { email: ADMIN_PHOTOGRAPHER_EMAIL },
       update: { isAdmin: true, roles: OWNER_IMPLIED_ROLES },
       create: {
@@ -70,6 +70,23 @@ export async function GET(req: Request) {
         name: ADMIN_PHOTOGRAPHER_NAME,
         isAdmin: true,
         roles: OWNER_IMPLIED_ROLES,
+      },
+      select: { id: true },
+    });
+    // v2 multi-event: grant the admin row upload access to the Lighthouse event
+    // (owner bypasses enforcement anyway, but keep the bootstrap consistent).
+    await db.eventPhotographer.upsert({
+      where: {
+        eventId_photographerId: {
+          eventId: "lighthouse-half-2026",
+          photographerId: admin.id,
+        },
+      },
+      update: {},
+      create: {
+        eventId: "lighthouse-half-2026",
+        photographerId: admin.id,
+        addedBy: "unlock-bootstrap",
       },
     });
   } catch (e) {

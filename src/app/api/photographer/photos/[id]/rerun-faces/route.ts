@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { r2Configured, r2GetStream, r2Keys } from "@/lib/r2";
 import { faceRecConfigured, indexFacesForPhoto } from "@/lib/faceRec";
 import { linkFacesToBibsForPhoto } from "@/lib/faceBibMatch";
+import { detectColorGroupsForPhoto } from "@/lib/colorGroups";
 import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
 
 /**
@@ -45,6 +46,18 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "not your photo" }, { status: 403 });
   }
 
+  // Respect the per-event toggle — don't re-populate faces the owner turned off.
+  const ev = await db.event.findUnique({
+    where: { id: photo.eventId },
+    select: { faceRecEnabled: true, colorGroupEnabled: true },
+  });
+  if (ev && ev.faceRecEnabled === false) {
+    return NextResponse.json(
+      { error: "Face recognition is disabled for this event" },
+      { status: 409 }
+    );
+  }
+
   const previewKey = r2Keys.preview(photo.id);
 
   let bytes: Buffer;
@@ -69,9 +82,24 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
     // New face boxes — recompute the face↔bib links for this photo.
     await linkFacesToBibsForPhoto(photo.id);
+    // Re-detect camp color groups off the fresh face boxes when enabled.
+    let colorGroups: string[] = [];
+    if (ev?.colorGroupEnabled) {
+      try {
+        const res = await detectColorGroupsForPhoto({
+          photoId: photo.id,
+          eventId: photo.eventId,
+          previewBytes: bytes,
+        });
+        colorGroups = res.groups;
+      } catch (e) {
+        console.warn(`color-group detection failed for photo ${photo.id}:`, e);
+      }
+    }
     return NextResponse.json({
       indexed: indexed.length,
       faces: indexed,
+      colorGroups,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

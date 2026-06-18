@@ -8,7 +8,6 @@ import {
   ownerEmail,
   type Role,
 } from "./permissions";
-import { isSiteGateOn, isAllowedGateEmail } from "./siteGate";
 
 /**
  * NextAuth config — Google OAuth, JWT sessions.
@@ -23,8 +22,8 @@ import { isSiteGateOn, isAllowedGateEmail } from "./siteGate";
  *
  * Roles are assigned on first signIn:
  *   - email matches OWNER_EMAIL (default mikian.photos@gmail.com)
- *     → ["runner","photographer","race_director","owner"]
- *   - otherwise: keep existing roles if any, else default to ["runner"]
+ *     → ["user","photographer","owner"]
+ *   - otherwise: keep existing roles if any, else default to ["user"]
  *
  * No DB adapter for sessions (JWT strategy) — keeps things simple.
  * Session/JWT carry `photographerId`, `roles`, and (legacy) `isAdmin`.
@@ -42,23 +41,9 @@ export const authOptions: NextAuthOptions = {
       if (!user.email || !account?.providerAccountId) return false;
       const email = user.email.toLowerCase().trim();
 
-      // Site gate: while the whole site is private, only let in the one allowed
-      // account OR anyone the owner has already granted a role (photographer /
-      // race director / owner) — so an added director can get past the beta
-      // blocker. Everyone else is refused before any DB write.
-      // (See src/lib/siteGate.ts; disabled by SITE_PUBLIC=true.)
-      if (isSiteGateOn() && !isAllowedGateEmail(email)) {
-        const granted = await db.photographer.findUnique({
-          where: { email },
-          select: { roles: true },
-        });
-        const roles = granted ? normalizeRoles(granted.roles) : [];
-        const hasGatePass = roles.some(
-          (r) => r === "photographer" || r === "race_director" || r === "owner"
-        );
-        if (!hasGatePass) return false;
-      }
-
+      // v2.1: the whole-site gate is gone — any Google account can sign in.
+      // Per-event access modes (src/lib/eventAccess.ts) are the only visibility
+      // control now.
       const displayName = user.name ?? user.email.split("@")[0];
       const isOwnerEmail = email === ownerEmail();
 
@@ -82,12 +67,12 @@ export const authOptions: NextAuthOptions = {
         ? OWNER_IMPLIED_ROLES
         : existing
           ? normalizeRoles(existing.roles)
-          : ["runner"];
-      // Always ensure "runner" is present — a baseline so signed-in users
-      // can buy photos via their account.
-      const roles: Role[] = baseRoles.includes("runner")
+          : ["user"];
+      // Always ensure the "user" baseline is present so signed-in accounts can
+      // buy photos.
+      const roles: Role[] = baseRoles.includes("user")
         ? baseRoles
-        : (["runner", ...baseRoles] as Role[]);
+        : (["user", ...baseRoles] as Role[]);
       const isAdmin = roles.includes("owner");
 
       if (existing) {
@@ -143,7 +128,7 @@ export const authOptions: NextAuthOptions = {
         ? (token.roles as string[]).filter((r): r is Role =>
             (ALL_ROLES as readonly string[]).includes(r)
           )
-        : ["runner"];
+        : ["user"];
       return session;
     },
   },

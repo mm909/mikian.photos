@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { UploadClient } from "@/components/photographer/UploadClient";
-import { getEffectiveActor, hasRole } from "@/lib/permissions";
+import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
+import { listUploadableEvents } from "@/lib/events";
 import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
 export default async function UploadPage() {
@@ -12,32 +13,46 @@ export default async function UploadPage() {
     return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
 
-  // Single-event MVP — load the one active event so the dropzone knows where
-  // to attach uploads. If multiple events get added later, swap to a picker.
-  const event = await db.event.findFirst({
-    orderBy: { date: "desc" },
-    select: { id: true, name: true, date: true, city: true },
+  // Multi-event: the events this photographer may upload to (owner/RD = all;
+  // a plain photographer = their EventPhotographer memberships).
+  const events = await listUploadableEvents({
+    photographerId: actor.photographerId,
+    isAdmin: isAdmin(actor),
   });
 
-  if (!event) {
+  if (events.length === 0) {
     return (
       <main className="screen" style={{ padding: "96px 24px", textAlign: "center" }}>
         <p style={{ color: "var(--muted)" }}>
-          No event configured yet. Visit <code>/api/photographer/unlock?key=…</code> to bootstrap
-          the Lighthouse event row, or seed the DB manually.
+          You don&rsquo;t have upload access to any event yet. Ask the owner to add you to an
+          event under <code>/admin/events</code>.
         </p>
       </main>
     );
   }
 
+  // Pre-select the photographer's primary event when they can upload to it.
+  const me = await db.photographer.findUnique({
+    where: { id: actor.photographerId },
+    select: { primaryEventId: true },
+  });
+  const defaultEventId =
+    me?.primaryEventId && events.some((e) => e.id === me.primaryEventId)
+      ? me.primaryEventId
+      : events[0].id;
+
   return (
     <UploadClient
-      event={{
-        id: event.id,
-        name: event.name,
-        date: event.date.toISOString(),
-        city: event.city,
-      }}
+      events={events.map((e) => ({
+        id: e.id,
+        name: e.name,
+        date: e.date.toISOString(),
+        city: e.city,
+        ocrEnabled: e.ocrEnabled,
+        faceRecEnabled: e.faceRecEnabled,
+        colorGroupEnabled: e.colorGroupEnabled,
+      }))}
+      defaultEventId={defaultEventId}
     />
   );
 }

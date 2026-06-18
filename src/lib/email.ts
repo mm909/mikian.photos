@@ -44,6 +44,39 @@ function getClient(): Resend | null {
 
 export type SendResult = { ok: true; id?: string } | { ok: false; error: string };
 
+/**
+ * Send a plain-text notification to the platform owner (e.g. a contact-form
+ * submission). Returns ok=true when no Resend key is set (logs instead) so dev
+ * doesn't 500. `replyToAddr` lets the owner reply straight to the sender.
+ */
+export async function sendOwnerNotification(
+  subject: string,
+  text: string,
+  replyToAddr?: string
+): Promise<SendResult> {
+  const to = process.env.OWNER_EMAIL || "mikian.photos@gmail.com";
+  const client = getClient();
+  if (!client) {
+    console.info(`[email] (no RESEND_API_KEY) owner notification "${subject}" → ${to}\n${text}`);
+    return { ok: true };
+  }
+  try {
+    const res = await client.emails.send({
+      from: fromAddr(),
+      to,
+      replyTo: replyToAddr && replyToAddr.includes("@") ? replyToAddr : replyTo(),
+      subject,
+      text,
+    });
+    if (res.error) {
+      return { ok: false, error: String(res.error.message ?? res.error) };
+    }
+    return { ok: true, id: res.data?.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function sendReceiptEmail(
   to: string,
   receipt: ReceiptInput

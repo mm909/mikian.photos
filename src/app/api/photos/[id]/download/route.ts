@@ -48,9 +48,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // and gives us the entitlement list to check.
   const order = await db.order.findUnique({
     where: { id: claims.orderId },
-    select: { id: true, photoIds: true, orderNumber: true },
+    select: { id: true, photoIds: true, orderNumber: true, refundedAt: true },
   });
   if (!order) return NextResponse.json({ error: "order revoked" }, { status: 403 });
+  // Refunded → entitlement revoked; stop serving the full-res original.
+  if (order.refundedAt) {
+    return NextResponse.json({ error: "order refunded" }, { status: 403 });
+  }
 
   if (!order.photoIds.includes(params.id)) {
     return NextResponse.json({ error: "token does not cover this photo" }, { status: 403 });

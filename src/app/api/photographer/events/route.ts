@@ -43,7 +43,15 @@ export async function GET() {
     eventIds.length > 0
       ? await db.event.findMany({
           where: { id: { in: eventIds } },
-          select: { id: true, name: true, date: true, city: true },
+          select: {
+            id: true,
+            name: true,
+            date: true,
+            city: true,
+            ocrEnabled: true,
+            faceRecEnabled: true,
+            colorGroupEnabled: true,
+          },
         })
       : [];
   const eventById = new Map(events.map((e) => [e.id, e]));
@@ -94,6 +102,9 @@ export async function GET() {
         eventName: ev?.name ?? g.eventId,
         eventDate: ev?.date?.toISOString() ?? null,
         eventCity: ev?.city ?? null,
+        ocrEnabled: ev?.ocrEnabled ?? true,
+        faceRecEnabled: ev?.faceRecEnabled ?? true,
+        colorGroupEnabled: ev?.colorGroupEnabled ?? false,
         photoCount: g._count.id,
         lastUploadAt: g._max.createdAt?.toISOString() ?? null,
         orderCount: orderCountByEvent.get(g.eventId) ?? 0,

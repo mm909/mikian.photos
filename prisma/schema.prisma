@@ -16,6 +16,10 @@ datasource db {
 }
 
 model Event {
+  // `id` doubles as the public URL slug (e.g. "lighthouse-half-2026") — it is
+  // the FK target everywhere (Photo.eventId, PhotoFace.eventId,
+  // FaceAssignment.eventId, Order.eventIdCovered, the Rekognition collection
+  // name). No @default: new events get an explicit, slugified id.
   id            String         @id
   name          String
   date          DateTime
@@ -25,9 +29,90 @@ model Event {
   // as an Int to avoid float drift; nullable so events created before this
   // field fall back to the static `prices.bundle` default at read time.
   bundlePriceCents Int?
-  photographers Photographer[]
+
+  // --- v2 multi-event config (all defaulted → additive `db push`) ---------
+  // Lifecycle: "draft" (not yet live) | "published" (live) | "archived"
+  // (kept out of the default picker without deleting). String-enum to match
+  // the project convention (roles, PhotoBib.source); validated in code via
+  // src/lib/eventConfig.ts.
+  status          String   @default("published")
+  // Visibility: "public" (listed + searchable) | "secure-link" (unlisted,
+  // reachable only with secretLinkToken) | "account-only" (must be signed in).
+  // Enforced by src/lib/eventAccess.ts in BOTH the page layout and the APIs.
+  accessMode      String   @default("public")
+  // Random token gating "secure-link" events. Set only when accessMode is
+  // "secure-link"; null otherwise. @unique allows many NULLs in Postgres.
+  secretLinkToken String?  @unique
+  // Free events skip PayPal entirely (it rejects $0). A separate flag — NOT
+  // bundlePriceCents=0 — so a $0 *paid* misconfig can't silently hit PayPal.
+  // Defaults false so the existing (paid) Lighthouse row stays paid on push.
+  isFree          Boolean  @default(false)
+  // Per-event detection toggles. Gate runDetection() on top of the env-level
+  // *Configured() checks (run only if eventFlag && envConfigured).
+  ocrEnabled      Boolean  @default(true)
+  faceRecEnabled  Boolean  @default(true)
+  // Optional per-event OCR override (OcrSettings JSON); null → DEFAULT_OCR_SETTINGS.
+  ocrSettings     Json?
+
+  // --- v2.2 camp color groups -------------------------------------------
+  // When on, detection samples each detected person's shirt color (the torso
+  // region directly below their face) and snaps it to the nearest anchor in
+  // DEFAULT_CAMP_PALETTE — producing a per-person color group ("blue",
+  // "lavender", …) with no manual setup. Default false so existing race events
+  // are untouched; camp events default it on (see defaultsForType). Requires
+  // face recognition (color is sampled relative to face boxes).
+  colorGroupEnabled Boolean @default(false)
+  // Optional rename map for the auto-detected groups, e.g. { "blue": "Blue
+  // Jays" }. Null → use the palette's built-in label per key. Lets an owner
+  // relabel groups later without re-running detection (editor deferred).
+  colorGroupLabels  Json?
+
+  // --- v2.1 general platform ---------------------------------------------
+  // Event type drives the runner UX + capability defaults (see
+  // eventCapabilities() in src/lib/eventConfig.ts). "race" | "gallery" to start;
+  // the model is data-driven so more types are a config addition, not a schema
+  // change. The live Lighthouse row defaults to "race" (correct).
+  type            String   @default("race")
+  // The event's owner: manages its settings, photographer access, and orders.
+  // Defaults to the platform owner (Mikian); clients can own events later with
+  // no schema change. Per-event admin = platform owner OR this owner.
+  ownerId         String?
+  owner           Photographer? @relation("EventOwner", fields: [ownerId], references: [id])
+
+  photographers Photographer[] @relation("PrimaryEvent")
+  // Per-event photographer access list — who may upload into this event. A
+  // plain "photographer" needs a row here; owner/race_director bypass it.
+  eventPhotographers EventPhotographer[]
   photos        Photo[]
   createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt @default(now())
+}
+
+/// Per-event photographer access grant. A join table (not an array column) so
+/// Postgres can FK-validate it, index the per-upload "is X allowed on Y" check,
+/// and cascade-clean on delete — matching the relational style of PhotoBib /
+/// PhotoFace / FaceAssignment.
+///
+/// Semantics (enforced in code): owner + race_director may upload to ANY event
+/// implicitly; a plain "photographer" may upload to event X iff a row exists
+/// here. The upload picker lists accessible events; the real gate is the
+/// membership check in the sign route.
+model EventPhotographer {
+  id             String   @id @default(cuid())
+  eventId        String
+  photographerId String
+  // Future per-event granularity; null = the binary "may upload" grant.
+  role           String?
+  // Audit: who added this membership (actor id or email).
+  addedBy        String?
+  createdAt      DateTime @default(now())
+
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photographer Photographer @relation("EventAccess", fields: [photographerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, photographerId])
+  @@index([photographerId])
+  @@index([eventId])
 }
 
 /// Photographer is misnamed — it's really the User table (every signed-in
@@ -39,14 +124,20 @@ model Photographer {
   name           String
   // populated by NextAuth on first sign-in; nullable for seeded test rows
   googleSubject  String?  @unique
-  // many-to-many with events is overkill for MVP; we attach via Photo.eventId only
+  // Soft default for the upload event picker (NOT an access grant — access is
+  // EventPhotographer only). Pre-selects this event if the user can upload to it.
   primaryEventId String?
-  primaryEvent   Event?   @relation(fields: [primaryEventId], references: [id])
+  primaryEvent   Event?   @relation("PrimaryEvent", fields: [primaryEventId], references: [id])
+  // Events this user owns (v2.1 per-event ownership). See Event.ownerId.
+  ownedEvents    Event[]  @relation("EventOwner")
+  // Per-event upload access grants (v2 multi-event). See EventPhotographer.
+  eventAccess    EventPhotographer[] @relation("EventAccess")
   photos         Photo[]
   // Roles authoritative — see src/lib/permissions.ts for the type. Valid
-  // values: "runner" | "photographer" | "race_director" | "owner". A user
-  // can hold multiple roles; owner implies everything below.
-  roles          String[] @default(["runner"])
+  // values: "user" | "photographer" | "owner" (v2.1: race_director removed,
+  // runner renamed to user). A user can hold multiple roles; owner implies all.
+  // Per-event ownership (Event.ownerId) + EventPhotographer carry the rest.
+  roles          String[] @default(["user"])
   // Legacy mirror of `roles.includes("owner")` — kept for back-compat with
   // existing API routes that branch on `session.isAdmin` or `pg.isAdmin`.
   // Set on every write that touches `roles`; new code should prefer `roles`
@@ -90,6 +181,7 @@ model Photo {
   photographer Photographer @relation(fields: [photographerId], references: [id])
   bibs         PhotoBib[]
   faces        PhotoFace[]
+  colorGroups  PhotoColorGroup[]
 
   @@index([eventId, hidden])
   @@index([photographerId])
@@ -134,6 +226,15 @@ model PhotoFace {
   // box is close enough below the face (or bib OCR has no box yet). This is
   // what makes per-runner face assignment robust in multi-runner frames.
   bib                Int?
+  // The camp "team color" for THIS person — the torso region directly below the
+  // face, sampled at detection time and snapped to the nearest DEFAULT_CAMP_
+  // PALETTE anchor (see src/lib/colorGroups.ts). Null when color grouping is off
+  // for the event, the photo has no usable torso region, or the sample was too
+  // ambiguous. A face cluster's group is the statistical mode of this field over
+  // the cluster — that's what the camp face search uses to find teammates.
+  colorGroup         String?
+  // Raw sampled torso color as "#rrggbb" — debugging + future re-clustering.
+  colorHex           String?
   // "rekognition" | "facenet" | "manual" — same idea as PhotoBib.source.
   source             String   @default("rekognition")
   createdAt          DateTime @default(now())
@@ -144,6 +245,7 @@ model PhotoFace {
   @@index([photoId])
   @@index([eventId])
   @@index([eventId, bib])
+  @@index([eventId, colorGroup])
 }
 
 /// One row per (photo, bib) tag. Same photo can carry several bibs (multiple
@@ -169,6 +271,35 @@ model PhotoBib {
 
   @@unique([photoId, bib])
   @@index([bib])
+}
+
+/// One row per (photo, colorGroup) — the distinct camp color groups visible in
+/// a photo. The parallel to PhotoBib/PhotoFace: a photo can carry several color
+/// groups (multiple teams in frame), and a group appears across many photos.
+///
+/// Denormalized from the per-face PhotoFace.colorGroup so "every photo that
+/// contains the Blue group" is a single indexed lookup — that's the expansion
+/// the camp face search does after inferring a runner's own group. `count` is
+/// how many people of that group were detected in the photo.
+///
+/// `eventId` is denormalized off Photo so the lookup is event-scoped without a
+/// join (mirrors PhotoFace.eventId). Rebuilt wholesale per photo on each
+/// detection pass (delete + re-create), so it stays in sync with the faces.
+model PhotoColorGroup {
+  id         String   @id @default(cuid())
+  photoId    String
+  eventId    String
+  colorGroup String
+  count      Int      @default(1)
+  confidence Float    @default(1.0)
+  source     String   @default("auto") // "auto" | "manual"
+  createdAt  DateTime @default(now())
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([photoId, colorGroup])
+  @@index([eventId, colorGroup])
+  @@index([photoId])
 }
 
 /// Human-confirmed face for a runner (bib) in an event.
@@ -267,4 +398,20 @@ model Order {
   @@index([email])
   @@index([userId])
   @@index([eventIdCovered])
+}
+
+// Generic fixed-window rate-limit counter. One row per (key, windowStart);
+// the key encodes the rule + subject (e.g. "facesearch:burst:ip:1.2.3.4").
+// Incremented atomically via INSERT ... ON CONFLICT in src/lib/rateLimit.ts so
+// concurrent requests can't undercount. Used to throttle expensive public
+// endpoints (face search) without an external store (no Redis in this stack).
+// Expired rows are swept opportunistically; `expiresAt` indexes that sweep.
+model RateLimit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+
+  @@id([key, windowStart])
+  @@index([expiresAt])
 }

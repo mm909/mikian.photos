@@ -366,8 +366,8 @@ export function OrderPhotoGrid({
     setShareErr(null);
     navigator
       .share({
-        title: "Race photos",
-        text: `${files.length} race photo${files.length === 1 ? "" : "s"}`,
+        title: "Photos",
+        text: `${files.length} photo${files.length === 1 ? "" : "s"}`,
         files,
       })
       .then(() => {
@@ -685,7 +685,10 @@ export function OrderPhotoGrid({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/api/photos/${p.id}/preview`}
+                // Carry the order's download token so the access-gated preview
+                // route authorizes delivery even for a locked (secure-link)
+                // event where the viewer has no secret-link cookie.
+                src={`/api/photos/${p.id}/preview?key=${encodeURIComponent(downloadToken)}`}
                 alt=""
                 loading="lazy"
                 style={{
