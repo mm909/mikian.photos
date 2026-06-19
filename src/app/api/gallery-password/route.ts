@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { normalizeAccessMode, normalizeStatus } from "@/lib/eventConfig";
 import {
   galleryPasswordCookieName,
   hashGalleryPassword,
+  GALLERY_PASSWORD_COOKIE_PREFIX,
 } from "@/lib/eventAccess";
 
 /**
- * POST /api/gallery-password — unlock a password-protected gallery.
+ * POST   /api/gallery-password — unlock a password-protected gallery.
+ * DELETE /api/gallery-password — re-lock ALL password galleries (clear every
+ *   mk_gpw_* cookie). Called on sign-out so the buyer must re-enter passwords.
  *
- * Body: { eventId, password }
+ * POST body: { eventId, password }
  *
  * On a correct password we set an httpOnly unlock cookie (the keyed hash) that
  * both the event page and /api/photos read server-side via resolveEventAccess.
@@ -20,6 +24,17 @@ import {
  * 404 when the event isn't actually in password mode (don't confirm details).
  */
 export const runtime = "nodejs";
+
+/** Expire every gallery-password unlock cookie (one per unlocked event). */
+export async function DELETE() {
+  const res = NextResponse.json({ ok: true });
+  for (const c of cookies().getAll()) {
+    if (c.name.startsWith(GALLERY_PASSWORD_COOKIE_PREFIX)) {
+      res.cookies.set(c.name, "", { path: "/", maxAge: 0 });
+    }
+  }
+  return res;
+}
 
 type Body = { eventId?: string; password?: string };
 

@@ -1,12 +1,6 @@
-import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
 import { db } from "./db";
-import {
-  PHOTOGRAPHER_UNLOCK_COOKIE,
-  ADMIN_PHOTOGRAPHER_EMAIL,
-  ADMIN_PHOTOGRAPHER_NAME,
-} from "./photographerLock";
 
 /**
  * Single source of truth for who can do what.
@@ -104,15 +98,10 @@ export async function isOwnerActor(): Promise<boolean> {
 }
 
 /**
- * Resolve the caller's identity + roles.
- *
- * Order of precedence:
- *   1. NextAuth Google session — `session.photographerId` + `session.roles`.
- *   2. Photographer unlock cookie — bootstrap an owner-role admin row keyed
- *      on ADMIN_PHOTOGRAPHER_EMAIL (the synthetic email from photographerLock).
- *      Lets you do admin work without OAuth set up.
- *
- * Returns null when neither path applies.
+ * Resolve the caller's identity + roles from the NextAuth Google session only.
+ * Returns null when not signed in. (The legacy photographer-unlock cookie used
+ * to be a second path here — removed so an apparently-signed-out visitor can
+ * never resolve to an owner. Sign in with Google as the owner instead.)
  */
 export type Actor = {
   photographerId: string;
@@ -140,32 +129,7 @@ export async function getEffectiveActor(): Promise<Actor | null> {
       }
     }
   } catch {
-    /* NextAuth misconfigured — fall through to unlock cookie */
-  }
-
-  // Path 2: unlock cookie → owner
-  try {
-    if (cookies().get(PHOTOGRAPHER_UNLOCK_COOKIE)?.value === "1") {
-      const admin = await db.photographer.upsert({
-        where: { email: ADMIN_PHOTOGRAPHER_EMAIL },
-        update: { isAdmin: true, roles: OWNER_IMPLIED_ROLES },
-        create: {
-          email: ADMIN_PHOTOGRAPHER_EMAIL,
-          name: ADMIN_PHOTOGRAPHER_NAME,
-          isAdmin: true,
-          roles: OWNER_IMPLIED_ROLES,
-        },
-        select: { id: true, email: true, name: true, roles: true },
-      });
-      return {
-        photographerId: admin.id,
-        roles: normalizeRoles(admin.roles),
-        email: admin.email,
-        name: admin.name,
-      };
-    }
-  } catch {
-    /* cookies() can throw if called outside a request context */
+    /* NextAuth misconfigured / no session — treat as signed out. */
   }
 
   return null;

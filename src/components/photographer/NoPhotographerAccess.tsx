@@ -7,7 +7,7 @@ type Props = {
  * Empty-state shown to anyone who lands on a /photographer/* page without
  * the photographer (or owner) role. Two flavors:
  *
- *  - "signed-out": nudge to sign in or use the unlock key
+ *  - "signed-out": nudge to sign in with Google
  *  - "no-role":    they are signed in but as a runner. Tell them to ask
  *                  Mikian to be granted the photographer role.
  */
@@ -29,9 +29,7 @@ export function NoPhotographerAccess({ reason, name }: Props) {
       </h1>
       {reason === "signed-out" ? (
         <p style={{ marginTop: 16, color: "var(--muted)", lineHeight: 1.55 }}>
-          Sign in with Google at <a href="/photographer/sign-in">/photographer/sign-in</a>. If
-          you&rsquo;re Mikian and OAuth isn&rsquo;t set up for this environment, hit{" "}
-          <code>/api/photographer/unlock?key=…</code> with your unlock key.
+          Sign in with Google at <a href="/photographer/sign-in">/photographer/sign-in</a>.
         </p>
       ) : (
         <p style={{ marginTop: 16, color: "var(--muted)", lineHeight: 1.55 }}>

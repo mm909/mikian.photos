@@ -199,7 +199,13 @@ export function AccountWidget() {
           )}
           <button
             role="menuitem"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={async () => {
+              // Re-lock password-protected galleries on sign-out — the buyer
+              // must re-enter the password next time. Best-effort; sign out
+              // regardless. (httpOnly cookies, so a server round-trip clears them.)
+              await fetch("/api/gallery-password", { method: "DELETE" }).catch(() => {});
+              void signOut({ callbackUrl: "/" });
+            }}
             style={{ ...menuItemStyle(), marginTop: 6 }}
           >
             Sign out

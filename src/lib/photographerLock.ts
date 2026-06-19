@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
-import { db } from "./db";
 
 /**
  * Two ways to get photographer-level access:
@@ -39,13 +38,10 @@ export function isPhotographerUnlocked(): boolean {
  * need the photographer role should use `getEffectiveActor()` directly from
  * `permissions.ts` and check roles themselves.
  *
- * The NextAuth try/catch is deliberate: if the deploy is missing OAuth env
- * vars (NEXTAUTH_SECRET, GOOGLE_*), getServerSession can throw. We still want
- * the unlock path to work in that case.
+ * Google sign-in only — the legacy unlock-cookie bypass was removed (it let an
+ * apparently-signed-out visitor act as owner). Sign in with Google instead.
  */
 export async function getEffectivePhotographerId(): Promise<string | null> {
-  // Path 1: real Google sign-in — accept only if the user has photographer
-  // or owner role on their row.
   try {
     const session = await getServerSession(authOptions);
     if (session?.photographerId) {
@@ -56,27 +52,7 @@ export async function getEffectivePhotographerId(): Promise<string | null> {
       return null;
     }
   } catch {
-    /* NextAuth misconfigured — fall through */
-  }
-
-  // Path 2: unlock cookie. Idempotently upsert the admin row (owner role)
-  // so we have something to attribute uploads to.
-  if (isPhotographerUnlocked()) {
-    const admin = await db.photographer.upsert({
-      where: { email: ADMIN_PHOTOGRAPHER_EMAIL },
-      update: {
-        isAdmin: true,
-        roles: ["user", "photographer", "owner"],
-      },
-      create: {
-        email: ADMIN_PHOTOGRAPHER_EMAIL,
-        name: ADMIN_PHOTOGRAPHER_NAME,
-        isAdmin: true,
-        roles: ["user", "photographer", "owner"],
-      },
-      select: { id: true },
-    });
-    return admin.id;
+    /* NextAuth misconfigured / no session — treat as signed out. */
   }
 
   return null;
