@@ -119,10 +119,10 @@ export function AccountWidget() {
       {open && (
         <div
           role="menu"
+          className="account-menu"
           style={{
             position: "absolute",
             top: "calc(100% + 6px)",
-            right: 0,
             minWidth: 240,
             background: "var(--surface)",
             border: "1px solid var(--line)",
@@ -178,14 +178,12 @@ export function AccountWidget() {
               </div>
             )}
           </div>
-          {/* "My orders" is a BUYER's purchase history (→ /orders). The owner
-              has "All orders" for the business view, so this would just be an
-              empty/duplicate surface for them — show it only to non-owners. */}
-          {!isOwner && (
-            <MenuLink href="/orders" onClick={() => setOpen(false)}>
-              My orders
-            </MenuLink>
-          )}
+          {/* "My orders" = this account's own purchase history (→ /orders).
+              Shown to everyone, including the owner (separate from "All orders",
+              which is the cross-event business view). */}
+          <MenuLink href="/orders" onClick={() => setOpen(false)}>
+            My orders
+          </MenuLink>
           {isOwner && (
             <>
               {/* Explicit destinations — "Settings" used to point here and felt

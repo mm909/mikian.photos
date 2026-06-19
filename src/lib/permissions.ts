@@ -183,6 +183,21 @@ export async function requireRole(role: Role): Promise<Actor | null> {
 }
 
 /**
+ * TEMPORARY upload lockdown — only the platform owner's MAIN account may upload.
+ * Returns the actor iff it's signed in as `ownerEmail()` (a real owner Google
+ * account). This deliberately EXCLUDES the legacy photographer-unlock cookie:
+ * that cookie resolves to a synthetic admin (ADMIN_PHOTOGRAPHER_EMAIL) whose
+ * email isn't the owner email, so it can no longer reach the upload flow without
+ * a real sign-in. Re-open per-event photographer uploads later (see
+ * canUploadToEvent + the request/approve flow, currently bypassed for uploads).
+ */
+export async function requireOwnerUpload(): Promise<Actor | null> {
+  const actor = await getEffectiveActor();
+  if (!actor) return null;
+  return actor.email.toLowerCase().trim() === ownerEmail() ? actor : null;
+}
+
+/**
  * Resolve the actor and assert they may manage this event — platform owner OR
  * the event's own owner (see canManageEvent). Returns the Actor, or null to
  * respond 403/404. The event-scoped analogue of requireRole.

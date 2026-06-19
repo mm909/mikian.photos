@@ -1,24 +1,25 @@
 import { db } from "@/lib/db";
 import { UploadClient } from "@/components/photographer/UploadClient";
-import { getEffectiveActor, hasRole, isAdmin } from "@/lib/permissions";
-import { listUploadableEvents } from "@/lib/events";
+import { getEffectiveActor, ownerEmail } from "@/lib/permissions";
+import { listEvents } from "@/lib/events";
 import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
+/**
+ * TEMPORARY lockdown: uploading is restricted to the platform owner's main
+ * account (ownerEmail()) — see the per-event upload page for context. Re-open
+ * per-event photographer uploads later.
+ */
 export default async function UploadPage() {
   const actor = await getEffectiveActor();
   if (!actor) {
     return <NoPhotographerAccess reason="signed-out" />;
   }
-  if (!hasRole(actor, "photographer")) {
+  if (actor.email.toLowerCase().trim() !== ownerEmail()) {
     return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
 
-  // Multi-event: the events this photographer may upload to (owner/RD = all;
-  // a plain photographer = their EventPhotographer memberships).
-  const events = await listUploadableEvents({
-    photographerId: actor.photographerId,
-    isAdmin: isAdmin(actor),
-  });
+  // Owner uploads to any non-archived event.
+  const events = await listEvents();
 
   if (events.length === 0) {
     return (
@@ -53,9 +54,8 @@ export default async function UploadPage() {
         colorGroupEnabled: e.colorGroupEnabled,
       }))}
       defaultEventId={defaultEventId}
-      // The platform owner can manage who else may upload, right from here.
-      // (Per-event owners + the real enforcement live in the photographers API.)
-      canManagePhotographers={isAdmin(actor)}
+      // Multi-photographer invite/manage is paused while uploads are owner-only
+      // (no share link on the upload page). Re-enable when we re-open uploads.
     />
   );
 }

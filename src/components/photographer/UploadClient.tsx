@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Headline } from "@/components/runner/Headline";
 import { EventPhotographers } from "@/components/admin/EventsAdminClient";
 import { UploadPanel, type EventLite } from "./UploadPanel";
@@ -25,7 +24,6 @@ export function UploadClient({
   /** Show the "add photographers" panel for the selected event (owner/admin). */
   canManagePhotographers?: boolean;
 }) {
-  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string>(
     defaultEventId && events.some((e) => e.id === defaultEventId)
       ? defaultEventId
@@ -118,11 +116,9 @@ export function UploadClient({
           </div>
         )}
 
-        <UploadPanel
-          key={selected.id}
-          event={selected}
-          onDone={() => router.push("/")}
-        />
+        {/* No onDone → "Done" resets the panel back to the dropzone in place,
+            keeping the photographer on the upload page to drop another batch. */}
+        <UploadPanel key={selected.id} event={selected} />
 
         {/* Owner/admin: share the upload link + manage who else can upload.
             Scoped to the selected event; the photographers API enforces access. */}

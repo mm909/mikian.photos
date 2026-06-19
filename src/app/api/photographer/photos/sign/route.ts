@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { r2Configured, r2Keys, r2PresignPut } from "@/lib/r2";
-import { getEffectivePhotographerId } from "@/lib/photographerLock";
-import { isAdmin, normalizeRoles } from "@/lib/permissions";
-import { canUploadToEvent } from "@/lib/events";
+import { requireOwnerUpload } from "@/lib/permissions";
 
 /**
  * Mint a presigned PUT URL so the browser can upload the original JPEG straight
@@ -29,13 +27,17 @@ import { canUploadToEvent } from "@/lib/events";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
+  // TEMPORARY: uploads are locked to the platform owner's main account. This is
+  // the real security boundary for uploads (no photo row without a sign), so the
+  // lock lives here, not just on the page. Excludes the legacy unlock cookie.
+  const actor = await requireOwnerUpload();
+  if (!actor) {
     return NextResponse.json(
-      { error: "Photographer access required — sign in or unlock first" },
-      { status: 401 }
+      { error: "Uploading is restricted to the owner account." },
+      { status: 403 }
     );
   }
+  const photographerId = actor.photographerId;
   if (!r2Configured()) {
     return NextResponse.json({ error: "Photo storage not configured" }, { status: 503 });
   }
@@ -54,21 +56,7 @@ export async function POST(req: Request) {
   if (!event) {
     return NextResponse.json({ error: "unknown eventId" }, { status: 404 });
   }
-
-  // Per-event upload access (the real gate — the picker is only UX). Owner +
-  // race_director may upload anywhere; a plain photographer needs a membership.
-  const uploader = await db.photographer.findUnique({
-    where: { id: photographerId },
-    select: { roles: true },
-  });
-  const admin = isAdmin({ roles: normalizeRoles(uploader?.roles) });
-  const allowed = await canUploadToEvent({ photographerId, isAdmin: admin, eventId: body.eventId });
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "You don't have access to upload to this event" },
-      { status: 403 }
-    );
-  }
+  // (Owner may upload to any event — no per-event membership check while locked.)
 
   // Duplicate detection. Only meaningful when a fingerprint is provided AND
   // the caller hasn't explicitly opted to force a fresh upload.

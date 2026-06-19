@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { processUpload } from "@/lib/imagePipeline";
 import { r2Configured, r2Put, r2Keys } from "@/lib/r2";
-import { getEffectivePhotographerId } from "@/lib/photographerLock";
+import { requireOwnerUpload } from "@/lib/permissions";
 
 // Upload one photo. Multipart form with:
 //   file: the image
@@ -17,13 +17,15 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const photographerId = await getEffectivePhotographerId();
-  if (!photographerId) {
+  // Uploads are locked to the platform owner's main account (see sign route).
+  const actor = await requireOwnerUpload();
+  if (!actor) {
     return NextResponse.json(
-      { error: "Photographer access required — sign in or unlock first" },
-      { status: 401 }
+      { error: "Uploading is restricted to the owner account." },
+      { status: 403 }
     );
   }
+  const photographerId = actor.photographerId;
   if (!r2Configured()) {
     return NextResponse.json({ error: "Photo storage not configured" }, { status: 503 });
   }

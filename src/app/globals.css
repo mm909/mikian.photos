@@ -246,6 +246,11 @@ input, textarea, select, button {
   display: inline-flex; align-items: center; flex: 0 0 auto;
   margin-left: auto; padding-left: 8px; overflow: visible;
 }
+/* Account dropdown horizontal anchor. Desktop: the avatar sits at the far right
+   so the menu opens leftward (right:0). On mobile it folds to the left of a
+   full-width row, so right:0 would push a 240px menu off the LEFT edge — flip to
+   left:0 there (see the 640px media query) so it opens rightward and fits. */
+.account-menu { right: 0; left: auto; }
 /* Hamburger — hidden on desktop, shown on mobile. */
 .nav__hamburger {
   display: none;
@@ -471,6 +476,15 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
   .nav__account {
     width: 100%; margin: 4px 0 0; padding: 10px 12px 4px;
     border-top: 1px solid var(--line); justify-content: flex-start;
+  }
+  /* Avatar is at the LEFT here, so open the menu rightward and cap its width to
+     the viewport so it never spills off either edge. Cap height too (scroll if
+     it ever grows tall) so it can't run off the bottom of a short screen. */
+  .account-menu {
+    right: auto; left: 0;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
   }
 }
 @media (max-width: 800px) {
