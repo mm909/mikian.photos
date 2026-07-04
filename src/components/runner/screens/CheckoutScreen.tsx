@@ -43,7 +43,9 @@ type Props = { unlocked: boolean };
 export function CheckoutScreen({ unlocked }: Props) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { cart, finalizeOrder, addBundle, activeEventId, isFree, didHydrate } = useRunner();
+  const { cart, finalizeOrder, addBundle, activeEventId, isFree, didHydrate, event } = useRunner();
+  // "race" reads wrong on a camp/gallery — use a neutral noun unless it's a race.
+  const eventNoun = event?.type === "race" ? "race" : "event";
 
   // When the buy flow is locked we don't auto-add the bundle — there's nothing to buy.
   // Show a friendly "Coming soon" panel and let the visitor go back to browsing.
@@ -79,14 +81,14 @@ export function CheckoutScreen({ unlocked }: Props) {
           />
           <p style={{ color: "var(--muted)", fontSize: 16, marginTop: 18 }}>
             Mikian.Photos is in preview — you can browse the experience, but checkout is paused
-            until we go live for your race. Come back soon.
+            until we go live for your {eventNoun}. Come back soon.
           </p>
           <button
             className="btn btn--primary btn--lg"
             onClick={() => router.push("/")}
             style={{ marginTop: 28 }}
           >
-            ← Back to the race
+            ← Back to the {eventNoun}
           </button>
         </div>
       </main>

@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Logo } from "./Logo";
 import { AccountWidget } from "@/components/auth/AccountWidget";
+import { useRunner } from "./RunnerProvider";
+import { galleryVisibleTo } from "@/lib/eventConfig";
 
 type Props = {
   onLogo: () => void;
@@ -31,6 +33,7 @@ type EventMe = {
   canManage: boolean;
   canUpload: boolean;
   hasRoster: boolean;
+  galleryVisible: boolean;
 };
 type View = { label: string; href: string; active: boolean };
 
@@ -44,6 +47,7 @@ type View = { label: string; href: string; active: boolean };
  */
 export function Nav({ onLogo, eventName, activeEventId }: Props) {
   const pathname = usePathname() ?? "/";
+  const { event: runnerEvent } = useRunner();
   const { data: session, status } = useSession();
   // Only treat the viewer as authed once next-auth resolves — never during the
   // "loading" first paint, so management links can't flash before the session
@@ -109,9 +113,23 @@ export function Nav({ onLogo, eventName, activeEventId }: Props) {
     setMenuOpen(false);
   }, [pathname]);
 
+  // Who may see the browse-everything Gallery tab: a public gallery (anyone),
+  // or a manager/owner. Uses the authenticated `me.galleryVisible` when known,
+  // else the event's visibility (from the runner catalog fetch, available even
+  // to anon viewers). Only shown on real event pages (slug), not admin surfaces.
+  const galleryVisible =
+    Boolean(me?.galleryVisible) || galleryVisibleTo(runnerEvent?.galleryVisibility, isOwner);
+
   const views: View[] = [];
   if (eventId) {
     views.push({ label: "Photos", href: `/e/${eventId}`, active: pathname === `/e/${eventId}` });
+    if (slug && galleryVisible) {
+      views.push({
+        label: "Gallery",
+        href: `/e/${eventId}/gallery`,
+        active: pathname === `/e/${eventId}/gallery`,
+      });
+    }
     // Management links are double-gated on isAuthed so even a stale `me` (mid
     // sign-out) can never render them to a signed-out viewer.
     if (me?.canUpload && isAuthed) {
@@ -126,9 +144,15 @@ export function Nav({ onLogo, eventName, activeEventId }: Props) {
         views.push({
           label: "Roster",
           href: `/admin/roster?eventId=${eventId}`,
-          active: pathname.startsWith("/admin/roster"),
+          active: pathname.startsWith("/admin/roster") && !pathname.startsWith("/admin/roster-import"),
         });
       }
+      // Roster import (paste a results link / CSV) — for any managed event.
+      views.push({
+        label: "Import",
+        href: `/admin/roster-import?eventId=${eventId}`,
+        active: pathname.startsWith("/admin/roster-import"),
+      });
       views.push({
         label: "Orders",
         href: `/admin/orders?eventId=${eventId}`,

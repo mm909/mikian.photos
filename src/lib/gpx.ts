@@ -34,6 +34,104 @@ function haversineM(a: [number, number], b: [number, number]) {
   return 2 * R_EARTH * Math.asin(Math.sqrt(x));
 }
 
+/** A parsed GPX with per-point timestamps — what the relay segment uploader
+ *  needs beyond the display-only GpxTrack: moving time (for pace), start/end,
+ *  and a decimated polyline for storage. Browser-only (DOMParser). */
+export type GpxActivity = GpxTrack & {
+  /** Wall-clock start/end from the first/last timestamped point; null when the
+   *  GPX carries no <time> tags (e.g. a hand-drawn planned route). */
+  startedAt: Date | null;
+  endedAt: Date | null;
+  /** Seconds actually moving: sum of point-to-point gaps, skipping pauses
+   *  (gaps > 90s count as stopped — the standard watch/Strava heuristic).
+   *  null when the GPX has no timestamps. */
+  movingTimeSec: number | null;
+};
+
+/** Parse a GPX with timestamps for the relay tracker. Same namespace-proof
+ *  getElementsByTagName approach as parseGpx. Returns null on no trackpoints. */
+export function parseGpxActivity(xml: string): GpxActivity | null {
+  if (typeof DOMParser === "undefined") return null;
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  const trkpts = Array.from(doc.getElementsByTagName("trkpt"));
+  if (trkpts.length === 0) return null;
+  const points: GpxPoint[] = [];
+  const times: (number | null)[] = [];
+  for (const el of trkpts) {
+    const eleEl = el.getElementsByTagName("ele")[0];
+    const timeEl = el.getElementsByTagName("time")[0];
+    points.push({
+      lat: parseFloat(el.getAttribute("lat") || "0"),
+      lng: parseFloat(el.getAttribute("lon") || "0"),
+      ele: parseFloat(eleEl?.textContent || "0"),
+    });
+    const t = timeEl?.textContent ? Date.parse(timeEl.textContent) : NaN;
+    times.push(Number.isFinite(t) ? t : null);
+  }
+  const track = summarize(points);
+
+  const stamped = times.filter((t): t is number => t !== null);
+  let movingTimeSec: number | null = null;
+  if (stamped.length >= 2) {
+    let moving = 0;
+    let prev: number | null = null;
+    for (const t of times) {
+      if (t === null) continue;
+      if (prev !== null) {
+        const gap = (t - prev) / 1000;
+        // Gaps beyond 90s are stops (traffic lights, handoffs, lunch) — a
+        // relay's average pace should reflect running, not standing.
+        if (gap > 0 && gap <= 90) moving += gap;
+      }
+      prev = t;
+    }
+    movingTimeSec = Math.round(moving);
+  }
+  return {
+    ...track,
+    startedAt: stamped.length ? new Date(stamped[0]) : null,
+    endedAt: stamped.length ? new Date(stamped[stamped.length - 1]) : null,
+    movingTimeSec,
+  };
+}
+
+/** Named waypoint from a GPX <wpt> tag (Chamonix, Sallanches, …). Browser-only. */
+export type GpxWaypoint = { name: string; lat: number; lng: number; ele: number };
+
+/** Parse the <wpt> tags out of a GPX (separate from the <trkpt> track). Used to
+ *  seed the relay's named waypoints from a route file. */
+export function parseGpxWaypoints(xml: string): GpxWaypoint[] {
+  if (typeof DOMParser === "undefined") return [];
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  const wpts = Array.from(doc.getElementsByTagName("wpt"));
+  const out: GpxWaypoint[] = [];
+  for (const el of wpts) {
+    const lat = parseFloat(el.getAttribute("lat") || "");
+    const lng = parseFloat(el.getAttribute("lon") || "");
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const nameEl = el.getElementsByTagName("name")[0];
+    const eleEl = el.getElementsByTagName("ele")[0];
+    out.push({
+      name: (nameEl?.textContent || "").trim() || `${lat.toFixed(3)}, ${lng.toFixed(3)}`,
+      lat,
+      lng,
+      ele: parseFloat(eleEl?.textContent || "0") || 0,
+    });
+  }
+  return out;
+}
+
+/** Evenly decimate a polyline to at most `max` points (endpoints kept) — GPX
+ *  from a watch is 1 pt/sec, far denser than a map needs; storing ~1500 keeps
+ *  segment rows and map payloads small with no visible fidelity loss. */
+export function decimatePoints(points: GpxPoint[], max = 1500): GpxPoint[] {
+  if (points.length <= max) return points;
+  const out: GpxPoint[] = [];
+  const step = (points.length - 1) / (max - 1);
+  for (let i = 0; i < max; i++) out.push(points[Math.round(i * step)]);
+  return out;
+}
+
 export function parseGpx(xml: string): GpxTrack | null {
   if (typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(xml, "application/xml");

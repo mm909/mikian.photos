@@ -170,6 +170,10 @@ export async function createPaidOrder(
         select: { id: true, orderNumber: true, amount: true, downloadToken: true, paidAt: true },
       });
       if (existing) return { ok: true, order: existing };
+      // Collided on the unique index but the row isn't visible yet (a
+      // concurrent claim still committing). Return a recoverable conflict
+      // instead of a 500 — the caller can retry and get the existing order.
+      return { ok: false, status: 409, error: "Order is already being created — please retry." };
     }
     throw e;
   }
@@ -234,8 +238,13 @@ export function buildReceiptInput(args: {
   const base = args.baseUrl.replace(/\/$/, "");
   const orderUrl = `${base}/orders/${orderTag}?key=${encodeURIComponent(args.token)}`;
   const zipUrl = `${base}/api/orders/${orderTag}/zip?key=${encodeURIComponent(args.token)}`;
+  // True inverse of total = subtotal*(1+rate) + flat, so the receipt's subtotal
+  // matches what the buyer saw at checkout (the old amount-(amount*rate+flat)
+  // double-counted the fee and was off by a penny). $0 (free) → 0.
   const subtotal =
-    args.amountUsd - +(args.amountUsd * prices.stripeRate + prices.stripeFlat).toFixed(2);
+    args.amountUsd > 0
+      ? +((args.amountUsd - prices.stripeFlat) / (1 + prices.stripeRate)).toFixed(2)
+      : 0;
   const itemLabel =
     args.kind === "bundle"
       ? `All photos bundle · ${args.eventName}`

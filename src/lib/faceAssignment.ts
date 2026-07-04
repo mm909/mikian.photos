@@ -257,6 +257,62 @@ export async function sampleFaceForCluster(
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Super-cluster guard.
+ *
+ * Single-linkage face clustering (see assignClusters in faceRec.ts) can chain
+ * many distinct runners into ONE faceClusterId when a few borderline matches
+ * bridge them. Auto-confirming or expanding a search by such a cluster floods
+ * the runner with strangers — the "1,568 photos of you" bug, where one cluster
+ * had grown to 28% of an entire event.
+ *
+ * Defense: any cluster spanning an implausible share of the event is treated as
+ * untrustworthy — never auto-confirmed, never expanded, and dropped from the
+ * "Is this you?" candidates. One real person's face simply never appears in
+ * that many of an event's photos.
+ *
+ * Ceiling = max(absolute floor, fraction of the event's visible photos), both
+ * env-tunable, so it scales from a 200-photo gallery to a 50k-photo mega event.
+ * ------------------------------------------------------------------ */
+const SUPERCLUSTER_ABS = Number(process.env.SUPERCLUSTER_MAX_PHOTOS) || 250;
+const SUPERCLUSTER_FRACTION = Number(process.env.SUPERCLUSTER_MAX_FRACTION) || 0.06;
+
+/** The photo count above which a single face cluster is considered an
+ *  over-merged supercluster, given the event's visible-photo total. */
+export function superclusterCeiling(eventVisiblePhotos: number): number {
+  return Math.max(SUPERCLUSTER_ABS, Math.floor(eventVisiblePhotos * SUPERCLUSTER_FRACTION));
+}
+
+/** Distinct visible photos containing a face in this cluster. */
+export async function clusterPhotoCount(
+  eventId: string,
+  clusterId: string
+): Promise<number> {
+  const rows = await db.photoFace.findMany({
+    where: { eventId, faceClusterId: clusterId, photo: { hidden: false } },
+    distinct: ["photoId"],
+    select: { photoId: true },
+  });
+  return rows.length;
+}
+
+/** True when `clusterId` spans an implausible share of the event and should be
+ *  treated as an over-merged supercluster (see the block comment above). Pass
+ *  `eventVisiblePhotos` to reuse a count the caller already has. */
+export async function isOversizedCluster(
+  eventId: string,
+  clusterId: string,
+  eventVisiblePhotos?: number
+): Promise<boolean> {
+  const [count, evTotal] = await Promise.all([
+    clusterPhotoCount(eventId, clusterId),
+    eventVisiblePhotos != null
+      ? Promise.resolve(eventVisiblePhotos)
+      : db.photo.count({ where: { eventId, hidden: false } }),
+  ]);
+  return count > superclusterCeiling(evTotal);
+}
+
 export async function autoConfirmClusterForBib(
   eventId: string,
   bib: number
@@ -289,5 +345,8 @@ export async function autoConfirmClusterForBib(
 
   const [[clusterId, photos]] = [...photosByCluster.entries()];
   if (photos.size < AUTO_CONFIRM_MIN_PHOTOS) return null;
+  // Never auto-confirm an over-merged supercluster — silently unioning it in
+  // would bury the runner under strangers (the "1,568 photos of you" bug).
+  if (await isOversizedCluster(eventId, clusterId)) return null;
   return clusterId;
 }

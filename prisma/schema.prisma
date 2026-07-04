@@ -78,6 +78,11 @@ model Event {
   // this shared password before they can search. Stored as a keyed hash (never
   // plaintext); null when password mode isn't in use. See src/lib/eventAccess.ts.
   galleryPasswordHash String?
+  // Who may see the browse-everything Gallery tab (/e/[slug]/gallery + the
+  // "Browse all photos" button): "public" (anyone) | "owner" (only the owner/
+  // managers). Independent of accessMode (that gates the whole event); this
+  // just hides the full wall on an otherwise-public event. Default public.
+  galleryVisibility String @default("public")
 
   // --- v2.1 general platform ---------------------------------------------
   // Event type drives the runner UX + capability defaults (see
@@ -167,6 +172,93 @@ model Photographer {
   orders         Order[]  @relation("UserOrders")
 }
 
+/// Imported per-event race roster (bib → name/finish). Replaces the static
+/// LIGHTHOUSE_RACERS file for new events: the owner pastes a results link or
+/// CSV, we parse it (per-source adapters) and store rows here. `distance` is
+/// freeform ("half", "10K", "Marathon"). All nullable-ish → additive push.
+model RosterEntry {
+  id         String  @id @default(cuid())
+  eventId    String
+  bib        Int
+  name       String
+  distance   String?
+  finishTime String?
+  ageGroup   String?
+  gender     String?
+  city       String?
+  createdAt  DateTime @default(now())
+
+  @@unique([eventId, bib])
+  @@index([eventId])
+}
+
+/// -------- Relay / expedition route tracking (TSP France) -----------------
+/// A multi-day relay (8 runners crossing France) tracked segment by segment:
+/// the owner uploads a GPX after each leg, tagged with who ran it. Deliberately
+/// NOT FK'd to Event — the tracker works standalone (eventId is a plain slug,
+/// e.g. "tsp-france-2026"); photos can still associate later through the same
+/// slug if an Event row exists. All additive/defaulted → safe `db push`.
+
+/// One relay team member. Color drives the map polylines + stat cards.
+model RelayRunner {
+  id        String  @id @default(cuid())
+  eventId   String
+  name      String
+  /// Display color (hex) for this runner's segments on the map.
+  color     String  @default("#c8401a")
+  /// Optional profile link (their Instagram, usually) — runner names on the
+  /// tracker link out here when set.
+  url       String?
+  sortOrder Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+}
+
+/// One GPX track — either a COMPLETED leg (runnerId set, stats real) or a
+/// PLANNED section (kind="planned"; either uploaded day-by-day, or LOCKED IN
+/// between two waypoints by the route planner — see from/toWaypointId).
+model RouteSegment {
+  id            String    @id @default(cuid())
+  eventId       String
+  runnerId      String?
+  name          String?
+  /// "completed" | "planned"
+  kind          String    @default("completed")
+  /// Route-planner section binding: a planned segment with BOTH set is the
+  /// LOCKED route between those two waypoints (one per pair; re-locking
+  /// replaces it). Null on completed legs and free-form planned uploads.
+  fromWaypointId String?
+  toWaypointId   String?
+  /// Decimated polyline: JSON array of [lat, lng, ele] triples (≤ ~1500 pts —
+  /// the uploader decimates client-side so map payloads stay small).
+  points        Json
+  distanceM     Float     @default(0)
+  gainM         Float     @default(0)
+  /// Moving time from GPX timestamps (pace = distanceM / movingTimeSec).
+  movingTimeSec Int?
+  startedAt     DateTime?
+  endedAt       DateTime?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  @@index([eventId, kind])
+}
+
+/// A named point on the route ("Lyon", "Col du Galibier") — the public page
+/// shows approximate arrival times to each, from the team's pace so far.
+model RouteWaypoint {
+  id        String   @id @default(cuid())
+  eventId   String
+  name      String
+  lat       Float
+  lng       Float
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+}
+
 model Photo {
   id             String    @id @default(cuid())
   eventId        String
@@ -191,6 +283,13 @@ model Photo {
   // never indexed. Used by the rerun-faces endpoint and the upload finalize
   // path to skip already-processed photos unless `force` is passed.
   facesIndexedAt DateTime?
+  // Owner-curated "featured" flag: featured photos headline the event's search
+  // landing (the portfolio hero). `featuredAt` orders them (newest curation
+  // first) and doubles as the toggle timestamp. Defaults false → additive
+  // `db push`; the landing falls back to a random sample when nothing is
+  // featured (or before the column exists — the read path fails open).
+  featured       Boolean   @default(false)
+  featuredAt     DateTime?
   createdAt      DateTime  @default(now())
 
   event        Event        @relation(fields: [eventId], references: [id])
@@ -200,6 +299,7 @@ model Photo {
   colorGroups  PhotoColorGroup[]
 
   @@index([eventId, hidden])
+  @@index([eventId, featured])
   @@index([photographerId])
   @@index([fingerprint])
 }

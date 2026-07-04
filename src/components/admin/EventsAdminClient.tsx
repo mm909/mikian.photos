@@ -8,6 +8,8 @@ import {
   EVENT_STATUSES,
   EVENT_TYPES,
   EVENT_TYPE_LABELS,
+  GALLERY_VISIBILITIES,
+  GALLERY_VISIBILITY_LABELS,
 } from "@/lib/eventConfig";
 
 export type AdminEvent = {
@@ -29,6 +31,7 @@ export type AdminEvent = {
   externalBrowseUrl: string | null;
   searchHeadline: string | null;
   hasGalleryPassword: boolean;
+  galleryVisibility: string;
   ownerId: string | null;
   createdAt: string;
   photoCount: number;
@@ -245,6 +248,7 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
   const [ocrEnabled, setOcrEnabled] = useState(ev.ocrEnabled);
   const [faceRecEnabled, setFaceRecEnabled] = useState(ev.faceRecEnabled);
   const [externalBrowseUrl, setExternalBrowseUrl] = useState(ev.externalBrowseUrl ?? "");
+  const [galleryVisibility, setGalleryVisibility] = useState(ev.galleryVisibility ?? "public");
   const [searchHeadline, setSearchHeadline] = useState(ev.searchHeadline ?? "");
   // Password input is write-only — we never receive the plaintext back. Empty =
   // "leave unchanged"; we show whether one is already set via hasGalleryPassword.
@@ -267,6 +271,7 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
         ocrEnabled,
         faceRecEnabled,
         externalBrowseUrl: externalBrowseUrl.trim() || null,
+        galleryVisibility,
         searchHeadline: searchHeadline.trim() || null,
         // Only send the password when the owner typed a new one (else keep it).
         ...(galleryPassword.trim() ? { galleryPassword: galleryPassword.trim() } : {}),
@@ -351,6 +356,17 @@ export function EventEditor({ ev, onChanged }: { ev: AdminEvent; onChanged: () =
           <select style={FIELD} value={accessMode} onChange={(e) => setAccessMode(e.target.value)}>
             {ACCESS_MODES.map((m) => (
               <option key={m} value={m}>{ACCESS_MODE_LABELS[m]}</option>
+            ))}
+          </select>
+        </Labeled>
+        <Labeled label="Browse-all gallery (who sees the full wall)">
+          <select
+            style={FIELD}
+            value={galleryVisibility}
+            onChange={(e) => setGalleryVisibility(e.target.value)}
+          >
+            {GALLERY_VISIBILITIES.map((v) => (
+              <option key={v} value={v}>{GALLERY_VISIBILITY_LABELS[v]}</option>
             ))}
           </select>
         </Labeled>

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { cookies } from "next/headers";
-import { autoConfirmClusterForBib, getConfirmedCluster } from "@/lib/faceAssignment";
+import {
+  autoConfirmClusterForBib,
+  getConfirmedCluster,
+  isOversizedCluster,
+  superclusterCeiling,
+} from "@/lib/faceAssignment";
 import { getEventPricing, centsToDollars } from "@/lib/pricing";
+import { featuredLandingPhotoIds } from "@/lib/featured";
 import { getEvent } from "@/lib/events";
 import { eventCapabilities } from "@/lib/eventConfig";
 import { colorGroupLabel } from "@/lib/colorGroups";
@@ -64,6 +70,23 @@ export const runtime = "nodejs";
  *  stranded when they're not the dominant face. */
 const MAX_FACE_CANDIDATES = 4;
 
+/** Ceiling on the `matchedIds` list (the FULL matched set as bare ids, which
+ *  the client snapshots into a bundle so an order covers every matched photo,
+ *  not just the display-capped rows). Bounds the JSON payload; an event or
+ *  match set bigger than this falls back to a count-only total. */
+const MATCHED_IDS_MAX = 10_000;
+
+/** Stable chronological order shared by every photo query in this route:
+ *  capture time first (photos WITHOUT an EXIF timestamp sort last, explicitly —
+ *  don't rely on the DB's null placement), then upload time, then `id` as the
+ *  pagination tiebreaker (photos shot in the same second would otherwise
+ *  shuffle between pages). */
+const PHOTO_ORDER = [
+  { takenAt: { sort: "asc", nulls: "last" } },
+  { createdAt: "asc" },
+  { id: "asc" },
+] satisfies Prisma.PhotoOrderByWithRelationInput[];
+
 // Dev cost guardrail: hard-cap how many rows ever come back.
 function maxPhotos(): number {
   const envKey = process.env.NODE_ENV === "production" ? "MAX_PHOTOS_PROD" : "MAX_PHOTOS_DEV";
@@ -78,10 +101,10 @@ export async function GET(req: Request) {
   const bibParam = url.searchParams.get("bib");
   const clusterParam = url.searchParams.get("cluster");
   // faceOnly=1 (with a cluster) switches the result set from "bib photos +
-  // face matches" (union) to "only photos containing this face" (filter) —
-  // the explicit "This is me" path, which drops bib-tagged photos that don't
-  // actually show the runner's face.
-  const faceOnly = url.searchParams.get("faceOnly") === "1" && Boolean(clusterParam);
+  // face matches" (union) to "only photos containing this face" (filter). The
+  // effective value is resolved below, after the supercluster guard decides
+  // whether the requested cluster is trustworthy.
+  const faceOnlyRequested = url.searchParams.get("faceOnly") === "1";
   if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
   // Enforce the event's access mode HERE too — not just on the page — so a
@@ -108,8 +131,42 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid bib" }, { status: 400 });
   }
 
+  // Pagination for the gallery surface: ?offset=N&limit=M pages through the
+  // matched set in stable chronological order. limit clamps to the cost
+  // guardrail; existing callers (no params) get the old cap-sized first page.
+  const offsetParam = Number(url.searchParams.get("offset"));
+  const offset =
+    Number.isFinite(offsetParam) && offsetParam > 0 ? Math.floor(offsetParam) : 0;
+
   try {
     const cap = maxPhotos();
+    const limitParam = Number(url.searchParams.get("limit"));
+    const take =
+      Number.isFinite(limitParam) && limitParam > 0
+        ? Math.min(Math.floor(limitParam), cap)
+        : cap;
+
+    // Supercluster guard: only the searches that actually involve a bib or a
+    // cluster need the event-size lookup (a plain catalog/gallery load doesn't).
+    // An incoming cluster that spans an implausible share of the event is an
+    // over-merged clustering error, so we treat it as ABSENT — the search falls
+    // back to bib-only rather than unioning in ~the whole event. Candidates are
+    // filtered by the same ceiling below.
+    let eventVisiblePhotos: number | null = null;
+    if (bib !== null || clusterParam) {
+      eventVisiblePhotos = await db.photo.count({ where: { eventId, hidden: false } });
+    }
+    let effectiveCluster = clusterParam;
+    if (
+      effectiveCluster &&
+      eventVisiblePhotos != null &&
+      (await isOversizedCluster(eventId, effectiveCluster, eventVisiblePhotos))
+    ) {
+      effectiveCluster = null;
+    }
+    // Resolve the filter-vs-union mode against the TRUSTED cluster: an oversized
+    // (ignored) cluster can't put us into faceOnly mode.
+    const faceOnly = faceOnlyRequested && Boolean(effectiveCluster);
 
     // Base set: photos directly tagged with the bib (or every visible photo
     // when no bib filter is in play).
@@ -119,8 +176,9 @@ export async function GET(req: Request) {
         hidden: false,
         ...(bib !== null ? { bibs: { some: { bib } } } : {}),
       },
-      take: cap,
-      orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
+      skip: offset,
+      take,
+      orderBy: PHOTO_ORDER,
       select: {
         id: true,
         eventId: true,
@@ -228,13 +286,19 @@ export async function GET(req: Request) {
           sample: { photoId: slot.samplePhotoId, faceId: slot.sampleId },
         };
       });
+
+      // Drop over-merged superclusters from the "Is this you?" tiles — offering
+      // one would let the runner confirm a cluster that unions in strangers.
+      if (eventVisiblePhotos != null) {
+        const ceiling = superclusterCeiling(eventVisiblePhotos);
+        faceCandidates = faceCandidates.filter((c) => c.photoCountInEvent <= ceiling);
+      }
     }
 
     let combined: typeof baseRows;
-    let total: number;
     let crossLinked = 0;
 
-    if (faceOnly && clusterParam) {
+    if (faceOnly && effectiveCluster) {
       // "This is me" — the result set is exactly the photos containing this
       // face cluster, regardless of bib. Bib-tagged photos that DON'T show
       // the runner's face drop out entirely (the whole point of this path).
@@ -242,10 +306,10 @@ export async function GET(req: Request) {
         where: {
           eventId,
           hidden: false,
-          faces: { some: { faceClusterId: clusterParam } },
+          faces: { some: { faceClusterId: effectiveCluster } },
         },
         take: cap,
-        orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
+        orderBy: PHOTO_ORDER,
         select: {
           id: true,
           eventId: true,
@@ -267,29 +331,22 @@ export async function GET(req: Request) {
       }
       combined = faceRows;
       crossLinked = faceRows.filter((p) => !bibIdSet.has(p.id)).length;
-      total = await db.photo.count({
-        where: {
-          eventId,
-          hidden: false,
-          faces: { some: { faceClusterId: clusterParam } },
-        },
-      });
     } else {
       // Union mode (default). Expand by cluster only when the runner confirmed
       // one (passed as ?cluster=X) — face matches are added ON TOP of the
       // bib-tagged photos rather than replacing them.
       let expansionRows: typeof baseRows = [];
-      if (bib !== null && clusterParam && baseRows.length > 0) {
+      if (bib !== null && effectiveCluster && baseRows.length > 0) {
         const bibPhotoIds = baseRows.map((p) => p.id);
         expansionRows = await db.photo.findMany({
           where: {
             eventId,
             hidden: false,
             id: { notIn: bibPhotoIds },
-            faces: { some: { faceClusterId: clusterParam } },
+            faces: { some: { faceClusterId: effectiveCluster } },
           },
           take: Math.max(0, cap - baseRows.length),
-          orderBy: [{ takenAt: "asc" }, { createdAt: "asc" }],
+          orderBy: PHOTO_ORDER,
           select: {
             id: true,
             eventId: true,
@@ -308,23 +365,48 @@ export async function GET(req: Request) {
       }
       combined = [...baseRows, ...expansionRows];
       crossLinked = expansionRows.length;
-      // True (uncapped) count of the matched set — the teaser advertises
-      // "6 of N". When a cluster is applied (the runner confirmed a face, or
-      // we auto-confirmed one), the matched set is the UNION of bib-tagged and
-      // face-cluster photos, so the count must be that union — not bib-only
-      // (which was the bug behind "showing 36 but says 23"). Independent of the
-      // maxPhotos() cap that bounds how many rows we actually return.
-      const orClauses: Prisma.PhotoWhereInput[] = [];
-      if (bib !== null) orClauses.push({ bibs: { some: { bib } } });
-      if (clusterParam) orClauses.push({ faces: { some: { faceClusterId: clusterParam } } });
-      total = await db.photo.count({
-        where: {
-          eventId,
-          hidden: false,
-          ...(orClauses.length > 0 ? { OR: orClauses } : {}),
-        },
-      });
     }
+
+    // The FULL matched set as bare ids, in the same chronological order as the
+    // rows above — independent of the maxPhotos() display cap. Two jobs:
+    //   1. `total` — the true uncapped count of the matched set. When a cluster
+    //      is applied the set is the UNION of bib-tagged and face-cluster
+    //      photos, so the count must be that union — not bib-only (the old
+    //      "showing 36 but says 23" bug).
+    //   2. `matchedIds` — the client snapshots these into a bundle at checkout
+    //      so an order covers EVERY matched photo. Snapshotting the capped
+    //      display rows instead was the "60 photos matched but the ZIP only
+    //      has 50" bug.
+    // Only shipped on the first page (offset 0) — pagination callers already
+    // have it, and re-sending 10k ids per page would bloat every response.
+    const matchWhere: Prisma.PhotoWhereInput =
+      faceOnly && effectiveCluster
+        ? { eventId, hidden: false, faces: { some: { faceClusterId: effectiveCluster } } }
+        : (() => {
+            const orClauses: Prisma.PhotoWhereInput[] = [];
+            if (bib !== null) orClauses.push({ bibs: { some: { bib } } });
+            if (effectiveCluster)
+              orClauses.push({ faces: { some: { faceClusterId: effectiveCluster } } });
+            return {
+              eventId,
+              hidden: false,
+              ...(orClauses.length > 0 ? { OR: orClauses } : {}),
+            };
+          })();
+    let matchedIds: string[] | null = null;
+    if (offset === 0) {
+      const matchedIdRows = await db.photo.findMany({
+        where: matchWhere,
+        orderBy: PHOTO_ORDER,
+        select: { id: true },
+        take: MATCHED_IDS_MAX,
+      });
+      matchedIds = matchedIdRows.map((r) => r.id);
+    }
+    const total =
+      matchedIds !== null && matchedIds.length < MATCHED_IDS_MAX
+        ? matchedIds.length
+        : await db.photo.count({ where: matchWhere });
 
     // Whether this bib confidently maps to a single face — when so the client
     // auto-confirms (union) without asking. Only meaningful on the initial bib
@@ -351,6 +433,23 @@ export async function GET(req: Request) {
     // through the access-gated /preview endpoint so their images can't be
     // fetched by URL without the event's secret link.
     const useCdn = Boolean(publicBase) && evDto?.accessMode === "public";
+
+    // Portfolio hero for the search landing — owner-featured photos first, then
+    // a random fill. Only computed for the catalog request (no bib / cluster /
+    // pagination), which is the only caller that renders the landing; search
+    // requests skip it. A URL builder shared with the photos map above.
+    const previewUrlFor = (id: string) =>
+      useCdn ? `${publicBase}/previews/${id}.jpg` : `/api/photos/${id}/preview`;
+    let featured: { id: string; previewUrl: string; pinned: boolean }[] | undefined;
+    if (bib === null && !clusterParam && offset === 0) {
+      const { ids, pinnedIds } = await featuredLandingPhotoIds(eventId);
+      const pinnedSet = new Set(pinnedIds);
+      featured = ids.map((id) => ({
+        id,
+        previewUrl: previewUrlFor(id),
+        pinned: pinnedSet.has(id),
+      }));
+    }
 
     return NextResponse.json({
       photos: combined.map((p) => {
@@ -390,7 +489,7 @@ export async function GET(req: Request) {
         // to assemble routes from raw ids.
         sampleFaceUrl: `/api/photos/${c.sample.photoId}/face/${c.sample.faceId}`,
       })),
-      confirmedCluster: clusterParam ?? null,
+      confirmedCluster: effectiveCluster ?? null,
       autoConfirmClusterId,
       faceOnly,
       bundlePrice,
@@ -405,12 +504,20 @@ export async function GET(req: Request) {
             type: evDto.type,
             externalBrowseUrl: evDto.externalBrowseUrl,
             searchHeadline: evDto.searchHeadline,
+            galleryVisibility: evDto.galleryVisibility,
           }
         : null,
       capabilities: evDto ? eventCapabilities(evDto) : null,
       cap,
       total,
       crossLinked,
+      offset,
+      // Full matched-set ids (chronological, uncapped up to MATCHED_IDS_MAX).
+      // null on paginated follow-up requests (offset > 0).
+      matchedIds,
+      // Portfolio hero photos for the landing (catalog request only; undefined
+      // on search/pagination requests).
+      featured,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -29,6 +29,7 @@ export function adminEventShape(ev: {
   externalBrowseUrl?: string | null;
   searchHeadline?: string | null;
   galleryPasswordHash?: string | null;
+  galleryVisibility?: string | null;
   ownerId: string | null;
   createdAt: Date;
   _count?: { photos: number; eventPhotographers: number };
@@ -54,6 +55,7 @@ export function adminEventShape(ev: {
         : null,
     externalBrowseUrl: ev.externalBrowseUrl ?? null,
     searchHeadline: ev.searchHeadline ?? null,
+    galleryVisibility: ev.galleryVisibility ?? "public",
     // Never expose the hash — just whether a password is set.
     hasGalleryPassword: Boolean(ev.galleryPasswordHash),
     ownerId: ev.ownerId,

@@ -176,7 +176,7 @@ export function EmptyResultsState({
         }}
       />
       <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 12 }}>
-        We&rsquo;re still processing photos from the race. Check back in a few days.
+        We&rsquo;re still processing photos. Check back in a few days.
       </p>
     </div>
   );

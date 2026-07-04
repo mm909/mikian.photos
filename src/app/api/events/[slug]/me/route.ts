@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEffectiveActor, canManageEvent } from "@/lib/permissions";
 import { canUploadToEvent } from "@/lib/events";
+import { galleryVisibleTo } from "@/lib/eventConfig";
 import { ROSTER_EVENT_ID } from "@/lib/data";
 
 /**
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: { slug: string } }) {
   const ev = await db.event.findUnique({
     where: { id: params.slug },
-    select: { id: true, name: true, type: true, ownerId: true },
+    select: { id: true, name: true, type: true, ownerId: true, galleryVisibility: true },
   });
   if (!ev) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -35,6 +36,15 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   // Whether this event has roster data (Lighthouse only, for now) — drives the
   // nav's Roster link.
   const hasRoster = ev.id === ROSTER_EVENT_ID;
+  // Whether this viewer may see the Gallery tab (public gallery, or a manager).
+  const galleryVisible = galleryVisibleTo(ev.galleryVisibility, canManage);
 
-  return NextResponse.json({ name: ev.name, type: ev.type, canManage, canUpload, hasRoster });
+  return NextResponse.json({
+    name: ev.name,
+    type: ev.type,
+    canManage,
+    canUpload,
+    hasRoster,
+    galleryVisible,
+  });
 }

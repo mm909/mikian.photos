@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -19,6 +20,10 @@ export function AccountWidget() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Return to the current event after sign-in (not the homepage) so a buyer
+  // mid-browse keeps their context.
+  const pathname = usePathname();
+  const signInCallback = pathname && pathname.startsWith("/e/") ? pathname : "/";
 
   // Close on outside-click + escape
   useEffect(() => {
@@ -46,7 +51,7 @@ export function AccountWidget() {
     return (
       <button
         type="button"
-        onClick={() => signIn("google", { callbackUrl: "/" })}
+        onClick={() => signIn("google", { callbackUrl: signInCallback })}
         className="nav__link"
         style={{
           fontFamily: "var(--font-mono)",

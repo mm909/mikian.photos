@@ -492,102 +492,379 @@ em.acc-l { font-style: italic; font-weight: 300; color: var(--accent-l); }
   .landing-grid h1 { text-align: center; }
   .landing-grid p { margin-left: auto; margin-right: auto; }
 }
-/* ---- Lightbox photo-pane controls ----------------------------------------
-   Defaults are desktop-first; the mobile @media block below flips them on. */
-
-/* Mobile-only top control row that holds the close × ABOVE the image so it
-   never sits on the photo subject. Hidden on desktop (the buy-pane header
-   owns the ×). */
-.lightbox-topbar { display: none; }
-/* Mobile-only close button on the lightbox photo (hidden on desktop). */
-.lightbox-mobile-close { display: none; }
-/* Mobile-only big side tap zones for prev/next (hidden on desktop). */
-.lightbox-tapzone { display: none; }
-
-/* Instagram-style position dots under the photo. Centered row, soft + tappable.
-   Shows on all sizes; sizes taper via the --sm/--md/--lg modifiers. */
-.lightbox-dots {
-  position: absolute; left: 0; right: 0; bottom: 12px;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  z-index: 3; pointer-events: none;
-}
-.lightbox-dot {
-  flex: 0 0 auto; padding: 0; border: 0; cursor: pointer;
-  border-radius: 999px; background: rgba(255,255,255,.45);
-  box-shadow: 0 1px 2px rgba(14,13,12,.18);
-  pointer-events: auto; -webkit-tap-highlight-color: transparent;
-  transition: width var(--dur-hover) var(--ease),
-              height var(--dur-hover) var(--ease),
-              background var(--dur-hover) var(--ease),
-              transform var(--dur-hover) var(--ease);
-}
-.lightbox-dot--sm { width: 4px; height: 4px; }
-.lightbox-dot--md { width: 6px; height: 6px; }
-.lightbox-dot--lg { width: 8px; height: 8px; }
-.lightbox-dot--active {
-  background: var(--paper);
-  box-shadow: 0 1px 3px rgba(14,13,12,.32);
-}
-.lightbox-dot:hover { background: rgba(255,255,255,.75); }
-
-/* One-time "swipe or tap" hint pill. Mobile-only; fades in on open, then out. */
-.lightbox-hint {
-  display: none;
-  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(4px);
-  padding: 7px 14px; border-radius: 999px;
-  background: rgba(28,26,23,.62); color: var(--paper);
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
-  text-transform: uppercase; white-space: nowrap;
-  box-shadow: var(--shadow); backdrop-filter: blur(4px);
-  z-index: 4; pointer-events: none;
-  opacity: 0;
-  transition: opacity 600ms var(--ease), transform 600ms var(--ease);
-}
-.lightbox-hint--show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
+/* Cart / checkout collapse to a single column on narrow screens. */
 @media (max-width: 820px) {
-  .lightbox-tapzone {
-    display: block; position: absolute; top: 0; bottom: 0; width: 40%;
-    background: transparent; border: 0; padding: 0; cursor: pointer; z-index: 2;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .lightbox-tapzone--left { left: 0; }
-  .lightbox-tapzone--right { right: 0; }
-}
-@media (max-width: 820px) {
-  .lightbox-grid { grid-template-columns: 1fr !important; }
-  /* Mobile lightbox: just the photo on top, price + Checkout below it. The
-     thumbnail gallery + "all N photos" header are hidden — one image at a time,
-     flipped by tap or swipe (dots show position). */
-  .lightbox-grid > .lightbox-photo-pane {
-    order: 1; min-height: 360px !important;
-    /* Room for the top control row (close) and the dots row at the bottom so
-       neither overlaps the image. */
-    padding: 8px 16px 30px !important;
-  }
-  .lightbox-grid > .lightbox-buy-pane  { order: 2; }
-  .lightbox-gallery { display: none !important; }
-  .lightbox-header { display: none !important; }
-  /* Desktop ‹ › arrows are removed on mobile — tap/swipe instead. */
-  .lightbox-arrow { display: none !important; }
-  /* Top control row, pinned top-right, off the image. Subtle scrim keeps the
-     close legible without obscuring the photo. */
-  .lightbox-topbar {
-    display: flex !important; justify-content: flex-end;
-    position: absolute; top: 0; left: 0; right: 0;
-    padding: 8px 8px 0; z-index: 5; pointer-events: none;
-    background: linear-gradient(rgba(28,26,23,.16), rgba(28,26,23,0));
-  }
-  .lightbox-mobile-close {
-    display: inline-flex !important; pointer-events: auto;
-    background: rgba(245,242,236,.92); border-color: var(--line);
-  }
-  .lightbox-hint { display: block; }
   .cart-grid { grid-template-columns: 1fr !important; }
   .checkout-grid { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 600px) {
   .order-info { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ============================================================
+   Picture-forward kit — justified grid + full-bleed viewer
+   Google-Photos-style browse used on the order screen (and, later,
+   the event gallery). See JustifiedPhotoGrid.tsx + PhotoViewer.tsx.
+   ============================================================ */
+
+/* Justified grid tile — a button wrapping the image. The image fills its
+   justified box (which already matches the photo's aspect ratio, so cover
+   crops nothing). Subtle lift + zoom on true-hover only. */
+.gp-tile {
+  position: relative; padding: 0; border: 0; margin: 0;
+  border-radius: var(--r-thumb); overflow: hidden; cursor: pointer;
+  background: var(--cream); display: block;
+  -webkit-tap-highlight-color: transparent;
+}
+.gp-tile-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform var(--dur-hover) var(--ease),
+              filter var(--dur-hover) var(--ease);
+}
+@media (hover: hover) {
+  .gp-tile:hover { box-shadow: var(--shadow); }
+  .gp-tile:hover .gp-tile-img { transform: scale(1.035); filter: brightness(1.03); }
+}
+
+/* Portfolio search landing — compact search over a photo mosaic. The card is
+   deliberately light (a single primary action + quiet secondary links) so the
+   imagery below leads. */
+.portfolio-search {
+  max-width: 460px;
+  margin: 26px auto 0;
+  text-align: left;
+}
+.portfolio-search__secondary {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; flex-wrap: wrap;
+  margin-top: 14px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* Understated text-button — for the secondary search affordances. */
+.link-quiet {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--muted);
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease);
+}
+.link-quiet:hover:not(:disabled) { color: var(--ink); border-bottom-color: var(--warm); }
+.link-quiet:disabled { opacity: .6; cursor: default; }
+
+/* Label above the portfolio mosaic. */
+.portfolio-hero__label {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted);
+  text-align: center; margin-bottom: 16px;
+}
+
+/* Full-bleed viewer overlay — near-black warm scrim, column layout. */
+.pv-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(18, 16, 14, .95);
+  display: flex; flex-direction: column;
+  animation: fadeIn 180ms var(--ease) both;
+}
+.pv-bar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; color: var(--paper);
+}
+.pv-close {
+  width: 40px; height: 40px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(245, 242, 236, .1); color: var(--paper);
+  border: 1px solid rgba(245, 242, 236, .18); border-radius: 8px;
+  font-size: 22px; line-height: 1; cursor: pointer;
+  transition: background var(--dur-hover) var(--ease);
+}
+.pv-close:hover { background: rgba(245, 242, 236, .2); }
+.pv-count {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em;
+  color: rgba(245, 242, 236, .82);
+}
+.pv-count-sep { opacity: .5; margin: 0 2px; }
+.pv-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* Owner-only ★ feature toggle in the viewer bar. Translucent on the dark
+   scrim; fills warm-amber when the photo is featured on the landing. */
+.pv-feature {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase;
+  background: rgba(245, 242, 236, .1); color: var(--paper);
+  border: 1px solid rgba(245, 242, 236, .22);
+  transition: background var(--dur-hover) var(--ease), color var(--dur-hover) var(--ease);
+}
+.pv-feature:hover { background: rgba(245, 242, 236, .2); }
+.pv-feature--on {
+  background: var(--warm); color: var(--ink-deep);
+  border-color: var(--warm);
+}
+.pv-feature--on:hover { background: #cbbd9e; }
+
+.pv-stage {
+  position: relative; flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px 16px 24px;
+}
+.pv-img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: 4px; display: block; box-shadow: var(--shadow-lg);
+  animation: fadeIn 220ms var(--ease) both;
+}
+
+/* Mobile tap zones — transparent side columns to flick through photos. */
+.pv-tapzone {
+  display: none; position: absolute; top: 0; bottom: 0; width: 33%;
+  background: transparent; border: 0; padding: 0; cursor: pointer; z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.pv-tapzone--left { left: 0; }
+.pv-tapzone--right { right: 0; }
+
+/* Desktop arrows — soft translucent pucks pinned to the sides. */
+.pv-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; z-index: 3;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(245, 242, 236, .1); color: var(--paper);
+  border: 1px solid rgba(245, 242, 236, .18); border-radius: 999px;
+  font-size: 26px; line-height: 1; cursor: pointer;
+  transition: background var(--dur-hover) var(--ease);
+}
+.pv-arrow:hover { background: rgba(245, 242, 236, .22); }
+.pv-arrow--left { left: 18px; }
+.pv-arrow--right { right: 18px; }
+
+@media (max-width: 820px) {
+  .pv-tapzone { display: block; }
+  .pv-arrow { display: none; }
+}
+
+/* ============================================================
+   Relay tracker (TSP France) — /tsp map-forward live view
+   ============================================================ */
+.relay-live {
+  position: relative;
+  height: 100dvh; /* full screen — the nav is hidden on /tsp */
+  min-height: 460px;
+  width: 100%;
+  background: #14120f; /* dark, so tiles fade in from black, not cream */
+  --rl-fg: #f5f2ec;
+  --rl-muted: rgba(245, 242, 236, .58);
+  --rl-faint: rgba(245, 242, 236, .4);
+}
+/* Overlay layer floats over the map; only the cards catch pointer events so the
+   map stays pannable/zoomable in the gaps. */
+.relay-live__overlays {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  pointer-events: none;
+}
+/* Dark glassy cards to match the dark basemap. */
+.relay-live__panel {
+  position: absolute;
+  pointer-events: auto;
+  background: rgba(18, 16, 13, .74);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(245, 242, 236, .14);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+  color: var(--rl-fg);
+}
+.relay-live__panel--primary {
+  top: 16px; left: 16px;
+  /* FIXED width — a ticking race clock must not make the card breathe. */
+  width: min(430px, calc(100vw - 32px));
+  padding: 16px 18px;
+}
+/* Runner legend merged into the primary panel — compact two-column crew list. */
+.relay-live__crew {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid rgba(245, 242, 236, .12);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px;
+}
+/* Checkpoint splits — speedrun-timer block inside the panel. */
+.relay-live__splits {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid rgba(245, 242, 236, .12);
+}
+.relay-live__splits-head {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--rl-faint); margin-bottom: 6px;
+}
+.relay-live__split {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; padding: 2px 0; font-size: 13.5px; color: var(--rl-muted);
+}
+.relay-live__split.is-next { color: var(--rl-fg); }
+.relay-live__split.is-next .relay-live__split-eta { color: #f0b060; }
+.relay-live__split.is-passed { color: #6fbf7a; }
+.relay-live__split-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relay-live__split-eta {
+  font-family: var(--font-mono); font-size: 11px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* Socials as the panel footer. */
+.relay-live__socials--footer {
+  margin: 14px 0 0; padding-top: 12px;
+  border-top: 1px solid rgba(245, 242, 236, .12);
+}
+.relay-live__eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--rl-muted);
+}
+.relay-live__title {
+  font-family: var(--font-serif); font-weight: 500; font-size: 26px;
+  color: var(--rl-fg); line-height: 1.05; letter-spacing: -.015em; margin: 6px 0 14px;
+}
+.relay-live__statrow {
+  /* Grid, not flex: the ticking clock changes text width, and flex would shove
+     sibling columns around every second. Fixed tracks in a fixed-width card;
+     min 118px so "36:39:50" and "9:22 /mi" never crowd each other. */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 14px 14px; margin-top: 8px;
+}
+.relay-live__stat-label {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--rl-faint); margin-bottom: 3px;
+}
+.relay-live__stat-value {
+  font-family: var(--font-serif); font-weight: 500; font-size: 18px;
+  color: var(--rl-fg); line-height: 1; font-variant-numeric: tabular-nums;
+}
+.relay-live__stat-value.is-big { font-size: 25px; }
+.relay-live__stat-value.is-accent { color: #f0b060; } /* "remaining/time left" pops */
+.relay-live__hint {
+  margin-top: 14px; font-size: 12px; color: var(--rl-muted);
+}
+/* Runner legend — bottom-left. */
+.relay-live__panel--legend {
+  bottom: 16px; left: 16px;
+  max-width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+  max-height: 40vh; overflow-y: auto;
+}
+.relay-live__runner {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--rl-fg);
+}
+.relay-live__dot { width: 10px; height: 10px; border-radius: 999px; flex: 0 0 auto; box-shadow: 0 0 8px currentColor; }
+.relay-live__runner-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relay-live__runner-mi {
+  font-family: var(--font-mono); font-size: 11px; color: var(--rl-muted); flex: 0 0 auto;
+}
+/* Waypoint ETA strip — bottom-right, horizontal scroll. */
+.relay-live__waypoints {
+  bottom: 16px; right: 16px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 12px;
+  display: flex; gap: 14px; overflow-x: auto;
+}
+.relay-live__wp { flex: 0 0 auto; text-align: left; }
+.relay-live__wp-name {
+  display: block; font-family: var(--font-serif); font-weight: 500; font-size: 14px; color: var(--rl-fg);
+}
+.relay-live__wp-eta {
+  display: block; font-family: var(--font-mono); font-size: 10.5px; color: var(--rl-muted); white-space: nowrap;
+}
+.relay-live__wp.is-passed .relay-live__wp-eta { color: #6fbf7a; }
+/* Floating menu (top-right) — replaces the hidden nav. */
+.relay-live__menu { position: absolute; top: 16px; right: 16px; pointer-events: auto; }
+.relay-live__menu-btn {
+  width: 42px; height: 42px; border-radius: 999px; cursor: pointer;
+  background: rgba(18, 16, 13, .74); color: var(--rl-fg);
+  border: 1px solid rgba(245, 242, 236, .16);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font-size: 17px; display: inline-flex; align-items: center; justify-content: center;
+}
+.relay-live__menu-pop {
+  position: absolute; top: 50px; right: 0; min-width: 180px;
+  background: rgba(18, 16, 13, .92); border: 1px solid rgba(245, 242, 236, .16);
+  border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+}
+.relay-live__menu-link {
+  display: block; padding: 9px 12px; border-radius: 6px; text-decoration: none;
+  color: var(--rl-fg); font-size: 14px; background: transparent; border: 0; text-align: left; cursor: pointer;
+}
+.relay-live__menu-link:hover { background: rgba(245, 242, 236, .1); }
+/* Page shell: full-screen map section, then dark scrollable content below. */
+.relay-page { background: #14120f; min-height: 100dvh; }
+
+/* Socials row (replaces the headline copy). */
+.relay-live__socials {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 14px;
+}
+.relay-live__socials a {
+  font-family: var(--font-mono); font-size: 12.5px; letter-spacing: .04em;
+  color: #f0b060; text-decoration: none; border-bottom: 1px solid rgba(240, 176, 96, .35);
+}
+.relay-live__socials a:hover { border-bottom-color: #f0b060; }
+
+/* Expected-finish hero block: big time-left, the date/time beneath. */
+.relay-live__finish { margin-top: 16px; }
+.relay-live__finish-left {
+  font-family: var(--font-serif); font-weight: 500; font-size: 40px;
+  line-height: 1; color: #f0b060; letter-spacing: -.01em;
+}
+.relay-live__finish-when {
+  margin-top: 5px; font-family: var(--font-mono); font-size: 12px;
+  letter-spacing: .06em; color: var(--rl-muted);
+}
+
+/* Share buttons (transparent-overlay PNG download). */
+.relay-live__share {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 7px 12px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  background: rgba(245, 242, 236, .08); color: var(--rl-fg, #f5f2ec);
+  border: 1px solid rgba(245, 242, 236, .2);
+  align-self: flex-end;
+}
+.relay-live__share:hover { background: rgba(245, 242, 236, .16); }
+.relay-live__share--sm { padding: 5px 10px; font-size: 10px; }
+
+/* Below-the-map content: the leg table. */
+.relay-below { padding: 34px 18px 70px; }
+.relay-below__inner { max-width: 940px; margin: 0 auto; }
+.relay-below__eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: rgba(245, 242, 236, .55); margin-bottom: 14px;
+}
+.relay-table { display: flex; flex-direction: column; }
+.relay-table__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(110px, 1fr) 80px 90px minmax(90px, 1fr) 92px;
+  gap: 10px; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid rgba(245, 242, 236, .1);
+  color: #f5f2ec; font-size: 14px;
+}
+.relay-table__row:hover:not(.relay-table__row--head) { background: rgba(245, 242, 236, .05); }
+.relay-table__row--head {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: rgba(245, 242, 236, .5);
+}
+.relay-table__leg { font-variant-numeric: tabular-nums; }
+.relay-table__name { color: rgba(245, 242, 236, .65); font-size: 13px; }
+
+@media (max-width: 720px) {
+  /* Map first, stats/table below — shorter map so the content peeks. */
+  .relay-live { height: 74dvh; }
+  .relay-live__panel--primary { top: 12px; left: 12px; right: 68px; max-width: none; padding: 12px 14px; }
+  .relay-live__stat-value.is-big { font-size: 21px; }
+  .relay-live__finish-left { font-size: 32px; }
+  .relay-live__panel--legend { display: none; } /* keep the map clear on phones */
+  .relay-live__waypoints { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+  .relay-table__row { grid-template-columns: 1.3fr 1fr 70px 84px; }
+  /* Drop Pace + Started on phones; Share auto-flows into the 4th column. */
+  .relay-table__row > span:nth-child(4),
+  .relay-table__row > span:nth-child(5) { display: none; }
+  .relay-table__row > span:nth-child(6) { justify-self: end; }
 }
 
 /* Race-director landing — responsive */

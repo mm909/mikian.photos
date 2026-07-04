@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { captureOrder } from "@/lib/paypal";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
+import { orderTotalUsd } from "@/lib/pricing";
 import { buildOrderPayload, createPaidOrder, resolveBaseUrl } from "@/lib/createOrder";
 
 export const runtime = "nodejs";
@@ -84,14 +85,45 @@ export async function POST(req: Request) {
       return NextResponse.json(buildOrderPayload(existing));
     }
 
-    // 2) Linkage — pull session, link userId if email matches PayPal payer.
+    // Price integrity: the CAPTURED amount must cover the entitlement this
+    // request is asking us to grant. The PayPal order was priced by
+    // create-order from whatever (kind, count, eventId) the client sent
+    // THERE — nothing ties it to the (kind, photoIds, eventId) sent HERE. So
+    // recompute the expected total for this entitlement and refuse a capture
+    // that paid less (e.g. a $2 no-eventId fallback order captured against an
+    // expensive event's whole-event bundle). Small epsilon for float cents.
+    const expectedUsd = await orderTotalUsd(
+      kind,
+      kind === "multi" ? clientPhotoIds!.length : 0,
+      eventId
+    );
+    if (amountUsd + 0.005 < expectedUsd) {
+      console.error(
+        `capture-order underpayment: captured $${amountUsd} < expected $${expectedUsd} (event ${eventId}, kind ${kind}, capture ${captureId})`
+      );
+      return NextResponse.json(
+        {
+          error:
+            "Payment amount does not match this order's price. Contact support with your PayPal receipt for a refund.",
+        },
+        { status: 402 }
+      );
+    }
+
+    // 2) Buyer identity. Checkout requires a signed-in account, so bind the
+    // order to THAT identity — the buyer's /orders list and receipt then
+    // always follow the account they actually use here. PayPal's payer email
+    // can be a different, older account (a yahoo address on their PayPal),
+    // which would orphan the purchase from their sign-in. Fall back to the
+    // payer email only when no session is present (shouldn't happen via the
+    // UI, but the API is callable directly).
     const actor = await getEffectiveActor();
-    const userId =
-      actor && actor.email.toLowerCase() === payerEmail ? actor.photographerId : null;
+    const email = actor?.email?.toLowerCase().trim() || payerEmail;
+    const userId = actor?.photographerId ?? null;
 
     // 3) Snapshot + persist + email.
     const result = await createPaidOrder({
-      email: payerEmail,
+      email,
       userId,
       kind,
       eventId,

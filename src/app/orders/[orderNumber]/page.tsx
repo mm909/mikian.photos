@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getOrderForViewer } from "@/lib/orderAccess";
 import { formatOrderNumber } from "@/lib/orderId";
 import { Headline } from "@/components/runner/Headline";
+import { LocalDateTime } from "@/components/runner/LocalDateTime";
 import { OrderPhotoGrid } from "@/components/runner/OrderPhotoGrid";
 import { prices } from "@/lib/data";
 
@@ -50,8 +51,14 @@ export default async function OrderPage({
   ]);
 
   const eventName = event?.name ?? "Mikian.Photos order";
-  const subtotal = +(order.amount - (order.amount * prices.stripeRate + prices.stripeFlat)).toFixed(2);
-  const processingFee = +(order.amount - Math.max(subtotal, 0)).toFixed(2);
+  // Recover the pre-fee subtotal as the true inverse of total = subtotal*(1+rate)
+  // + flat (NOT amount - (amount*rate+flat), which double-counts the fee and is
+  // off by a penny). $0 (free) → 0.
+  const subtotal =
+    order.amount > 0
+      ? +((order.amount - prices.stripeFlat) / (1 + prices.stripeRate)).toFixed(2)
+      : 0;
+  const processingFee = +(order.amount - subtotal).toFixed(2);
 
   return (
     <main className="screen" style={{ padding: "48px 24px 96px" }}>
@@ -121,7 +128,7 @@ export default async function OrderPage({
             }}
           >
             <KV label="Order" value={formatOrderNumber(order.orderNumber)} />
-            <KV label="Date" value={fmtDate(order.paidAt)} />
+            <KV label="Date" value={<LocalDateTime iso={order.paidAt.toISOString()} />} />
             <KV label="Email" value={order.email} muted />
             <KV label="Event" value={eventName} />
             <KV label="Photos" value={`${order.photoIds.length} included`} />
@@ -180,7 +187,7 @@ export default async function OrderPage({
               color: "var(--muted)",
             }}
           >
-            Tap photos to select · tap &amp; hold to save · full resolution
+            Full resolution · yours to keep
           </div>
         </div>
 
@@ -291,7 +298,7 @@ function KV({
   strong,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   muted?: boolean;
   strong?: boolean;
 }) {
@@ -353,14 +360,4 @@ function SumRow({
       <span style={{ fontVariantNumeric: "tabular-nums" }}>{value}</span>
     </div>
   );
-}
-
-function fmtDate(d: Date): string {
-  return d.toLocaleString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireEventManager } from "@/lib/permissions";
-import { isAccessMode, isEventStatus, isEventType } from "@/lib/eventConfig";
+import { isAccessMode, isEventStatus, isEventType, isGalleryVisibility } from "@/lib/eventConfig";
 import { adminEventShape, mintSecretLinkToken, MAX_PRICE_CENTS } from "@/lib/eventAdmin";
 import { hashGalleryPassword } from "@/lib/eventAccess";
 import { r2Configured, r2Delete, r2Keys } from "@/lib/r2";
@@ -74,6 +74,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (body.ocrEnabled !== undefined) data.ocrEnabled = body.ocrEnabled === true;
   if (body.faceRecEnabled !== undefined) data.faceRecEnabled = body.faceRecEnabled === true;
   if (body.colorGroupEnabled !== undefined) data.colorGroupEnabled = body.colorGroupEnabled === true;
+  if (body.galleryVisibility !== undefined) {
+    if (!isGalleryVisibility(body.galleryVisibility)) {
+      return NextResponse.json({ error: "invalid galleryVisibility" }, { status: 400 });
+    }
+    data.galleryVisibility = body.galleryVisibility;
+  }
   // colorGroupLabels: a flat { key: label } rename map, or null to clear.
   if (body.colorGroupLabels !== undefined) {
     const v = body.colorGroupLabels;

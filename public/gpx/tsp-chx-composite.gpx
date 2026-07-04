@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MikianMusser TSP CHX planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>TSP CHX composite route - Chamonix to Marseille</name>
+    <desc>Vehicle-followable Route Napoleon corridor reconstructed from 2024/2025 team accounts (Cavale 438km, RAD 436km/37h, AAAC-Ravanel 450km/12000m D+, RC Catalans 460km). Waypoint-level: import into Komoot/RideWithGPS/Strava route builder to snap to roads. Polyline here cuts corners; road-snapped total lands ~415-430km.</desc>
+    <time>2026-07-02T21:03:03Z</time>
+  </metadata>
+  <wpt lat="45.9239" lon="6.8681"><ele>1035</ele><name>START Chamonix - Eglise St Bernard du Mont-Blanc</name></wpt>
+  <wpt lat="45.9364" lon="6.6312"><ele>550</ele><name>Sallanches (Decathlon here)</name></wpt>
+  <wpt lat="45.8569" lon="6.6178"><ele>1110</ele><name>Megeve - SUNRISE #1 window</name></wpt>
+  <wpt lat="45.7539" lon="6.4166"><ele>415</ele><name>Ugine (below Gorges de l'Arly - tunnels, scout!)</name></wpt>
+  <wpt lat="45.6755" lon="6.3927"><ele>345</ele><name>Albertville</name></wpt>
+  <wpt lat="45.503" lon="6.056"><ele>280</ele><name>Montmelian</name></wpt>
+  <wpt lat="45.1885" lon="5.7245"><ele>215</ele><name>Grenoble</name></wpt>
+  <wpt lat="45.077" lon="5.77"><ele>270</ele><name>Vizille (foot of Rampe de Laffrey)</name></wpt>
+  <wpt lat="45.017" lon="5.776"><ele>910</ele><name>Laffrey (lakes plateau) - SUNSET window</name></wpt>
+  <wpt lat="44.9065" lon="5.7845"><ele>880</ele><name>La Mure</name></wpt>
+  <wpt lat="44.818" lon="5.944"><ele>937</ele><name>Corps (Lac du Sautet)</name></wpt>
+  <wpt lat="44.609" lon="6.073"><ele>1246</ele><name>Col Bayard 1246m - night high point</name></wpt>
+  <wpt lat="44.5596" lon="6.0798"><ele>740</ele><name>Gap (24h resupply)</name></wpt>
+  <wpt lat="44.1987" lon="5.9433"><ele>485</ele><name>Sisteron - SUNRISE #2, THE shot</name></wpt>
+  <wpt lat="43.8357" lon="5.7909"><ele>385</ele><name>Manosque</name></wpt>
+  <wpt lat="43.5263" lon="5.4446"><ele>200</ele><name>Aix-en-Provence</name></wpt>
+  <wpt lat="43.295" lon="5.374"><ele>5</ele><name>Marseille Vieux-Port</name></wpt>
+  <wpt lat="43.2907" lon="5.3554"><ele>0</ele><name>FINISH Plage des Catalans - into the sea</name></wpt>
+  <trk><name>TSP CHX corridor (composite)</name><trkseg>
+    <trkpt lat="45.9239" lon="6.8681"><ele>1035</ele></trkpt>
+    <trkpt lat="45.8908" lon="6.7989"><ele>1000</ele></trkpt>
+    <trkpt lat="45.916" lon="6.712"><ele>590</ele></trkpt>
+    <trkpt lat="45.9364" lon="6.6312"><ele>550</ele></trkpt>
+    <trkpt lat="45.8967" lon="6.6394"><ele>980</ele></trkpt>
+    <trkpt lat="45.8569" lon="6.6178"><ele>1110</ele></trkpt>
+    <trkpt lat="45.8378" lon="6.5717"><ele>1035</ele></trkpt>
+    <trkpt lat="45.818" lon="6.5163"><ele>917</ele></trkpt>
+    <trkpt lat="45.7539" lon="6.4166"><ele>415</ele></trkpt>
+    <trkpt lat="45.6755" lon="6.3927"><ele>345</ele></trkpt>
+    <trkpt lat="45.606" lon="6.254"><ele>320</ele></trkpt>
+    <trkpt lat="45.57" lon="6.159"><ele>300</ele></trkpt>
+    <trkpt lat="45.503" lon="6.056"><ele>280</ele></trkpt>
+    <trkpt lat="45.433" lon="6.008"><ele>250</ele></trkpt>
+    <trkpt lat="45.36" lon="5.95"><ele>230</ele></trkpt>
+    <trkpt lat="45.283" lon="5.879"><ele>220</ele></trkpt>
+    <trkpt lat="45.1885" lon="5.7245"><ele>215</ele></trkpt>
+    <trkpt lat="45.077" lon="5.77"><ele>270</ele></trkpt>
+    <trkpt lat="45.017" lon="5.776"><ele>910</ele></trkpt>
+    <trkpt lat="44.9065" lon="5.7845"><ele>880</ele></trkpt>
+    <trkpt lat="44.818" lon="5.944"><ele>937</ele></trkpt>
+    <trkpt lat="44.778" lon="6.032"><ele>900</ele></trkpt>
+    <trkpt lat="44.609" lon="6.073"><ele>1246</ele></trkpt>
+    <trkpt lat="44.5596" lon="6.0798"><ele>740</ele></trkpt>
+    <trkpt lat="44.464" lon="6.055"><ele>600</ele></trkpt>
+    <trkpt lat="44.423" lon="5.993"><ele>590</ele></trkpt>
+    <trkpt lat="44.1987" lon="5.9433"><ele>485</ele></trkpt>
+    <trkpt lat="44.064" lon="6.012"><ele>440</ele></trkpt>
+    <trkpt lat="44.029" lon="5.94"><ele>400</ele></trkpt>
+    <trkpt lat="43.923" lon="5.893"><ele>330</ele></trkpt>
+    <trkpt lat="43.8357" lon="5.7909"><ele>385</ele></trkpt>
+    <trkpt lat="43.786" lon="5.766"><ele>340</ele></trkpt>
+    <trkpt lat="43.704" lon="5.654"><ele>300</ele></trkpt>
+    <trkpt lat="43.644" lon="5.586"><ele>250</ele></trkpt>
+    <trkpt lat="43.635" lon="5.533"><ele>230</ele></trkpt>
+    <trkpt lat="43.599" lon="5.48"><ele>320</ele></trkpt>
+    <trkpt lat="43.5263" lon="5.4446"><ele>200</ele></trkpt>
+    <trkpt lat="43.4553" lon="5.469"><ele>245</ele></trkpt>
+    <trkpt lat="43.398" lon="5.365"><ele>150</ele></trkpt>
+    <trkpt lat="43.295" lon="5.374"><ele>5</ele></trkpt>
+    <trkpt lat="43.2907" lon="5.3554"><ele>0</ele></trkpt>
+  </trkseg></trk>
+</gpx>

@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Headline } from "../Headline";
 import { FaceScanner } from "../FaceScanner";
+import { JustifiedPhotoGrid } from "../JustifiedPhotoGrid";
+import { PhotoViewer } from "../PhotoViewer";
+import { useFeatureControls } from "../useFeatureControls";
 import { useRunner } from "../RunnerProvider";
 import { BibSearchForm } from "../BibSearchForm";
+import { ROSTER_EVENT_ID } from "@/lib/data";
 
 /** Format an ISO event date as MM.DD.YY (UTC, to match the stored event time). */
 function formatEventDate(iso: string): string {
@@ -17,44 +22,54 @@ function formatEventDate(iso: string): string {
 }
 
 /**
- * Step 1 — Search. The landing screen, scoped to the event's TYPE:
- *   - race    → bib number is the primary path (autofocused), face the softer
- *               secondary. Bib submit advances to the teaser.
- *   - gallery → no bib/roster. "Find yourself by selfie" (when face detection is
- *               on) and/or "Browse all photos". No race distances or course.
+ * Step 1 — Search, as a PORTFOLIO landing.
+ *
+ * The photos lead: a justified mosaic of the owner's featured shots (or a
+ * random sample when nothing is pinned) is the visual centerpiece, with a
+ * compact, understated search affordance above it — scoped to the event's TYPE:
+ *   - race    → bib number is primary, face the softer secondary.
+ *   - gallery → selfie find and/or browse-all (no bib/roster).
+ *
+ * Tapping a mosaic photo opens the full-screen viewer; for the owner that
+ * viewer carries the ★ toggle, so featured photos can be curated right here.
  */
 export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
   const {
     runFaceSearch,
-    runSearch,
     faceScanning,
     catalog,
     catalogLoading,
     catalogTotal,
     event,
     capabilities,
+    activeEventId,
+    featuredPhotos,
   } = useRunner();
+  const feature = useFeatureControls();
+  const router = useRouter();
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Full-screen peek at a mosaic photo (and the owner's ★ curation surface).
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Render strictly from capabilities. Until they load, show a neutral loading
   // state — never flash the race bib/name form (e.g. on a camp event).
   const loadingCaps = !capabilities;
   const hasBib = capabilities?.searchModes.includes("bib") ?? false;
   const hasFace = capabilities?.searchModes.includes("face") ?? false;
+  // The "Half · 10K · 5K" lineup is Lighthouse's actual distance set — only
+  // show it on that event. Other races have their own (unknown to us) distances,
+  // so showing Lighthouse's here would be cross-event misinformation.
+  const showDistances = activeEventId === ROSTER_EVENT_ID;
 
   const raceName = event
     ? `${event.nameParts[0]} ${event.nameParts[1]} ${event.nameParts[2]}`.trim()
     : "";
   const raceAccent = event?.nameParts[0] || "";
   const dateLabel = event ? formatEventDate(event.date) : "";
-  // Live count = the true uncapped event total. The catalog array is capped by
-  // the API cost guardrail, so catalog.length undercounts; fall back to it only
-  // if the total didn't come back.
   const photoCount = catalogLoading ? null : catalogTotal ?? (catalog.length || null);
 
   // Owner-set custom headline wins; otherwise only a race (bib) event
-  // personalizes the headline with the event name. The accent (serif highlight)
-  // is the last word of a custom headline, else the event name / "photos.".
+  // personalizes the headline with the event name.
   const customHeadline = event?.searchHeadline?.trim();
   const headlineText =
     customHeadline || (hasBib && raceName ? `Find your ${raceName} photos.` : "Find your photos.");
@@ -64,29 +79,33 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
       ? raceAccent
       : "photos.";
 
-  // When the owner has set an external album link (e.g. a shared Google Photos
-  // album), "Browse all photos" links out to it instead of opening the in-app
-  // gallery — the album's own unlisted-link sharing is the access boundary.
   const externalBrowse = event?.externalBrowseUrl || null;
+  // Whether "Browse all photos" is offered here. The gallery is the browse
+  // destination, so honor the same owner-only visibility as the Gallery tab
+  // (feature.canFeature == owner). An external album link is always allowed.
+  const galleryPublic = (event?.galleryVisibility ?? "public") !== "owner";
+  const showBrowse = Boolean(externalBrowse) || galleryPublic || feature.canFeature;
 
   function browseAll() {
     if (externalBrowse) {
       window.open(externalBrowse, "_blank", "noopener,noreferrer");
       return;
     }
-    runSearch({ kind: "browse" });
-    onAdvance();
+    // Go to the SAME place as the Gallery tab — the in-app browse wall — not the
+    // old in-flow browse (which showed a buy CTA).
+    if (activeEventId) router.push(`/e/${activeEventId}/gallery`);
   }
 
   const browseLabel = `Browse all photos${externalBrowse ? " ↗" : ""}`;
 
+  // Mosaic photos for the portfolio hero (owner-featured first, then random).
+  const heroPhotos = featuredPhotos.map((f) => ({ id: f.id, src: f.previewUrl }));
+
   return (
-    <main className="screen" style={{ padding: "64px 32px 96px" }}>
-      <div
-        className="landing-grid"
-        style={{ maxWidth: 600, margin: "0 auto", display: "flex", flexDirection: "column" }}
-      >
-        <div style={{ display: "flex", flexDirection: "column" }}>
+    <main className="screen" style={{ padding: "44px 24px 72px" }}>
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
+        {/* Editorial header + compact search — kept tight so the photos lead. */}
+        <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
           <div
             style={{
               fontFamily: "var(--font-mono)",
@@ -94,7 +113,7 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
               letterSpacing: ".14em",
               textTransform: "uppercase",
               color: "var(--muted)",
-              marginBottom: 18,
+              marginBottom: 16,
               display: "inline-flex",
               alignItems: "center",
               gap: 10,
@@ -113,7 +132,7 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
               margin: 0,
               fontFamily: "var(--font-serif)",
               fontWeight: 500,
-              fontSize: "clamp(40px, 5.2vw, 64px)",
+              fontSize: "clamp(34px, 4.6vw, 58px)",
               lineHeight: 1.02,
               letterSpacing: "-.018em",
               color: "var(--ink)",
@@ -121,61 +140,58 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
             }}
           />
 
-          {/* Event meta — city (+ race distances only for race events). */}
-          <div
-            style={{
-              marginTop: 16,
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: ".1em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            {event?.city ? (
-              <>
-                <span>{event.city}</span>
-                {hasBib ? <span aria-hidden>·</span> : null}
-              </>
-            ) : null}
-            {hasBib ? <span>Half · 10K · 5K</span> : null}
-          </div>
+          {(event?.city || showDistances) && (
+            <div
+              style={{
+                marginTop: 14,
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {event?.city ? (
+                <>
+                  <span>{event.city}</span>
+                  {showDistances ? <span aria-hidden>·</span> : null}
+                </>
+              ) : null}
+              {showDistances ? <span>Half · 10K · 5K</span> : null}
+            </div>
+          )}
 
-          <div
-            className="card"
-            style={{ padding: 24, marginTop: 28, display: "flex", flexDirection: "column" }}
-          >
+          {/* Compact search card — the single primary action + subtle
+              secondaries. Much lighter than the old full-height card. */}
+          <div className="portfolio-search">
             {loadingCaps ? (
-              <div
-                style={{
-                  padding: "16px 0",
-                  textAlign: "center",
-                  color: "var(--muted)",
-                  fontSize: 14,
-                }}
-              >
-                Loading…
-              </div>
+              <div style={{ padding: "10px 0", color: "var(--muted)", fontSize: 14 }}>Loading…</div>
             ) : hasBib ? (
               <>
-                {/* Primary: bib number (also reused in the empty-results state). */}
                 <BibSearchForm onSearched={onAdvance} autoFocus />
                 <Divider label="No bib?" />
                 <button
-                  className="btn btn--ghost btn--block"
+                  className="btn btn--primary btn--block"
                   onClick={() => setScannerOpen(true)}
                   disabled={faceScanning}
                 >
-                  {faceScanning ? "Scanning…" : "Scan your face instead"}
+                  {faceScanning ? "Scanning…" : "Scan your face"}
                 </button>
+                {showBrowse && (
+                  <div className="portfolio-search__secondary">
+                    <button type="button" className="link-quiet" onClick={browseAll}>
+                      {browseLabel}
+                    </button>
+                  </div>
+                )}
               </>
             ) : hasFace ? (
               <>
-                {/* Gallery with face detection: selfie find, or browse everything. */}
                 <button
                   className="btn btn--primary btn--block"
                   onClick={() => setScannerOpen(true)}
@@ -183,22 +199,39 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
                 >
                   {faceScanning ? "Scanning…" : "Find yourself by selfie"}
                 </button>
-                <Divider label="or" />
-                <button className="btn btn--ghost btn--block" onClick={browseAll}>
-                  {browseLabel}
-                </button>
+                {showBrowse && (
+                  <div className="portfolio-search__secondary">
+                    <button type="button" className="link-quiet" onClick={browseAll}>
+                      {browseLabel}
+                    </button>
+                  </div>
+                )}
               </>
-            ) : (
-              // Browse-only gallery (no face/bib).
+            ) : showBrowse ? (
               <button className="btn btn--primary btn--block" onClick={browseAll}>
                 {browseLabel}
               </button>
+            ) : (
+              <div style={{ padding: "10px 0", color: "var(--muted)", fontSize: 14, textAlign: "center" }}>
+                Search for your photos above.
+              </div>
             )}
-
-            <div style={{ flex: 1 }} />
-            <LegalFooter />
           </div>
         </div>
+
+        {/* Portfolio mosaic — the visual anchor. Tapping a photo opens the
+            viewer (owner sees the ★ toggle there for in-place curation). */}
+        {heroPhotos.length > 0 && (
+          <div style={{ marginTop: 40 }}>
+            <JustifiedPhotoGrid
+              photos={heroPhotos}
+              onOpen={(i) => setViewerIndex(i)}
+              targetRowHeight={210}
+            />
+          </div>
+        )}
+
+        <LegalFooter />
       </div>
 
       <FaceScanner
@@ -208,6 +241,16 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
         busy={faceScanning}
         subtitle="Center your face in the circle. We only use this to find your photos."
       />
+
+      {viewerIndex !== null && (
+        <PhotoViewer
+          photos={heroPhotos}
+          index={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onIndex={(i) => setViewerIndex(i)}
+          feature={feature}
+        />
+      )}
     </main>
   );
 }
@@ -219,7 +262,7 @@ function Divider({ label }: { label: string }) {
         display: "flex",
         alignItems: "center",
         gap: 12,
-        margin: "20px 0 16px",
+        margin: "18px 0 14px",
         color: "var(--muted)",
         fontFamily: "var(--font-mono)",
         fontSize: 10,
@@ -240,7 +283,7 @@ function LegalFooter() {
       style={{
         fontSize: 12,
         color: "var(--muted)",
-        marginTop: 16,
+        marginTop: 40,
         textAlign: "center",
         display: "flex",
         gap: 12,

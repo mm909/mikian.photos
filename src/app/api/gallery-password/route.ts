@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { timingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { normalizeAccessMode, normalizeStatus } from "@/lib/eventConfig";
 import {
@@ -7,6 +8,7 @@ import {
   hashGalleryPassword,
   GALLERY_PASSWORD_COOKIE_PREFIX,
 } from "@/lib/eventAccess";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 
 /**
  * POST   /api/gallery-password — unlock a password-protected gallery.
@@ -52,6 +54,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "missing fields" }, { status: 400 });
   }
 
+  // Throttle guesses per IP+event so a shared gallery PIN can't be brute-forced.
+  const limit = await rateLimit({
+    key: `gallery-password:${clientIp(req)}:${eventId}`,
+    limit: 8,
+    windowSec: 60,
+  });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { ok: false, error: "Too many attempts — try again in a moment." },
+      { status: 429, headers: { "Retry-After": String(Math.max(1, limit.retryAfterSec)) } }
+    );
+  }
+
   const ev = await db.event.findUnique({
     where: { id: eventId },
     select: { id: true, status: true, accessMode: true, galleryPasswordHash: true },
@@ -66,8 +81,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
   }
 
-  const submitted = hashGalleryPassword(ev.id, password);
-  if (submitted !== ev.galleryPasswordHash) {
+  // Constant-time compare (both are 64-char SHA-256 hex) to avoid leaking the
+  // hash byte-by-byte via response timing.
+  const submitted = Buffer.from(hashGalleryPassword(ev.id, password));
+  const stored = Buffer.from(ev.galleryPasswordHash);
+  const match = submitted.length === stored.length && timingSafeEqual(submitted, stored);
+  if (!match) {
     return NextResponse.json({ ok: false, error: "Incorrect password." }, { status: 401 });
   }
 
@@ -75,6 +94,7 @@ export async function POST(req: Request) {
   res.cookies.set(galleryPasswordCookieName(ev.id), ev.galleryPasswordHash, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days, mirrors the secure-link cookie
   });

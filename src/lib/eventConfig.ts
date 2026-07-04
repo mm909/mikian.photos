@@ -35,6 +35,30 @@ export const ACCESS_MODE_LABELS: Record<AccessMode, string> = {
   private: "Secret link + sign-in (most private)",
 };
 
+/**
+ * Who may see the browse-everything Gallery (/e/[slug]/gallery + the "Browse
+ * all photos" button):
+ *   - "public"  anyone who can see the event
+ *   - "owner"   only the owner / event managers (hide the full wall from buyers)
+ * Independent of accessMode.
+ */
+export const GALLERY_VISIBILITIES = ["public", "owner"] as const;
+export type GalleryVisibility = (typeof GALLERY_VISIBILITIES)[number];
+export const GALLERY_VISIBILITY_LABELS: Record<GalleryVisibility, string> = {
+  public: "Everyone",
+  owner: "Only me",
+};
+export function isGalleryVisibility(v: unknown): v is GalleryVisibility {
+  return typeof v === "string" && (GALLERY_VISIBILITIES as readonly string[]).includes(v);
+}
+export function normalizeGalleryVisibility(v: unknown): GalleryVisibility {
+  return isGalleryVisibility(v) ? v : "public";
+}
+/** Can this viewer see the Gallery? Managers/owner always; others only when public. */
+export function galleryVisibleTo(visibility: unknown, canManage: boolean): boolean {
+  return canManage || normalizeGalleryVisibility(visibility) === "public";
+}
+
 export function isEventStatus(v: unknown): v is EventStatus {
   return typeof v === "string" && (EVENT_STATUSES as readonly string[]).includes(v);
 }

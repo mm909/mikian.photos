@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
-import { getDefaultEvent } from "@/lib/events";
+import { getEvent } from "@/lib/events";
+import { ROSTER_EVENT_ID } from "@/lib/data";
 import { LIGHTHOUSE_RACERS } from "@/lib/lighthouseRoster";
 import { RunnerProfileClient } from "@/components/admin/RunnerProfileClient";
 
@@ -36,7 +37,14 @@ export default async function RunnerProfilePage({
   const runner = LIGHTHOUSE_RACERS.find((r) => r.bib === bibNumber);
   if (!runner) notFound();
 
-  const ev = await getDefaultEvent();
+  // Bind to the event that actually OWNS this roster (Lighthouse), NOT
+  // getDefaultEvent() — that returns the newest published event, so once a
+  // newer event goes live this page would render the Lighthouse runner's
+  // name/finish over a DIFFERENT event's bib-N photos, and (worse) the
+  // "confirm face" action would write a FaceAssignment for the wrong event,
+  // which /api/photos then auto-expands into public bib search. Scoping to
+  // ROSTER_EVENT_ID keeps every read + write on the roster's own event.
+  const ev = await getEvent(ROSTER_EVENT_ID);
   if (!ev) notFound();
 
   return (

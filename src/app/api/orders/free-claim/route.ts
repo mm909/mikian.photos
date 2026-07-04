@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { cookies } from "next/headers";
 import { getEffectiveActor } from "@/lib/permissions";
 import { orderTotalUsd } from "@/lib/pricing";
+import {
+  resolveEventAccess,
+  secretLinkCookieName,
+  galleryPasswordCookieName,
+} from "@/lib/eventAccess";
 import {
   createPaidOrder,
   buildOrderPayload,
@@ -11,13 +17,21 @@ import {
 /**
  * POST /api/orders/free-claim — mint an order for a FREE event without PayPal.
  *
- * Body: { eventId, kind?, photoIds?, email? }
+ * Body: { eventId, kind?, photoIds?, email?, k? }
  *
- * Security-critical: the event must actually cost $0. We re-compute the total
- * through the same pricing path the paid flow uses and reject anything > 0, so
- * a paid event can never be claimed for free. Reuses createPaidOrder (the same
- * entitlement-snapshot + token-mint + receipt path as PayPal) with amount 0 and
- * a synthetic FREE- capture id (mirrors the DEV-FAKE- pattern).
+ * Security-critical, twice over:
+ *   1. The event must actually cost $0. We re-compute the total through the
+ *      same pricing path the paid flow uses and reject anything > 0, so a paid
+ *      event can never be claimed for free.
+ *   2. The claimer must pass the event's ACCESS MODE (same gate as /api/photos
+ *      — body `k` / remembered mk_evk_ / mk_gpw_ cookies). A free event is
+ *      often also a LOCKED one (secure-link camp gallery); without this gate,
+ *      anyone holding the slug + a leaked photo id could mint themselves a
+ *      full-resolution download entitlement for a private gallery.
+ *
+ * Reuses createPaidOrder (the same entitlement-snapshot + token-mint + receipt
+ * path as PayPal) with amount 0 and a synthetic FREE- capture id (mirrors the
+ * DEV-FAKE- pattern).
  */
 export const runtime = "nodejs";
 
@@ -26,6 +40,8 @@ type Body = {
   kind?: "bundle" | "multi";
   photoIds?: string[];
   email?: string;
+  /** Optional secure-link token (parallels ?k= on the event routes). */
+  k?: string;
 };
 
 export async function POST(req: Request) {
@@ -44,6 +60,28 @@ export async function POST(req: Request) {
   const clientPhotoIds = Array.isArray(body.photoIds)
     ? body.photoIds.filter((x): x is string => typeof x === "string")
     : undefined;
+
+  // Enforce the event's access mode — a locked (secure-link/password/private)
+  // free event must not be claimable by someone who never had gallery access.
+  // Legit buyers pass automatically: browsing the event set the mk_evk_ /
+  // mk_gpw_ cookie, which rides this same-origin POST.
+  const accessToken =
+    (typeof body.k === "string" && body.k) ||
+    cookies().get(secretLinkCookieName(eventId))?.value ||
+    null;
+  const passwordToken = cookies().get(galleryPasswordCookieName(eventId))?.value || null;
+  const access = await resolveEventAccess(eventId, {
+    token: accessToken,
+    passwordToken,
+  });
+  if (!access.ok) {
+    const unauthorized =
+      access.reason === "needs-auth" || access.reason === "needs-password";
+    return NextResponse.json(
+      { error: unauthorized ? "locked" : "not found" },
+      { status: unauthorized ? 401 : 404 }
+    );
+  }
 
   // Guard: only mint for events that genuinely cost nothing.
   const total = await orderTotalUsd(kind, clientPhotoIds?.length ?? 0, eventId);

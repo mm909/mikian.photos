@@ -13,7 +13,9 @@ import {
   type AccessMode,
   type EventStatus,
   type EventType,
+  type GalleryVisibility,
   normalizeAccessMode,
+  normalizeGalleryVisibility,
   normalizeStatus,
   normalizeType,
 } from "./eventConfig";
@@ -45,6 +47,8 @@ export type EventDTO = {
   /** Optional override for the runner's "Find your photos." headline. null →
    *  the computed default. */
   searchHeadline: string | null;
+  /** Who may see the browse-everything Gallery. "public" | "owner". */
+  galleryVisibility: GalleryVisibility;
 };
 
 // Columns that make up an EventDTO. secretLinkToken/ocrSettings are deliberately
@@ -66,6 +70,7 @@ const EVENT_DTO_SELECT = {
   bundlePriceCents: true,
   externalBrowseUrl: true,
   searchHeadline: true,
+  galleryVisibility: true,
 } as const;
 
 type EventRow = {
@@ -85,6 +90,7 @@ type EventRow = {
   bundlePriceCents: number | null;
   externalBrowseUrl: string | null;
   searchHeadline: string | null;
+  galleryVisibility: string;
 };
 
 function toDTO(row: EventRow): EventDTO {
@@ -106,6 +112,7 @@ function toDTO(row: EventRow): EventDTO {
     bundlePriceCents: row.bundlePriceCents,
     externalBrowseUrl: row.externalBrowseUrl,
     searchHeadline: row.searchHeadline,
+    galleryVisibility: normalizeGalleryVisibility(row.galleryVisibility),
   };
 }
 
