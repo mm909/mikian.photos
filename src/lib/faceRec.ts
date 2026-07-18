@@ -510,6 +510,96 @@ export async function searchFacesByImage(opts: {
 }
 
 /**
+ * Like searchFacesByImage, but seeds the search with an ALREADY-INDEXED face
+ * (its Rekognition FaceId) instead of an uploaded image. This powers the
+ * runner's "This is me" confirm: take the face they picked and find EVERY photo
+ * in the event that contains that person — robust to how our stored clustering
+ * grouped them.
+ *
+ * Why not just filter by our stored `faceClusterId`? Because single-linkage
+ * clustering is unreliable in both directions: it over-merges (chaining many
+ * runners into one "supercluster") AND under-merges (splitting one runner's
+ * face across several clusters when angle/lighting drop pairwise similarity
+ * below the strict 92% cluster threshold). A direct SearchFaces from the picked
+ * face sidesteps both — e.g. a bib whose runner was fragmented into 3 clusters
+ * (only 3 photos in the top one) recovers all ~8 of their photos here.
+ *
+ * Threshold defaults to the same value as the selfie search (80) so a confirmed
+ * face recovers the full set, INCLUDING photos where the bib wasn't readable.
+ * Returns matches descending by similarity, deduped by photoId, and always
+ * includes the seed face's own photo.
+ */
+export async function searchFacesByFaceId(opts: {
+  eventId: string;
+  rekognitionFaceId: string;
+  threshold?: number;
+}): Promise<FaceSearchResult[]> {
+  if (!faceRecConfigured()) return [];
+
+  const { eventId, rekognitionFaceId, threshold = FACE_MATCH_THRESHOLD } = opts;
+  await ensureCollection(eventId);
+  const collectionId = collectionIdFor(eventId);
+
+  let matches: FaceMatch[] = [];
+  try {
+    const out = await client().send(
+      new SearchFacesCommand({
+        CollectionId: collectionId,
+        FaceId: rekognitionFaceId,
+        FaceMatchThreshold: threshold,
+        MaxFaces: SEARCH_MAX_FACES,
+      })
+    );
+    matches = out.FaceMatches ?? [];
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    // Face id no longer in the collection (re-indexed / deleted) or otherwise
+    // unusable → surface as "no matches" rather than a 500.
+    if (name === "ResourceNotFoundException" || name === "InvalidParameterException") {
+      return [];
+    }
+    console.warn(
+      `SearchFaces(byFaceId) failed for ${rekognitionFaceId}:`,
+      e instanceof Error ? e.message : e
+    );
+    return [];
+  }
+
+  // SearchFaces does NOT return the seed face itself — add it so the runner's
+  // own picked photo is always in the set.
+  const faceIds = matches.map((m) => m.Face?.FaceId).filter((x): x is string => !!x);
+  faceIds.push(rekognitionFaceId);
+
+  const rows = await db.photoFace.findMany({
+    where: { rekognitionFaceId: { in: faceIds }, eventId },
+    select: { photoId: true, rekognitionFaceId: true },
+  });
+  const photoIdByFaceId = new Map<string, string>();
+  for (const r of rows) {
+    if (r.rekognitionFaceId) photoIdByFaceId.set(r.rekognitionFaceId, r.photoId);
+  }
+
+  const bestByPhoto = new Map<string, FaceSearchResult>();
+  const seedPhoto = photoIdByFaceId.get(rekognitionFaceId);
+  if (seedPhoto) {
+    bestByPhoto.set(seedPhoto, { photoId: seedPhoto, similarity: 100, rekognitionFaceId });
+  }
+  for (const m of matches) {
+    const fid = m.Face?.FaceId;
+    const sim = m.Similarity;
+    if (!fid || sim == null) continue;
+    const photoId = photoIdByFaceId.get(fid);
+    if (!photoId) continue; // orphan face (indexed but no PhotoFace row)
+    const prev = bestByPhoto.get(photoId);
+    if (!prev || sim > prev.similarity) {
+      bestByPhoto.set(photoId, { photoId, similarity: sim, rekognitionFaceId: fid });
+    }
+  }
+
+  return [...bestByPhoto.values()].sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
  * Delete every face for `photoId` from Rekognition's collection. Safe to
  * call when the photo has no faces (no-op). Doesn't touch PhotoFace DB
  * rows — those go away via the `onDelete: Cascade` on Photo, or via the

@@ -221,28 +221,53 @@ export async function GET(req: Request) {
           photoId: true,
           faceClusterId: true,
           confidence: true,
+          // Geometric face↔bib link: the face directly above THIS bib's number
+          // (see faceBibMatch). This is the runner's own face vs a bystander who
+          // merely shares the frame — we surface the runner's face first and use
+          // it to seed the "This is me" search.
+          bib: true,
         },
         orderBy: { confidence: "desc" },
       });
 
-      // Cluster → {photo set, best sample face row}
+      // Cluster → aggregate. Track whether the cluster is geometrically linked
+      // to THIS bib, and prefer a geo-linked face as the sample so "This is me"
+      // seeds Rekognition with the RUNNER's face, not a bystander's.
       const aggregate = new Map<
         string,
-        { photoIds: Set<string>; sampleId: string; sampleConfidence: number; samplePhotoId: string }
+        {
+          photoIds: Set<string>;
+          sampleId: string;
+          samplePhotoId: string;
+          sampleConfidence: number;
+          sampleGeo: boolean; // is the current sample a geo-linked face?
+          geoLinked: boolean; // does the cluster contain any geo-linked face?
+        }
       >();
       for (const f of bibFaces) {
         if (!f.faceClusterId) continue;
+        const isGeo = f.bib === bib;
         const slot = aggregate.get(f.faceClusterId);
         if (!slot) {
           aggregate.set(f.faceClusterId, {
             photoIds: new Set([f.photoId]),
             sampleId: f.id,
-            sampleConfidence: f.confidence,
             samplePhotoId: f.photoId,
+            sampleConfidence: f.confidence,
+            sampleGeo: isGeo,
+            geoLinked: isGeo,
           });
         } else {
           slot.photoIds.add(f.photoId);
-          // Already sorted by confidence desc — first row per cluster is best.
+          slot.geoLinked = slot.geoLinked || isGeo;
+          // Promote a geo-linked face to be the sample (rows are confidence-desc,
+          // so the first geo-linked one we see is the best).
+          if (isGeo && !slot.sampleGeo) {
+            slot.sampleId = f.id;
+            slot.samplePhotoId = f.photoId;
+            slot.sampleConfidence = f.confidence;
+            slot.sampleGeo = true;
+          }
         }
       }
 
@@ -251,9 +276,12 @@ export async function GET(req: Request) {
       // "how many of these are NEW to my current results" — accounting for
       // photos already pulled in via the bib match, an Add-a-bib, or a
       // previously-confirmed face cluster.
+      // Rank the runner's own face (geo-linked) FIRST, then by how many of the
+      // bib's photos show the face, then confidence.
       const topClusterIds = [...aggregate.entries()]
         .sort(
           (a, b) =>
+            Number(b[1].geoLinked) - Number(a[1].geoLinked) ||
             b[1].photoIds.size - a[1].photoIds.size ||
             b[1].sampleConfidence - a[1].sampleConfidence
         )
@@ -488,6 +516,10 @@ export async function GET(req: Request) {
         // Hand the client a ready-to-use thumbnail URL so it doesn't have
         // to assemble routes from raw ids.
         sampleFaceUrl: `/api/photos/${c.sample.photoId}/face/${c.sample.faceId}`,
+        // The PhotoFace id of the sample — the client sends this to
+        // /api/photos/face-confirm so "This is me" searches Rekognition by this
+        // exact face (see the face-confirm route).
+        sampleFaceId: c.sample.faceId,
       })),
       confirmedCluster: effectiveCluster ?? null,
       autoConfirmClusterId,

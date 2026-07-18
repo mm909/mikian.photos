@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * FaceScanner — a live-camera "scan your face" modal with a photo-upload
@@ -44,6 +45,9 @@ export function FaceScanner({
   const fileRef = useRef<HTMLInputElement>(null);
   const [cam, setCam] = useState<CamState>("idle");
   const [note, setNote] = useState("");
+  // Portal target only exists in the browser — gate on mount so SSR renders null.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const stopStream = useCallback(() => {
     const s = streamRef.current;
@@ -152,15 +156,19 @@ export function FaceScanner({
     void onCapture(f);
   }
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const showUpload = cam === "denied" || cam === "unavailable";
 
-  return (
-    <div className="overlay" onClick={handleClose}>
+  // Portal to <body> so the fixed overlay is centered in the VIEWPORT, not
+  // trapped by an ancestor's transform/animation (which would turn `fixed`
+  // into "relative to that ancestor" and push the modal off a long page).
+  // `overflowY: auto` + a capped modal height keeps it usable on short screens.
+  return createPortal(
+    <div className="overlay" onClick={handleClose} style={{ overflowY: "auto" }}>
       <div
         className="modal"
-        style={{ maxWidth: 460 }}
+        style={{ maxWidth: 460, maxHeight: "calc(100vh - 48px)", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal__header">
@@ -321,6 +329,7 @@ export function FaceScanner({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

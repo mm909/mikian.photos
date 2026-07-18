@@ -39,7 +39,8 @@ export function StepAll({ onBack }: { onBack: () => void }) {
     autoConfirmed,
     expandingCluster,
     confirmedClusterId,
-    confirmFaceCluster,
+    confirmFace,
+    clearFaceConfirm,
     runFaceSearch,
     faceScanning,
     faceScanStatus,
@@ -83,21 +84,20 @@ export function StepAll({ onBack }: { onBack: () => void }) {
   function acceptGuess() {
     if (!bestGuess) return;
     setAccepted(true);
-    // UNION — ADD the photos we matched to this face ON TOP of the bib set
-    // (this rescues photos where the bib wasn't readable), rather than
-    // filtering the bib set down to only face-bearing photos. Confirming
-    // "this is me" should only ever grow a runner's results, never shrink them.
-    void confirmFaceCluster(bestGuess.clusterId, false);
+    // Search Rekognition by the picked face → replace results with EVERY photo
+    // of this runner: drops bib photos that don't show them, adds photos where
+    // the bib wasn't readable. Robust to clustering gaps (see confirmFace).
+    void confirmFace(bestGuess);
   }
   function notMe() {
     if (bestGuess) setRejected((prev) => new Set(prev).add(bestGuess.clusterId));
   }
-  // Undo the face match: drop the face-rescued photos and go back to the bib
-  // set, re-showing the guess card.
+  // Undo the face match: drop the face-matched set and go back to the bib
+  // results, re-showing the guess card.
   function clearFace() {
     setAccepted(false);
     setRejected(new Set());
-    void confirmFaceCluster(null);
+    void clearFaceConfirm();
   }
 
   /* ---- Loading: bib search's server fetch in flight -------------------- */
@@ -237,6 +237,17 @@ export function StepAll({ onBack }: { onBack: () => void }) {
             <div style={eyebrowStyle}>Is this you?</div>
             <div
               style={{
+                fontSize: 12.5,
+                color: "var(--muted)",
+                marginTop: -4,
+                textAlign: "center",
+                lineHeight: 1.4,
+              }}
+            >
+              Help refine the search
+            </div>
+            <div
+              style={{
                 width: 88,
                 height: 88,
                 borderRadius: 999,
@@ -255,19 +266,9 @@ export function StepAll({ onBack }: { onBack: () => void }) {
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
             </div>
-            {bestGuess.photoCountInEvent > 0 && (
-              <div
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: 17,
-                  color: "var(--ink)",
-                  fontWeight: 500,
-                }}
-              >
-                {bestGuess.photoCountInEvent} photo
-                {bestGuess.photoCountInEvent === 1 ? "" : "s"} with your face
-              </div>
-            )}
+            {/* No pre-confirm count: the stored cluster undercounts a fragmented
+                face. Confirming searches by the face and shows the TRUE count in
+                the headline (no misleading number here). */}
             <div
               style={{
                 display: "flex",

@@ -109,6 +109,10 @@ export type FaceCandidate = {
    *  ids NOT already in the runner's current result set. */
   photoIdsInEvent: string[];
   sampleFaceUrl: string;
+  /** PhotoFace id of the sample face — sent to /api/photos/face-confirm so
+   *  "This is me" searches Rekognition by this exact face (accurate + robust to
+   *  clustering gaps), rather than filtering by the unreliable stored cluster. */
+  sampleFaceId: string;
 };
 
 type RunnerCtx = {
@@ -216,10 +220,13 @@ type RunnerCtx = {
   /** True when the active event is free — checkout skips PayPal and claims the
    *  photos directly via /api/orders/free-claim. */
   isFree: boolean;
-  /** Confirm a face cluster. faceOnly=true FILTERS results to only photos
-   *  containing that face (the "This is me" action); faceOnly=false UNIONs the
-   *  cluster onto the bib set. Pass clusterId=null to un-confirm. */
-  confirmFaceCluster: (clusterId: string | null, faceOnly?: boolean) => Promise<void>;
+  /** "This is me" — confirm a face candidate. Searches Rekognition by the
+   *  picked face and REPLACES results with every photo containing that person
+   *  (drops bib photos that don't show them, adds face photos where the bib
+   *  wasn't readable). Robust to clustering gaps; see the face-confirm route. */
+  confirmFace: (candidate: FaceCandidate) => Promise<void>;
+  /** Undo a face confirm: restore the plain bib result set. */
+  clearFaceConfirm: () => Promise<void>;
   toggleSel: (id: string) => void;
   clearSel: () => void;
   addSelToCart: () => void;
@@ -686,21 +693,11 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
             setFaceCandidates(d.faceCandidates ?? []);
             if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
             setSearchLoading(false);
-            // If the bib confidently maps to a single face, expand by it
-            // silently (union — keeps bib photos where the face wasn't
-            // detected) and suppress the "Is this you?" prompt. Pass the
-            // numeric bib explicitly so we don't race on searchedBib state.
-            if (d.autoConfirmClusterId) {
-              setAutoConfirmed(true);
-              void expandByCluster({
-                bib: n,
-                clusterId: d.autoConfirmClusterId,
-                faceOnly: false,
-                silent: true,
-              });
-            } else {
-              setAutoConfirmed(false);
-            }
+            // Bib search returns exactly the bib's photos — no silent face
+            // expansion. The runner explicitly confirms their face via the
+            // "Is this you?" prompt ("This is me"), which then searches by that
+            // face. (autoConfirmed is kept false so the prompt always shows.)
+            setAutoConfirmed(false);
         })
         .catch((e) => {
           if (seq !== searchSeq.current || searchEventId !== activeEventId) return;
@@ -744,87 +741,62 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Low-level cluster expansion shared by silent auto-confirm and the explicit
-   * "This is me" confirm. Re-issues the bib search with `?cluster=<id>` (and
-   * `&faceOnly=1` when we want to FILTER to just that face instead of UNION it
-   * onto the bib set), then swaps in the returned photos.
-   *
-   * Takes the bib explicitly so callers firing inside an in-flight search
-   * don't race on the async `searchedBib` state.
+   * "This is me" — confirm a face candidate. Instead of filtering by the
+   * (unreliable) stored cluster, we ask the server to search Rekognition by the
+   * picked face (POST /api/photos/face-confirm) and REPLACE the results with
+   * every photo containing that person:
+   *   - bib photos that DON'T show the runner drop out,
+   *   - photos that show the runner but whose bib wasn't readable are added.
+   * This is what the runner means by "these are my photos", and it's robust to
+   * clustering that over- or under-merged the face (see the face-confirm route).
    */
-  async function expandByCluster(opts: {
-    bib: number;
-    clusterId: string | null;
-    faceOnly: boolean;
-    /** Suppress the "+N more" toast (used by silent auto-confirm). */
-    silent?: boolean;
-  }): Promise<void> {
-    const { bib, clusterId, faceOnly, silent = false } = opts;
+  async function confirmFace(candidate: FaceCandidate): Promise<void> {
+    if (!activeEventId || !candidate.sampleFaceId) return;
     // Refinement of the CURRENT search — capture (don't bump) the token so a
-    // newer search or an event switch invalidates this expansion's response.
+    // newer search or an event switch invalidates this confirm's response.
     const seq = searchSeq.current;
     const searchEventId = activeEventId;
-    // Remember the prior confirmation so we can roll back if the fetch fails —
-    // otherwise the UI would claim "Showing photos with your face" over an
-    // unfiltered grid (the filter never applied).
     const prevClusterId = confirmedClusterId;
-    setConfirmedClusterId(clusterId);
-    if (!Number.isFinite(bib) || bib <= 0) return;
-
-    // Clearing the face (clusterId === null): restore the cached bib base
-    // INSTANTLY rather than refetching. This is what brings back the bib
-    // photos a face filter dropped — the whole point of the restore. We only
-    // fall through to a network refetch when the snapshot is empty (e.g. the
-    // page was reloaded mid-filter, so the base wasn't in memory).
-    if (clusterId === null && bibBasePhotos.length > 0) {
-      setResultPhotos(bibBasePhotos);
-      setResultTotal(bibBaseTotal ?? bibBasePhotos.length);
-      setResultIds(bibBaseIds.length > 0 ? bibBaseIds : bibBasePhotos.map((p) => p.id));
-      setSearchFellBack(false);
-      return;
-    }
-
+    // Mark confirmed immediately (drives the UI's "face active" state); rolled
+    // back on failure.
+    setConfirmedClusterId(candidate.clusterId);
     setExpandingCluster(true);
     try {
-      const url = new URL("/api/photos", window.location.origin);
-      url.searchParams.set("eventId", activeEventId ?? "");
-      url.searchParams.set("bib", String(bib));
-      if (clusterId) url.searchParams.set("cluster", clusterId);
-      if (clusterId && faceOnly) url.searchParams.set("faceOnly", "1");
-      const res = await fetch(url.pathname + "?" + url.searchParams.toString());
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const k = new URLSearchParams(window.location.search).get("k");
+      const res = await fetch("/api/photos/face-confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: activeEventId,
+          faceId: candidate.sampleFaceId,
+          ...(k ? { k } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const msg = await res
+          .json()
+          .then((j) => (j as { error?: string }).error ?? `HTTP ${res.status}`)
+          .catch(() => `HTTP ${res.status}`);
+        throw new Error(msg);
+      }
       const d = (await res.json()) as {
         photos: Parameters<typeof apiPhotoToUi>[0][];
-        faceCandidates?: FaceCandidate[];
-        crossLinked?: number;
-        total?: number;
-        matchedIds?: string[] | null;
-        bundlePrice?: number;
+        matchCount: number;
       };
       // Superseded by a newer search / event switch while we awaited → drop it.
       if (seq !== searchSeq.current || searchEventId !== activeEventId) return;
       const ui = (d.photos ?? []).map(apiPhotoToUi);
       setResultPhotos(ui);
-      setResultTotal(d.total ?? ui.length);
-      setResultIds(Array.isArray(d.matchedIds) ? d.matchedIds : ui.map((p) => p.id));
+      setResultTotal(d.matchCount ?? ui.length);
+      // Face confirm returns the FULL matched set, so these ids are what a
+      // bundle covers.
+      setResultIds(ui.map((p) => p.id));
       setSearchFellBack(ui.length === 0);
-      if (typeof d.bundlePrice === "number") setBundlePrice(d.bundlePrice);
-      // Refresh the strip from the server response, but ONLY overwrite when the
-      // server returns a non-empty list (a confirm sometimes returns 0
-      // candidates; clearing would yank the strip out from under the user).
-      const fresh = d.faceCandidates ?? [];
-      if (fresh.length > 0) setFaceCandidates(fresh);
-      if (!silent && clusterId && d.crossLinked && d.crossLinked > 0) {
-        flashToast(`+${d.crossLinked} more found by face match`);
-      }
     } catch (e) {
-      console.warn("cluster expansion failed:", e);
-      // Roll back the confirmation (unless a newer search already moved on) so
-      // the "Showing photos with your face" control doesn't linger over the
-      // still-unfiltered grid. Leave the prior result set in place; user retries.
+      console.warn("face confirm failed:", e);
       if (seq === searchSeq.current && searchEventId === activeEventId) {
         setConfirmedClusterId(prevClusterId);
-        if (!silent) flashToast("Couldn't filter to your face — try again.");
+        flashToast("Couldn't confirm your face — try again.");
       }
     } finally {
       setExpandingCluster(false);
@@ -832,21 +804,17 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Confirm a "Is this you?" face candidate from the UI.
-   *
-   * `faceOnly=true` (the explicit "This is me" action): FILTER — replace
-   * results with ONLY photos containing that face, dropping bib-tagged photos
-   * that don't show it. `faceOnly=false`: UNION — add the cluster's other
-   * photos on top of the bib set. Pass clusterId=null to undo.
+   * Undo a face confirm: drop the face-matched set and restore the plain bib
+   * results (the cached bib base captured when the bib search ran).
    */
-  async function confirmFaceCluster(
-    clusterId: string | null,
-    faceOnly = false
-  ): Promise<void> {
-    if (!searchedBib) return;
-    const n = Number(searchedBib);
-    if (!Number.isFinite(n) || n <= 0) return;
-    await expandByCluster({ bib: n, clusterId, faceOnly });
+  async function clearFaceConfirm(): Promise<void> {
+    setConfirmedClusterId(null);
+    if (bibBasePhotos.length > 0) {
+      setResultPhotos(bibBasePhotos);
+      setResultTotal(bibBaseTotal ?? bibBasePhotos.length);
+      setResultIds(bibBaseIds.length > 0 ? bibBaseIds : bibBasePhotos.map((p) => p.id));
+      setSearchFellBack(false);
+    }
   }
 
   /**
@@ -1343,7 +1311,8 @@ export function RunnerProvider({ children }: { children: React.ReactNode }) {
       capabilities,
       activeEventId,
       isFree,
-      confirmFaceCluster,
+      confirmFace,
+      clearFaceConfirm,
       toggleSel,
       clearSel,
       addSelToCart,

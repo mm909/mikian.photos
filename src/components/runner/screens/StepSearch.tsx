@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Headline } from "../Headline";
 import { FaceScanner } from "../FaceScanner";
-import { JustifiedPhotoGrid } from "../JustifiedPhotoGrid";
-import { PhotoViewer } from "../PhotoViewer";
+import { LandingMosaic } from "../LandingMosaic";
 import { useFeatureControls } from "../useFeatureControls";
 import { useRunner } from "../RunnerProvider";
 import { BibSearchForm } from "../BibSearchForm";
@@ -43,13 +42,10 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
     event,
     capabilities,
     activeEventId,
-    featuredPhotos,
   } = useRunner();
   const feature = useFeatureControls();
   const router = useRouter();
   const [scannerOpen, setScannerOpen] = useState(false);
-  // Full-screen peek at a mosaic photo (and the owner's ★ curation surface).
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Render strictly from capabilities. Until they load, show a neutral loading
   // state — never flash the race bib/name form (e.g. on a camp event).
@@ -97,9 +93,6 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
   }
 
   const browseLabel = `Browse all photos${externalBrowse ? " ↗" : ""}`;
-
-  // Mosaic photos for the portfolio hero (owner-featured first, then random).
-  const heroPhotos = featuredPhotos.map((f) => ({ id: f.id, src: f.previewUrl }));
 
   return (
     <main className="screen" style={{ padding: "44px 24px 72px" }}>
@@ -219,15 +212,13 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
           </div>
         </div>
 
-        {/* Portfolio mosaic — the visual anchor. Tapping a photo opens the
-            viewer (owner sees the ★ toggle there for in-place curation). */}
-        {heroPhotos.length > 0 && (
+        {/* Portfolio mosaic — the visual anchor. Owner-featured photos lead,
+            then the rest of the event streams in as you scroll (like the
+            Gallery). Tapping a photo opens the viewer (owner sees the ★ toggle
+            there for in-place curation). */}
+        {activeEventId && (
           <div style={{ marginTop: 40 }}>
-            <JustifiedPhotoGrid
-              photos={heroPhotos}
-              onOpen={(i) => setViewerIndex(i)}
-              targetRowHeight={210}
-            />
+            <LandingMosaic slug={activeEventId} feature={feature} />
           </div>
         )}
 
@@ -241,16 +232,6 @@ export function StepSearch({ onAdvance }: { onAdvance: () => void }) {
         busy={faceScanning}
         subtitle="Center your face in the circle. We only use this to find your photos."
       />
-
-      {viewerIndex !== null && (
-        <PhotoViewer
-          photos={heroPhotos}
-          index={viewerIndex}
-          onClose={() => setViewerIndex(null)}
-          onIndex={(i) => setViewerIndex(i)}
-          feature={feature}
-        />
-      )}
     </main>
   );
 }
