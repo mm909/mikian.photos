@@ -115,6 +115,7 @@ const css = `
 .lasd26 .pill input:focus-visible + span{outline:2px solid var(--safety);outline-offset:2px}
 .lasd26 .send{display:block;width:100%;margin-top:34px;background:var(--safety);color:#111;border:none;font-family:var(--lasd-archivo-black),sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:.04em;padding:20px;cursor:pointer;text-align:center;text-decoration:none}
 .lasd26 .send:hover{background:#ff6a2b}
+.lasd26 .send:disabled{background:#3d3d3a;color:#9a9a94;cursor:default}
 .lasd26 .sent{border:2px solid var(--safety);color:var(--safety);text-align:center;font-family:var(--lasd-mono),monospace;padding:26px 18px;margin-top:34px;font-size:13px;line-height:1.8}
 .lasd26 .sent a{color:var(--safety)}
 

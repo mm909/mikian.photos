@@ -4,14 +4,46 @@ import { useState } from "react";
 
 const ROLES = ["Runner", "Wheels / crew", "Either"] as const;
 
+type Status = "idle" | "sending" | "sent" | "error";
+
 export function CrewForm() {
   const [name, setName] = useState("");
   const [role, setRole] = useState<string>("Runner");
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
 
-  const subject = `LASD26 crew — ${name.trim() || "(no name)"}`;
-  const body = `Name: ${name.trim()}\nRole: ${role}\n\n(sent from the LASD26 crew call page)`;
-  const href = `mailto:mikianmusser@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  async function submit() {
+    if (status === "sending" || status === "sent") return;
+    if (!name.trim()) {
+      setStatus("error");
+      setError("ADD YOUR NAME FIRST.");
+      return;
+    }
+    setStatus("sending");
+    setError("");
+    try {
+      const res = await fetch("/api/lasd26/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), role }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (res.ok && data.ok) {
+        setStatus("sent");
+      } else {
+        setStatus("error");
+        setError((data.error || "Something broke — try again.").toUpperCase());
+      }
+    } catch {
+      setStatus("error");
+      setError("SOMETHING BROKE — CHECK YOUR CONNECTION AND TRY AGAIN.");
+    }
+  }
+
+  const sent = status === "sent";
 
   return (
     <>
@@ -23,7 +55,11 @@ export function CrewForm() {
         id="a-name"
         autoComplete="name"
         value={name}
+        disabled={sent}
         onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
       />
       <label className="fl">Role</label>
       <div className="pills">
@@ -34,20 +70,25 @@ export function CrewForm() {
               name="role"
               value={r}
               checked={role === r}
+              disabled={sent}
               onChange={() => setRole(r)}
             />
             <span>{r.toUpperCase()}</span>
           </label>
         ))}
       </div>
-      <a className="send" href={href} onClick={() => setSent(true)}>
-        Send it →
-      </a>
+      <button
+        type="button"
+        className="send"
+        onClick={submit}
+        disabled={status === "sending" || sent}
+      >
+        {sent ? "IN THE PILE ✓" : status === "sending" ? "SENDING…" : "Send it →"}
+      </button>
       {sent && (
         <div className="sent">
-          YOUR MAIL APP JUST OPENED WITH THE DETAILS —
-          <br />
-          HIT SEND THERE AND YOU&rsquo;RE IN THE PILE.
+          YOU&rsquo;RE IN THE PILE — MIKIAN JUST GOT AN EMAIL WITH YOUR NAME ON
+          IT.
           <br />
           <a
             href="https://instagram.com/mikian_"
@@ -59,6 +100,7 @@ export function CrewForm() {
           WILL GET BACK TO YOU.
         </div>
       )}
+      {status === "error" && <div className="sent">{error}</div>}
     </>
   );
 }

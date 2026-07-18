@@ -48,13 +48,16 @@ export type SendResult = { ok: true; id?: string } | { ok: false; error: string 
  * Send a plain-text notification to the platform owner (e.g. a contact-form
  * submission). Returns ok=true when no Resend key is set (logs instead) so dev
  * doesn't 500. `replyToAddr` lets the owner reply straight to the sender.
+ * `toOverride` routes the notification to a specific inbox instead of
+ * OWNER_EMAIL (e.g. the /lasd26 crew call goes to the personal address).
  */
 export async function sendOwnerNotification(
   subject: string,
   text: string,
-  replyToAddr?: string
+  replyToAddr?: string,
+  toOverride?: string
 ): Promise<SendResult> {
-  const to = process.env.OWNER_EMAIL || "mikian.photos@gmail.com";
+  const to = toOverride || process.env.OWNER_EMAIL || "mikian.photos@gmail.com";
   const client = getClient();
   if (!client) {
     console.info(`[email] (no RESEND_API_KEY) owner notification "${subject}" → ${to}\n${text}`);

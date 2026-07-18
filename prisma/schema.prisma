@@ -531,3 +531,17 @@ model RateLimit {
   @@id([key, windowStart])
   @@index([expiresAt])
 }
+
+// Crew-call applications ("Put your name in" on /lasd26). Standalone from the
+// photo product; `page` scopes rows so a future crew page can reuse the table.
+// Each submission also emails the owner the full applicant list — the table is
+// the source of truth, the email is the notification.
+model CrewApplication {
+  id        String   @id @default(cuid())
+  page      String   @default("lasd26")
+  name      String
+  role      String
+  createdAt DateTime @default(now())
+
+  @@index([page, createdAt])
+}
