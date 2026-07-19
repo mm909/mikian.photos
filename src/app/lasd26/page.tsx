@@ -137,6 +137,8 @@ const css = `
 .lasd26 .admin-sec table.pile{width:100%;border-collapse:collapse;font-family:var(--lasd-mono),monospace;font-size:13px}
 .lasd26 .admin-sec table.pile th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:2px solid var(--ink)}
 .lasd26 .admin-sec table.pile td{padding:9px 6px;border-bottom:1px dashed #c9c8c0;word-break:break-word;vertical-align:top}
+.lasd26 .admin-sec table.pile a{text-decoration:underline;text-underline-offset:3px}
+.lasd26 .admin-sec table.pile a:hover{color:var(--safety)}
 .lasd26 .admin-sec .empty{font-family:var(--lasd-mono),monospace;font-size:13px;color:var(--gray);padding:18px 0}
 .lasd26 .clear-btn{margin-top:22px;background:transparent;border:2px solid var(--ink);color:var(--ink);font-size:13px;font-weight:700;letter-spacing:.06em;padding:11px 20px;cursor:pointer}
 .lasd26 .clear-btn:hover{border-color:var(--safety);color:var(--safety)}
@@ -379,7 +381,19 @@ export default async function Lasd26Page() {
                       <td>{a.name}</td>
                       <td>{a.role}</td>
                       <td>{a.email || "—"}</td>
-                      <td>{a.instagram ? `@${a.instagram}` : "—"}</td>
+                      <td>
+                        {a.instagram ? (
+                          <a
+                            href={`https://instagram.com/${a.instagram}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            @{a.instagram}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>{stamp(a.createdAt)}</td>
                     </tr>
                   ))}
