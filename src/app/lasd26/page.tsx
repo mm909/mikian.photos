@@ -286,7 +286,7 @@ export default async function Lasd26Page() {
               SAT<span>10.24</span>
             </div>
             <div>
-              <h3>Recovery, loudly</h3>
+              <h3>Recover, loudly</h3>
               <p>All-day pool celebration at Town &amp; Country.</p>
             </div>
           </div>
