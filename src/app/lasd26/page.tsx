@@ -128,6 +128,11 @@ const css = `
 .lasd26 .send:disabled{background:#3d3d3a;color:#9a9a94;cursor:default}
 .lasd26 .sent{border:2px solid var(--safety);color:var(--safety);text-align:center;font-family:var(--lasd-mono),monospace;padding:26px 18px;margin-top:34px;font-size:13px;line-height:1.8}
 .lasd26 .sent a{color:var(--safety)}
+.lasd26 .sim-btn{display:block;width:100%;margin-top:12px;background:transparent;border:2px dashed #555;color:#9a9a94;font-size:12px;letter-spacing:.08em;padding:12px;cursor:pointer}
+.lasd26 .sim-btn:hover{border-color:var(--safety);color:var(--safety)}
+.lasd26 .sim-btn:disabled{opacity:.5;cursor:default}
+.lasd26 .sim-note{margin-top:12px;font-size:11px;color:#9a9a94;text-align:center;letter-spacing:.08em}
+.lasd26 .sim-note button{background:none;border:none;color:var(--safety);font-family:inherit;font-size:inherit;letter-spacing:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
 
 .lasd26 .admin-sec table.pile{width:100%;border-collapse:collapse;font-family:var(--lasd-mono),monospace;font-size:13px}
 .lasd26 .admin-sec table.pile th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:2px solid var(--ink)}
@@ -342,7 +347,7 @@ export default async function Lasd26Page() {
             <h2>Put your name in</h2>
             <span className="mono">CLOSES WHEN THE VAN IS FULL</span>
           </div>
-          <CrewForm />
+          <CrewForm simulate={owner} />
         </div>
       </div>
 

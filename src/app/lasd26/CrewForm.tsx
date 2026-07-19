@@ -14,26 +14,35 @@ function igHandle(raw: string): string {
   return h.replace(/^@+/, "").slice(0, 64);
 }
 
-export function CrewForm() {
+/** `simulate` (owner-only, decided server-side) adds a dry-run button that
+ *  shows the confirmation screen without hitting the API. */
+export function CrewForm({ simulate = false }: { simulate?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [instagram, setInstagram] = useState("");
   const [role, setRole] = useState<string>("Runner");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
+  const [simulated, setSimulated] = useState(false);
 
-  async function submit() {
-    if (status === "sending" || status === "sent") return;
+  function validate(): boolean {
     if (!name.trim()) {
       setStatus("error");
       setError("ADD YOUR NAME FIRST.");
-      return;
+      return false;
     }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
       setStatus("error");
       setError("ADD AN EMAIL SO WE CAN REACH YOU.");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function submit() {
+    if (status === "sending" || status === "sent") return;
+    if (!validate()) return;
+    setSimulated(false);
     setStatus("sending");
     setError("");
     try {
@@ -61,6 +70,20 @@ export function CrewForm() {
       setStatus("error");
       setError("SOMETHING BROKE — CHECK YOUR CONNECTION AND TRY AGAIN.");
     }
+  }
+
+  function simulateSend() {
+    if (status === "sending" || status === "sent") return;
+    if (!validate()) return;
+    setError("");
+    setSimulated(true);
+    setStatus("sent");
+  }
+
+  function resetSimulation() {
+    setSimulated(false);
+    setStatus("idle");
+    setError("");
   }
 
   const sent = status === "sent";
@@ -137,6 +160,16 @@ export function CrewForm() {
       >
         {sent ? "RECEIVED ✓" : status === "sending" ? "SENDING…" : "Send it →"}
       </button>
+      {simulate && !sent && (
+        <button
+          type="button"
+          className="sim-btn mono"
+          onClick={simulateSend}
+          disabled={status === "sending"}
+        >
+          SIMULATE — TEST THE END SCREEN, NOTHING SENT
+        </button>
+      )}
       {sent && (
         <div className="sent">
           {name.trim().toUpperCase()} · {role.toUpperCase()}
@@ -146,6 +179,14 @@ export function CrewForm() {
           <br />
           THANK YOU FOR YOUR INTEREST — WE&rsquo;LL BE IN TOUCH.
         </div>
+      )}
+      {sent && simulated && (
+        <p className="sim-note mono">
+          TEST ONLY — NOTHING WAS SENT ·{" "}
+          <button type="button" onClick={resetSimulation}>
+            RESET →
+          </button>
+        </p>
       )}
       {status === "error" && <div className="sent">{error}</div>}
     </>
