@@ -541,6 +541,7 @@ model CrewApplication {
   page      String   @default("lasd26")
   name      String
   role      String
+  email     String   @default("")
   createdAt DateTime @default(now())
 
   @@index([page, createdAt])

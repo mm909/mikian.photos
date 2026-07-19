@@ -8,6 +8,7 @@ type Status = "idle" | "sending" | "sent" | "error";
 
 export function CrewForm() {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("Runner");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -19,13 +20,18 @@ export function CrewForm() {
       setError("ADD YOUR NAME FIRST.");
       return;
     }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setStatus("error");
+      setError("ADD AN EMAIL SO WE CAN REACH YOU.");
+      return;
+    }
     setStatus("sending");
     setError("");
     try {
       const res = await fetch("/api/lasd26/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), role }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), role }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -44,6 +50,7 @@ export function CrewForm() {
   }
 
   const sent = status === "sent";
+  const locked = sent || status === "sending";
 
   return (
     <>
@@ -55,8 +62,23 @@ export function CrewForm() {
         id="a-name"
         autoComplete="name"
         value={name}
-        disabled={sent}
+        disabled={locked}
         onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+      />
+      <label className="fl" htmlFor="a-email">
+        Email
+      </label>
+      <input
+        type="email"
+        id="a-email"
+        autoComplete="email"
+        inputMode="email"
+        value={email}
+        disabled={locked}
+        onChange={(e) => setEmail(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
         }}
@@ -70,7 +92,7 @@ export function CrewForm() {
               name="role"
               value={r}
               checked={role === r}
-              disabled={sent}
+              disabled={locked}
               onChange={() => setRole(r)}
             />
             <span>{r.toUpperCase()}</span>
@@ -83,21 +105,17 @@ export function CrewForm() {
         onClick={submit}
         disabled={status === "sending" || sent}
       >
-        {sent ? "IN THE PILE ✓" : status === "sending" ? "SENDING…" : "Send it →"}
+        {sent ? "RECEIVED ✓" : status === "sending" ? "SENDING…" : "Send it →"}
       </button>
       {sent && (
         <div className="sent">
-          YOU&rsquo;RE IN THE PILE — MIKIAN JUST GOT AN EMAIL WITH YOUR NAME ON
-          IT.
+          {name.trim().toUpperCase()} · {role.toUpperCase()}
           <br />
-          <a
-            href="https://instagram.com/mikian_"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            @MIKIAN_
-          </a>{" "}
-          WILL GET BACK TO YOU.
+          {email.trim()}
+          <br />
+          THANK YOU FOR YOUR INTEREST — WE&rsquo;LL BE IN TOUCH.
+          <br />
+          THE VAN ONLY SEATS 10, SO WE&rsquo;LL CONFIRM SPOTS PERSONALLY.
         </div>
       )}
       {status === "error" && <div className="sent">{error}</div>}

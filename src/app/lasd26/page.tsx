@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Archivo_Black, Space_Mono } from "next/font/google";
 import { CrewForm } from "./CrewForm";
+import { Countdown } from "./Countdown";
+import { ClearPile } from "./ClearPile";
+import { db } from "@/lib/db";
+import { isOwnerActor } from "@/lib/permissions";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -36,6 +40,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#F4F3EE",
 };
+
+// Session-gated (owner-only applicant list) — never let this render statically.
+export const dynamic = "force-dynamic";
 
 /* Faint 2x2 noise tile carried over from the original one-pager. */
 const NOISE =
@@ -97,17 +104,20 @@ const css = `
 .lasd26 .day.race .d,.lasd26 .day.race .d span{color:var(--safety)}
 .lasd26 .day.race p{color:#c9c8c0}
 
-.lasd26 table.ledger{width:100%;border-collapse:collapse;font-family:var(--lasd-mono),monospace;font-size:13px}
-.lasd26 table.ledger td{padding:10px 4px;border-bottom:1px dashed #c9c8c0}
-.lasd26 table.ledger td:last-child{text-align:right;font-weight:700}
-.lasd26 table.ledger tr.total td{border-top:2px solid var(--ink);border-bottom:none;font-size:15px;font-weight:700}
+.lasd26 .count{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink)}
+.lasd26 .count .c{padding:20px 8px 16px;text-align:center;border-right:1px solid var(--ink)}
+.lasd26 .count .c:last-child{border-right:none}
+.lasd26 .count .n{font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(30px,9vw,58px);line-height:1;font-variant-numeric:tabular-nums}
+.lasd26 .count .c:last-child .n{color:var(--safety)}
+.lasd26 .count .l{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-top:7px}
+.lasd26 .count-done{border:2px solid var(--safety);color:var(--safety);text-align:center;padding:26px 18px;font-size:14px;font-weight:700;letter-spacing:.04em}
 
 .lasd26 .form-sec{background:#111;color:#F4F3EE;margin-top:56px;padding:56px 0 72px}
 .lasd26 .form-sec .sec-head{border-color:#F4F3EE}
 .lasd26 .form-sec .sec-head h2{color:#F4F3EE}
 .lasd26 .form-sec label.fl{display:block;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9a9a94;margin:22px 0 7px}
-.lasd26 .form-sec input[type=text]{width:100%;background:transparent;border:none;border-bottom:2px solid #444;color:#F4F3EE;font-family:var(--lasd-archivo),sans-serif;font-size:17px;padding:8px 2px;border-radius:0;appearance:none}
-.lasd26 .form-sec input[type=text]:focus{outline:none;border-bottom-color:var(--safety)}
+.lasd26 .form-sec input[type=text],.lasd26 .form-sec input[type=email]{width:100%;background:transparent;border:none;border-bottom:2px solid #444;color:#F4F3EE;font-family:var(--lasd-archivo),sans-serif;font-size:17px;padding:8px 2px;border-radius:0;appearance:none}
+.lasd26 .form-sec input[type=text]:focus,.lasd26 .form-sec input[type=email]:focus{outline:none;border-bottom-color:var(--safety)}
 .lasd26 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .lasd26 .pill input{position:absolute;opacity:0}
 .lasd26 .pill span{display:inline-block;border:2px solid #555;padding:9px 16px;font-family:var(--lasd-mono),monospace;font-size:13px;cursor:pointer;user-select:none}
@@ -118,6 +128,15 @@ const css = `
 .lasd26 .send:disabled{background:#3d3d3a;color:#9a9a94;cursor:default}
 .lasd26 .sent{border:2px solid var(--safety);color:var(--safety);text-align:center;font-family:var(--lasd-mono),monospace;padding:26px 18px;margin-top:34px;font-size:13px;line-height:1.8}
 .lasd26 .sent a{color:var(--safety)}
+
+.lasd26 .admin-sec table.pile{width:100%;border-collapse:collapse;font-family:var(--lasd-mono),monospace;font-size:13px}
+.lasd26 .admin-sec table.pile th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:2px solid var(--ink)}
+.lasd26 .admin-sec table.pile td{padding:9px 6px;border-bottom:1px dashed #c9c8c0;word-break:break-word;vertical-align:top}
+.lasd26 .admin-sec .empty{font-family:var(--lasd-mono),monospace;font-size:13px;color:var(--gray);padding:18px 0}
+.lasd26 .clear-btn{margin-top:22px;background:transparent;border:2px solid var(--ink);color:var(--ink);font-size:13px;font-weight:700;letter-spacing:.06em;padding:11px 20px;cursor:pointer}
+.lasd26 .clear-btn:hover{border-color:var(--safety);color:var(--safety)}
+.lasd26 .clear-btn:disabled{opacity:.5;cursor:default}
+.lasd26 .clear-err{margin-top:12px;font-size:12px;color:var(--safety)}
 
 .lasd26 footer{padding:44px 20px 64px;border-top:2px solid var(--ink)}
 .lasd26 footer .big{font-family:var(--lasd-archivo-black),sans-serif;font-size:13px;letter-spacing:.1em;margin-bottom:10px}
@@ -138,7 +157,32 @@ const css = `
 }
 `;
 
-export default function Lasd26Page() {
+/** MM.DD HH:MM in Pacific time, for the owner-only applicant table. */
+function stamp(d: Date): string {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  return `${get("month")}.${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
+export default async function Lasd26Page() {
+  // Owner-only extras: the applicant list renders solely for a signed-in owner
+  // (sign in happens on the main site — this page keeps no auth UI of its own).
+  const owner = await isOwnerActor();
+  const applicants = owner
+    ? await db.crewApplication.findMany({
+        where: { page: "lasd26" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, role: true, email: true, createdAt: true },
+      })
+    : [];
+
   return (
     <div
       className={`lasd26 ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}
@@ -184,14 +228,12 @@ export default function Lasd26Page() {
           <div className="cell">
             <div className="k mono">Race day</div>
             <div className="v">
-              Fri 10.23<small>start 5:00 AM sharp</small>
+              Fri 10.23<small>start 5:00 AM</small>
             </div>
           </div>
           <div className="cell">
             <div className="k mono">Start → Finish</div>
-            <div className="v">
-              SM Pier → San Diego<small>Milestone Running, Garnet Ave</small>
-            </div>
+            <div className="v">SM Pier → San Diego</div>
           </div>
           <div className="cell">
             <div className="k mono">Crew size</div>
@@ -202,7 +244,7 @@ export default function Lasd26Page() {
           <div className="cell">
             <div className="k mono">Est. cost</div>
             <div className="v">
-              $450–550<small>per person, all-in</small>
+              $450–550<small>per person</small>
             </div>
           </div>
         </div>
@@ -220,10 +262,7 @@ export default function Lasd26Page() {
             </div>
             <div>
               <h3>Vegas → LA</h3>
-              <p>
-                Drive out — departure time TBD. Big dinner, gear check, lights
-                out early.
-              </p>
+              <p>Drive out. Big dinner, gear check, lights out early.</p>
             </div>
           </div>
           <div className="day race">
@@ -232,11 +271,7 @@ export default function Lasd26Page() {
             </div>
             <div>
               <h3>Race day</h3>
-              <p>
-                4:00am load out · 4:45am at the Pier in kit · 5:00am gun. Then
-                we run, drive, and leapfrog ~130 miles to Milestone Running in
-                San Diego. Check in at Town &amp; Country.
-              </p>
+              <p>5:00am start · 130 miles from LA to SD.</p>
             </div>
           </div>
           <div className="day">
@@ -245,10 +280,7 @@ export default function Lasd26Page() {
             </div>
             <div>
               <h3>Recovery, loudly</h3>
-              <p>
-                All-day pool celebration at Town &amp; Country with every team.
-                Evening party from 6pm.
-              </p>
+              <p>All-day pool celebration at Town &amp; Country.</p>
             </div>
           </div>
           <div className="day">
@@ -257,7 +289,7 @@ export default function Lasd26Page() {
             </div>
             <div>
               <h3>SD → Vegas</h3>
-              <p>Checkout, breakfast, drive home. Back by evening.</p>
+              <p>Checkout, breakfast, drive home.</p>
             </div>
           </div>
         </div>
@@ -278,41 +310,10 @@ export default function Lasd26Page() {
       <section>
         <div className="wrap">
           <div className="sec-head">
-            <h2>What it costs</h2>
-            <span className="mono">EST. — CREW OF 10</span>
+            <h2>LASD 26</h2>
+            <span className="mono">START — FRI 10.23 · 5:00 AM PT</span>
           </div>
-          <table className="ledger">
-            <tbody>
-              <tr>
-                <td>Team entry ($1,000 ÷ 10)</td>
-                <td>$100</td>
-              </tr>
-              <tr>
-                <td>Vehicle share (7-seat SUV + captain&rsquo;s car)</td>
-                <td>$30</td>
-              </tr>
-              <tr>
-                <td>Hotel — Town &amp; Country, 2 nights shared</td>
-                <td>$200</td>
-              </tr>
-              <tr>
-                <td>Gas share, LV → LA → SD → LV</td>
-                <td>$40</td>
-              </tr>
-              <tr>
-                <td>Food + race fuel</td>
-                <td>$75</td>
-              </tr>
-              <tr>
-                <td>Team supplies (safety gear, cooler, misc.)</td>
-                <td>$50</td>
-              </tr>
-              <tr className="total">
-                <td>ALL-IN ESTIMATE</td>
-                <td>≈ $495</td>
-              </tr>
-            </tbody>
-          </table>
+          <Countdown />
         </div>
       </section>
 
@@ -337,6 +338,44 @@ export default function Lasd26Page() {
           <CrewForm />
         </div>
       </div>
+
+      {owner && (
+        <section className="admin-sec">
+          <div className="wrap">
+            <div className="sec-head">
+              <h2>The list</h2>
+              <span className="mono">ONLY YOU SEE THIS — {applicants.length} IN</span>
+            </div>
+            {applicants.length === 0 ? (
+              <p className="empty">NO NAMES YET.</p>
+            ) : (
+              <table className="pile">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applicants.map((a, i) => (
+                    <tr key={a.id}>
+                      <td>{i + 1}</td>
+                      <td>{a.name}</td>
+                      <td>{a.role}</td>
+                      <td>{a.email || "—"}</td>
+                      <td>{stamp(a.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {applicants.length > 0 && <ClearPile count={applicants.length} />}
+          </div>
+        </section>
+      )}
 
       <footer>
         <div className="wrap" style={{ padding: 0 }}>
@@ -367,6 +406,9 @@ export default function Lasd26Page() {
             >
               @jazz.mayy
             </a>
+          </p>
+          <p className="mono" style={{ marginTop: 18 }}>
+            for yourself and others
           </p>
         </div>
       </footer>
