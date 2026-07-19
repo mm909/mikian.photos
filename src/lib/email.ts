@@ -55,9 +55,14 @@ export async function sendOwnerNotification(
   subject: string,
   text: string,
   replyToAddr?: string,
-  toOverride?: string
+  toOverride?: string | string[]
 ): Promise<SendResult> {
-  const to = toOverride || process.env.OWNER_EMAIL || "mikian.photos@gmail.com";
+  const override = Array.isArray(toOverride)
+    ? toOverride.length > 0
+      ? toOverride
+      : undefined
+    : toOverride;
+  const to = override || process.env.OWNER_EMAIL || "mikian.photos@gmail.com";
   const client = getClient();
   if (!client) {
     console.info(`[email] (no RESEND_API_KEY) owner notification "${subject}" → ${to}\n${text}`);

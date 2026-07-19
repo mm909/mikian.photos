@@ -2,13 +2,22 @@
 
 import { useState } from "react";
 
-const ROLES = ["Runner", "Wheels / crew", "Either"] as const;
+const ROLES = ["Runner", "Crew", "Either"] as const;
 
 type Status = "idle" | "sending" | "sent" | "error";
+
+/** "@handle", "handle", or a pasted profile URL → bare handle. */
+function igHandle(raw: string): string {
+  let h = raw.trim();
+  const m = h.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (m) h = m[1];
+  return h.replace(/^@+/, "").slice(0, 64);
+}
 
 export function CrewForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [role, setRole] = useState<string>("Runner");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -31,7 +40,12 @@ export function CrewForm() {
       const res = await fetch("/api/lasd26/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), role }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          instagram: igHandle(instagram),
+          role,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -83,6 +97,22 @@ export function CrewForm() {
           if (e.key === "Enter") submit();
         }}
       />
+      <label className="fl" htmlFor="a-ig">
+        Instagram
+      </label>
+      <input
+        type="text"
+        id="a-ig"
+        autoComplete="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        value={instagram}
+        disabled={locked}
+        onChange={(e) => setInstagram(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+      />
       <label className="fl">Role</label>
       <div className="pills">
         {ROLES.map((r) => (
@@ -112,6 +142,7 @@ export function CrewForm() {
           {name.trim().toUpperCase()} · {role.toUpperCase()}
           <br />
           {email.trim()}
+          {igHandle(instagram) ? ` · @${igHandle(instagram)}` : ""}
           <br />
           THANK YOU FOR YOUR INTEREST — WE&rsquo;LL BE IN TOUCH.
           <br />

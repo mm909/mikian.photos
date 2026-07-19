@@ -179,7 +179,14 @@ export default async function Lasd26Page() {
     ? await db.crewApplication.findMany({
         where: { page: "lasd26" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, name: true, role: true, email: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          email: true,
+          instagram: true,
+          createdAt: true,
+        },
       })
     : [];
 
@@ -356,6 +363,7 @@ export default async function Lasd26Page() {
                     <th>Name</th>
                     <th>Role</th>
                     <th>Email</th>
+                    <th>IG</th>
                     <th>When</th>
                   </tr>
                 </thead>
@@ -366,6 +374,7 @@ export default async function Lasd26Page() {
                       <td>{a.name}</td>
                       <td>{a.role}</td>
                       <td>{a.email || "—"}</td>
+                      <td>{a.instagram ? `@${a.instagram}` : "—"}</td>
                       <td>{stamp(a.createdAt)}</td>
                     </tr>
                   ))}

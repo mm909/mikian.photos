@@ -6,20 +6,29 @@ import { clientIp, rateLimit } from "@/lib/rateLimit";
 
 /**
  * POST /api/lasd26/apply — the "Put your name in" form on /lasd26.
- * Body: { name, email, role }. Saves the application, then emails the crew
- * captain (name in the subject, role + email + the full pile-so-far in the
- * body). The DB row is the source of truth; a failed email is logged, not
+ * Body: { name, email, instagram?, role }. Saves the application, then emails
+ * the crew captains (name in the subject, role + email + instagram + the full
+ * pile-so-far in the body). The DB row is the source of truth; a failed email is logged, not
  * surfaced — the applicant shouldn't retry (and duplicate) because Resend
  * hiccuped.
  */
 export const runtime = "nodejs";
 
-const CREW_EMAIL = "mikianmusser@gmail.com";
+const CREW_EMAILS = ["mikianmusser@gmail.com", "justfriends.lasvegas@gmail.com"];
 const PAGE = "lasd26";
-const ROLES = new Set(["Runner", "Wheels / crew", "Either"]);
+const ROLES = new Set(["Runner", "Crew", "Either"]);
+
+/** Optional field: "@handle", "handle", or a pasted profile URL → bare handle. */
+function igHandle(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  let h = raw.trim();
+  const m = h.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (m) h = m[1];
+  return h.replace(/^@+/, "").slice(0, 64);
+}
 
 export async function POST(req: Request) {
-  let body: { name?: unknown; email?: unknown; role?: unknown };
+  let body: { name?: unknown; email?: unknown; instagram?: unknown; role?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -28,6 +37,7 @@ export async function POST(req: Request) {
 
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
+  const instagram = igHandle(body.instagram);
   const role = typeof body.role === "string" && ROLES.has(body.role) ? body.role : "";
   if (!name) {
     return NextResponse.json({ ok: false, error: "Add your name first." }, { status: 400 });
@@ -56,21 +66,27 @@ export async function POST(req: Request) {
     );
   }
 
-  await db.crewApplication.create({ data: { page: PAGE, name, email, role } });
+  await db.crewApplication.create({ data: { page: PAGE, name, email, instagram, role } });
 
   const all = await db.crewApplication.findMany({
     where: { page: PAGE },
     orderBy: { createdAt: "asc" },
-    select: { name: true, role: true, email: true },
+    select: { name: true, role: true, email: true, instagram: true },
   });
   const pile = all
-    .map((a, i) => `${i + 1}. ${a.name} — ${a.role}${a.email ? ` — ${a.email}` : ""}`)
+    .map(
+      (a, i) =>
+        `${i + 1}. ${a.name} — ${a.role}${a.email ? ` — ${a.email}` : ""}${
+          a.instagram ? ` — @${a.instagram}` : ""
+        }`
+    )
     .join("\n");
 
   const text =
     `${name} put their name in.\n` +
     `Role: ${role}\n` +
-    `Email: ${email}\n\n` +
+    `Email: ${email}\n` +
+    `Instagram: ${instagram ? `@${instagram}` : "—"}\n\n` +
     `The pile so far (${all.length}):\n${pile}\n\n` +
     `— sent from the LASD26 crew call page`;
 
@@ -78,7 +94,7 @@ export async function POST(req: Request) {
     `LASD26 crew — ${name}`,
     text,
     email,
-    CREW_EMAIL
+    CREW_EMAILS
   );
   if (!sent.ok) {
     console.warn(`[lasd26] application saved but email failed: ${sent.error}`);
