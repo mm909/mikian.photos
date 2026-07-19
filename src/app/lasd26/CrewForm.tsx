@@ -145,8 +145,6 @@ export function CrewForm() {
           {igHandle(instagram) ? ` · @${igHandle(instagram)}` : ""}
           <br />
           THANK YOU FOR YOUR INTEREST — WE&rsquo;LL BE IN TOUCH.
-          <br />
-          THE VAN ONLY SEATS 10, SO WE&rsquo;LL CONFIRM SPOTS PERSONALLY.
         </div>
       )}
       {status === "error" && <div className="sent">{error}</div>}
