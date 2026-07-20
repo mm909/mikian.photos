@@ -19,7 +19,8 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     pathname === "/tsp" ||
     pathname === "/tsp/stats" ||
     pathname === "/tsp/plan" ||
-    pathname === "/lasd26";
+    pathname === "/lasd26" ||
+    pathname.startsWith("/lasd26/");
 
   return (
     <>
