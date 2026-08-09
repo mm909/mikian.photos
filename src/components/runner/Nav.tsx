@@ -180,6 +180,12 @@ export function Nav({ onLogo, eventName, activeEventId }: Props) {
       active: pathname.startsWith("/orders") || pathname.startsWith("/runner"),
     });
   }
+  if (!eventId) {
+    // Standalone campaign pages — surfaced for everyone off-event. The pages
+    // themselves are "bare" (own chrome), so no active state to track.
+    views.push({ label: "100k Sept", href: "/row100k", active: false });
+    views.push({ label: "LASD26", href: "/lasd26", active: false });
+  }
 
   return (
     <nav className="nav">

@@ -532,6 +532,57 @@ model RateLimit {
   @@index([expiresAt])
 }
 
+/// -------- Row 100k challenge (/row100k) ----------------------------------
+/// Community fitness challenge: row 100,000m in September 2026. Standalone
+/// from the photo product (like the relay tables): `challenge` is a plain
+/// slug scoping rows so a future month can reuse the tables with no schema
+/// change. All additive → safe `db push`.
+
+/// One signed-in person who joined a challenge. `userId` is Photographer.id
+/// (deliberately not FK'd — matches RelayRunner's standalone style).
+model RowParticipant {
+  id          String   @id @default(cuid())
+  challenge   String   @default("row100k-sep-2026")
+  userId      String
+  /// Rower number in join order ("023" on the board) — assigned in a
+  /// transaction at join; the unique constraint makes races safe (retry).
+  rowerNumber Int
+  /// Public leaderboard name (defaults to their Google name; editable).
+  displayName String
+  /// Instagram handle, stored without the "@". Required at join; board
+  /// names link to instagram.com/<handle>.
+  instagram   String   @default("")
+  /// Leaderboard division: "M" | "F" | "X" (X = overall boards only).
+  division    String   @default("X")
+  createdAt   DateTime @default(now())
+
+  entries RowEntry[]
+
+  @@unique([challenge, userId])
+  @@unique([challenge, rowerNumber])
+  @@index([challenge])
+}
+
+/// One logged rowing session. `day` is a plain "YYYY-MM-DD" string (the
+/// calendar day the participant picked) — a string, not DateTime, so server
+/// timezone can never shift a row onto the wrong day. Pace is derived
+/// (seconds / meters), never stored.
+model RowEntry {
+  id            String   @id @default(cuid())
+  challenge     String   @default("row100k-sep-2026")
+  participantId String
+  day           String
+  meters        Int
+  seconds       Int
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+
+  participant RowParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([challenge, day])
+  @@index([participantId])
+}
+
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the
 // photo product; `page` scopes rows so a future crew page can reuse the table.
 // Each submission also emails the owner the full applicant list — the table is
