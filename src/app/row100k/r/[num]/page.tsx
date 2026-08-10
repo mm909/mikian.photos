@@ -238,7 +238,6 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           <div className="wrap">
             <div className="sec-head">
               <h2>Settings</h2>
-              <span className="mono">ONLY YOU CAN SEE THIS</span>
             </div>
             <EditProfile
               name={p.displayName}
