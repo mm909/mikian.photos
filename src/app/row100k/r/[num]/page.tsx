@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
   GOAL_METERS,
@@ -12,9 +13,11 @@ import {
   fmtRecordTime,
   fmtRowerNumber,
   fmtSplit,
+  type Division,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { Curve } from "../../Curve";
+import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +59,21 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const data = await getRower(num).catch(() => null);
   if (!data) notFound();
   const { participant: p, entries } = data;
+
+  // Settings render only on your own page.
+  let isMe = false;
+  try {
+    const actor = await getEffectiveActor();
+    if (actor) {
+      const mine = await db.rowParticipant.findUnique({
+        where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
+        select: { id: true },
+      });
+      isMe = mine?.id === p.id;
+    }
+  } catch {
+    /* cosmetic — the join API re-authenticates every save anyway */
+  }
 
   const b = computeBoards([p], entries);
   const me = b.total[0];
@@ -214,6 +232,22 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           )}
         </div>
       </section>
+
+      {isMe && (
+        <section>
+          <div className="wrap">
+            <div className="sec-head">
+              <h2>Settings</h2>
+              <span className="mono">ONLY YOU CAN SEE THIS</span>
+            </div>
+            <EditProfile
+              name={p.displayName}
+              instagram={p.instagram}
+              division={p.division as Division}
+            />
+          </div>
+        </section>
+      )}
 
       <footer>
         <div className="wrap" style={{ padding: 0 }}>

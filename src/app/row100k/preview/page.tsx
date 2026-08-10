@@ -55,13 +55,12 @@ export default function Row100kPreview({
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <div className="bar">
-        <span className="mono">PREVIEW — NOT REAL DATA</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {view === "dashboard" && (
-            <BarAccount signedIn rowerNumber={23} defaultOpen={searchParams.menu === "1"} />
-          )}
-          <span className="mono tag">ROW100K</span>
-        </div>
+        <span className="mono tag">ROW100K</span>
+        {view === "dashboard" ? (
+          <BarAccount signedIn rowerNumber={23} defaultOpen={searchParams.menu === "1"} />
+        ) : (
+          <span className="mono">PREVIEW — NOT REAL DATA</span>
+        )}
       </div>
       <section>
         <div className="wrap">

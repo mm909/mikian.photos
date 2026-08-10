@@ -158,11 +158,8 @@ export default async function Row100kPage() {
       <style>{css}</style>
 
       <div className="bar">
-        <span className="mono">MIKIAN MUSSER · 100K SEPTEMBER</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <BarAccount signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} />
-          <span className="mono tag">ROW100K</span>
-        </div>
+        <span className="mono tag">ROW100K</span>
+        <BarAccount signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} />
       </div>
 
       <header className="hero">

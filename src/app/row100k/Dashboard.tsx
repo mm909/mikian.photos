@@ -87,13 +87,7 @@ export function Dashboard(props: {
           </div>
         </div>
       </a>
-      <div className="bib-actions">
-        <a className="share-btn" href={profileHref} style={{ textDecoration: "none", display: "inline-block" }}>
-          My profile →
-        </a>
-      </div>
-
-      <div className="grid2" style={{ marginTop: 22 }}>
+      <div className="grid2" style={{ marginTop: 26 }}>
         <ul className="menu">
           {menu.slice(0, Math.ceil(menu.length / 2)).map((m) => (
             <li key={m.k}>
