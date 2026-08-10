@@ -38,6 +38,20 @@ const START_LIST = ["Avery", "Blake", "Casey", "Drew", "Ellis", "Finley", "Gray"
   rowerNumber: i + 1,
 }));
 
+/* view=board: the same start list with a couple of weeks of fake meters so
+ * the record cards + standings render populated. */
+const BOARD_ENTRIES = START_LIST.flatMap((p, i) =>
+  [2, 4, 7, 9, 12, 14, 16].slice(0, 3 + (i % 5)).map((day, k) => {
+    const meters = k === 1 && i % 3 === 0 ? [1000, 5000, 10000][i % 3] : 3000 + ((i * 900 + k * 700) % 5000);
+    return {
+      participantId: p.id,
+      day: `2026-09-${String(day + (i % 3)).padStart(2, "0")}`,
+      meters,
+      seconds: Math.round((meters / 500) * (115 + ((i * 13 + k * 7) % 30))),
+    };
+  }),
+);
+
 export default function Row100kPreview({
   searchParams,
 }: {
@@ -82,8 +96,11 @@ export default function Row100kPreview({
             </div>
           ) : (
             <Boards
-              boards={computeBoards(view === "startlist" ? START_LIST : [], [])}
-              started={false}
+              boards={computeBoards(
+                view === "startlist" || view === "board" ? START_LIST : [],
+                view === "board" ? BOARD_ENTRIES : [],
+              )}
+              started={view === "board"}
             />
           )}
         </div>

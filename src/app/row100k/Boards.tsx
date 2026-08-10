@@ -124,7 +124,8 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
         ))}
       </div>
       <div className="rec-eyebrow">The volume records</div>
-      <div className="records vol">
+      <div className="records">
+        <TotalCard rows={total} active={mode === "total"} onClick={() => setMode("total")} started={started} />
         {RECORD_DEFS.filter((d) => d.kind === "meters").map((d) => (
           <RecordCard key={d.mode} def={d} boards={boards} tab={tab} mode={mode} setMode={setMode} started={started} />
         ))}
@@ -247,6 +248,57 @@ function TotalRowTr({ r, rank, fin }: { r: TotalRow; rank: number; fin?: boolean
         </div>
       </td>
     </tr>
+  );
+}
+
+/* The distance leader as a record card — clicking it brings the table back
+ * to the standings (which are the "full list" for this one). */
+function TotalCard({
+  rows,
+  active,
+  onClick,
+  started,
+}: {
+  rows: TotalRow[];
+  active: boolean;
+  onClick: () => void;
+  started: boolean;
+}) {
+  const ranked = rows.filter((r) => r.meters > 0);
+  const top = ranked[0];
+  const also = ranked.slice(1, 3);
+
+  return (
+    <button type="button" className="rec" aria-pressed={active} onClick={onClick}>
+      <div className="t">Total meters</div>
+      {top ? (
+        <>
+          <div className="v">
+            {top.meters.toLocaleString("en-US")} <em>m</em>
+          </div>
+          <div className="hold">
+            {fmtRowerNumber(top.rowerNumber)} · {top.name}
+          </div>
+          <div className="meta">
+            {top.sessions} sessions · {top.days} {top.days === 1 ? "day" : "days"}
+          </div>
+          {also.length > 0 && (
+            <div className="also">
+              {also.map((r, i) => (
+                <div key={r.participantId}>
+                  {i + 2}. <b>{r.name}</b> — {fmtMeters(r.meters)}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="rec-open">{active ? "▲ Showing below" : "▼ The standings"}</div>
+        </>
+      ) : (
+        <p className="rec-empty">
+          {started ? "Every meter counts — log the first one." : "Claimed Sep 1 by whoever shows up."}
+        </p>
+      )}
+    </button>
   );
 }
 
