@@ -24,7 +24,7 @@ export function BarAccount({
       <button
         type="button"
         className="acct-chip"
-        onClick={() => signIn("google", { callbackUrl: "/row100k" })}
+        onClick={() => signIn("google", { callbackUrl: "/row100k#join" })}
       >
         Sign in
       </button>

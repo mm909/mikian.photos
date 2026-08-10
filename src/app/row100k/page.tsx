@@ -178,16 +178,6 @@ export default async function Row100kPage() {
           </p>
           <div className="mark-row">
             <span className="cc-mark">Open to everyone</span>
-            {!me &&
-              (phase === "closed" ? (
-                <a className="cc-mark btn-mark" href="#board">
-                  The final board
-                </a>
-              ) : (
-                <a className="cc-mark btn-mark" href="#join">
-                  I&rsquo;m in
-                </a>
-              ))}
           </div>
         </div>
       </header>
@@ -262,18 +252,14 @@ export default async function Row100kPage() {
             <div className="d">02</div>
             <div>
               <h3>Row</h3>
-              <p>Show up. Row. Repeat. It all adds up to 100,000.</p>
+              <p>Show up. Row. Repeat. Can you make it to 100k?</p>
             </div>
           </div>
           <div className="step">
             <div className="d">03</div>
             <div>
               <h3>Log it</h3>
-              <p>
-                Meters and time, takes 15 seconds. 1k / 5k / 10k pieces count
-                for the record boards — a touch over still counts, the time is
-                pro-rated.
-              </p>
+              <p>Meters and time. 1k / 5k / 10k pieces count for the record boards.</p>
             </div>
           </div>
         </div>
