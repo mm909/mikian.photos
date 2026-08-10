@@ -46,13 +46,10 @@ export const viewport: Viewport = {
 // Session-driven panel + live board — never render statically.
 export const dynamic = "force-dynamic";
 
-/* Drop photos into public/row100k/ and point these at them (same framing as
- * /lasd26 — portrait or landscape both work). null = frame not rendered.
- * CURRENTLY: temp placeholders borrowed from /lasd26 — replace the files
- * with real rowing shots (same names) and these lines stay untouched. */
+/* One photo. Replace the file (same name) to swap it; null hides the frame. */
 const PHOTOS: { hero: string | null; mid: string | null } = {
   hero: "/row100k/hero.jpg",
-  mid: "/row100k/erg.jpg",
+  mid: null,
 };
 
 /* The public board is identical for every visitor, so it's computed once and
@@ -212,7 +209,12 @@ export default async function Row100kPage() {
       {PHOTOS.hero && (
         <div className="frame">
           <div className="ph">
-            <img src={PHOTOS.hero} alt="Rowing" width={1100} height={1375} />
+            <img
+              src={PHOTOS.hero}
+              alt="Runner passing a cream and teal brick mural"
+              width={1400}
+              height={1750}
+            />
           </div>
         </div>
       )}
