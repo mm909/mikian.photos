@@ -1,18 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
-  CHALLENGE_DEMO,
   END_MS,
   LOG_CLOSE_MS,
   START_MS,
-  computeBoards,
   fmtMeters,
   fmtRowerNumber,
   nowMs as clockNow,
-  type Boards as BoardData,
   type Division,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
@@ -21,6 +17,7 @@ import { Countdown } from "./Countdown";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard } from "./Dashboard";
 import { Boards } from "./Boards";
+import { boardData, EMPTY_BOARDS } from "./boardData";
 
 export const metadata: Metadata = {
   title: "100K September — the rowing challenge",
@@ -50,50 +47,6 @@ export const dynamic = "force-dynamic";
 const PHOTOS: { hero: string | null; mid: string | null } = {
   hero: "/row100k/hero.jpg",
   mid: null,
-};
-
-/* The public board is identical for every visitor, so it's computed once and
- * cached; every write route revalidates the tag, so it's fresh-on-write with
- * a time backstop. Record lists are trimmed — the UI shows top 3. */
-const loadBoardData = async (): Promise<BoardData> => {
-  const [participants, entries] = await Promise.all([
-      db.rowParticipant.findMany({
-        where: { challenge: CHALLENGE },
-        select: {
-          id: true,
-          displayName: true,
-          instagram: true,
-          division: true,
-          rowerNumber: true,
-        },
-        orderBy: { rowerNumber: "asc" },
-      }),
-      db.rowEntry.findMany({
-        where: { challenge: CHALLENGE },
-        select: { participantId: true, day: true, meters: true, seconds: true },
-        orderBy: [{ day: "asc" }, { createdAt: "asc" }],
-      }),
-  ]);
-  return computeBoards(participants, entries);
-};
-
-const getBoardData = unstable_cache(loadBoardData, ["row100k-boards"], {
-  revalidate: 300,
-  tags: ["row100k-boards"],
-});
-
-/* The seeded demo board skips the cache: reseeding happens outside the app,
- * so nothing revalidates the tag and a stale board survives even a dev-server
- * restart (unstable_cache persists to .next/cache). */
-const boardData = () => (CHALLENGE === CHALLENGE_DEMO ? loadBoardData() : getBoardData());
-
-const EMPTY_BOARDS: BoardData = {
-  total: [],
-  fastest: { 1000: [], 5000: [], 10000: [] },
-  longest: [],
-  bigDay: [],
-  daily: [],
-  community: { meters: 0, people: 0, sessions: 0, finished: 0 },
 };
 
 export default async function Row100kPage() {

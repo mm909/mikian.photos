@@ -33,6 +33,11 @@ export function ShareDialog({
 }) {
   const cards = availableCards(data);
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+  // Swipe state: the deck moves with the finger (or mouse), and a horizontal
+  // flick past the threshold turns the page. The live position sits in a ref
+  // (pointer events outrun re-renders); state only drives the transform.
+  const dragRef = useRef<{ startX: number; dx: number } | null>(null);
+  const [dragDx, setDragDx] = useState<number | null>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current && preferredCardId) {
@@ -48,6 +53,12 @@ export function ShareDialog({
   const monoProbe = useRef<HTMLSpanElement | null>(null);
 
   const card = cardById(cardId, data);
+  const cardIndex = Math.max(0, cards.findIndex((c) => c.id === card.id));
+
+  const goTo = (delta: number) => {
+    const next = cards[Math.min(cards.length - 1, Math.max(0, cardIndex + delta))];
+    if (next) setCardId(next.id);
+  };
 
   const paint = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -192,27 +203,64 @@ export function ShareDialog({
               </button>
             </div>
 
+            <div
+              className={`share-stage${card.light ? " dark" : ""}`}
+              onPointerDown={(e) => {
+                try {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                } catch {
+                  /* capture is best-effort — the swipe works without it */
+                }
+                dragRef.current = { startX: e.clientX, dx: 0 };
+                setDragDx(0);
+              }}
+              onPointerMove={(e) => {
+                const d = dragRef.current;
+                if (!d) return;
+                d.dx = e.clientX - d.startX;
+                setDragDx(d.dx);
+              }}
+              onPointerUp={() => {
+                const d = dragRef.current;
+                dragRef.current = null;
+                setDragDx(null);
+                if (d && Math.abs(d.dx) > 48) goTo(d.dx < 0 ? 1 : -1);
+              }}
+              onPointerCancel={() => {
+                dragRef.current = null;
+                setDragDx(null);
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                className="share-canvas"
+                style={{
+                  transform: `translateX(${dragDx !== null ? dragDx / 3 : 0}px)`,
+                  transition: dragDx !== null ? "none" : "transform .18s ease-out",
+                }}
+              />
+            </div>
+
             {cards.length > 1 && (
-              <div className="share-picker">
+              <div className="share-dots" role="tablist" aria-label="Cards — swipe or tap a dot">
                 {cards.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    className={`share-pick${c.id === card.id ? " on" : ""}`}
-                    aria-pressed={c.id === card.id}
+                    role="tab"
+                    aria-selected={c.id === card.id}
+                    aria-label={c.label}
+                    className={c.id === card.id ? "on" : undefined}
                     onClick={() => setCardId(c.id)}
-                  >
-                    {c.label}
-                  </button>
+                  />
                 ))}
               </div>
             )}
 
-            <div className={`share-stage${card.light ? " dark" : ""}`}>
-              <canvas ref={canvasRef} className="share-canvas" />
-            </div>
-
-            <p className="share-note mono">TRANSPARENT PNG · {card.blurb.toUpperCase()}</p>
+            <p className="share-note mono">
+              {card.label.toUpperCase()}
+              {cards.length > 1 ? " — SWIPE FOR MORE" : ""} · TRANSPARENT PNG
+            </p>
 
             <div className="share-actions">
               {canShareFiles && (

@@ -150,10 +150,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-head .mono{font-size:12px;letter-spacing:.12em}
 .row100k .share-x{background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
 .row100k .share-x:hover{color:var(--water)}
-.row100k .share-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.row100k .share-pick{border:2px solid var(--line);background:none;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 11px;cursor:pointer;color:var(--ink-soft)}
-.row100k .share-pick.on{border-color:var(--ink);color:var(--ink)}
-.row100k .share-stage{margin-top:14px;border:2px solid var(--ink);padding:14px;background:var(--paper)}
+.row100k .share-stage{margin-top:14px;border:2px solid var(--ink);padding:14px;background:var(--paper);overflow:hidden;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+.row100k .share-stage:active{cursor:grabbing}
+.row100k .share-dots{display:flex;gap:9px;justify-content:center;margin-top:12px}
+.row100k .share-dots button{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink);background:transparent;padding:0;cursor:pointer}
+.row100k .share-dots button.on{background:var(--water);border-color:var(--water)}
+.row100k .share-dots button:hover:not(.on){border-color:var(--water)}
 .row100k .share-stage.dark{background:#1c2b33;background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
 .row100k .share-canvas{display:block;width:100%;height:auto}
 .row100k .share-note{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--gray)}
@@ -249,6 +251,15 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rec .also b{color:var(--ink-soft);font-weight:400}
 .row100k .rec-empty{font-family:var(--row-mono),monospace;font-size:10px;color:var(--gray);margin-top:8px;line-height:1.7}
 .row100k .rec-open{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;color:var(--water);margin-top:9px;text-transform:uppercase}
+/* Stats page: every record card carries both boards at once. */
+.row100k .records.solo{grid-template-columns:1fr}
+.row100k .rec.headline .v{font-size:clamp(28px,7vw,40px)}
+.row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
+.row100k .rec .duo .side+.side{border-left:1px dashed var(--line);padding-left:16px}
+.row100k .rec .duo .dv{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
+.row100k .rec .duo .v{margin-top:4px}
+.row100k .stats-link{margin-top:22px;flex:none;width:100%}
+@media(max-width:640px){.row100k .records .rec .duo{grid-template-columns:1fr 1fr}}
 
 /* Movement arrows + finisher rows in the standings table. */
 .row100k .mv{font-family:var(--row-mono),monospace;font-size:11px;white-space:nowrap}

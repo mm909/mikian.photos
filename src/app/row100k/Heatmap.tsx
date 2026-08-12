@@ -1,18 +1,28 @@
 import { fmtDay } from "@/lib/row100k";
 
 /* September as a GitHub-style intensity calendar: one cell per day, shaded
- * by meters rowed. Pure server markup — tooltips via title. */
+ * by meters rowed. Pure server markup — tooltips via title. The default
+ * thresholds suit one rower; pass explicit ones for community-scale totals
+ * (the stats page derives them from the biggest day on record). */
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
-function bucket(m: number): string {
+const ONE_ROWER: [number, number, number] = [2500, 5000, 10000];
+
+function bucket(m: number, t: [number, number, number]): string {
   if (m <= 0) return "";
-  if (m < 2500) return " b1";
-  if (m < 5000) return " b2";
-  if (m < 10000) return " b3";
+  if (m < t[0]) return " b1";
+  if (m < t[1]) return " b2";
+  if (m < t[2]) return " b3";
   return " b4";
 }
 
-export function Heatmap({ byDay }: { byDay: Record<string, number> }) {
+export function Heatmap({
+  byDay,
+  thresholds = ONE_ROWER,
+}: {
+  byDay: Record<string, number>;
+  thresholds?: [number, number, number];
+}) {
   // Sep 1, 2026 — leading blanks align day 1 under its weekday.
   const firstDow = new Date(Date.UTC(2026, 8, 1)).getUTCDay();
 
@@ -33,7 +43,7 @@ export function Heatmap({ byDay }: { byDay: Record<string, number> }) {
           return (
             <div
               key={day}
-              className={`hm-cell${bucket(m)}`}
+              className={`hm-cell${bucket(m, thresholds)}`}
               title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
             />
           );

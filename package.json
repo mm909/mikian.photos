@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:row100k": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev",
+    "dev": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev",
+    "dev:live": "next dev",
+    "dev:row100k": "npm run dev",
     "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
