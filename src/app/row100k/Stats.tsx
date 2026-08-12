@@ -60,7 +60,7 @@ export function StatsBoards({ boards, started }: { boards: BoardData; started: b
   return (
     <div>
       {/* 1 — the one that matters */}
-      <div className="rec-eyebrow">Total meters — the whole point</div>
+      <div className="rec-eyebrow">Total meters</div>
       <div className="records solo">
         <TotalDuoCard
           rows={boards.total}
@@ -71,7 +71,7 @@ export function StatsBoards({ boards, started }: { boards: BoardData; started: b
       </div>
 
       {/* 2 — how fast */}
-      <div className="rec-eyebrow">The pace records — click one for the full list</div>
+      <div className="rec-eyebrow">The pace records</div>
       <div className="records">
         {RECORD_DEFS.filter((d) => d.kind === "time").map((d) => (
           <DuoRecordCard key={d.mode} def={d} boards={boards} mode={mode} setMode={setMode} started={started} />

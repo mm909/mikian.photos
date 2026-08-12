@@ -54,7 +54,6 @@ export default async function StatsPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>The records</h2>
-            <span className="mono">MEN&rsquo;S AND WOMEN&rsquo;S, SIDE BY SIDE</span>
           </div>
           <StatsBoards boards={boards} started={started} />
         </div>
