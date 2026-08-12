@@ -165,6 +165,7 @@ export function Dashboard(props: {
         }}
         open={shareOpen}
         onClose={() => setShareOpen(false)}
+        preferredCardId={preferredCardId}
       />
     </div>
   );
