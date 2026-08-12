@@ -30,6 +30,16 @@ export const CHALLENGE =
 
 export const GOAL_METERS = 100_000;
 
+/* Challenge moderation — remove a rower, fix or delete anyone's rows. The
+ * platform owner role qualifies, plus these accounts (the second is the
+ * owner's personal Google, which deliberately does NOT hold the site-wide
+ * owner role). */
+const ADMIN_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
+
+export function isRow100kAdmin(email: string, roles: string[]): boolean {
+  return roles.includes("owner") || ADMIN_EMAILS.includes(email.toLowerCase().trim());
+}
+
 /* The window. Days are plain "YYYY-MM-DD" strings (what the participant
  * picked in the date input) — never Date objects, so server timezone can't
  * shift a row onto the wrong day. */

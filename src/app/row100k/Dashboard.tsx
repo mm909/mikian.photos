@@ -26,6 +26,8 @@ export function Dashboard(props: {
   sessions: number;
   rows: MyRow[];
   phase: "before" | "open" | "closed";
+  /* Dev preview only: behave as if the join JUST happened (bib dialog pops). */
+  simulateJustJoined?: boolean;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   // Set only when this dashboard just replaced the join form: JoinPanel
@@ -33,7 +35,7 @@ export function Dashboard(props: {
   const [preferredCardId, setPreferredCardId] = useState<string | undefined>(undefined);
   useEffect(() => {
     try {
-      if (sessionStorage.getItem("row100k.justJoined") === "1") {
+      if (props.simulateJustJoined || sessionStorage.getItem("row100k.justJoined") === "1") {
         sessionStorage.removeItem("row100k.justJoined");
         setPreferredCardId("rowtember-bib");
         setShareOpen(true);
@@ -41,6 +43,7 @@ export function Dashboard(props: {
     } catch {
       /* storage blocked — no auto-open */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const pct = Math.min(100, Math.round((props.meters / GOAL_METERS) * 100));
   const profileHref = `/row100k/r/${props.rowerNumber}`;

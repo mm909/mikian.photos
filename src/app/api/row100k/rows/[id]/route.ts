@@ -3,7 +3,14 @@ import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { CHALLENGE, LOG_CLOSE_MS, MAX_ENTRIES_PER_DAY, nowMs, validateEntry } from "@/lib/row100k";
+import {
+  CHALLENGE,
+  LOG_CLOSE_MS,
+  MAX_ENTRIES_PER_DAY,
+  isRow100kAdmin,
+  nowMs,
+  validateEntry,
+} from "@/lib/row100k";
 
 export const runtime = "nodejs";
 
@@ -24,7 +31,7 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
     };
   }
 
-  const isOwner = actor.roles.includes("owner");
+  const isOwner = isRow100kAdmin(actor.email, actor.roles);
   if (!isOwner && nowMs() >= LOG_CLOSE_MS) {
     return {
       ok: false,

@@ -20,11 +20,13 @@ import {
   nowMs as clockNow,
   type Division,
 } from "@/lib/row100k";
+import { isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
 import { LogPanel } from "../../LogPanel";
+import { RemoveRower } from "../../RemoveRower";
 
 export const dynamic = "force-dynamic";
 
@@ -66,11 +68,13 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   if (!data) notFound();
   const { participant: p, entries } = data;
 
-  // Settings render only on your own page.
+  // Settings render only on your own page; moderation only for admins.
   let isMe = false;
+  let isAdmin = false;
   try {
     const actor = await getEffectiveActor();
     if (actor) {
+      isAdmin = isRow100kAdmin(actor.email, actor.roles);
       const mine = await db.rowParticipant.findUnique({
         where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
         select: { id: true },
@@ -78,7 +82,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       isMe = mine?.id === p.id;
     }
   } catch {
-    /* cosmetic — the join API re-authenticates every save anyway */
+    /* cosmetic — the APIs re-authenticate every write anyway */
   }
 
   const b = computeBoards([p], entries);
@@ -274,6 +278,18 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
               instagram={p.instagram}
               division={p.division as Division}
             />
+          </div>
+        </section>
+      )}
+
+      {isAdmin && (
+        <section>
+          <div className="wrap">
+            <div className="sec-head">
+              <h2>Moderation</h2>
+              <span className="mono">ADMIN ONLY — YOU CAN SEE THIS, THEY CAN&rsquo;T</span>
+            </div>
+            <RemoveRower participantId={p.id} name={p.displayName} />
           </div>
         </section>
       )}

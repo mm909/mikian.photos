@@ -21,7 +21,10 @@ export function JoinPanel(props: {
   initialName?: string;
   initialInstagram?: string;
   initialDivision?: Division | null;
-  onSaved?: () => void;
+  onSaved?: (values: { displayName: string; instagram: string; division: Division }) => void;
+  /* Dev preview only: skip the network — validate locally, then hand the
+   * values to onSaved as if the join succeeded. */
+  simulate?: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(props.initialName ?? "");
@@ -57,16 +60,25 @@ export function JoinPanel(props: {
       setError("Pick which board you're competing on.");
       return;
     }
+    const values = {
+      displayName: name.replace(/\s+/g, " ").trim(),
+      instagram: instagram.trim().replace(/^@+/, ""),
+      division,
+    };
+    if (props.simulate) {
+      props.onSaved?.(values);
+      return;
+    }
     setStatus("sending");
     try {
       const res = await fetch("/api/row100k/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: name.trim(), instagram: instagram.trim(), division }),
+        body: JSON.stringify({ displayName: values.displayName, instagram: values.instagram, division }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
-        props.onSaved?.();
+        props.onSaved?.(values);
         // First join: leave a note for the dashboard that's about to replace
         // this panel — it auto-opens the share dialog on the bib card so the
         // new rower can post their number straight away.

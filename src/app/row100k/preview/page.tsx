@@ -5,12 +5,15 @@ import { BarAccount } from "../BarAccount";
 import { Dashboard } from "../Dashboard";
 import { LogPanel } from "../LogPanel";
 import { Boards } from "../Boards";
+import { JoinSim } from "./JoinSim";
 
 /* DEV-ONLY design preview for /row100k states that need a session or a
  * particular date to reach naturally: the joined dashboard (mock data), the
  * profile logging station + share dialog, and the pre-launch board (signups
  * but zero meters / nobody at all).
- * ?view=dashboard | ?view=log | ?view=startlist | ?view=board | ?view=empty
+ * ?view=dashboard | ?view=log | ?view=join (the signup moment, no Google —
+ * fill the form, land on the fresh dashboard, bib dialog pops) |
+ * ?view=startlist | ?view=board | ?view=empty
  * Returns 404 in production builds. */
 export const dynamic = "force-dynamic";
 
@@ -97,7 +100,9 @@ export default function Row100kPreview({
       ) : (
         <section>
           <div className="wrap">
-            {view === "dashboard" ? (
+            {view === "join" ? (
+              <JoinSim />
+            ) : view === "dashboard" ? (
               <div className="panel">
                 <Dashboard
                   rowerNumber={23}
