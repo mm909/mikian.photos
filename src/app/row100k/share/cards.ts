@@ -140,7 +140,7 @@ const rowtemberTotal: ShareCard = {
   label: "Rowtember total",
   blurb: "The wordmark and your meters so far.",
   width: 1080,
-  height: 700,
+  height: 620,
   light: true,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
@@ -164,14 +164,6 @@ const rowtemberTotal: ShareCard = {
       cy: 470,
       size: 112,
       fontFamily: fonts.black,
-    });
-
-    drawCenteredText(ctx, "MIKIANMUSSER.COM/ROW100K", {
-      cx,
-      baseline: 640,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.7)",
-      tracking: 7,
     });
   },
 };
@@ -221,7 +213,7 @@ const rowtemberClub: ShareCard = {
       },
     );
 
-    drawCenteredText(ctx, "ROWTEMBER · MIKIANMUSSER.COM/ROW100K", {
+    drawCenteredText(ctx, "ROWTEMBER", {
       cx,
       baseline: 640,
       font: `26px ${fonts.mono}`,
@@ -297,13 +289,6 @@ const rowtemberMonth: ShareCard = {
       color: "rgba(255,255,255,0.82)",
       tracking: 8,
     });
-    drawCenteredText(ctx, "MIKIANMUSSER.COM/ROW100K", {
-      cx,
-      baseline: this.height - 26,
-      font: `24px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.7)",
-      tracking: 6,
-    });
   },
 };
 
@@ -314,7 +299,7 @@ const rowtemberRow: ShareCard = {
   label: "This row",
   blurb: "Just this session — day, time, split.",
   width: 1080,
-  height: 700,
+  height: 620,
   light: true,
   available: (d) => !!d.row,
   draw(ctx, data, fonts) {
@@ -346,14 +331,6 @@ const rowtemberRow: ShareCard = {
       size: 112,
       fontFamily: fonts.black,
     });
-
-    drawCenteredText(ctx, "MIKIANMUSSER.COM/ROW100K", {
-      cx,
-      baseline: 640,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.7)",
-      tracking: 7,
-    });
   },
 };
 
@@ -372,7 +349,8 @@ const rowtemberBib: ShareCard = {
     const bibW = 816;
     const bibH = 430;
     const left = cx - bibW / 2;
-    const top = 70;
+    // Centered — the bib is the whole card now (no caption below).
+    const top = Math.round((this.height - bibH - 16) / 2);
 
     // The dashboard bib's hard offset shadow, softened for photo backgrounds.
     ctx.fillStyle = "rgba(0,0,0,0.30)";
@@ -422,14 +400,6 @@ const rowtemberBib: ShareCard = {
       font: `${nameSize}px ${fonts.mono}`,
       color: WATER,
       tracking: 3,
-    });
-
-    drawCenteredText(ctx, "MIKIANMUSSER.COM/ROW100K", {
-      cx,
-      baseline: 648,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.7)",
-      tracking: 7,
     });
   },
 };
