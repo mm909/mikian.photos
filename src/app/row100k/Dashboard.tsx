@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type MyRow } from "./MyRows";
 import { ShareDialog } from "./ShareMenu";
 import {
@@ -28,6 +28,20 @@ export function Dashboard(props: {
   phase: "before" | "open" | "closed";
 }) {
   const [shareOpen, setShareOpen] = useState(false);
+  // Set only when this dashboard just replaced the join form: JoinPanel
+  // leaves a one-shot flag, and the dialog opens straight onto the bib card.
+  const [preferredCardId, setPreferredCardId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("row100k.justJoined") === "1") {
+        sessionStorage.removeItem("row100k.justJoined");
+        setPreferredCardId("rowtember-bib");
+        setShareOpen(true);
+      }
+    } catch {
+      /* storage blocked — no auto-open */
+    }
+  }, []);
   const pct = Math.min(100, Math.round((props.meters / GOAL_METERS) * 100));
   const profileHref = `/row100k/r/${props.rowerNumber}`;
 
@@ -88,7 +102,14 @@ export function Dashboard(props: {
       </a>
 
       <div className="act-row">
-        <button type="button" className="big-act" onClick={() => setShareOpen(true)}>
+        <button
+          type="button"
+          className="big-act"
+          onClick={() => {
+            setPreferredCardId(undefined);
+            setShareOpen(true);
+          }}
+        >
           Share a card
         </button>
         {props.phase !== "closed" && (

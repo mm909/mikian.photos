@@ -1,4 +1,4 @@
-import { fmtDay, fmtDuration, fmtSplit } from "@/lib/row100k";
+import { fmtDay, fmtDuration, fmtRowerNumber, fmtSplit } from "@/lib/row100k";
 
 /* Shareable cards for /row100k — the images themselves.
  *
@@ -357,7 +357,90 @@ const rowtemberRow: ShareCard = {
   },
 };
 
-export const CARDS: ShareCard[] = [rowtemberRow, rowtemberTotal, rowtemberClub, rowtemberMonth];
+/* Card five: the bib itself — the same white card the dashboard shows,
+ * redrawn as a sticker. This is the "I'm in" card: it auto-opens right after
+ * someone claims their number, before they've rowed a meter. */
+const rowtemberBib: ShareCard = {
+  id: "rowtember-bib",
+  label: "The bib",
+  blurb: "Your number, name and @ — fresh off the press.",
+  width: 1080,
+  height: 700,
+  light: true,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    const bibW = 816;
+    const bibH = 430;
+    const left = cx - bibW / 2;
+    const top = 70;
+
+    // The dashboard bib's hard offset shadow, softened for photo backgrounds.
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.fillRect(left + 16, top + 16, bibW, bibH);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(left, top, bibW, bibH);
+    ctx.strokeStyle = "#15171a";
+    ctx.lineWidth = 7;
+    ctx.strokeRect(left + 3.5, top + 3.5, bibW - 7, bibH - 7);
+
+    // Pin holes, top corners.
+    ctx.strokeStyle = "#c9c8c0";
+    ctx.lineWidth = 5;
+    for (const px of [left + 52, left + bibW - 52]) {
+      ctx.beginPath();
+      ctx.arc(px, top + 52, 13, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    drawCenteredText(ctx, "ROWTEMBER · 2026", {
+      cx,
+      baseline: top + 96,
+      font: `26px ${fonts.mono}`,
+      color: "#8a8a85",
+      tracking: 8,
+    });
+
+    drawCenteredText(ctx, fmtRowerNumber(data.rowerNumber), {
+      cx,
+      baseline: top + 290,
+      font: `185px ${fonts.black}`,
+      color: "#15171a",
+    });
+
+    // Name line shrinks to fit the bib — names run to 40 chars, handles 30.
+    const nameLine = `${data.displayName} · @${data.instagram}`.toUpperCase();
+    let nameSize = 30;
+    const maxW = bibW - 90;
+    ctx.font = `30px ${fonts.mono}`;
+    while (nameSize > 14 && ctx.measureText(nameLine).width + 3 * (nameLine.length - 1) > maxW) {
+      nameSize -= 2;
+      ctx.font = `${nameSize}px ${fonts.mono}`;
+    }
+    drawCenteredText(ctx, nameLine, {
+      cx,
+      baseline: top + 366,
+      font: `${nameSize}px ${fonts.mono}`,
+      color: WATER,
+      tracking: 3,
+    });
+
+    drawCenteredText(ctx, "MIKIANMUSSER.COM/ROW100K", {
+      cx,
+      baseline: 648,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.7)",
+      tracking: 7,
+    });
+  },
+};
+
+export const CARDS: ShareCard[] = [
+  rowtemberRow,
+  rowtemberTotal,
+  rowtemberBib,
+  rowtemberClub,
+  rowtemberMonth,
+];
 
 export function availableCards(data: ShareData): ShareCard[] {
   return CARDS.filter((c) => !c.available || c.available(data));

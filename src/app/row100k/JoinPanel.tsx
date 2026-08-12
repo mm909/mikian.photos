@@ -67,6 +67,16 @@ export function JoinPanel(props: {
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         props.onSaved?.();
+        // First join: leave a note for the dashboard that's about to replace
+        // this panel — it auto-opens the share dialog on the bib card so the
+        // new rower can post their number straight away.
+        if (!props.joined) {
+          try {
+            sessionStorage.setItem("row100k.justJoined", "1");
+          } catch {
+            /* storage blocked — they just miss the auto-open */
+          }
+        }
         router.refresh();
         // First join: stay in "sending" — the refresh swaps this panel for
         // the dashboard. Editing (joined): the form stays mounted, so it has
