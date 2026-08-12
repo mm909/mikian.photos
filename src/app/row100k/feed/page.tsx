@@ -105,7 +105,7 @@ export default async function FeedPage() {
                         />
                       ) : (
                         <div className="feed-ph" style={{ background: tint(e.id) }}>
-                          <span className="mono">NO PHOTO — LOGGED BEFORE RECEIPTS</span>
+                          <span className="mono">NO PHOTO WITH THIS ROW</span>
                         </div>
                       )}
                     </div>

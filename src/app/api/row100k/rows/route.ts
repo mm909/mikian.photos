@@ -4,7 +4,7 @@ import { revalidateTag } from "next/cache";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
-import { r2Configured, r2Put } from "@/lib/r2";
+import { r2Configured, r2Delete, r2Put } from "@/lib/r2";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
@@ -45,8 +45,10 @@ export async function POST(req: Request) {
   try {
     form = await req.formData();
   } catch {
+    // Also lands here for a tab holding the pre-photo bundle mid-deploy
+    // (JSON body) — the copy has to make sense to that person too.
     return NextResponse.json(
-      { ok: false, error: "expected a multipart form (day, meters, seconds, photo)" },
+      { ok: false, error: "Couldn't read the form — refresh the page and try again." },
       { status: 400 },
     );
   }
@@ -131,9 +133,26 @@ export async function POST(req: Request) {
     console.warn("row100k: R2 not configured — row logged without its photo");
   }
 
-  const entry = await db.rowEntry.create({
-    data: { challenge: CHALLENGE, participantId: participant.id, ...check.value, photoKey },
-  });
+  let entry;
+  try {
+    entry = await db.rowEntry.create({
+      data: { challenge: CHALLENGE, participantId: participant.id, ...check.value, photoKey },
+    });
+  } catch (err) {
+    // The photo is already in R2 — don't leave debris behind a failed row.
+    if (photoKey) {
+      try {
+        await r2Delete([photoKey]);
+      } catch {
+        /* best effort */
+      }
+    }
+    console.error("row100k: entry create failed", err);
+    return NextResponse.json(
+      { ok: false, error: "Couldn't save the row — try again." },
+      { status: 500 },
+    );
+  }
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true, id: entry.id, photo: photoKey !== "" });
 }

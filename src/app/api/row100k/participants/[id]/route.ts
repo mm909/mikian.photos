@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
+import { r2Delete } from "@/lib/r2";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 
@@ -33,6 +34,17 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     );
   }
 
+  // Their photos leave with them — collect the keys BEFORE the cascade
+  // deletes the entries out from under us.
+  const photoKeys = (
+    await db.rowEntry.findMany({
+      where: { participantId: params.id, challenge: CHALLENGE, photoKey: { not: "" } },
+      select: { photoKey: true },
+    })
+  )
+    .map((e) => e.photoKey)
+    .filter((k) => k.startsWith("row100k/rows/"));
+
   // Scoped to the active namespace so a demo-mode admin can't touch live rows
   // (and vice versa); deleteMany so a double-tap is a no-op.
   const res = await db.rowParticipant.deleteMany({
@@ -40,6 +52,14 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   });
   if (res.count === 0) {
     return NextResponse.json({ ok: false, error: "That rower is already gone." }, { status: 404 });
+  }
+
+  if (photoKeys.length > 0) {
+    try {
+      await r2Delete(photoKeys);
+    } catch (err) {
+      console.error("row100k: rower photo cleanup failed", err);
+    }
   }
 
   revalidateTag("row100k-boards");

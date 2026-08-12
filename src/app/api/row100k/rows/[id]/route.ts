@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
+import { r2Delete } from "@/lib/r2";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
@@ -19,7 +20,15 @@ export const runtime = "nodejs";
  * are refused so the archived standings can't quietly rewrite themselves in
  * December. Both verbs share the guard rail below. */
 type Guarded =
-  | { ok: true; entryId: string; participantId: string; day: string; note: string; isOwner: boolean }
+  | {
+      ok: true;
+      entryId: string;
+      participantId: string;
+      day: string;
+      note: string;
+      photoKey: string;
+      isOwner: boolean;
+    }
   | { ok: false; res: NextResponse };
 
 async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
@@ -82,8 +91,21 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
     participantId: entry.participantId,
     day: entry.day,
     note: entry.note,
+    photoKey: entry.photoKey,
     isOwner,
   };
+}
+
+/* Take a deleted row's photo out of R2 too — moderation that leaves the
+ * image publicly servable isn't moderation. Best effort: a failed delete
+ * must not resurrect the row. */
+async function dropPhoto(photoKey: string) {
+  if (!photoKey.startsWith("row100k/rows/")) return;
+  try {
+    await r2Delete([photoKey]);
+  } catch (err) {
+    console.error("row100k: photo cleanup failed", photoKey, err);
+  }
 }
 
 /* Fix a mistake: day, meters and time are replaceable; the same validation
@@ -143,6 +165,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   // deleteMany so a concurrent double-delete is a no-op, not a P2025 throw.
   await db.rowEntry.deleteMany({ where: { id: guarded.entryId } });
+  await dropPhoto(guarded.photoKey);
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true });
 }

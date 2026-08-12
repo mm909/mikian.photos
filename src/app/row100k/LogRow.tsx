@@ -59,15 +59,21 @@ export function LogRow({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [photoDropped, setPhotoDropped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pickPhoto = (file: File | null) => {
-    setPhotoFile(file);
-    setPhotoPreview((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return file ? URL.createObjectURL(file) : null;
-    });
-  };
+  // The preview URL lives and dies with the picked file: the effect owns
+  // creation AND revocation, so swaps, unmounts and StrictMode double-runs
+  // all clean up after themselves.
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(photoFile);
+    setPhotoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photoFile]);
   // Server-computed phase goes stale in a long-lived tab; re-derive from the
   // shared constants after mount (SSR and first client render still match).
   const [livePhase, setLivePhase] = useState(phase);
@@ -111,18 +117,31 @@ export function LogRow({
     }
     setStatus("sending");
     try {
+      const shrunk = await shrinkPhoto(photoFile);
+      // The browser could not re-encode it AND it is over the platform body
+      // ceiling — sending it would die as an unexplained 413, so say why here.
+      if (shrunk.size > 3_800_000) {
+        setError("That photo can't be shrunk in this browser — screenshot it, or pick a JPEG under 4MB.");
+        setStatus("idle");
+        return;
+      }
       const form = new FormData();
       form.set("day", day);
       form.set("meters", String(meters));
       form.set("seconds", String(seconds));
-      form.set("photo", await shrinkPhoto(photoFile), "row.jpg");
+      form.set("photo", shrunk, "row.jpg");
       const res = await fetch("/api/row100k/rows", { method: "POST", body: form });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        photo?: boolean;
+      };
       if (res.ok && data.ok) {
         setMetersText("");
         setTimeText("");
-        pickPhoto(null);
+        setPhotoFile(null);
         if (photoInput.current) photoInput.current.value = "";
+        setPhotoDropped(data.photo === false);
         setStatus("sent");
         router.refresh();
         onLogged?.({ day, meters, seconds });
@@ -186,7 +205,7 @@ export function LogRow({
           id="log-photo"
           type="file"
           accept="image/*"
-          onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)}
+          onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
         />
         <label htmlFor="log-photo" className={`photo-btn${photoFile ? " has" : ""}`}>
           {photoFile ? "SWAP THE PHOTO" : "ADD A PHOTO"}
@@ -200,7 +219,13 @@ export function LogRow({
       <button className="send" type="submit" disabled={status === "sending"}>
         {status === "sending" ? "…" : "Log it"}
       </button>
-      {status === "sent" && <p className="form-ok">LOGGED. THE BOARD KNOWS.</p>}
+      {status === "sent" && (
+        <p className="form-ok">
+          {photoDropped
+            ? "LOGGED — BUT THE PHOTO DIDN'T TAKE (JPEG AND PNG WORK BEST)."
+            : "LOGGED. THE BOARD KNOWS."}
+        </p>
+      )}
       {error && <p className="form-err">{error}</p>}
     </form>
   );
