@@ -27,7 +27,7 @@ export function JoinPanel(props: {
   const [name, setName] = useState(props.initialName ?? "");
   const [instagram, setInstagram] = useState(props.initialInstagram ?? "");
   const [division, setDivision] = useState<Division | null>(props.initialDivision ?? null);
-  const [status, setStatus] = useState<"idle" | "sending">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
 
   if (props.mode === "signedOut") {
@@ -68,6 +68,13 @@ export function JoinPanel(props: {
       if (res.ok && data.ok) {
         props.onSaved?.();
         router.refresh();
+        // First join: stay in "sending" — the refresh swaps this panel for
+        // the dashboard. Editing (joined): the form stays mounted, so it has
+        // to land somewhere or the button spins forever (the bug this fixes).
+        if (props.joined) {
+          setStatus("saved");
+          setTimeout(() => setStatus("idle"), 4000);
+        }
         return;
       }
       setError(data.error ?? "Something went wrong — try again.");
@@ -127,6 +134,7 @@ export function JoinPanel(props: {
       <button className="send" type="submit" disabled={status === "sending"}>
         {status === "sending" ? "…" : props.joined ? "Save changes" : "I'm in"}
       </button>
+      {status === "saved" && <p className="form-ok">SAVED — THE BOARD&rsquo;S UPDATED.</p>}
       {error && <p className="form-err">{error}</p>}
       {props.signedInAs && !props.joined && (
         <p className="signed-note">SIGNED IN AS {props.signedInAs.toUpperCase()}</p>

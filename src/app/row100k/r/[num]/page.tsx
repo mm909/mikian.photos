@@ -5,7 +5,11 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
+  FIRST_DAY,
   GOAL_METERS,
+  LAST_DAY,
+  LOG_CLOSE_MS,
+  START_MS,
   computeBoards,
   fmtDay,
   fmtDuration,
@@ -13,12 +17,14 @@ import {
   fmtRecordTime,
   fmtRowerNumber,
   fmtSplit,
+  nowMs as clockNow,
   type Division,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
+import { LogPanel } from "../../LogPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -81,13 +87,23 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   for (const e of entries) byDay[e.day] = (byDay[e.day] ?? 0) + e.meters;
   const pct = Math.min(100, me.pct);
 
+  const now = clockNow();
+  const phase: "before" | "open" | "closed" =
+    now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
+  const todayUTC = new Date(now).toISOString().slice(0, 10);
+  const defaultDay = todayUTC < FIRST_DAY ? FIRST_DAY : todayUTC > LAST_DAY ? LAST_DAY : todayUTC;
+
   const bests: { label: string; value: string; sub: string }[] = [
     ...([1000, 5000, 10000] as const).map((d) => {
       const r = b.fastest[d][0];
       return {
         label: `Fastest ${d / 1000}k`,
         value: r ? fmtRecordTime(r.value) : "—",
-        sub: r ? `${fmtDay(r.day)} · ${fmtSplit(d, r.value)} /500m` : "not yet rowed",
+        sub: r
+          ? r.prorated && r.meters
+            ? `${fmtDay(r.day)} · pace from a ${fmtMeters(r.meters)} row`
+            : `${fmtDay(r.day)} · ${fmtSplit(d, r.value)} /500m`
+          : "not yet rowed",
       };
     }),
     {
@@ -135,7 +151,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             </span>
           </div>
 
-          <div className="me-stats four">
+          <div className="me-stats">
             <div className="me-stat">
               <div className="n">{me.meters.toLocaleString("en-US")}</div>
               <div className="l">meters</div>
@@ -145,12 +161,8 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
               <div className="l">sessions</div>
             </div>
             <div className="me-stat">
-              <div className="n">{me.days}</div>
-              <div className="l">days rowed</div>
-            </div>
-            <div className="me-stat">
-              <div className="n">{(b.bigDay[0]?.value ?? 0).toLocaleString("en-US")}</div>
-              <div className="l">biggest day</div>
+              <div className="n">{(b.longest[0]?.value ?? 0).toLocaleString("en-US")}</div>
+              <div className="l">longest row</div>
             </div>
           </div>
           <div className="me-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -196,42 +208,60 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
         </div>
       </section>
 
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>The log</h2>
-            <span className="mono">{rows.length} SESSIONS</span>
-          </div>
-          {rows.length === 0 ? (
-            <p className="board-empty">NOTHING LOGGED YET.</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="board">
-                <thead>
-                  <tr>
-                    <th>Day</th>
-                    <th style={{ textAlign: "right" }}>Meters</th>
-                    <th style={{ textAlign: "right" }}>Time</th>
-                    <th style={{ textAlign: "right" }}>/500m</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id}>
-                      <td>{fmtDay(r.day)}</td>
-                      <td className="num">{fmtMeters(r.meters)}</td>
-                      <td className="num">{fmtDuration(r.seconds)}</td>
-                      <td className="num" style={{ color: "var(--gray)" }}>
-                        {fmtSplit(r.meters, r.seconds)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Your own page carries the logging station: the form sits just above
+          the log, and every row in the log can be shared, fixed or deleted. */}
+      {isMe ? (
+        <LogPanel
+          data={{
+            displayName: p.displayName,
+            rowerNumber: p.rowerNumber,
+            instagram: p.instagram,
+            meters: me.meters,
+            sessions: me.sessions,
+            byDay,
+          }}
+          rows={rows}
+          defaultDay={defaultDay}
+          phase={phase}
+        />
+      ) : (
+        <section>
+          <div className="wrap">
+            <div className="sec-head">
+              <h2>The log</h2>
+              <span className="mono">{rows.length} SESSIONS</span>
             </div>
-          )}
-        </div>
-      </section>
+            {rows.length === 0 ? (
+              <p className="board-empty">NOTHING LOGGED YET.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="board">
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th style={{ textAlign: "right" }}>Meters</th>
+                      <th style={{ textAlign: "right" }}>Time</th>
+                      <th style={{ textAlign: "right" }}>/500m</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id}>
+                        <td>{fmtDay(r.day)}</td>
+                        <td className="num">{fmtMeters(r.meters)}</td>
+                        <td className="num">{fmtDuration(r.seconds)}</td>
+                        <td className="num" style={{ color: "var(--gray)" }}>
+                          {fmtSplit(r.meters, r.seconds)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {isMe && (
         <section>

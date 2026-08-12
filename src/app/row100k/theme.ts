@@ -134,6 +134,36 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .form-ok{border:2px solid var(--water);color:var(--water);text-align:center;font-family:var(--row-mono),monospace;padding:14px;margin-top:18px;font-size:13px;line-height:1.8}
 .row100k .quiet-btn{background:none;border:none;color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
 .row100k .quiet-btn:hover{color:var(--water)}
+
+/* Shareables: the picker modal and its preview stage. Cards are painted
+ * white-on-transparent, so the stage goes dark to make them visible, and the
+ * checker grid marks the see-through part without needing a caption.
+ * NB this whole string is rendered as the text child of a style tag, so it
+ * must contain no double quotes and no angle brackets: React escapes those
+ * server-side only, and hydration then fails on the mismatch. */
+.row100k .share-probe{position:absolute;width:0;height:0;overflow:hidden;visibility:hidden}
+.row100k .share-probe.blk{font-family:var(--row-archivo-black),sans-serif}
+.row100k .share-probe.mono{font-family:var(--row-mono),monospace}
+.row100k .share-overlay{position:fixed;inset:0;background:rgba(21,23,26,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
+.row100k .share-modal{background:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 rgba(21,23,26,.2);width:min(560px,100%);max-height:90vh;overflow-y:auto;padding:16px 18px 18px}
+.row100k .share-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.row100k .share-head .mono{font-size:12px;letter-spacing:.12em}
+.row100k .share-x{background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
+.row100k .share-x:hover{color:var(--water)}
+.row100k .share-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.row100k .share-pick{border:2px solid var(--line);background:none;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 11px;cursor:pointer;color:var(--ink-soft)}
+.row100k .share-pick.on{border-color:var(--ink);color:var(--ink)}
+.row100k .share-stage{margin-top:14px;border:2px solid var(--ink);padding:14px;background:var(--paper)}
+.row100k .share-stage.dark{background:#1c2b33;background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
+.row100k .share-canvas{display:block;width:100%;height:auto}
+.row100k .share-note{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--gray)}
+.row100k .share-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.row100k .share-btn{border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;padding:11px 16px;cursor:pointer;flex:1 1 auto}
+.row100k .share-btn:hover{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .share-btn.primary{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .share-btn.primary:hover{background:var(--water-hover);border-color:var(--water-hover)}
+.row100k .share-status{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--water)}
+.row100k .share-status.bad{color:#b3400f}
 .row100k .signed-note{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);margin-top:14px;letter-spacing:.04em}
 
 /* Rower-number bib card (join confirmation + dashboard header). */
@@ -155,9 +185,13 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .me-bar{margin-top:16px;height:14px;border:2px solid var(--ink);background:transparent;position:relative;overflow:hidden}
 .row100k .me-bar .fill{position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--water),#63b6dc)}
 .row100k .me-bar-label{display:flex;justify-content:space-between;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;color:var(--gray);margin-top:8px}
-.row100k .quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.row100k .quick button{background:transparent;border:2px dashed var(--line);color:var(--ink-soft);font-family:var(--row-mono),monospace;font-size:12px;padding:7px 12px;cursor:pointer}
-.row100k .quick button:hover{border-color:var(--water);color:var(--water)}
+/* The two big actions on the dashboard: log (blue, links to the profile
+ * form) and share (ink outline, opens the card dialog). Same voice as .send. */
+.row100k .act-row{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.row100k .big-act{flex:1 1 180px;display:block;text-align:center;border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-archivo-black),sans-serif;font-size:17px;text-transform:uppercase;letter-spacing:.04em;padding:15px 14px;cursor:pointer;text-decoration:none}
+.row100k .big-act:hover{border-color:var(--water);color:var(--water)}
+.row100k .big-act.primary{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .big-act.primary:hover{background:var(--water-hover);border-color:var(--water-hover)}
 .row100k .split-live{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);margin-top:10px;min-height:18px}
 .row100k .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
 @media(max-width:560px){.row100k .grid2{grid-template-columns:1fr}}
@@ -169,6 +203,11 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k table.mine td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k .del-btn{background:none;border:none;color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
 .row100k .del-btn:hover{color:#b3400f}
+.row100k .del-btn.save:hover{color:var(--water)}
+/* Inline fix-a-mistake inputs: same underline language as the big form,
+ * shrunk to table scale. */
+.row100k table.mine td input{width:100%;min-width:86px;background:transparent;border:none;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:13px;padding:3px 2px;border-radius:0;appearance:none}
+.row100k table.mine td input:focus{outline:none;border-bottom-color:var(--water)}
 
 /* Leaderboards. */
 .row100k .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}

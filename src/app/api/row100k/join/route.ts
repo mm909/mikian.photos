@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { sendOwnerNotification } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
+  CHALLENGE_LIVE,
   LOG_CLOSE_MS,
+  fmtRowerNumber,
+  nowMs,
   parseDisplayName,
   parseDivision,
   parseInstagram,
@@ -17,7 +21,7 @@ export const runtime = "nodejs";
  * semantics). Requires a Google session; the rower number is assigned once
  * at first join, in join order, and never changes. */
 export async function POST(req: Request) {
-  if (Date.now() >= LOG_CLOSE_MS) {
+  if (nowMs() >= LOG_CLOSE_MS) {
     return NextResponse.json(
       { ok: false, error: "The challenge is wrapped — the board is final." },
       { status: 400 },
@@ -105,6 +109,30 @@ export async function POST(req: Request) {
         },
       });
       revalidateTag("row100k-boards");
+
+      // Every real signup lands in the owner's inbox. First joins only —
+      // profile edits stay quiet — and never for the demo namespace. The
+      // await is deliberate (Vercel can kill the lambda after the response),
+      // but a failed send must never fail the join, so the result is logged
+      // and dropped.
+      if (CHALLENGE === CHALLENGE_LIVE) {
+        const sent = await sendOwnerNotification(
+          `Rowtember signup — ${fmtRowerNumber(created.rowerNumber)} ${displayName} (@${instagram})`,
+          [
+            `Rower ${fmtRowerNumber(created.rowerNumber)} just joined 100K September.`,
+            ``,
+            `Name on the board: ${displayName}`,
+            `Instagram: @${instagram} — https://instagram.com/${instagram}`,
+            `Board: ${division === "F" ? "Women's" : "Men's"}`,
+            `Account: ${actor.name} <${actor.email}>`,
+            ``,
+            `The board: https://mikianmusser.com/row100k#board`,
+          ].join("\n"),
+          actor.email,
+        );
+        if (!sent.ok) console.error("row100k: signup email failed", sent.error);
+      }
+
       return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: false });
     } catch (err) {
       const code = (err as { code?: string })?.code;

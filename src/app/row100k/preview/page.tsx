@@ -3,17 +3,19 @@ import { computeBoards, type Division } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { BarAccount } from "../BarAccount";
 import { Dashboard } from "../Dashboard";
+import { LogPanel } from "../LogPanel";
 import { Boards } from "../Boards";
 
 /* DEV-ONLY design preview for /row100k states that need a session or a
- * particular date to reach naturally: the joined dashboard (mock data), and
- * the pre-launch board (signups but zero meters / nobody at all).
- * ?view=dashboard[&tab=log|rows|curve] | ?view=startlist | ?view=empty
+ * particular date to reach naturally: the joined dashboard (mock data), the
+ * profile logging station + share dialog, and the pre-launch board (signups
+ * but zero meters / nobody at all).
+ * ?view=dashboard | ?view=log | ?view=startlist | ?view=board | ?view=empty
  * Returns 404 in production builds. */
 export const dynamic = "force-dynamic";
 
 const MOCK_ROWS = (() => {
-  const rows: { id: string; day: string; meters: number; seconds: number; note: string }[] = [];
+  const rows: { id: string; day: string; meters: number; seconds: number }[] = [];
   const days = [2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18, 19, 20];
   const meters = [5000, 3200, 6100, 1000, 4800, 5000, 7400, 2600, 10000, 4200, 5000, 3800, 6000, 5200];
   days.forEach((d, i) => {
@@ -24,7 +26,6 @@ const MOCK_ROWS = (() => {
       day: `2026-09-${String(d).padStart(2, "0")}`,
       meters: m,
       seconds: Math.round((m / 500) * split),
-      note: i === 3 ? "1k test" : i === 8 ? "long one" : "",
     });
   });
   return rows.reverse();
@@ -61,9 +62,8 @@ export default function Row100kPreview({
 
   const view = searchParams.view ?? "dashboard";
   const meters = MOCK_ROWS.reduce((s, r) => s + r.meters, 0);
-  const byDay = new Map<string, number>();
-  for (const r of MOCK_ROWS) byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.meters);
-  const bigDay = Math.max(...byDay.values());
+  const byDay: Record<string, number> = {};
+  for (const r of MOCK_ROWS) byDay[r.day] = (byDay[r.day] ?? 0) + r.meters;
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -76,35 +76,52 @@ export default function Row100kPreview({
           <span className="mono">PREVIEW — NOT REAL DATA</span>
         )}
       </div>
-      <section>
-        <div className="wrap">
-          {view === "dashboard" ? (
-            <div className="panel">
-              <Dashboard
-                rowerNumber={23}
-                displayName="Mikian Musser"
-                instagram="mikian_"
-                division={"M" as Division}
-                meters={meters}
-                sessions={MOCK_ROWS.length}
-                bigDay={bigDay}
-                rows={MOCK_ROWS}
-                defaultDay="2026-09-20"
-                phase="open"
-                simulateOpen
+      {view === "log" ? (
+        /* The profile's logging station with mock data — it renders its own
+         * sections. The share dialog is reachable here without a session,
+         * which is what makes phone testing over the LAN possible. */
+        <LogPanel
+          data={{
+            displayName: "Mikian Musser",
+            rowerNumber: 23,
+            instagram: "mikian_",
+            meters,
+            sessions: MOCK_ROWS.length,
+            byDay,
+          }}
+          rows={MOCK_ROWS}
+          defaultDay="2026-09-20"
+          phase="open"
+          simulate
+        />
+      ) : (
+        <section>
+          <div className="wrap">
+            {view === "dashboard" ? (
+              <div className="panel">
+                <Dashboard
+                  rowerNumber={23}
+                  displayName="Mikian Musser"
+                  instagram="mikian_"
+                  division={"M" as Division}
+                  meters={meters}
+                  sessions={MOCK_ROWS.length}
+                  rows={MOCK_ROWS}
+                  phase="open"
+                />
+              </div>
+            ) : (
+              <Boards
+                boards={computeBoards(
+                  view === "startlist" || view === "board" ? START_LIST : [],
+                  view === "board" ? BOARD_ENTRIES : [],
+                )}
+                started={view === "board"}
               />
-            </div>
-          ) : (
-            <Boards
-              boards={computeBoards(
-                view === "startlist" || view === "board" ? START_LIST : [],
-                view === "board" ? BOARD_ENTRIES : [],
-              )}
-              started={view === "board"}
-            />
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

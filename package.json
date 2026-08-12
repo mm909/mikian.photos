@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:row100k": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev",
+    "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",
@@ -12,7 +14,9 @@
     "prisma:push": "dotenv -e .env.local -- prisma db push",
     "prisma:migrate": "dotenv -e .env.local -- prisma migrate deploy",
     "prisma:seed": "dotenv -e .env.local -- prisma db seed",
-    "prisma:studio": "dotenv -e .env.local -- prisma studio"
+    "prisma:studio": "dotenv -e .env.local -- prisma studio",
+    "row100k:demo": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts",
+    "row100k:demo:clear": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --clear"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

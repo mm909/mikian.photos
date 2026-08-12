@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { START_MS, END_MS, LOG_CLOSE_MS } from "@/lib/row100k";
+import { START_MS, END_MS, LOG_CLOSE_MS, nowMs } from "@/lib/row100k";
 
 function parts(msLeft: number) {
   const s = Math.max(0, Math.floor(msLeft / 1000));
@@ -20,8 +20,8 @@ export function Countdown() {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    setNow(nowMs());
+    const t = setInterval(() => setNow(nowMs()), 1000);
     return () => clearInterval(t);
   }, []);
 

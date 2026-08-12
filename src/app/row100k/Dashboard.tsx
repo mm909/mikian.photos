@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LogRow } from "./LogRow";
-import { MyRows, type MyRow } from "./MyRows";
+import { type MyRow } from "./MyRows";
+import { ShareDialog } from "./ShareMenu";
 import {
   GOAL_METERS,
   RECORD_DISTANCES,
@@ -14,9 +14,9 @@ import {
   type Division,
 } from "@/lib/row100k";
 
-/* Signed-in + joined: your bib (→ your profile), a takeout-menu stat list,
- * and the log form. Everything else — curve, heatmap, full log — lives on
- * the public profile page. */
+/* Signed-in + joined: your bib (→ your profile), the two actions that matter
+ * — log a row, share a card — then a takeout-menu stat list. The log form
+ * itself lives on your profile page (LogPanel); LOG A ROW links there. */
 export function Dashboard(props: {
   rowerNumber: number;
   displayName: string;
@@ -24,13 +24,10 @@ export function Dashboard(props: {
   division: Division;
   meters: number;
   sessions: number;
-  bigDay: number;
   rows: MyRow[];
-  defaultDay: string;
   phase: "before" | "open" | "closed";
-  simulateOpen?: boolean;
 }) {
-  const [fixing, setFixing] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const pct = Math.min(100, Math.round((props.meters / GOAL_METERS) * 100));
   const profileHref = `/row100k/r/${props.rowerNumber}`;
 
@@ -49,19 +46,21 @@ export function Dashboard(props: {
       props.rows.map((r) => ({ participantId: "me", day: r.day, meters: r.meters, seconds: r.seconds })),
     );
     return {
-      days: b.total[0]?.days ?? 0,
       longest: b.longest[0]?.value ?? 0,
       fastest: RECORD_DISTANCES.map((d) => ({ d, s: b.fastest[d][0]?.value ?? null })),
     };
   }, [props.rows, props.displayName, props.division, props.rowerNumber, props.instagram]);
 
   const totalSeconds = props.rows.reduce((s, r) => s + r.seconds, 0);
+  const byDay = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of props.rows) m[r.day] = (m[r.day] ?? 0) + r.meters;
+    return m;
+  }, [props.rows]);
 
   const menu: { k: string; val: string; tone?: "blue" | "dim" }[] = [
     { k: "Total meters", val: props.meters.toLocaleString("en-US"), tone: "blue" },
     { k: "Sessions", val: String(props.sessions) },
-    { k: "Days rowed", val: String(bests.days) },
-    { k: "Biggest day", val: props.bigDay > 0 ? fmtMeters(props.bigDay) : "—", tone: props.bigDay > 0 ? undefined : "dim" },
     { k: "Longest row", val: bests.longest > 0 ? fmtMeters(bests.longest) : "—", tone: bests.longest > 0 ? undefined : "dim" },
     {
       k: "Avg split",
@@ -80,13 +79,25 @@ export function Dashboard(props: {
       <a href={profileHref} style={{ textDecoration: "none", display: "block" }}>
         <div className="bib">
           <div className="pins"><i /><i /></div>
-          <div className="ev">100K SEPTEMBER · 2026</div>
+          <div className="ev">ROWTEMBER · 2026</div>
           <div className="num">{fmtRowerNumber(props.rowerNumber)}</div>
           <div className="nm">
             {props.displayName} · @{props.instagram}
           </div>
         </div>
       </a>
+
+      <div className="act-row">
+        <button type="button" className="big-act" onClick={() => setShareOpen(true)}>
+          Share a card
+        </button>
+        {props.phase !== "closed" && (
+          <a className="big-act primary" href={`${profileHref}#log`}>
+            Log a row
+          </a>
+        )}
+      </div>
+
       <div className="grid2" style={{ marginTop: 26 }}>
         <ul className="menu">
           {menu.slice(0, Math.ceil(menu.length / 2)).map((m) => (
@@ -119,25 +130,18 @@ export function Dashboard(props: {
         </span>
       </div>
 
-      {props.phase === "before" && !props.simulateOpen ? (
-        <p className="board-empty" style={{ marginTop: 26 }}>
-          LOGGING OPENS SEP 1 — YOU&rsquo;RE IN.
-        </p>
-      ) : (
-        <>
-          <div className="rec-eyebrow" style={{ marginTop: 30 }}>Log a row</div>
-          <LogRow defaultDay={props.defaultDay} phase={props.phase} simulate={props.simulateOpen} />
-        </>
-      )}
-
-      {props.rows.length > 0 && (
-        <p style={{ marginTop: 26 }}>
-          <button type="button" className="quiet-btn" onClick={() => setFixing((v) => !v)}>
-            {fixing ? "DONE FIXING" : "FIX A MISTAKE"}
-          </button>
-        </p>
-      )}
-      {fixing && <MyRows rows={props.rows} canDelete={props.phase !== "closed"} />}
+      <ShareDialog
+        data={{
+          displayName: props.displayName,
+          rowerNumber: props.rowerNumber,
+          instagram: props.instagram,
+          meters: props.meters,
+          sessions: props.sessions,
+          byDay,
+        }}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

@@ -347,6 +347,7 @@ function RecordCard({
           <div className="meta">
             {fmtDay(top.day)}
             {def.kind === "time" && def.dist ? ` · ${fmtSplit(def.dist, top.value)} /500m` : ""}
+            {top.prorated && top.meters ? ` · out of a ${fmtMeters(top.meters)} row` : ""}
           </div>
           {also.length > 0 && (
             <div className="also">

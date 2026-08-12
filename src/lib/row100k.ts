@@ -6,7 +6,28 @@
  * safe to pass from a server component into client components.
  */
 
-export const CHALLENGE = "row100k-sep-2026";
+export const CHALLENGE_LIVE = "row100k-sep-2026";
+/* A parallel namespace holding the seeded fake board (scripts/row100k-demo-seed.ts).
+ * Same tables, different `challenge` slug — demo rowers are invisible to the
+ * live site by construction. */
+export const CHALLENGE_DEMO = "row100k-sep-2026-demo";
+
+/* Demo mode is ONE switch: NEXT_PUBLIC_ROW100K_DEMO=1 flips the namespace
+ * below AND arms the clock shift further down. One flag, so the fake board
+ * and the fake clock can never come apart — a shifted clock against the LIVE
+ * namespace would let September rows be written in August. NEXT_PUBLIC_ so
+ * the client bundle sees the same decision the server makes. */
+const DEMO = process.env.NEXT_PUBLIC_ROW100K_DEMO === "1";
+
+/* Which namespace this process reads and writes. Only a dev server started
+ * via npm run dev:row100k — or a Vercel *preview* deployment with the same
+ * env vars, for phone testing — sees the fake board. VERCEL_ENV is
+ * "production" on the real site, so a stray env var can't swap the standings. */
+export const CHALLENGE =
+  (process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview") && DEMO
+    ? CHALLENGE_DEMO
+    : CHALLENGE_LIVE;
+
 export const GOAL_METERS = 100_000;
 
 /* The window. Days are plain "YYYY-MM-DD" strings (what the participant
@@ -21,6 +42,27 @@ export const END_MS = Date.UTC(2026, 9, 1, 7, 0, 0);
 /* Grace: late-logging a September row is allowed through Oct 3 (Pacific). */
 export const LOG_CLOSE_MS = Date.UTC(2026, 9, 4, 7, 0, 0);
 
+/* Demo-only clock shift, so a seeded mid-challenge board can be seen in the
+ * state it belongs to instead of behind a "starts Sep 1" countdown. Set
+ * NEXT_PUBLIC_ROW100K_NOW="2026-09-20T19:00:00Z" and every surface — server
+ * pages, countdown, log form, write routes — behaves as if it were that
+ * moment. NEXT_PUBLIC_ so the same offset reaches the client bundle and
+ * server and client agree. The var itself is the switch: it exists only in
+ * dev (npm run dev:row100k) and Vercel *Preview* env vars — NEVER set it in
+ * the Production environment (server and client would disagree, and the live
+ * clock would lie). Held as an offset, not an instant, so it still ticks. */
+const CLOCK_OFFSET_MS = (() => {
+  if (!DEMO || process.env.VERCEL_ENV === "production") return 0;
+  const at = Date.parse(process.env.NEXT_PUBLIC_ROW100K_NOW ?? "");
+  return Number.isFinite(at) ? at - Date.now() : 0;
+})();
+
+/* Every "what time is it" in the challenge goes through here. In production
+ * it is exactly Date.now(). */
+export function nowMs(): number {
+  return Date.now() + CLOCK_OFFSET_MS;
+}
+
 /* Entry bounds. The split sanity check (seconds per 500m) catches swapped
  * fields and typo'd units: 60s/500m is faster than the world record, 900s
  * is slower than a drifting boat. */
@@ -34,9 +76,13 @@ export const NOTE_MAX = 200;
 export const MAX_ENTRIES_PER_DAY = 10;
 export const MAX_ENTRIES_TOTAL = 400;
 
-/* Record boards: a piece qualifies for the 1k/5k/10k board when it's the
- * distance or up to 2% over (water rows rarely land exact); the time is
- * pro-rated to the exact distance by average pace. */
+/* Record boards: any piece at least the distance qualifies for the 1k/5k/10k
+ * board, timed at its average pace pro-rated to the exact distance. Rowing a
+ * 10k and having no 5k time reads as broken, and a pro-rated time can't beat
+ * a real one anyway — nobody holds 5k pace for 10k — so true test pieces
+ * still own the top of the board. Anything beyond the tolerance below is
+ * labelled with the row it came out of, so a pro-rated time is never passed
+ * off as a tested one. */
 export const RECORD_DISTANCES = [1000, 5000, 10000] as const;
 export const RECORD_TOLERANCE = 1.02;
 
@@ -73,9 +119,9 @@ function addDaysUTC(ms: number, days: number): string {
   return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/* Validate a raw submission. `nowMs` is injected for testability. */
-export function validateEntry(body: Record<string, unknown>, nowMs: number): EntryCheck {
-  if (nowMs >= LOG_CLOSE_MS) {
+/* Validate a raw submission. The clock is injected for testability. */
+export function validateEntry(body: Record<string, unknown>, atMs: number): EntryCheck {
+  if (atMs >= LOG_CLOSE_MS) {
     return { ok: false, error: "The challenge is closed — logging ended Oct 3." };
   }
 
@@ -87,7 +133,7 @@ export function validateEntry(body: Record<string, unknown>, nowMs: number): Ent
     return { ok: false, error: "That day is outside September — the challenge runs Sep 1–30." };
   }
   // Lenient +1 so "today" works from any timezone; blocks pre-logging the future.
-  if (day > addDaysUTC(nowMs, 1)) {
+  if (day > addDaysUTC(atMs, 1)) {
     return { ok: false, error: "You can't log a row you haven't rowed yet." };
   }
 
@@ -226,6 +272,9 @@ export type RecordRow = {
   day: string;
   /* fastest boards only: the actual meters of the qualifying piece */
   meters?: number;
+  /* fastest boards only: the piece was longer than the board's distance, so
+   * this time is a pace conversion rather than a rowed one */
+  prorated?: boolean;
 };
 
 export type Boards = {
@@ -294,7 +343,7 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       const list = perParticipant.get(p.id) ?? [];
       let best: RecordRow | null = null;
       for (const e of list) {
-        if (e.meters < dist || e.meters > Math.round(dist * RECORD_TOLERANCE)) continue;
+        if (e.meters < dist) continue;
         const normalized = Math.round(e.seconds * (dist / e.meters) * 10) / 10;
         if (!best || normalized < best.value) {
           best = {
@@ -306,6 +355,7 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
             value: normalized,
             day: e.day,
             meters: e.meters,
+            prorated: e.meters > Math.round(dist * RECORD_TOLERANCE),
           };
         }
       }

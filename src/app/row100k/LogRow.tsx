@@ -8,33 +8,32 @@ import {
   LOG_CLOSE_MS,
   START_MS,
   fmtSplit,
+  nowMs,
   parseDurationText,
 } from "@/lib/row100k";
 
-const QUICK = [
-  { label: "1K PIECE", meters: 1000 },
-  { label: "5K PIECE", meters: 5000 },
-  { label: "10K PIECE", meters: 10000 },
-];
-
-/* Log-a-row form. `defaultDay` comes from the server (today clamped into
- * September) so the SSR and hydrated renders agree. `simulate` (dev preview
- * only) skips the client-side phase re-check so the open form can be seen
- * before September. */
+/* Log-a-row form: day, meters, time — nothing else (notes and quick-fill
+ * buttons were cut 2026-08-10; the fewer fields between finishing a row and
+ * hitting LOG IT, the better). `defaultDay` comes from the server (today
+ * clamped into September) so the SSR and hydrated renders agree. `simulate`
+ * (dev preview only) skips the client-side phase re-check so the open form
+ * can be seen before September. `onLogged` fires after a successful save —
+ * the profile uses it to pop the share menu. */
 export function LogRow({
   defaultDay,
   phase,
   simulate,
+  onLogged,
 }: {
   defaultDay: string;
   phase: "before" | "open" | "closed";
   simulate?: boolean;
+  onLogged?: (entry: { day: string; meters: number; seconds: number }) => void;
 }) {
   const router = useRouter();
   const [day, setDay] = useState(defaultDay);
   const [metersText, setMetersText] = useState("");
   const [timeText, setTimeText] = useState("");
-  const [note, setNote] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   // Server-computed phase goes stale in a long-lived tab; re-derive from the
@@ -42,7 +41,7 @@ export function LogRow({
   const [livePhase, setLivePhase] = useState(phase);
   useEffect(() => {
     if (simulate) return;
-    const now = Date.now();
+    const now = nowMs();
     setLivePhase(now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open");
   }, [phase, simulate]);
 
@@ -79,15 +78,15 @@ export function LogRow({
       const res = await fetch("/api/row100k/rows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ day, meters, seconds, note: note.trim() }),
+        body: JSON.stringify({ day, meters, seconds }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         setMetersText("");
         setTimeText("");
-        setNote("");
         setStatus("sent");
         router.refresh();
+        onLogged?.({ day, meters, seconds });
         setTimeout(() => setStatus("idle"), 4000);
         return;
       }
@@ -139,24 +138,6 @@ export function LogRow({
             onChange={(e) => setTimeText(e.target.value)}
           />
         </div>
-        <div>
-          <label className="fl" htmlFor="log-note">Note (optional)</label>
-          <input
-            id="log-note"
-            type="text"
-            maxLength={200}
-            placeholder="steady state"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="quick" aria-label="Quick distances for the record boards">
-        {QUICK.map((q) => (
-          <button key={q.meters} type="button" onClick={() => setMetersText(String(q.meters))}>
-            {q.label}
-          </button>
-        ))}
       </div>
       <p className="split-live">{preview}</p>
       <button className="send" type="submit" disabled={status === "sending"}>

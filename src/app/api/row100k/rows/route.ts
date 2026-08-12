@@ -7,6 +7,7 @@ import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
+  nowMs,
   validateEntry,
 } from "@/lib/row100k";
 
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
-  const check = validateEntry(body, Date.now());
+  const check = validateEntry(body, nowMs());
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }
