@@ -138,9 +138,10 @@ html:has(.row100k){scroll-behavior:smooth}
 /* Shareables: the picker modal and its preview stage. Cards are painted
  * white-on-transparent, so the stage goes dark to make them visible, and the
  * checker grid marks the see-through part without needing a caption.
- * NB this whole string is rendered as the text child of a style tag, so it
- * must contain no double quotes and no angle brackets: React escapes those
- * server-side only, and hydration then fails on the mismatch. */
+ * NB this whole string is rendered as the text child of a style tag, where
+ * entities are never decoded — so it must contain NO double quotes, NO
+ * apostrophes and NO angle brackets: React escapes those server-side, the
+ * client string keeps the raw character, and hydration fails on the diff. */
 .row100k .share-probe{position:absolute;width:0;height:0;overflow:hidden;visibility:hidden}
 .row100k .share-probe.blk{font-family:var(--row-archivo-black),sans-serif}
 .row100k .share-probe.mono{font-family:var(--row-mono),monospace}
@@ -259,6 +260,35 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rec .duo .dv{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
 .row100k .rec .duo .v{margin-top:4px}
 .row100k .stats-link{margin-top:22px;flex:none;width:100%}
+.row100k .board-links{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.row100k .board-links .big-act{margin-top:0}
+
+/* Photo-with-your-row picker (the whole thesis of this branch). */
+.row100k .photo-pick{display:flex;align-items:center;gap:14px;margin-top:6px}
+.row100k .photo-pick input[type=file]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.row100k .photo-btn{display:inline-block;border:2px dashed var(--line);color:var(--ink-soft);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;padding:10px 14px;cursor:pointer;text-transform:uppercase}
+.row100k .photo-btn:hover{border-color:var(--water);color:var(--water)}
+.row100k .photo-btn.has{border-style:solid;border-color:var(--water);color:var(--water)}
+.row100k .photo-thumb{width:64px;height:64px;object-fit:cover;border:2px solid var(--ink)}
+.row100k .photo-pick input:focus-visible + .photo-btn{outline:2px solid var(--water);outline-offset:2px}
+
+/* The feed: one column of row-posts, photo first, numbers under. */
+.row100k .feed{display:grid;gap:26px;max-width:560px;margin:0 auto}
+.row100k .feed-card{border:2px solid var(--ink);background:#fff;box-shadow:6px 6px 0 rgba(21,23,26,.10)}
+.row100k .feed-card header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 14px}
+.row100k .feed-card header .who{font-weight:700;color:var(--ink);text-decoration:none}
+.row100k .feed-card header .who:hover{color:var(--water)}
+.row100k .feed-card header .fnum{font-family:var(--row-mono),monospace;font-weight:400;color:var(--gray);font-size:12px}
+.row100k .feed-card header .fday{font-size:11px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase}
+.row100k .feed-card .ph{aspect-ratio:4/3;background:var(--frame);overflow:hidden}
+.row100k .feed-card .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.row100k .feed-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.row100k .feed-ph .mono{font-size:10px;letter-spacing:.14em;color:rgba(255,255,255,.55)}
+.row100k .feed-card footer{display:flex;border-top:2px solid var(--ink)}
+.row100k .feed-card footer .stat{flex:1;padding:10px 8px 9px;text-align:center;border-right:1px solid var(--line)}
+.row100k .feed-card footer .stat:last-child{border-right:none}
+.row100k .feed-card footer .n{font-family:var(--row-archivo-black),sans-serif;font-size:19px;font-variant-numeric:tabular-nums}
+.row100k .feed-card footer .l{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-top:2px}
 @media(max-width:640px){.row100k .records .rec .duo{grid-template-columns:1fr 1fr}}
 
 /* Movement arrows + finisher rows in the standings table. */

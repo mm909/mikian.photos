@@ -123,9 +123,14 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
         </div>
       )}
 
-      <a className="big-act stats-link" href="/row100k/stats">
-        Records, the calendar &amp; the curve →
-      </a>
+      <div className="board-links">
+        <a className="big-act primary" href="/row100k/feed">
+          The feed →
+        </a>
+        <a className="big-act" href="/row100k/stats">
+          Records &amp; stats →
+        </a>
+      </div>
     </div>
   );
 }

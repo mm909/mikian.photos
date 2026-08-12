@@ -575,6 +575,9 @@ model RowEntry {
   meters        Int
   seconds       Int
   note          String   @default("")
+  /// R2 key of the proof photo posted with the row ("" = none — rows logged
+  /// before the photo requirement, or an upload that failed gracefully).
+  photoKey      String   @default("")
   createdAt     DateTime @default(now())
 
   participant RowParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
