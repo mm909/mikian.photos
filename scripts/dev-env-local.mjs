@@ -90,6 +90,16 @@ try {
   dbHost = new URL(env.POSTGRES_URL).hostname;
 } catch {}
 const dbIsLocal = dbHost === "localhost" || dbHost === "127.0.0.1";
+if (env.VERCEL_ENV === "production") {
+  console.log(
+    "\n! VERCEL_ENV=production came through in the pull. Left alone it half-disables\n" +
+      "  the /row100k demo: src/lib/row100k.ts:65 zeroes the demo clock on the server,\n" +
+      "  but VERCEL_ENV isn't NEXT_PUBLIC_ so it never reaches the browser bundle — the\n" +
+      "  countdown keeps ticking on demo time while the server uses the real date. The\n" +
+      "  override below sets it to development.\n",
+  );
+}
+
 if (dbHost && !dbIsLocal) {
   console.log(
     `\n! POSTGRES_URL points at ${dbHost} — a remote database, almost certainly production.\n` +
@@ -113,6 +123,7 @@ const lines = [
   want("NEXT_PUBLIC_BASE_URL", "http://localhost:3000", "so generated links stay local"),
   want("PAYMENTS_LOCKED", "true", "so a local click can't take a real order"),
   want("PAYPAL_ENV", "sandbox", "so checkout can't bill a real card"),
+  want("VERCEL_ENV", "development", "so the /row100k demo clock isn't switched off"),
   MARK_END,
   "",
 ];
