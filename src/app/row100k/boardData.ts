@@ -45,7 +45,7 @@ export const boardData = () => (CHALLENGE === CHALLENGE_DEMO ? loadBoardData() :
 
 export const EMPTY_BOARDS: BoardData = {
   total: [],
-  fastest: { 1000: [], 5000: [], 10000: [] },
+  fastest: { 5000: [], 10000: [] },
   longest: [],
   bigDay: [],
   daily: [],

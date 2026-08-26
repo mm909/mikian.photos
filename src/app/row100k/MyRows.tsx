@@ -17,6 +17,7 @@ export type MyRow = {
   day: string;
   meters: number;
   seconds: number;
+  title?: string;
 };
 
 /* The signed-in rower's own log, newest first. Each row can be shared as a
@@ -165,7 +166,24 @@ export function MyRows({
               </tr>
             ) : (
               <tr key={r.id}>
-                <td className="num">{fmtDay(r.day)}</td>
+                <td className="num">
+                  {fmtDay(r.day)}
+                  {r.title ? (
+                    // Session title, display-only (the edit flow fixes
+                    // numbers, not names).
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 11,
+                        color: "var(--gray)",
+                        whiteSpace: "normal",
+                        maxWidth: "18ch",
+                      }}
+                    >
+                      {r.title}
+                    </span>
+                  ) : null}
+                </td>
                 <td className="num">{fmtMeters(r.meters)}</td>
                 <td className="num">{fmtDuration(r.seconds)}</td>
                 <td className="num">{fmtSplit(r.meters, r.seconds)}</td>

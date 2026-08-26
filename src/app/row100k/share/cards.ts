@@ -1,4 +1,4 @@
-import { fmtDay, fmtDuration, fmtRowerNumber, fmtSplit } from "@/lib/row100k";
+import { fmtDuration, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 
 /* Shareable cards for /row100k — the images themselves.
  *
@@ -26,15 +26,22 @@ export type ShareData = {
   /* One highlighted session — set when sharing straight from a logged row;
    * unlocks the single-row card. */
   row?: { day: string; meters: number; seconds: number } | null;
+  /* "M" | "F" — unlocks the profile card's board tag. */
+  division?: string;
+  /* Longest single row, meters. */
+  longest?: number;
+  /* Standing on total meters within the rower's division. */
+  rank?: { place: number; of: number } | null;
+  /* Top-3 record-board placements within the division. */
+  records?: { key: string; label: string; place: number }[];
 };
 
 export type ShareFonts = { black: string; mono: string };
 
 export type ShareCard = {
   id: string;
-  /* Menu label + one line on what the card says. */
+  /* Menu label. */
   label: string;
-  blurb: string;
   width: number;
   height: number;
   /* True when the art is white-on-transparent and needs a dark preview
@@ -46,21 +53,33 @@ export type ShareCard = {
 };
 
 const WATER = "#0077B6";
+const INK = "#15171A";
+const GOLD = "#D4AF37";
+const SILVER = "#C0C0C0";
+const BRONZE = "#CD7F32";
+
+const medalColor = (place: number): string | null =>
+  place === 1 ? GOLD : place === 2 ? SILVER : place === 3 ? BRONZE : null;
 
 /* ------------------------------------------------------------ primitives */
 
 /* The page's "open to everyone" mark: white caps on water blue, rotated a
  * degree and a half and skewed, so it reads as something stamped on rather
- * than typeset. Returns the drawn width so callers can centre it. */
+ * than typeset. Returns the drawn width so callers can centre it. The box
+ * paints water blue unless a medal color is handed in; silver is too light
+ * for white caps, so text flips to ink on it. */
 function drawMark(
   ctx: CanvasRenderingContext2D,
   segments: { text: string; strike?: boolean }[],
-  opts: { cx: number; cy: number; size: number; fontFamily: string },
+  opts: { cx: number; cy: number; size: number; fontFamily: string; box?: string },
 ) {
   const { cx, cy, size, fontFamily } = opts;
+  const boxColor = opts.box ?? WATER;
+  const textColor = boxColor === SILVER ? INK : "#ffffff";
   ctx.save();
   ctx.font = `${size}px ${fontFamily}`;
   ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
 
   const widths = segments.map((s) => ctx.measureText(s.text).width);
   const textWidth = widths.reduce((a, b) => a + b, 0);
@@ -75,19 +94,19 @@ function drawMark(
   ctx.rotate((-1.2 * Math.PI) / 180);
   ctx.transform(1, 0, Math.tan((-2 * Math.PI) / 180), 1, 0, 0);
 
-  ctx.fillStyle = WATER;
+  ctx.fillStyle = boxColor;
   ctx.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
 
   const baseline = -boxH / 2 + padTop + capHeight;
   let x = -boxW / 2 + padX;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = textColor;
   segments.forEach((seg, i) => {
     ctx.fillText(seg.text, x, baseline);
     if (seg.strike) {
       // Through the middle of the caps, at the weight of the letterforms —
       // a struck-out SEP, not a hairline.
       ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.66)";
+      ctx.strokeStyle = boxColor === SILVER ? "rgba(21,23,26,0.66)" : "rgba(255,255,255,0.66)";
       ctx.lineWidth = size * 0.085;
       ctx.beginPath();
       ctx.moveTo(x - size * 0.02, baseline - capHeight * 0.46);
@@ -134,16 +153,17 @@ function drawCenteredText(
 /* ----------------------------------------------------------------- cards */
 
 /* Card one: the wordmark and your number. Nothing else — it has to survive
- * being 300px wide on someone's story. */
+ * being 300px wide on someone's story. Top-10 rowers get their place in the
+ * caption; a podium place paints the mark's box in the medal metal. */
 const rowtemberTotal: ShareCard = {
   id: "rowtember-total",
   label: "Rowtember total",
-  blurb: "The wordmark and your meters so far.",
   width: 1080,
   height: 620,
   light: true,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
+    const top10 = data.rank && data.rank.place <= 10 ? data.rank : null;
 
     drawCenteredText(ctx, data.meters.toLocaleString("en-US"), {
       cx,
@@ -151,7 +171,7 @@ const rowtemberTotal: ShareCard = {
       font: `210px ${fonts.black}`,
       color: "#ffffff",
     });
-    drawCenteredText(ctx, "METERS ROWED", {
+    drawCenteredText(ctx, top10 ? `METERS ROWED · #${top10.place}` : "METERS ROWED", {
       cx,
       baseline: 318,
       font: `38px ${fonts.mono}`,
@@ -164,6 +184,7 @@ const rowtemberTotal: ShareCard = {
       cy: 470,
       size: 112,
       fontFamily: fonts.black,
+      box: (top10 && medalColor(top10.place)) || undefined,
     });
   },
 };
@@ -175,7 +196,6 @@ const MILESTONES = [100_000, 75_000, 50_000] as const;
 const rowtemberClub: ShareCard = {
   id: "rowtember-club",
   label: "Club card",
-  blurb: "Unlocked at 50k — upgrades at 75k and 100k.",
   width: 1080,
   height: 700,
   light: true,
@@ -224,11 +244,11 @@ const rowtemberClub: ShareCard = {
 };
 
 /* Card three: the month itself — September as the same intensity calendar
- * the profile draws, white cells on transparency, brighter = more meters. */
+ * the profile draws, white cells on transparency, brighter = more meters.
+ * Each rowed day wears its meter count, rounded to the nearest k. */
 const rowtemberMonth: ShareCard = {
   id: "rowtember-month",
   label: "The month",
-  blurb: "Your September, one square per day.",
   width: 1080,
   height: 1080,
   light: true,
@@ -271,6 +291,14 @@ const rowtemberMonth: ShareCard = {
       } else {
         ctx.fillStyle = `rgba(255,255,255,${a})`;
         ctx.fillRect(x, y, cell, cell);
+        // The day's meters, to the nearest k — ink on the white cell.
+        ctx.save();
+        ctx.font = `34px ${fonts.mono}`;
+        ctx.fillStyle = INK;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`${Math.max(1, Math.round(m / 1000))}k`, x + cell / 2, y + cell / 2 + 2);
+        ctx.restore();
       }
     }
 
@@ -282,7 +310,7 @@ const rowtemberMonth: ShareCard = {
       font: `96px ${fonts.black}`,
       color: "#ffffff",
     });
-    drawCenteredText(ctx, "METERS THIS SEPTEMBER", {
+    drawCenteredText(ctx, "METERS", {
       cx,
       baseline: gridBottom + 150,
       font: `28px ${fonts.mono}`,
@@ -292,12 +320,11 @@ const rowtemberMonth: ShareCard = {
   },
 };
 
-/* Card four: one session. Available only when the dialog was opened from a
- * specific row — just logged, or the share action next to a row in the log. */
+/* Card four: one session — the meters, the time, the mark. Available only
+ * when the dialog was opened from a specific row. */
 const rowtemberRow: ShareCard = {
   id: "rowtember-row",
   label: "This row",
-  blurb: "Just this session — day, time, split.",
   width: 1080,
   height: 620,
   light: true,
@@ -313,17 +340,13 @@ const rowtemberRow: ShareCard = {
       font: `210px ${fonts.black}`,
       color: "#ffffff",
     });
-    drawCenteredText(
-      ctx,
-      `${fmtDay(row.day).toUpperCase()} · ${fmtDuration(row.seconds)} · ${fmtSplit(row.meters, row.seconds)} /500M`,
-      {
-        cx,
-        baseline: 318,
-        font: `34px ${fonts.mono}`,
-        color: "rgba(255,255,255,0.82)",
-        tracking: 6,
-      },
-    );
+    drawCenteredText(ctx, fmtDuration(row.seconds), {
+      cx,
+      baseline: 320,
+      font: `40px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
@@ -340,7 +363,6 @@ const rowtemberRow: ShareCard = {
 const rowtemberBib: ShareCard = {
   id: "rowtember-bib",
   label: "The bib",
-  blurb: "Your number, name and @ — fresh off the press.",
   width: 1080,
   height: 700,
   light: true,
@@ -370,12 +392,13 @@ const rowtemberBib: ShareCard = {
       ctx.stroke();
     }
 
-    drawCenteredText(ctx, "ROWTEMBER · 2026", {
+    // The blue ROWTEMBER stamp where the gray event line used to sit —
+    // clearly smaller than the number below it.
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
-      baseline: top + 96,
-      font: `26px ${fonts.mono}`,
-      color: "#8a8a85",
-      tracking: 8,
+      cy: top + 88,
+      size: 36,
+      fontFamily: fonts.black,
     });
 
     drawCenteredText(ctx, fmtRowerNumber(data.rowerNumber), {
@@ -404,12 +427,348 @@ const rowtemberBib: ShareCard = {
   },
 };
 
+/* The profile header, redrawn white-on-transparent: number + name, the @,
+ * the board tag, three outlined stat boxes, the progress bar. */
+const rowtemberProfile: ShareCard = {
+  id: "rowtember-profile",
+  label: "The profile",
+  width: 1080,
+  height: 700,
+  light: true,
+  available: (d) => d.division != null && d.longest != null,
+  draw(ctx, data, fonts) {
+    const M = 70; // side margin
+    const contentW = this.width - M * 2;
+
+    // Number + name, one line, shrunk to fit.
+    const numText = fmtRowerNumber(data.rowerNumber);
+    const nameText = ` ${data.displayName.toUpperCase()}`;
+    let nameSize = 68;
+    ctx.font = `${nameSize}px ${fonts.black}`;
+    while (
+      nameSize > 34 &&
+      ctx.measureText(numText).width + ctx.measureText(nameText).width > contentW
+    ) {
+      nameSize -= 2;
+      ctx.font = `${nameSize}px ${fonts.black}`;
+    }
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${nameSize}px ${fonts.black}`;
+    ctx.fillStyle = "#9a9a95";
+    ctx.fillText(numText, M, 140);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(nameText, M + ctx.measureText(numText).width, 140);
+
+    // The @, water blue mono.
+    ctx.font = `34px ${fonts.mono}`;
+    ctx.fillStyle = WATER;
+    ctx.fillText(`@${data.instagram}`, M, 198);
+
+    // Board tag, with the club stamp once earned.
+    const board = data.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD";
+    const tag = data.meters >= 100_000 ? `${board} · 100K CLUB` : board;
+    ctx.font = `24px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.fillText(tag, M, 254);
+    ctx.restore();
+
+    // Three outlined stat boxes: METERS / SESSIONS / LONGEST ROW.
+    const gap = 24;
+    const boxW = (contentW - gap * 2) / 3;
+    const boxH = 160;
+    const boxTop = 300;
+    const stats: { v: string; l: string }[] = [
+      { v: data.meters.toLocaleString("en-US"), l: "METERS" },
+      { v: String(data.sessions), l: "SESSIONS" },
+      { v: (data.longest ?? 0).toLocaleString("en-US"), l: "LONGEST ROW" },
+    ];
+    stats.forEach((s, i) => {
+      const bx = M + i * (boxW + gap);
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(bx + 2, boxTop + 2, boxW - 4, boxH - 4);
+      // Value shrinks to fit the box.
+      let vSize = 52;
+      ctx.font = `${vSize}px ${fonts.black}`;
+      while (vSize > 26 && ctx.measureText(s.v).width > boxW - 40) {
+        vSize -= 2;
+        ctx.font = `${vSize}px ${fonts.black}`;
+      }
+      drawCenteredText(ctx, s.v, {
+        cx: bx + boxW / 2,
+        baseline: boxTop + 88,
+        font: `${vSize}px ${fonts.black}`,
+        color: "#ffffff",
+      });
+      drawCenteredText(ctx, s.l, {
+        cx: bx + boxW / 2,
+        baseline: boxTop + 128,
+        font: `20px ${fonts.mono}`,
+        color: "rgba(255,255,255,0.72)",
+        tracking: 4,
+      });
+    });
+
+    // Progress bar toward 100k.
+    const barTop = 528;
+    const barH = 28;
+    const pct = Math.min(100, (data.meters / 100_000) * 100);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(M, barTop, contentW, barH);
+    if (pct > 0) {
+      const fillW = Math.max(6, (pct / 100) * contentW);
+      const grad = ctx.createLinearGradient(M, 0, M + contentW, 0);
+      grad.addColorStop(0, WATER);
+      grad.addColorStop(1, "#ffffff");
+      ctx.fillStyle = grad;
+      ctx.fillRect(M, barTop, fillW, barH);
+    }
+    ctx.save();
+    ctx.font = `26px ${fonts.mono}`;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.textAlign = "left";
+    ctx.fillText(fmtMeters(data.meters), M, barTop + barH + 44);
+    ctx.textAlign = "right";
+    ctx.fillText(
+      data.meters >= 100_000 ? "100K — DONE" : `${fmtMeters(100_000 - data.meters)} TO GO`,
+      this.width - M,
+      barTop + barH + 44,
+    );
+    ctx.restore();
+  },
+};
+
+/* The rower's own cumulative curve for September — their line vs the dashed
+ * finish-on-time line, same vocabulary as the profile's Curve. */
+const rowtemberCurve: ShareCard = {
+  id: "rowtember-curve",
+  label: "The curve",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: (d) => Object.values(d.byDay).some((m) => m > 0),
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 120,
+      size: 80,
+      fontFamily: fonts.black,
+    });
+
+    // Cumulative points from byDay, September days only, ascending.
+    const days = Object.keys(data.byDay)
+      .filter((d) => d.startsWith("2026-09-") && (data.byDay[d] ?? 0) > 0)
+      .sort();
+    let cum = 0;
+    const pts = days.map((d) => {
+      cum += data.byDay[d];
+      return { dayNum: Number(d.slice(8, 10)), cum };
+    });
+    if (pts.length === 0) return;
+    if (pts[0].dayNum > 1) pts.unshift({ dayNum: pts[0].dayNum - 1, cum: 0 });
+    const total = pts[pts.length - 1].cum;
+
+    // Chart frame.
+    const L = 110;
+    const R = 1010;
+    const T = 240;
+    const B = 790;
+    const maxV = Math.max(total, 100_000);
+    const x = (dayNum: number) => L + ((dayNum - 1) / 29) * (R - L);
+    const y = (v: number) => B - (v / maxV) * (B - T);
+
+    // Minimal axes: baseline + two day ticks + the 100k mark on the right.
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(L, B);
+    ctx.lineTo(R, B);
+    ctx.stroke();
+    ctx.font = `24px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.fillText("SEP 1", L, B + 40);
+    ctx.textAlign = "right";
+    ctx.fillText("30", R, B + 40);
+    ctx.fillText("100K", R, y(100_000) - 14);
+
+    // The finish-on-time line: 0 on Sep 1 → 100k on Sep 30, dashed, quiet.
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 12]);
+    ctx.beginPath();
+    ctx.moveTo(x(1), y(0));
+    ctx.lineTo(x(30), y(100_000));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // The rower's line, solid white, with a bright endpoint dot.
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 7;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(x(p.dayNum), y(p.cum));
+      else ctx.lineTo(x(p.dayNum), y(p.cum));
+    });
+    ctx.stroke();
+    const last = pts[pts.length - 1];
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x(last.dayNum), y(last.cum), 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // The total under the chart.
+    drawCenteredText(ctx, total.toLocaleString("en-US"), {
+      cx,
+      baseline: 950,
+      font: `96px ${fonts.black}`,
+      color: "#ffffff",
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: 998,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
+  },
+};
+
+/* Top ten: the place, the meters, the mark. Earned — only in the menu while
+ * the rower sits in their division's top 10. */
+const rowtemberTop10: ShareCard = {
+  id: "rowtember-top10",
+  label: "Top ten",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.rank && d.rank.place <= 10,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    const rank = data.rank;
+    if (!rank) return;
+
+    drawCenteredText(ctx, `#${rank.place}`, {
+      cx,
+      baseline: 250,
+      font: `230px ${fonts.black}`,
+      color: "#ffffff",
+    });
+    drawCenteredText(ctx, `${data.meters.toLocaleString("en-US")} M`, {
+      cx,
+      baseline: 322,
+      font: `38px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 472,
+      size: 112,
+      fontFamily: fonts.black,
+    });
+  },
+};
+
+/* The records: one line per record-board placement, medal-colored places. */
+const rowtemberRecords: ShareCard = {
+  id: "rowtember-records",
+  label: "The records",
+  width: 1080,
+  height: 820,
+  light: true,
+  available: (d) => !!d.records && d.records.length > 0,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    const records = (data.records ?? []).slice(0, 5);
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 120,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    // Lines centered as a block, vertically centered in the space below the
+    // mark — 5 lines fill it, 1 line sits in the middle.
+    const lineH = 92;
+    const areaTop = 230;
+    const areaBottom = this.height - 60;
+    const blockH = records.length * lineH;
+    let baseline = areaTop + (areaBottom - areaTop - blockH) / 2 + lineH * 0.7;
+
+    ctx.save();
+    ctx.textBaseline = "alphabetic";
+    for (const r of records) {
+      const label = `${r.label.toUpperCase()} — `;
+      const place = `#${r.place}`;
+      ctx.font = `40px ${fonts.mono}`;
+      const labelW = ctx.measureText(label).width;
+      ctx.font = `44px ${fonts.black}`;
+      const placeW = ctx.measureText(place).width;
+      let x = cx - (labelW + placeW) / 2;
+      ctx.textAlign = "left";
+      ctx.font = `40px ${fonts.mono}`;
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillText(label, x, baseline);
+      x += labelW;
+      ctx.font = `44px ${fonts.black}`;
+      ctx.fillStyle = medalColor(r.place) ?? "#ffffff";
+      ctx.fillText(place, x, baseline);
+      baseline += lineH;
+    }
+    ctx.restore();
+  },
+};
+
+/* Just the mark. Big, centered, transparent — the sticker of stickers. */
+const rowtemberLogo: ShareCard = {
+  id: "rowtember-logo",
+  label: "The logo",
+  width: 1080,
+  height: 620,
+  light: true,
+  draw(ctx, _data, fonts) {
+    // As big as fits with breathing room; measured the way drawMark measures.
+    let size = 150;
+    const maxW = this.width - 70;
+    for (;;) {
+      ctx.font = `${size}px ${fonts.black}`;
+      const boxW = ctx.measureText("ROWTEMBER").width + size * 0.68;
+      if (boxW <= maxW || size <= 60) break;
+      size -= 4;
+    }
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx: this.width / 2,
+      cy: this.height / 2,
+      size,
+      fontFamily: fonts.black,
+    });
+  },
+};
+
 export const CARDS: ShareCard[] = [
   rowtemberRow,
   rowtemberTotal,
+  rowtemberProfile,
+  rowtemberCurve,
+  rowtemberTop10,
+  rowtemberRecords,
   rowtemberBib,
   rowtemberClub,
   rowtemberMonth,
+  rowtemberLogo,
 ];
 
 export function availableCards(data: ShareData): ShareCard[] {

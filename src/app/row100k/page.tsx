@@ -6,9 +6,11 @@ import {
   END_MS,
   LOG_CLOSE_MS,
   START_MS,
+  divisionRank,
   fmtMeters,
   fmtRowerNumber,
   nowMs as clockNow,
+  recordPlacements,
   type Division,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
@@ -108,7 +110,17 @@ export default async function Row100kPage() {
       <style>{css}</style>
 
       <div className="bar">
-        <span className="mono tag">ROW100K</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <a className="mono tag" href="/row100k" style={{ textDecoration: "none" }}>
+            ROW100K
+          </a>
+          <a className="mono back-link" href="/row100k/stats">
+            THE STATS
+          </a>
+          <a className="mono back-link" href="/row100k/feed">
+            THE FEED
+          </a>
+        </span>
         <BarAccount signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} />
       </div>
 
