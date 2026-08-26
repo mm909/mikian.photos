@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
-  GOAL_METERS,
   fmtMeters,
   fmtRowerNumber,
+  tierFor,
+  visibleTiers,
   type Boards as BoardData,
-  type RecordRow,
+  type Tier,
   type TotalRow,
 } from "@/lib/row100k";
 
@@ -15,8 +16,9 @@ export type Tab = "ALL" | "M" | "F";
 export const TAB_LABEL: Record<Tab, string> = { ALL: "Everyone", M: "Men's", F: "Women's" };
 export const TAB_WORD: Record<Tab, string> = { ALL: "everyone", M: "men", F: "women" };
 
-/* Names link to the rower's profile page (their IG link lives there). */
-export function Who({ row }: { row: TotalRow | RecordRow }) {
+/* Names link to the rower's profile page (their IG link lives there).
+ * Takes anything row-shaped — total, record and weekly rows all qualify. */
+export function Who({ row }: { row: { name: string; rowerNumber: number } }) {
   return (
     <span className="who">
       <span style={{ color: "var(--gray)", fontFamily: "var(--row-mono), monospace", fontWeight: 400 }}>
@@ -40,15 +42,28 @@ function Movement({ delta }: { delta: number }) {
   );
 }
 
+/* Section titles for the tier ladder, rarity spelled out like item drops.
+ * The 100k section keeps its club name — that's the one people chase. */
+const TIER_TITLE: Record<Tier["key"], string> = {
+  t10: "10k — common",
+  t50: "50k — rare",
+  t100: "The 100k club — epic",
+  t250: "250k — legend",
+};
+
 /* THE BOARD on the main page: the community strip and the standings — total
- * meters, the number the month is named after. Everything deeper (records,
- * the calendar, the curve) lives on /row100k/stats. */
+ * meters, sectioned into rarity tiers (visibleTiers: every tier reached plus
+ * the next locked one, highest first), with everyone under 10k warming up at
+ * the bottom. Rank numbers stay global across sections. Everything deeper
+ * (records, the weeks, the calendar, the curve) lives on /row100k/stats. */
 export function Boards({ boards, started }: { boards: BoardData; started: boolean }) {
   const [tab, setTab] = useState<Tab>("ALL");
   const total = boards.total.filter((r) => tab === "ALL" || r.division === tab);
 
-  const fins = total.filter((r) => r.meters >= GOAL_METERS);
-  const rest = total.filter((r) => r.meters < GOAL_METERS);
+  const maxMeters = total.reduce((m, r) => Math.max(m, r.meters), 0);
+  const sections = [...visibleTiers(maxMeters)].reverse(); // highest first
+  const warming = total.filter((r) => tierFor(r.meters) === null);
+  const rankOf = new Map(total.map((r, i) => [r.participantId, i + 1]));
 
   return (
     <div>
@@ -102,22 +117,43 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
               </tr>
             </thead>
             <tbody>
-              {fins.length > 0 && (
-                <tr className="divrow">
-                  <td colSpan={4}>The 100k club — finished</td>
-                </tr>
+              {sections.map((t) => {
+                const locked = maxMeters < t.meters;
+                const members = total.filter((r) => tierFor(r.meters)?.key === t.key);
+                return (
+                  <Fragment key={t.key}>
+                    <tr className={`divrow ${locked ? "locked" : t.rarity}`}>
+                      <td colSpan={4}>{TIER_TITLE[t.key]}</td>
+                    </tr>
+                    {locked ? (
+                      <tr className="lockrow">
+                        <td colSpan={4}>
+                          UNLOCKS AT {t.meters.toLocaleString("en-US")} M — NOBODY HERE YET
+                        </td>
+                      </tr>
+                    ) : (
+                      members.map((r) => (
+                        <TotalRowTr
+                          key={r.participantId}
+                          r={r}
+                          rank={rankOf.get(r.participantId) ?? 0}
+                          tier={t}
+                        />
+                      ))
+                    )}
+                  </Fragment>
+                );
+              })}
+              {warming.length > 0 && (
+                <>
+                  <tr className="divrow rest">
+                    <td colSpan={4}>Warming up</td>
+                  </tr>
+                  {warming.map((r) => (
+                    <TotalRowTr key={r.participantId} r={r} rank={rankOf.get(r.participantId) ?? 0} />
+                  ))}
+                </>
               )}
-              {fins.map((r, i) => (
-                <TotalRowTr key={r.participantId} r={r} rank={i + 1} fin />
-              ))}
-              {fins.length > 0 && rest.length > 0 && (
-                <tr className="divrow rest">
-                  <td colSpan={4}>Still rowing</td>
-                </tr>
-              )}
-              {rest.map((r, i) => (
-                <TotalRowTr key={r.participantId} r={r} rank={fins.length + i + 1} />
-              ))}
             </tbody>
           </table>
         </div>
@@ -130,13 +166,13 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
   );
 }
 
-function TotalRowTr({ r, rank, fin }: { r: TotalRow; rank: number; fin?: boolean }) {
+function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier }) {
   return (
-    <tr className={fin ? "fin" : undefined}>
+    <tr className={tier ? `tier-${tier.rarity}` : undefined}>
       <td className="rk">{rank}</td>
       <td>
         <Who row={r} />
-        {fin && <span className="donebadge">100K</span>}
+        {tier && <span className={`tierbadge ${tier.rarity}`}>{tier.label}</span>}
       </td>
       <td>
         <Movement delta={r.delta} />
