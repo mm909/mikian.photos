@@ -105,6 +105,19 @@ export default async function Row100kPage() {
 
   const leader = boards.total.find((r) => r.meters > 0);
 
+  // Standing + record placements for the signed-in rower's share cards —
+  // best-effort off the cached board (fails to undefined, cards just hide).
+  let myRank: { place: number; of: number } | null | undefined;
+  let myRecords: { key: string; label: string; place: number }[] | undefined;
+  try {
+    if (me) {
+      myRank = divisionRank(boards, me.id);
+      myRecords = recordPlacements(boards, me.id);
+    }
+  } catch (err) {
+    console.error("row100k: failed to compute placements", err);
+  }
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
@@ -263,6 +276,8 @@ export default async function Row100kPage() {
                 sessions={myRows.length}
                 rows={myRows}
                 phase={phase}
+                rank={myRank}
+                records={myRecords}
               />
             ) : phase === "closed" ? (
               <p className="board-empty">

@@ -11,6 +11,7 @@ import {
   LOG_CLOSE_MS,
   START_MS,
   computeBoards,
+  divisionRank,
   fmtDay,
   fmtDuration,
   fmtMeters,
@@ -18,10 +19,12 @@ import {
   fmtRowerNumber,
   fmtSplit,
   nowMs as clockNow,
+  recordPlacements,
   type Division,
 } from "@/lib/row100k";
 import { isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
+import { boardData } from "../../boardData";
 import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
@@ -42,7 +45,7 @@ const getRower = cache(async (num: number) => {
   if (!participant) return null;
   const entries = await db.rowEntry.findMany({
     where: { participantId: participant.id },
-    select: { id: true, participantId: true, day: true, meters: true, seconds: true },
+    select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true },
     orderBy: [{ day: "asc" }, { createdAt: "asc" }],
   });
   return { participant, entries };
@@ -92,6 +95,31 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   for (const e of entries) byDay[e.day] = (byDay[e.day] ?? 0) + e.meters;
   const pct = Math.min(100, me.pct);
 
+  // Standing + record placements come off the full cached board — cosmetic
+  // for the share cards, so a board failure just leaves them undefined.
+  let rank: { place: number; of: number } | null | undefined;
+  let records: { key: string; label: string; place: number }[] | undefined;
+  try {
+    const full = await boardData();
+    rank = divisionRank(full, p.id);
+    records = recordPlacements(full, p.id);
+  } catch (err) {
+    console.error("row100k: failed to load board data for placements", err);
+  }
+
+  const shareData = {
+    displayName: p.displayName,
+    rowerNumber: p.rowerNumber,
+    instagram: p.instagram,
+    meters: me.meters,
+    sessions: me.sessions,
+    byDay,
+    division: p.division,
+    longest: b.longest[0]?.value ?? 0,
+    rank,
+    records,
+  };
+
   const now = clockNow();
   const phase: "before" | "open" | "closed" =
     now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
@@ -99,7 +127,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const defaultDay = todayUTC < FIRST_DAY ? FIRST_DAY : todayUTC > LAST_DAY ? LAST_DAY : todayUTC;
 
   const bests: { label: string; value: string; sub: string }[] = [
-    ...([1000, 5000, 10000] as const).map((d) => {
+    ...([5000, 10000] as const).map((d) => {
       const r = b.fastest[d][0];
       return {
         label: `Fastest ${d / 1000}k`,
@@ -125,9 +153,14 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       <style>{css}</style>
 
       <div className="bar">
-        <a className="mono back-link" href="/row100k">
-          ← 100K SEPTEMBER
-        </a>
+        <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <a className="mono back-link" href="/row100k">
+            ← 100K SEPTEMBER
+          </a>
+          <a className="mono back-link" href="/row100k/stats">
+            THE STATS
+          </a>
+        </span>
         <span className="mono tag">ROWER {fmtRowerNumber(p.rowerNumber)}</span>
       </div>
 
@@ -216,31 +249,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       {/* Your own page carries the logging station: the form sits just above
           the log, and every row in the log can be shared, fixed or deleted. */}
       {isMe ? (
-        <LogPanel
-          data={{
-            displayName: p.displayName,
-            rowerNumber: p.rowerNumber,
-            instagram: p.instagram,
-            meters: me.meters,
-            sessions: me.sessions,
-            byDay,
-          }}
-          rows={rows}
-          defaultDay={defaultDay}
-          phase={phase}
-        />
+        <LogPanel data={shareData} rows={rows} defaultDay={defaultDay} phase={phase} />
       ) : isAdmin ? (
-        <AdminShare
-          data={{
-            displayName: p.displayName,
-            rowerNumber: p.rowerNumber,
-            instagram: p.instagram,
-            meters: me.meters,
-            sessions: me.sessions,
-            byDay,
-          }}
-          rows={rows}
-        />
+        <AdminShare data={shareData} rows={rows} />
       ) : (
         <section>
           <div className="wrap">
@@ -264,7 +275,17 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id}>
-                        <td>{fmtDay(r.day)}</td>
+                        <td>
+                          {fmtDay(r.day)}
+                          {r.title ? (
+                            <div
+                              className="mono"
+                              style={{ fontSize: 11, color: "var(--gray)", marginTop: 2 }}
+                            >
+                              {r.title}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="num">{fmtMeters(r.meters)}</td>
                         <td className="num">{fmtDuration(r.seconds)}</td>
                         <td className="num" style={{ color: "var(--gray)" }}>
