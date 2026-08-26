@@ -25,6 +25,7 @@ import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
+import { AdminShare } from "../../AdminShare";
 import { LogPanel } from "../../LogPanel";
 import { RemoveRower } from "../../RemoveRower";
 
@@ -227,6 +228,18 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           rows={rows}
           defaultDay={defaultDay}
           phase={phase}
+        />
+      ) : isAdmin ? (
+        <AdminShare
+          data={{
+            displayName: p.displayName,
+            rowerNumber: p.rowerNumber,
+            instagram: p.instagram,
+            meters: me.meters,
+            sessions: me.sessions,
+            byDay,
+          }}
+          rows={rows}
         />
       ) : (
         <section>
