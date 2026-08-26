@@ -56,7 +56,9 @@ const parse = (text) => {
  * run, so re-running reports "nothing to change" instead of the same diff. */
 const env = parse(pulled);
 const effective = parse(raw);
-const has = (k) => Boolean(env[k]?.trim());
+/* "[SENSITIVE]" is Vercel's placeholder for a write-only value — present in
+ * the file, useless to the app, so it does not count as set. */
+const has = (k) => Boolean(env[k]?.trim()) && env[k] !== "[SENSITIVE]";
 
 /* ── what you've got ─────────────────────────────────────────────────────── */
 const GROUPS = [
@@ -74,6 +76,31 @@ for (const [label, keys] of GROUPS) {
   const mark = missing.length === 0 ? "✓" : missing.length === keys.length ? "·" : "!";
   const note = missing.length === 0 ? "" : `  (missing: ${missing.join(", ")})`;
   console.log(`  ${mark} ${label}${note}`);
+}
+
+/* Vercel writes the literal string "[SENSITIVE]" for every variable marked
+ * Sensitive in the project — those values are write-only and the CLI cannot
+ * read them back. The app then boots and fails per-request with errors that
+ * never mention the env file, e.g. Prisma's "the URL must start with the
+ * protocol postgresql://". Catch it here instead. */
+const sealed = Object.keys(env).filter((k) => env[k] === "[SENSITIVE]");
+if (sealed.length) {
+  console.log(
+    `\n✖ ${sealed.length} variable(s) came down as the literal "[SENSITIVE]":\n` +
+      `    ${sealed.join(", ")}\n\n` +
+      "  These are marked Sensitive in Vercel, which makes them write-only — no pull,\n" +
+      "  API or dashboard can read them back. You need the values from the service\n" +
+      "  that issued them (Neon for POSTGRES_URL, Cloudflare for R2_*, Google, PayPal,\n" +
+      "  Resend), or run `node scripts/dev-local.mjs` for a local database instead.\n",
+  );
+}
+
+const pgUrl = env.POSTGRES_URL ?? "";
+if (pgUrl && !/^postgres(ql)?:\/\//.test(pgUrl)) {
+  console.log(
+    "! POSTGRES_URL is set but isn't a postgres:// URL, so Prisma will refuse it\n" +
+      "  with \"the URL must start with the protocol postgresql://\".\n",
+  );
 }
 
 if (!has("POSTGRES_URL")) {
