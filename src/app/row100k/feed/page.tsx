@@ -98,10 +98,17 @@ type EntryWithParticipant = {
 };
 
 export default async function FeedPage({ searchParams }: { searchParams: SearchParams }) {
-  // ?before=<ISO createdAt> pages back in time; garbage is just ignored.
+  // ?before=<ISO createdAt>~<id> pages back in time; garbage is just ignored.
+  // The id tiebreaker matters: the seed (and any busy minute) stamps many rows
+  // with identical createdAt, and a strict createdAt < cursor would skip every
+  // not-yet-shown row sharing the boundary timestamp.
   const beforeRaw = typeof searchParams.before === "string" ? searchParams.before : "";
-  const beforeMs = Date.parse(beforeRaw);
-  const before = Number.isFinite(beforeMs) ? new Date(beforeMs) : null;
+  const [beforeIso = "", beforeId = ""] = beforeRaw.split("~");
+  const beforeMs = Date.parse(beforeIso);
+  const before =
+    Number.isFinite(beforeMs) && /^[a-z0-9]{1,40}$/i.test(beforeId)
+      ? { at: new Date(beforeMs), id: beforeId }
+      : null;
 
   let entries: EntryWithParticipant[] = [];
   let boards = EMPTY_BOARDS;
@@ -110,9 +117,16 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       db.rowEntry.findMany({
         where: {
           challenge: CHALLENGE,
-          ...(before ? { createdAt: { lt: before } } : {}),
+          ...(before
+            ? {
+                OR: [
+                  { createdAt: { lt: before.at } },
+                  { createdAt: before.at, id: { lt: before.id } },
+                ],
+              }
+            : {}),
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: PAGE,
         select: {
           id: true,
@@ -182,7 +196,9 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
 
   const full = entries.length === PAGE;
   const olderHref = full
-    ? `/row100k/feed?before=${encodeURIComponent(entries[entries.length - 1].createdAt.toISOString())}`
+    ? `/row100k/feed?before=${encodeURIComponent(
+        `${entries[entries.length - 1].createdAt.toISOString()}~${entries[entries.length - 1].id}`,
+      )}`
     : null;
 
   return (

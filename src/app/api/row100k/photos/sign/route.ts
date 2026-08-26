@@ -14,6 +14,8 @@ export const runtime = "nodejs";
  * attaching another's upload. The client downscales before upload; the type
  * whitelist below is the server's half of keeping the bucket an image store. */
 
+const MAX_PHOTO_BYTES = 8_000_000;
+
 const TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -56,6 +58,16 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  // The exact byte count goes into the signature, so the URL can't be used
+  // to park something bigger than the photo the client measured.
+  const contentLength =
+    typeof body.contentLength === "number" ? Math.round(body.contentLength) : NaN;
+  if (!Number.isFinite(contentLength) || contentLength < 1 || contentLength > MAX_PHOTO_BYTES) {
+    return NextResponse.json(
+      { ok: false, error: "That photo is too big — 8 MB max after resize." },
+      { status: 400 },
+    );
+  }
 
   const limit = await rateLimit({
     key: `row100k-photo-sign:${participant.id}`,
@@ -70,6 +82,6 @@ export async function POST(req: Request) {
   }
 
   const key = `row100k/${CHALLENGE}/${participant.id}/${randomUUID()}.${ext}`;
-  const url = await r2PresignPut(key, contentType, 600);
+  const url = await r2PresignPut(key, contentType, 600, contentLength);
   return NextResponse.json({ ok: true, key, url });
 }

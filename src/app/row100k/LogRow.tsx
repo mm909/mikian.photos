@@ -127,7 +127,12 @@ export function LogRow({
   const previews = useRef<Set<string>>(new Set());
   useEffect(() => {
     const set = previews.current;
+    const t = tokens.current;
     return () => {
+      // Invalidate in-flight uploads first — a PUT resolving after unmount
+      // would otherwise mint a fresh object URL nobody ever revokes.
+      t.you += 1;
+      t.screen += 1;
       for (const url of set) URL.revokeObjectURL(url);
       set.clear();
     };
@@ -184,7 +189,7 @@ export function LogRow({
       const signRes = await fetch("/api/row100k/photos/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: "image/jpeg" }),
+        body: JSON.stringify({ contentType: "image/jpeg", contentLength: blob.size }),
       });
       const sign = (await signRes.json().catch(() => ({}))) as {
         ok?: boolean;

@@ -236,7 +236,7 @@ export default async function Row100kPage() {
             <div className="d">03</div>
             <div>
               <h3>Log it</h3>
-              <p>Meters and time. 1k / 5k / 10k pieces count for the record boards.</p>
+              <p>Meters and time. 5k / 10k pieces count for the record boards.</p>
             </div>
           </div>
         </div>

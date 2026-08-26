@@ -45,6 +45,9 @@ export function LogPanel({
         meters: base.meters + entry.meters,
         sessions: base.sessions + 1,
         byDay: { ...base.byDay, [entry.day]: (base.byDay[entry.day] ?? 0) + entry.meters },
+        // The profile card shows LONGEST ROW — a first-ever log would read
+        // "0" next to real meters until the refresh lands without this.
+        longest: Math.max(base.longest ?? 0, entry.meters),
       };
     });
     setShareRow(entry);

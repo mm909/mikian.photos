@@ -150,6 +150,16 @@ function drawCenteredText(
   ctx.restore();
 }
 
+/* Trim text with an ellipsis until it fits maxW at the current ctx.font —
+ * the escape hatch under every shrink-to-fit loop, so a worst-case name can
+ * never run off the canvas edge. */
+function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}\u2026`).width > maxW) t = t.slice(0, -1);
+  return `${t.trimEnd()}\u2026`;
+}
+
 /* ----------------------------------------------------------------- cards */
 
 /* Card one: the wordmark and your number. Nothing else — it has to survive
@@ -417,7 +427,8 @@ const rowtemberBib: ShareCard = {
       nameSize -= 2;
       ctx.font = `${nameSize}px ${fonts.mono}`;
     }
-    drawCenteredText(ctx, nameLine, {
+    const fittedLine = ellipsize(ctx, nameLine, maxW - 3 * (nameLine.length - 1));
+    drawCenteredText(ctx, fittedLine, {
       cx,
       baseline: top + 366,
       font: `${nameSize}px ${fonts.mono}`,
@@ -456,10 +467,11 @@ const rowtemberProfile: ShareCard = {
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     ctx.font = `${nameSize}px ${fonts.black}`;
+    const fittedName = ellipsize(ctx, nameText, contentW - ctx.measureText(numText).width);
     ctx.fillStyle = "#9a9a95";
     ctx.fillText(numText, M, 140);
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(nameText, M + ctx.measureText(numText).width, 140);
+    ctx.fillText(fittedName, M + ctx.measureText(numText).width, 140);
 
     // The @, water blue mono.
     ctx.font = `34px ${fonts.mono}`;

@@ -131,6 +131,11 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
                           UNLOCKS AT {t.meters.toLocaleString("en-US")} M — NOBODY HERE YET
                         </td>
                       </tr>
+                    ) : members.length === 0 ? (
+                      /* Reached once, empty now — everyone in range moved up. */
+                      <tr className="lockrow">
+                        <td colSpan={4}>NOBODY HOLDING THIS TIER RIGHT NOW</td>
+                      </tr>
                     ) : (
                       members.map((r) => (
                         <TotalRowTr
