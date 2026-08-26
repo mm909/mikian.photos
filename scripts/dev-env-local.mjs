@@ -44,7 +44,7 @@ const pulled = raw.includes(MARK_START) ? raw.slice(0, raw.indexOf(MARK_START)) 
 
 const parse = (text) => {
   const out = {};
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)$/);
     if (!m) continue;
     out[m[1]] = m[2].trim().replace(/^(['"])(.*)\1$/s, "$2");
