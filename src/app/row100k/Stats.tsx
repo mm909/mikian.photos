@@ -1,150 +1,94 @@
 "use client";
 
 import { useState } from "react";
-import { TAB_LABEL, TAB_WORD, Who, type Tab } from "./Boards";
+import { Who } from "./Boards";
 import {
+  WEEKS,
   fmtDay,
   fmtMeters,
   fmtRecordTime,
   fmtRowerNumber,
   fmtSplit,
   type Boards as BoardData,
-  type RecordRow,
-  type TotalRow,
+  type WeeklyRow,
 } from "@/lib/row100k";
+import {
+  DIV_DEFS,
+  RECORD_DEFS,
+  divMatch,
+  rankedRows,
+  type DivKey,
+  type Ranked,
+  type RecordDef,
+} from "./records/defs";
 
-type Mode = "total" | "1000" | "5000" | "10000" | "longest" | "bigday";
+/* The records grid + the weekly boards. One page-level division control —
+ * ALL / MEN'S / WOMEN'S — drives every record card AND the weekly table
+ * (ALL is one combined ranking across divisions). Each card shows the
+ * podium and links out to its full ranking at /row100k/records/[key];
+ * the total-meters standings themselves live on the home page. */
 
-/* The detailed records, in the order they matter: total meters first (it's
- * the whole challenge), then the pace records, then the volume one-offs.
- * Every card shows the men's AND women's leader at the same time; the tabs
- * only filter the full-list table underneath. */
+export function StatsBoards({
+  boards,
+  weekly,
+  defaultWeek,
+  started,
+}: {
+  boards: BoardData;
+  weekly: WeeklyRow[][];
+  defaultWeek: number;
+  started: boolean;
+}) {
+  const [div, setDiv] = useState<DivKey>("all");
+  const [week, setWeek] = useState(defaultWeek);
 
-const RECORD_DEFS: {
-  mode: Mode;
-  title: string;
-  kind: "time" | "meters";
-  dist?: number;
-  emptyHint: (started: boolean) => string;
-}[] = [
-  { mode: "1000", title: "Fastest 1k", kind: "time", dist: 1000, emptyHint: (s) => (s ? "Log a 1,000m piece to claim this." : "Claimed Sep 1 by whoever shows up.") },
-  { mode: "5000", title: "Fastest 5k", kind: "time", dist: 5000, emptyHint: (s) => (s ? "Log a 5,000m piece to claim this." : "Claimed Sep 1 by whoever shows up.") },
-  { mode: "10000", title: "Fastest 10k", kind: "time", dist: 10000, emptyHint: (s) => (s ? "Log a 10,000m piece to claim this." : "Claimed Sep 1 by whoever shows up.") },
-  { mode: "longest", title: "Longest row", kind: "meters", emptyHint: () => "One sitting, most meters." },
-  { mode: "bigday", title: "Biggest day", kind: "meters", emptyHint: () => "Most meters inside one calendar day." },
-];
-
-function recordRows(boards: BoardData, mode: Mode): RecordRow[] {
-  if (mode === "1000" || mode === "5000" || mode === "10000") {
-    return boards.fastest[Number(mode) as 1000 | 5000 | 10000];
-  }
-  if (mode === "longest") return boards.longest;
-  if (mode === "bigday") return boards.bigDay;
-  return [];
-}
-
-const DIVISIONS = [
-  { key: "M", label: "Men's" },
-  { key: "F", label: "Women's" },
-] as const;
-
-export function StatsBoards({ boards, started }: { boards: BoardData; started: boolean }) {
-  const [tab, setTab] = useState<Tab>("ALL");
-  const [mode, setMode] = useState<Mode>("total");
-  const match = (division: string) => tab === "ALL" || division === tab;
-
-  const activeDef = RECORD_DEFS.find((d) => d.mode === mode);
-  const modeRows = mode === "total" ? [] : recordRows(boards, mode).filter((r) => match(r.division));
-  const total = boards.total.filter((r) => match(r.division));
+  const weekRows = (weekly[week] ?? []).filter((r) => divMatch(div, r.division));
 
   return (
     <div>
-      {/* 1 — the one that matters */}
-      <div className="rec-eyebrow">Total meters</div>
-      <div className="records solo">
-        <TotalDuoCard
-          rows={boards.total}
-          active={mode === "total"}
-          onClick={() => setMode("total")}
-          started={started}
-        />
-      </div>
-
-      {/* 2 — how fast */}
-      <div className="rec-eyebrow">The pace records</div>
-      <div className="records">
-        {RECORD_DEFS.filter((d) => d.kind === "time").map((d) => (
-          <DuoRecordCard key={d.mode} def={d} boards={boards} mode={mode} setMode={setMode} started={started} />
-        ))}
-      </div>
-
-      {/* 3 — the one-offs */}
-      <div className="rec-eyebrow">The volume records</div>
-      <div className="records vol">
-        {RECORD_DEFS.filter((d) => d.kind === "meters").map((d) => (
-          <DuoRecordCard key={d.mode} def={d} boards={boards} mode={mode} setMode={setMode} started={started} />
-        ))}
-      </div>
-
-      <div className="tabs" style={{ marginTop: 30 }}>
-        {(["ALL", "M", "F"] as const).map((t) => (
+      <div className="tabs" role="group" aria-label="Division">
+        {DIV_DEFS.map((d) => (
           <button
-            key={t}
-            aria-pressed={tab === t}
-            className={tab === t ? "on" : undefined}
-            onClick={() => setTab(t)}
+            key={d.key}
+            aria-pressed={div === d.key}
+            className={div === d.key ? "on" : undefined}
+            onClick={() => setDiv(d.key)}
           >
-            {TAB_LABEL[t]}
+            {d.label}
           </button>
         ))}
       </div>
 
-      <div className="rec-eyebrow" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-        <span>
-          {mode === "total"
-            ? `The standings — total meters, ${TAB_WORD[tab]}`
-            : `${activeDef?.title} — full list, ${TAB_WORD[tab]}`}
-        </span>
-        {mode !== "total" && (
-          <button type="button" className="quiet-btn" style={{ color: "var(--water)" }} onClick={() => setMode("total")}>
-            ← BACK TO METERS
-          </button>
-        )}
+      <div className="records">
+        {RECORD_DEFS.map((def) => (
+          <RecordCard key={def.key} def={def} boards={boards} div={div} started={started} />
+        ))}
       </div>
 
-      {mode === "total" ? (
-        total.length === 0 ? (
-          <p className="board-empty">
-            {started
-              ? "NOBODY ON THIS BOARD YET — BE FIRST."
-              : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
-          </p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="board">
-              <thead>
-                <tr>
-                  <th className="rk">#</th>
-                  <th>Rower</th>
-                  <th style={{ textAlign: "right" }}>Meters</th>
-                </tr>
-              </thead>
-              <tbody>
-                {total.map((r, i) => (
-                  <tr key={r.participantId}>
-                    <td className="rk">{i + 1}</td>
-                    <td>
-                      <Who row={r} />
-                    </td>
-                    <td className="num">{fmtMeters(r.meters)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      ) : modeRows.length === 0 ? (
-        <p className="board-empty">NOTHING ON THIS ONE YET.</p>
+      <div className="sec-head" style={{ marginTop: 52 }}>
+        <h2>The weeks</h2>
+        <span className="mono">METERS INSIDE EACH WEEK</span>
+      </div>
+
+      <div className="tabs" role="group" aria-label="Week">
+        {WEEKS.map((w, i) => (
+          <button
+            key={w.key}
+            aria-pressed={week === i}
+            className={week === i ? "on" : undefined}
+            onClick={() => setWeek(i)}
+          >
+            {w.label}
+          </button>
+        ))}
+      </div>
+
+      {weekRows.length === 0 ? (
+        <p className="board-empty">
+          {started
+            ? "NOBODY ON THIS BOARD YET — BE FIRST."
+            : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
+        </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="board">
@@ -152,31 +96,20 @@ export function StatsBoards({ boards, started }: { boards: BoardData; started: b
               <tr>
                 <th className="rk">#</th>
                 <th>Rower</th>
-                <th style={{ textAlign: "right" }}>{activeDef?.kind === "time" ? "Time" : "Meters"}</th>
-                <th style={{ textAlign: "right" }}>Day</th>
+                <th style={{ textAlign: "right" }}>Meters</th>
+                <th style={{ textAlign: "right" }}>Sessions</th>
               </tr>
             </thead>
             <tbody>
-              {modeRows.map((r, i) => (
+              {weekRows.map((r, i) => (
                 <tr key={r.participantId}>
                   <td className="rk">{i + 1}</td>
                   <td>
                     <Who row={r} />
                   </td>
-                  <td className="num">
-                    {activeDef?.kind === "time" ? (
-                      <>
-                        {fmtRecordTime(r.value)}
-                        {activeDef?.dist ? (
-                          <span style={{ color: "var(--gray)" }}> · {fmtSplit(activeDef.dist, r.value)} /500m</span>
-                        ) : null}
-                      </>
-                    ) : (
-                      fmtMeters(r.value)
-                    )}
-                  </td>
+                  <td className="num">{fmtMeters(r.meters)}</td>
                   <td className="num" style={{ color: "var(--gray)" }}>
-                    {fmtDay(r.day)}
+                    {r.sessions}
                   </td>
                 </tr>
               ))}
@@ -188,142 +121,70 @@ export function StatsBoards({ boards, started }: { boards: BoardData; started: b
   );
 }
 
-/* One division's half of a duo card. */
-function DuoSide({
-  label,
-  top,
-  second,
-  render,
-  meta,
-  hint,
+/* One record card: the podium (1st dominant, 2nd and 3rd small), linking to
+ * the full ranking page for this record in the current division. */
+function RecordCard({
+  def,
+  boards,
+  div,
+  started,
 }: {
-  label: string;
-  top: RecordRow | TotalRow | undefined;
-  second: RecordRow | TotalRow | undefined;
-  render: (r: RecordRow | TotalRow) => React.ReactNode;
-  meta?: (r: RecordRow | TotalRow) => string;
-  hint: string;
+  def: RecordDef;
+  boards: BoardData;
+  div: DivKey;
+  started: boolean;
 }) {
+  const rows = rankedRows(boards, def.key).filter((r) => divMatch(div, r.row.division));
+  const [first, second, third] = rows;
+
+  const val = (r: Ranked) =>
+    def.kind === "time" ? (
+      fmtRecordTime(r.value)
+    ) : (
+      <>
+        {Math.round(r.value).toLocaleString("en-US")} <em>m</em>
+      </>
+    );
+
+  const topMeta = first
+    ? [
+        first.day ? fmtDay(first.day) : null,
+        def.kind === "time" && def.dist ? `${fmtSplit(def.dist, first.value)} /500m` : null,
+        first.sessions != null ? `${first.sessions} sessions` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
   return (
-    <div className="side">
-      <div className="dv">{label}</div>
-      {top ? (
+    <a className="rec" href={`/row100k/records/${def.key}?d=${div}`}>
+      <div className="t">{def.title}</div>
+      {first ? (
         <>
-          <div className="v">{render(top)}</div>
+          <div className="v">{val(first)}</div>
           <div className="hold">
-            {fmtRowerNumber(top.rowerNumber)} · {"name" in top ? top.name : ""}
+            {fmtRowerNumber(first.row.rowerNumber)} · {first.row.name}
           </div>
-          {meta && <div className="meta">{meta(top)}</div>}
-          {second && (
+          {topMeta && <div className="meta">{topMeta}</div>}
+          {(second || third) && (
             <div className="also">
-              <div>
-                2. <b>{second.name}</b> — {render(second)}
-              </div>
+              {second && (
+                <div>
+                  2. <b>{second.row.name}</b> — {val(second)}
+                </div>
+              )}
+              {third && (
+                <div>
+                  3. <b>{third.row.name}</b> — {val(third)}
+                </div>
+              )}
             </div>
           )}
         </>
       ) : (
-        <p className="rec-empty">{hint}</p>
+        <p className="rec-empty">{def.emptyHint(started)}</p>
       )}
-    </div>
-  );
-}
-
-function TotalDuoCard({
-  rows,
-  active,
-  onClick,
-  started,
-}: {
-  rows: TotalRow[];
-  active: boolean;
-  onClick: () => void;
-  started: boolean;
-}) {
-  const hint = started ? "Every meter counts — log the first one." : "Claimed Sep 1 by whoever shows up.";
-  return (
-    <button type="button" className="rec headline" aria-pressed={active} onClick={onClick}>
-      <div className="t">Total meters</div>
-      <div className="duo">
-        {DIVISIONS.map((d) => {
-          const ranked = rows.filter((r) => r.division === d.key && r.meters > 0);
-          return (
-            <DuoSide
-              key={d.key}
-              label={d.label}
-              top={ranked[0]}
-              second={ranked[1]}
-              render={(r) => (
-                <>
-                  {(r as TotalRow).meters.toLocaleString("en-US")} <em>m</em>
-                </>
-              )}
-              meta={(r) => `${(r as TotalRow).sessions} sessions`}
-              hint={hint}
-            />
-          );
-        })}
-      </div>
-      <div className="rec-open">{active ? "▲ Standings below" : "▼ The standings"}</div>
-    </button>
-  );
-}
-
-function DuoRecordCard({
-  def,
-  boards,
-  mode,
-  setMode,
-  started,
-}: {
-  def: (typeof RECORD_DEFS)[number];
-  boards: BoardData;
-  mode: Mode;
-  setMode: (m: Mode) => void;
-  started: boolean;
-}) {
-  const all = recordRows(boards, def.mode);
-  const active = mode === def.mode;
-
-  return (
-    <button
-      type="button"
-      className="rec"
-      aria-pressed={active}
-      onClick={() => setMode(active ? "total" : def.mode)}
-    >
-      <div className="t">{def.title}</div>
-      <div className="duo">
-        {DIVISIONS.map((d) => {
-          const rows = all.filter((r) => r.division === d.key);
-          return (
-            <DuoSide
-              key={d.key}
-              label={d.label}
-              top={rows[0]}
-              second={rows[1]}
-              render={(r) =>
-                def.kind === "time" ? (
-                  fmtRecordTime((r as RecordRow).value)
-                ) : (
-                  <>
-                    {Math.round((r as RecordRow).value).toLocaleString("en-US")} <em>m</em>
-                  </>
-                )
-              }
-              meta={(r) => {
-                const rec = r as RecordRow;
-                const bits = [fmtDay(rec.day)];
-                if (def.kind === "time" && def.dist) bits.push(`${fmtSplit(def.dist, rec.value)} /500m`);
-                if (rec.prorated && rec.meters) bits.push(`from ${fmtMeters(rec.meters)}`);
-                return bits.join(" · ");
-              }}
-              hint={def.emptyHint(started)}
-            />
-          );
-        })}
-      </div>
-      <div className="rec-open">{active ? "▲ Showing below" : "▼ Full list"}</div>
-    </button>
+      <div className="rec-open">Full ranking →</div>
+    </a>
   );
 }

@@ -91,6 +91,14 @@ export default function Row100kPreview({
             meters,
             sessions: MOCK_ROWS.length,
             byDay,
+            division: "M",
+            longest: Math.max(...MOCK_ROWS.map((r) => r.meters)),
+            rank: { place: 3, of: 14 },
+            records: [
+              { key: "total", label: "Total meters", place: 3 },
+              { key: "fastest5000", label: "Fastest 5k", place: 1 },
+              { key: "longest", label: "Longest row", place: 2 },
+            ],
           }}
           rows={MOCK_ROWS}
           defaultDay="2026-09-20"
