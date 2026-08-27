@@ -24,8 +24,23 @@ export type Role = (typeof ALL_ROLES)[number];
 
 const OWNER_DEFAULT = "mikian.photos@gmail.com";
 
+/* Both are the owner's own Google accounts (main + personal). The personal one
+ * is ALWAYS an admin regardless of OWNER_EMAIL (owner call, 2026-08-27), so a
+ * misconfigured env var can never lock it out. */
+const OWNER_ALWAYS_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
+
 export function ownerEmail(): string {
   return (process.env.OWNER_EMAIL || OWNER_DEFAULT).toLowerCase().trim();
+}
+
+/**
+ * Is this one of the platform owner's sign-in emails? OWNER_EMAIL (or the
+ * default) plus the always-included accounts above. Use this — not an exact
+ * `=== ownerEmail()` compare — for every owner-by-email gate.
+ */
+export function isOwnerEmail(email: string): boolean {
+  const e = email.toLowerCase().trim();
+  return e === ownerEmail() || OWNER_ALWAYS_EMAILS.includes(e);
 }
 
 /** Normalize a free-form roles array from the DB to known roles only. */
@@ -147,9 +162,9 @@ export async function requireRole(role: Role): Promise<Actor | null> {
 }
 
 /**
- * TEMPORARY upload lockdown — only the platform owner's MAIN account may upload.
- * Returns the actor iff it's signed in as `ownerEmail()` (a real owner Google
- * account). This deliberately EXCLUDES the legacy photographer-unlock cookie:
+ * TEMPORARY upload lockdown — only the platform owner's own accounts may upload.
+ * Returns the actor iff it's signed in as one of the owner's Google accounts
+ * (isOwnerEmail). This deliberately EXCLUDES the legacy photographer-unlock cookie:
  * that cookie resolves to a synthetic admin (ADMIN_PHOTOGRAPHER_EMAIL) whose
  * email isn't the owner email, so it can no longer reach the upload flow without
  * a real sign-in. Re-open per-event photographer uploads later (see
@@ -158,7 +173,7 @@ export async function requireRole(role: Role): Promise<Actor | null> {
 export async function requireOwnerUpload(): Promise<Actor | null> {
   const actor = await getEffectiveActor();
   if (!actor) return null;
-  return actor.email.toLowerCase().trim() === ownerEmail() ? actor : null;
+  return isOwnerEmail(actor.email) ? actor : null;
 }
 
 /**
