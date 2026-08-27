@@ -223,6 +223,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k table.board .who a{text-decoration:none}
 .row100k table.board .who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
 .row100k .dtag{display:inline-block;font-size:10px;border:1px solid var(--gray);color:var(--gray);padding:0 5px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace}
+.row100k .dtag.m1{background:#D4AF37;border-color:#a8871e;color:#3a2c04}
+.row100k .dtag.m2{background:#C0C0C0;border-color:#999;color:#2c3033}
+.row100k .dtag.m3{background:#CD7F32;border-color:#a05e1c;color:#331b04}
 .row100k .donebadge{display:inline-block;font-size:10px;background:var(--water);color:#fff;padding:1px 6px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace}
 .row100k .rowbar{height:5px;background:#e3e1d8;margin-top:6px}
 .row100k .rowbar .f{height:100%;background:var(--water)}

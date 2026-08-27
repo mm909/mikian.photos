@@ -14,6 +14,7 @@ export function LogPanel({
   data,
   rows,
   defaultDay,
+  defaultTitle,
   phase,
   earlyAdmin,
   simulate,
@@ -21,6 +22,8 @@ export function LogPanel({
   data: ShareData;
   rows: MyRow[];
   defaultDay: string;
+  /* Prefill for the title field — "Rowtember #<next session number>". */
+  defaultTitle?: string;
   phase: "before" | "open" | "closed";
   /* Challenge admin logging before Sep 1 — the form is open for test rows. */
   earlyAdmin?: boolean;
@@ -86,6 +89,7 @@ export function LogPanel({
           <div className="panel">
             <LogRow
               defaultDay={defaultDay}
+              defaultTitle={defaultTitle}
               phase={phase}
               earlyAdmin={earlyAdmin}
               simulate={simulate}

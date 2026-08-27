@@ -30,6 +30,7 @@ import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
 import { AdminShare } from "../../AdminShare";
+import { BestsGrid, type Best } from "../../BestsGrid";
 import { LogPanel } from "../../LogPanel";
 import { RemoveRower } from "../../RemoveRower";
 import { RowBar } from "../../RowBar";
@@ -160,7 +161,8 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       sub: b.bigDay[0] ? fmtDay(b.bigDay[0].day) : "not yet rowed",
     },
   ];
-  const placeOf = (key: string) => records?.find((r) => r.key === key)?.place;
+  const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;
+  const bestsWithPlace: Best[] = bests.map((r) => ({ ...r, place: placeOf(r.key) }));
 
   const rows = entries.slice().reverse();
 
@@ -230,21 +232,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             <h2>The bests</h2>
             <span className="mono">PERSONAL — THIS SEPTEMBER</span>
           </div>
-          <div className="records vol" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            {bests.map((r) => {
-              const place = placeOf(r.key);
-              return (
-                <div className="rec" key={r.key}>
-                  <div className="t">
-                    {r.label}
-                    {place ? <span className="dtag">#{place}</span> : null}
-                  </div>
-                  <div className="v">{r.value}</div>
-                  <div className="meta">{r.sub}</div>
-                </div>
-              );
-            })}
-          </div>
+          <BestsGrid bests={bestsWithPlace} data={shareData} canShare={isMe || isAdmin} />
         </div>
       </section>
 
@@ -268,6 +256,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           data={shareData}
           rows={rows}
           defaultDay={defaultDay}
+          defaultTitle={`Rowtember #${entries.length + 1}`}
           /* Admins can log before Sep 1 to test the pipeline on their own
              account — the rows API waves the same people through. */
           phase={isAdmin && phase === "before" ? "open" : phase}

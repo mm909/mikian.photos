@@ -33,9 +33,12 @@ export type ShareData = {
   /* Standing on total meters within the rower's division. */
   rank?: { place: number; of: number } | null;
   /* Top-10 record-board placements within the division, each carrying its
-   * display-formatted stat ("16:03.7" / "22,179 m"). The records card keeps
-   * podium places only; the profile card headlines the best of them. */
+   * display-formatted stat ("16:03.7" / "22,179 m"). The profile card
+   * headlines the best of them. */
   records?: RecordBadge[];
+  /* One personal best, set when the dialog opens from a bests card —
+   * "Fastest 5k" / "22:30" / #2 in division when placed. */
+  best?: { label: string; value: string; place?: number | null };
 };
 
 export type ShareFonts = { black: string; mono: string };
@@ -126,7 +129,15 @@ function drawMark(
 function drawCenteredText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  opts: { cx: number; baseline: number; font: string; color: string; tracking?: number },
+  opts: {
+    cx: number;
+    baseline: number;
+    font: string;
+    color: string;
+    tracking?: number;
+    /* Cap the drawn width — the canvas condenses the glyphs to fit. */
+    maxWidth?: number;
+  },
 ) {
   ctx.save();
   ctx.font = opts.font;
@@ -135,7 +146,7 @@ function drawCenteredText(
   const tracking = opts.tracking ?? 0;
   if (!tracking) {
     ctx.textAlign = "center";
-    ctx.fillText(text, opts.cx, opts.baseline);
+    ctx.fillText(text, opts.cx, opts.baseline, opts.maxWidth);
     ctx.restore();
     return;
   }
@@ -381,18 +392,19 @@ const rowtemberRow: ShareCard = {
       font: `210px ${fonts.black}`,
       color: "#ffffff",
     });
+    /* The time earns second billing — solid white and big enough to read
+     * from a story, not a caption fading into the backdrop. */
     drawCenteredText(ctx, fmtDuration(row.seconds), {
       cx,
-      baseline: 320,
-      font: `40px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.82)",
-      tracking: 8,
+      baseline: 352,
+      font: `72px ${fonts.black}`,
+      color: "#ffffff",
     });
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
-      cy: 470,
-      size: 112,
+      cy: 490,
+      size: 100,
       fontFamily: fonts.black,
     });
   },
@@ -703,93 +715,49 @@ const rowtemberCurve: ShareCard = {
   },
 };
 
-/* Top ten: the place, the meters, the mark. Earned — only in the menu while
- * the rower sits in their division's top 10. */
-const rowtemberTop10: ShareCard = {
-  id: "rowtember-top10",
-  label: "Top ten",
+/* One personal best: the label, the number, the place when they hold one.
+ * Only in the menu when the dialog was opened from a bests card. */
+const rowtemberBest: ShareCard = {
+  id: "rowtember-best",
+  label: "This best",
   width: 1080,
   height: 620,
   light: true,
-  available: (d) => !!d.rank && d.rank.place <= 10,
+  available: (d) => !!d.best,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
-    const rank = data.rank;
-    if (!rank) return;
+    const best = data.best;
+    if (!best) return;
 
-    drawCenteredText(ctx, `#${rank.place}`, {
+    drawCenteredText(ctx, best.label.toUpperCase(), {
       cx,
-      baseline: 250,
-      font: `230px ${fonts.black}`,
-      color: "#ffffff",
-    });
-    drawCenteredText(ctx, `${data.meters.toLocaleString("en-US")} M`, {
-      cx,
-      baseline: 322,
-      font: `38px ${fonts.mono}`,
+      baseline: 120,
+      font: `36px ${fonts.mono}`,
       color: "rgba(255,255,255,0.82)",
       tracking: 8,
     });
-
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawCenteredText(ctx, best.value, {
       cx,
-      cy: 472,
-      size: 112,
-      fontFamily: fonts.black,
+      baseline: 320,
+      font: `170px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
     });
-  },
-};
-
-/* The records: one line per record-board placement, medal-colored places.
- * ShareData.records now carries placements to #10 (for the profile card);
- * this card stays podium-only — a wall of #7s isn't a brag. */
-const rowtemberRecords: ShareCard = {
-  id: "rowtember-records",
-  label: "The records",
-  width: 1080,
-  height: 820,
-  light: true,
-  available: (d) => !!d.records && d.records.some((r) => r.place <= 3),
-  draw(ctx, data, fonts) {
-    const cx = this.width / 2;
-    const records = (data.records ?? []).filter((r) => r.place <= 3).slice(0, 5);
-
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
-      cx,
-      cy: 120,
-      size: 88,
-      fontFamily: fonts.black,
-    });
-
-    // Lines centered as a block, vertically centered in the space below the
-    // mark — 5 lines fill it, 1 line sits in the middle.
-    const lineH = 92;
-    const areaTop = 230;
-    const areaBottom = this.height - 60;
-    const blockH = records.length * lineH;
-    let baseline = areaTop + (areaBottom - areaTop - blockH) / 2 + lineH * 0.7;
-
-    ctx.save();
-    ctx.textBaseline = "alphabetic";
-    for (const r of records) {
-      const label = `${r.label.toUpperCase()} — `;
-      const place = `#${r.place}`;
-      ctx.font = `40px ${fonts.mono}`;
-      const labelW = ctx.measureText(label).width;
-      ctx.font = `44px ${fonts.black}`;
-      const placeW = ctx.measureText(place).width;
-      let x = cx - (labelW + placeW) / 2;
-      ctx.textAlign = "left";
-      ctx.font = `40px ${fonts.mono}`;
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText(label, x, baseline);
-      x += labelW;
-      ctx.font = `44px ${fonts.black}`;
-      ctx.fillStyle = medalColor(r.place) ?? "#ffffff";
-      ctx.fillText(place, x, baseline);
-      baseline += lineH;
+    if (best.place) {
+      drawCenteredText(ctx, `#${best.place}`, {
+        cx,
+        baseline: 402,
+        font: `52px ${fonts.black}`,
+        color: medalColor(best.place) ?? "#ffffff",
+      });
     }
-    ctx.restore();
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 500,
+      size: 96,
+      fontFamily: fonts.black,
+    });
   },
 };
 
@@ -821,11 +789,10 @@ const rowtemberLogo: ShareCard = {
 
 export const CARDS: ShareCard[] = [
   rowtemberRow,
+  rowtemberBest,
   rowtemberTotal,
   rowtemberProfile,
   rowtemberCurve,
-  rowtemberTop10,
-  rowtemberRecords,
   rowtemberBib,
   rowtemberClub,
   rowtemberMonth,

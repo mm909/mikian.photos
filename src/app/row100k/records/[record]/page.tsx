@@ -57,9 +57,9 @@ export default async function RecordRankingPage({
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <RowBar>
-        <span className="mono tag">FULL RANKING</span>
-      </RowBar>
+      {/* No tag next to the account chip — it crowds the bar on phones
+          (owner call, cycle 4); the page heading says where you are. */}
+      <RowBar />
 
       <section>
         <div className="wrap">
