@@ -7,6 +7,7 @@ import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
+  isRow100kAdmin,
   nowMs,
   validateEntry,
 } from "@/lib/row100k";
@@ -41,7 +42,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
-  const check = validateEntry(body, nowMs());
+  // Challenge admins may log early (pre-Sep test rows on their own account);
+  // everyone else gets the real window.
+  const check = validateEntry(body, nowMs(), {
+    admin: isRow100kAdmin(actor.email, actor.roles),
+  });
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }

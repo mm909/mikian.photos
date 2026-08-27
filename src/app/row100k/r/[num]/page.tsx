@@ -263,7 +263,15 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       {/* Your own page carries the logging station: the form sits just above
           the log, and every row in the log can be shared, fixed or deleted. */}
       {isMe ? (
-        <LogPanel data={shareData} rows={rows} defaultDay={defaultDay} phase={phase} />
+        <LogPanel
+          data={shareData}
+          rows={rows}
+          defaultDay={defaultDay}
+          /* Admins can log before Sep 1 to test the pipeline on their own
+             account — the rows API waves the same people through. */
+          phase={isAdmin && phase === "before" ? "open" : phase}
+          earlyAdmin={isAdmin && phase === "before"}
+        />
       ) : isAdmin ? (
         <AdminShare data={shareData} rows={rows} />
       ) : (

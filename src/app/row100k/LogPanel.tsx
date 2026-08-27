@@ -15,12 +15,15 @@ export function LogPanel({
   rows,
   defaultDay,
   phase,
+  earlyAdmin,
   simulate,
 }: {
   data: ShareData;
   rows: MyRow[];
   defaultDay: string;
   phase: "before" | "open" | "closed";
+  /* Challenge admin logging before Sep 1 — the form is open for test rows. */
+  earlyAdmin?: boolean;
   simulate?: boolean;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
@@ -71,11 +74,13 @@ export function LogPanel({
           <div className="sec-head">
             <h2>Log a row</h2>
             <span className="mono">
-              {phase === "open"
-                ? "EVERY SESSION COUNTS"
-                : phase === "before"
-                  ? "OPENS SEP 1"
-                  : "SEPTEMBER'S WRAPPED"}
+              {earlyAdmin
+                ? "ADMIN — OPEN EARLY FOR TESTING"
+                : phase === "open"
+                  ? "EVERY SESSION COUNTS"
+                  : phase === "before"
+                    ? "OPENS SEP 1"
+                    : "SEPTEMBER'S WRAPPED"}
             </span>
           </div>
           <div className="panel">

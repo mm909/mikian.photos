@@ -131,9 +131,18 @@ function addDaysUTC(ms: number, days: number): string {
   return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/* Validate a raw submission. The clock is injected for testability. */
-export function validateEntry(body: Record<string, unknown>, atMs: number): EntryCheck {
-  if (atMs >= LOG_CLOSE_MS) {
+/* Validate a raw submission. The clock is injected for testability.
+ * `admin` lifts only the TIMING gates — the window-closed check and the
+ * can't-log-the-future check — so challenge admins can submit test rows
+ * before Sep 1 (and moderate after close). Day bounds (Sep 1–30) and every
+ * physical check (meters, time, split sanity) still apply to everyone. */
+export function validateEntry(
+  body: Record<string, unknown>,
+  atMs: number,
+  opts?: { admin?: boolean },
+): EntryCheck {
+  const admin = opts?.admin === true;
+  if (!admin && atMs >= LOG_CLOSE_MS) {
     return { ok: false, error: "The challenge is closed — logging ended Oct 3." };
   }
 
@@ -145,7 +154,7 @@ export function validateEntry(body: Record<string, unknown>, atMs: number): Entr
     return { ok: false, error: "That day is outside September — the challenge runs Sep 1–30." };
   }
   // Lenient +1 so "today" works from any timezone; blocks pre-logging the future.
-  if (day > addDaysUTC(atMs, 1)) {
+  if (!admin && day > addDaysUTC(atMs, 1)) {
     return { ok: false, error: "You can't log a row you haven't rowed yet." };
   }
 
