@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { computeBoards, type Division } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { BarAccount } from "../BarAccount";
+import { RowBar } from "../RowBar";
 import { Dashboard } from "../Dashboard";
 import { LogPanel } from "../LogPanel";
 import { Boards } from "../Boards";
@@ -71,14 +72,18 @@ export default function Row100kPreview({
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
-      <div className="bar">
-        <span className="mono tag">ROW100K</span>
-        {view === "dashboard" ? (
+      {view === "dashboard" ? (
+        /* Menu preview needs a forced signed-in chip (optionally pre-opened)
+         * that the real RowBar can't fake — this one view keeps a hand bar. */
+        <div className="bar">
+          <span className="mono tag">ROW100K</span>
           <BarAccount signedIn rowerNumber={23} defaultOpen={searchParams.menu === "1"} />
-        ) : (
+        </div>
+      ) : (
+        <RowBar>
           <span className="mono">PREVIEW — NOT REAL DATA</span>
-        )}
-      </div>
+        </RowBar>
+      )}
       {view === "log" ? (
         /* The profile's logging station with mock data — it renders its own
          * sections. The share dialog is reachable here without a session,
@@ -95,9 +100,10 @@ export default function Row100kPreview({
             longest: Math.max(...MOCK_ROWS.map((r) => r.meters)),
             rank: { place: 3, of: 14 },
             records: [
-              { key: "total", label: "Total meters", place: 3 },
-              { key: "fastest5000", label: "Fastest 5k", place: 1 },
-              { key: "longest", label: "Longest row", place: 2 },
+              { key: "total", label: "Total meters", place: 3, value: "69,300 m" },
+              { key: "fastest5000", label: "Fastest 5k", place: 1, value: "19:04.2" },
+              { key: "longest", label: "Longest row", place: 2, value: "10,000 m" },
+              { key: "bigday", label: "Biggest day", place: 6, value: "10,000 m" },
             ],
           }}
           rows={MOCK_ROWS}
