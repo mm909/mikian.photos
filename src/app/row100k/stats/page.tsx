@@ -50,7 +50,7 @@ export default async function StatsPage() {
       }),
       db.rowEntry.findMany({
         where: { challenge: CHALLENGE },
-        select: { participantId: true, day: true, meters: true, seconds: true },
+        select: { participantId: true, day: true, meters: true },
         orderBy: [{ day: "asc" }, { createdAt: "asc" }],
       }),
     ]);

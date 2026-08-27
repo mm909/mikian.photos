@@ -522,10 +522,11 @@ export type WeeklyRow = {
   sessions: number;
 };
 
-/* One ranked board per challenge week — total meters inside that week. */
+/* One ranked board per challenge week — total meters inside that week.
+ * Takes only the fields it reads, so callers can select a narrower row. */
 export function computeWeekly(
   participants: ParticipantLite[],
-  entries: EntryLite[],
+  entries: Pick<EntryLite, "participantId" | "day" | "meters">[],
 ): WeeklyRow[][] {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const weeks: Map<string, WeeklyRow>[] = WEEKS.map(() => new Map());

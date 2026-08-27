@@ -104,7 +104,7 @@ export async function r2PresignPut(
       Bucket: R2_BUCKET,
       Key: key,
       ContentType: contentType,
-      ...(contentLength ? { ContentLength: contentLength } : {}),
+      ...(typeof contentLength === "number" ? { ContentLength: contentLength } : {}),
     }),
     { expiresIn: ttlSeconds }
   );

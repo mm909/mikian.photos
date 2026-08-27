@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }
 
-  // Photos: at least one (the rower), at most two (plus the erg screen).
+  // Photos: exactly two — the rower and the erg screen.
   // Keys must sit under this participant's own upload prefix — the sign
   // route only ever mints keys there, so a forged body can't attach someone
   // else's upload or point a card at an arbitrary object.

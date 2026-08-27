@@ -578,9 +578,9 @@ model RowEntry {
   /// Short session title ("Sunrise 10k before work") — optional, shows on
   /// the feed and the rower's log.
   title         String   @default("")
-  /// R2 keys, at most two: [0] the rower, [1] the erg screen. At least one
-  /// is required at log time (enforced in the rows API, not here — rows
-  /// created before v2, and seeded demo rows, have none).
+  /// R2 keys, exactly two at log time: [0] the rower, [1] the erg screen
+  /// (enforced in the rows API, not here — rows created before v2, and
+  /// seeded demo rows, may have fewer).
   photos        String[] @default([])
   createdAt     DateTime @default(now())
 
