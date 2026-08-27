@@ -227,24 +227,21 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     photoUrls: photoUrls[i],
   }));
 
+  // The view toggle keeps the current page (before cursor); the pager keeps
+  // the current view — so OLDER no longer resets COMPACT back to PHOTOS.
+  const beforeCursor = before ? beforeRaw : null;
   const full = entries.length === PAGE;
-  const olderHref = full
-    ? `/row100k/feed?before=${encodeURIComponent(
-        `${entries[entries.length - 1].createdAt.toISOString()}~${entries[entries.length - 1].id}`,
-      )}`
+  const olderCursor = full
+    ? `${entries[entries.length - 1].createdAt.toISOString()}~${entries[entries.length - 1].id}`
     : null;
+  const olderHref = olderCursor ? feedHref(view, olderCursor) : null;
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{feedCss}</style>
 
-      <div className="bar">
-        <a className="mono back-link" href="/row100k">
-          ← 100K SEPTEMBER
-        </a>
-        <span className="mono tag">THE FEED</span>
-      </div>
+      <RowBar active="feed" />
 
       <section>
         <div className="wrap">
@@ -256,26 +253,37 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
           {items.length === 0 ? (
             <p className="board-empty">NOTHING LOGGED YET — THE FEED STARTS WITH THE FIRST ROW.</p>
           ) : (
-            <FeedViews items={items} />
+            <>
+              <nav className="tabs" aria-label="Feed view">
+                {(["photos", "compact"] as const).map((v) => (
+                  <a
+                    key={v}
+                    className={view === v ? "on" : undefined}
+                    aria-current={view === v ? "page" : undefined}
+                    href={feedHref(v, beforeCursor)}
+                  >
+                    {v.toUpperCase()}
+                  </a>
+                ))}
+              </nav>
+              <FeedViews items={items} view={view} />
+            </>
           )}
 
           {(before || olderHref) && (
             <nav className="feed-pager" aria-label="Feed pages">
-              {before ? <a href="/row100k/feed">← NEWER</a> : <span className="feed-spacer" />}
+              {before ? <a href={feedHref(view, null)}>← NEWER</a> : <span className="feed-spacer" />}
               {olderHref ? <a href={olderHref}>OLDER →</a> : null}
             </nav>
           )}
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <div className="big">100K SEPTEMBER — 2026</div>
-          <p className="mono">
-            <a href="/row100k#board">← Back to the board</a>
-          </p>
-        </div>
-      </footer>
+      <RowFooter>
+        <p className="mono">
+          <a href="/row100k#board">← Back to the board</a>
+        </p>
+      </RowFooter>
     </div>
   );
 }

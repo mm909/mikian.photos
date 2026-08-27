@@ -117,7 +117,7 @@ export function Boards({ boards, started }: { boards: BoardData; started: boolea
                 return (
                   <Fragment key={t.key}>
                     <tr className={`divrow ${locked ? "locked" : t.rarity}`}>
-                      <td colSpan={4}>{TIER_TITLE[t.key]}</td>
+                      <td colSpan={4}>{t.title}</td>
                     </tr>
                     {locked ? (
                       <tr className="lockrow">

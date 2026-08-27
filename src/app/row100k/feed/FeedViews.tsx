@@ -1,11 +1,8 @@
-"use client";
-
-import { useState } from "react";
-
 /* The feed's two lenses over the same items array: PHOTOS (cards, images when
  * a row has them) and COMPACT (dense mono table, no images). The server does
- * every computation — formatting, relative times, badges, presigned photo
- * URLs — so this component only decides which shape to render. */
+ * every computation — formatting, relative times, badges, photo URLs — and
+ * picks the view from ?view= (so paging keeps it); this component only
+ * renders the given shape. No state, no client bundle. */
 
 export type FeedBadge = {
   key: string;
@@ -33,12 +30,15 @@ export type FeedItem = {
   badges: FeedBadge[];
   /* tier label ("50K") when the rower has one */
   tier: string | null;
-  /* presigned GET URLs, rower photo first; empty when the row has no photos
-   * or R2 isn't configured */
+  /* resolved photo URLs, rower photo first — presigned GETs for real keys,
+   * inline SVG data URIs for demo color squares; empty when the row has no
+   * photos or R2 isn't configured */
   photoUrls: string[];
 };
 
-type View = "PHOTOS" | "COMPACT";
+/* URL-facing view names: photos is the default (?view=compact is the only
+ * param the toggle ever writes). */
+export type FeedView = "photos" | "compact";
 
 /* Who — number + name linking to the rower page. Same idiom as the boards
  * (Boards.tsx), replicated locally so the feed doesn't depend on that file. */

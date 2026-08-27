@@ -1,4 +1,4 @@
-import { fmtDuration, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { fmtDuration, fmtMeters, fmtRowerNumber, type RecordBadge } from "@/lib/row100k";
 
 /* Shareable cards for /row100k — the images themselves.
  *
@@ -32,8 +32,10 @@ export type ShareData = {
   longest?: number;
   /* Standing on total meters within the rower's division. */
   rank?: { place: number; of: number } | null;
-  /* Top-3 record-board placements within the division. */
-  records?: { key: string; label: string; place: number }[];
+  /* Top-10 record-board placements within the division, each carrying its
+   * display-formatted stat ("16:03.7" / "22,179 m"). The records card keeps
+   * podium places only; the profile card headlines the best of them. */
+  records?: RecordBadge[];
 };
 
 export type ShareFonts = { black: string; mono: string };
