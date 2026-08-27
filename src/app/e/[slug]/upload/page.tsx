@@ -1,14 +1,14 @@
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getEffectiveActor, ownerEmail } from "@/lib/permissions";
+import { getEffectiveActor, isOwnerEmail } from "@/lib/permissions";
 import { UploadClient } from "@/components/photographer/UploadClient";
 
 /**
  * In-event upload page — reached via the event nav's "Upload" link, pinned to
  * THIS event.
  *
- * TEMPORARY lockdown: uploading is restricted to the platform owner's main
- * account (ownerEmail()). This also closes a hole where the legacy
+ * TEMPORARY lockdown: uploading is restricted to the platform owner's own
+ * accounts (isOwnerEmail). This also closes a hole where the legacy
  * photographer-unlock cookie let an apparently-signed-out visitor reach the
  * upload UI. The request/approve photographer flow is paused until we re-open
  * multi-photographer uploads.
@@ -35,7 +35,7 @@ export default async function EventUploadPage({ params }: { params: { slug: stri
     redirect(`/photographer/sign-in?callbackUrl=${encodeURIComponent(`/e/${params.slug}/upload`)}`);
   }
   // Owner-only for now — anyone else (incl. the unlock-cookie admin) → gallery.
-  if (actor.email.toLowerCase().trim() !== ownerEmail()) {
+  if (!isOwnerEmail(actor.email)) {
     redirect(`/e/${params.slug}`);
   }
 

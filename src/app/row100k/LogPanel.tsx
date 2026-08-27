@@ -84,7 +84,13 @@ export function LogPanel({
             </span>
           </div>
           <div className="panel">
-            <LogRow defaultDay={defaultDay} phase={phase} simulate={simulate} onLogged={onLogged} />
+            <LogRow
+              defaultDay={defaultDay}
+              phase={phase}
+              earlyAdmin={earlyAdmin}
+              simulate={simulate}
+              onLogged={onLogged}
+            />
           </div>
         </div>
       </section>
