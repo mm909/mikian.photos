@@ -740,17 +740,19 @@ const rowtemberTop10: ShareCard = {
   },
 };
 
-/* The records: one line per record-board placement, medal-colored places. */
+/* The records: one line per record-board placement, medal-colored places.
+ * ShareData.records now carries placements to #10 (for the profile card);
+ * this card stays podium-only — a wall of #7s isn't a brag. */
 const rowtemberRecords: ShareCard = {
   id: "rowtember-records",
   label: "The records",
   width: 1080,
   height: 820,
   light: true,
-  available: (d) => !!d.records && d.records.length > 0,
+  available: (d) => !!d.records && d.records.some((r) => r.place <= 3),
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
-    const records = (data.records ?? []).slice(0, 5);
+    const records = (data.records ?? []).filter((r) => r.place <= 3).slice(0, 5);
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,

@@ -21,6 +21,7 @@ import {
   nowMs as clockNow,
   recordPlacements,
   type Division,
+  type RecordBadge,
 } from "@/lib/row100k";
 import { isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
@@ -31,6 +32,8 @@ import { Heatmap } from "../../Heatmap";
 import { AdminShare } from "../../AdminShare";
 import { LogPanel } from "../../LogPanel";
 import { RemoveRower } from "../../RemoveRower";
+import { RowBar } from "../../RowBar";
+import { RowFooter } from "../../RowFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -96,13 +99,15 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const pct = Math.min(100, me.pct);
 
   // Standing + record placements come off the full cached board — cosmetic
-  // for the share cards, so a board failure just leaves them undefined.
+  // for the share cards and the rank chips on the bests, so a board failure
+  // just leaves them undefined. Placements go to #10: the profile share card
+  // headlines the best one, and the bests below wear top-10 chips.
   let rank: { place: number; of: number } | null | undefined;
-  let records: { key: string; label: string; place: number }[] | undefined;
+  let records: RecordBadge[] | undefined;
   try {
     const full = await boardData();
     rank = divisionRank(full, p.id);
-    records = recordPlacements(full, p.id);
+    records = recordPlacements(full, p.id, 10);
   } catch (err) {
     console.error("row100k: failed to load board data for placements", err);
   }

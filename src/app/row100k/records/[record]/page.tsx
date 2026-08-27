@@ -10,6 +10,8 @@ import {
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { Who } from "../../Boards";
+import { RowBar } from "../../RowBar";
+import { RowFooter } from "../../RowFooter";
 import { boardData, EMPTY_BOARDS } from "../../boardData";
 import { DIV_DEFS, RECORD_DEFS, divMatch, parseDiv, rankedRows, recordDef } from "../defs";
 
@@ -55,12 +57,9 @@ export default async function RecordRankingPage({
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <div className="bar">
-        <a className="mono back-link" href="/row100k/stats">
-          ← THE RECORDS
-        </a>
+      <RowBar active="stats">
         <span className="mono tag">FULL RANKING</span>
-      </div>
+      </RowBar>
 
       <section>
         <div className="wrap">
