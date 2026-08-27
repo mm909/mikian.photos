@@ -83,6 +83,8 @@ export const SECONDS_MAX = 86_400;
 export const SPLIT_MIN = 60;
 export const SPLIT_MAX = 900;
 export const NOTE_MAX = 200;
+/* Session titles ("Sunrise 10k before work") — short, they render everywhere. */
+export const TITLE_MAX = 60;
 export const MAX_ENTRIES_PER_DAY = 10;
 export const MAX_ENTRIES_TOTAL = 400;
 
@@ -93,7 +95,7 @@ export const MAX_ENTRIES_TOTAL = 400;
  * still own the top of the board. Anything beyond the tolerance below is
  * labelled with the row it came out of, so a pro-rated time is never passed
  * off as a tested one. */
-export const RECORD_DISTANCES = [1000, 5000, 10000] as const;
+export const RECORD_DISTANCES = [5000, 10000] as const;
 export const RECORD_TOLERANCE = 1.02;
 
 /* Two boards only — men's and women's (owner call, 2026-08-09). */
@@ -119,7 +121,7 @@ export function parseInstagram(v: unknown): string | null {
 
 /* ---------------------------------------------------------------- entries */
 
-export type EntryInput = { day: string; meters: number; seconds: number; note: string };
+export type EntryInput = { day: string; meters: number; seconds: number; note: string; title: string };
 
 export type EntryCheck =
   | { ok: true; value: EntryInput }
@@ -129,9 +131,18 @@ function addDaysUTC(ms: number, days: number): string {
   return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/* Validate a raw submission. The clock is injected for testability. */
-export function validateEntry(body: Record<string, unknown>, atMs: number): EntryCheck {
-  if (atMs >= LOG_CLOSE_MS) {
+/* Validate a raw submission. The clock is injected for testability.
+ * `admin` lifts only the TIMING gates — the window-closed check and the
+ * can't-log-the-future check — so challenge admins can submit test rows
+ * before Sep 1 (and moderate after close). Day bounds (Sep 1–30) and every
+ * physical check (meters, time, split sanity) still apply to everyone. */
+export function validateEntry(
+  body: Record<string, unknown>,
+  atMs: number,
+  opts?: { admin?: boolean },
+): EntryCheck {
+  const admin = opts?.admin === true;
+  if (!admin && atMs >= LOG_CLOSE_MS) {
     return { ok: false, error: "The challenge is closed — logging ended Oct 3." };
   }
 
@@ -143,7 +154,7 @@ export function validateEntry(body: Record<string, unknown>, atMs: number): Entr
     return { ok: false, error: "That day is outside September — the challenge runs Sep 1–30." };
   }
   // Lenient +1 so "today" works from any timezone; blocks pre-logging the future.
-  if (day > addDaysUTC(atMs, 1)) {
+  if (!admin && day > addDaysUTC(atMs, 1)) {
     return { ok: false, error: "You can't log a row you haven't rowed yet." };
   }
 
@@ -169,8 +180,10 @@ export function validateEntry(body: Record<string, unknown>, atMs: number): Entr
   }
 
   const note = typeof body.note === "string" ? body.note.replace(/\s+/g, " ").trim().slice(0, NOTE_MAX) : "";
+  const title =
+    typeof body.title === "string" ? body.title.replace(/\s+/g, " ").trim().slice(0, TITLE_MAX) : "";
 
-  return { ok: true, value: { day, meters, seconds, note } };
+  return { ok: true, value: { day, meters, seconds, note, title } };
 }
 
 /* ------------------------------------------------------------- formatting */
@@ -448,4 +461,167 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       finished: total.filter((r) => r.meters >= GOAL_METERS).length,
     },
   };
+}
+
+/* ------------------------------------------------------------------ tiers */
+
+/* Progress tiers, styled like item rarity. A tier is visible on the boards
+ * once anyone has reached the tier below it — reaching 100k reveals an empty
+ * 250k section — so the ladder always shows one rung of ambition and never
+ * a whole column of empty boxes. */
+/* `rarity` keys the color treatment only — the words never render (owner
+ * call, cycle 2). `title` is what the board sections say. */
+export const TIERS = [
+  { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: "Rowtember Participant" },
+  { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },
+  { meters: 100_000, key: "t100", label: "100K", rarity: "epic", title: "The 100K Club" },
+  { meters: 250_000, key: "t250", label: "250K", rarity: "legend", title: "250K Legend" },
+] as const;
+export type Tier = (typeof TIERS)[number];
+
+/* Highest tier this many meters has reached, or null below 10k. */
+export function tierFor(meters: number): Tier | null {
+  let hit: Tier | null = null;
+  for (const t of TIERS) if (meters >= t.meters) hit = t;
+  return hit;
+}
+
+/* The tiers the boards should show for a field whose best rower has
+ * maxMeters: every tier reached, plus the next locked one. Before anyone
+ * reaches 10k that's just the (locked) 10k tier itself. */
+export function visibleTiers(maxMeters: number): Tier[] {
+  const reached = TIERS.filter((t) => maxMeters >= t.meters);
+  const next = TIERS.find((t) => maxMeters < t.meters);
+  return next ? [...reached, next] : [...reached];
+}
+
+/* ----------------------------------------------------------------- weeks */
+
+/* Challenge weeks, cut on calendar sevens from Sep 1 (W5 is the two-day
+ * sprint finish). Day strings in, so timezone can't shift a row's week. */
+export const WEEKS = [
+  { key: "w1", label: "Week 1", first: "2026-09-01", last: "2026-09-07" },
+  { key: "w2", label: "Week 2", first: "2026-09-08", last: "2026-09-14" },
+  { key: "w3", label: "Week 3", first: "2026-09-15", last: "2026-09-21" },
+  { key: "w4", label: "Week 4", first: "2026-09-22", last: "2026-09-28" },
+  { key: "w5", label: "The finish", first: "2026-09-29", last: "2026-09-30" },
+] as const;
+export type Week = (typeof WEEKS)[number];
+
+export function weekIndexOf(day: string): number {
+  return WEEKS.findIndex((w) => day >= w.first && day <= w.last);
+}
+
+export type WeeklyRow = {
+  participantId: string;
+  name: string;
+  division: string;
+  rowerNumber: number;
+  instagram: string;
+  meters: number;
+  sessions: number;
+};
+
+/* One ranked board per challenge week — total meters inside that week. */
+export function computeWeekly(
+  participants: ParticipantLite[],
+  entries: EntryLite[],
+): WeeklyRow[][] {
+  const byId = new Map(participants.map((p) => [p.id, p]));
+  const weeks: Map<string, WeeklyRow>[] = WEEKS.map(() => new Map());
+  for (const e of entries) {
+    const p = byId.get(e.participantId);
+    if (!p) continue;
+    const wi = weekIndexOf(e.day);
+    if (wi === -1) continue;
+    const m = weeks[wi];
+    const row = m.get(p.id) ?? {
+      participantId: p.id,
+      name: p.displayName,
+      division: p.division,
+      rowerNumber: p.rowerNumber,
+      instagram: p.instagram,
+      meters: 0,
+      sessions: 0,
+    };
+    row.meters += e.meters;
+    row.sessions += 1;
+    m.set(p.id, row);
+  }
+  return weeks.map((m) =>
+    [...m.values()].sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name)),
+  );
+}
+
+/* ------------------------------------------------------------ placements */
+
+export type RecordBadge = {
+  /* stable id: "total" | "fastest5000" | "fastest10000" | "longest" | "bigday" */
+  key: string;
+  /* "Fastest 5k" — display label */
+  label: string;
+  /* 1..topN, within the rower's division (every record surface shows the
+   * boards split men's/women's, so placements match what the pages say) */
+  place: number;
+  /* The stat itself, display-formatted: "16:03.7" or "22,179 m". */
+  value: string;
+};
+
+const RECORD_LABELS: Record<string, string> = {
+  total: "Total meters",
+  fastest5000: "Fastest 5k",
+  fastest10000: "Fastest 10k",
+  longest: "Longest row",
+  bigday: "Biggest day",
+};
+
+export function recordLabel(key: string): string {
+  return RECORD_LABELS[key] ?? key;
+}
+
+/* Where this rower places, within their division, on every record board.
+ * Only placements 1..topN come back — an empty array means no records. */
+export function recordPlacements(boards: Boards, participantId: string, topN = 3): RecordBadge[] {
+  const out: RecordBadge[] = [];
+  const me =
+    boards.total.find((r) => r.participantId === participantId) ?? null;
+  if (!me) return out;
+  const inDivision = <T extends { division: string }>(rows: T[]) =>
+    rows.filter((r) => r.division === me.division);
+
+  const check = (
+    key: string,
+    rows: { participantId: string }[],
+    valueOf: (row: never) => string,
+  ) => {
+    const place = rows.findIndex((r) => r.participantId === participantId) + 1;
+    if (place >= 1 && place <= topN) {
+      const row = rows[place - 1] as never;
+      out.push({ key, label: recordLabel(key), place, value: valueOf(row) });
+    }
+  };
+
+  check("total", inDivision(boards.total.filter((r) => r.meters > 0)), (r: TotalRow) =>
+    fmtMeters(r.meters),
+  );
+  for (const dist of RECORD_DISTANCES)
+    check(`fastest${dist}`, inDivision(boards.fastest[dist]), (r: RecordRow) =>
+      fmtRecordTime(r.value),
+    );
+  check("longest", inDivision(boards.longest), (r: RecordRow) => fmtMeters(r.value));
+  check("bigday", inDivision(boards.bigDay), (r: RecordRow) => fmtMeters(r.value));
+  return out;
+}
+
+/* This rower's standing on total meters within their division —
+ * { place: 3, of: 41 }, or null before they've logged a meter. */
+export function divisionRank(
+  boards: Boards,
+  participantId: string,
+): { place: number; of: number } | null {
+  const me = boards.total.find((r) => r.participantId === participantId);
+  if (!me || me.meters <= 0) return null;
+  const rows = boards.total.filter((r) => r.division === me.division && r.meters > 0);
+  const place = rows.findIndex((r) => r.participantId === participantId) + 1;
+  return place >= 1 ? { place, of: rows.length } : null;
 }

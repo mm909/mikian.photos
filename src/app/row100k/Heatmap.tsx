@@ -40,12 +40,32 @@ export function Heatmap({
         {Array.from({ length: 30 }, (_, i) => {
           const day = `2026-09-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
+          const b = bucket(m, thresholds);
           return (
             <div
               key={day}
-              className={`hm-cell${bucket(m, thresholds)}`}
+              className={`hm-cell${b}`}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
               title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
-            />
+            >
+              {m > 0 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    fontFamily: "var(--row-mono), monospace",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    /* Only b4 (#0077B6) is deep enough for white (4.9:1);
+                     * ink wins on every lighter bucket — b3's #4d9fc9 puts
+                     * white at 2.95:1, ink at 6.1:1. */
+                    color: b === " b4" ? "#ffffff" : "var(--ink, #15171a)",
+                  }}
+                >
+                  {`${Math.max(1, Math.round(m / 1000))}k`}
+                </span>
+              )}
+            </div>
           );
         })}
       </div>

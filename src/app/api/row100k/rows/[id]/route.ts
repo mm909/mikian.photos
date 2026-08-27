@@ -103,7 +103,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // moderation) — clamp the clock so validateEntry's own closed check can't
   // re-refuse what the guard allowed.
   const atMs = guarded.isOwner ? Math.min(nowMs(), LOG_CLOSE_MS - 1) : nowMs();
-  const check = validateEntry(body, atMs);
+  const check = validateEntry(body, atMs, { admin: guarded.isOwner });
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }

@@ -12,6 +12,7 @@ import {
   fmtRowerNumber,
   fmtSplit,
   type Division,
+  type RecordBadge,
 } from "@/lib/row100k";
 
 /* Signed-in + joined: your bib (→ your profile), the two actions that matter
@@ -26,6 +27,11 @@ export function Dashboard(props: {
   sessions: number;
   rows: MyRow[];
   phase: "before" | "open" | "closed";
+  /* Board standing + record placements (to #10, with display values) for the
+   * share cards — optional so the dashboard still works when the cached board
+   * is unavailable. */
+  rank?: { place: number; of: number } | null;
+  records?: RecordBadge[];
   /* Dev preview only: behave as if the join JUST happened (bib dialog pops). */
   simulateJustJoined?: boolean;
 }) {
@@ -162,6 +168,10 @@ export function Dashboard(props: {
           meters: props.meters,
           sessions: props.sessions,
           byDay,
+          division: props.division,
+          longest: bests.longest,
+          rank: props.rank,
+          records: props.records,
         }}
         open={shareOpen}
         onClose={() => setShareOpen(false)}

@@ -129,6 +129,20 @@ const ARCHETYPES = [
  * to exercise the ±2% record tolerance. */
 const PIECES = [1000, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 12000, 15000];
 
+/* Feed/testing flavor — about a third of demo sessions carry one. */
+const PHOTO_COLORS = ["#0077B6", "#15171A", "#2E8B57", "#B8860B", "#4d9fc9", "#7A7A74"];
+
+const TITLES = [
+  "Sunrise meters",
+  "Lunch break erg",
+  "Steady state grind",
+  "Negative split attempt",
+  "Post-leg-day shuffle",
+  "Rowing off the coffee",
+  "Quiet 30 before work",
+  "Race pace pieces",
+];
+
 const NOTES = [
   "", "", "", "", "", "", "",
   "easy steady state", "morning row", "felt awful, did it anyway", "2k test",
@@ -143,7 +157,7 @@ type Participant = {
   division: "M" | "F";
   userId: string;
   archetype: string;
-  entries: { day: string; meters: number; seconds: number; note: string }[];
+  entries: { day: string; meters: number; seconds: number; note: string; title: string; photos: string[] }[];
 };
 
 function buildField(): Participant[] {
@@ -194,7 +208,7 @@ function buildField(): Participant[] {
 /* One rower's September: sessions drawn until they reach their target, laid
  * onto days with rest days between and the odd doubled-up day. */
 function buildMonth(target: number, a: (typeof ARCHETYPES)[number]) {
-  const entries: { day: string; meters: number; seconds: number; note: string }[] = [];
+  const entries: { day: string; meters: number; seconds: number; note: string; title: string; photos: string[] }[] = [];
   // Half the ghosts never log anything — a signed-up rower sitting on zero
   // meters has to render everywhere (board, profile, records) without a hole.
   if (target < 500 || (a.key === "ghost" && rand() < 0.5)) return entries;
@@ -242,7 +256,14 @@ function buildMonth(target: number, a: (typeof ARCHETYPES)[number]) {
     perDay.set(d, (perDay.get(d) ?? 0) + 1);
 
     const note = isTest && meters % 1000 === 0 && rand() < 0.5 ? `${meters / 1000}k test` : pick(NOTES);
-    entries.push({ day: day(d), meters, seconds, note });
+    const title = rand() < 0.35 ? pick(TITLES) : "";
+    /* About a third of demo sessions carry sample photos — flat color
+     * squares, so the feed's photo view has something to show without R2.
+     * "demo:" keys are rendered as inline SVG by the feed and are never
+     * presigned; they exist only in the demo namespace. */
+    const photos =
+      rand() < 0.35 ? [`demo:${pick(PHOTO_COLORS)}`, `demo:${pick(PHOTO_COLORS)}`] : [];
+    entries.push({ day: day(d), meters, seconds, note, title, photos });
     total += meters;
   }
 
@@ -343,7 +364,7 @@ async function main() {
     // Logged the evening of the row; a second session that day lands an hour
     // later, because the boards sort on createdAt within a day.
     const seen = new Map<string, number>();
-    return p.entries.map((e) => {
+    return p.entries.map((e, i) => {
       const k = seen.get(e.day) ?? 0;
       seen.set(e.day, k + 1);
       return {
@@ -353,6 +374,9 @@ async function main() {
         meters: e.meters,
         seconds: e.seconds,
         note: e.note,
+        // Same default the rows API applies: untitled rows get numbered.
+        title: e.title || `Rowtember #${i + 1}`,
+        photos: e.photos,
         createdAt: new Date(`${e.day}T${String(19 + Math.min(k, 3)).padStart(2, "0")}:20:00Z`),
       };
     });

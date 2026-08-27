@@ -51,7 +51,7 @@ export function BarAccount({
                 My profile →
               </a>
             ) : (
-              <a className="acct-item" href="#join" onClick={() => setOpen(false)}>
+              <a className="acct-item" href="/row100k#join" onClick={() => setOpen(false)}>
                 Join the challenge →
               </a>
             )}

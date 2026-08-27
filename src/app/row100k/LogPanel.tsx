@@ -15,12 +15,15 @@ export function LogPanel({
   rows,
   defaultDay,
   phase,
+  earlyAdmin,
   simulate,
 }: {
   data: ShareData;
   rows: MyRow[];
   defaultDay: string;
   phase: "before" | "open" | "closed";
+  /* Challenge admin logging before Sep 1 — the form is open for test rows. */
+  earlyAdmin?: boolean;
   simulate?: boolean;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
@@ -45,6 +48,9 @@ export function LogPanel({
         meters: base.meters + entry.meters,
         sessions: base.sessions + 1,
         byDay: { ...base.byDay, [entry.day]: (base.byDay[entry.day] ?? 0) + entry.meters },
+        // The profile card shows LONGEST ROW — a first-ever log would read
+        // "0" next to real meters until the refresh lands without this.
+        longest: Math.max(base.longest ?? 0, entry.meters),
       };
     });
     setShareRow(entry);
@@ -68,11 +74,13 @@ export function LogPanel({
           <div className="sec-head">
             <h2>Log a row</h2>
             <span className="mono">
-              {phase === "open"
-                ? "EVERY SESSION COUNTS"
-                : phase === "before"
-                  ? "OPENS SEP 1"
-                  : "SEPTEMBER'S WRAPPED"}
+              {earlyAdmin
+                ? "ADMIN — OPEN EARLY FOR TESTING"
+                : phase === "open"
+                  ? "EVERY SESSION COUNTS"
+                  : phase === "before"
+                    ? "OPENS SEP 1"
+                    : "SEPTEMBER'S WRAPPED"}
             </span>
           </div>
           <div className="panel">

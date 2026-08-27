@@ -93,11 +93,19 @@ export async function r2PresignGet(key: string, ttlSeconds = 900): Promise<strin
 export async function r2PresignPut(
   key: string,
   contentType: string,
-  ttlSeconds = 900
+  ttlSeconds = 900,
+  contentLength?: number
 ): Promise<string> {
+  // When contentLength is given it joins the signed headers, so the minted
+  // URL only accepts a body of exactly that many bytes.
   return getSignedUrl(
     r2(),
-    new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: contentType }),
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      ContentType: contentType,
+      ...(contentLength ? { ContentLength: contentLength } : {}),
+    }),
     { expiresIn: ttlSeconds }
   );
 }

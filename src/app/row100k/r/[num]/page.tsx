@@ -11,6 +11,7 @@ import {
   LOG_CLOSE_MS,
   START_MS,
   computeBoards,
+  divisionRank,
   fmtDay,
   fmtDuration,
   fmtMeters,
@@ -18,15 +19,21 @@ import {
   fmtRowerNumber,
   fmtSplit,
   nowMs as clockNow,
+  recordPlacements,
   type Division,
+  type RecordBadge,
 } from "@/lib/row100k";
 import { isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
+import { boardData } from "../../boardData";
 import { Curve } from "../../Curve";
 import { EditProfile } from "../../EditProfile";
 import { Heatmap } from "../../Heatmap";
+import { AdminShare } from "../../AdminShare";
 import { LogPanel } from "../../LogPanel";
 import { RemoveRower } from "../../RemoveRower";
+import { RowBar } from "../../RowBar";
+import { RowFooter } from "../../RowFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +48,7 @@ const getRower = cache(async (num: number) => {
   if (!participant) return null;
   const entries = await db.rowEntry.findMany({
     where: { participantId: participant.id },
-    select: { id: true, participantId: true, day: true, meters: true, seconds: true },
+    select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true },
     orderBy: [{ day: "asc" }, { createdAt: "asc" }],
   });
   return { participant, entries };
@@ -91,16 +98,46 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   for (const e of entries) byDay[e.day] = (byDay[e.day] ?? 0) + e.meters;
   const pct = Math.min(100, me.pct);
 
+  // Standing + record placements come off the full cached board — cosmetic
+  // for the share cards and the rank chips on the bests, so a board failure
+  // just leaves them undefined. Placements go to #10: the profile share card
+  // headlines the best one, and the bests below wear top-10 chips.
+  let rank: { place: number; of: number } | null | undefined;
+  let records: RecordBadge[] | undefined;
+  try {
+    const full = await boardData();
+    rank = divisionRank(full, p.id);
+    records = recordPlacements(full, p.id, 10);
+  } catch (err) {
+    console.error("row100k: failed to load board data for placements", err);
+  }
+
+  const shareData = {
+    displayName: p.displayName,
+    rowerNumber: p.rowerNumber,
+    instagram: p.instagram,
+    meters: me.meters,
+    sessions: me.sessions,
+    byDay,
+    division: p.division,
+    longest: b.longest[0]?.value ?? 0,
+    rank,
+    records,
+  };
+
   const now = clockNow();
   const phase: "before" | "open" | "closed" =
     now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
   const todayUTC = new Date(now).toISOString().slice(0, 10);
   const defaultDay = todayUTC < FIRST_DAY ? FIRST_DAY : todayUTC > LAST_DAY ? LAST_DAY : todayUTC;
 
-  const bests: { label: string; value: string; sub: string }[] = [
-    ...([1000, 5000, 10000] as const).map((d) => {
+  // Each best knows its record-board key so it can wear the rower's division
+  // ranking (top 10 only — that's as deep as `records` goes) as a chip.
+  const bests: { key: string; label: string; value: string; sub: string }[] = [
+    ...([5000, 10000] as const).map((d) => {
       const r = b.fastest[d][0];
       return {
+        key: `fastest${d}`,
         label: `Fastest ${d / 1000}k`,
         value: r ? fmtRecordTime(r.value) : "—",
         sub: r
@@ -111,11 +148,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       };
     }),
     {
+      key: "longest",
       label: "Longest row",
       value: b.longest[0] ? fmtMeters(b.longest[0].value) : "—",
       sub: b.longest[0] ? fmtDay(b.longest[0].day) : "not yet rowed",
     },
+    {
+      key: "bigday",
+      label: "Biggest day",
+      value: b.bigDay[0] ? fmtMeters(b.bigDay[0].value) : "—",
+      sub: b.bigDay[0] ? fmtDay(b.bigDay[0].day) : "not yet rowed",
+    },
   ];
+  const placeOf = (key: string) => records?.find((r) => r.key === key)?.place;
 
   const rows = entries.slice().reverse();
 
@@ -123,12 +168,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <div className="bar">
-        <a className="mono back-link" href="/row100k">
-          ← 100K SEPTEMBER
-        </a>
+      <RowBar>
         <span className="mono tag">ROWER {fmtRowerNumber(p.rowerNumber)}</span>
-      </div>
+      </RowBar>
 
       <section>
         <div className="wrap">
@@ -188,13 +230,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             <span className="mono">PERSONAL — THIS SEPTEMBER</span>
           </div>
           <div className="records vol" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            {bests.map((r) => (
-              <div className="rec" key={r.label}>
-                <div className="t">{r.label}</div>
-                <div className="v">{r.value}</div>
-                <div className="meta">{r.sub}</div>
-              </div>
-            ))}
+            {bests.map((r) => {
+              const place = placeOf(r.key);
+              return (
+                <div className="rec" key={r.key}>
+                  <div className="t">
+                    {r.label}
+                    {place ? <span className="dtag">#{place}</span> : null}
+                  </div>
+                  <div className="v">{r.value}</div>
+                  <div className="meta">{r.sub}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -216,18 +264,16 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           the log, and every row in the log can be shared, fixed or deleted. */}
       {isMe ? (
         <LogPanel
-          data={{
-            displayName: p.displayName,
-            rowerNumber: p.rowerNumber,
-            instagram: p.instagram,
-            meters: me.meters,
-            sessions: me.sessions,
-            byDay,
-          }}
+          data={shareData}
           rows={rows}
           defaultDay={defaultDay}
-          phase={phase}
+          /* Admins can log before Sep 1 to test the pipeline on their own
+             account — the rows API waves the same people through. */
+          phase={isAdmin && phase === "before" ? "open" : phase}
+          earlyAdmin={isAdmin && phase === "before"}
         />
+      ) : isAdmin ? (
+        <AdminShare data={shareData} rows={rows} />
       ) : (
         <section>
           <div className="wrap">
@@ -251,7 +297,17 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id}>
-                        <td>{fmtDay(r.day)}</td>
+                        <td>
+                          {fmtDay(r.day)}
+                          {r.title ? (
+                            <div
+                              className="mono"
+                              style={{ fontSize: 11, color: "var(--gray)", marginTop: 2 }}
+                            >
+                              {r.title}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="num">{fmtMeters(r.meters)}</td>
                         <td className="num">{fmtDuration(r.seconds)}</td>
                         <td className="num" style={{ color: "var(--gray)" }}>
@@ -294,14 +350,11 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
         </section>
       )}
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <div className="big">100K SEPTEMBER — 2026</div>
-          <p className="mono">
-            <a href="/row100k">← Back to the board</a>
-          </p>
-        </div>
-      </footer>
+      <RowFooter>
+        <p className="mono">
+          <a href="/row100k">← Back to the board</a>
+        </p>
+      </RowFooter>
     </div>
   );
 }
