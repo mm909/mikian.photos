@@ -99,7 +99,9 @@ function PhotoCard({ item }: { item: FeedItem }) {
           {item.photoUrls.map((url, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={url}
+              // Index key: two demo squares in one row can share a color, so
+              // the URL alone isn't unique.
+              key={i}
               src={url}
               alt={i === 0 ? `${item.name} after the row` : "Erg screen"}
               loading="lazy"
@@ -147,34 +149,14 @@ function CompactTable({ items }: { items: FeedItem[] }) {
   );
 }
 
-export function FeedViews({ items }: { items: FeedItem[] }) {
-  const [view, setView] = useState<View>("PHOTOS");
-
-  return (
+export function FeedViews({ items, view }: { items: FeedItem[]; view: FeedView }) {
+  return view === "photos" ? (
     <div>
-      <div className="tabs" role="group" aria-label="Feed view">
-        {(["PHOTOS", "COMPACT"] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            className={view === v ? "on" : ""}
-            aria-pressed={view === v}
-            onClick={() => setView(v)}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
-
-      {view === "PHOTOS" ? (
-        <div>
-          {items.map((item) => (
-            <PhotoCard key={item.id} item={item} />
-          ))}
-        </div>
-      ) : (
-        <CompactTable items={items} />
-      )}
+      {items.map((item) => (
+        <PhotoCard key={item.id} item={item} />
+      ))}
     </div>
+  ) : (
+    <CompactTable items={items} />
   );
 }

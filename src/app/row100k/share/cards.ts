@@ -165,8 +165,9 @@ function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): s
 /* ----------------------------------------------------------------- cards */
 
 /* Card one: the wordmark and your number. Nothing else — it has to survive
- * being 300px wide on someone's story. Top-10 rowers get their place in the
- * caption; a podium place paints the mark's box in the medal metal. */
+ * being 300px wide on someone's story. Top-10 rowers get their place drawn
+ * big on the meters' baseline (owner call, cycle 2 — it was fading into the
+ * caption); a podium place paints the mark's box in the medal metal. */
 const rowtemberTotal: ShareCard = {
   id: "rowtember-total",
   label: "Rowtember total",
@@ -177,13 +178,41 @@ const rowtemberTotal: ShareCard = {
     const cx = this.width / 2;
     const top10 = data.rank && data.rank.place <= 10 ? data.rank : null;
 
-    drawCenteredText(ctx, data.meters.toLocaleString("en-US"), {
-      cx,
-      baseline: 250,
-      font: `210px ${fonts.black}`,
-      color: "#ffffff",
-    });
-    drawCenteredText(ctx, top10 ? `METERS ROWED · #${top10.place}` : "METERS ROWED", {
+    // Meters + "#4" share one baseline, centered as a single line; the
+    // meters shrink until the pair fits, so a huge total can't push the
+    // place off the canvas.
+    const metersText = data.meters.toLocaleString("en-US");
+    const rankText = top10 ? `#${top10.place}` : null;
+    const rankSize = 76;
+    const gap = 30;
+    const maxW = this.width - 90;
+    let mSize = 210;
+    const lineW = () => {
+      ctx.font = `${mSize}px ${fonts.black}`;
+      let w = ctx.measureText(metersText).width;
+      if (rankText) {
+        ctx.font = `${rankSize}px ${fonts.black}`;
+        w += gap + ctx.measureText(rankText).width;
+      }
+      return w;
+    };
+    while (mSize > 110 && lineW() > maxW) mSize -= 6;
+
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#ffffff";
+    let x = cx - lineW() / 2;
+    ctx.font = `${mSize}px ${fonts.black}`;
+    ctx.fillText(metersText, x, 250);
+    if (rankText) {
+      x += ctx.measureText(metersText).width + gap;
+      ctx.font = `${rankSize}px ${fonts.black}`;
+      ctx.fillText(rankText, x, 250);
+    }
+    ctx.restore();
+
+    drawCenteredText(ctx, "METERS", {
       cx,
       baseline: 318,
       font: `38px ${fonts.mono}`,
@@ -488,7 +517,17 @@ const rowtemberProfile: ShareCard = {
     ctx.fillText(tag, M, 254);
     ctx.restore();
 
-    // Three outlined stat boxes: METERS / SESSIONS / LONGEST ROW.
+    // Three outlined stat boxes: METERS / SESSIONS / their loudest record.
+    // The third box headlines the highest-ranking badge — lowest place,
+    // total excluded (it has its own cards), ties broken in board order —
+    // labelled "FASTEST 10K · #1". No badges at all → LONGEST ROW as before.
+    const BADGE_ORDER = ["fastest5000", "fastest10000", "longest", "bigday"];
+    const badge = (data.records ?? [])
+      .filter((r) => r.key !== "total")
+      .slice()
+      .sort(
+        (a, b) => a.place - b.place || BADGE_ORDER.indexOf(a.key) - BADGE_ORDER.indexOf(b.key),
+      )[0];
     const gap = 24;
     const boxW = (contentW - gap * 2) / 3;
     const boxH = 160;
@@ -496,7 +535,9 @@ const rowtemberProfile: ShareCard = {
     const stats: { v: string; l: string }[] = [
       { v: data.meters.toLocaleString("en-US"), l: "METERS" },
       { v: String(data.sessions), l: "SESSIONS" },
-      { v: (data.longest ?? 0).toLocaleString("en-US"), l: "LONGEST ROW" },
+      badge
+        ? { v: badge.value, l: `${badge.label.toUpperCase()} · #${badge.place}` }
+        : { v: (data.longest ?? 0).toLocaleString("en-US"), l: "LONGEST ROW" },
     ];
     stats.forEach((s, i) => {
       const bx = M + i * (boxW + gap);
@@ -516,7 +557,11 @@ const rowtemberProfile: ShareCard = {
         font: `${vSize}px ${fonts.black}`,
         color: "#ffffff",
       });
-      drawCenteredText(ctx, s.l, {
+      // Labels now run to "FASTEST 10K · #10" — budget the tracking, then
+      // ellipsize so a label can never cross into the neighbor box.
+      ctx.font = `20px ${fonts.mono}`;
+      const fittedLabel = ellipsize(ctx, s.l, boxW - 24 - 4 * (s.l.length - 1));
+      drawCenteredText(ctx, fittedLabel, {
         cx: bx + boxW / 2,
         baseline: boxTop + 128,
         font: `20px ${fonts.mono}`,

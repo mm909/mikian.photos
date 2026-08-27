@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Who } from "./Boards";
 import {
   WEEKS,
@@ -9,7 +9,9 @@ import {
   fmtRecordTime,
   fmtRowerNumber,
   fmtSplit,
+  nowMs,
   type Boards as BoardData,
+  type Week,
   type WeeklyRow,
 } from "@/lib/row100k";
 import {
@@ -22,27 +24,65 @@ import {
   type RecordDef,
 } from "./records/defs";
 
-/* The records grid + the weekly boards. One page-level division control —
+/* The records + the weekly boards. One page-level division control —
  * ALL / MEN'S / WOMEN'S — drives every record card AND the weekly table
- * (ALL is one combined ranking across divisions). Each card shows the
- * podium and links out to its full ranking at /row100k/records/[key];
- * the total-meters standings themselves live on the home page. */
+ * (ALL is one combined ranking across divisions). Total meters stands alone
+ * as a full-width headline card; the other four records regroup under two
+ * eyebrows — pace and distance (owner call, cycle 2: the flat grid is out,
+ * total meters is dominant again). Each card shows the podium and links out
+ * to its full ranking at /row100k/records/[key]; the total-meters standings
+ * themselves live on the home page. */
+
+const defOf = (key: RecordDef["key"]): RecordDef => RECORD_DEFS.find((d) => d.key === key)!;
+
+const RECORD_GROUPS: { eyebrow: string; keys: RecordDef["key"][] }[] = [
+  { eyebrow: "The pace records", keys: ["5000", "10000"] },
+  { eyebrow: "The distance records", keys: ["longest", "bigday"] },
+];
+
+/* "Sep 15–21" (both ends via fmtDay; the month drops off the second end
+ * when it repeats — all challenge weeks sit inside September). */
+function weekDates(w: Week): string {
+  return w.first.slice(0, 7) === w.last.slice(0, 7)
+    ? `${fmtDay(w.first)}–${Number(w.last.slice(8, 10))}`
+    : `${fmtDay(w.first)}–${fmtDay(w.last)}`;
+}
 
 export function StatsBoards({
   boards,
   weekly,
   defaultWeek,
   started,
+  meId,
 }: {
   boards: BoardData;
   weekly: WeeklyRow[][];
   defaultWeek: number;
   started: boolean;
+  /* Signed-in rower's participant id (resolved server-side), or null. */
+  meId: string | null;
 }) {
   const [div, setDiv] = useState<DivKey>("all");
   const [week, setWeek] = useState(defaultWeek);
 
-  const weekRows = (weekly[week] ?? []).filter((r) => divMatch(div, r.division));
+  /* Only weeks that have started get a chip — a week exists once its first
+   * day arrives (same clock as the server's default-week pick). Before
+   * Sep 1 that's nothing, so Week 1 stands in with the empty-state copy. */
+  const today = new Date(nowMs()).toISOString().slice(0, 10);
+  const startedWeeks = WEEKS.filter((w) => w.first <= today);
+  const shownWeeks: Week[] = startedWeeks.length > 0 ? startedWeeks : [WEEKS[0]];
+  const wk = Math.min(week, shownWeeks.length - 1);
+
+  const weekRows = (weekly[wk] ?? []).filter((r) => divMatch(div, r.division));
+
+  /* Top 10 only; a signed-in rower deeper on the board gets their
+   * neighborhood — three above, themselves, three below — after a gap row.
+   * Ranks stay global (their place on the whole week's board). */
+  const meIdx = meId ? weekRows.findIndex((r) => r.participantId === meId) : -1;
+  const top = weekRows.slice(0, 10);
+  const showCtx = meIdx >= 10;
+  const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
+  const ctx = showCtx ? weekRows.slice(ctxStart, Math.min(weekRows.length, meIdx + 4)) : [];
 
   return (
     <div>
@@ -59,11 +99,20 @@ export function StatsBoards({
         ))}
       </div>
 
-      <div className="records">
-        {RECORD_DEFS.map((def) => (
-          <RecordCard key={def.key} def={def} boards={boards} div={div} started={started} />
-        ))}
+      <div className="records solo">
+        <RecordCard def={defOf("total")} boards={boards} div={div} started={started} headline />
       </div>
+
+      {RECORD_GROUPS.map((g) => (
+        <Fragment key={g.eyebrow}>
+          <div className="rec-eyebrow">{g.eyebrow}</div>
+          <div className="records vol">
+            {g.keys.map((k) => (
+              <RecordCard key={k} def={defOf(k)} boards={boards} div={div} started={started} />
+            ))}
+          </div>
+        </Fragment>
+      ))}
 
       <div className="sec-head" style={{ marginTop: 52 }}>
         <h2>The weeks</h2>
@@ -71,14 +120,14 @@ export function StatsBoards({
       </div>
 
       <div className="tabs" role="group" aria-label="Week">
-        {WEEKS.map((w, i) => (
+        {shownWeeks.map((w, i) => (
           <button
             key={w.key}
-            aria-pressed={week === i}
-            className={week === i ? "on" : undefined}
+            aria-pressed={wk === i}
+            className={wk === i ? "on" : undefined}
             onClick={() => setWeek(i)}
           >
-            {w.label}
+            {w.label} · {weekDates(w)}
           </button>
         ))}
       </div>
@@ -101,17 +150,21 @@ export function StatsBoards({
               </tr>
             </thead>
             <tbody>
-              {weekRows.map((r, i) => (
-                <tr key={r.participantId}>
-                  <td className="rk">{i + 1}</td>
-                  <td>
-                    <Who row={r} />
-                  </td>
-                  <td className="num">{fmtMeters(r.meters)}</td>
-                  <td className="num" style={{ color: "var(--gray)" }}>
-                    {r.sessions}
-                  </td>
+              {top.map((r, i) => (
+                <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
+              ))}
+              {showCtx && ctxStart > 10 && (
+                <tr className="gaprow">
+                  <td colSpan={4}>···</td>
                 </tr>
+              )}
+              {ctx.map((r, i) => (
+                <WeekTr
+                  key={r.participantId}
+                  r={r}
+                  rank={ctxStart + i + 1}
+                  me={r.participantId === meId}
+                />
               ))}
             </tbody>
           </table>
@@ -121,18 +174,38 @@ export function StatsBoards({
   );
 }
 
+/* One row of the weekly board; the signed-in rower's row wears the
+ * finisher tint (tr.fin) so they can spot themselves. */
+function WeekTr({ r, rank, me }: { r: WeeklyRow; rank: number; me: boolean }) {
+  return (
+    <tr className={me ? "fin" : undefined}>
+      <td className="rk">{rank}</td>
+      <td>
+        <Who row={r} />
+      </td>
+      <td className="num">{fmtMeters(r.meters)}</td>
+      <td className="num" style={{ color: "var(--gray)" }}>
+        {r.sessions}
+      </td>
+    </tr>
+  );
+}
+
 /* One record card: the podium (1st dominant, 2nd and 3rd small), linking to
- * the full ranking page for this record in the current division. */
+ * the full ranking page for this record in the current division. The total
+ * meters card takes the headline treatment — full width, bigger digits. */
 function RecordCard({
   def,
   boards,
   div,
   started,
+  headline,
 }: {
   def: RecordDef;
   boards: BoardData;
   div: DivKey;
   started: boolean;
+  headline?: boolean;
 }) {
   const rows = rankedRows(boards, def.key).filter((r) => divMatch(div, r.row.division));
   const [first, second, third] = rows;
@@ -157,7 +230,7 @@ function RecordCard({
     : "";
 
   return (
-    <a className="rec" href={`/row100k/records/${def.key}?d=${div}`}>
+    <a className={headline ? "rec headline" : "rec"} href={`/row100k/records/${def.key}?d=${div}`}>
       <div className="t">{def.title}</div>
       {first ? (
         <>
