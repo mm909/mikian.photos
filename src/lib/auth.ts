@@ -4,8 +4,8 @@ import { db } from "./db";
 import {
   ALL_ROLES,
   OWNER_IMPLIED_ROLES,
+  isOwnerEmail,
   normalizeRoles,
-  ownerEmail,
   type Role,
 } from "./permissions";
 
@@ -21,8 +21,8 @@ import {
  *   3. Brand-new row.
  *
  * Roles are assigned on first signIn:
- *   - email matches OWNER_EMAIL (default mikian.photos@gmail.com)
- *     → ["user","photographer","owner"]
+ *   - email is one of the owner's accounts (isOwnerEmail — OWNER_EMAIL plus
+ *     the always-admin list) → ["user","photographer","owner"]
  *   - otherwise: keep existing roles if any, else default to ["user"]
  *
  * No DB adapter for sessions (JWT strategy) — keeps things simple.
@@ -45,7 +45,7 @@ export const authOptions: NextAuthOptions = {
       // Per-event access modes (src/lib/eventAccess.ts) are the only visibility
       // control now.
       const displayName = user.name ?? user.email.split("@")[0];
-      const isOwnerEmail = email === ownerEmail();
+      const ownerAccount = isOwnerEmail(email);
 
       // 1. Look up by googleSubject first (stable across email changes)
       let existing = await db.photographer.findUnique({
@@ -63,7 +63,7 @@ export const authOptions: NextAuthOptions = {
 
       // Compute roles: owner-by-email gets the full set; otherwise inherit
       // any existing roles, or default to ["runner"] for net-new users.
-      const baseRoles: Role[] = isOwnerEmail
+      const baseRoles: Role[] = ownerAccount
         ? OWNER_IMPLIED_ROLES
         : existing
           ? normalizeRoles(existing.roles)

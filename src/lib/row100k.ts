@@ -31,9 +31,9 @@ export const CHALLENGE =
 export const GOAL_METERS = 100_000;
 
 /* Challenge moderation — remove a rower, fix or delete anyone's rows. The
- * platform owner role qualifies, plus these accounts (the second is the
- * owner's personal Google, which deliberately does NOT hold the site-wide
- * owner role). */
+ * platform owner role qualifies, plus these accounts. Both are also site-wide
+ * owner emails (see isOwnerEmail in permissions.ts); the explicit list here is
+ * kept so challenge admin never depends on role hydration. */
 const ADMIN_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
 
 export function isRow100kAdmin(email: string, roles: string[]): boolean {

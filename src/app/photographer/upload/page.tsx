@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
 import { UploadClient } from "@/components/photographer/UploadClient";
-import { getEffectiveActor, ownerEmail } from "@/lib/permissions";
+import { getEffectiveActor, isOwnerEmail } from "@/lib/permissions";
 import { listEvents } from "@/lib/events";
 import { NoPhotographerAccess } from "@/components/photographer/NoPhotographerAccess";
 
 /**
- * TEMPORARY lockdown: uploading is restricted to the platform owner's main
- * account (ownerEmail()) — see the per-event upload page for context. Re-open
+ * TEMPORARY lockdown: uploading is restricted to the platform owner's own
+ * accounts (isOwnerEmail) — see the per-event upload page for context. Re-open
  * per-event photographer uploads later.
  */
 export default async function UploadPage() {
@@ -14,7 +14,7 @@ export default async function UploadPage() {
   if (!actor) {
     return <NoPhotographerAccess reason="signed-out" />;
   }
-  if (actor.email.toLowerCase().trim() !== ownerEmail()) {
+  if (!isOwnerEmail(actor.email)) {
     return <NoPhotographerAccess reason="no-role" name={actor.name} />;
   }
 

@@ -142,11 +142,7 @@ export default async function RecordRankingPage({
         </div>
       </section>
 
-      <RowFooter>
-        <p className="mono">
-          <a href="/row100k/stats">← Back to the records</a>
-        </p>
-      </RowFooter>
+      <RowFooter />
     </div>
   );
 }
