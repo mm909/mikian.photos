@@ -56,15 +56,9 @@ export async function POST(req: Request) {
     (k): k is string =>
       typeof k === "string" && k.length < 200 && k.startsWith(prefix) && !k.includes(".."),
   );
-  if (photos.length < 1) {
+  if (photos.length !== 2 || rawPhotos.length !== 2) {
     return NextResponse.json(
-      { ok: false, error: "Add a photo of yourself with the row — it's required." },
-      { status: 400 },
-    );
-  }
-  if (photos.length > 2 || rawPhotos.length > 2) {
-    return NextResponse.json(
-      { ok: false, error: "Two photos max — you and the screen." },
+      { ok: false, error: "Two photos required — you and the screen." },
       { status: 400 },
     );
   }
@@ -101,8 +95,13 @@ export async function POST(req: Request) {
     );
   }
 
+  // No title typed → "Rowtember #7", numbered by how many rows they'll have.
+  const value = check.value.title
+    ? check.value
+    : { ...check.value, title: `Rowtember #${totalCount + 1}` };
+
   const entry = await db.rowEntry.create({
-    data: { challenge: CHALLENGE, participantId: participant.id, ...check.value, photos },
+    data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
   });
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true, id: entry.id });

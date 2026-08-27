@@ -460,11 +460,13 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
  * once anyone has reached the tier below it — reaching 100k reveals an empty
  * 250k section — so the ladder always shows one rung of ambition and never
  * a whole column of empty boxes. */
+/* `rarity` keys the color treatment only — the words never render (owner
+ * call, cycle 2). `title` is what the board sections say. */
 export const TIERS = [
-  { meters: 10_000, key: "t10", label: "10K", rarity: "common" },
-  { meters: 50_000, key: "t50", label: "50K", rarity: "rare" },
-  { meters: 100_000, key: "t100", label: "100K", rarity: "epic" },
-  { meters: 250_000, key: "t250", label: "250K", rarity: "legend" },
+  { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: "Rowtember Participant" },
+  { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },
+  { meters: 100_000, key: "t100", label: "100K", rarity: "epic", title: "The 100K Club" },
+  { meters: 250_000, key: "t250", label: "250K", rarity: "legend", title: "250K Legend" },
 ] as const;
 export type Tier = (typeof TIERS)[number];
 
@@ -552,6 +554,8 @@ export type RecordBadge = {
   /* 1..topN, within the rower's division (every record surface shows the
    * boards split men's/women's, so placements match what the pages say) */
   place: number;
+  /* The stat itself, display-formatted: "16:03.7" or "22,179 m". */
+  value: string;
 };
 
 const RECORD_LABELS: Record<string, string> = {
@@ -576,15 +580,27 @@ export function recordPlacements(boards: Boards, participantId: string, topN = 3
   const inDivision = <T extends { division: string }>(rows: T[]) =>
     rows.filter((r) => r.division === me.division);
 
-  const check = (key: string, rows: { participantId: string }[]) => {
+  const check = (
+    key: string,
+    rows: { participantId: string }[],
+    valueOf: (row: never) => string,
+  ) => {
     const place = rows.findIndex((r) => r.participantId === participantId) + 1;
-    if (place >= 1 && place <= topN) out.push({ key, label: recordLabel(key), place });
+    if (place >= 1 && place <= topN) {
+      const row = rows[place - 1] as never;
+      out.push({ key, label: recordLabel(key), place, value: valueOf(row) });
+    }
   };
 
-  check("total", inDivision(boards.total.filter((r) => r.meters > 0)));
-  for (const dist of RECORD_DISTANCES) check(`fastest${dist}`, inDivision(boards.fastest[dist]));
-  check("longest", inDivision(boards.longest));
-  check("bigday", inDivision(boards.bigDay));
+  check("total", inDivision(boards.total.filter((r) => r.meters > 0)), (r: TotalRow) =>
+    fmtMeters(r.meters),
+  );
+  for (const dist of RECORD_DISTANCES)
+    check(`fastest${dist}`, inDivision(boards.fastest[dist]), (r: RecordRow) =>
+      fmtRecordTime(r.value),
+    );
+  check("longest", inDivision(boards.longest), (r: RecordRow) => fmtMeters(r.value));
+  check("bigday", inDivision(boards.bigDay), (r: RecordRow) => fmtMeters(r.value));
   return out;
 }
 
