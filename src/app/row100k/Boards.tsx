@@ -42,20 +42,14 @@ function Movement({ delta }: { delta: number }) {
   );
 }
 
-/* Section titles for the tier ladder, rarity spelled out like item drops.
- * The 100k section keeps its club name — that's the one people chase. */
-const TIER_TITLE: Record<Tier["key"], string> = {
-  t10: "10k — common",
-  t50: "50k — rare",
-  t100: "The 100k club — epic",
-  t250: "250k — legend",
-};
-
 /* THE BOARD on the main page: the community strip and the standings — total
- * meters, sectioned into rarity tiers (visibleTiers: every tier reached plus
- * the next locked one, highest first), with everyone under 10k warming up at
- * the bottom. Rank numbers stay global across sections. Everything deeper
- * (records, the weeks, the calendar, the curve) lives on /row100k/stats. */
+ * meters, sectioned into tiers (visibleTiers: every tier reached plus the
+ * next locked one, highest first), with everyone under 10k warming up at the
+ * bottom. Section headers say the tier's title ("Rowtember Athlete", "The
+ * 100K Club"…) — rarity stays a color key only, the words never render
+ * (owner call, cycle 2). Rank numbers stay global across sections.
+ * Everything deeper (records, the weeks, the calendar, the curve) lives on
+ * /row100k/stats. */
 export function Boards({ boards, started }: { boards: BoardData; started: boolean }) {
   const [tab, setTab] = useState<Tab>("ALL");
   const total = boards.total.filter((r) => tab === "ALL" || r.division === tab);

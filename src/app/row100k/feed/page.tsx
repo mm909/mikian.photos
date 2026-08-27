@@ -14,7 +14,9 @@ import {
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { boardData, EMPTY_BOARDS } from "../boardData";
-import { FeedViews, type FeedItem } from "./FeedViews";
+import { RowBar } from "../RowBar";
+import { RowFooter } from "../RowFooter";
+import { FeedViews, type FeedItem, type FeedView } from "./FeedViews";
 
 export const metadata: Metadata = {
   title: "The feed — 100K September",
@@ -97,7 +99,31 @@ type EntryWithParticipant = {
   participant: { displayName: string; rowerNumber: number };
 };
 
+/* Builds a feed href carrying only the params that differ from the defaults:
+ * photos view and page one produce a bare /row100k/feed. */
+function feedHref(view: FeedView, beforeCursor: string | null): string {
+  const q = new URLSearchParams();
+  if (view === "compact") q.set("view", "compact");
+  if (beforeCursor) q.set("before", beforeCursor);
+  const s = q.toString();
+  return s ? `/row100k/feed?${s}` : "/row100k/feed";
+}
+
+/* Demo photo keys ("demo:#0077B6", written by the demo seed on ~a third of
+ * demo entries) are flat color squares: rendered as inline SVG data URIs,
+ * never presigned. Anything after "demo:" that isn't a hex color falls back
+ * to a neutral gray rather than being interpolated into the SVG raw. */
+function demoPhotoUrl(key: string): string {
+  const color = key.slice("demo:".length);
+  const fill = /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : "#7A7A74";
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1000'%3E%3Crect width='100%25' height='100%25' fill='${encodeURIComponent(fill)}'/%3E%3C/svg%3E`;
+}
+
 export default async function FeedPage({ searchParams }: { searchParams: SearchParams }) {
+  // ?view=compact switches to the dense table; photos is the default and
+  // rides with no param. Kept in the URL so paging doesn't reset the view.
+  const view: FeedView = searchParams.view === "compact" ? "compact" : "photos";
+
   // ?before=<ISO createdAt>~<id> pages back in time; garbage is just ignored.
   // The id tiebreaker matters: the seed (and any busy minute) stamps many rows
   // with identical createdAt, and a strict createdAt < cursor would skip every
@@ -159,14 +185,21 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     );
   }
 
-  // Presign photo GET URLs (rows keep the rower photo at index 0). Skipped
-  // entirely when R2 isn't configured — those rows still show as text cards.
+  // Resolve photo URLs (rows keep the rower photo at index 0). "demo:" keys
+  // become inline SVG color squares and never touch R2; real keys are
+  // presigned, or dropped when R2 isn't configured — those rows still show
+  // as text cards.
   const canSign = r2Configured();
   const photoUrls = await Promise.all(
     entries.map(async (e) => {
-      if (!canSign || e.photos.length === 0) return [] as string[];
+      if (e.photos.length === 0) return [] as string[];
       try {
-        return await Promise.all(e.photos.map((key) => r2PresignGet(key, 3600)));
+        const urls = await Promise.all(
+          e.photos.map((key) =>
+            key.startsWith("demo:") ? demoPhotoUrl(key) : canSign ? r2PresignGet(key, 3600) : "",
+          ),
+        );
+        return urls.filter(Boolean);
       } catch (err) {
         console.error("row100k/feed: presign failed", err);
         return [] as string[];
