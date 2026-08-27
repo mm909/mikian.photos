@@ -279,11 +279,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
         </div>
       </section>
 
-      <RowFooter>
-        <p className="mono">
-          <a href="/row100k#board">← Back to the board</a>
-        </p>
-      </RowFooter>
+      <RowFooter />
     </div>
   );
 }

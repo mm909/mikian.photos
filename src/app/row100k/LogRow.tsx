@@ -125,11 +125,15 @@ const tileBase = {
 export function LogRow({
   defaultDay,
   phase,
+  earlyAdmin,
   simulate,
   onLogged,
 }: {
   defaultDay: string;
   phase: "before" | "open" | "closed";
+  /* Challenge admin before Sep 1 — the server passes phase="open" for test
+     rows, and the client-side clock check below must not close it again. */
+  earlyAdmin?: boolean;
   simulate?: boolean;
   onLogged?: (entry: { day: string; meters: number; seconds: number }) => void;
 }) {
@@ -164,10 +168,10 @@ export function LogRow({
   // shared constants after mount (SSR and first client render still match).
   const [livePhase, setLivePhase] = useState(phase);
   useEffect(() => {
-    if (simulate) return;
+    if (simulate || earlyAdmin) return;
     const now = nowMs();
     setLivePhase(now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open");
-  }, [phase, simulate]);
+  }, [phase, simulate, earlyAdmin]);
 
   if (livePhase === "before") {
     return (

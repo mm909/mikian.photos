@@ -168,9 +168,10 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <RowBar>
-        <span className="mono tag">ROWER {fmtRowerNumber(p.rowerNumber)}</span>
-      </RowBar>
+      {/* No ROWER-number tag here — with the account chip on the right it
+          crowded the bar on phones; the big number just below says whose
+          page this is. */}
+      <RowBar />
 
       <section>
         <div className="wrap">
@@ -350,11 +351,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
         </section>
       )}
 
-      <RowFooter>
-        <p className="mono">
-          <a href="/row100k">← Back to the board</a>
-        </p>
-      </RowFooter>
+      <RowFooter />
     </div>
   );
 }

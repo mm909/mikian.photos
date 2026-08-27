@@ -1,7 +1,7 @@
-/* The one footer every /row100k page wears (owner call, cycle 2):
- * ROWTEMBER 2026 and the questions line. `children` adds page-specific
- * lines (a back link, etc.) under it. */
-export function RowFooter({ children }: { children?: React.ReactNode }) {
+/* The one footer every /row100k page wears (owner call, cycle 3): the
+ * ROWTEMBER wordmark, the questions line, and the tagline — nothing else,
+ * no page-specific back links. */
+export function RowFooter() {
   return (
     <footer>
       <div className="wrap" style={{ padding: 0 }}>
@@ -16,7 +16,9 @@ export function RowFooter({ children }: { children?: React.ReactNode }) {
             mikianmusser.com
           </a>
         </p>
-        {children}
+        <p className="mono" style={{ marginTop: 18 }}>
+          for yourself and others
+        </p>
       </div>
     </footer>
   );

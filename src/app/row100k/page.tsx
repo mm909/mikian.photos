@@ -306,11 +306,7 @@ export default async function Row100kPage() {
         </div>
       </section>
 
-      <RowFooter>
-        <p className="mono" style={{ marginTop: 18 }}>
-          for yourself and others
-        </p>
-      </RowFooter>
+      <RowFooter />
     </div>
   );
 }
