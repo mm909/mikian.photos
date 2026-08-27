@@ -57,7 +57,7 @@ export default async function RecordRankingPage({
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <RowBar active="stats">
+      <RowBar>
         <span className="mono tag">FULL RANKING</span>
       </RowBar>
 

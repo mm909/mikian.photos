@@ -56,9 +56,10 @@ export function Heatmap({
                     fontSize: 10,
                     fontWeight: 700,
                     lineHeight: 1,
-                    /* b3/b4 cells are deep blue — white holds up; the two
-                     * light buckets read better in ink */
-                    color: b === " b3" || b === " b4" ? "#ffffff" : "var(--ink, #15171a)",
+                    /* Only b4 (#0077B6) is deep enough for white (4.9:1);
+                     * ink wins on every lighter bucket — b3's #4d9fc9 puts
+                     * white at 2.95:1, ink at 6.1:1. */
+                    color: b === " b4" ? "#ffffff" : "var(--ink, #15171a)",
                   }}
                 >
                   {`${Math.max(1, Math.round(m / 1000))}k`}
