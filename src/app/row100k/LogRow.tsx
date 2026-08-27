@@ -13,13 +13,15 @@ import {
   parseDurationText,
 } from "@/lib/row100k";
 
-/* Log-a-row form: day, meters, time, an optional title, and photos — one of
- * you (required, this is an honor-system board and the photo is the honor),
- * one of the erg screen (optional). `defaultDay` comes from the server (today
- * clamped into September) so the SSR and hydrated renders agree. `simulate`
- * (dev preview only) skips the client-side phase re-check AND the whole
- * photo pipeline — no signing, no uploads, no required-photo gate — so the
- * open form can be seen before September. `onLogged` fires after a
+/* Log-a-row form: day, meters, time, an optional title (the server invents
+ * "Rowtember #N" when it's blank), and exactly TWO photos — you and the erg
+ * screen, both required; this is an honor-system board and the photos are the
+ * honor. One upload area takes both (the rower knows what to shoot), and the
+ * server rejects anything but a pair. `defaultDay` comes from the server
+ * (today clamped into September) so the SSR and hydrated renders agree.
+ * `simulate` (dev preview only) skips the client-side phase re-check AND the
+ * whole photo pipeline — no signing, no uploads, no required-photo gate — so
+ * the open form can be seen before September. `onLogged` fires after a
  * successful save — the profile uses it to pop the share menu. */
 
 const MAX_EDGE = 1600;
@@ -58,18 +60,23 @@ async function downscaleToJpeg(file: File): Promise<Blob> {
   }
 }
 
-type SlotId = "you" | "screen";
-type SlotState = {
-  status: "empty" | "uploading" | "ready";
+/* One picked photo, in pick order. `id` is unique per pick and doubles as the
+ * stale-async token: an upload only lands while its id is still in the live
+ * set (remove and unmount both retire ids), so a PUT resolving late is
+ * dropped before it can mint an object URL nobody would revoke. */
+type Shot = {
+  id: number;
+  status: "uploading" | "ready";
   key?: string;
   preview?: string; // object URL for the thumbnail
-  error?: string;
 };
-const EMPTY_SLOT: SlotState = { status: "empty" };
+
+const PHOTO_CAP = 2;
 
 const CANT_READ = "Couldn't read that photo — try a different one.";
 const UPLOAD_FAILED = "Upload failed — check your signal and try again.";
-const YOU_REQUIRED = "Add a photo of yourself with the row — it's required.";
+// Mirrors the server's copy for a non-pair body, so pre-flight and API agree.
+const TWO_REQUIRED = "Two photos required — you and the screen.";
 
 function Spinner() {
   return (
@@ -98,6 +105,23 @@ function Spinner() {
   );
 }
 
+/* Shared look for the photo tiles — thumbnail-height boxes in one flex row so
+ * the pair sits side by side even on a phone. */
+const tileBase = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  minHeight: 120,
+  border: "2px dashed var(--line)",
+  fontFamily: "var(--row-mono),monospace",
+  fontSize: 12,
+  letterSpacing: ".1em",
+  textTransform: "uppercase",
+  textAlign: "center",
+  padding: "12px 10px",
+} as const;
+
 export function LogRow({
   defaultDay,
   phase,
@@ -116,25 +140,24 @@ export function LogRow({
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [slots, setSlots] = useState<Record<SlotId, SlotState>>({
-    you: EMPTY_SLOT,
-    screen: EMPTY_SLOT,
-  });
-  // Stale-async guard: each pick bumps its slot's token; a finished upload
-  // only lands if nothing replaced it in the meantime.
-  const tokens = useRef<Record<SlotId, number>>({ you: 0, screen: 0 });
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  // Set when a pick brought more files than there was room for.
+  const [pickNote, setPickNote] = useState<string | null>(null);
+  const shotSeq = useRef(0);
+  // Ids of shots that are still wanted; async completions check membership.
+  const liveShots = useRef<Set<number>>(new Set());
   // Every live object URL, so unmount can revoke whatever is still around.
   const previews = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const set = previews.current;
-    const t = tokens.current;
+    const urls = previews.current;
+    const ids = liveShots.current;
     return () => {
       // Invalidate in-flight uploads first — a PUT resolving after unmount
       // would otherwise mint a fresh object URL nobody ever revokes.
-      t.you += 1;
-      t.screen += 1;
-      for (const url of set) URL.revokeObjectURL(url);
-      set.clear();
+      ids.clear();
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
     };
   }, []);
   // Server-computed phase goes stale in a long-lived tab; re-derive from the
@@ -163,21 +186,14 @@ export function LogRow({
     previews.current.delete(url);
   };
 
-  const clearSlot = (slot: SlotId) => {
-    tokens.current[slot] += 1;
-    setSlots((s) => {
-      dropPreview(s[slot].preview);
-      return { ...s, [slot]: EMPTY_SLOT };
-    });
-  };
-
-  const pickPhoto = async (slot: SlotId, file: File | null) => {
-    if (!file || simulate) return;
-    const token = ++tokens.current[slot];
-    setSlots((s) => {
-      dropPreview(s[slot].preview);
-      return { ...s, [slot]: { status: "uploading" } };
-    });
+  /* Downscale → sign (with the exact byte count) → PUT → land {key, preview}.
+   * Appends an "uploading" shot immediately so pick order is upload order is
+   * body order. A failed file drops just its own shot and says why; the other
+   * upload, if any, keeps going. */
+  const uploadOne = async (file: File) => {
+    const id = ++shotSeq.current;
+    liveShots.current.add(id);
+    setShots((s) => [...s, { id, status: "uploading" }]);
     let failMsg = UPLOAD_FAILED;
     try {
       let blob: Blob;
@@ -207,15 +223,55 @@ export function LogRow({
         body: blob,
       });
       if (!put.ok) throw new Error(failMsg);
-      if (tokens.current[slot] !== token) return; // replaced/removed mid-flight
+      if (!liveShots.current.has(id)) return; // removed/unmounted mid-flight
       const preview = URL.createObjectURL(blob);
       previews.current.add(preview);
-      setSlots((s) => ({ ...s, [slot]: { status: "ready", key: sign.key, preview } }));
+      setShots((s) =>
+        s.map((e) => (e.id === id ? { id, status: "ready" as const, key: sign.key, preview } : e)),
+      );
     } catch {
-      if (tokens.current[slot] !== token) return;
-      // A failed upload clears the slot and says why, right under it.
-      setSlots((s) => ({ ...s, [slot]: { status: "empty", error: failMsg } }));
+      if (!liveShots.current.has(id)) return;
+      liveShots.current.delete(id);
+      // The failed shot leaves the strip and the reason lands right under it.
+      setShots((s) => s.filter((e) => e.id !== id));
+      setPhotoError(failMsg);
     }
+  };
+
+  const handlePick = (files: File[]) => {
+    if (simulate || files.length === 0) return;
+    setPhotoError(null);
+    setPickNote(null);
+    const room = PHOTO_CAP - shots.length;
+    if (room <= 0) return;
+    const take = files.slice(0, room);
+    if (files.length > take.length) {
+      // More than fits: keep the first ones, in pick order, and say so.
+      setPickNote(
+        room === PHOTO_CAP
+          ? "More than two picked — kept the first two."
+          : "Only room for one more — kept the first.",
+      );
+    }
+    for (const f of take) void uploadOne(f);
+  };
+
+  const removeShot = (id: number) => {
+    const target = shots.find((e) => e.id === id);
+    if (!target) return;
+    liveShots.current.delete(id);
+    dropPreview(target.preview);
+    setShots((s) => s.filter((e) => e.id !== id));
+    setPhotoError(null);
+    setPickNote(null);
+  };
+
+  const clearShots = () => {
+    liveShots.current.clear();
+    for (const e of shots) dropPreview(e.preview);
+    setShots([]);
+    setPhotoError(null);
+    setPickNote(null);
   };
 
   const meters = Math.round(Number(metersText.replace(/[,\s]/g, "")));
@@ -224,7 +280,9 @@ export function LogRow({
     Number.isFinite(meters) && meters >= 200 && seconds
       ? `${fmtSplit(meters, seconds)} /500m average`
       : "";
-  const uploading = slots.you.status === "uploading" || slots.screen.status === "uploading";
+  const uploading = shots.some((e) => e.status === "uploading");
+  // Keys in upload order — this array is the request's `photos` field.
+  const readyKeys = shots.flatMap((e) => (e.status === "ready" && e.key ? [e.key] : []));
 
   const submit = async () => {
     setError(null);
@@ -241,8 +299,8 @@ export function LogRow({
         setError("Hold on — a photo is still uploading.");
         return;
       }
-      if (slots.you.status !== "ready" || !slots.you.key) {
-        setError(YOU_REQUIRED);
+      if (readyKeys.length !== PHOTO_CAP) {
+        setError(TWO_REQUIRED);
         return;
       }
     }
@@ -252,7 +310,7 @@ export function LogRow({
       const body: Record<string, unknown> = { day, meters, seconds };
       if (trimmedTitle) body.title = trimmedTitle;
       if (!simulate) {
-        body.photos = [slots.you.key, slots.screen.key].filter(Boolean);
+        body.photos = readyKeys;
       }
       const res = await fetch("/api/row100k/rows", {
         method: "POST",
@@ -264,8 +322,7 @@ export function LogRow({
         setMetersText("");
         setTimeText("");
         setTitle("");
-        clearSlot("you");
-        clearSlot("screen");
+        clearShots();
         setStatus("sent");
         router.refresh();
         onLogged?.({ day, meters, seconds });
@@ -277,104 +334,6 @@ export function LogRow({
       setError("Something went wrong — try again.");
     }
     setStatus("idle");
-  };
-
-  /* One photo slot: a big tap target (whole box is the label — this gets
-   * used one-handed between the erg and the water fountain), a thumbnail
-   * with a finger-sized remove button once uploaded. */
-  const photoSlot = (slot: SlotId, caption: string, hint: string) => {
-    const s = slots[slot];
-    const inputId = `log-photo-${slot}`;
-    return (
-      <div>
-        <label className="fl" htmlFor={inputId}>
-          {caption}
-        </label>
-        {s.status === "ready" && s.preview ? (
-          <div style={{ position: "relative", border: "2px solid var(--ink)" }}>
-            <img
-              src={s.preview}
-              alt={caption}
-              style={{ display: "block", width: "100%", height: 120, objectFit: "cover" }}
-            />
-            <button
-              type="button"
-              aria-label={`Remove ${caption} photo`}
-              onClick={() => clearSlot(slot)}
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 44,
-                height: 44,
-                border: "none",
-                background: "rgba(21,23,26,.82)",
-                color: "#fff",
-                fontSize: 22,
-                lineHeight: 1,
-                cursor: "pointer",
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ) : (
-          <label
-            htmlFor={inputId}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              minHeight: 88,
-              border: "2px dashed var(--line)",
-              cursor: simulate || s.status === "uploading" ? "default" : "pointer",
-              fontFamily: "var(--row-mono),monospace",
-              fontSize: 12,
-              letterSpacing: ".1em",
-              color: s.status === "uploading" ? "var(--water)" : "var(--gray)",
-              textTransform: "uppercase",
-              textAlign: "center",
-              padding: "12px 10px",
-            }}
-          >
-            {s.status === "uploading" ? (
-              <>
-                <Spinner /> Uploading…
-              </>
-            ) : simulate ? (
-              "Preview — uploads off"
-            ) : (
-              hint
-            )}
-          </label>
-        )}
-        <input
-          id={inputId}
-          type="file"
-          accept="image/*"
-          disabled={Boolean(simulate) || s.status === "uploading"}
-          onChange={(e) => {
-            const file = e.currentTarget.files?.[0] ?? null;
-            e.currentTarget.value = ""; // same file re-pickable after a failure
-            void pickPhoto(slot, file);
-          }}
-          style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            opacity: 0,
-            overflow: "hidden",
-            pointerEvents: "none",
-          }}
-        />
-        {s.error && (
-          <p className="form-err" style={{ marginTop: 8 }}>
-            {s.error}
-          </p>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -430,9 +389,112 @@ export function LogRow({
           />
         </div>
       </div>
-      <div className="grid2">
-        {photoSlot("you", "You — required", "+ Photo of you, mid-row")}
-        {photoSlot("screen", "The screen — optional", "+ Photo of the monitor")}
+      {/* One upload area for the pair. The rower knows the shots: you and the
+        * screen. Tiles fill left to right in pick order; each done photo gets
+        * a finger-sized remove, and removing reopens the add tile. This gets
+        * used one-handed between the erg and the water fountain. */}
+      <div>
+        <label className="fl" htmlFor="log-photos">
+          Photos — 2 required
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          {shots.map((s, i) =>
+            s.status === "ready" && s.preview ? (
+              <div
+                key={s.id}
+                style={{ position: "relative", flex: 1, minWidth: 0, border: "2px solid var(--ink)" }}
+              >
+                <img
+                  src={s.preview}
+                  alt={`Photo ${i + 1} of 2`}
+                  style={{ display: "block", width: "100%", height: 120, objectFit: "cover" }}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove photo ${i + 1}`}
+                  onClick={() => removeShot(s.id)}
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    width: 44,
+                    height: 44,
+                    border: "none",
+                    background: "rgba(21,23,26,.82)",
+                    color: "#fff",
+                    fontSize: 22,
+                    lineHeight: 1,
+                    cursor: "pointer",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <div key={s.id} style={{ ...tileBase, flex: 1, minWidth: 0, color: "var(--water)" }}>
+                <Spinner /> Uploading…
+              </div>
+            ),
+          )}
+          {shots.length < PHOTO_CAP && (
+            <label
+              htmlFor="log-photos"
+              style={{
+                ...tileBase,
+                flex: 1,
+                minWidth: 0,
+                color: "var(--gray)",
+                cursor: simulate ? "default" : "pointer",
+              }}
+            >
+              {simulate
+                ? "Preview — uploads off"
+                : shots.length === 1
+                  ? "1 of 2 — add the other"
+                  : "+ Add 2 photos — you + the screen"}
+            </label>
+          )}
+        </div>
+        <input
+          id="log-photos"
+          type="file"
+          accept="image/*"
+          multiple
+          disabled={Boolean(simulate) || shots.length >= PHOTO_CAP}
+          onChange={(e) => {
+            // Materialize before resetting — clearing value empties the list.
+            const files = Array.from(e.currentTarget.files ?? []);
+            e.currentTarget.value = ""; // same files re-pickable after a failure
+            handlePick(files);
+          }}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            opacity: 0,
+            overflow: "hidden",
+            pointerEvents: "none",
+          }}
+        />
+        {pickNote && (
+          <p
+            style={{
+              marginTop: 8,
+              fontFamily: "var(--row-mono),monospace",
+              fontSize: 12,
+              letterSpacing: ".06em",
+              textTransform: "uppercase",
+              color: "var(--gray)",
+            }}
+          >
+            {pickNote}
+          </p>
+        )}
+        {photoError && (
+          <p className="form-err" style={{ marginTop: 8 }}>
+            {photoError}
+          </p>
+        )}
       </div>
       <p className="split-live">{preview}</p>
       <button className="send" type="submit" disabled={status === "sending" || uploading}>

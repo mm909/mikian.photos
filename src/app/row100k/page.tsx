@@ -12,9 +12,11 @@ import {
   nowMs as clockNow,
   recordPlacements,
   type Division,
+  type RecordBadge,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
-import { BarAccount } from "./BarAccount";
+import { RowBar } from "./RowBar";
+import { RowFooter } from "./RowFooter";
 import { Countdown } from "./Countdown";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard } from "./Dashboard";
@@ -107,12 +109,14 @@ export default async function Row100kPage() {
 
   // Standing + record placements for the signed-in rower's share cards —
   // best-effort off the cached board (fails to undefined, cards just hide).
+  // To #10, so the profile card can headline any top-ten stat; the records
+  // card filters back down to the podium itself.
   let myRank: { place: number; of: number } | null | undefined;
-  let myRecords: { key: string; label: string; place: number }[] | undefined;
+  let myRecords: RecordBadge[] | undefined;
   try {
     if (me) {
       myRank = divisionRank(boards, me.id);
-      myRecords = recordPlacements(boards, me.id);
+      myRecords = recordPlacements(boards, me.id, 10);
     }
   } catch (err) {
     console.error("row100k: failed to compute placements", err);
@@ -122,20 +126,7 @@ export default async function Row100kPage() {
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <div className="bar">
-        <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <a className="mono tag" href="/row100k" style={{ textDecoration: "none" }}>
-            ROW100K
-          </a>
-          <a className="mono back-link" href="/row100k/stats">
-            THE STATS
-          </a>
-          <a className="mono back-link" href="/row100k/feed">
-            THE FEED
-          </a>
-        </span>
-        <BarAccount signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} />
-      </div>
+      <RowBar active="home" />
 
       <header className="hero">
         <div className="wrap" style={{ padding: 0 }}>
@@ -315,22 +306,11 @@ export default async function Row100kPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <div className="big">100K SEPTEMBER — 2026</div>
-          <p className="mono">
-            Questions →{" "}
-            <a href="https://instagram.com/mikian_" target="_blank" rel="noopener noreferrer">
-              @mikian_
-            </a>
-            {" "}·{" "}
-            <a href="/">mikianmusser.com</a>
-          </p>
-          <p className="mono" style={{ marginTop: 18 }}>
-            for yourself and others
-          </p>
-        </div>
-      </footer>
+      <RowFooter>
+        <p className="mono" style={{ marginTop: 18 }}>
+          for yourself and others
+        </p>
+      </RowFooter>
     </div>
   );
 }

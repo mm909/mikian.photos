@@ -249,7 +249,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rec .also b{color:var(--ink-soft);font-weight:400}
 .row100k .rec-empty{font-family:var(--row-mono),monospace;font-size:10px;color:var(--gray);margin-top:8px;line-height:1.7}
 .row100k .rec-open{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;color:var(--water);margin-top:9px;text-transform:uppercase}
-/* Stats page: every record card carries both boards at once. */
+/* Stats page: the total-meters headline card stands alone, full width. */
 .row100k .records.solo{grid-template-columns:1fr}
 .row100k .rec.headline .v{font-size:clamp(28px,7vw,40px)}
 .row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
