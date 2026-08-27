@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev",
     "dev:live": "next dev",
+    "dev:proddb": "node scripts/db-status.mjs --require .env.proddb.local && dotenv -e .env.proddb.local -e .env.local -- next dev",
+    "db:status": "node scripts/db-status.mjs",
     "dev:row100k": "npm run dev",
     "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
@@ -16,6 +18,7 @@
     "prisma:migrate": "dotenv -e .env.local -- prisma migrate deploy",
     "prisma:seed": "dotenv -e .env.local -- prisma db seed",
     "prisma:studio": "dotenv -e .env.local -- prisma studio",
+    "prisma:studio:proddb": "node scripts/db-status.mjs --require .env.proddb.local && dotenv -e .env.proddb.local -e .env.local -- prisma studio",
     "row100k:demo": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts",
     "row100k:demo:clear": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --clear"
   },

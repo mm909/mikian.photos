@@ -575,6 +575,13 @@ model RowEntry {
   meters        Int
   seconds       Int
   note          String   @default("")
+  /// Short session title ("Sunrise 10k before work") — optional, shows on
+  /// the feed and the rower's log.
+  title         String   @default("")
+  /// R2 keys, exactly two at log time: [0] the rower, [1] the erg screen
+  /// (enforced in the rows API, not here — rows created before v2, and
+  /// seeded demo rows, may have fewer).
+  photos        String[] @default([])
   createdAt     DateTime @default(now())
 
   participant RowParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)

@@ -7,6 +7,7 @@ import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
+  isRow100kAdmin,
   nowMs,
   validateEntry,
 } from "@/lib/row100k";
@@ -41,9 +42,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
-  const check = validateEntry(body, nowMs());
+  // Challenge admins may log early (pre-Sep test rows on their own account);
+  // everyone else gets the real window.
+  const check = validateEntry(body, nowMs(), {
+    admin: isRow100kAdmin(actor.email, actor.roles),
+  });
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
+  }
+
+  // Photos: exactly two — the rower and the erg screen.
+  // Keys must sit under this participant's own upload prefix — the sign
+  // route only ever mints keys there, so a forged body can't attach someone
+  // else's upload or point a card at an arbitrary object.
+  const prefix = `row100k/${CHALLENGE}/${participant.id}/`;
+  const rawPhotos = Array.isArray(body.photos) ? body.photos : [];
+  const photos = rawPhotos.filter(
+    (k): k is string =>
+      typeof k === "string" && k.length < 200 && k.startsWith(prefix) && !k.includes(".."),
+  );
+  if (photos.length !== 2 || rawPhotos.length !== 2) {
+    return NextResponse.json(
+      { ok: false, error: "Two photos required — you and the screen." },
+      { status: 400 },
+    );
   }
 
   const limit = await rateLimit({
@@ -78,8 +100,13 @@ export async function POST(req: Request) {
     );
   }
 
+  // No title typed → "Rowtember #7", numbered by how many rows they'll have.
+  const value = check.value.title
+    ? check.value
+    : { ...check.value, title: `Rowtember #${totalCount + 1}` };
+
   const entry = await db.rowEntry.create({
-    data: { challenge: CHALLENGE, participantId: participant.id, ...check.value },
+    data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
   });
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true, id: entry.id });

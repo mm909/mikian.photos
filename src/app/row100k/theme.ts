@@ -249,7 +249,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rec .also b{color:var(--ink-soft);font-weight:400}
 .row100k .rec-empty{font-family:var(--row-mono),monospace;font-size:10px;color:var(--gray);margin-top:8px;line-height:1.7}
 .row100k .rec-open{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;color:var(--water);margin-top:9px;text-transform:uppercase}
-/* Stats page: every record card carries both boards at once. */
+/* Stats page: the total-meters headline card stands alone, full width. */
 .row100k .records.solo{grid-template-columns:1fr}
 .row100k .rec.headline .v{font-size:clamp(28px,7vw,40px)}
 .row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
@@ -318,6 +318,54 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k footer .mono{font-size:11px;color:var(--gray);line-height:1.9}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .row100k footer a:hover{color:var(--water)}
+
+/* ----------------------------------------------------------------------
+ * Tier rarity, record-card links, and tab-chips-as-links (stats rebuild).
+ * The main board is sectioned like item drops: 10K common (muted
+ * gray-green), 50K rare (green), 100K epic (the water blue the 100K CLUB
+ * already wore), 250K legend (gold). The -ink shade of each family carries
+ * text and badges (dark enough to hold contrast on paper); the -pale shade
+ * tints the rows. */
+.row100k{
+  --tier-common-ink:#5d6f5d; --tier-common-pale:#e9ebe3;
+  --tier-rare-ink:#256e45; --tier-rare-pale:#dfeee4;
+  --tier-epic-ink:var(--water); --tier-epic-pale:var(--water-pale);
+  --tier-legend-ink:#8a6508; --tier-legend-pale:#f3ead1;
+}
+/* Badge chip next to names — same voice as .donebadge, colored by rarity. */
+.row100k .tierbadge{display:inline-block;font-size:10px;color:#fff;padding:1px 6px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace;letter-spacing:.04em}
+.row100k .tierbadge.common{background:var(--tier-common-ink)}
+.row100k .tierbadge.rare{background:var(--tier-rare-ink)}
+.row100k .tierbadge.epic{background:var(--tier-epic-ink)}
+.row100k .tierbadge.legend{background:var(--tier-legend-ink)}
+/* Row tint per tier. */
+.row100k tr.tier-common td{background:var(--tier-common-pale)}
+.row100k tr.tier-rare td{background:var(--tier-rare-pale)}
+.row100k tr.tier-epic td{background:var(--tier-epic-pale)}
+.row100k tr.tier-legend td{background:var(--tier-legend-pale)}
+/* Section headers pick up their tier color; a locked tier goes quiet. */
+.row100k tr.divrow.common td{color:var(--tier-common-ink)}
+.row100k tr.divrow.rare td{color:var(--tier-rare-ink)}
+.row100k tr.divrow.epic td{color:var(--tier-epic-ink)}
+.row100k tr.divrow.legend td{color:var(--tier-legend-ink)}
+.row100k tr.divrow.locked td{color:var(--gray)}
+.row100k tr.lockrow td{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;color:var(--gray);padding:14px 6px;border-bottom:1px dashed var(--line)}
+/* Record cards are links now (each opens its full-ranking page): same box
+ * as button.rec, pointer, and the pressed shadow moves to hover. */
+.row100k a.rec{text-decoration:none;cursor:pointer}
+.row100k a.rec:hover{border-color:var(--water);box-shadow:4px 4px 0 var(--water)}
+.row100k .rec .also div+div{margin-top:1px}
+/* Tab chips as plain links (record switcher + division links on /records)
+ * — mirror of .tabs button so server pages need no client state. */
+.row100k .tabs a{display:inline-block;background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;text-decoration:none}
+.row100k .tabs a.on{background:var(--ink);color:var(--paper)}
+.row100k .tabs a:hover:not(.on){border-color:var(--water);color:var(--water)}
+
+/* ----------------------------------------------------------------------
+ * Cycle-2 polish, stats page (track B). The weekly board shows only the
+ * top 10; a signed-in rower sitting deeper gets their neighborhood after
+ * this gap row (their own row reuses the tr.fin tint). */
+.row100k tr.gaprow td{padding:6px;border-bottom:1px dashed var(--line);color:var(--gray);text-align:center;font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.3em}
 
 /* Stay light in dark mode, but take the glare off (same as /lasd26). */
 @media (prefers-color-scheme: dark){

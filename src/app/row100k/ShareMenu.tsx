@@ -212,8 +212,6 @@ export function ShareDialog({
               <canvas ref={canvasRef} className="share-canvas" />
             </div>
 
-            <p className="share-note mono">TRANSPARENT PNG · {card.blurb.toUpperCase()}</p>
-
             <div className="share-actions">
               {canShareFiles && (
                 <button type="button" className="share-btn primary" onClick={onShare}>
