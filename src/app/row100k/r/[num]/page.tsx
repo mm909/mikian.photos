@@ -131,10 +131,13 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const todayUTC = new Date(now).toISOString().slice(0, 10);
   const defaultDay = todayUTC < FIRST_DAY ? FIRST_DAY : todayUTC > LAST_DAY ? LAST_DAY : todayUTC;
 
-  const bests: { label: string; value: string; sub: string }[] = [
+  // Each best knows its record-board key so it can wear the rower's division
+  // ranking (top 10 only — that's as deep as `records` goes) as a chip.
+  const bests: { key: string; label: string; value: string; sub: string }[] = [
     ...([5000, 10000] as const).map((d) => {
       const r = b.fastest[d][0];
       return {
+        key: `fastest${d}`,
         label: `Fastest ${d / 1000}k`,
         value: r ? fmtRecordTime(r.value) : "—",
         sub: r
@@ -145,11 +148,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       };
     }),
     {
+      key: "longest",
       label: "Longest row",
       value: b.longest[0] ? fmtMeters(b.longest[0].value) : "—",
       sub: b.longest[0] ? fmtDay(b.longest[0].day) : "not yet rowed",
     },
+    {
+      key: "bigday",
+      label: "Biggest day",
+      value: b.bigDay[0] ? fmtMeters(b.bigDay[0].value) : "—",
+      sub: b.bigDay[0] ? fmtDay(b.bigDay[0].day) : "not yet rowed",
+    },
   ];
+  const placeOf = (key: string) => records?.find((r) => r.key === key)?.place;
 
   const rows = entries.slice().reverse();
 
@@ -157,17 +168,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <div className="bar">
-        <span style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <a className="mono back-link" href="/row100k">
-            ← 100K SEPTEMBER
-          </a>
-          <a className="mono back-link" href="/row100k/stats">
-            THE STATS
-          </a>
-        </span>
+      <RowBar>
         <span className="mono tag">ROWER {fmtRowerNumber(p.rowerNumber)}</span>
-      </div>
+      </RowBar>
 
       <section>
         <div className="wrap">
@@ -227,13 +230,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             <span className="mono">PERSONAL — THIS SEPTEMBER</span>
           </div>
           <div className="records vol" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            {bests.map((r) => (
-              <div className="rec" key={r.label}>
-                <div className="t">{r.label}</div>
-                <div className="v">{r.value}</div>
-                <div className="meta">{r.sub}</div>
-              </div>
-            ))}
+            {bests.map((r) => {
+              const place = placeOf(r.key);
+              return (
+                <div className="rec" key={r.key}>
+                  <div className="t">
+                    {r.label}
+                    {place ? <span className="dtag">#{place}</span> : null}
+                  </div>
+                  <div className="v">{r.value}</div>
+                  <div className="meta">{r.sub}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -333,14 +342,11 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
         </section>
       )}
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <div className="big">100K SEPTEMBER — 2026</div>
-          <p className="mono">
-            <a href="/row100k">← Back to the board</a>
-          </p>
-        </div>
-      </footer>
+      <RowFooter>
+        <p className="mono">
+          <a href="/row100k">← Back to the board</a>
+        </p>
+      </RowFooter>
     </div>
   );
 }

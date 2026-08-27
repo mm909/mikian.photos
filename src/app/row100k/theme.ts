@@ -361,6 +361,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tabs a.on{background:var(--ink);color:var(--paper)}
 .row100k .tabs a:hover:not(.on){border-color:var(--water);color:var(--water)}
 
+/* ----------------------------------------------------------------------
+ * Cycle-2 polish, stats page (track B). The weekly board shows only the
+ * top 10; a signed-in rower sitting deeper gets their neighborhood after
+ * this gap row (their own row reuses the tr.fin tint). */
+.row100k tr.gaprow td{padding:6px;border-bottom:1px dashed var(--line);color:var(--gray);text-align:center;font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.3em}
+
 /* Stay light in dark mode, but take the glare off (same as /lasd26). */
 @media (prefers-color-scheme: dark){
   .row100k{--paper:#E9E7DF}

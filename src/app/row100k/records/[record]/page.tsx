@@ -142,14 +142,11 @@ export default async function RecordRankingPage({
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <div className="big">100K SEPTEMBER — 2026</div>
-          <p className="mono">
-            <a href="/row100k/stats">← Back to the records</a>
-          </p>
-        </div>
-      </footer>
+      <RowFooter>
+        <p className="mono">
+          <a href="/row100k/stats">← Back to the records</a>
+        </p>
+      </RowFooter>
     </div>
   );
 }
