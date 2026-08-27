@@ -122,14 +122,30 @@ const tileBase = {
   padding: "12px 10px",
 } as const;
 
+/* The time field keeps the phone's digit pad (no colon key on iOS), so colons
+ * are inserted for you, anchored on the right like a stopwatch: 2500 reads as
+ * 25:00, 10215 as 1:02:15. A value the user punctuated themselves (a pasted
+ * "20:41.3") is left exactly as typed. */
+function formatTimeDigits(raw: string): string {
+  if (/[.]/.test(raw)) return raw;
+  const d = raw.replace(/\D/g, "").slice(0, 6);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, -2)}:${d.slice(-2)}`;
+  return `${d.slice(0, -4)}:${d.slice(-4, -2)}:${d.slice(-2)}`;
+}
+
 export function LogRow({
   defaultDay,
+  defaultTitle,
   phase,
   earlyAdmin,
   simulate,
   onLogged,
 }: {
   defaultDay: string;
+  /* "Rowtember #4" — prefilled so the field is never blank; the rower can
+     overwrite it. Recomputed server-side after each log lands. */
+  defaultTitle?: string;
   phase: "before" | "open" | "closed";
   /* Challenge admin before Sep 1 — the server passes phase="open" for test
      rows, and the client-side clock check below must not close it again. */
@@ -141,7 +157,12 @@ export function LogRow({
   const [day, setDay] = useState(defaultDay);
   const [metersText, setMetersText] = useState("");
   const [timeText, setTimeText] = useState("");
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(defaultTitle ?? "");
+  // When a log lands the server recomputes the default ("Rowtember #5") —
+  // adopt it unless the rower typed their own title over the prefill.
+  useEffect(() => {
+    setTitle((t) => (t === "" || /^Rowtember #\d+$/.test(t) ? (defaultTitle ?? "") : t));
+  }, [defaultTitle]);
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
@@ -376,9 +397,9 @@ export function LogRow({
             id="log-time"
             type="text"
             inputMode="numeric"
-            placeholder="20:41 or 1:02:15"
+            placeholder="2500 → 25:00"
             value={timeText}
-            onChange={(e) => setTimeText(e.target.value)}
+            onChange={(e) => setTimeText(formatTimeDigits(e.target.value))}
           />
         </div>
         <div>
@@ -387,7 +408,7 @@ export function LogRow({
             id="log-title"
             type="text"
             maxLength={TITLE_MAX}
-            placeholder="Title it — “Sunrise 10k” (optional)"
+            placeholder="Title it — “Sunrise 10k”"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
