@@ -33,6 +33,7 @@ import { AdminShare } from "../../AdminShare";
 import { BestsGrid, type Best } from "../../BestsGrid";
 import { LogPanel } from "../../LogPanel";
 import { ProfileLog } from "../../ProfileLog";
+import { ProfileShare } from "../../ProfileShare";
 import { resolvePhotoUrls } from "../../photoUrls";
 import { RemoveRower } from "../../RemoveRower";
 import { RowBar } from "../../RowBar";
@@ -208,6 +209,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
                   @{p.instagram}
                 </a>
               </p>
+              {(isMe || isAdmin) && <ProfileShare data={shareData} />}
             </div>
             <span className="mono" style={{ fontSize: 11, letterSpacing: ".12em", color: "var(--gray)" }}>
               {p.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD"}
