@@ -32,6 +32,8 @@ import { Heatmap } from "../../Heatmap";
 import { AdminShare } from "../../AdminShare";
 import { BestsGrid, type Best } from "../../BestsGrid";
 import { LogPanel } from "../../LogPanel";
+import { RowPhotoThumbs } from "../../MyRows";
+import { resolvePhotoUrls } from "../../photoUrls";
 import { RemoveRower } from "../../RemoveRower";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -49,7 +51,15 @@ const getRower = cache(async (num: number) => {
   if (!participant) return null;
   const entries = await db.rowEntry.findMany({
     where: { participantId: participant.id },
-    select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true },
+    select: {
+      id: true,
+      participantId: true,
+      day: true,
+      meters: true,
+      seconds: true,
+      title: true,
+      photos: true,
+    },
     orderBy: [{ day: "asc" }, { createdAt: "asc" }],
   });
   return { participant, entries };
@@ -164,7 +174,12 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;
   const bestsWithPlace: Best[] = bests.map((r) => ({ ...r, place: placeOf(r.key) }));
 
-  const rows = entries.slice().reverse();
+  // The log shows each row's photo pair — for everyone (the photos are the
+  // honor system), and as the "current" pair in the owner/admin editor.
+  const photoUrlLists = await Promise.all(entries.map((e) => resolvePhotoUrls(e.photos)));
+  const rows = entries
+    .map((e, i) => ({ ...e, photoUrls: photoUrlLists[i] }))
+    .reverse();
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -297,6 +312,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
                               {r.title}
                             </div>
                           ) : null}
+                          <RowPhotoThumbs urls={r.photoUrls} />
                         </td>
                         <td className="num">{fmtMeters(r.meters)}</td>
                         <td className="num">{fmtDuration(r.seconds)}</td>

@@ -86,8 +86,11 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
   };
 }
 
-/* Fix a mistake: day, meters and time are replaceable; the same validation
- * as logging applies, so an edit can't sneak in what a log couldn't. */
+/* Fix a mistake: day, meters, time, the title, and the photo pair are all
+ * replaceable; the same validation as logging applies, so an edit can't
+ * sneak in what a log couldn't. A blank title leaves the stored one alone
+ * (rows always carry one — POST defaults it), and an absent `photos` keeps
+ * the current pair; a present one must be a full pair, same as logging. */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const guarded = await guard(params.id, "edit");
   if (!guarded.ok) return guarded.res;
@@ -97,6 +100,31 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     body = (await req.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
+  }
+
+  // Replacement photos must sit under an upload prefix the editor could
+  // legitimately have signed: the row owner's own prefix, or — for challenge
+  // admins fixing someone else's row — any prefix inside this challenge
+  // (admins upload under their own participant id). Mirrors the POST rule.
+  let photos: string[] | undefined;
+  if (body.photos !== undefined) {
+    const ownPrefix = `row100k/${CHALLENGE}/${guarded.participantId}/`;
+    const anyPrefix = `row100k/${CHALLENGE}/`;
+    const rawPhotos = Array.isArray(body.photos) ? body.photos : [];
+    const valid = rawPhotos.filter(
+      (k): k is string =>
+        typeof k === "string" &&
+        k.length < 200 &&
+        !k.includes("..") &&
+        (k.startsWith(ownPrefix) || (guarded.isOwner && k.startsWith(anyPrefix))),
+    );
+    if (valid.length !== 2 || rawPhotos.length !== 2) {
+      return NextResponse.json(
+        { ok: false, error: "Two photos required — you and the screen." },
+        { status: 400 },
+      );
+    }
+    photos = valid;
   }
 
   // The guard already decided who may edit after close (the owner, for
@@ -123,7 +151,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   // updateMany so a concurrent delete is a no-op, not a P2025 throw. The
-  // note (a retired field) rides along unchanged on old rows.
+  // note (a retired field) rides along unchanged on old rows. Replaced
+  // photos leave their old R2 objects orphaned — same as a deleted row;
+  // storage housekeeping, not correctness.
   await db.rowEntry.updateMany({
     where: { id: guarded.entryId },
     data: {
@@ -131,6 +161,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       meters: check.value.meters,
       seconds: check.value.seconds,
       note: guarded.note,
+      ...(check.value.title ? { title: check.value.title } : {}),
+      ...(photos ? { photos } : {}),
     },
   });
   revalidateTag("row100k-boards");
