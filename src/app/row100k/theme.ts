@@ -222,6 +222,18 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k table.board .who{font-family:var(--row-archivo),sans-serif;font-weight:700}
 .row100k table.board .who a{text-decoration:none}
 .row100k table.board .who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .outline-btn{background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
+.row100k .outline-btn:hover{border-color:var(--water);color:var(--water)}
+.row100k .plog-card{border:2px solid var(--ink);padding:16px 16px 15px;margin-bottom:14px}
+.row100k .plog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);letter-spacing:.08em}
+.row100k .plog-title{margin:6px 0 0;font-weight:700;font-size:16px;line-height:1.35}
+.row100k .plog-nums{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:8px}
+.row100k .plog-m{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(22px,5vw,30px);line-height:1;color:var(--water);font-variant-numeric:tabular-nums}
+.row100k .plog-time{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(15px,3.5vw,19px);line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.row100k .plog-photos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.row100k .plog-photos.one{grid-template-columns:1fr}
+.row100k .plog-photos img{display:block;width:100%;max-width:100%;height:auto;border:6px solid var(--frame);background:var(--frame)}
+.row100k .plog-nopics{margin-top:10px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 .row100k .dtag{display:inline-block;font-size:10px;border:1px solid var(--gray);color:var(--gray);padding:0 5px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace}
 .row100k .dtag.m1{background:#D4AF37;border-color:#a8871e;color:#3a2c04}
 .row100k .dtag.m2{background:#C0C0C0;border-color:#999;color:#2c3033}
