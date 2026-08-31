@@ -32,7 +32,8 @@ import { Heatmap } from "../../Heatmap";
 import { AdminShare } from "../../AdminShare";
 import { BestsGrid, type Best } from "../../BestsGrid";
 import { LogPanel } from "../../LogPanel";
-import { RowPhotoThumbs } from "../../MyRows";
+import { ProfileLog } from "../../ProfileLog";
+import { ProfileShare } from "../../ProfileShare";
 import { resolvePhotoUrls } from "../../photoUrls";
 import { RemoveRower } from "../../RemoveRower";
 import { RowBar } from "../../RowBar";
@@ -208,6 +209,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
                   @{p.instagram}
                 </a>
               </p>
+              {(isMe || isAdmin) && <ProfileShare data={shareData} />}
             </div>
             <span className="mono" style={{ fontSize: 11, letterSpacing: ".12em", color: "var(--gray)" }}>
               {p.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD"}
@@ -289,41 +291,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             {rows.length === 0 ? (
               <p className="board-empty">NOTHING LOGGED YET.</p>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table className="board">
-                  <thead>
-                    <tr>
-                      <th>Day</th>
-                      <th style={{ textAlign: "right" }}>Meters</th>
-                      <th style={{ textAlign: "right" }}>Time</th>
-                      <th style={{ textAlign: "right" }}>/500m</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.id}>
-                        <td>
-                          {fmtDay(r.day)}
-                          {r.title ? (
-                            <div
-                              className="mono"
-                              style={{ fontSize: 11, color: "var(--gray)", marginTop: 2 }}
-                            >
-                              {r.title}
-                            </div>
-                          ) : null}
-                          <RowPhotoThumbs urls={r.photoUrls} />
-                        </td>
-                        <td className="num">{fmtMeters(r.meters)}</td>
-                        <td className="num">{fmtDuration(r.seconds)}</td>
-                        <td className="num" style={{ color: "var(--gray)" }}>
-                          {fmtSplit(r.meters, r.seconds)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              /* Two views: the clean numbers table (untouched, owner call)
+                 and a photos view with the pair each session posted. */
+              <ProfileLog
+                rows={rows.map((r) => ({
+                  id: r.id,
+                  dayStr: fmtDay(r.day),
+                  title: r.title,
+                  metersStr: fmtMeters(r.meters),
+                  durationStr: fmtDuration(r.seconds),
+                  splitStr: fmtSplit(r.meters, r.seconds),
+                  photoUrls: r.photoUrls,
+                }))}
+              />
             )}
           </div>
         </section>
