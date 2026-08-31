@@ -22,7 +22,7 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
 
   return (
     <>
-      <nav className="tabs" aria-label="Log view">
+      <div className="tabs" role="group" aria-label="Log view">
         {(["table", "photos"] as const).map((v) => (
           <button
             key={v}
@@ -34,7 +34,7 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
             {v.toUpperCase()}
           </button>
         ))}
-      </nav>
+      </div>
 
       {view === "table" ? (
         <div style={{ overflowX: "auto" }}>
@@ -89,9 +89,11 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
                   {r.photoUrls.map((url, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      key={i}
+                      // Demo color squares can repeat a URL within a pair, so
+                      // the index still rides along for uniqueness.
+                      key={`${url}#${i}`}
                       src={url}
-                      alt={i === 0 ? "The rower" : "The erg screen"}
+                      alt={`${r.dayStr}${r.title ? ` — ${r.title}` : ""} · ${i === 0 ? "the rower" : "the erg screen"}`}
                       loading="lazy"
                     />
                   ))}

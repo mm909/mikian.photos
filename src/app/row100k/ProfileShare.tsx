@@ -14,20 +14,11 @@ export function ProfileShare({ data }: { data: ShareData }) {
     <>
       <button
         type="button"
+        className="outline-btn"
+        style={{ marginTop: 12 }}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen(true)}
-        style={{
-          marginTop: 12,
-          background: "transparent",
-          border: "2px solid var(--ink)",
-          color: "var(--ink)",
-          fontFamily: "var(--row-mono),monospace",
-          fontSize: 12,
-          fontWeight: 700,
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-          padding: "8px 16px",
-          cursor: "pointer",
-        }}
       >
         Shareables
       </button>

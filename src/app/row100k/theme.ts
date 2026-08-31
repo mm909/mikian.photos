@@ -222,9 +222,11 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k table.board .who{font-family:var(--row-archivo),sans-serif;font-weight:700}
 .row100k table.board .who a{text-decoration:none}
 .row100k table.board .who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .outline-btn{background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
+.row100k .outline-btn:hover{border-color:var(--water);color:var(--water)}
 .row100k .plog-card{border:2px solid var(--ink);padding:16px 16px 15px;margin-bottom:14px}
 .row100k .plog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);letter-spacing:.08em}
-.row100k .plog-title{margin-top:6px;font-weight:700;font-size:16px;line-height:1.35}
+.row100k .plog-title{margin:6px 0 0;font-weight:700;font-size:16px;line-height:1.35}
 .row100k .plog-nums{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:8px}
 .row100k .plog-m{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(22px,5vw,30px);line-height:1;color:var(--water);font-variant-numeric:tabular-nums}
 .row100k .plog-time{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(15px,3.5vw,19px);line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
