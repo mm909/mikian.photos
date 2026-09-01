@@ -6,6 +6,7 @@ import {
   FIRST_DAY,
   START_MS,
   WEEKS,
+  computeDaily,
   computeWeekly,
   nowMs as clockNow,
   weekIndexOf,
@@ -41,6 +42,7 @@ export default async function StatsPage() {
   /* The weekly boards need per-entry data that boardData() doesn't carry,
    * so this page pulls the raw rows itself (same selects as boardData). */
   let weekly: WeeklyRow[][] = WEEKS.map(() => []);
+  let daily: WeeklyRow[][] = Array.from({ length: 30 }, () => []);
   try {
     const [participants, entries] = await Promise.all([
       db.rowParticipant.findMany({
@@ -55,6 +57,7 @@ export default async function StatsPage() {
       }),
     ]);
     weekly = computeWeekly(participants, entries);
+    daily = computeDaily(participants, entries);
   } catch (err) {
     console.error("row100k/stats: failed to load weekly data", err);
   }
@@ -84,6 +87,14 @@ export default async function StatsPage() {
   const wi = weekIndexOf(today);
   const defaultWeek = wi >= 0 ? wi : today < FIRST_DAY ? 0 : WEEKS.length - 1;
 
+  /* The daily board defaults to today, clamped into September. */
+  const defaultDay =
+    today < FIRST_DAY
+      ? 0
+      : today.slice(0, 7) === FIRST_DAY.slice(0, 7)
+        ? Number(today.slice(8, 10)) - 1
+        : 29;
+
   // The curve carries cumulative meters; the calendar wants per-day totals.
   const communityByDay: Record<string, number> = {};
   let prev = 0;
@@ -111,7 +122,9 @@ export default async function StatsPage() {
           <StatsBoards
             boards={boards}
             weekly={weekly}
+            daily={daily}
             defaultWeek={defaultWeek}
+            defaultDay={defaultDay}
             started={started}
             meId={meId}
           />
