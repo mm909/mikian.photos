@@ -186,7 +186,7 @@ export default async function Row100kPage() {
           <div className="ph">
             <img
               src={PHOTOS.hero}
-              alt="Runner passing a cream and teal brick mural"
+              alt="Rower mid-drive on the erg, motion-blurred under a honeycomb ceiling"
               width={1400}
               height={1750}
             />
