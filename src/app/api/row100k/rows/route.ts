@@ -126,23 +126,27 @@ export async function POST(req: Request) {
       _count: true,
     });
     const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://mikianmusser.com").replace(/\/$/, "");
-    const who = `${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName}`;
+    const total = fmtMeters(totals._sum.meters ?? value.meters);
+    // Subject deliberately parallels the join route's "Rowtember signup — …"
+    // so rows and signups sort apart at a glance in the same inbox.
     await sendOwnerNotification(
-      `Rowtember — ${participant.displayName} logged ${fmtMeters(value.meters)} (total ${fmtMeters(totals._sum.meters ?? value.meters)})`,
+      `Rowtember row — ${fmtRowerNumber(participant.rowerNumber)} ${participant.displayName} · ${fmtMeters(value.meters)} (total ${total})`,
       [
-        `${who} logged a row.`,
+        `Rower ${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName} logged a row.`,
         ``,
         `This row:  ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
         `Day:       ${value.day}`,
         `Title:     ${value.title}`,
-        `New total: ${fmtMeters(totals._sum.meters ?? value.meters)} across ${totals._count} sessions`,
+        `New total: ${total} across ${totals._count} sessions`,
         ``,
         `Their page: ${base}/row100k/r/${participant.rowerNumber}`,
         `The feed:   ${base}/row100k/feed`,
         `The stats:  ${base}/row100k/stats`,
       ].join("\n"),
       undefined,
-      process.env.ROW100K_NOTIFY_EMAIL || "mikianmusser@gmail.com",
+      // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
+      // unless explicitly rerouted.
+      process.env.ROW100K_NOTIFY_EMAIL || undefined,
     );
   } catch (err) {
     console.error("row100k: row-logged notification failed", err);
