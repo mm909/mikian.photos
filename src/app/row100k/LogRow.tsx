@@ -58,7 +58,7 @@ export function LogRow({
      rows, and the client-side clock check below must not close it again. */
   earlyAdmin?: boolean;
   simulate?: boolean;
-  onLogged?: (entry: { day: string; meters: number; seconds: number }) => void;
+  onLogged?: (entry: { day: string; meters: number; seconds: number; title?: string }) => void;
 }) {
   const router = useRouter();
   const [day, setDay] = useState(defaultDay);
@@ -145,7 +145,9 @@ export function LogRow({
         photos.clear();
         setStatus("sent");
         router.refresh();
-        onLogged?.({ day, meters, seconds });
+        // The just-logged share card wants the title; a blank field means the
+        // server stored the prefilled default, which is what defaultTitle is.
+        onLogged?.({ day, meters, seconds, title: trimmedTitle || defaultTitle });
         setTimeout(() => setStatus("idle"), 4000);
         return;
       }

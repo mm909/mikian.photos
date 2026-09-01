@@ -1,4 +1,4 @@
-import { fmtDuration, fmtMeters, fmtRowerNumber, type RecordBadge } from "@/lib/row100k";
+import { fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, type RecordBadge } from "@/lib/row100k";
 
 /* Shareable cards for /row100k — the images themselves.
  *
@@ -25,7 +25,7 @@ export type ShareData = {
   byDay: Record<string, number>;
   /* One highlighted session — set when sharing straight from a logged row;
    * unlocks the single-row card. */
-  row?: { day: string; meters: number; seconds: number } | null;
+  row?: { day: string; meters: number; seconds: number; title?: string } | null;
   /* "M" | "F" — unlocks the profile card's board tag. */
   division?: string;
   /* Longest single row, meters. */
@@ -715,6 +715,81 @@ const rowtemberCurve: ShareCard = {
   },
 };
 
+/* The full row: bib + name, the row's title, its meters, its time and its
+ * pace — everything about one session on one sticker (owner call, launch
+ * day). Only in the menu when the dialog was opened from a specific row. */
+const rowtemberRowFull: ShareCard = {
+  id: "rowtember-row-full",
+  label: "Row + name",
+  width: 1080,
+  height: 760,
+  light: true,
+  available: (d) => !!d.row,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    const row = data.row;
+    if (!row) return;
+
+    ctx.save();
+    ctx.font = `48px ${fonts.black}`;
+    const whoText = ellipsize(
+      ctx,
+      `${String(data.rowerNumber).padStart(3, "0")} ${data.displayName.toUpperCase()}`,
+      this.width - 120,
+    );
+    ctx.restore();
+    drawCenteredText(ctx, whoText, {
+      cx,
+      baseline: 104,
+      font: `48px ${fonts.black}`,
+      color: "#ffffff",
+    });
+
+    if (row.title) {
+      ctx.save();
+      ctx.font = `38px ${fonts.mono}`;
+      const titleText = ellipsize(ctx, row.title.toUpperCase(), this.width - 140);
+      ctx.restore();
+      drawCenteredText(ctx, titleText, {
+        cx,
+        baseline: 172,
+        font: `38px ${fonts.mono}`,
+        color: "rgba(255,255,255,0.85)",
+      });
+    }
+
+    drawCenteredText(ctx, row.meters.toLocaleString("en-US"), {
+      cx,
+      baseline: 390,
+      font: `180px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 100,
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: 448,
+      font: `30px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 9,
+    });
+
+    drawCenteredText(ctx, `${fmtDuration(row.seconds)} · ${fmtSplit(row.meters, row.seconds)} /500M`, {
+      cx,
+      baseline: 528,
+      font: `46px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
+    });
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 645,
+      size: 96,
+      fontFamily: fonts.black,
+    });
+  },
+};
+
 /* The named total: bib number + name + the meters, one sticker (owner call,
  * launch day — the plain total card forced typing the name into the story
  * by hand). No @ handle. Same shrink-to-fit meters+place line as the total
@@ -867,6 +942,7 @@ const rowtemberLogo: ShareCard = {
 
 export const CARDS: ShareCard[] = [
   rowtemberRow,
+  rowtemberRowFull,
   rowtemberBest,
   rowtemberTotal,
   rowtemberNamed,
