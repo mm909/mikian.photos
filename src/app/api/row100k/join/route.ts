@@ -13,6 +13,7 @@ import {
   parseDisplayName,
   parseDivision,
   parseInstagram,
+  parseShirtSize,
 } from "@/lib/row100k";
 
 export const runtime = "nodejs";
@@ -36,7 +37,12 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { displayName?: unknown; instagram?: unknown; division?: unknown };
+  let body: {
+    displayName?: unknown;
+    instagram?: unknown;
+    division?: unknown;
+    shirtSize?: unknown;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -64,6 +70,11 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  // Optional — "" means still unset; only a known size is stored.
+  const shirtSize = parseShirtSize(body.shirtSize);
+  if (shirtSize === null) {
+    return NextResponse.json({ ok: false, error: "That's not a shirt size we print." }, { status: 400 });
+  }
 
   const limit = await rateLimit({
     key: `row100k-join:${actor.photographerId}`,
@@ -87,7 +98,14 @@ export async function POST(req: Request) {
     if (existing) {
       await db.rowParticipant.update({
         where: { id: existing.id },
-        data: { displayName, instagram, division },
+        // Only touch the stored size when the form actually sent the field —
+        // a signup-shaped POST from an already-joined account must not wipe it.
+        data: {
+          displayName,
+          instagram,
+          division,
+          ...(body.shirtSize !== undefined ? { shirtSize } : {}),
+        },
       });
       revalidateTag("row100k-boards");
       return NextResponse.json({ ok: true, rowerNumber: existing.rowerNumber, updated: true });

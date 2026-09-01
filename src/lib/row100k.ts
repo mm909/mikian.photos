@@ -105,6 +105,16 @@ export function parseDivision(v: unknown): Division | null {
   return v === "M" || v === "F" ? v : null;
 }
 
+/* Shirt sizes for the eventual merch run — blank means "not picked yet". */
+export const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"] as const;
+export type ShirtSize = (typeof SHIRT_SIZES)[number];
+
+/* "" (still unset) and the known sizes pass; anything else is null. */
+export function parseShirtSize(v: unknown): string | null {
+  if (v === undefined || v === "") return "";
+  return typeof v === "string" && (SHIRT_SIZES as readonly string[]).includes(v) ? v : null;
+}
+
 export function parseDisplayName(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const name = v.replace(/\s+/g, " ").trim().slice(0, 40);

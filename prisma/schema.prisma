@@ -554,6 +554,8 @@ model RowParticipant {
   instagram   String   @default("")
   /// Leaderboard division: "M" | "F" | "X" (X = overall boards only).
   division    String   @default("X")
+  /// Shirt size ("XS".."3XL"), blank until the rower picks one in Settings.
+  shirtSize   String   @default("")
   createdAt   DateTime @default(now())
 
   entries RowEntry[]

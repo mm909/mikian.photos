@@ -47,7 +47,14 @@ export const dynamic = "force-dynamic";
 const getRower = cache(async (num: number) => {
   const participant = await db.rowParticipant.findUnique({
     where: { challenge_rowerNumber: { challenge: CHALLENGE, rowerNumber: num } },
-    select: { id: true, rowerNumber: true, displayName: true, instagram: true, division: true },
+    select: {
+      id: true,
+      rowerNumber: true,
+      displayName: true,
+      instagram: true,
+      division: true,
+      shirtSize: true,
+    },
   });
   if (!participant) return null;
   const entries = await db.rowEntry.findMany({
@@ -319,6 +326,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
               name={p.displayName}
               instagram={p.instagram}
               division={p.division as Division}
+              shirtSize={p.shirtSize}
             />
           </div>
         </section>

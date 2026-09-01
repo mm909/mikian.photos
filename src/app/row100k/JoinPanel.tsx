@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import type { Division } from "@/lib/row100k";
+import { SHIRT_SIZES, type Division } from "@/lib/row100k";
 
 const DIVISIONS: { value: Division; label: string }[] = [
   { value: "M", label: "MEN'S BOARD" },
@@ -21,6 +21,9 @@ export function JoinPanel(props: {
   initialName?: string;
   initialInstagram?: string;
   initialDivision?: Division | null;
+  /* "" until the rower picks one; the field only renders in Settings
+     (joined), where a blank size gets the highlighted callout. */
+  initialShirtSize?: string;
   onSaved?: (values: { displayName: string; instagram: string; division: Division }) => void;
   /* Dev preview only: skip the network — validate locally, then hand the
    * values to onSaved as if the join succeeded. */
@@ -30,6 +33,10 @@ export function JoinPanel(props: {
   const [name, setName] = useState(props.initialName ?? "");
   const [instagram, setInstagram] = useState(props.initialInstagram ?? "");
   const [division, setDivision] = useState<Division | null>(props.initialDivision ?? null);
+  const [shirtSize, setShirtSize] = useState(props.initialShirtSize ?? "");
+  // The callout stays lit until a size has been SAVED — picking one in the
+  // form previews the choice but the nudge only retires on the next render.
+  const shirtUnset = !props.initialShirtSize;
   const [status, setStatus] = useState<"idle" | "sending" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +81,14 @@ export function JoinPanel(props: {
       const res = await fetch("/api/row100k/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: values.displayName, instagram: values.instagram, division }),
+        body: JSON.stringify({
+          displayName: values.displayName,
+          instagram: values.instagram,
+          division,
+          // Settings only — the signup form never sends the field, so it
+          // can't clear a stored size.
+          ...(props.joined ? { shirtSize } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
@@ -153,6 +167,40 @@ export function JoinPanel(props: {
           </label>
         ))}
       </div>
+      {props.joined && (
+        <>
+          <label className="fl">
+            {shirtUnset ? (
+              /* The nudge: the words themselves get the water-blue stamp
+                 until a size is saved. */
+              <span
+                style={{
+                  background: "var(--water)",
+                  color: "#fff",
+                  padding: "3px 8px",
+                }}
+              >
+                Shirt size — pick yours
+              </span>
+            ) : (
+              "Shirt size"
+            )}
+          </label>
+          <div className="pills" role="radiogroup" aria-label="Shirt size">
+            {SHIRT_SIZES.map((s) => (
+              <label className="pill" key={s}>
+                <input
+                  type="radio"
+                  name="shirtSize"
+                  checked={shirtSize === s}
+                  onChange={() => setShirtSize(s)}
+                />
+                <span>{s}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
       <button className="send" type="submit" disabled={status === "sending"}>
         {status === "sending" ? "…" : props.joined ? "Save changes" : "I'm in"}
       </button>
