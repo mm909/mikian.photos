@@ -184,10 +184,11 @@ export function StatsBoards({
   );
 }
 
-/* Top 10 only; a signed-in rower deeper on the board gets their
+/* Top 10 by default; a signed-in rower deeper on the board gets their
  * neighborhood — three above, themselves, three below — after a gap row.
- * Ranks stay global (their place on the whole board). Shared by the
- * weekly and daily boards. */
+ * Ranks stay global (their place on the whole board), and WHOLE BOARD
+ * expands to every rower (owner call, cycle 8). Shared by the weekly and
+ * daily boards. */
 function BoardWindow({
   rows,
   meId,
@@ -197,9 +198,10 @@ function BoardWindow({
   meId: string | null;
   started: boolean;
 }) {
+  const [all, setAll] = useState(false);
   const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
-  const top = rows.slice(0, 10);
-  const showCtx = meIdx >= 10;
+  const top = all ? rows : rows.slice(0, 10);
+  const showCtx = !all && meIdx >= 10;
   const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
   const ctx = showCtx ? rows.slice(ctxStart, Math.min(rows.length, meIdx + 4)) : [];
 
@@ -213,35 +215,48 @@ function BoardWindow({
     );
   }
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="board">
-        <thead>
-          <tr>
-            <th className="rk">#</th>
-            <th>Rower</th>
-            <th style={{ textAlign: "right" }}>Meters</th>
-            <th style={{ textAlign: "right" }}>Sessions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {top.map((r, i) => (
-            <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
-          ))}
-          {showCtx && ctxStart > 10 && (
-            <tr className="gaprow">
-              <td colSpan={4}>···</td>
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="board">
+          <thead>
+            <tr>
+              <th className="rk">#</th>
+              <th>Rower</th>
+              <th style={{ textAlign: "right" }}>Meters</th>
+              <th style={{ textAlign: "right" }}>Sessions</th>
             </tr>
-          )}
-          {ctx.map((r, i) => (
-            <WeekTr
-              key={r.participantId}
-              r={r}
-              rank={ctxStart + i + 1}
-              me={r.participantId === meId}
-            />
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {top.map((r, i) => (
+              <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
+            ))}
+            {showCtx && ctxStart > 10 && (
+              <tr className="gaprow">
+                <td colSpan={4}>···</td>
+              </tr>
+            )}
+            {ctx.map((r, i) => (
+              <WeekTr
+                key={r.participantId}
+                r={r}
+                rank={ctxStart + i + 1}
+                me={r.participantId === meId}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > 10 && (
+        <button
+          type="button"
+          className="quiet-btn"
+          style={{ marginTop: 12 }}
+          aria-expanded={all}
+          onClick={() => setAll((a) => !a)}
+        >
+          {all ? "TOP 10 ONLY" : `WHOLE BOARD — ALL ${rows.length}`}
+        </button>
+      )}
     </div>
   );
 }
