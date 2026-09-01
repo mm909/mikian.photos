@@ -521,66 +521,25 @@ const rowtemberProfile: ShareCard = {
     ctx.fillStyle = WATER;
     ctx.fillText(`@${data.instagram}`, M, 198);
 
-    // Board tag, with the club stamp once earned.
-    const board = data.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD";
-    const tag = data.meters >= 100_000 ? `${board} · 100K CLUB` : board;
-    ctx.font = `24px ${fonts.mono}`;
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
-    ctx.fillText(tag, M, 254);
+    // The total, as big as the card allows (owner call, day 1 — the board
+    // tag and the three stat boxes are out; the meters ARE the story).
+    let mSize = 190;
+    const metersText = data.meters.toLocaleString("en-US");
+    ctx.font = `${mSize}px ${fonts.black}`;
+    while (mSize > 90 && ctx.measureText(metersText).width > contentW) {
+      mSize -= 6;
+      ctx.font = `${mSize}px ${fonts.black}`;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(metersText, M, 430);
     ctx.restore();
-
-    // Three outlined stat boxes: METERS / SESSIONS / their loudest record.
-    // The third box headlines the highest-ranking badge — lowest place,
-    // total excluded (it has its own cards), ties broken in board order —
-    // labelled "FASTEST 10K · #1". No badges at all → LONGEST ROW as before.
-    const BADGE_ORDER = ["fastest5000", "fastest10000", "longest", "bigday"];
-    const badge = (data.records ?? [])
-      .filter((r) => r.key !== "total")
-      .slice()
-      .sort(
-        (a, b) => a.place - b.place || BADGE_ORDER.indexOf(a.key) - BADGE_ORDER.indexOf(b.key),
-      )[0];
-    const gap = 24;
-    const boxW = (contentW - gap * 2) / 3;
-    const boxH = 160;
-    const boxTop = 300;
-    const stats: { v: string; l: string }[] = [
-      { v: data.meters.toLocaleString("en-US"), l: "METERS" },
-      { v: String(data.sessions), l: "SESSIONS" },
-      badge
-        ? { v: badge.value, l: `${badge.label.toUpperCase()} · #${badge.place}` }
-        : { v: (data.longest ?? 0).toLocaleString("en-US"), l: "LONGEST ROW" },
-    ];
-    stats.forEach((s, i) => {
-      const bx = M + i * (boxW + gap);
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(bx + 2, boxTop + 2, boxW - 4, boxH - 4);
-      // Value shrinks to fit the box.
-      let vSize = 52;
-      ctx.font = `${vSize}px ${fonts.black}`;
-      while (vSize > 26 && ctx.measureText(s.v).width > boxW - 40) {
-        vSize -= 2;
-        ctx.font = `${vSize}px ${fonts.black}`;
-      }
-      drawCenteredText(ctx, s.v, {
-        cx: bx + boxW / 2,
-        baseline: boxTop + 88,
-        font: `${vSize}px ${fonts.black}`,
-        color: "#ffffff",
-      });
-      // Labels now run to "FASTEST 10K · #10" — budget the tracking, then
-      // ellipsize so a label can never cross into the neighbor box.
-      ctx.font = `20px ${fonts.mono}`;
-      const fittedLabel = ellipsize(ctx, s.l, boxW - 24 - 4 * (s.l.length - 1));
-      drawCenteredText(ctx, fittedLabel, {
-        cx: bx + boxW / 2,
-        baseline: boxTop + 128,
-        font: `20px ${fonts.mono}`,
-        color: "rgba(255,255,255,0.72)",
-        tracking: 4,
-      });
-    });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `30px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.fillText("M E T E R S", M, 482);
+    ctx.restore();
 
     // Progress bar toward 100k.
     const barTop = 528;

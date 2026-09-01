@@ -52,7 +52,21 @@ function Movement({ delta }: { delta: number }) {
  * /row100k/stats. */
 export function Boards({ boards, started }: { boards: BoardData; started: boolean }) {
   const [tab, setTab] = useState<Tab>("ALL");
-  const total = boards.total.filter((r) => tab === "ALL" || r.division === tab);
+  // Movement is re-derived WITHIN the current tab: the previous order of a
+  // filtered board is its rows sorted by their previous EVERYONE rank, so a
+  // man logging can't read as every woman dropping a place. On ALL this
+  // reproduces the server's delta exactly.
+  const filtered = boards.total.filter((r) => tab === "ALL" || r.division === tab);
+  const prevPos = new Map(
+    filtered
+      .slice()
+      .sort((a, b) => a.prevRank - b.prevRank)
+      .map((r, i) => [r.participantId, i]),
+  );
+  const total = filtered.map((r, i) => ({
+    ...r,
+    delta: (prevPos.get(r.participantId) ?? i) - i,
+  }));
 
   const maxMeters = total.reduce((m, r) => Math.max(m, r.meters), 0);
   const sections = [...visibleTiers(maxMeters)].reverse(); // highest first

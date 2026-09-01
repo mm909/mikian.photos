@@ -120,26 +120,8 @@ export function StatsBoards({
         </Fragment>
       ))}
 
-      <div className="sec-head" style={{ marginTop: 52 }}>
-        <h2>The weeks</h2>
-        <span className="mono">METERS INSIDE EACH WEEK</span>
-      </div>
-
-      <div className="tabs" role="group" aria-label="Week">
-        {shownWeeks.map((w, i) => (
-          <button
-            key={w.key}
-            aria-pressed={wk === i}
-            className={wk === i ? "on" : undefined}
-            onClick={() => setWeek(i)}
-          >
-            {w.label} · {weekDates(w)}
-          </button>
-        ))}
-      </div>
-
-      <BoardWindow rows={weekRows} meId={meId} started={started} />
-
+      {/* The days lead, then the weeks — the month section follows on the
+          page (owner call, day 1). */}
       <div className="sec-head" style={{ marginTop: 52 }}>
         <h2>The days</h2>
         <span className="mono">METERS INSIDE EACH DAY</span>
@@ -180,6 +162,26 @@ export function StatsBoards({
       </div>
 
       <BoardWindow rows={dayRows} meId={meId} started={started} />
+
+      <div className="sec-head" style={{ marginTop: 52 }}>
+        <h2>The weeks</h2>
+        <span className="mono">METERS INSIDE EACH WEEK</span>
+      </div>
+
+      <div className="tabs" role="group" aria-label="Week">
+        {shownWeeks.map((w, i) => (
+          <button
+            key={w.key}
+            aria-pressed={wk === i}
+            className={wk === i ? "on" : undefined}
+            onClick={() => setWeek(i)}
+          >
+            {w.label} · {weekDates(w)}
+          </button>
+        ))}
+      </div>
+
+      <BoardWindow rows={weekRows} meId={meId} started={started} />
     </div>
   );
 }
