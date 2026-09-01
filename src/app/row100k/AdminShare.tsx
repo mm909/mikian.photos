@@ -13,7 +13,12 @@ import type { ShareData } from "./share/cards";
  * anyone's rows, so the same controls render here. */
 export function AdminShare({ data, rows }: { data: ShareData; rows: MyRow[] }) {
   const [open, setOpen] = useState(false);
-  const [row, setRow] = useState<{ day: string; meters: number; seconds: number } | null>(null);
+  const [row, setRow] = useState<{
+    day: string;
+    meters: number;
+    seconds: number;
+    title?: string;
+  } | null>(null);
 
   return (
     <>
@@ -45,7 +50,7 @@ export function AdminShare({ data, rows }: { data: ShareData; rows: MyRow[] }) {
               rows={rows}
               canEdit
               onShare={(r) => {
-                setRow({ day: r.day, meters: r.meters, seconds: r.seconds });
+                setRow({ day: r.day, meters: r.meters, seconds: r.seconds, title: r.title });
                 setOpen(true);
               }}
             />

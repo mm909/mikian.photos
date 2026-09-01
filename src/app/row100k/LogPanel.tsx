@@ -30,9 +30,12 @@ export function LogPanel({
   simulate?: boolean;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
-  const [shareRow, setShareRow] = useState<{ day: string; meters: number; seconds: number } | null>(
-    null,
-  );
+  const [shareRow, setShareRow] = useState<{
+    day: string;
+    meters: number;
+    seconds: number;
+    title?: string;
+  } | null>(null);
   // The dialog opens the instant a row is saved — before router.refresh()
   // lands — so the just-logged meters are folded in locally. Once the server
   // props catch up (data.meters changes), the fold-in is retired.
@@ -41,7 +44,7 @@ export function LogPanel({
     setBoosted(null);
   }, [data.meters]);
 
-  const onLogged = (entry: { day: string; meters: number; seconds: number }) => {
+  const onLogged = (entry: { day: string; meters: number; seconds: number; title?: string }) => {
     // Fold into the previous fold-in, not the props — a second quick log
     // before the first refresh lands must keep both rows on the card.
     setBoosted((prev) => {
@@ -61,7 +64,7 @@ export function LogPanel({
   };
 
   const shareOne = (r: MyRow) => {
-    setShareRow({ day: r.day, meters: r.meters, seconds: r.seconds });
+    setShareRow({ day: r.day, meters: r.meters, seconds: r.seconds, title: r.title });
     setShareOpen(true);
   };
 

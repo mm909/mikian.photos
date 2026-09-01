@@ -51,19 +51,26 @@ function weekDates(w: Week): string {
 export function StatsBoards({
   boards,
   weekly,
+  daily,
   defaultWeek,
+  defaultDay,
   started,
   meId,
 }: {
   boards: BoardData;
   weekly: WeeklyRow[][];
+  /* One board per September day, index = day-of-month − 1. */
+  daily: WeeklyRow[][];
   defaultWeek: number;
+  /* Today's index into `daily` (clamped into the challenge). */
+  defaultDay: number;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
   meId: string | null;
 }) {
   const [div, setDiv] = useState<DivKey>("all");
   const [week, setWeek] = useState(defaultWeek);
+  const [day, setDay] = useState(defaultDay);
 
   /* Only weeks that have started get a chip — a week exists once its first
    * day arrives (same clock as the server's default-week pick). Before
@@ -75,14 +82,13 @@ export function StatsBoards({
 
   const weekRows = (weekly[wk] ?? []).filter((r) => divMatch(div, r.division));
 
-  /* Top 10 only; a signed-in rower deeper on the board gets their
-   * neighborhood — three above, themselves, three below — after a gap row.
-   * Ranks stay global (their place on the whole week's board). */
-  const meIdx = meId ? weekRows.findIndex((r) => r.participantId === meId) : -1;
-  const top = weekRows.slice(0, 10);
-  const showCtx = meIdx >= 10;
-  const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
-  const ctx = showCtx ? weekRows.slice(ctxStart, Math.min(weekRows.length, meIdx + 4)) : [];
+  /* Days: 30 chips would swamp the row, so the picker is a stepper plus a
+   * dropdown — defaults to today, steps or jumps to any day that has
+   * started. (Owner call, cycle 7.) */
+  const maxDay = Math.max(0, Math.min(defaultDay, daily.length - 1));
+  const dy = Math.max(0, Math.min(day, maxDay));
+  const dayLabel = (i: number) => fmtDay(`${WEEKS[0].first.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
+  const dayRows = (daily[dy] ?? []).filter((r) => divMatch(div, r.division));
 
   return (
     <div>
@@ -132,43 +138,124 @@ export function StatsBoards({
         ))}
       </div>
 
-      {weekRows.length === 0 ? (
-        <p className="board-empty">
-          {started
-            ? "NOBODY ON THIS BOARD YET — BE FIRST."
-            : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
-        </p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table className="board">
-            <thead>
-              <tr>
-                <th className="rk">#</th>
-                <th>Rower</th>
-                <th style={{ textAlign: "right" }}>Meters</th>
-                <th style={{ textAlign: "right" }}>Sessions</th>
+      <BoardWindow rows={weekRows} meId={meId} started={started} />
+
+      <div className="sec-head" style={{ marginTop: 52 }}>
+        <h2>The days</h2>
+        <span className="mono">METERS INSIDE EACH DAY</span>
+      </div>
+
+      <div className="tabs" role="group" aria-label="Day">
+        <button
+          type="button"
+          aria-label="Previous day"
+          disabled={dy === 0}
+          style={dy === 0 ? { opacity: 0.35, cursor: "default" } : undefined}
+          onClick={() => setDay(Math.max(0, dy - 1))}
+        >
+          ‹
+        </button>
+        <select
+          aria-label="Day"
+          className="day-select"
+          value={dy}
+          onChange={(e) => setDay(Number(e.target.value))}
+        >
+          {Array.from({ length: maxDay + 1 }, (_, i) => (
+            <option key={i} value={i}>
+              {dayLabel(i)}
+              {i === defaultDay ? " · today" : ""}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          aria-label="Next day"
+          disabled={dy >= maxDay}
+          style={dy >= maxDay ? { opacity: 0.35, cursor: "default" } : undefined}
+          onClick={() => setDay(Math.min(maxDay, dy + 1))}
+        >
+          ›
+        </button>
+      </div>
+
+      <BoardWindow rows={dayRows} meId={meId} started={started} />
+    </div>
+  );
+}
+
+/* Top 10 by default; a signed-in rower deeper on the board gets their
+ * neighborhood — three above, themselves, three below — after a gap row.
+ * Ranks stay global (their place on the whole board), and WHOLE BOARD
+ * expands to every rower (owner call, cycle 8). Shared by the weekly and
+ * daily boards. */
+function BoardWindow({
+  rows,
+  meId,
+  started,
+}: {
+  rows: WeeklyRow[];
+  meId: string | null;
+  started: boolean;
+}) {
+  const [all, setAll] = useState(false);
+  const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
+  const top = all ? rows : rows.slice(0, 10);
+  const showCtx = !all && meIdx >= 10;
+  const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
+  const ctx = showCtx ? rows.slice(ctxStart, Math.min(rows.length, meIdx + 4)) : [];
+
+  if (rows.length === 0) {
+    return (
+      <p className="board-empty">
+        {started
+          ? "NOBODY ON THIS BOARD YET — BE FIRST."
+          : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
+      </p>
+    );
+  }
+  return (
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="board">
+          <thead>
+            <tr>
+              <th className="rk">#</th>
+              <th>Rower</th>
+              <th style={{ textAlign: "right" }}>Meters</th>
+              <th style={{ textAlign: "right" }}>Sessions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top.map((r, i) => (
+              <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
+            ))}
+            {showCtx && ctxStart > 10 && (
+              <tr className="gaprow">
+                <td colSpan={4}>···</td>
               </tr>
-            </thead>
-            <tbody>
-              {top.map((r, i) => (
-                <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
-              ))}
-              {showCtx && ctxStart > 10 && (
-                <tr className="gaprow">
-                  <td colSpan={4}>···</td>
-                </tr>
-              )}
-              {ctx.map((r, i) => (
-                <WeekTr
-                  key={r.participantId}
-                  r={r}
-                  rank={ctxStart + i + 1}
-                  me={r.participantId === meId}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+            )}
+            {ctx.map((r, i) => (
+              <WeekTr
+                key={r.participantId}
+                r={r}
+                rank={ctxStart + i + 1}
+                me={r.participantId === meId}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > 10 && (
+        <button
+          type="button"
+          className="quiet-btn"
+          style={{ marginTop: 12 }}
+          aria-expanded={all}
+          onClick={() => setAll((a) => !a)}
+        >
+          {all ? "TOP 10 ONLY" : `WHOLE BOARD — ALL ${rows.length}`}
+        </button>
       )}
     </div>
   );

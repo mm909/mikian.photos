@@ -107,6 +107,12 @@ export default async function Row100kPage() {
 
   const leader = boards.total.find((r) => r.meters > 0);
 
+  // The fold's headline numbers: everyone's meters together, and how many
+  // rowers are in (owner call, cycle 9 — the static window/goal cells are
+  // out; the goal lives in the hero copy anyway).
+  const everyoneMeters = boards.total.reduce((s, r) => s + r.meters, 0);
+  const rowerCount = boards.total.length;
+
   // Standing + record placements for the signed-in rower's share cards —
   // best-effort off the cached board (fails to undefined, cards just hide).
   // To #10, so the profile card can headline any top-ten stat; the records
@@ -148,12 +154,12 @@ export default async function Row100kPage() {
       <div className="facts">
         <div className="in">
           <div className="cell">
-            <div className="k mono">Window</div>
-            <div className="v">Sep 1–30</div>
+            <div className="k mono">Everyone together</div>
+            <div className="v">{fmtMeters(everyoneMeters)}</div>
           </div>
           <div className="cell">
-            <div className="k mono">The goal</div>
-            <div className="v">100,000 m</div>
+            <div className="k mono">Rowers in</div>
+            <div className="v">{rowerCount}</div>
           </div>
           <div className="cell">
             <div className="k mono">Current leader</div>

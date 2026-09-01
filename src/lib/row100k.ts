@@ -554,6 +554,41 @@ export function computeWeekly(
   );
 }
 
+/* One ranked board per challenge day — total meters inside that day.
+ * Index i is Sep (i+1); days outside September are ignored (validateEntry
+ * bounds every logged day anyway, this is belt and braces). */
+export function computeDaily(
+  participants: ParticipantLite[],
+  entries: Pick<EntryLite, "participantId" | "day" | "meters">[],
+): WeeklyRow[][] {
+  const byId = new Map(participants.map((p) => [p.id, p]));
+  const month = FIRST_DAY.slice(0, 7);
+  const days: Map<string, WeeklyRow>[] = Array.from({ length: 30 }, () => new Map());
+  for (const e of entries) {
+    if (e.day.slice(0, 7) !== month) continue;
+    const di = Number(e.day.slice(8, 10)) - 1;
+    if (di < 0 || di >= days.length) continue;
+    const p = byId.get(e.participantId);
+    if (!p) continue;
+    const m = days[di];
+    const row = m.get(p.id) ?? {
+      participantId: p.id,
+      name: p.displayName,
+      division: p.division,
+      rowerNumber: p.rowerNumber,
+      instagram: p.instagram,
+      meters: 0,
+      sessions: 0,
+    };
+    row.meters += e.meters;
+    row.sessions += 1;
+    m.set(p.id, row);
+  }
+  return days.map((m) =>
+    [...m.values()].sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name)),
+  );
+}
+
 /* ------------------------------------------------------------ placements */
 
 export type RecordBadge = {

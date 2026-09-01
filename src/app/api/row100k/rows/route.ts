@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { sendOwnerNotification } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
+  fmtDuration,
+  fmtMeters,
+  fmtRowerNumber,
+  fmtSplit,
   isRow100kAdmin,
   nowMs,
   validateEntry,
@@ -109,5 +114,43 @@ export async function POST(req: Request) {
     data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
   });
   revalidateTag("row100k-boards");
+
+  /* Heads-up to the owner on every logged row (owner call, launch day).
+   * Awaited so serverless can't kill it mid-send, but never allowed to fail
+   * the log — sendOwnerNotification swallows transport errors itself, and
+   * a thrown surprise here is caught and logged. */
+  try {
+    const totals = await db.rowEntry.aggregate({
+      where: { participantId: participant.id },
+      _sum: { meters: true },
+      _count: true,
+    });
+    const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://mikianmusser.com").replace(/\/$/, "");
+    const total = fmtMeters(totals._sum.meters ?? value.meters);
+    // Subject deliberately parallels the join route's "Rowtember signup — …"
+    // so rows and signups sort apart at a glance in the same inbox.
+    await sendOwnerNotification(
+      `Rowtember row — ${fmtRowerNumber(participant.rowerNumber)} ${participant.displayName} · ${fmtMeters(value.meters)} (total ${total})`,
+      [
+        `Rower ${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName} logged ${value.meters.toLocaleString("en-US")} meters.`,
+        ``,
+        `This row:  ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
+        `Day:       ${value.day}`,
+        `Title:     ${value.title}`,
+        `New total: ${total} across ${totals._count} sessions`,
+        ``,
+        `Their page: ${base}/row100k/r/${participant.rowerNumber}`,
+        `The feed:   ${base}/row100k/feed`,
+        `The stats:  ${base}/row100k/stats`,
+      ].join("\n"),
+      undefined,
+      // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
+      // unless explicitly rerouted.
+      process.env.ROW100K_NOTIFY_EMAIL || undefined,
+    );
+  } catch (err) {
+    console.error("row100k: row-logged notification failed", err);
+  }
+
   return NextResponse.json({ ok: true, id: entry.id });
 }
