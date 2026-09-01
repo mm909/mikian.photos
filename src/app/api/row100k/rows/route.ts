@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     await sendOwnerNotification(
       `Rowtember row — ${fmtRowerNumber(participant.rowerNumber)} ${participant.displayName} · ${fmtMeters(value.meters)} (total ${total})`,
       [
-        `Rower ${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName} logged a row.`,
+        `Rower ${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName} logged ${value.meters.toLocaleString("en-US")} meters.`,
         ``,
         `This row:  ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
         `Day:       ${value.day}`,
