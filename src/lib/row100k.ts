@@ -280,8 +280,15 @@ export type TotalRow = {
   sessions: number;
   days: number;
   pct: number; // toward GOAL_METERS, uncapped (110% shows as 110)
-  /* Places moved since the latest logged day landed (+2 = up two). */
+  /* Places moved since the latest logged day landed (+2 = up two), on the
+   * EVERYONE board. Division-filtered views must not show this raw — they
+   * derive their own movement from prevRank (see Boards.tsx), otherwise a
+   * man logging reads as every woman dropping a place. */
   delta: number;
+  /* This rower's index on the EVERYONE board before the latest logged day.
+   * Relative order within any division subset is preserved, so a filtered
+   * board can rebuild its own before/after movement from just this. */
+  prevRank: number;
 };
 
 export type RecordRow = {
@@ -335,9 +342,13 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       days,
       pct: Math.round((meters / GOAL_METERS) * 100),
       delta: 0,
+      prevRank: 0,
     };
   });
   total.sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name));
+  total.forEach((r, i) => {
+    r.prevRank = i; // no movement until a previous day exists to compare to
+  });
 
   // Movement: compare against the standings as they were before the most
   // recent logged day's rows landed. Derived purely from the data — no rank
@@ -355,7 +366,8 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       .sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name));
     const prevRank = new Map(prevOrder.map((r, i) => [r.id, i]));
     total.forEach((r, i) => {
-      r.delta = (prevRank.get(r.participantId) ?? i) - i;
+      r.prevRank = prevRank.get(r.participantId) ?? i;
+      r.delta = r.prevRank - i;
     });
   }
 
