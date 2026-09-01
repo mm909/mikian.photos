@@ -222,6 +222,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k table.board .who{font-family:var(--row-archivo),sans-serif;font-weight:700}
 .row100k table.board .who a{text-decoration:none}
 .row100k table.board .who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .day-select{appearance:none;-webkit-appearance:none;background:var(--ink);color:var(--paper);border:2px solid var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
 .row100k .outline-btn{background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
 .row100k .outline-btn:hover{border-color:var(--water);color:var(--water)}
 .row100k .plog-card{border:2px solid var(--ink);padding:16px 16px 15px;margin-bottom:14px}
