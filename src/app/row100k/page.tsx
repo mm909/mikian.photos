@@ -47,9 +47,11 @@ export const viewport: Viewport = {
 // Session-driven panel + live board — never render statically.
 export const dynamic = "force-dynamic";
 
-/* One photo. Replace the file (same name) to swap it; null hides the frame. */
+/* One photo; null hides the frame. When swapping the photo, give the new
+ * file a NEW name — browsers cache hard by URL, so replacing the bytes under
+ * the same name leaves repeat visitors on the old shot. */
 const PHOTOS: { hero: string | null; mid: string | null } = {
-  hero: "/row100k/hero.jpg",
+  hero: "/row100k/hero-erg.jpg",
   mid: null,
 };
 
