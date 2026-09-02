@@ -113,7 +113,7 @@ export function LogRow({
   const meters = Math.round(Number(metersText.replace(/[,\s]/g, "")));
   const seconds = parseDurationText(timeText);
   const preview =
-    Number.isFinite(meters) && meters >= 200 && seconds
+    Number.isFinite(meters) && meters >= 1 && seconds
       ? `${fmtSplit(meters, seconds)} /500m average`
       : "";
 

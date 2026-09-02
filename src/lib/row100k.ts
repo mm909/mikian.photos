@@ -75,8 +75,9 @@ export function nowMs(): number {
 
 /* Entry bounds. The split sanity check (seconds per 500m) catches swapped
  * fields and typo'd units: 60s/500m is faster than the world record, 900s
- * is slower than a drifting boat. */
-export const METERS_MIN = 200;
+ * is slower than a drifting boat. No lower meters bound (owner call, day 2)
+ * — every meter counts, however few. */
+export const METERS_MIN = 1;
 export const METERS_MAX = 120_000;
 export const SECONDS_MIN = 30;
 export const SECONDS_MAX = 86_400;
