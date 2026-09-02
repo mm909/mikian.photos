@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FIRST_DAY,
@@ -62,6 +62,19 @@ export function LogRow({
 }) {
   const router = useRouter();
   const [day, setDay] = useState(defaultDay);
+  // The server's default day is "today" in UTC — for a US rower logging in
+  // the evening that's already tomorrow. The browser knows the real local
+  // date, so adopt it after mount (clamped into September), unless the rower
+  // has already picked a day themselves.
+  const dayTouched = useRef(false);
+  useEffect(() => {
+    if (dayTouched.current) return;
+    const d = new Date(nowMs());
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+    setDay(local < FIRST_DAY ? FIRST_DAY : local > LAST_DAY ? LAST_DAY : local);
+  }, []);
   const [metersText, setMetersText] = useState("");
   const [timeText, setTimeText] = useState("");
   const [title, setTitle] = useState(defaultTitle ?? "");
@@ -174,7 +187,10 @@ export function LogRow({
             value={day}
             min={FIRST_DAY}
             max={LAST_DAY}
-            onChange={(e) => setDay(e.target.value)}
+            onChange={(e) => {
+              dayTouched.current = true;
+              setDay(e.target.value);
+            }}
           />
         </div>
         <div>

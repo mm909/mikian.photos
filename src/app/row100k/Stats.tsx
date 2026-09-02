@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Who } from "./Boards";
 import {
   WEEKS,
@@ -72,6 +72,25 @@ export function StatsBoards({
   const [week, setWeek] = useState(defaultWeek);
   const [day, setDay] = useState(defaultDay);
 
+  // The server's "today" is UTC — an evening viewer in the US would land on
+  // tomorrow's empty board. After mount the browser knows the local date, so
+  // re-derive today's index (it also caps the picker) and move the selection
+  // there unless the viewer already stepped somewhere themselves.
+  const [todayIdx, setTodayIdx] = useState(defaultDay);
+  const dayTouched = useRef(false);
+  useEffect(() => {
+    const d = new Date(nowMs());
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+    const month = WEEKS[0].first.slice(0, 7);
+    const idx =
+      local < WEEKS[0].first ? 0 : local.slice(0, 7) > month ? daily.length - 1 : Number(local.slice(8, 10)) - 1;
+    const clamped = Math.max(0, Math.min(idx, daily.length - 1));
+    setTodayIdx(clamped);
+    if (!dayTouched.current) setDay(clamped);
+  }, [daily.length]);
+
   /* Only weeks that have started get a chip — a week exists once its first
    * day arrives (same clock as the server's default-week pick). Before
    * Sep 1 that's nothing, so Week 1 stands in with the empty-state copy. */
@@ -85,7 +104,7 @@ export function StatsBoards({
   /* Days: 30 chips would swamp the row, so the picker is a stepper plus a
    * dropdown — defaults to today, steps or jumps to any day that has
    * started. (Owner call, cycle 7.) */
-  const maxDay = Math.max(0, Math.min(defaultDay, daily.length - 1));
+  const maxDay = Math.max(0, Math.min(todayIdx, daily.length - 1));
   const dy = Math.max(0, Math.min(day, maxDay));
   const dayLabel = (i: number) => fmtDay(`${WEEKS[0].first.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
   const dayRows = (daily[dy] ?? []).filter((r) => divMatch(div, r.division));
@@ -133,7 +152,10 @@ export function StatsBoards({
           aria-label="Previous day"
           disabled={dy === 0}
           style={dy === 0 ? { opacity: 0.35, cursor: "default" } : undefined}
-          onClick={() => setDay(Math.max(0, dy - 1))}
+          onClick={() => {
+            dayTouched.current = true;
+            setDay(Math.max(0, dy - 1));
+          }}
         >
           ‹
         </button>
@@ -141,12 +163,15 @@ export function StatsBoards({
           aria-label="Day"
           className="day-select"
           value={dy}
-          onChange={(e) => setDay(Number(e.target.value))}
+          onChange={(e) => {
+            dayTouched.current = true;
+            setDay(Number(e.target.value));
+          }}
         >
           {Array.from({ length: maxDay + 1 }, (_, i) => (
             <option key={i} value={i}>
               {dayLabel(i)}
-              {i === defaultDay ? " · today" : ""}
+              {i === todayIdx ? " · today" : ""}
             </option>
           ))}
         </select>
@@ -155,7 +180,10 @@ export function StatsBoards({
           aria-label="Next day"
           disabled={dy >= maxDay}
           style={dy >= maxDay ? { opacity: 0.35, cursor: "default" } : undefined}
-          onClick={() => setDay(Math.min(maxDay, dy + 1))}
+          onClick={() => {
+            dayTouched.current = true;
+            setDay(Math.min(maxDay, dy + 1));
+          }}
         >
           ›
         </button>
