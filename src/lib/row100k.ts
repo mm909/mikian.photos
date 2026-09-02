@@ -79,7 +79,8 @@ export function nowMs(): number {
  * — every meter counts, however few. */
 export const METERS_MIN = 1;
 export const METERS_MAX = 120_000;
-export const SECONDS_MIN = 30;
+/* No lower time bound either (owner call, day 2) — 1s keeps zero/negative out. */
+export const SECONDS_MIN = 1;
 export const SECONDS_MAX = 86_400;
 export const SPLIT_MIN = 60;
 export const SPLIT_MAX = 900;
