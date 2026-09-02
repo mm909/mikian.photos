@@ -144,8 +144,12 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const defaultDay = todayUTC < FIRST_DAY ? FIRST_DAY : todayUTC > LAST_DAY ? LAST_DAY : todayUTC;
 
   // Each best knows its record-board key so it can wear the rower's division
-  // ranking (top 10 only — that's as deep as `records` goes) as a chip.
-  const bests: { key: string; label: string; value: string; sub: string }[] = [
+  // ranking (top 10 only — that's as deep as `records` goes) as a chip, and
+  // links to that record's leaderboard filtered to the same division so the
+  // board you land on matches the chip.
+  const divQ = p.division === "F" ? "f" : p.division === "M" ? "m" : "all";
+  const boardHref = (board: string) => `/row100k/records/${board}?d=${divQ}`;
+  const bests: { key: string; label: string; value: string; sub: string; href: string }[] = [
     ...([5000, 10000] as const).map((d) => {
       const r = b.fastest[d][0];
       return {
@@ -157,6 +161,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             ? `${fmtDay(r.day)} · pace from a ${fmtMeters(r.meters)} row`
             : `${fmtDay(r.day)} · ${fmtSplit(d, r.value)} /500m`
           : "not yet rowed",
+        href: boardHref(String(d)),
       };
     }),
     {
@@ -164,12 +169,14 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       label: "Longest row",
       value: b.longest[0] ? fmtMeters(b.longest[0].value) : "—",
       sub: b.longest[0] ? fmtDay(b.longest[0].day) : "not yet rowed",
+      href: boardHref("longest"),
     },
     {
       key: "bigday",
       label: "Biggest day",
       value: b.bigDay[0] ? fmtMeters(b.bigDay[0].value) : "—",
       sub: b.bigDay[0] ? fmtDay(b.bigDay[0].day) : "not yet rowed",
+      href: boardHref("bigday"),
     },
   ];
   const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;

@@ -369,7 +369,7 @@ html:has(.row100k){scroll-behavior:smooth}
 /* Record cards are links now (each opens its full-ranking page): same box
  * as button.rec, pointer, and the pressed shadow moves to hover. */
 .row100k a.rec{text-decoration:none;cursor:pointer}
-.row100k a.rec:hover{border-color:var(--water);box-shadow:4px 4px 0 var(--water)}
+.row100k a.rec:hover,.row100k .rec.linked:hover{border-color:var(--water);box-shadow:4px 4px 0 var(--water)}
 .row100k .rec .also div+div{margin-top:1px}
 /* Tab chips as plain links (record switcher + division links on /records)
  * — mirror of .tabs button so server pages need no client state. */
