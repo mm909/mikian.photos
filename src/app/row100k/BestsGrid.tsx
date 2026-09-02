@@ -4,10 +4,11 @@ import { useState } from "react";
 import { ShareDialog } from "./ShareMenu";
 import type { ShareData } from "./share/cards";
 
-/* The bests grid on a rower's profile. Rank chips wear medal colors on the
- * podium, and — for the rower themself or an admin — every filled best is
- * individually shareable: SHARE opens the dialog landed on the "This best"
- * card for that stat. */
+/* The bests grid on a rower's profile. Each card is a link to that record's
+ * full leaderboard (filtered to the rower's division, so the board matches
+ * the rank chip). Rank chips wear medal colors on the podium, and — for the
+ * rower themself or an admin — every filled best is individually shareable:
+ * SHARE opens the dialog landed on the "This best" card for that stat. */
 
 export type Best = {
   key: string;
@@ -15,6 +16,8 @@ export type Best = {
   value: string;
   sub: string;
   place: number | null;
+  /* Leaderboard for this stat, e.g. "/row100k/records/5000?d=m". */
+  href: string;
 };
 
 export function BestsGrid({
@@ -32,7 +35,14 @@ export function BestsGrid({
     <>
       <div className="records vol" style={{ gridTemplateColumns: "1fr 1fr" }}>
         {bests.map((r) => (
-          <div className="rec" key={r.key}>
+          /* Stretched-link card: the anchor covers the whole box (a button
+             can't legally nest inside an <a>), and SHARE floats above it. */
+          <div className="rec linked" key={r.key} style={{ position: "relative" }}>
+            <a
+              href={r.href}
+              aria-label={`${r.label} — the leaderboard`}
+              style={{ position: "absolute", inset: 0 }}
+            />
             <div className="t">
               {r.label}
               {r.place ? (
@@ -45,7 +55,7 @@ export function BestsGrid({
               <button
                 type="button"
                 className="quiet-btn"
-                style={{ marginTop: 8 }}
+                style={{ marginTop: 8, position: "relative" }}
                 onClick={() => setShareBest(r)}
               >
                 SHARE
