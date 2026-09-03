@@ -37,12 +37,6 @@ export function AdminShare({ data, rows }: { data: ShareData; rows: MyRow[] }) {
               SHARE THEIR CARD
             </button>
           </div>
-          <p
-            className="mono"
-            style={{ fontSize: 11, letterSpacing: ".12em", color: "var(--gray)", marginBottom: 10 }}
-          >
-            ADMIN — FIX OR DELETE THEIR ROWS; CARDS RENDER WITH THEIR NAME AND NUMBER
-          </p>
           {rows.length === 0 ? (
             <p className="board-empty">NOTHING LOGGED YET.</p>
           ) : (

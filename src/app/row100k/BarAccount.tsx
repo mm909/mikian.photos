@@ -6,14 +6,18 @@ import { fmtRowerNumber } from "@/lib/row100k";
 
 /* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
  * chip opening the account menu — profile link and sign out. Signed in but
- * not joined: join link + sign out. */
+ * not joined: join link + sign out. Admins also get a DEVELOPMENT block of
+ * owner-only / in-progress surfaces above Sign out. */
 export function BarAccount({
   signedIn,
   rowerNumber,
+  admin,
   defaultOpen,
 }: {
   signedIn: boolean;
   rowerNumber: number | null;
+  /** Row100k admin — shows the DEVELOPMENT links in the menu. */
+  admin?: boolean;
   /** Dev preview only — render with the menu already open. */
   defaultOpen?: boolean;
 }) {
@@ -54,6 +58,40 @@ export function BarAccount({
               <a className="acct-item" href="/row100k#join" onClick={() => setOpen(false)}>
                 Join the challenge →
               </a>
+            )}
+            {admin && (
+              <>
+                {/* The item above already draws the dashed divider (border-bottom);
+                 * this eyebrow just heads the owner-only block. */}
+                <div
+                  className="mono"
+                  aria-hidden="true"
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: ".15em",
+                    textTransform: "uppercase",
+                    color: "var(--gray)",
+                    padding: "12px 2px 2px",
+                  }}
+                >
+                  Development
+                </div>
+                <a className="acct-item" href="/row100k/signups">
+                  Signups →
+                </a>
+                <a className="acct-item" href="/row100k/gallery">
+                  Gallery →
+                </a>
+                <a className="acct-item" href="/row100k/partners">
+                  Partners →
+                </a>
+                <a className="acct-item" href="/row100k/dev/feed">
+                  Feed drafts →
+                </a>
+                <a className="acct-item" href="/row100k/dev/log">
+                  Log drafts →
+                </a>
+              </>
             )}
             <button
               type="button"

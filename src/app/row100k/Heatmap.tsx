@@ -49,19 +49,9 @@ export function Heatmap({
               title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
             >
               {m > 0 && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    fontFamily: "var(--row-mono), monospace",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    lineHeight: 1,
-                    /* Only b4 (#0077B6) is deep enough for white (4.9:1);
-                     * ink wins on every lighter bucket — b3's #4d9fc9 puts
-                     * white at 2.95:1, ink at 6.1:1. */
-                    color: b === " b4" ? "#ffffff" : "var(--ink, #15171a)",
-                  }}
-                >
+                /* Sizing + the ink-vs-white contrast rule live on .hm-num
+                 * in theme.ts, so the calendar and the profiles share it. */
+                <span aria-hidden="true" className="hm-num">
                   {`${Math.max(1, Math.round(m / 1000))}k`}
                 </span>
               )}

@@ -383,6 +383,27 @@ html:has(.row100k){scroll-behavior:smooth}
  * this gap row (their own row reuses the tr.fin tint). */
 .row100k tr.gaprow td{padding:6px;border-bottom:1px dashed var(--line);color:var(--gray);text-align:center;font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.3em}
 
+/* ----------------------------------------------------------------------
+ * Stats-page month block (MonthSection + the hour grid + turnout).
+ * The per-day k labels inside heatmap cells: bold mono, sized to the cell.
+ * Only b4 (#0077B6) is deep enough for white type (4.9:1); ink wins on
+ * every lighter bucket — b3 puts white at 2.95:1, ink at 6.1:1. */
+.row100k .hm-num{font-family:var(--row-mono),monospace;font-size:clamp(11px,2.6vw,17px);font-weight:700;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.row100k .hm-cell.b4 .hm-num{color:#fff}
+/* The small share row tucked under a chart. */
+.row100k .ms-actions{display:flex;justify-content:flex-end;margin-top:10px}
+/* Hour grid: one row per day, 24 hour columns, GitHub-commit style.
+ * Fixed-ish column widths inside a horizontal scroller so phones pan. */
+.row100k .hg-scroll{overflow-x:auto;border:2px solid var(--ink);padding:16px;margin-top:8px}
+.row100k .hg{display:grid;grid-template-columns:52px repeat(24,minmax(18px,1fr));gap:4px;min-width:620px}
+.row100k .hg-day{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;align-self:center;white-space:nowrap}
+.row100k .hg-tick{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.08em;color:var(--gray);text-transform:uppercase;padding-bottom:2px;white-space:nowrap}
+.row100k .hg-cell{aspect-ratio:1;border:1px dashed var(--line)}
+.row100k .hg-cell.b1{background:#d9e8f2;border:1px solid #d9e8f2}
+.row100k .hg-cell.b2{background:#a5cde3;border:1px solid #a5cde3}
+.row100k .hg-cell.b3{background:#4d9fc9;border:1px solid #4d9fc9}
+.row100k .hg-cell.b4{background:var(--water);border:1px solid var(--water)}
+
 /* Stay light in dark mode, but take the glare off (same as /lasd26). */
 @media (prefers-color-scheme: dark){
   .row100k{--paper:#E9E7DF}

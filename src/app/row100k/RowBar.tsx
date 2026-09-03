@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
-import { CHALLENGE } from "@/lib/row100k";
+import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 
 /* The one bar every /row100k page wears: ROW100K home chip, THE STATS,
@@ -17,10 +17,12 @@ export async function RowBar({
 }) {
   let signedIn = false;
   let rowerNumber: number | null = null;
+  let admin = false;
   try {
     const actor = await getEffectiveActor();
     if (actor) {
       signedIn = true;
+      admin = isRow100kAdmin(actor.email, actor.roles);
       const me = await db.rowParticipant.findUnique({
         where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
         select: { rowerNumber: true },
@@ -55,7 +57,7 @@ export async function RowBar({
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {children}
-        <BarAccount signedIn={signedIn} rowerNumber={rowerNumber} />
+        <BarAccount signedIn={signedIn} rowerNumber={rowerNumber} admin={admin} />
       </span>
     </div>
   );

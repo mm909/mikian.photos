@@ -39,6 +39,20 @@ export type ShareData = {
   /* One personal best, set when the dialog opens from a bests card —
    * "Fastest 5k" / "22:30" / #2 in division when placed. */
   best?: { label: string; value: string; place?: number | null };
+  /* Everyone's September, set only where the caller loads community totals
+   * (the stats page) — unlocks the three community cards. */
+  community?: {
+    meters: number;
+    rowers: number;
+    sessions: number;
+    /* Combined meters per "YYYY-MM-DD" day. */
+    byDay: Record<string, number>;
+    /* Cumulative combined meters, ascending. */
+    daily: { day: string; cum: number }[];
+    /* Meters logged per hour of day (24 slots), one row per September day
+     * elapsed so far — the stats page's hour grid. Unlocks the hours card. */
+    hourGrid?: number[][];
+  };
 };
 
 export type ShareFonts = { black: string; mono: string };
@@ -899,6 +913,393 @@ const rowtemberLogo: ShareCard = {
   },
 };
 
+/* ------------------------------------------------------- community cards */
+
+/* "561k" for a community-scale day; the month can push a single day past a
+ * million combined meters, so the label rolls over to "1.2M". */
+const kLabel = (m: number): string =>
+  m >= 999_500 ? `${(m / 1_000_000).toFixed(1)}M` : `${Math.max(1, Math.round(m / 1000))}k`;
+
+/* Everyone's September as the calendar — same grid as the personal month
+ * card, but the alpha steps scale off the biggest community day (25/50/75%)
+ * and the per-day k labels go big enough to read on a story. */
+const rowtemberCommunityMonth: ShareCard = {
+  id: "rowtember-community-month",
+  label: "The month",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: (d) => !!d.community,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    const cell = 108;
+    const gap = 18;
+    const cols = 7;
+    const gridW = cols * cell + (cols - 1) * gap;
+    const left = (this.width - gridW) / 2;
+    const top = 250;
+    const firstDow = 2; // Sep 1, 2026 = Tuesday
+
+    const biggest = Math.max(0, ...Object.values(community.byDay));
+    const alphaFor = (m: number) =>
+      m <= 0 || biggest <= 0
+        ? 0
+        : m < biggest * 0.25
+          ? 0.3
+          : m < biggest * 0.5
+            ? 0.55
+            : m < biggest * 0.75
+              ? 0.78
+              : 1;
+
+    for (let d = 1; d <= 30; d++) {
+      const idx = firstDow + (d - 1);
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = left + col * (cell + gap);
+      const y = top + row * (cell + gap);
+      const m = community.byDay[`2026-09-${String(d).padStart(2, "0")}`] ?? 0;
+      const a = alphaFor(m);
+      if (a === 0) {
+        ctx.strokeStyle = "rgba(255,255,255,0.30)";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, cell - 3, cell - 3);
+      } else {
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        ctx.fillRect(x, y, cell, cell);
+        // The day's combined meters — big, ink on the white cell.
+        ctx.save();
+        ctx.font = `44px ${fonts.mono}`;
+        ctx.fillStyle = INK;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(kLabel(m), x + cell / 2, y + cell / 2 + 2, cell - 14);
+        ctx.restore();
+      }
+    }
+
+    const gridBottom = top + Math.ceil((firstDow + 30) / cols) * (cell + gap) - gap;
+
+    drawCenteredText(ctx, community.meters.toLocaleString("en-US"), {
+      cx,
+      baseline: gridBottom + 104,
+      font: `96px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: gridBottom + 146,
+      font: `26px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
+    drawCenteredText(ctx, `${community.rowers.toLocaleString("en-US")} ROWERS TOGETHER`, {
+      cx,
+      baseline: gridBottom + 188,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.9)",
+      tracking: 5,
+    });
+  },
+};
+
+/* The community's cumulative line — same vocabulary as the personal curve,
+ * but no 100k pace line: at this scale there's no finish to race. */
+const rowtemberCommunityCurve: ShareCard = {
+  id: "rowtember-community-curve",
+  label: "The curve",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: (d) => !!d.community && d.community.daily.length > 0,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community || community.daily.length === 0) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 120,
+      size: 80,
+      fontFamily: fonts.black,
+    });
+
+    const pts = community.daily
+      .filter((p) => p.day.startsWith("2026-09-"))
+      .map((p) => ({ dayNum: Number(p.day.slice(8, 10)), cum: p.cum }));
+    if (pts.length === 0) return;
+    if (pts[0].dayNum > 1) pts.unshift({ dayNum: pts[0].dayNum - 1, cum: 0 });
+    const total = pts[pts.length - 1].cum;
+
+    const L = 110;
+    const R = 1010;
+    const T = 240;
+    const B = 790;
+    const maxV = Math.max(total, 1);
+    const x = (dayNum: number) => L + ((dayNum - 1) / 29) * (R - L);
+    const y = (v: number) => B - (v / maxV) * (B - T);
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(L, B);
+    ctx.lineTo(R, B);
+    ctx.stroke();
+    ctx.font = `24px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.fillText("SEP 1", L, B + 40);
+    ctx.textAlign = "right";
+    ctx.fillText("SEP 30", R, B + 40);
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 7;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(x(p.dayNum), y(p.cum));
+      else ctx.lineTo(x(p.dayNum), y(p.cum));
+    });
+    ctx.stroke();
+    const last = pts[pts.length - 1];
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x(last.dayNum), y(last.cum), 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    drawCenteredText(ctx, total.toLocaleString("en-US"), {
+      cx,
+      baseline: 950,
+      font: `96px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
+    });
+    drawCenteredText(ctx, "METERS TOGETHER", {
+      cx,
+      baseline: 1000,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 7,
+    });
+  },
+};
+
+/* Everyone's September, one white bar per day — rest days keep a faint
+ * outline stub so the month's shape stays legible, the biggest day wears
+ * its number. */
+const rowtemberCommunityDaily: ShareCard = {
+  id: "rowtember-community-daily",
+  label: "Day by day",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: (d) => !!d.community,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    const vals = Array.from(
+      { length: 30 },
+      (_, i) => community.byDay[`2026-09-${String(i + 1).padStart(2, "0")}`] ?? 0,
+    );
+    const biggest = Math.max(...vals);
+
+    const L = 90;
+    const R = 990;
+    const T = 300;
+    const B = 780;
+    const slot = (R - L) / 30;
+    const barW = slot * 0.66;
+    const y = (v: number) => B - (biggest > 0 ? (v / biggest) * (B - T) : 0);
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(L, B);
+    ctx.lineTo(R, B);
+    ctx.stroke();
+    ctx.font = `24px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.fillText("SEP 1", L, B + 40);
+    ctx.textAlign = "right";
+    ctx.fillText("30", R, B + 40);
+
+    for (let i = 0; i < 30; i++) {
+      const x0 = L + i * slot + (slot - barW) / 2;
+      const v = vals[i];
+      if (v <= 0) {
+        // Rest day: a faint stub, not a hole.
+        ctx.strokeStyle = "rgba(255,255,255,0.30)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x0 + 1, B - 14, barW - 2, 12);
+      } else {
+        // Floor at 18px — taller than the rest-day stub, so a short logged
+        // day never reads emptier than a rest day (or hides under the axis).
+        const h = Math.max(B - y(v), 18);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(x0, B - h, barW, h);
+      }
+    }
+    if (biggest > 0) {
+      const bx = L + vals.indexOf(biggest) * slot + slot / 2;
+      ctx.font = `30px ${fonts.mono}`;
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.fillText(kLabel(biggest), bx, y(biggest) - 16);
+    }
+    ctx.restore();
+
+    drawCenteredText(ctx, community.meters.toLocaleString("en-US"), {
+      cx,
+      baseline: 950,
+      font: `96px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
+    });
+    drawCenteredText(ctx, `${community.rowers.toLocaleString("en-US")} ROWERS TOGETHER`, {
+      cx,
+      baseline: 1000,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.9)",
+      tracking: 5,
+    });
+  },
+};
+
+/* The hours grid as a sticker — the stats page's commit-graph (one row per
+ * September day so far, 24 hour columns) in the community month card's alpha
+ * ramp. Rows fatten early in the month and thin toward GitHub-graph texture
+ * as days accumulate; the block stays vertically centered either way. */
+const rowtemberCommunityHours: ShareCard = {
+  id: "rowtember-community-hours",
+  label: "The hours",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: (d) =>
+    !!d.community?.hourGrid && d.community.hourGrid.some((row) => row.some((m) => m > 0)),
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    const grid = community?.hourGrid;
+    if (!community || !grid || grid.length === 0) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    const busiest = Math.max(0, ...grid.map((row) => Math.max(...row, 0)));
+    const alphaFor = (m: number) =>
+      m <= 0 || busiest <= 0
+        ? 0
+        : m < busiest * 0.25
+          ? 0.3
+          : m < busiest * 0.5
+            ? 0.55
+            : m < busiest * 0.75
+              ? 0.78
+              : 1;
+
+    const n = grid.length;
+    const cw = 32;
+    const cgap = 6;
+    const rgap = 6;
+    const labelW = 92;
+    const gridW = 24 * cw + 23 * cgap;
+    const left = (this.width - (labelW + gridW)) / 2 + labelW;
+    const tickH = 34;
+    const bandTop = 210;
+    const bandH = 640;
+    const rowH = Math.min(44, Math.floor((bandH - tickH - (n - 1) * rgap) / n));
+    const gridH = n * rowH + (n - 1) * rgap;
+    const top = bandTop + Math.max(0, (bandH - tickH - gridH) / 2) + tickH;
+
+    ctx.save();
+    ctx.font = `22px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    for (const [h, label] of [[0, "12A"], [6, "6A"], [12, "12P"], [18, "6P"]] as const) {
+      ctx.fillText(label, left + h * (cw + cgap) + cw / 2, top - 14);
+    }
+
+    // Every row gets a label while rows are chunky; every 5th once they thin.
+    const labelEvery = rowH >= 22 ? 1 : 5;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let di = 0; di < n; di++) {
+      const y = top + di * (rowH + rgap);
+      if (di === 0 || (di + 1) % labelEvery === 0) {
+        ctx.fillText(`SEP ${di + 1}`, left - 16, y + rowH / 2 + 1);
+      }
+      for (let h = 0; h < 24; h++) {
+        const x = left + h * (cw + cgap);
+        const a = alphaFor(grid[di][h]);
+        if (a === 0) {
+          ctx.strokeStyle = "rgba(255,255,255,0.25)";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cw - 2, rowH - 2);
+        } else {
+          ctx.fillStyle = `rgba(255,255,255,${a})`;
+          ctx.fillRect(x, y, cw, rowH);
+        }
+      }
+    }
+    ctx.restore();
+
+    drawCenteredText(ctx, community.meters.toLocaleString("en-US"), {
+      cx,
+      baseline: 924,
+      font: `96px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 120,
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: 966,
+      font: `26px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
+    drawCenteredText(ctx, "WHEN ROWS GET LOGGED", {
+      cx,
+      baseline: 1008,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.9)",
+      tracking: 5,
+    });
+  },
+};
+
 export const CARDS: ShareCard[] = [
   rowtemberRow,
   rowtemberRowFull,
@@ -911,6 +1312,10 @@ export const CARDS: ShareCard[] = [
   rowtemberClub,
   rowtemberMonth,
   rowtemberLogo,
+  rowtemberCommunityMonth,
+  rowtemberCommunityCurve,
+  rowtemberCommunityDaily,
+  rowtemberCommunityHours,
 ];
 
 export function availableCards(data: ShareData): ShareCard[] {

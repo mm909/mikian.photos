@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { availableCards, cardById, type ShareData, type ShareFonts } from "./share/cards";
+import { availableCards, type ShareData, type ShareFonts } from "./share/cards";
 
 /* The shareables menu: a card picker, a live preview, and the three ways off
  * the page — share sheet (phones), copy to clipboard (paste straight into a
@@ -23,6 +23,7 @@ export function ShareDialog({
   open,
   onClose,
   preferredCardId,
+  only,
 }: {
   data: ShareData;
   open: boolean;
@@ -30,28 +31,34 @@ export function ShareDialog({
   /* Card to land on when the dialog opens (e.g. "rowtember-row" right after
    * logging). Only applied on the open transition — picking is yours after. */
   preferredCardId?: string;
+  /* Restrict the picker to these card ids (e.g. the community cards on the
+   * stats page). Order still comes from CARDS. */
+  only?: string[];
 }) {
-  const cards = availableCards(data);
+  const cards = availableCards(data).filter((c) => !only || only.includes(c.id));
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current && preferredCardId) {
-      if (availableCards(data).some((c) => c.id === preferredCardId)) {
+      const pool = availableCards(data).filter((c) => !only || only.includes(c.id));
+      if (pool.some((c) => c.id === preferredCardId)) {
         setCardId(preferredCardId);
       }
     }
     wasOpen.current = open;
-  }, [open, preferredCardId, data]);
+  }, [open, preferredCardId, data, only]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const blackProbe = useRef<HTMLSpanElement | null>(null);
   const monoProbe = useRef<HTMLSpanElement | null>(null);
 
-  const card = cardById(cardId, data);
+  /* Resolve inside the (possibly restricted) pool; an empty pool — `only`
+   * naming cards the data can't unlock — renders nothing rather than crashing. */
+  const card = cards.find((c) => c.id === cardId) ?? cards[0];
 
   const paint = useCallback(async () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !card) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -115,7 +122,12 @@ export function ShareDialog({
       canvas.toBlob(resolve, "image/png");
     });
 
-  const filename = `rowtember-${data.rowerNumber}-${card.id}.png`;
+  /* Community cards are everyone's — no rower number in the name. */
+  const filename = !card
+    ? "rowtember.png"
+    : card.id.startsWith("rowtember-community")
+      ? `${card.id}.png`
+      : `rowtember-${data.rowerNumber}-${card.id}.png`;
 
   async function onCopy() {
     // Safari wants the write to START inside the click gesture, so hand
@@ -174,7 +186,7 @@ export function ShareDialog({
       <span ref={blackProbe} aria-hidden className="share-probe blk" />
       <span ref={monoProbe} aria-hidden className="share-probe mono" />
 
-      {open && (
+      {open && card && (
         <div
           className="share-overlay"
           role="dialog"
@@ -241,7 +253,15 @@ export function ShareDialog({
 }
 
 /* The plain entry point: one button, opens the dialog. */
-export function ShareMenu({ data, big }: { data: ShareData; big?: boolean }) {
+export function ShareMenu({
+  data,
+  big,
+  only,
+}: {
+  data: ShareData;
+  big?: boolean;
+  only?: string[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -252,7 +272,7 @@ export function ShareMenu({ data, big }: { data: ShareData; big?: boolean }) {
       >
         SHARE A CARD
       </button>
-      <ShareDialog data={data} open={open} onClose={() => setOpen(false)} />
+      <ShareDialog data={data} open={open} onClose={() => setOpen(false)} only={only} />
     </>
   );
 }

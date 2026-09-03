@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, fmtRowerNumber, isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
-import { FixDays } from "../FixDays";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 
@@ -84,7 +83,6 @@ export default async function SignupsPage() {
               </tbody>
             </table>
           )}
-          <FixDays />
         </div>
       </section>
 

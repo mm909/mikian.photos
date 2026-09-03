@@ -9,6 +9,13 @@
       "autoPort": true
     },
     {
+      "name": "mikian-photos-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:live"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
       "name": "row100k-demo",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:row100k"],

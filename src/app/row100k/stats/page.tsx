@@ -4,6 +4,7 @@ import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
   FIRST_DAY,
+  LAST_DAY,
   START_MS,
   WEEKS,
   computeDaily,
@@ -13,9 +14,11 @@ import {
   type WeeklyRow,
 } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
-import { Curve } from "../Curve";
-import { Heatmap } from "../Heatmap";
+import { HourGrid } from "../HourGrid";
+import { MonthSection } from "../MonthSection";
+import { StatsShare } from "../StatsShare";
 import { RowBar } from "../RowBar";
+import { TurnoutChart } from "../TurnoutChart";
 import { RowFooter } from "../RowFooter";
 import { StatsBoards } from "../Stats";
 import { boardData, EMPTY_BOARDS } from "../boardData";
@@ -43,6 +46,7 @@ export default async function StatsPage() {
    * so this page pulls the raw rows itself (same selects as boardData). */
   let weekly: WeeklyRow[][] = WEEKS.map(() => []);
   let daily: WeeklyRow[][] = Array.from({ length: 30 }, () => []);
+  let gridEntries: { meters: number; createdAt: Date }[] = [];
   try {
     const [participants, entries] = await Promise.all([
       db.rowParticipant.findMany({
@@ -52,12 +56,13 @@ export default async function StatsPage() {
       }),
       db.rowEntry.findMany({
         where: { challenge: CHALLENGE },
-        select: { participantId: true, day: true, meters: true },
+        select: { participantId: true, day: true, meters: true, createdAt: true },
         orderBy: [{ day: "asc" }, { createdAt: "asc" }],
       }),
     ]);
     weekly = computeWeekly(participants, entries);
     daily = computeDaily(participants, entries);
+    gridEntries = entries;
   } catch (err) {
     console.error("row100k/stats: failed to load weekly data", err);
   }
@@ -108,6 +113,34 @@ export default async function StatsPage() {
       ? [Math.round(biggest * 0.25), Math.round(biggest * 0.5), Math.round(biggest * 0.75)]
       : [2500, 5000, 10000];
 
+  // Turnout: unique rowers with at least one logged row, per September day.
+  const uniqueByDay = daily.map((rows) => rows.length);
+
+  /* The hour grid reads createdAt — when a row was LOGGED, not rowed —
+   * shifted to US-west wall clock per the repo convention (minus 7h Pacific shift).
+   * Late logs landing outside September are skipped, and the grid only
+   * runs through today (US-west), clamped to the last day. */
+  const SHIFT_MS = 7 * 3600_000;
+  const westToday = new Date(clockNow() - SHIFT_MS).toISOString().slice(0, 10);
+  const gridDayCount =
+    westToday < FIRST_DAY
+      ? 1
+      : westToday > LAST_DAY
+        ? 30
+        : Math.min(30, Number(westToday.slice(8, 10)));
+  const hourGrid: number[][] = Array.from(
+    { length: gridDayCount },
+    () => Array(24).fill(0) as number[],
+  );
+  for (const e of gridEntries) {
+    const shifted = new Date(e.createdAt.getTime() - SHIFT_MS);
+    const day = shifted.toISOString().slice(0, 10);
+    if (day < FIRST_DAY || day > LAST_DAY) continue;
+    const di = Number(day.slice(8, 10)) - 1;
+    if (di >= gridDayCount) continue;
+    hourGrid[di][shifted.getUTCHours()] += e.meters;
+  }
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
@@ -137,10 +170,48 @@ export default async function StatsPage() {
             <h2>The month</h2>
             <span className="mono">EVERYONE&rsquo;S METERS, PER DAY</span>
           </div>
-          <Heatmap byDay={communityByDay} thresholds={thresholds} />
-          <div style={{ marginTop: 10 }}>
-            <Curve daily={boards.daily} title="The curve — cumulative meters, everyone combined" />
+          <MonthSection
+            byDay={communityByDay}
+            thresholds={thresholds}
+            daily={boards.daily}
+            community={{
+              meters: boards.community.meters,
+              rowers: boards.community.people,
+              sessions: boards.community.sessions,
+            }}
+            hourGrid={hourGrid}
+          />
+        </div>
+      </section>
+
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>The turnout</h2>
+            <span className="mono">ROWERS LOGGING, PER DAY</span>
           </div>
+          <TurnoutChart counts={uniqueByDay} />
+        </div>
+      </section>
+
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>The hours</h2>
+            <span className="mono">WHEN ROWS GET LOGGED</span>
+          </div>
+          <HourGrid grid={hourGrid} />
+          <StatsShare
+            community={{
+              meters: boards.community.meters,
+              rowers: boards.community.people,
+              sessions: boards.community.sessions,
+              byDay: communityByDay,
+              daily: boards.daily,
+              hourGrid,
+            }}
+            prefer="rowtember-community-hours"
+          />
         </div>
       </section>
 
