@@ -1195,7 +1195,8 @@ const rowtemberCommunityDaily: ShareCard = {
 /* The hours grid as a sticker — the stats page's commit-graph (one row per
  * September day so far, 24 hour columns) in the community month card's alpha
  * ramp. Rows fatten early in the month and thin toward GitHub-graph texture
- * as days accumulate; the block stays vertically centered either way. */
+ * as days accumulate; the block stays vertically centered either way. Just
+ * the grid — no mark, no caption (owner call, day 3). */
 const rowtemberCommunityHours: ShareCard = {
   id: "rowtember-community-hours",
   label: "The hours",
@@ -1208,15 +1209,6 @@ const rowtemberCommunityHours: ShareCard = {
     const community = data.community;
     const grid = community?.hourGrid;
     if (!community || !grid || grid.length === 0) return;
-    const cx = this.width / 2;
-
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
-      cx,
-      cy: 130,
-      size: 88,
-      fontFamily: fonts.black,
-    });
-
     const busiest = Math.max(0, ...grid.map((row) => Math.max(...row, 0)));
     const alphaFor = (m: number) =>
       m <= 0 || busiest <= 0
@@ -1237,8 +1229,8 @@ const rowtemberCommunityHours: ShareCard = {
     const gridW = 24 * cw + 23 * cgap;
     const left = (this.width - (labelW + gridW)) / 2 + labelW;
     const tickH = 34;
-    const bandTop = 210;
-    const bandH = 640;
+    const bandTop = 90;
+    const bandH = 900;
     const rowH = Math.min(44, Math.floor((bandH - tickH - (n - 1) * rgap) / n));
     const gridH = n * rowH + (n - 1) * rgap;
     const top = bandTop + Math.max(0, (bandH - tickH - gridH) / 2) + tickH;
@@ -1275,28 +1267,6 @@ const rowtemberCommunityHours: ShareCard = {
       }
     }
     ctx.restore();
-
-    drawCenteredText(ctx, community.meters.toLocaleString("en-US"), {
-      cx,
-      baseline: 924,
-      font: `96px ${fonts.black}`,
-      color: "#ffffff",
-      maxWidth: this.width - 120,
-    });
-    drawCenteredText(ctx, "METERS", {
-      cx,
-      baseline: 966,
-      font: `26px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.82)",
-      tracking: 8,
-    });
-    drawCenteredText(ctx, "WHEN ROWS GET LOGGED", {
-      cx,
-      baseline: 1008,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.9)",
-      tracking: 5,
-    });
   },
 };
 
