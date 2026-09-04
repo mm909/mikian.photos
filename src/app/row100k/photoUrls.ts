@@ -57,6 +57,21 @@ const getThumbKeys = unstable_cache(loadThumbKeys, ["row100k-thumb-keys", CHALLE
   revalidate: 120,
 });
 
+/* Signing the same key twice produces two DIFFERENT urls — the signature
+ * carries the moment it was minted — and a browser treats those as two
+ * unrelated images, so every visit re-downloaded photos it already had.
+ * Caching the signed url hands the same string to every render (and to both
+ * the thumb in the strip and the full frame in the lightbox), which is what
+ * lets the browser cache do its job. Cached for half the signature's life, so
+ * the url a reader receives always has at least that long left on it. */
+const SIGN_TTL = 3600;
+
+export function signCached(key: string): Promise<string> {
+  return unstable_cache(() => r2PresignGet(key, SIGN_TTL), ["row100k-photo-url", key], {
+    revalidate: Math.floor(SIGN_TTL / 2),
+  })();
+}
+
 /* One entry's keys → display URLs, order preserved (rower photo first). */
 export async function resolvePhotoUrls(keys: string[]): Promise<string[]> {
   if (keys.length === 0) return [];
@@ -64,7 +79,7 @@ export async function resolvePhotoUrls(keys: string[]): Promise<string[]> {
   try {
     const urls = await Promise.all(
       keys.map((key) =>
-        key.startsWith("demo:") ? demoPhotoUrl(key) : canSign ? r2PresignGet(key, 3600) : "",
+        key.startsWith("demo:") ? demoPhotoUrl(key) : canSign ? signCached(key) : "",
       ),
     );
     return urls.filter(Boolean);
@@ -94,8 +109,8 @@ export async function resolvePhotoMedia(keys: string[]): Promise<PhotoMedia[]> {
         if (!canSign) return null;
         const tk = thumbKey(key);
         const [full, thumb] = await Promise.all([
-          r2PresignGet(key, 3600),
-          thumbSet.has(tk) ? r2PresignGet(tk, 3600) : Promise.resolve(null),
+          signCached(key),
+          thumbSet.has(tk) ? signCached(tk) : Promise.resolve(null),
         ]);
         return { full, thumb };
       }),

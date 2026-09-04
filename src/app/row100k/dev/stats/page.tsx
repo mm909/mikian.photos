@@ -6,6 +6,7 @@ import { CHALLENGE, fmtRowerNumber, isRow100kAdmin } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import { CardPreviews } from "./CardPreviews";
 
 export const dynamic = "force-dynamic";
 
@@ -37,15 +38,21 @@ function stampWhen(createdAt: Date): string {
 
 /* Page-local styles — .dst- prefix, theme.ts untouched. Rendered as the text
  * child of a style tag, so no double quotes, no angle brackets, and no
- * apostrophes anywhere in the string (see the note in theme.ts). */
+ * apostrophes anywhere in the string (see the note in theme.ts).
+ *
+ * The stage repeats the share dialog's dark checkerboard: these cards are
+ * white-on-transparent stickers and are invisible on paper. */
 const dstCss = `
-.row100k .dst-table th.num{text-align:right}
-.row100k .dst-table td.card{font-size:12px;white-space:nowrap}
-.row100k .dst-table td.when{white-space:nowrap;color:var(--gray)}
-.row100k .dst-lines{font-family:var(--row-mono),monospace;font-size:12px;color:var(--ink-soft)}
-.row100k .dst-lines div{border-bottom:1px dashed var(--line);padding:7px 0;white-space:nowrap;overflow-x:auto}
-.row100k .dst-lines .when{color:var(--gray)}
-.row100k .dst-lines .act{color:var(--water)}
+.row100k .dst-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:22px;margin-top:22px}
+.row100k .dst-card{margin:0;border:2px solid var(--ink);background:var(--paper)}
+.row100k .dst-stage{background-color:var(--frame);background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:18px 18px;background-position:0 0,9px 9px;display:flex;align-items:center;justify-content:center;padding:10px;min-height:150px}
+.row100k .dst-canvas{display:block;max-width:100%;height:auto}
+.row100k .dst-card figcaption{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px;border-top:2px solid var(--ink)}
+.row100k .dst-name{font-family:var(--row-archivo-black),sans-serif;font-size:15px;text-transform:uppercase}
+.row100k .dst-id{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;color:var(--gray)}
+.row100k .dst-n{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);margin-top:4px;font-variant-numeric:tabular-nums}
+.row100k .dst-n.on{color:var(--water);font-weight:700}
+.row100k .dst-n em{font-style:normal;letter-spacing:.1em;text-transform:uppercase;font-size:10px}
 `;
 
 type Ev = { cardId: string; action: string; rowerNumber: number | null; createdAt: Date };
@@ -74,20 +81,10 @@ export default async function DevStatsPage() {
     /* table not pushed yet — show the empty state, not a 500 */
   }
 
-  type Agg = { share: number; copy: number; download: number; total: number; last: Date };
-  const byCard = new Map<string, Agg>();
-  for (const e of events) {
-    const agg: Agg =
-      byCard.get(e.cardId) ??
-      { share: 0, copy: 0, download: 0, total: 0, last: e.createdAt };
-    if (e.action === "share") agg.share += 1;
-    else if (e.action === "copy") agg.copy += 1;
-    else if (e.action === "download") agg.download += 1;
-    agg.total += 1;
-    if (e.createdAt > agg.last) agg.last = e.createdAt;
-    byCard.set(e.cardId, agg);
-  }
-  const rows = [...byCard.entries()].sort((a, b) => b[1].total - a[1].total);
+  /* Just the total per card — how it left the site (share sheet, clipboard,
+   * download) turned out not to be worth a column. */
+  const counts: Record<string, number> = {};
+  for (const e of events) counts[e.cardId] = (counts[e.cardId] ?? 0) + 1;
 
   const who = (n: number | null) =>
     n === 0 ? "COMMUNITY" : n !== null ? `ROWER ${fmtRowerNumber(n)}` : "—";
@@ -102,36 +99,9 @@ export default async function DevStatsPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>Dev stats</h2>
-            <span className="mono">WHICH CARDS GET USED</span>
+            <span className="mono">EVERY CARD, MOST SHARED FIRST</span>
           </div>
-          {rows.length === 0 ? (
-            <p className="board-empty">NOTHING SHARED YET.</p>
-          ) : (
-            <table className="board dst-table">
-              <thead>
-                <tr>
-                  <th>Card</th>
-                  <th className="num">Share</th>
-                  <th className="num">Copy</th>
-                  <th className="num">Download</th>
-                  <th className="num">Total</th>
-                  <th>Last used</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(([cardId, agg]) => (
-                  <tr key={cardId}>
-                    <td className="card">{cardId}</td>
-                    <td className="num">{agg.share}</td>
-                    <td className="num">{agg.copy}</td>
-                    <td className="num">{agg.download}</td>
-                    <td className="num">{agg.total}</td>
-                    <td className="when">{stampWhen(agg.last)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <CardPreviews counts={counts} />
         </div>
       </section>
 

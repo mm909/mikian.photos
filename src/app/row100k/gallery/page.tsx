@@ -3,8 +3,8 @@ import path from "path";
 import { readdir } from "fs/promises";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
-import { r2Configured, r2List, r2PresignGet } from "@/lib/r2";
-import { thumbKey } from "../photoUrls";
+import { r2Configured, r2List } from "@/lib/r2";
+import { signCached, thumbKey } from "../photoUrls";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -34,6 +34,11 @@ export const metadata: Metadata = {
  * Everything under public/ is world-readable at its URL once deployed, and
  * the R2 photos are served through presigned GET URLs that expire hourly —
  * all of it is published work, nothing private lives here.
+ *
+ * Deletable-ness follows the source: every R2 entry carries its bucket `key`
+ * down to the client so the admin can unpublish it (see
+ * /api/row100k/gallery/delete); legacy public/ entries get key: null, because
+ * they ship inside the deploy and no runtime call can remove them.
  *
  * Thumbnails: an R2 upload may carry a small companion object at
  * thumbKey(mainKey) — "uuid.thumb.jpg" next to "uuid.jpg" (see
@@ -71,6 +76,17 @@ const galleryCss = `
 @media (max-width:599px){.row100k .gal-grid{grid-template-columns:repeat(2,1fr);gap:6px}.row100k .gal-band{padding:8px 6px 36px}}
 .row100k .gal-tile:focus,.row100k .gal-add:focus{outline:none}
 .row100k .gal-tile:focus-visible,.row100k .gal-add:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.row100k .gal-del{position:fixed;z-index:1001;left:16px;bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.row100k .gal-del-row{display:flex;align-items:center;gap:8px}
+.row100k .gal-del-btn{appearance:none;-webkit-appearance:none;background:none;border:2px solid #b3400f;border-radius:0;color:#e0703f;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:8px 12px;margin:0;cursor:pointer}
+.row100k .gal-del-btn:hover{color:#fff;background:#b3400f}
+.row100k .gal-del-btn.is-sure{background:#b3400f;color:#fff}
+.row100k .gal-del-keep{appearance:none;-webkit-appearance:none;background:none;border:2px solid #fff;border-radius:0;color:#fff;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:8px 12px;margin:0;cursor:pointer}
+.row100k .gal-del-btn:disabled,.row100k .gal-del-keep:disabled{opacity:.5;cursor:default}
+.row100k .gal-del-err{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#d9a0a0;margin:0;max-width:60vw}
+.row100k .gal-del-btn:focus,.row100k .gal-del-keep:focus{outline:none}
+.row100k .gal-del-btn:focus-visible,.row100k .gal-del-keep:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (max-width:599px){.row100k .gal-del{left:10px;bottom:44px}}
 `;
 
 /* The month in photos, newest first. Public, like the rest of /row100k —
@@ -91,7 +107,7 @@ export default async function GalleryPage() {
   // thumbKey convention — no per-photo existence checks. Fails soft to just
   // the public batch — a listing or presign hiccup should never blank the
   // page.
-  let r2Photos: { src: string; full: string }[] = [];
+  let r2Photos: { src: string; full: string; key: string | null }[] = [];
   try {
     if (r2Configured()) {
       const isThumb = (key: string) => /\.thumb\.[a-z0-9]+$/i.test(key);
@@ -107,10 +123,10 @@ export default async function GalleryPage() {
         mains.map(async (o) => {
           const tk = thumbKey(o.key);
           const [full, thumb] = await Promise.all([
-            r2PresignGet(o.key, 3600),
-            thumbKeys.has(tk) ? r2PresignGet(tk, 3600) : Promise.resolve(null),
+            signCached(o.key),
+            thumbKeys.has(tk) ? signCached(tk) : Promise.resolve(null),
           ]);
-          return { src: thumb ?? full, full };
+          return { src: thumb ?? full, full, key: o.key };
         })
       );
     }
@@ -135,12 +151,13 @@ export default async function GalleryPage() {
   // 5-digit sequence (IMG_10234) never sorts under a 4-digit one.
   files.sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
 
-  // Legacy public/ items have no thumbs — the grid keeps their full image.
+  // Legacy public/ items have no thumbs — the grid keeps their full image —
+  // and no bucket key, which is what makes them undeletable in the viewer.
   const merged = [
     ...r2Photos,
     ...files.map((f) => {
       const full = `/row100k/rowtember-profiles/${encodeURIComponent(f)}`;
-      return { src: full, full };
+      return { src: full, full, key: null };
     }),
   ];
   const photos = merged.map((p, i) => ({ ...p, alt: `Rowtember — photo ${i + 1}` }));
