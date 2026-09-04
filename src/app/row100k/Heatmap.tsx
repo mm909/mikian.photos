@@ -19,10 +19,15 @@ function bucket(m: number, t: [number, number, number]): string {
 export function Heatmap({
   byDay,
   thresholds = ONE_ROWER,
+  days = 30,
 }: {
   byDay: Record<string, number>;
   thresholds?: [number, number, number];
+  /* Draw only this many September days — the month stops at today rather
+   * than trailing a fortnight of empty cells (owner call, day 4). */
+  days?: number;
 }) {
+  const shown = Math.min(30, Math.max(1, days));
   // Sep 1, 2026 — leading blanks align day 1 under its weekday.
   const firstDow = new Date(Date.UTC(2026, 8, 1)).getUTCDay();
 
@@ -37,7 +42,7 @@ export function Heatmap({
         {Array.from({ length: firstDow }, (_, i) => (
           <div key={`blank${i}`} />
         ))}
-        {Array.from({ length: 30 }, (_, i) => {
+        {Array.from({ length: shown }, (_, i) => {
           const day = `2026-09-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);

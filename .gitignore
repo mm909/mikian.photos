@@ -39,3 +39,6 @@ next-env.d.ts
 
 # Tesseract.js downloads language models at runtime — they shouldn't be tracked
 *.traineddata
+
+# Local database dumps (npm run db:backup -- --local ./backups)
+/backups/

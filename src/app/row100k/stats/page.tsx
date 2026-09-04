@@ -9,6 +9,7 @@ import {
   WEEKS,
   computeDaily,
   computeWeekly,
+  daysElapsed,
   nowMs as clockNow,
   weekIndexOf,
   type WeeklyRow,
@@ -121,13 +122,9 @@ export default async function StatsPage() {
    * Late logs landing outside September are skipped, and the grid only
    * runs through today (US-west), clamped to the last day. */
   const SHIFT_MS = 7 * 3600_000;
-  const westToday = new Date(clockNow() - SHIFT_MS).toISOString().slice(0, 10);
-  const gridDayCount =
-    westToday < FIRST_DAY
-      ? 1
-      : westToday > LAST_DAY
-        ? 30
-        : Math.min(30, Number(westToday.slice(8, 10)));
+  /* Days of September that have actually happened — every chart on this page
+   * stops here rather than reserving space for the rest of the month. */
+  const gridDayCount = daysElapsed();
   const hourGrid: number[][] = Array.from(
     { length: gridDayCount },
     () => Array(24).fill(0) as number[],
@@ -180,6 +177,7 @@ export default async function StatsPage() {
               sessions: boards.community.sessions,
             }}
             hourGrid={hourGrid}
+            days={gridDayCount}
           />
         </div>
       </section>
@@ -190,7 +188,7 @@ export default async function StatsPage() {
             <h2>The turnout</h2>
             <span className="mono">ROWERS LOGGING, PER DAY</span>
           </div>
-          <TurnoutChart counts={uniqueByDay} />
+          <TurnoutChart counts={uniqueByDay} days={gridDayCount} />
         </div>
       </section>
 

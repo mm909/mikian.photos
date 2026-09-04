@@ -51,15 +51,21 @@ export async function RowBar({
 
   return (
     <div className="bar" style={sticky ? undefined : { position: "static" }}>
-      {active === "home" ? (
-        <span className="bar-mark" aria-current="page">
-          ROWTEMBER
-        </span>
-      ) : (
-        <a className="bar-mark" href="/row100k">
-          ROWTEMBER
+      <span className="bar-lead">
+        {/* Mikian Musser, hosting Rowtember — the landing wordmark, then the stamp. */}
+        <a className="bar-brand" href="/">
+          Mikian<span className="dot">.</span>Musser
         </a>
-      )}
+        {active === "home" ? (
+          <span className="bar-mark" aria-current="page">
+            ROWTEMBER
+          </span>
+        ) : (
+          <a className="bar-mark" href="/row100k">
+            ROWTEMBER
+          </a>
+        )}
+      </span>
       <span className="bar-links">
         {link("/row100k/stats", "STATS", "stats")}
         {link("/row100k/feed", "FEED", "feed")}

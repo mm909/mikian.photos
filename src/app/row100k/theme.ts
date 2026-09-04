@@ -53,6 +53,14 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
 /* The bar-scale ROWTEMBER stamp: the cc-mark idiom shrunk to chip size —
  * same white Archivo Black caps on water, same rotate and skew. */
+/* Who is putting this on, then what it is: the Mikian.Musser wordmark from
+ * the landing page sits to the left of the ROWTEMBER stamp, so the bar reads
+ * as Mikian Musser hosting Rowtember. Both live in .bar-lead so the pair
+ * stays together when the bar wraps on a phone. */
+.row100k .bar-lead{display:flex;align-items:center;gap:12px;flex:none;min-width:0}
+.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:12px;line-height:1;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap}
+.row100k .bar-brand .dot{color:var(--water)}
+.row100k .bar-brand:hover{color:var(--water)}
 .row100k .bar-mark{display:inline-block;flex:none;font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;text-transform:uppercase;letter-spacing:.01em;color:#fff;background:var(--water);padding:6px 10px 5px;transform:rotate(-1.2deg) skewX(-2deg)}
 .row100k a.bar-mark{text-decoration:none;cursor:pointer}
 .row100k a.bar-mark:hover{background:var(--water-hover)}
@@ -64,6 +72,8 @@ html:has(.row100k){scroll-behavior:smooth}
  * first line, the nav links on their own dashed-ruled line beneath. */
 @media(max-width:560px){
   .row100k .bar{flex-wrap:wrap;gap:10px 18px;padding:12px 16px}
+  .row100k .bar-lead{gap:9px}
+  .row100k .bar-brand{font-size:11px;letter-spacing:.03em}
   .row100k .bar-links{order:3;flex-basis:100%;gap:22px;border-top:1px dashed var(--line);padding-top:10px}
 }
 /* Account chip + dropdown (top-right of the bar). */

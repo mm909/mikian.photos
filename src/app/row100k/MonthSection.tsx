@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fmtDay, fmtMeters } from "@/lib/row100k";
+import { dayTicks, fmtDay, fmtMeters } from "@/lib/row100k";
 import { Curve } from "./Curve";
 import { Heatmap } from "./Heatmap";
 import { StatsShare, type CommunityShare } from "./StatsShare";
@@ -18,12 +18,15 @@ export function MonthSection({
   daily,
   community,
   hourGrid,
+  days = 30,
 }: {
   byDay: Record<string, number>;
   thresholds: [number, number, number];
   daily: { day: string; cum: number }[];
   community: { meters: number; rowers: number; sessions: number };
   hourGrid?: number[][];
+  /* September days elapsed — every chart here stops at today. */
+  days?: number;
 }) {
   const [view, setView] = useState<"cum" | "daily">("cum");
 
@@ -38,7 +41,7 @@ export function MonthSection({
 
   return (
     <div>
-      <Heatmap byDay={byDay} thresholds={thresholds} />
+      <Heatmap byDay={byDay} thresholds={thresholds} days={days} />
       <StatsShare community={share} prefer="rowtember-community-month" />
 
       <div style={{ marginTop: 14 }}>
@@ -61,9 +64,9 @@ export function MonthSection({
           </button>
         </div>
         {view === "cum" ? (
-          <Curve daily={daily} title="The curve — cumulative meters, everyone combined" />
+          <Curve daily={daily} title="The curve — cumulative meters, everyone combined" days={days} />
         ) : (
-          <DailyBars byDay={byDay} />
+          <DailyBars byDay={byDay} days={days} />
         )}
       </div>
     </div>
@@ -72,7 +75,8 @@ export function MonthSection({
 
 /* Per-day community meters as bars — the Curve's frame, gridlines and mono
  * labels, with title-element tooltips instead of a hover readout. */
-function DailyBars({ byDay }: { byDay: Record<string, number> }) {
+function DailyBars({ byDay, days = 30 }: { byDay: Record<string, number>; days?: number }) {
+  const span = Math.min(30, Math.max(1, days));
   const W = 660;
   const H = 250;
   const L = 56;
@@ -81,7 +85,7 @@ function DailyBars({ byDay }: { byDay: Record<string, number> }) {
   const B = 30;
 
   const vals = Array.from(
-    { length: 30 },
+    { length: span },
     (_, i) => byDay[`2026-09-${String(i + 1).padStart(2, "0")}`] ?? 0,
   );
   /* Nothing logged (pre-Sep-1, or the boardData failure fallback): render
@@ -97,7 +101,7 @@ function DailyBars({ byDay }: { byDay: Record<string, number> }) {
   const abbr = (n: number) =>
     n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
 
-  const slot = (W - L - R) / 30;
+  const slot = (W - L - R) / span;
   const barW = slot * 0.62;
   const xc = (i: number) => L + i * slot + slot / 2;
   const y = (v: number) => T + (1 - v / niceMax) * (H - T - B);
@@ -131,7 +135,7 @@ function DailyBars({ byDay }: { byDay: Record<string, number> }) {
           </text>
         )}
         <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#15171a" strokeWidth="2" />
-        {[1, 10, 20, 30].map((d) => (
+        {dayTicks(span).map((d) => (
           <text key={d} x={xc(d - 1)} y={H - 8} textAnchor="middle" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
             {d === 1 ? "SEP 1" : d}
           </text>

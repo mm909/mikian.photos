@@ -82,6 +82,9 @@ export function BarAccount({
                 <a className="acct-item" href="/row100k/dev/stats">
                   Dev stats →
                 </a>
+                <a className="acct-item" href="/row100k/post">
+                  Post pack →
+                </a>
               </>
             )}
             <button

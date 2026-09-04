@@ -11,6 +11,7 @@ import {
   LOG_CLOSE_MS,
   START_MS,
   computeBoards,
+  daysElapsed,
   divisionRank,
   fmtDay,
   fmtDuration,
@@ -273,9 +274,14 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
             <h2>The month</h2>
             <span className="mono">METERS PER DAY</span>
           </div>
-          <Heatmap byDay={byDay} />
+          <Heatmap byDay={byDay} days={daysElapsed()} />
           <div style={{ marginTop: 10 }}>
-            <Curve daily={b.daily} title="Their curve — vs the finish-on-time line" goal={GOAL_METERS} />
+            <Curve
+              daily={b.daily}
+              title="Their curve — vs the finish-on-time line"
+              goal={GOAL_METERS}
+              days={daysElapsed()}
+            />
           </div>
         </div>
       </section>

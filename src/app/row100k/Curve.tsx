@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { fmtDay, fmtMeters } from "@/lib/row100k";
+import { dayTicks, fmtDay, fmtMeters } from "@/lib/row100k";
 
 /* Cumulative meters as a poster-styled SVG line with a nearest-day hover
  * readout. Single series — the title names it, no legend. Used twice: the
@@ -12,10 +12,14 @@ export function Curve({
   daily,
   title,
   goal,
+  days = 30,
 }: {
   daily: { day: string; cum: number }[];
   title: string;
   goal?: number;
+  /* The x-axis runs Sep 1 → this day, not the whole month, so a few days of
+   * rowing fill the frame instead of hugging the left edge. */
+  days?: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 660;
@@ -35,13 +39,18 @@ export function Curve({
 
   if (pts.length < 2) return null;
 
-  const maxCum = Math.max(pts[pts.length - 1].cum, goal ?? 0);
+  const span = Math.min(30, Math.max(2, days));
+  /* The finish-on-time line is drawn only as far as today, so the axis is
+   * scaled to the pace mark for TODAY — not the full-month goal, which would
+   * flatten three days of real rowing into nothing. */
+  const goalHere = goal ? (goal * (span - 1)) / 29 : 0;
+  const maxCum = Math.max(pts[pts.length - 1].cum, goalHere);
   const niceMax = (() => {
     const pow = Math.pow(10, Math.floor(Math.log10(maxCum)));
     for (const m of [1, 2, 2.5, 5, 10]) if (maxCum <= m * pow) return m * pow;
     return 10 * pow;
   })();
-  const x = (dayNum: number) => L + ((dayNum - 1) / 29) * (W - L - R);
+  const x = (dayNum: number) => L + ((dayNum - 1) / (span - 1)) * (W - L - R);
   const y = (cum: number) => T + (1 - cum / niceMax) * (H - T - B);
   const path = pts.map((p, i) => `${i ? "L" : "M"}${x(p.dayNum).toFixed(1)},${y(p.cum).toFixed(1)}`).join("");
   const area = `${path}L${x(pts[pts.length - 1].dayNum).toFixed(1)},${y(0).toFixed(1)}L${x(pts[0].dayNum).toFixed(1)},${y(0).toFixed(1)}Z`;
@@ -86,15 +95,15 @@ export function Curve({
             </g>
           ))}
           <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#15171a" strokeWidth="2" />
-          {[1, 10, 20, 30].map((d) => (
+          {dayTicks(span).map((d) => (
             <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
               {d === 1 ? "SEP 1" : d}
             </text>
           ))}
           {goal ? (
             <g>
-              <line x1={x(1)} y1={y(0)} x2={x(30)} y2={y(goal)} stroke="#8a8a85" strokeWidth="1.5" strokeDasharray="5 5" />
-              <text x={x(30) - 4} y={Math.max(y(goal) - 8, 12)} textAnchor="end" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+              <line x1={x(1)} y1={y(0)} x2={x(span)} y2={y(goalHere)} stroke="#8a8a85" strokeWidth="1.5" strokeDasharray="5 5" />
+              <text x={x(span) - 4} y={Math.max(y(goalHere) - 8, 12)} textAnchor="end" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
                 {abbr(goal)} PACE
               </text>
             </g>

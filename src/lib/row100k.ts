@@ -73,6 +73,29 @@ export function nowMs(): number {
   return Date.now() + CLOCK_OFFSET_MS;
 }
 
+/* How many September days the charts should draw: 1 on Sep 1, 30 from Sep 30
+ * onward. Every calendar, curve and bar chart stops at TODAY rather than
+ * reserving empty space for days nobody has rowed yet (owner call, day 4) —
+ * three logged days shouldn't sit in the corner of a month-wide frame.
+ * Pacific, the same UTC-7 shift the hour grid uses, so "today" flips when the
+ * rowers' day does. */
+export function daysElapsed(atMs = nowMs()): number {
+  const west = new Date(atMs - 7 * 3_600_000).toISOString().slice(0, 10);
+  if (west < FIRST_DAY) return 1;
+  if (west > LAST_DAY) return 30;
+  return Math.min(30, Math.max(1, Number(west.slice(8, 10))));
+}
+
+/* Which day numbers get an x-axis label for a chart `days` wide. Keeps the
+ * familiar 1/10/20/30 once the month is long enough, and just counts up
+ * while it is short. */
+export function dayTicks(days: number): number[] {
+  if (days <= 1) return [1];
+  if (days <= 8) return Array.from({ length: days }, (_, i) => i + 1);
+  if (days <= 16) return [...new Set([1, Math.round(days / 2), days])];
+  return [...new Set([1, 10, 20, days].filter((d) => d <= days))];
+}
+
 /* Entry bounds. The split sanity check (seconds per 500m) catches swapped
  * fields and typo'd units: 60s/500m is faster than the world record, 900s
  * is slower than a drifting boat. No lower meters bound (owner call, day 2)

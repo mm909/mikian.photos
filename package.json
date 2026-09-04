@@ -22,7 +22,9 @@
     "prisma:studio:proddb": "node scripts/db-status.mjs --require .env.proddb.local && dotenv -e .env.proddb.local -e .env.local -- prisma studio",
     "row100k:thumbs": "dotenv -e .env.local -- tsx scripts/row100k-thumbs.ts",
     "row100k:demo": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts",
-    "row100k:demo:clear": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --clear"
+    "row100k:demo:clear": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --clear",
+    "db:backup": "dotenv -e .env.local -- tsx scripts/db-backup.ts",
+    "db:restore": "dotenv -e .env.local -- tsx scripts/db-restore.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
