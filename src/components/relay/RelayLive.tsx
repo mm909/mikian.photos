@@ -172,7 +172,7 @@ export function RelayLive({ data, isOwner }: { data: RelayData; isOwner: boolean
                     </Link>
                   </>
                 )}
-                <Link className="relay-live__menu-link" href="/">
+                <Link className="relay-live__menu-link" href="/photos">
                   ← Mikian.Photos
                 </Link>
               </div>

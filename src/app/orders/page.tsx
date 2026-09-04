@@ -125,7 +125,7 @@ export default async function OrdersPage() {
             <p style={{ margin: "0 0 14px", color: "var(--muted)" }}>
               No orders yet. When you buy photos from one of your events they show up here.
             </p>
-            <Link href="/" className="btn btn--primary">
+            <Link href="/photos" className="btn btn--primary">
               Find your photos →
             </Link>
           </div>

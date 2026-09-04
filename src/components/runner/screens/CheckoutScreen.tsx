@@ -85,7 +85,7 @@ export function CheckoutScreen({ unlocked }: Props) {
           </p>
           <button
             className="btn btn--primary btn--lg"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/photos")}
             style={{ marginTop: 28 }}
           >
             ← Back to the {eventNoun}
@@ -457,7 +457,7 @@ export function CheckoutScreen({ unlocked }: Props) {
             </div>
 
             <button
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/photos")}
               style={{
                 marginTop: 18,
                 background: "transparent",

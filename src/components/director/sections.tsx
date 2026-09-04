@@ -631,7 +631,7 @@ export function DirectorFooter() {
           Mikian<span style={{ color: "var(--accent-l)" }}>.</span>Photos
         </div>
         <div style={{ display: "flex", gap: 22, fontFamily: "var(--font-sans)", fontSize: 13 }}>
-          <Link href="/" style={{ color: "rgba(245,242,236,.7)", textDecoration: "none" }}>Runner site</Link>
+          <Link href="/photos" style={{ color: "rgba(245,242,236,.7)", textDecoration: "none" }}>Runner site</Link>
           <Link href="/privacy" style={{ color: "rgba(245,242,236,.7)", textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ color: "rgba(245,242,236,.7)", textDecoration: "none" }}>Terms</Link>
         </div>

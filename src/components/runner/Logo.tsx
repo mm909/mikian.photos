@@ -9,7 +9,7 @@ export function Logo({ onClick, dark = false }: Props) {
     >
       Mikian
       <span style={{ color: dark ? "var(--accent-l)" : "var(--accent)" }}>.</span>
-      Photos
+      Musser
     </button>
   );
 }

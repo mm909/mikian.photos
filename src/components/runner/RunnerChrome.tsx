@@ -15,6 +15,7 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
   // floating menu), and the LASD26 crew-call one-pager (self-contained
   // standalone design). /tsp/manage keeps the nav.
   const bare =
+    pathname === "/" ||
     pathname === "/photographer/sign-in" ||
     pathname === "/tsp" ||
     pathname === "/tsp/stats" ||

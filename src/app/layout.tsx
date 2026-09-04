@@ -7,8 +7,8 @@ import { DevBanner } from "@/components/dev/DevBanner";
 import { SessionProviderWrapper } from "@/components/auth/SessionProviderWrapper";
 
 export const metadata: Metadata = {
-  title: "Mikian.Photos",
-  description: "Find your photos. Search by face, bib number, or browse the gallery.",
+  title: "Mikian Musser",
+  description: "Rowtember, LASD26, and race photos — Mikian Musser.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
