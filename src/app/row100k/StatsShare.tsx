@@ -11,6 +11,7 @@ import type { ShareData } from "./share/cards";
 
 export const COMMUNITY_CARD_IDS = [
   "rowtember-community-month",
+  "rowtember-community-total",
   "rowtember-community-curve",
   "rowtember-community-daily",
   "rowtember-community-hours",

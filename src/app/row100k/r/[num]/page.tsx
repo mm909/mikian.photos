@@ -34,7 +34,7 @@ import { BestsGrid, type Best } from "../../BestsGrid";
 import { LogPanel } from "../../LogPanel";
 import { ProfileLog } from "../../ProfileLog";
 import { ProfileShare } from "../../ProfileShare";
-import { resolvePhotoUrls } from "../../photoUrls";
+import { resolvePhotoMedia } from "../../photoUrls";
 import { RemoveRower } from "../../RemoveRower";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -183,10 +183,17 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const bestsWithPlace: Best[] = bests.map((r) => ({ ...r, place: placeOf(r.key) }));
 
   // The log shows each row's photo pair — for everyone (the photos are the
-  // honor system), and as the "current" pair in the owner/admin editor.
-  const photoUrlLists = await Promise.all(entries.map((e) => resolvePhotoUrls(e.photos)));
+  // honor system), and as the "current" pair in the owner/admin editor. One
+  // media resolve per entry serves both consumers: the editable ledger gets
+  // {full, thumb} pairs (64px squares render the thumb, the lightbox the
+  // full), and the read-only ProfileLog keeps its plain full-URL list.
+  const photoMediaLists = await Promise.all(entries.map((e) => resolvePhotoMedia(e.photos)));
   const rows = entries
-    .map((e, i) => ({ ...e, photoUrls: photoUrlLists[i] }))
+    .map((e, i) => ({
+      ...e,
+      photos: photoMediaLists[i],
+      photoUrls: photoMediaLists[i].map((m) => m.full),
+    }))
     .reverse();
 
   return (

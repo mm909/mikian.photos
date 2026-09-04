@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectsCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Readable } from "node:stream";
@@ -126,6 +127,39 @@ export async function r2Delete(keys: string[]): Promise<void> {
       },
     })
   );
+}
+
+/**
+ * List every object under a prefix. Paginates until the bucket says it's
+ * done, so callers get the full set (a gallery prefix stays well under a few
+ * thousand keys). Returns [] when R2 isn't configured — callers that merely
+ * enrich a page with bucket contents keep rendering without it.
+ */
+export async function r2List(
+  prefix: string
+): Promise<Array<{ key: string; lastModified: Date | null; size: number }>> {
+  if (!r2Configured()) return [];
+  const out: Array<{ key: string; lastModified: Date | null; size: number }> = [];
+  let continuationToken: string | undefined;
+  do {
+    const page = await r2().send(
+      new ListObjectsV2Command({
+        Bucket: R2_BUCKET,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      })
+    );
+    for (const obj of page.Contents ?? []) {
+      if (!obj.Key) continue;
+      out.push({
+        key: obj.Key,
+        lastModified: obj.LastModified ?? null,
+        size: obj.Size ?? 0,
+      });
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return out;
 }
 
 /** Key helpers — keep all R2 paths in one place. */

@@ -590,6 +590,24 @@ model RowEntry {
   @@index([participantId])
 }
 
+/// One use of a shareable card — pinged by the share dialog only AFTER a
+/// successful share sheet, clipboard copy, or download, so the owner can see
+/// which cards actually leave the site. `action` is "share" | "copy" |
+/// "download"; `rowerNumber` 0 means the community cards shared from the
+/// stats page. Analytics only — nothing user-facing reads it, and a failed
+/// write never surfaces to the sharer.
+model ShareEvent {
+  id          String   @id @default(cuid())
+  challenge   String   @default("row100k-sep-2026")
+  cardId      String
+  action      String
+  rowerNumber Int?
+  createdAt   DateTime @default(now())
+
+  @@index([challenge, cardId])
+  @@index([challenge, createdAt])
+}
+
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the
 // photo product; `page` scopes rows so a future crew page can reuse the table.
 // Each submission also emails the owner the full applicant list — the table is

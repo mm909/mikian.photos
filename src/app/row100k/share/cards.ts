@@ -1014,6 +1014,53 @@ const rowtemberCommunityMonth: ShareCard = {
   },
 };
 
+/* The total, alone: the mark and everyone's combined meters, nothing else
+ * (owner call, day 3 — just the number). Same shrink-to-fit loop as the
+ * personal total card; digits only, so it never needs the ellipsis. */
+const rowtemberCommunityTotal: ShareCard = {
+  id: "rowtember-community-total",
+  label: "The total",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.community,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    const metersText = community.meters.toLocaleString("en-US");
+    const maxW = this.width - 90;
+    let mSize = 210;
+    ctx.font = `${mSize}px ${fonts.black}`;
+    while (mSize > 110 && ctx.measureText(metersText).width > maxW) {
+      mSize -= 6;
+      ctx.font = `${mSize}px ${fonts.black}`;
+    }
+    drawCenteredText(ctx, metersText, {
+      cx,
+      baseline: 440,
+      font: `${mSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: maxW,
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: 508,
+      font: `34px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 9,
+    });
+  },
+};
+
 /* The community's cumulative line — same vocabulary as the personal curve,
  * but no 100k pace line: at this scale there's no finish to race. */
 const rowtemberCommunityCurve: ShareCard = {
@@ -1283,6 +1330,7 @@ export const CARDS: ShareCard[] = [
   rowtemberMonth,
   rowtemberLogo,
   rowtemberCommunityMonth,
+  rowtemberCommunityTotal,
   rowtemberCommunityCurve,
   rowtemberCommunityDaily,
   rowtemberCommunityHours,
