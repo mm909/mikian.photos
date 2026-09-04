@@ -79,17 +79,11 @@ export function BarAccount({
                 <a className="acct-item" href="/row100k/signups">
                   Signups →
                 </a>
-                <a className="acct-item" href="/row100k/gallery">
-                  Gallery →
-                </a>
                 <a className="acct-item" href="/row100k/partners">
                   Partners →
                 </a>
-                <a className="acct-item" href="/row100k/dev/feed">
-                  Feed drafts →
-                </a>
-                <a className="acct-item" href="/row100k/dev/log">
-                  Log drafts →
+                <a className="acct-item" href="/row100k/dev/stats">
+                  Dev stats →
                 </a>
               </>
             )}

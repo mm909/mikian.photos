@@ -1014,6 +1014,53 @@ const rowtemberCommunityMonth: ShareCard = {
   },
 };
 
+/* The total, alone: the mark and everyone's combined meters, nothing else
+ * (owner call, day 3 — just the number). Same shrink-to-fit loop as the
+ * personal total card; digits only, so it never needs the ellipsis. */
+const rowtemberCommunityTotal: ShareCard = {
+  id: "rowtember-community-total",
+  label: "The total",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.community,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community) return;
+    const cx = this.width / 2;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    const metersText = community.meters.toLocaleString("en-US");
+    const maxW = this.width - 90;
+    let mSize = 210;
+    ctx.font = `${mSize}px ${fonts.black}`;
+    while (mSize > 110 && ctx.measureText(metersText).width > maxW) {
+      mSize -= 6;
+      ctx.font = `${mSize}px ${fonts.black}`;
+    }
+    drawCenteredText(ctx, metersText, {
+      cx,
+      baseline: 440,
+      font: `${mSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: maxW,
+    });
+    drawCenteredText(ctx, "METERS", {
+      cx,
+      baseline: 508,
+      font: `34px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 9,
+    });
+  },
+};
+
 /* The community's cumulative line — same vocabulary as the personal curve,
  * but no 100k pace line: at this scale there's no finish to race. */
 const rowtemberCommunityCurve: ShareCard = {
@@ -1195,7 +1242,8 @@ const rowtemberCommunityDaily: ShareCard = {
 /* The hours grid as a sticker — the stats page's commit-graph (one row per
  * September day so far, 24 hour columns) in the community month card's alpha
  * ramp. Rows fatten early in the month and thin toward GitHub-graph texture
- * as days accumulate; the block stays vertically centered either way. */
+ * as days accumulate; the block stays vertically centered either way. Just
+ * the grid — no mark, no caption (owner call, day 3). */
 const rowtemberCommunityHours: ShareCard = {
   id: "rowtember-community-hours",
   label: "The hours",
@@ -1208,15 +1256,6 @@ const rowtemberCommunityHours: ShareCard = {
     const community = data.community;
     const grid = community?.hourGrid;
     if (!community || !grid || grid.length === 0) return;
-    const cx = this.width / 2;
-
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
-      cx,
-      cy: 130,
-      size: 88,
-      fontFamily: fonts.black,
-    });
-
     const busiest = Math.max(0, ...grid.map((row) => Math.max(...row, 0)));
     const alphaFor = (m: number) =>
       m <= 0 || busiest <= 0
@@ -1237,8 +1276,8 @@ const rowtemberCommunityHours: ShareCard = {
     const gridW = 24 * cw + 23 * cgap;
     const left = (this.width - (labelW + gridW)) / 2 + labelW;
     const tickH = 34;
-    const bandTop = 210;
-    const bandH = 640;
+    const bandTop = 90;
+    const bandH = 900;
     const rowH = Math.min(44, Math.floor((bandH - tickH - (n - 1) * rgap) / n));
     const gridH = n * rowH + (n - 1) * rgap;
     const top = bandTop + Math.max(0, (bandH - tickH - gridH) / 2) + tickH;
@@ -1275,28 +1314,6 @@ const rowtemberCommunityHours: ShareCard = {
       }
     }
     ctx.restore();
-
-    drawCenteredText(ctx, community.meters.toLocaleString("en-US"), {
-      cx,
-      baseline: 924,
-      font: `96px ${fonts.black}`,
-      color: "#ffffff",
-      maxWidth: this.width - 120,
-    });
-    drawCenteredText(ctx, "METERS", {
-      cx,
-      baseline: 966,
-      font: `26px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.82)",
-      tracking: 8,
-    });
-    drawCenteredText(ctx, "WHEN ROWS GET LOGGED", {
-      cx,
-      baseline: 1008,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.9)",
-      tracking: 5,
-    });
   },
 };
 
@@ -1313,6 +1330,7 @@ export const CARDS: ShareCard[] = [
   rowtemberMonth,
   rowtemberLogo,
   rowtemberCommunityMonth,
+  rowtemberCommunityTotal,
   rowtemberCommunityCurve,
   rowtemberCommunityDaily,
   rowtemberCommunityHours,

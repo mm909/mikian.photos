@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
+import { isRow100kAdmin } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { r2Configured, r2PresignPut } from "@/lib/r2";
-import { CHALLENGE } from "@/lib/row100k";
 import { thumbKey } from "@/app/row100k/photoUrls";
 
 export const runtime = "nodejs";
 
-/* Mint a presigned PUT so the log form can push a session photo straight to
- * R2. Keys live under row100k/<challenge>/<participantId>/ — the rows API
- * only accepts keys with that exact prefix, which is what stops one rower
- * attaching another's upload. The client downscales before upload; the type
- * whitelist below is the server's half of keeping the bucket an image store. */
+/* Mint a presigned PUT so the gallery page can push a finished export
+ * straight to R2 — no deploy needed, unlike the legacy public/ batch. Keys
+ * live under row100k/gallery/ and the gallery page lists that exact prefix,
+ * so an upload appears on the next page load. Admin-only: this is the
+ * owner's publish surface, not a community drop box. The owner uploads
+ * full-resolution exports, hence the larger byte cap than the row-photo
+ * route (whose clients downscale first). */
 
-const MAX_PHOTO_BYTES = 8_000_000;
+const MAX_PHOTO_BYTES = 12_000_000;
 
 const TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -25,18 +26,8 @@ const TYPES: Record<string, string> = {
 
 export async function POST(req: Request) {
   const actor = await getEffectiveActor();
-  if (!actor) {
-    return NextResponse.json({ ok: false, error: "Sign in with Google first." }, { status: 401 });
-  }
-  const participant = await db.rowParticipant.findUnique({
-    where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
-    select: { id: true },
-  });
-  if (!participant) {
-    return NextResponse.json(
-      { ok: false, error: "Join the challenge first — it takes 30 seconds." },
-      { status: 400 },
-    );
+  if (!actor || !isRow100kAdmin(actor.email, actor.roles)) {
+    return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
   }
   if (!r2Configured()) {
     return NextResponse.json(
@@ -60,19 +51,21 @@ export async function POST(req: Request) {
     );
   }
   // The exact byte count goes into the signature, so the URL can't be used
-  // to park something bigger than the photo the client measured.
+  // to park something bigger than the file the client measured.
   const contentLength =
     typeof body.contentLength === "number" ? Math.round(body.contentLength) : NaN;
   if (!Number.isFinite(contentLength) || contentLength < 1 || contentLength > MAX_PHOTO_BYTES) {
     return NextResponse.json(
-      { ok: false, error: "That photo is too big — 8 MB max after resize." },
+      { ok: false, error: "That photo is too big — 12 MB max." },
       { status: 400 },
     );
   }
 
+  // Generous — the caller is already an admin; this only stops a runaway
+  // client loop from minting URLs forever.
   const limit = await rateLimit({
-    key: `row100k-photo-sign:${participant.id}`,
-    limit: 60,
+    key: `row100k-gallery-sign:${actor.photographerId}`,
+    limit: 300,
     windowSec: 3600,
   });
   if (!limit.ok) {
@@ -82,18 +75,14 @@ export async function POST(req: Request) {
     );
   }
 
-  /* thumbFor: the client just uploaded a main photo and wants to park a small
-   * jpeg preview beside it. The thumb key is DERIVED from the main key (never
-   * client-chosen), the main key must live under this participant's own
-   * prefix, and thumbs are always small jpegs — so this can't be used to
-   * write anywhere new, only to add a preview next to a photo the caller
-   * could already write. */
+  /* thumbFor: park a small jpeg preview beside a gallery photo the admin
+   * just uploaded. The thumb key is derived from the main key, never
+   * client-chosen, and must stay inside the gallery prefix. */
   const thumbFor = typeof body.thumbFor === "string" ? body.thumbFor : null;
   if (thumbFor) {
-    const ownPrefix = `row100k/${CHALLENGE}/${participant.id}/`;
-    const wellFormed = /^[a-z0-9/_-]+\.(jpe?g|png|webp)$/i.test(thumbFor);
-    if (!wellFormed || !thumbFor.startsWith(ownPrefix) || /\.thumb\.[a-z0-9]+$/i.test(thumbFor)) {
-      return NextResponse.json({ ok: false, error: "Not your photo." }, { status: 400 });
+    const wellFormed = /^row100k\/gallery\/[a-z0-9-]+\.(jpe?g|png|webp)$/i.test(thumbFor);
+    if (!wellFormed || /\.thumb\.[a-z0-9]+$/i.test(thumbFor)) {
+      return NextResponse.json({ ok: false, error: "Not a gallery photo." }, { status: 400 });
     }
     if (contentType !== "image/jpeg" || contentLength > 1_000_000) {
       return NextResponse.json(
@@ -106,7 +95,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, key, url });
   }
 
-  const key = `row100k/${CHALLENGE}/${participant.id}/${randomUUID()}.${ext}`;
+  const key = `row100k/gallery/${randomUUID()}.${ext}`;
   const url = await r2PresignPut(key, contentType, 600, contentLength);
   return NextResponse.json({ ok: true, key, url });
 }

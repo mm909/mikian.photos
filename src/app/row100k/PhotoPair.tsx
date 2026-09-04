@@ -9,16 +9,20 @@ import { useEffect, useRef, useState } from "react";
 
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
+/* Grid thumbnails — small enough that a feed page of them is nearly free. */
+const THUMB_EDGE = 320;
+const THUMB_QUALITY = 0.7;
 export const PHOTO_CAP = 2;
 
 const CANT_READ = "Couldn't read that photo — try a different one.";
 const UPLOAD_FAILED = "Upload failed — check your signal and try again.";
 
-/* Decode → draw to a canvas capped at MAX_EDGE on the long side → export
+/* Decode → draw to a canvas capped at maxEdge on the long side → export
  * jpeg. Re-encoding to jpeg regardless of input sidesteps format headaches
  * (iPhone HEIC arrives as whatever the browser hands the canvas) and keeps
- * uploads small on gym wifi. */
-async function downscaleToJpeg(file: File): Promise<Blob> {
+ * uploads small on gym wifi. Called twice per photo: once for the main
+ * upload, once for its grid thumbnail. */
+async function downscaleToJpeg(file: Blob, maxEdge: number, quality: number): Promise<Blob> {
   const srcUrl = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -30,7 +34,7 @@ async function downscaleToJpeg(file: File): Promise<Blob> {
     const w = img.naturalWidth;
     const h = img.naturalHeight;
     if (!w || !h) throw new Error("decode");
-    const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+    const scale = Math.min(1, maxEdge / Math.max(w, h));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(w * scale));
     canvas.height = Math.max(1, Math.round(h * scale));
@@ -38,12 +42,64 @@ async function downscaleToJpeg(file: File): Promise<Blob> {
     if (!ctx) throw new Error("canvas");
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
+      canvas.toBlob(resolve, "image/jpeg", quality),
     );
     if (!blob) throw new Error("encode");
     return blob;
   } finally {
     URL.revokeObjectURL(srcUrl);
+  }
+}
+
+/* Best-effort thumbnail upload — SHARED by this hook and the gallery
+ * uploader (Gallery.tsx imports it). Downscales `source` to a ~320px-long-
+ * edge jpeg (~q0.7) and PUTs it next to the main object, at the key the
+ * thumbKey() convention in photoUrls.ts derives from `mainKey` (".thumb"
+ * spliced in before the extension). The sign request carries
+ * { thumbFor: mainKey } so the sign route can mint that exact key; we only
+ * PUT when the key the server hands back really is a .thumb. key — a server
+ * that ignores thumbFor and mints a fresh main-style key gets NO upload, so
+ * nothing stray ever joins a listing. Thumbs are pure display optimization:
+ * every failure path returns quietly (the display side falls back to the
+ * full image), and callers must NEVER let this reject a row or a gallery
+ * publish — it never throws. */
+export async function uploadThumbForKey(
+  signEndpoint: string,
+  mainKey: string,
+  source: Blob,
+): Promise<void> {
+  try {
+    const blob = await downscaleToJpeg(source, THUMB_EDGE, THUMB_QUALITY);
+    const signRes = await fetch(signEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contentType: "image/jpeg",
+        contentLength: blob.size,
+        thumbFor: mainKey,
+      }),
+    });
+    const sign = (await signRes.json().catch(() => ({}))) as {
+      ok?: boolean;
+      key?: string;
+      url?: string;
+    };
+    if (
+      !signRes.ok ||
+      !sign.ok ||
+      !sign.key ||
+      !sign.url ||
+      !/\.thumb\.[a-z0-9]+$/i.test(sign.key)
+    ) {
+      return; // route doesn't (yet) honor thumbFor — full image stays the display
+    }
+    await fetch(sign.url, {
+      method: "PUT",
+      headers: { "Content-Type": "image/jpeg" },
+      body: blob,
+    });
+  } catch {
+    /* swallow — a missing thumb only costs bytes on the reader's side */
   }
 }
 
@@ -163,7 +219,7 @@ export function usePhotoPair({
     try {
       let blob: Blob;
       try {
-        blob = await downscaleToJpeg(file);
+        blob = await downscaleToJpeg(file, MAX_EDGE, JPEG_QUALITY);
       } catch {
         throw new Error((failMsg = CANT_READ));
       }
@@ -188,6 +244,12 @@ export function usePhotoPair({
         body: blob,
       });
       if (!put.ok) throw new Error(failMsg);
+      // Grid thumbnail rides along after the main photo lands — best-effort
+      // by design (uploadThumbForKey never throws), so a dead thumb upload
+      // can NEVER fail the row. readyKeys stays MAIN keys only; the display
+      // side derives the thumb key by convention and falls back to the full
+      // image when no thumb exists.
+      await uploadThumbForKey("/api/row100k/photos/sign", sign.key, blob);
       if (!liveShots.current.has(id)) return; // removed/unmounted mid-flight
       const preview = URL.createObjectURL(blob);
       previews.current.add(preview);

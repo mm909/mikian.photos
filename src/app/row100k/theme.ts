@@ -48,9 +48,24 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k a{color:inherit}
 .row100k :focus-visible{outline:2px solid var(--water);outline-offset:3px}
 
-.row100k .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
+.row100k .bar{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .row100k .bar .mono{font-size:12px;letter-spacing:.08em}
 .row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
+/* The bar-scale ROWTEMBER stamp: the cc-mark idiom shrunk to chip size —
+ * same white Archivo Black caps on water, same rotate and skew. */
+.row100k .bar-mark{display:inline-block;flex:none;font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;text-transform:uppercase;letter-spacing:.01em;color:#fff;background:var(--water);padding:6px 10px 5px;transform:rotate(-1.2deg) skewX(-2deg)}
+.row100k a.bar-mark{text-decoration:none;cursor:pointer}
+.row100k a.bar-mark:hover{background:var(--water-hover)}
+/* Nav links group + right-hand chip group; the right group pushes itself
+ * to the far edge so the bar needs no justify rule. */
+.row100k .bar-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto}
+/* Phone widths: an intentional two-row bar — stamp + account chip on the
+ * first line, the nav links on their own dashed-ruled line beneath. */
+@media(max-width:560px){
+  .row100k .bar{flex-wrap:wrap;gap:10px 18px;padding:12px 16px}
+  .row100k .bar-links{order:3;flex-basis:100%;gap:22px;border-top:1px dashed var(--line);padding-top:10px}
+}
 /* Account chip + dropdown (top-right of the bar). */
 .row100k .acct{position:relative;display:flex;align-items:center}
 .row100k .acct-chip{border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;cursor:pointer}
@@ -196,18 +211,46 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
 @media(max-width:560px){.row100k .grid2{grid-template-columns:1fr}}
 
-/* My rows table. */
-.row100k table.mine{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:13px;margin-top:8px}
-.row100k table.mine th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:2px solid var(--ink)}
-.row100k table.mine td{padding:9px 6px;border-bottom:1px dashed var(--line);vertical-align:top}
-.row100k table.mine td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+/* My rows — the photo ledger on the editable log (own profile + admin view).
+ * Each row is an ink-bordered strip: photo pair at the left, numbers in the
+ * middle, a vertical-ellipsis menu on a dashed rail. */
+.row100k .mlg-strip{display:flex;align-items:stretch;border:2px solid var(--ink);margin-bottom:10px}
+.row100k .mlg-pics{display:flex;flex-shrink:0;border-right:1px dashed var(--line)}
+.row100k .mlg-pics a{display:block}
+.row100k .mlg-pics img{display:block;width:64px;height:64px;object-fit:cover}
+.row100k .mlg-pics a + a img{border-left:1px solid var(--frame)}
+.row100k .mlg-noph{width:64px;min-height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gray);font-family:var(--row-mono),monospace;font-size:12px;border-right:1px dashed var(--line)}
+.row100k .mlg-mid{flex:1;min-width:0;padding:8px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.row100k .mlg-meta{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);display:flex;gap:12px;flex-wrap:wrap}
+.row100k .mlg-nums{display:flex;align-items:baseline;gap:12px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.row100k .mlg-m{font-family:var(--row-archivo-black),sans-serif;font-size:20px;line-height:1;color:var(--water)}
+.row100k .mlg-t{font-family:var(--row-mono),monospace;font-size:12px;color:var(--ink)}
+.row100k .mlg-s{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray)}
+.row100k .mlg-rail{width:36px;flex-shrink:0;border-left:1px dashed var(--line);display:flex;align-items:center;justify-content:center}
+.row100k .mlg-anchor{position:relative;display:inline-block}
+.row100k .mlg-dots{background:none;border:none;color:var(--gray);font-family:var(--row-mono),monospace;font-size:15px;line-height:1;cursor:pointer;padding:6px}
+.row100k .mlg-dots:hover,.row100k .mlg-dots.on{color:var(--ink)}
+/* The ... options panel — acct-panel language, anchored to the button. The
+ * click-away overlay sits under the panel, same layering as the acct menu. */
+.row100k .mlg-overlay{position:fixed;inset:0;z-index:55}
+.row100k .mlg-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:2px 14px;min-width:132px;z-index:60;text-align:left}
+.row100k .mlg-menu button{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px dashed var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:9px 0;cursor:pointer}
+.row100k .mlg-menu button:last-child{border-bottom:none}
+.row100k .mlg-menu button:hover{color:var(--water)}
+.row100k .mlg-menu button.danger{color:#b3400f}
+.row100k .mlg-menu button:disabled{color:var(--gray);cursor:default}
+/* The in-place editor: the strip expands and the row content is replaced by
+ * the same underline inputs the big form uses. */
+.row100k .mlg-editor{flex:1;min-width:0;padding:12px 14px}
+.row100k .mlg-edit-line{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.row100k .mlg-editor input{background:transparent;border:none;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:13px;padding:3px 2px;border-radius:0;appearance:none}
+.row100k .mlg-editor input:focus{outline:none;border-bottom-color:var(--water)}
+.row100k .mlg-edit-split{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);font-variant-numeric:tabular-nums}
+.row100k .mlg-edit-title{display:block;width:100%;margin-top:12px}
+.row100k .mlg-edit-acts{display:flex;gap:14px;margin-top:12px}
 .row100k .del-btn{background:none;border:none;color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
 .row100k .del-btn:hover{color:#b3400f}
 .row100k .del-btn.save:hover{color:var(--water)}
-/* Inline fix-a-mistake inputs: same underline language as the big form,
- * shrunk to table scale. */
-.row100k table.mine td input{width:100%;min-width:86px;background:transparent;border:none;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:13px;padding:3px 2px;border-radius:0;appearance:none}
-.row100k table.mine td input:focus{outline:none;border-bottom-color:var(--water)}
 
 /* Leaderboards. */
 .row100k .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}

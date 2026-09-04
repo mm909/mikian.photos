@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { resolvePhotoUrls } from "../photoUrls";
+import { resolvePhotoMedia } from "../photoUrls";
 import {
   CHALLENGE,
-  fmtDay,
   fmtDuration,
   fmtMeters,
   fmtRowerNumber,
@@ -23,44 +22,46 @@ export const dynamic = "force-dynamic";
 
 const PAGE = 60;
 
-/* Relative wall-clock age. createdAt is REAL time even when the demo clock
- * (nowMs) is shifted into September, so this compares against Date.now() —
- * "2h ago" should mean two actual hours since the row was logged. */
-function relTime(thenMs: number, nowMsReal: number): string {
-  const s = Math.max(0, Math.floor((nowMsReal - thenMs) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+/* The stamp drops relative time for the real clock: createdAt shifted minus
+ * 7 hours (Pacific — the same precedent as admin/fix-days usWestDay), then
+ * read back as UTC fields. "SEP 2 · 3:54 PM". createdAt is REAL time even
+ * when the demo clock (nowMs) is shifted into September, and the exact UTC
+ * instant stays available in a title attribute on every strip. */
+const STAMP_MONTHS = [
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+];
+function stampWhen(createdAt: Date): string {
+  const p = new Date(createdAt.getTime() - 7 * 3600_000);
+  const h24 = p.getUTCHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  const min = String(p.getUTCMinutes()).padStart(2, "0");
+  const ampm = h24 < 12 ? "AM" : "PM";
+  return `${STAMP_MONTHS[p.getUTCMonth()]} ${p.getUTCDate()} · ${h}:${min} ${ampm}`;
 }
 
-/* Absolute time for the title attribute. UTC on purpose: rowers span
- * timezones and the server's zone is nobody's. */
-function absTime(d: Date): string {
-  return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-}
-
-/* Feed-only styles — scoped with a .feed- prefix; theme.ts stays untouched.
- * Rendered as the text child of a style tag, so no double quotes and no
- * angle brackets anywhere in the string (see the note in theme.ts). */
+/* Feed-only styles — the PHOTO LEDGER (winner of the dev drafts, option 4):
+ * one compact strip per row inside a 2px ink border — thumbs left, dashed
+ * divider, then name, stamp eyebrow, and the numbers. Scoped with a .fl-
+ * prefix; theme.ts stays untouched. Rendered as the text child of a style
+ * tag, so no double quotes and no angle brackets anywhere in the string
+ * (see the note in theme.ts). */
 const feedCss = `
-.row100k .feed-card{border:2px solid var(--ink);padding:16px 16px 15px;margin-bottom:14px}
-.row100k .feed-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
-.row100k .feed-who{font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:15px}
-.row100k .feed-who a{text-decoration:none}
-.row100k .feed-who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
-.row100k .feed-who .feed-num{color:var(--gray);font-family:var(--row-mono),monospace;font-weight:400;font-size:12px}
-.row100k .feed-when{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);letter-spacing:.06em;white-space:nowrap}
-.row100k .feed-title{margin-top:8px;font-weight:700;font-size:17px;line-height:1.35}
-.row100k .feed-nums{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:8px}
-.row100k .feed-m{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,6vw,34px);line-height:1;color:var(--water);font-variant-numeric:tabular-nums}
-.row100k .feed-time{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(16px,4vw,21px);line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
-.row100k .feed-split{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);letter-spacing:.04em}
-.row100k .feed-photos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.row100k .feed-photos.one{grid-template-columns:1fr}
-.row100k .feed-photos img{display:block;width:100%;max-width:100%;height:auto;border:6px solid var(--frame);background:var(--frame)}
+.row100k .fl-strip{display:flex;align-items:stretch;border:2px solid var(--ink);margin-bottom:12px}
+.row100k .fl-left{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:8px 12px 8px 10px;border-right:1px dashed var(--line)}
+.row100k .fl-left button{display:block;flex-shrink:0;appearance:none;-webkit-appearance:none;background:none;border:0;border-radius:0;padding:0;margin:0;cursor:pointer}
+.row100k .fl-left img{display:block;width:64px;height:64px;object-fit:cover;border:1px solid var(--line)}
+.row100k .fl-left button:hover img{border-color:var(--water)}
+.row100k .fl-noph{width:64px;height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);color:var(--gray);font-family:var(--row-mono),monospace;font-size:12px}
+.row100k .fl-mid{flex:1;min-width:0;padding:9px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.row100k .fl-who{font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.row100k .fl-who a{color:var(--ink);text-decoration:none}
+.row100k .fl-who a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .fl-meta{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);display:flex;gap:12px;flex-wrap:wrap}
+.row100k .fl-nums{display:flex;align-items:baseline;gap:12px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.row100k .fl-m{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(20px,4.5vw,26px);line-height:1;color:var(--water)}
+.row100k .fl-t{font-family:var(--row-mono),monospace;font-size:12px;color:var(--ink)}
+.row100k .fl-s{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray)}
 .row100k .feed-pager{display:flex;justify-content:space-between;gap:10px;margin-top:28px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em}
 .row100k .feed-pager a{text-decoration:none;border:2px solid var(--ink);padding:9px 16px;color:var(--ink)}
 .row100k .feed-pager a:hover{border-color:var(--water);color:var(--water)}
@@ -71,8 +72,6 @@ type SearchParams = { [key: string]: string | string[] | undefined };
 
 type EntryWithParticipant = {
   id: string;
-  participantId: string;
-  day: string;
   meters: number;
   seconds: number;
   title: string;
@@ -117,8 +116,6 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       take: PAGE,
       select: {
         id: true,
-        participantId: true,
-        day: true,
         meters: true,
         seconds: true,
         title: true,
@@ -131,18 +128,18 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     console.error("row100k/feed: failed to load feed data", err);
   }
 
-  // Resolve photo URLs (rows keep the rower photo at index 0); rows whose
-  // photos can't resolve still show as text cards.
-  const photoUrls = await Promise.all(entries.map((e) => resolvePhotoUrls(e.photos)));
+  // Resolve photo media (rows keep the rower photo at index 0) — each photo
+  // carries its full URL plus a thumb URL when the thumb object exists (the
+  // 64px strip prefers the thumb; legacy photos fall back to full). Rows
+  // whose photos can't resolve still show as text strips with the
+  // placeholder square holding the left edge.
+  const photoMedia = await Promise.all(entries.map((e) => resolvePhotoMedia(e.photos)));
 
-  // Relative times against REAL wall clock — never nowMs(): the demo clock is
-  // shifted but createdAt is not.
-  const nowReal = Date.now();
   const items: FeedItem[] = entries.map((e, i) => ({
     id: e.id,
-    // One timestamp slot: the day rowed, then how long ago it landed.
-    when: `${fmtDay(e.day)} · ${relTime(e.createdAt.getTime(), nowReal)}`,
-    abs: absTime(e.createdAt),
+    // Absolute Pacific stamp of when the row LANDED — no relative time.
+    whenStr: stampWhen(e.createdAt),
+    absIso: e.createdAt.toISOString(),
     rowerNumber: e.participant.rowerNumber,
     numStr: fmtRowerNumber(e.participant.rowerNumber),
     name: e.participant.displayName,
@@ -150,7 +147,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     durationStr: fmtDuration(e.seconds),
     splitStr: fmtSplit(e.meters, e.seconds),
     title: e.title,
-    photoUrls: photoUrls[i],
+    photos: photoMedia[i],
   }));
 
   const full = entries.length === PAGE;

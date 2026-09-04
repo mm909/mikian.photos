@@ -122,6 +122,27 @@ export function ShareDialog({
       canvas.toBlob(resolve, "image/png");
     });
 
+  /* Usage ping, fired only AFTER an action actually succeeded (share sheet
+   * resolved, clipboard write landed, download anchor clicked) so the owner
+   * can see which cards get used. Strictly fire-and-forget: nothing in the
+   * user path awaits it, every failure is swallowed, and keepalive lets the
+   * request survive the page being backgrounded by a share sheet. */
+  const track = (action: "share" | "copy" | "download") => {
+    if (!card) return;
+    try {
+      void fetch("/api/row100k/share-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: card.id, action, rowerNumber: data.rowerNumber }),
+        keepalive: true,
+      }).catch(() => {
+        /* analytics never gets to break sharing */
+      });
+    } catch {
+      /* fetch itself unavailable — same policy */
+    }
+  };
+
   /* Community cards are everyone's — no rower number in the name. */
   const filename = !card
     ? "rowtember.png"
@@ -139,12 +160,14 @@ export function ShareDialog({
         return b;
       });
       await navigator.clipboard.write([new ClipboardItem({ "image/png": pending })]);
+      track("copy");
       setStatus({ kind: "done", message: "COPIED — PASTE IT INTO YOUR STORY" });
     } catch {
       try {
         const blob = await toBlob();
         if (!blob) throw new Error("no image");
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        track("copy");
         setStatus({ kind: "done", message: "COPIED — PASTE IT INTO YOUR STORY" });
       } catch {
         setStatus({ kind: "error", message: "COULDN'T COPY — DOWNLOAD INSTEAD" });
@@ -161,6 +184,7 @@ export function ShareDialog({
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    track("download");
     setStatus({ kind: "done", message: "SAVED" });
   }
 
@@ -171,6 +195,8 @@ export function ShareDialog({
       const file = new File([blob], filename, { type: "image/png" });
       if (!navigator.canShare?.({ files: [file] })) throw new Error("unsupported");
       await navigator.share({ files: [file] });
+      // Resolved = actually handed off; a dismissed sheet rejects (below).
+      track("share");
       setStatus({ kind: "idle" });
     } catch (err) {
       // Dismissing the share sheet rejects with AbortError — that's a choice,

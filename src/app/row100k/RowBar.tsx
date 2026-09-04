@@ -3,16 +3,23 @@ import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 
-/* The one bar every /row100k page wears: ROW100K home chip, THE STATS,
- * THE FEED on the left; the sign-in / rower chip on the right (owner call,
- * cycle 2 — same header everywhere). Server component: it resolves the
- * session itself so pages don't each re-plumb it. `children` lands between
- * the links and the account chip for page-specific tags. */
+/* The one bar every /row100k page wears: the ROWTEMBER stamp, then STATS,
+ * FEED, GALLERY on the left (owner call, cycle 15 — short labels, gallery
+ * public); the sign-in / rower chip on the right. Server component: it
+ * resolves the session itself so pages don't each re-plumb it. `children`
+ * lands between the links and the account chip for page-specific tags.
+ *
+ * Layout: three direct flex children (stamp, .bar-links, .bar-right) so the
+ * <=560px media query in theme.ts can reflow them into a deliberate two-row
+ * bar — stamp + account up top, nav links on their own ruled row below. */
 export async function RowBar({
   active,
+  sticky = true,
   children,
 }: {
-  active?: "home" | "stats" | "feed";
+  active?: "home" | "stats" | "feed" | "gallery";
+  /* The gallery opts out so its full-bleed grid owns the scroll. */
+  sticky?: boolean;
   children?: React.ReactNode;
 }) {
   let signedIn = false;
@@ -33,7 +40,7 @@ export async function RowBar({
     /* cosmetic — a failed lookup just renders the signed-out chip */
   }
 
-  const link = (href: string, label: string, key: "stats" | "feed") =>
+  const link = (href: string, label: string, key: "stats" | "feed" | "gallery") =>
     active === key ? (
       <span className="mono tag">{label}</span>
     ) : (
@@ -43,19 +50,22 @@ export async function RowBar({
     );
 
   return (
-    <div className="bar">
-      <span style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-        {active === "home" ? (
-          <span className="mono tag">ROW100K</span>
-        ) : (
-          <a className="mono tag" href="/row100k" style={{ textDecoration: "none" }}>
-            ROW100K
-          </a>
-        )}
-        {link("/row100k/stats", "THE STATS", "stats")}
-        {link("/row100k/feed", "THE FEED", "feed")}
+    <div className="bar" style={sticky ? undefined : { position: "static" }}>
+      {active === "home" ? (
+        <span className="bar-mark" aria-current="page">
+          ROWTEMBER
+        </span>
+      ) : (
+        <a className="bar-mark" href="/row100k">
+          ROWTEMBER
+        </a>
+      )}
+      <span className="bar-links">
+        {link("/row100k/stats", "STATS", "stats")}
+        {link("/row100k/feed", "FEED", "feed")}
+        {link("/row100k/gallery", "GALLERY", "gallery")}
       </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <span className="bar-right">
         {children}
         <BarAccount signedIn={signedIn} rowerNumber={rowerNumber} admin={admin} />
       </span>
