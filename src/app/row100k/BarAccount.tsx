@@ -79,9 +79,6 @@ export function BarAccount({
                 <a className="acct-item" href="/row100k/signups">
                   Signups →
                 </a>
-                <a className="acct-item" href="/row100k/partners">
-                  Partners →
-                </a>
                 <a className="acct-item" href="/row100k/dev/stats">
                   Dev stats →
                 </a>

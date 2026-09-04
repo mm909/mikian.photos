@@ -17,7 +17,7 @@ export async function RowBar({
   sticky = true,
   children,
 }: {
-  active?: "home" | "stats" | "feed" | "gallery";
+  active?: "home" | "stats" | "feed" | "gallery" | "partners";
   /* The gallery opts out so its full-bleed grid owns the scroll. */
   sticky?: boolean;
   children?: React.ReactNode;
@@ -40,7 +40,7 @@ export async function RowBar({
     /* cosmetic — a failed lookup just renders the signed-out chip */
   }
 
-  const link = (href: string, label: string, key: "stats" | "feed" | "gallery") =>
+  const link = (href: string, label: string, key: "stats" | "feed" | "gallery" | "partners") =>
     active === key ? (
       <span className="mono tag">{label}</span>
     ) : (
@@ -64,6 +64,7 @@ export async function RowBar({
         {link("/row100k/stats", "STATS", "stats")}
         {link("/row100k/feed", "FEED", "feed")}
         {link("/row100k/gallery", "GALLERY", "gallery")}
+        {link("/row100k/partners", "PARTNERS", "partners")}
       </span>
       <span className="bar-right">
         {children}

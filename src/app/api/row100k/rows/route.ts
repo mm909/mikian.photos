@@ -8,6 +8,7 @@ import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
+  fmtDay,
   fmtDuration,
   fmtMeters,
   fmtRowerNumber,
@@ -127,21 +128,16 @@ export async function POST(req: Request) {
     });
     const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://mikianmusser.com").replace(/\/$/, "");
     const total = fmtMeters(totals._sum.meters ?? value.meters);
-    // Subject deliberately parallels the join route's "Rowtember signup — …"
-    // so rows and signups sort apart at a glance in the same inbox.
+    // Subject is the whole story — name, meters, time — so the phone's
+    // mail preview says it without opening (owner call, day 3). The body
+    // is the two lines that matter plus the rower's page.
     await sendOwnerNotification(
-      `Rowtember row — ${fmtRowerNumber(participant.rowerNumber)} ${participant.displayName} · ${fmtMeters(value.meters)} (total ${total})`,
+      `${participant.displayName} · ${fmtMeters(value.meters)} · ${fmtDuration(value.seconds)}`,
       [
-        `Rower ${fmtRowerNumber(participant.rowerNumber)} · ${participant.displayName} logged ${value.meters.toLocaleString("en-US")} meters.`,
+        `${participant.displayName} · ${fmtRowerNumber(participant.rowerNumber)} · ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
+        `${fmtDay(value.day)}${value.title ? ` · ${value.title}` : ""} · total ${total} · ${totals._count} sessions`,
         ``,
-        `This row:  ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
-        `Day:       ${value.day}`,
-        `Title:     ${value.title}`,
-        `New total: ${total} across ${totals._count} sessions`,
-        ``,
-        `Their page: ${base}/row100k/r/${participant.rowerNumber}`,
-        `The feed:   ${base}/row100k/feed`,
-        `The stats:  ${base}/row100k/stats`,
+        `${base}/row100k/r/${participant.rowerNumber}`,
       ].join("\n"),
       undefined,
       // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)

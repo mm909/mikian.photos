@@ -52,6 +52,11 @@ export type ShareData = {
     /* Meters logged per hour of day (24 slots), one row per September day
      * elapsed so far — the stats page's hour grid. Unlocks the hours card. */
     hourGrid?: number[][];
+    /* Everyone in standings order (total meters, descending) — unlocks the
+     * board stickers, one per ten places. */
+    standings?: { name: string; rowerNumber: number; meters: number }[];
+    /* "Sep 3" — the day the standings were read, for the sticker title. */
+    asOf?: string;
   };
 };
 
@@ -1317,6 +1322,91 @@ const rowtemberCommunityHours: ShareCard = {
   },
 };
 
+/* --------------------------------------------------------- board stickers */
+
+/* The standings, ten places to a sticker, in the schedule-list idiom the
+ * owner already posts (a bold mono title, a dim section label, then a
+ * name-left / value-right list in white mono on whatever photo is
+ * underneath). Every line carries a soft shadow so it stays legible on a
+ * bright frame — these are the only cards that do, because they are the
+ * only ones that are all thin type. One card per page: 1–10, 11–20, … up
+ * to BOARD_PAGES; a page with nobody on it never shows in the picker. */
+const BOARD_PAGE = 10;
+const BOARD_PAGES = 12;
+
+function boardCard(page: number): ShareCard {
+  const start = page * BOARD_PAGE + 1;
+  const end = start + BOARD_PAGE - 1;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    id: `rowtember-board-${pad(start)}-${pad(end)}`,
+    label: `${start}–${end}`,
+    width: 1080,
+    height: 1080,
+    light: true,
+    available: (d) => (d.community?.standings?.length ?? 0) > page * BOARD_PAGE,
+    draw(ctx, data, fonts) {
+      const rows = data.community?.standings?.slice(page * BOARD_PAGE, (page + 1) * BOARD_PAGE) ?? [];
+      if (rows.length === 0) return;
+      const L = 70;
+      const R = this.width - 70;
+
+      ctx.save();
+      ctx.textBaseline = "alphabetic";
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetY = 3;
+
+      // Title: "Rowtember · Sep 3" — bold mono, like a date line.
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `bold 46px ${fonts.mono}`;
+      const asOf = data.community?.asOf;
+      ctx.fillText(asOf ? `Rowtember · ${asOf}` : "Rowtember 2026", L, 118);
+
+      // Section label, dim: which ten places this is.
+      ctx.font = `30px ${fonts.mono}`;
+      ctx.fillStyle = "rgba(255,255,255,0.62)";
+      ctx.fillText(`The board · ${start}–${end}`, L, 196);
+
+      const top = 292;
+      const step = 82;
+      const size = 42;
+      rows.forEach((r, i) => {
+        const place = start + i;
+        const y = top + i * step;
+        const medal = medalColor(place);
+
+        // Meters, right-aligned, measured first so the name can yield to it.
+        ctx.font = `${size}px ${fonts.mono}`;
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#ffffff";
+        const metersText = fmtMeters(r.meters);
+        ctx.fillText(metersText, R, y);
+        const metersW = ctx.measureText(metersText).width;
+
+        // Place number — dim, or the medal colour on the podium.
+        ctx.textAlign = "left";
+        ctx.font = `${size * 0.72}px ${fonts.mono}`;
+        ctx.fillStyle = medal ?? "rgba(255,255,255,0.55)";
+        ctx.fillText(pad(place), L, y);
+
+        // Name, ellipsized into what is left between the number and the meters.
+        ctx.font = `${size}px ${fonts.mono}`;
+        ctx.fillStyle = "#ffffff";
+        const nameX = L + 86;
+        const maxW = R - metersW - 36 - nameX;
+        ctx.fillText(ellipsize(ctx, r.name, maxW), nameX, y);
+      });
+      ctx.restore();
+    },
+  };
+}
+
+const boardCards = Array.from({ length: BOARD_PAGES }, (_, i) => boardCard(i));
+
+export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
+
 export const CARDS: ShareCard[] = [
   rowtemberRow,
   rowtemberRowFull,
@@ -1334,6 +1424,7 @@ export const CARDS: ShareCard[] = [
   rowtemberCommunityCurve,
   rowtemberCommunityDaily,
   rowtemberCommunityHours,
+  ...boardCards,
 ];
 
 export function availableCards(data: ShareData): ShareCard[] {

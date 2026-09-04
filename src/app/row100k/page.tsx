@@ -7,6 +7,7 @@ import {
   LOG_CLOSE_MS,
   START_MS,
   divisionRank,
+  fmtDay,
   fmtMeters,
   fmtRowerNumber,
   nowMs as clockNow,
@@ -21,6 +22,8 @@ import { Countdown } from "./Countdown";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard } from "./Dashboard";
 import { Boards } from "./Boards";
+import { StatsShare } from "./StatsShare";
+import { BOARD_CARD_IDS } from "./share/cards";
 import { boardData, EMPTY_BOARDS } from "./boardData";
 
 export const metadata: Metadata = {
@@ -113,6 +116,30 @@ export default async function Row100kPage() {
   // rowers are in (owner call, cycle 9 — the static window/goal cells are
   // out; the goal lives in the hero copy anyway).
   const everyoneMeters = boards.total.reduce((s, r) => s + r.meters, 0);
+
+  // The board stickers (ten places to a card) share the community card
+  // plumbing, which wants per-day totals too; the curve carries cumulative
+  // meters, so unroll it. `asOf` is today in US-west wall clock, the date
+  // the sticker says the standings were read.
+  const communityByDay: Record<string, number> = {};
+  let prevCum = 0;
+  for (const d of boards.daily) {
+    communityByDay[d.day] = d.cum - prevCum;
+    prevCum = d.cum;
+  }
+  const boardShare = {
+    meters: boards.community.meters,
+    rowers: boards.community.people,
+    sessions: boards.community.sessions,
+    byDay: communityByDay,
+    daily: boards.daily,
+    standings: boards.total.map((r) => ({
+      name: r.name,
+      rowerNumber: r.rowerNumber,
+      meters: r.meters,
+    })),
+    asOf: fmtDay(new Date(nowMs - 7 * 3600_000).toISOString().slice(0, 10)),
+  };
   const rowerCount = boards.total.length;
 
   // Standing + record placements for the signed-in rower's share cards —
@@ -311,6 +338,14 @@ export default async function Row100kPage() {
             </span>
           </div>
           <Boards boards={boards} started={started} />
+          {started && boards.total.length > 0 && (
+            <StatsShare
+              community={boardShare}
+              prefer={BOARD_CARD_IDS[0]}
+              only={BOARD_CARD_IDS}
+              label="SHARE THE BOARD"
+            />
+          )}
         </div>
       </section>
 

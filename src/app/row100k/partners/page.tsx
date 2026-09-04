@@ -1,125 +1,196 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getEffectiveActor } from "@/lib/permissions";
-import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
+import { CHALLENGE, GOAL_METERS, fmtDay, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
+import { boardData, EMPTY_BOARDS } from "../boardData";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "The partners — 100K September",
   description: "Partners back Rowtember with real prizes on the line.",
-  robots: { index: false, follow: false },
-};
-
-/* The one product photo in the Rowtember batch that clearly shows the
- * partner's meals (stacked labeled containers, shot by the owner in the erg
- * room). Everything else in the folder is rowers, machines, and blur. */
-const PRODUCT_SHOT = {
-  src: "/row100k/rowtember-profiles/IMG_5229.JPG",
-  alt: "Two Grizzly Health meal containers stacked on the erg room floor, a rower blurred behind them",
 };
 
 /* Grizzly Health brand assets (downloaded from grizzlyhealth.org with the
  * owner, for this partnership block) + their palette, lifted from the CSS
  * variables on their site: greens #06130c/#0c2015/#142a1c, cream #f2ead7,
- * sage #a9bba6, gold #d3ab5d. The partner block renders in THEIR colors on
- * our page — that contrast is the pitch to the next partner. */
+ * sage #a9bba6, gold #d3ab5d. The wordmark is gold + WHITE, so every
+ * surface it sits on is one of their greens, never paper. */
 const GRIZZLY = {
+  site: "https://grizzlyhealth.org",
   bear: "/row100k/partners/grizzly-bear.png",
   wordmark: "/row100k/partners/grizzly-wordmark.png",
+};
+
+/* The prize in hand (owner's gallery exports, resized to 1200px for this
+ * page — the originals live in R2 under row100k/gallery/), plus the meals
+ * on the erg-room floor from the first batch. */
+const PHOTOS = {
+  pair: [
+    {
+      src: "/row100k/partners/grizzly-claim-stack.jpg",
+      alt: "A rower grinning with three stacked Grizzly Health meal containers in his arms",
+    },
+    {
+      src: "/row100k/partners/grizzly-claim-one.jpg",
+      alt: "A rower holding one Grizzly Health meal container out to the camera",
+    },
+  ],
+  floor: {
+    src: "/row100k/rowtember-profiles/IMG_5229.JPG",
+    alt: "Two Grizzly Health meal containers stacked on the erg room floor, a rower blurred behind them",
+  },
 };
 
 /* Partners-page styles — .ptn- prefix, theme.ts untouched. Rendered as the
  * text child of a style tag, so no double quotes, no angle brackets, and no
  * apostrophes anywhere in the string (see the note in theme.ts). */
 const ptnCss = `
-.row100k .ptn-lede{max-width:56ch;color:var(--ink-soft);font-size:15px}
-.row100k .ptn-brand{background:#0c2015;border:2px solid #06130c;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:26px 22px 30px;margin-top:26px}
-.row100k .ptn-mark{display:flex;align-items:center;gap:16px;flex-wrap:wrap;text-decoration:none}
+.row100k .ptn-logos{background:#0c2015;border:2px solid #06130c;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:34px 22px 30px;text-align:center}
+.row100k .ptn-logos .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#a9bba6;margin-bottom:18px}
+.row100k .ptn-mark{display:inline-flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;text-decoration:none}
 .row100k .ptn-mark img{display:block}
-.row100k .ptn-mark .bear{height:48px;width:auto}
-.row100k .ptn-mark .word{height:24px;width:auto}
-.row100k .ptn-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#a9bba6;margin:12px 0 0;border-bottom:1px solid rgba(242,234,215,.14);padding-bottom:14px}
-.row100k .ptn-claim{margin-top:16px;font-size:15px;color:#e3d9bf;max-width:60ch}
+.row100k .ptn-mark .bear{height:68px;width:auto}
+.row100k .ptn-mark .word{height:34px;width:auto}
+.row100k .ptn-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#a9bba6;margin:18px 0 0}
+.row100k .ptn-sub a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
+.row100k .ptn-sub a:hover{color:#d3ab5d}
+
+.row100k .ptn-brand{background:#0c2015;border:2px solid #06130c;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:26px 22px 30px;margin-top:22px}
+.row100k .ptn-claim{font-size:15px;color:#e3d9bf;max-width:60ch}
 .row100k .ptn-claim b{color:#f2ead7}
-.row100k .ptn-grid{margin-top:22px}
+.row100k .ptn-grid{margin-top:20px}
 .row100k .ptn-brand .rec{border:2px solid rgba(242,234,215,.25);background:#142a1c}
 .row100k .ptn-brand .rec .t{color:#a9bba6}
 .row100k .ptn-brand .rec .v{color:#d3ab5d}
 .row100k .ptn-brand .rec .v em{color:#f2ead7}
-.row100k .ptn-brand .rec .meta{color:#a9bba6}
-.row100k .ptn-shot{margin-top:26px}
-.row100k .ptn-shot img{display:block;width:100%;height:auto;border:2px solid rgba(242,234,215,.2);background:#06130c}
+.row100k .ptn-brand .rec .meta{color:#a9bba6;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:8px;line-height:1.7}
+.row100k .ptn-brand .rec .meta a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
+.row100k .ptn-brand .rec .meta a:hover{color:#d3ab5d}
+.row100k .ptn-brand .rec.claimed{border-color:#d3ab5d;background:#1a2f22;box-shadow:4px 4px 0 #d3ab5d}
+.row100k .ptn-brand .rec.claimed .v{color:#f2ead7}
+.row100k .ptn-stamp{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#06130c;background:#d3ab5d;padding:3px 9px 2px;margin-left:10px;vertical-align:middle;transform:rotate(-2deg)}
+.row100k .ptn-brand .rec.claimed .who{display:block;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,4.6vw,24px);letter-spacing:0;text-transform:uppercase;color:#d3ab5d;margin:8px 0 2px;line-height:1.1}
+.row100k .ptn-brand .rec.claimed .who a{color:#d3ab5d;text-decoration:none}
+.row100k .ptn-brand .rec.claimed .who a:hover{color:#f2ead7}
+
+.row100k .ptn-shots{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:26px}
+.row100k .ptn-shots img,.row100k .ptn-shot img{display:block;width:100%;height:auto;border:2px solid rgba(242,234,215,.2);background:#06130c}
+.row100k .ptn-shot{margin-top:12px}
 .row100k .ptn-cap{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;color:#a9bba6;text-transform:uppercase;margin-top:8px}
+
 .row100k .ptn-code{border:2px solid #d3ab5d;background:#06130c;padding:32px 22px 30px;margin-top:30px;text-align:center}
 .row100k .ptn-code .eyebrow{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.22em;color:#a9bba6;text-transform:uppercase}
-.row100k .ptn-code .word{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(40px,11vw,84px);line-height:1;text-transform:uppercase;margin-top:10px;color:#d3ab5d}
+.row100k .ptn-code .word{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,9.4vw,84px);line-height:1;text-transform:uppercase;margin-top:10px;color:#d3ab5d}
 .row100k .ptn-code .deal{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-top:16px;color:#f2ead7}
 .row100k .ptn-code .deal a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
 .row100k .ptn-code .deal a:hover{color:#d3ab5d}
-@media (max-width:599px){.row100k .ptn-brand{padding:20px 14px 24px}.row100k .ptn-mark .bear{height:40px}.row100k .ptn-mark .word{height:19px}}
-.row100k .ptn-pitch{font-size:15px;color:var(--ink-soft);max-width:56ch}
-.row100k .ptn-q{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);margin-top:18px;letter-spacing:.06em}
-.row100k .ptn-q a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
-.row100k .ptn-q a:hover{color:var(--water)}
+
+@media (max-width:599px){
+  .row100k .ptn-logos{padding:26px 14px 24px}
+  .row100k .ptn-mark .bear{height:52px}
+  .row100k .ptn-mark .word{height:26px}
+  .row100k .ptn-brand{padding:20px 14px 24px}
+  .row100k .ptn-shots{gap:8px}
+}
 `;
 
-/* Preview page the owner shows prospective partners: what Grizzly Health put
- * on the line, the code, and the ask for the next partner. Owner-only in
- * production; open in local dev so it can be checked without a session. */
-export default async function PartnersPage() {
-  let admin = false;
-  try {
-    const actor = await getEffectiveActor();
-    admin = !!actor && isRow100kAdmin(actor.email, actor.roles);
-  } catch {
-    /* no session backend in some local setups — the dev branch below still opens */
-  }
-  if (process.env.NODE_ENV === "production" && !admin) notFound();
+/* The first rower to GOAL_METERS. Per rower, rows in (day, logged) order;
+ * the crossing is the row that carries the running total over the line.
+ * Earliest crossing wins — by the day it was rowed, then by when that row
+ * was logged — so a backdated row still counts for the day it happened. */
+type Claim = {
+  name: string;
+  rowerNumber: number;
+  instagram: string;
+  day: string;
+  total: number;
+};
 
-  /* Real rower count for the pitch line; the copy stands without it. */
-  let rowerCount: number | null = null;
-  try {
-    rowerCount = await db.rowParticipant.count({ where: { challenge: CHALLENGE } });
-  } catch {
-    /* copy falls back to the version without a number */
+async function firstToGoal(): Promise<Claim | null> {
+  const [participants, entries] = await Promise.all([
+    db.rowParticipant.findMany({
+      where: { challenge: CHALLENGE },
+      select: { id: true, displayName: true, rowerNumber: true, instagram: true },
+    }),
+    db.rowEntry.findMany({
+      where: { challenge: CHALLENGE },
+      select: { participantId: true, day: true, meters: true, createdAt: true },
+      orderBy: [{ day: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  const byId = new Map(participants.map((p) => [p.id, p]));
+  const cum = new Map<string, number>();
+  let best: { id: string; day: string; at: number } | null = null;
+  for (const e of entries) {
+    if (!byId.has(e.participantId)) continue;
+    const before = cum.get(e.participantId) ?? 0;
+    const after = before + e.meters;
+    cum.set(e.participantId, after);
+    if (before < GOAL_METERS && after >= GOAL_METERS) {
+      const at = e.createdAt.getTime();
+      if (!best || e.day < best.day || (e.day === best.day && at < best.at)) {
+        best = { id: e.participantId, day: e.day, at };
+      }
+    }
   }
-  const field =
-    rowerCount && rowerCount > 0 ? `${rowerCount} rowers` : "a whole board of rowers";
+  if (!best) return null;
+  const p = byId.get(best.id)!;
+  return {
+    name: p.displayName,
+    rowerNumber: p.rowerNumber,
+    instagram: p.instagram,
+    day: best.day,
+    total: cum.get(best.id) ?? 0,
+  };
+}
+
+/* The partners page: their logos up top, then what Grizzly Health put on the
+ * line — which prizes are claimed and by whom, the photos, the code. Public,
+ * like the rest of /row100k (opened up 2026-09-03 once there was a winner
+ * to show; it lives in the bar next to STATS / FEED / GALLERY). */
+export default async function PartnersPage() {
+  // Prize state: who is leading each board, and who got to 100k first.
+  // Fail open — the block still renders with the prizes listed.
+  let boards = EMPTY_BOARDS;
+  let claim: Claim | null = null;
+  try {
+    [boards, claim] = await Promise.all([boardData(), firstToGoal()]);
+  } catch (err) {
+    console.error("row100k partners: failed to load prize state", err);
+  }
+  const leader = (division: "M" | "F") =>
+    boards.total.find((r) => r.division === division && r.meters > 0) ?? null;
+  const men = leader("M");
+  const women = leader("F");
+
+  const leading = (r: typeof men) =>
+    r ? (
+      <>
+        Leading —{" "}
+        <a href={`/row100k/r/${r.rowerNumber}`}>
+          {r.name} · {fmtRowerNumber(r.rowerNumber)}
+        </a>{" "}
+        · {fmtMeters(r.meters)}
+      </>
+    ) : (
+      <>In play — decided Sep 30</>
+    );
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{ptnCss}</style>
 
-      <RowBar />
+      <RowBar active="partners" />
 
       <section>
         <div className="wrap">
-          <div className="sec-head">
-            <h2>The partners</h2>
-            <span className="mono">THEY PUT SOMETHING ON THE LINE</span>
-          </div>
-          <p className="ptn-lede">
-            Partners back the challenge with real prizes. The rowers put in the meters — the
-            partners make the finish worth racing for.
-          </p>
-        </div>
-      </section>
-
-      <section>
-        <div className="wrap">
-          <div className="ptn-brand">
-            <a
-              className="ptn-mark"
-              href="https://grizzlyhealth.org"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+          <div className="ptn-logos">
+            <div className="eyebrow">Rowtember 2026 · Partners</div>
+            <a className="ptn-mark" href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img className="bear" src={GRIZZLY.bear} alt="" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -129,41 +200,89 @@ export default async function PartnersPage() {
                 alt="Grizzly Health — You Gotta Be Hungry"
               />
             </a>
-            <p className="ptn-sub">PREPARED MEALS · COACHING · GRIZZLYHEALTH.ORG</p>
+            <p className="ptn-sub">
+              Prepared meals · Coaching ·{" "}
+              <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
+                grizzlyhealth.org
+              </a>
+            </p>
+          </div>
 
+          <div className="ptn-brand">
             <p className="ptn-claim">
               <b>Grizzly Health is giving away five free meals</b> to the first-place men&apos;s
               board, the first-place women&apos;s board, and the first rower to 100,000&nbsp;m.
             </p>
 
             <div className="records ptn-grid">
-            <div className="rec">
-              <div className="t">MEN&apos;S BOARD — 1ST PLACE</div>
-              <div className="v">
-                5 <em>FREE MEALS</em>
+              <div className="rec">
+                <div className="t">MEN&apos;S BOARD — 1ST PLACE</div>
+                <div className="v">
+                  5 <em>FREE MEALS</em>
+                </div>
+                <div className="meta">{leading(men)}</div>
               </div>
-              <div className="meta">FROM GRIZZLY HEALTH</div>
-            </div>
-            <div className="rec">
-              <div className="t">WOMEN&apos;S BOARD — 1ST PLACE</div>
-              <div className="v">
-                5 <em>FREE MEALS</em>
+              <div className="rec">
+                <div className="t">WOMEN&apos;S BOARD — 1ST PLACE</div>
+                <div className="v">
+                  5 <em>FREE MEALS</em>
+                </div>
+                <div className="meta">{leading(women)}</div>
               </div>
-              <div className="meta">FROM GRIZZLY HEALTH</div>
+              {claim ? (
+                <div className="rec claimed">
+                  <div className="t">
+                    FIRST TO 100,000 M
+                    <span className="ptn-stamp">Claimed</span>
+                  </div>
+                  <div className="v">
+                    5 <em>FREE MEALS</em>
+                  </div>
+                  <span className="who">
+                    <a href={`/row100k/r/${claim.rowerNumber}`}>
+                      {claim.name} · {fmtRowerNumber(claim.rowerNumber)}
+                    </a>
+                  </span>
+                  <div className="meta">
+                    Crossed 100k on {fmtDay(claim.day)} · now {fmtMeters(claim.total)}
+                    {claim.instagram ? (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <a
+                          href={`https://instagram.com/${claim.instagram}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          @{claim.instagram}
+                        </a>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="rec">
+                  <div className="t">FIRST TO 100,000 M</div>
+                  <div className="v">
+                    5 <em>FREE MEALS</em>
+                  </div>
+                  <div className="meta">Still open — nobody there yet</div>
+                </div>
+              )}
             </div>
-            <div className="rec">
-              <div className="t">FIRST TO 100,000 M</div>
-              <div className="v">
-                5 <em>FREE MEALS</em>
-              </div>
-              <div className="meta">FROM GRIZZLY HEALTH</div>
+
+            <div className="ptn-shots">
+              {PHOTOS.pair.map((p) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={p.src} src={p.src} alt={p.alt} width={1200} height={1500} loading="lazy" />
+              ))}
             </div>
-            </div>
+            <p className="ptn-cap">THE PRIZE, IN HAND</p>
 
             <div className="ptn-shot">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={PRODUCT_SHOT.src} alt={PRODUCT_SHOT.alt} loading="lazy" />
-              <p className="ptn-cap">THE MEALS, IN THE ERG ROOM — SHOT BY MIKIAN</p>
+              <img src={PHOTOS.floor.src} alt={PHOTOS.floor.alt} loading="lazy" />
+              <p className="ptn-cap">THE MEALS</p>
             </div>
 
             <div className="ptn-code">
@@ -171,31 +290,12 @@ export default async function PartnersPage() {
               <div className="word">ROWTEMBER</div>
               <div className="deal">
                 10% OFF MEALS AT{" "}
-                <a href="https://grizzlyhealth.org" target="_blank" rel="noopener noreferrer">
+                <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
                   GRIZZLYHEALTH.ORG
                 </a>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>Partner with Rowtember</h2>
-            <span className="mono">THE NEXT SPOT IS OPEN</span>
-          </div>
-          <p className="ptn-pitch">
-            Put a prize on the line for {field} chasing 100,000 meters this September. Your
-            brand gets its own block — your colors, your logo, your prize, your code.
-          </p>
-          <p className="ptn-q">
-            Questions →{" "}
-            <a href="https://instagram.com/mikian_" target="_blank" rel="noopener noreferrer">
-              @mikian_
-            </a>
-          </p>
         </div>
       </section>
 
