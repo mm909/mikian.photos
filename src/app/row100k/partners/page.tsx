@@ -214,21 +214,9 @@ export default async function PartnersPage() {
               board, the first-place women&apos;s board, and the first rower to 100,000&nbsp;m.
             </p>
 
+            {/* The claimed prize leads the three (owner call, day 3); the two
+             * boards still in play follow. */}
             <div className="records ptn-grid">
-              <div className="rec">
-                <div className="t">MEN&apos;S BOARD — 1ST PLACE</div>
-                <div className="v">
-                  5 <em>FREE MEALS</em>
-                </div>
-                <div className="meta">{leading(men)}</div>
-              </div>
-              <div className="rec">
-                <div className="t">WOMEN&apos;S BOARD — 1ST PLACE</div>
-                <div className="v">
-                  5 <em>FREE MEALS</em>
-                </div>
-                <div className="meta">{leading(women)}</div>
-              </div>
               {claim ? (
                 <div className="rec claimed">
                   <div className="t">
@@ -269,6 +257,20 @@ export default async function PartnersPage() {
                   <div className="meta">Still open — nobody there yet</div>
                 </div>
               )}
+              <div className="rec">
+                <div className="t">MEN&apos;S BOARD — 1ST PLACE</div>
+                <div className="v">
+                  5 <em>FREE MEALS</em>
+                </div>
+                <div className="meta">{leading(men)}</div>
+              </div>
+              <div className="rec">
+                <div className="t">WOMEN&apos;S BOARD — 1ST PLACE</div>
+                <div className="v">
+                  5 <em>FREE MEALS</em>
+                </div>
+                <div className="meta">{leading(women)}</div>
+              </div>
             </div>
 
             <div className="ptn-shots">
