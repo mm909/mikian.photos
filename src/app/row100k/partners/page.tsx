@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/db";
-import { CHALLENGE, GOAL_METERS, fmtDay, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { fmtDay, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { boardData, EMPTY_BOARDS } from "../boardData";
+import { firstToGoal, type GoalClaim } from "../firstToGoal";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +88,14 @@ const ptnCss = `
 .row100k .ptn-code .deal a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
 .row100k .ptn-code .deal a:hover{color:#d3ab5d}
 
+/* The ask under the partner block: framed as backing the work, not selling a
+ * slot (owner call — no scarcity, and it has to carry over to the athletes
+ * we sponsor next). Quiet strip on paper, never a pitch section. */
+.row100k .ptn-next{margin-top:30px;border-top:2px solid var(--ink);padding:22px 0 4px;text-align:center}
+.row100k .ptn-next .k{display:block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.row100k .ptn-next a{display:inline-block;margin-top:12px;font-family:var(--row-mono),monospace;font-size:clamp(15px,4.2vw,20px);font-weight:700;letter-spacing:.04em;color:var(--water);text-decoration:underline;text-underline-offset:5px;word-break:break-all}
+.row100k .ptn-next a:hover{color:var(--ink)}
+
 @media (max-width:599px){
   .row100k .ptn-logos{padding:26px 14px 24px}
   .row100k .ptn-mark .bear{height:52px}
@@ -97,55 +105,9 @@ const ptnCss = `
 }
 `;
 
-/* The first rower to GOAL_METERS. Per rower, rows in (day, logged) order;
- * the crossing is the row that carries the running total over the line.
- * Earliest crossing wins — by the day it was rowed, then by when that row
- * was logged — so a backdated row still counts for the day it happened. */
-type Claim = {
-  name: string;
-  rowerNumber: number;
-  instagram: string;
-  day: string;
-  total: number;
-};
-
-async function firstToGoal(): Promise<Claim | null> {
-  const [participants, entries] = await Promise.all([
-    db.rowParticipant.findMany({
-      where: { challenge: CHALLENGE },
-      select: { id: true, displayName: true, rowerNumber: true, instagram: true },
-    }),
-    db.rowEntry.findMany({
-      where: { challenge: CHALLENGE },
-      select: { participantId: true, day: true, meters: true, createdAt: true },
-      orderBy: [{ day: "asc" }, { createdAt: "asc" }],
-    }),
-  ]);
-  const byId = new Map(participants.map((p) => [p.id, p]));
-  const cum = new Map<string, number>();
-  let best: { id: string; day: string; at: number } | null = null;
-  for (const e of entries) {
-    if (!byId.has(e.participantId)) continue;
-    const before = cum.get(e.participantId) ?? 0;
-    const after = before + e.meters;
-    cum.set(e.participantId, after);
-    if (before < GOAL_METERS && after >= GOAL_METERS) {
-      const at = e.createdAt.getTime();
-      if (!best || e.day < best.day || (e.day === best.day && at < best.at)) {
-        best = { id: e.participantId, day: e.day, at };
-      }
-    }
-  }
-  if (!best) return null;
-  const p = byId.get(best.id)!;
-  return {
-    name: p.displayName,
-    rowerNumber: p.rowerNumber,
-    instagram: p.instagram,
-    day: best.day,
-    total: cum.get(best.id) ?? 0,
-  };
-}
+/* Who got to 100k first — the rule (earliest crossing by row day, then by
+ * log time) lives in ../firstToGoal so the admin post pack headlines exactly
+ * the same rower this page does. */
 
 /* The partners page: their logos up top, then what Grizzly Health put on the
  * line — which prizes are claimed and by whom, the photos, the code. Public,
@@ -155,7 +117,7 @@ export default async function PartnersPage() {
   // Prize state: who is leading each board, and who got to 100k first.
   // Fail open — the block still renders with the prizes listed.
   let boards = EMPTY_BOARDS;
-  let claim: Claim | null = null;
+  let claim: GoalClaim | null = null;
   try {
     [boards, claim] = await Promise.all([boardData(), firstToGoal()]);
   } catch (err) {
@@ -297,6 +259,13 @@ export default async function PartnersPage() {
                 </a>
               </div>
             </div>
+          </div>
+
+          <div className="ptn-next">
+            <span className="k">Become a partner</span>
+            <a href="mailto:mikian.musser@gmail.com?subject=Becoming%20a%20partner">
+              mikian.musser@gmail.com
+            </a>
           </div>
         </div>
       </section>
