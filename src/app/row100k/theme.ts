@@ -476,12 +476,16 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .curve .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--row-mono),monospace;font-size:11px;padding:5px 8px;white-space:nowrap;transform:translate(-50%,-130%);z-index:5}
 
 /* Community strip above the boards. */
-.row100k .comm{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink);margin-bottom:28px}
-.row100k .comm .c{padding:16px 8px 13px;text-align:center;border-right:1px solid var(--ink)}
-.row100k .comm .c:last-child{border-right:none}
-.row100k .comm .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(17px,4.6vw,30px);line-height:1;font-variant-numeric:tabular-nums}
-.row100k .comm .l{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin-top:6px}
-@media(max-width:560px){.row100k .comm{grid-template-columns:1fr 1fr}.row100k .comm .c:nth-child(2){border-right:none}.row100k .comm .c:nth-child(-n+2){border-bottom:1px solid var(--ink)}}
+.row100k .bhead{margin:8px 0 0}
+.row100k .bhead-n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(44px,13vw,110px);line-height:1;letter-spacing:-.01em;color:var(--water);font-variant-numeric:tabular-nums}
+.row100k .bhead-l{margin:10px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray)}
+.row100k .bhead-l b{color:var(--ink);font-weight:700}
+.row100k .bl{list-style:none;margin:18px 0 28px;padding:18px 0 0;border-top:2px solid var(--ink);display:grid;gap:12px 40px;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.row100k .bl li{display:flex;align-items:baseline;gap:10px;min-width:0}
+.row100k .bl .k{color:var(--ink-soft);white-space:nowrap}
+.row100k .bl .dots{flex:1 1 24px;min-width:24px;height:0;border-bottom:2px dotted var(--gray)}
+.row100k .bl .v{font-weight:700;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(min-width:640px){.row100k .bl{grid-template-columns:1fr 1fr}}
 
 .row100k .pace-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:12px;line-height:1.9;text-transform:uppercase}
 .row100k .pace-note b{color:var(--water);font-weight:700}

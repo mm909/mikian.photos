@@ -59,7 +59,16 @@ export function BarAccount({
                 {/* The one thing a rower comes back for — first in the menu
                  * (owner call, 2026-09-05). #log opens the in-place form on
                  * the front page. */}
-                <Link className="acct-item" href="/row100k#log" onClick={close}>
+                <Link
+                  className="acct-item"
+                  href="/row100k#log"
+                  onClick={() => {
+                    close();
+                    // Already on the front page: a hash-only push fires no
+                    // hashchange, so tell the form directly (LogInPlace).
+                    window.dispatchEvent(new Event("row100k:log"));
+                  }}
+                >
                   Log a row →
                 </Link>
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>

@@ -414,7 +414,12 @@ export type Boards = {
   };
 };
 
-export function computeBoards(participants: ParticipantLite[], entries: EntryLite[]): Boards {
+export function computeBoards(
+  participants: ParticipantLite[],
+  entries: EntryLite[],
+  /* The challenge day for the "today" figures — Pacific, like every chart. */
+  today: string = pacificDay(nowMs()),
+): Boards {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const perParticipant = new Map<string, EntryLite[]>();
   for (const e of entries) {
@@ -556,16 +561,21 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       return { day, cum };
     });
 
-  const stats = (rows: TotalRow[], people: number): CommunityStats => ({
+  const known = entries.filter((e) => byId.has(e.participantId));
+  const stats = (rows: TotalRow[], people: number, ents: EntryLite[]): CommunityStats => ({
     meters: rows.reduce((s, r) => s + r.meters, 0),
     people,
     sessions: rows.reduce((s, r) => s + r.sessions, 0),
     finished: rows.filter((r) => r.meters >= GOAL_METERS).length,
+    seconds: ents.reduce((s, e) => s + e.seconds, 0),
+    todayMeters: ents.reduce((s, e) => (e.day === today ? s + e.meters : s), 0),
+    todaySeconds: ents.reduce((s, e) => (e.day === today ? s + e.seconds : s), 0),
   });
   const forDivision = (d: Division) =>
     stats(
       total.filter((r) => r.division === d),
       participants.filter((p) => p.division === d).length,
+      known.filter((e) => byId.get(e.participantId)?.division === d),
     );
   return {
     total,
@@ -574,13 +584,24 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
     bigDay,
     daily,
     community: {
-      ...stats(total, participants.length),
+      ...stats(total, participants.length, known),
       divisions: { M: forDivision("M"), F: forDivision("F") },
     },
   };
 }
 
-export type CommunityStats = { meters: number; people: number; sessions: number; finished: number };
+/* The figures at the top of a board (the newspaper head, owner call
+ * 2026-09-05): meters, rowers, sessions, finishers, time on the erg, and
+ * what landed today. */
+export type CommunityStats = {
+  meters: number;
+  people: number;
+  sessions: number;
+  finished: number;
+  seconds: number;
+  todayMeters: number;
+  todaySeconds: number;
+};
 
 /* ------------------------------------------------------------------ tiers */
 

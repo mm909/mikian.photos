@@ -82,6 +82,16 @@ export async function boardView(opts: {
   };
 }
 
+const EMPTY_STATS = {
+  meters: 0,
+  people: 0,
+  sessions: 0,
+  finished: 0,
+  seconds: 0,
+  todayMeters: 0,
+  todaySeconds: 0,
+};
+
 export const EMPTY_BOARDS: BoardData = {
   total: [],
   fastest: { 5000: [], 10000: [] },
@@ -89,14 +99,8 @@ export const EMPTY_BOARDS: BoardData = {
   bigDay: [],
   daily: [],
   community: {
-    meters: 0,
-    people: 0,
-    sessions: 0,
-    finished: 0,
-    divisions: {
-      M: { meters: 0, people: 0, sessions: 0, finished: 0 },
-      F: { meters: 0, people: 0, sessions: 0, finished: 0 },
-    },
+    ...EMPTY_STATS,
+    divisions: { M: { ...EMPTY_STATS }, F: { ...EMPTY_STATS } },
   },
 };
 

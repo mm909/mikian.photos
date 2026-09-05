@@ -148,31 +148,38 @@ export function Boards({
   const blackedOut = blackout.active || anyMasked;
   const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
-  // The strip follows the tab (owner call, 2026-09-05): on the men's or
-  // women's board it is that board's meters, rowers, sessions and finishers.
-  // Real sums from the server, never a total over masked rows.
+  // The head follows the tab (owner call, 2026-09-05): on the men's or
+  // women's board it is that board's figures. Real sums from the server,
+  // never a total over masked rows.
   const comm = tab === "ALL" ? boards.community : boards.community.divisions[tab];
+  const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
+  const ledger: [string, string][] = [
+    ["Rowers in", comm.people.toLocaleString("en-US")],
+    ["Sessions", comm.sessions.toLocaleString("en-US")],
+    ["Finished 100K", comm.finished.toLocaleString("en-US")],
+    ["Time rowed", hours(comm.seconds)],
+    ["Today", `${comm.todayMeters.toLocaleString("en-US")} m · ${hours(comm.todaySeconds)}`],
+  ];
 
   return (
     <div>
-      <div className="comm">
-        <div className="c">
-          <div className="n">{comm.meters.toLocaleString("en-US")}</div>
-          <div className="l">meters combined</div>
-        </div>
-        <div className="c">
-          <div className="n">{comm.people}</div>
-          <div className="l">rowers in</div>
-        </div>
-        <div className="c">
-          <div className="n">{comm.sessions}</div>
-          <div className="l">sessions</div>
-        </div>
-        <div className="c">
-          <div className="n">{comm.finished}</div>
-          <div className="l">finished 100k</div>
-        </div>
+      {/* The newspaper head: one big blue number, the way the landing does
+       * it, then a thin ledger with dotted leaders (owner call, 2026-09-05). */}
+      <div className="bhead">
+        <div className="bhead-n">{comm.meters.toLocaleString("en-US")}</div>
+        <p className="bhead-l mono">
+          Meters combined · <b>{tab === "ALL" ? "everyone" : `${TAB_LABEL[tab]} board`}</b>
+        </p>
       </div>
+      <ul className="bl">
+        {ledger.map(([k, v]) => (
+          <li key={k}>
+            <span className="k">{k}</span>
+            <span className="dots" aria-hidden="true" />
+            <span className="v">{v}</span>
+          </li>
+        ))}
+      </ul>
 
       <div className="tabs">
         {(["ALL", "M", "F"] as const).map((t) => (

@@ -68,12 +68,25 @@ export function LogInPlace({
   // already open — the browser scrolls to the id, this opens the seam. Also
   // answers a hash change on a page that is already up.
   useEffect(() => {
+    const openNow = () => {
+      if (phase === "closed") return;
+      setOpen(true);
+      window.requestAnimationFrame(() =>
+        document.getElementById("log")?.scrollIntoView({ block: "start", behavior: "smooth" }),
+      );
+    };
     const openIfAsked = () => {
-      if (window.location.hash === "#log" && phase !== "closed") setOpen(true);
+      if (window.location.hash === "#log") openNow();
     };
     openIfAsked();
     window.addEventListener("hashchange", openIfAsked);
-    return () => window.removeEventListener("hashchange", openIfAsked);
+    // The account menu's LOG A ROW on a page that is already up: a
+    // same-page hash push fires no hashchange, so it sends this instead.
+    window.addEventListener("row100k:log", openNow);
+    return () => {
+      window.removeEventListener("hashchange", openIfAsked);
+      window.removeEventListener("row100k:log", openNow);
+    };
   }, [phase]);
 
   const onLogged = (entry: { day: string; meters: number; seconds: number; title?: string }) => {
