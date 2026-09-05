@@ -247,13 +247,10 @@ export function Boards({
                     ) : (
                       /* Reached by somebody, empty on this tab: on ALL that
                        * means everyone in range moved up; on a division tab
-                       * it means the other division got there first. */
+                       * it means the other division got there first. One
+                       * line for both (owner call, 2026-09-05). */
                       <tr className="lockrow">
-                        <td colSpan={4}>
-                          {tab === "ALL"
-                            ? "NOBODY HOLDING THIS TIER RIGHT NOW"
-                            : `NO ${TAB_WORD[tab].toUpperCase()} HERE YET`}
-                        </td>
+                        <td colSpan={4}>NO ONE HERE YET</td>
                       </tr>
                     )}
                   </Fragment>
