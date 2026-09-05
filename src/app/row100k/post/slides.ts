@@ -24,10 +24,12 @@
 export const SLIDE_W = 1080;
 export const SLIDE_H = 1350;
 
-/* Palette, lifted straight from the approved design. The accent on photo
- * slides is a matte blue, not the page water blue: #0077B6 over a photo read
- * too harsh (owner call, last iteration). */
-const MATTE = "#8FB3CC";
+/* Palette, lifted straight from the approved design. The photo slides are
+ * black and white through and through: the accent that used to be a matte
+ * blue (#8FB3CC) went back to white on the owner's call (2026-09-05, "change
+ * the color back to black and white"), so emphasis comes from size and
+ * weight alone. The name stays so every call site reads as the accent. */
+const MATTE = "#ffffff";
 const RULE = "rgba(255,255,255,0.85)";
 const DOT_LINE = "rgba(255,255,255,0.34)";
 const GREEN = "#0c2015";

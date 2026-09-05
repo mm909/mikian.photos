@@ -105,9 +105,17 @@ export function PostPack({ data }: { data: PostData }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState(false);
+  const [canCopy, setCanCopy] = useState(false);
 
   useEffect(() => {
     setCanShareFiles(typeof navigator.canShare === "function");
+    // Image clipboard needs ClipboardItem + a secure context (iOS Safari has
+    // both since 13.4); resolved after mount so the server markup matches.
+    setCanCopy(
+      typeof ClipboardItem !== "undefined" &&
+        typeof navigator.clipboard?.write === "function" &&
+        window.isSecureContext,
+    );
   }, []);
 
   /* One render slot, committed: the previous image for that slot is revoked
@@ -254,12 +262,17 @@ export function PostPack({ data }: { data: PostData }) {
     [],
   );
 
-  /* Tap a photo slide to move it to the next gallery photo. */
+  /* Tap a photo slide to move it to the next gallery photo; one tap past the
+   * last photo is the PLAIN version — the same type on the dark ground with
+   * no picture, which is the one to paste over your own shot (owner ask:
+   * "copy the top 10 sticker without the images"). Another tap starts the
+   * photos over. */
   const swapPhoto = async (index: number) => {
     const slide = slidesRef.current[index];
     const photos = dataRef.current.photos;
-    if (!slide?.usesPhoto || photos.length < 2 || working !== null) return;
-    const next = ((picksRef.current[index] ?? -1) + 1) % photos.length;
+    if (!slide?.usesPhoto || photos.length < 1 || working !== null) return;
+    const cur = picksRef.current[index] ?? -1;
+    const next = cur + 1 >= photos.length ? -1 : cur + 1;
     const nextPicks = picksRef.current.slice();
     nextPicks[index] = next;
     picksRef.current = nextPicks;
@@ -330,6 +343,21 @@ export function PostPack({ data }: { data: PostData }) {
     saveBlob(out.blob, slide.file);
   };
 
+  /* One slide onto the clipboard, for pasting straight into a story or a
+   * message without the round trip through Photos. */
+  const copyOne = async (index: number) => {
+    const out = outsRef.current[index];
+    const slide = slidesRef.current[index];
+    if (!out || !slide) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": out.blob })]);
+      setStatus(`COPIED ${slide.label.toUpperCase()}`);
+    } catch (err) {
+      console.error("row100k/post: copy failed", err);
+      setStatus("COULD NOT COPY — SAVE IT INSTEAD");
+    }
+  };
+
   const doneCount = outs.filter(Boolean).length;
 
   return (
@@ -380,13 +408,15 @@ export function PostPack({ data }: { data: PostData }) {
         {canShareFiles
           ? "Download all opens the share sheet with every slide — save them all to Photos in one go."
           : "Download all saves every slide as one zip."}
-        {data.photos.length > 1 ? " Tap a photo slide to swap its picture." : ""}
+        {data.photos.length > 0
+          ? " Tap a photo slide to swap its picture; one tap past the last photo is the plain version, no picture."
+          : ""}
       </p>
 
       <div className="pk-strip">
         {slides.map((slide, i) => {
           const out = outs[i];
-          const swappable = slide.usesPhoto && data.photos.length > 1;
+          const swappable = slide.usesPhoto && data.photos.length > 0;
           return (
             <div className="pk-card" key={slide.id}>
               <button
@@ -408,16 +438,28 @@ export function PostPack({ data }: { data: PostData }) {
               <div className="pk-cap">
                 <span className="pk-name">
                   {i + 1}. {slide.label}
-                  {swappable && picks[i] >= 0 ? ` · photo ${picks[i] + 1}` : ""}
+                  {swappable ? (picks[i] >= 0 ? ` · photo ${picks[i] + 1}` : " · plain") : ""}
                 </span>
-                <button
-                  type="button"
-                  className="pk-save"
-                  onClick={() => void saveOne(i)}
-                  disabled={!out}
-                >
-                  Save
-                </button>
+                <span style={{ display: "flex", gap: 14, flex: "none" }}>
+                  {canCopy && (
+                    <button
+                      type="button"
+                      className="pk-save"
+                      onClick={() => void copyOne(i)}
+                      disabled={!out}
+                    >
+                      Copy
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="pk-save"
+                    onClick={() => void saveOne(i)}
+                    disabled={!out}
+                  >
+                    Save
+                  </button>
+                </span>
               </div>
             </div>
           );
