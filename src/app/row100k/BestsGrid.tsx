@@ -18,6 +18,10 @@ export type Best = {
   place: number | null;
   /* Leaderboard for this stat, e.g. "/row100k/records/5000?d=m". */
   href: string;
+  /* Blackout (blackoutRules.ts): the page blanked `value` and this is its
+   * silhouette — "##:##.#" for a pace best — for the blocks the profile
+   * renders in its place, and for the best card should one ever be made. */
+  shape?: string;
 };
 
 export function BestsGrid({
@@ -69,7 +73,12 @@ export function BestsGrid({
         data={{
           ...data,
           best: shareBest
-            ? { label: shareBest.label, value: shareBest.value, place: shareBest.place }
+            ? {
+                label: shareBest.label,
+                value: shareBest.value,
+                place: shareBest.place,
+                shape: shareBest.shape,
+              }
             : undefined,
         }}
         open={shareBest !== null}

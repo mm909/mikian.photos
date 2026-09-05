@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { signIn, signOut } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 
 /* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
- * chip opening the account menu — profile link and sign out. Signed in but
- * not joined: join link + sign out. Admins also get a DEVELOPMENT block of
- * owner-only / in-progress surfaces above Sign out. */
+ * chip opening the account menu — profile, then settings (owner call,
+ * 2026-09-05: settings live behind this menu, not on the page), then sign
+ * out. Signed in but not joined: join link + sign out. Admins also get a
+ * DEVELOPMENT block of owner-only / in-progress surfaces above Sign out.
+ * Items are next/link so the bar pill (BarNav) can carry across the hop. */
 export function BarAccount({
   signedIn,
   rowerNumber,
@@ -22,6 +25,7 @@ export function BarAccount({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
+  const close = () => setOpen(false);
 
   if (!signedIn) {
     return (
@@ -48,16 +52,21 @@ export function BarAccount({
       </button>
       {open && (
         <>
-          <div className="acct-overlay" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="acct-overlay" onClick={close} aria-hidden="true" />
           <div className="acct-panel" role="menu">
             {rowerNumber !== null ? (
-              <a className="acct-item" href={`/row100k/r/${rowerNumber}`}>
-                My profile →
-              </a>
+              <>
+                <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
+                  My profile →
+                </Link>
+                <Link className="acct-item" href="/row100k/settings" onClick={close}>
+                  Settings →
+                </Link>
+              </>
             ) : (
-              <a className="acct-item" href="/row100k#join" onClick={() => setOpen(false)}>
+              <Link className="acct-item" href="/row100k#join" onClick={close}>
                 Join the challenge →
-              </a>
+              </Link>
             )}
             {admin && (
               <>
@@ -76,15 +85,30 @@ export function BarAccount({
                 >
                   Development
                 </div>
-                <a className="acct-item" href="/row100k/signups">
+                <Link className="acct-item" href="/row100k/blackout" onClick={close}>
+                  Blackout →
+                </Link>
+                <Link className="acct-item" href="/row100k/moderation" onClick={close}>
+                  Moderation →
+                </Link>
+                {/* The gallery and the numbers page live here rather than on
+                 * the bar for now (owner call, 2026-09-05): neither is ready
+                 * to be a public tab. */}
+                <Link className="acct-item" href="/row100k/gallery" onClick={close}>
+                  Gallery →
+                </Link>
+                <Link className="acct-item" href="/row100k/analysis" onClick={close}>
+                  The numbers →
+                </Link>
+                <Link className="acct-item" href="/row100k/signups" onClick={close}>
                   Signups →
-                </a>
-                <a className="acct-item" href="/row100k/dev/stats">
+                </Link>
+                <Link className="acct-item" href="/row100k/dev/stats" onClick={close}>
                   Dev stats →
-                </a>
-                <a className="acct-item" href="/row100k/post">
+                </Link>
+                <Link className="acct-item" href="/row100k/post" onClick={close}>
                   Post pack →
-                </a>
+                </Link>
               </>
             )}
             <button

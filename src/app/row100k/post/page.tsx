@@ -12,8 +12,10 @@ import {
   isRow100kAdmin,
   nowMs,
 } from "@/lib/row100k";
-import { r2Configured, r2List } from "@/lib/r2";
-import { signCached } from "../photoUrls";
+import { digitCount, shapeOf } from "@/lib/blackoutRules";
+import { maskedIds } from "@/lib/row100kViewer";
+import { listGallery } from "../galleryList";
+import { photoUrl, photosServable } from "../photoUrls";
 import { boardData, EMPTY_BOARDS } from "../boardData";
 import { firstToGoal } from "../firstToGoal";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -33,13 +35,13 @@ export const metadata: Metadata = {
  *
  * Everything the slides need is read here, server-side, off the same helpers
  * the public pages use — the board (boardData), the first-to-100k claim
- * (../firstToGoal), the newest gallery photos (R2, presigned) — and handed
- * to the client as plain JSON. The drawing happens in the browser, on
- * canvas, so the owner can do the whole thing from a phone.
+ * (../firstToGoal), the newest gallery photos (the cached R2 listing in
+ * ../galleryList.ts, served as public CDN URLs) — and handed to the client
+ * as plain JSON. The drawing happens in the browser, on canvas, so the owner
+ * can do the whole thing from a phone.
  *
  * Admin only, like /row100k/signups: everyone else gets a 404. */
 
-const R2_PREFIX = "row100k/gallery/";
 /* Pacific, the repo convention for "which challenge day is it". */
 const SHIFT_MS = 7 * 3600_000;
 /* Enough gallery photos to cycle through without dragging the whole bucket
@@ -152,32 +154,57 @@ export default async function PostPackPage() {
     console.error("row100k/post: failed to resolve the 100k claim", err);
   }
 
-  // The newest gallery photos, presigned. Thumbs are skipped — these get
-  // painted full-bleed at 1080x1350.
+  // The newest gallery photos as public CDN URLs. Thumbs are skipped — these
+  // get painted full-bleed at 1080x1350.
   let photos: string[] = [];
   try {
-    if (r2Configured()) {
-      const objects = (await r2List(R2_PREFIX)).filter(
-        (o) => /\.(jpe?g|png|webp)$/i.test(o.key) && !/\.thumb\.[a-z0-9]+$/i.test(o.key),
-      );
-      objects.sort((a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0));
-      photos = await Promise.all(objects.slice(0, PHOTO_LIMIT).map((o) => signCached(o.key)));
+    if (photosServable()) {
+      const mains = await listGallery();
+      photos = await Promise.all(mains.slice(0, PHOTO_LIMIT).map((o) => photoUrl(o.key)));
     }
   } catch (err) {
     console.error("row100k/post: gallery listing failed", err);
     photos = [];
   }
 
+  // boardData() is the public, masked board: during a blackout the elite
+  // fifteen arrive with a tier floor and a digit count, and the board slide
+  // draws blocks for them. A masked row under 10k carries a floor of 0, so
+  // the filter keeps masked rows regardless.
   const standings: PostRow[] = boards.total
-    .filter((r) => r.meters > 0)
-    .map((r) => ({ name: r.name, num: r.rowerNumber, meters: r.meters }));
+    .filter((r) => r.meters > 0 || r.masked)
+    .map((r) => ({
+      name: r.name,
+      num: r.rowerNumber,
+      meters: r.meters,
+      masked: r.masked,
+      digits: r.digits,
+    }));
   const club50 = standings.filter((r) => r.meters >= 50_000);
 
   // The record list. Fastest boards print the average 500m split, which is
-  // what the approved slide shows.
+  // what the approved slide shows. boardData() masks only the total rows,
+  // so the record boards still hold every real value here — a holder in the
+  // masked set (the same fifteen the board hides) gets no value at all,
+  // only its silhouette, and the slide draws blocks: the carousel leaves
+  // the site, and an elite rower's split or best is their meters by another
+  // route (owner rule, 2026-09-05).
+  const hidden = maskedIds(boards);
   const records: PostRecord[] = [];
-  const add = (label: string, row: { name: string } | undefined, value: string) => {
-    if (row) records.push({ label, who: row.name, value });
+  const add = (
+    label: string,
+    row: { name: string; participantId: string } | undefined,
+    value: string,
+  ) => {
+    if (!row) return;
+    const masked = hidden.has(row.participantId);
+    records.push({
+      label,
+      who: row.name,
+      value: masked ? "" : value,
+      masked: masked || undefined,
+      shape: masked ? shapeOf(value) : undefined,
+    });
   };
   const fastest = (dist: 5000 | 10000, division: string) =>
     boards.fastest[dist].find((r) => r.division === division);
@@ -192,8 +219,25 @@ export default async function PostPackPage() {
   const bigDay = boards.bigDay[0];
   add("Biggest day", bigDay, bigDay ? fmtMeters(bigDay.value) : "");
 
+  // The claim's `total` is the rower's real running total (firstToGoal.ts
+  // does not mask), and the first to 100k is all but certainly one of the
+  // elite fifteen — so the congrats slide reads its meters off the masked
+  // standings row when there is one, and hides what the board slide hides.
+  // No standings row at all means the board could not be read (a rower
+  // with 100k is on it by definition) — then the page cannot tell whether
+  // a window is open, so the line hides rather than guessing the rower is
+  // not elite, the same fail-closed rule the partners page holds (review,
+  // 2026-09-05).
+  const claimRow = claim ? standings.find((r) => r.num === claim.rowerNumber) : undefined;
+  const claimHidden = !claimRow || claimRow.masked === true;
   const first100k: PostRow | null = claim
-    ? { name: claim.name, num: claim.rowerNumber, meters: claim.total }
+    ? {
+        name: claim.name,
+        num: claim.rowerNumber,
+        meters: claimHidden ? (claimRow?.meters ?? 0) : claim.total,
+        masked: claimHidden || undefined,
+        digits: claimHidden ? (claimRow?.digits ?? digitCount(claim.total)) : undefined,
+      }
     : (standings.find((r) => r.meters >= 100_000) ?? null);
 
   const data: PostData = {

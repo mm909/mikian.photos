@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { r2Configured, r2Delete } from "@/lib/r2";
+import { GALLERY_TAG } from "@/app/row100k/galleryList";
 import { thumbKey } from "@/app/row100k/photoUrls";
 
 export const runtime = "nodejs";
@@ -20,7 +22,8 @@ export const runtime = "nodejs";
  *
  * Both the main object and its thumbKey() sibling go in one bulk delete;
  * deleting a key that does not exist is a no-op in S3/R2, so a photo that
- * never got a thumb is fine. */
+ * never got a thumb is fine. The gallery listing cache is dropped afterwards
+ * so the owner's refresh does not show the frame they just removed. */
 
 const GALLERY_KEY_RE = /^row100k\/gallery\/[a-z0-9-]+\.(jpe?g|png|webp)$/i;
 const THUMB_RE = /\.thumb\.[a-z0-9]+$/i;
@@ -76,5 +79,6 @@ export async function POST(req: Request) {
     );
   }
 
+  revalidateTag(GALLERY_TAG);
   return NextResponse.json({ ok: true });
 }

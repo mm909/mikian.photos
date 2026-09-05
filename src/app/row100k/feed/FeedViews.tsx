@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BlockClock, Blocks } from "../Blackout";
 import { Lightbox, type LightboxPhoto } from "../Lightbox";
 
 /* The feed's PHOTO LEDGER strips — the winner of the dev log drafts
@@ -15,10 +16,11 @@ import { Lightbox, type LightboxPhoto } from "../Lightbox";
  * first; rower photo before erg shot within a row), so a reader can open
  * any thumb and arrow through the whole page. */
 
-/* One photo's display URLs: the presigned full image plus its grid-sized
- * thumb when one exists (legacy photos have none — render full instead).
- * Structurally identical to PhotoMedia in photoUrls.ts; declared locally
- * so this client file never imports from the server-only module. */
+/* One photo's display URLs: the public CDN full image plus its grid-sized
+ * thumb (null only for shapes that carry none — the server always sends one
+ * today, and a thumb that 404s swaps to the full frame in Pics). Structurally
+ * compatible with PhotoMedia in photoUrls.ts; declared locally so this client
+ * file never imports from the server-only module. */
 export type FeedPhoto = {
   full: string;
   thumb: string | null;
@@ -40,20 +42,29 @@ export type FeedItem = {
   splitStr: string;
   /* session title, may be "" */
   title: string;
-  /* resolved photo media, rower photo first — presigned GETs for real keys,
-   * inline SVG data URIs for demo color squares; empty when the row has no
-   * photos or R2 isn't configured */
+  /* resolved photo media, rower photo first — stable public CDN URLs for
+   * real keys, inline SVG data URIs for demo color squares; empty when the
+   * row has no photos or photos can't be served on this deploy */
   photos: FeedPhoto[];
+  /* Blackout (blackoutRules.ts): the rower is one of the hidden fifteen —
+   * metersStr, durationStr and splitStr are all "", `digits` says how many
+   * blocks to draw in the meters slot and `timeShape` ("#:##:##") is the
+   * silhouette of the time. No number of theirs is in this object. */
+  masked?: boolean;
+  digits?: number;
+  timeShape?: string;
 };
 
 function photoAlt(item: FeedItem, i: number): string {
   return i === 0 ? `${item.name} after the row` : "Erg screen";
 }
 
-/* Left cell: ~64px thumbs (thumb URL when one exists, full image for legacy
- * photos) opening the shared Lightbox at this photo's slot in the page-wide
- * reel; a row with no photos shows one dashed placeholder square so the left
- * edge stays aligned. */
+/* Left cell: ~64px thumbs opening the shared Lightbox at this photo's slot
+ * in the page-wide reel; a row with no photos shows one dashed placeholder
+ * square so the left edge stays aligned. The thumb URL is emitted without an
+ * existence check (that check used to cost a bucket listing per render), so
+ * the one thumb that never landed 404s and the img swaps to the full frame
+ * — once: a dead full frame must not loop. */
 function Pics({
   item,
   offset,
@@ -74,7 +85,17 @@ function Pics({
         // URL alone isn't unique.
         <button key={i} type="button" onClick={() => onOpen(offset + i)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={p.thumb ?? p.full} alt={photoAlt(item, i)} loading="lazy" />
+          <img
+            src={p.thumb ?? p.full}
+            alt={photoAlt(item, i)}
+            loading="lazy"
+            onError={(e) => {
+              const img = e.currentTarget;
+              // The raw attribute, not .src: the getter resolves URLs and
+              // would never compare equal to a data: or relative value.
+              if (img.getAttribute("src") !== p.full) img.src = p.full;
+            }}
+          />
         </button>
       ))}
     </>
@@ -111,11 +132,23 @@ function LedgerStrip({
           {item.title ? <span>{item.title}</span> : null}
         </span>
 
-        {/* The hierarchy: meters loudest, then the time, then the pace. */}
+        {/* The hierarchy: meters loudest, then the time, then the pace. A
+            hidden row draws blocks where the meters AND the time go, and no
+            pace at all — the split with either would hand the number back. */}
         <span className="fl-nums">
-          <span className="fl-m">{item.metersStr}</span>
-          <span className="fl-t">{item.durationStr}</span>
-          <span className="fl-s">{item.splitStr} /500M</span>
+          <span className="fl-m">
+            {item.masked ? (
+              <>
+                <Blocks digits={item.digits ?? 1} /> m
+              </>
+            ) : (
+              item.metersStr
+            )}
+          </span>
+          <span className="fl-t">
+            {item.masked ? <BlockClock shape={item.timeShape} /> : item.durationStr}
+          </span>
+          {!item.masked && <span className="fl-s">{item.splitStr} /500M</span>}
         </span>
       </span>
     </article>

@@ -3,8 +3,8 @@ import path from "path";
 import { readdir } from "fs/promises";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
-import { r2Configured, r2List } from "@/lib/r2";
-import { signCached, thumbKey } from "../photoUrls";
+import { listGallery } from "../galleryList";
+import { photoUrl, photosServable, thumbKey } from "../photoUrls";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -23,7 +23,9 @@ export const metadata: Metadata = {
  * 1. R2, under row100k/gallery/ — the live batch. The admin upload control
  *    on this page presigns a PUT per file (see /api/row100k/gallery/sign),
  *    so new photos appear on the next page load with NO deploy. Newest
- *    upload first.
+ *    upload first. The listing is the shared, tagged cache in
+ *    ../galleryList.ts — the sign and delete routes revalidate it, so this
+ *    page never lists the bucket on a plain visit.
  * 2. public/row100k/rowtember-profiles — the legacy batch that ships with
  *    deploys (camera JPGs batch-copied off the card; filename is the shot
  *    sequence, so higher number = shot later = shown first). Appended after
@@ -32,7 +34,7 @@ export const metadata: Metadata = {
  * The page is PUBLIC, like the rest of /row100k — only the upload strip is
  * admin-gated (the Uploader render below plus the 403 on the sign route).
  * Everything under public/ is world-readable at its URL once deployed, and
- * the R2 photos are served through presigned GET URLs that expire hourly —
+ * the R2 photos are served straight from the public CDN (../photoUrls.ts) —
  * all of it is published work, nothing private lives here.
  *
  * Deletable-ness follows the source: every R2 entry carries its bucket `key`
@@ -42,11 +44,10 @@ export const metadata: Metadata = {
  *
  * Thumbnails: an R2 upload may carry a small companion object at
  * thumbKey(mainKey) — "uuid.thumb.jpg" next to "uuid.jpg" (see
- * ../photoUrls.ts). Grid tiles render the thumb when one exists (mapped out
- * of the SAME listing — no extra requests) and the lightbox always gets the
- * full image. Legacy public/ photos have no thumbs and render full-size. */
+ * ../photoUrls.ts). Grid tiles render the thumb when one exists (decided in
+ * the SAME cached listing — no extra requests) and the lightbox always gets
+ * the full image. Legacy public/ photos have no thumbs and render full-size. */
 const GALLERY_DIR = path.join(process.cwd(), "public", "row100k", "rowtember-profiles");
-const R2_PREFIX = "row100k/gallery/";
 
 /* Gallery-only styles — scoped with a .gal- prefix; theme.ts stays untouched.
  * Rendered as the text child of a style tag, so no double quotes and no
@@ -101,30 +102,19 @@ export default async function GalleryPage() {
     /* no session backend in some local setups — the page is public anyway */
   }
 
-  // Source (a): the live R2 batch, newest upload first, presigned an hour.
-  // One listing covers both mains and their .thumb. companions: thumbs are
-  // filtered OUT as grid entries and mapped back onto their main by the
-  // thumbKey convention — no per-photo existence checks. Fails soft to just
-  // the public batch — a listing or presign hiccup should never blank the
-  // page.
+  // Source (a): the live R2 batch, newest upload first, on public CDN URLs.
+  // The cached listing already folded the .thumb. companions onto their
+  // mains (hasThumb) — no per-photo existence checks. Fails soft to just the
+  // public batch — a listing hiccup should never blank the page.
   let r2Photos: { src: string; full: string; key: string | null }[] = [];
   try {
-    if (r2Configured()) {
-      const isThumb = (key: string) => /\.thumb\.[a-z0-9]+$/i.test(key);
-      const objects = (await r2List(R2_PREFIX)).filter((o) =>
-        /\.(jpe?g|png|webp)$/i.test(o.key)
-      );
-      const thumbKeys = new Set(objects.filter((o) => isThumb(o.key)).map((o) => o.key));
-      const mains = objects.filter((o) => !isThumb(o.key));
-      mains.sort(
-        (a, b) => (b.lastModified?.getTime() ?? 0) - (a.lastModified?.getTime() ?? 0)
-      );
+    if (photosServable()) {
+      const mains = await listGallery();
       r2Photos = await Promise.all(
         mains.map(async (o) => {
-          const tk = thumbKey(o.key);
           const [full, thumb] = await Promise.all([
-            signCached(o.key),
-            thumbKeys.has(tk) ? signCached(tk) : Promise.resolve(null),
+            photoUrl(o.key),
+            o.hasThumb ? photoUrl(thumbKey(o.key)) : Promise.resolve(null),
           ]);
           return { src: thumb ?? full, full, key: o.key };
         })

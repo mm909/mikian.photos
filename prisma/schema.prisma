@@ -608,6 +608,44 @@ model ShareEvent {
   @@index([challenge, createdAt])
 }
 
+/// Rowtember blackout windows: while one is open, the top fifteen on the
+/// board ("THE ELITE FIFTEEN") have their meters hidden from the public —
+/// digit blocks instead of numbers, on the board and on the share stickers.
+/// Admin-set from /row100k/blackout; UTC instants, entered and shown in the
+/// challenge's fixed UTC-7 Pacific convention. `createdBy` is the admin's
+/// email, for the audit trail only — no FK, same as the other Row* tables.
+model RowBlackout {
+  id        String   @id @default(cuid())
+  challenge String   @default("row100k-sep-2026")
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String   @default("")
+  createdBy String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([challenge, startsAt])
+  @@index([challenge, endsAt])
+}
+
+/// One click on a tracked Rowtember link (the PARTNERS rail item, the
+/// Grizzly outbound links on /row100k/partners) — beaconed from the
+/// client on click, public like ShareEvent, per-IP rate-limited at the
+/// route. `referrer` is the document.referrer at page load, host only,
+/// so the owner can see roughly where the clickers arrived from.
+/// `rowerNumber` is filled in when the clicker has a session, best effort.
+model RowLinkClick {
+  id          String   @id @default(cuid())
+  challenge   String   @default("row100k-sep-2026")
+  link        String
+  path        String   @default("")
+  referrer    String   @default("")
+  rowerNumber Int?
+  createdAt   DateTime @default(now())
+
+  @@index([challenge, link])
+  @@index([challenge, createdAt])
+}
+
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the
 // photo product; `page` scopes rows so a future crew page can reuse the table.
 // Each submission also emails the owner the full applicant list — the table is

@@ -15,8 +15,10 @@ function parts(msLeft: number) {
 
 /* Before Sep 1: counts down to the first stroke. During September: counts
  * what's left. After: a wrap banner. Null-until-mounted so the server and
- * first client render match (same trick as /lasd26). */
-export function Countdown() {
+ * first client render match (same trick as /lasd26). `size` small is the
+ * corner-of-the-newspaper cut (owner call, 2026-09-05: the clock was taking
+ * up too much space — same box as the leader headline, still ticking). */
+export function Countdown({ size }: { size?: "small" } = {}) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -25,16 +27,18 @@ export function Countdown() {
     return () => clearInterval(t);
   }, []);
 
+  const small = size === "small" ? " small" : "";
+
   if (now !== null && now >= LOG_CLOSE_MS) {
     return (
-      <div className="count-done mono">
-        THAT&rsquo;S A WRAP — THE BOARD BELOW IS FINAL.
+      <div className={`count-done mono${small}`}>
+        THAT&rsquo;S A WRAP — THE BOARD IS FINAL.
       </div>
     );
   }
   if (now !== null && now >= END_MS) {
     return (
-      <div className="count-done mono">
+      <div className={`count-done mono${small}`}>
         SEPTEMBER&rsquo;S DONE — LATE LOGS CLOSE OCT 3.
       </div>
     );
@@ -53,7 +57,7 @@ export function Countdown() {
 
   return (
     <div
-      className="count"
+      className={`count${small}`}
       role="timer"
       aria-label={started ? "Time left in September" : "Countdown to September 1"}
     >

@@ -142,14 +142,17 @@ function Spinner() {
 }
 
 /* Shared look for the photo tiles — thumbnail-height boxes in one flex row so
- * the pair sits side by side even on a phone. */
+ * the pair sits side by side even on a phone. A hairline dash, the same rule
+ * the log form draws between its rows (the 2px version read as one more
+ * hard box — owner, 2026-09-05); a landed photo still gets the 2px ink
+ * frame, that one is a picture frame, not chrome. */
 const tileBase = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   gap: 10,
   minHeight: 120,
-  border: "2px dashed var(--line)",
+  border: "1px dashed var(--line)",
   fontFamily: "var(--row-mono),monospace",
   fontSize: 12,
   letterSpacing: ".1em",

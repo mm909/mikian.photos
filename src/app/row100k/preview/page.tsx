@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { computeBoards, type Division } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { BarAccount } from "../BarAccount";
+import { BarNav } from "../BarNav";
 import { RowBar } from "../RowBar";
 import { Dashboard } from "../Dashboard";
 import { LogPanel } from "../LogPanel";
@@ -73,11 +75,20 @@ export default function Row100kPreview({
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       {view === "dashboard" ? (
-        /* Menu preview needs a forced signed-in chip (optionally pre-opened)
-         * that the real RowBar can't fake — this one view keeps a hand bar. */
+        /* Menu preview needs a pre-opened menu, which the real RowBar has no
+         * prop for — this one view keeps a hand bar, built from the same
+         * three children (.bar-lead, rail, .bar-right) so the phone reflow
+         * and the pill behave exactly as on the real pages. */
         <div className="bar">
-          <span className="mono tag">ROW100K</span>
-          <BarAccount signedIn rowerNumber={23} defaultOpen={searchParams.menu === "1"} />
+          <span className="bar-lead">
+            <Link className="bar-brand" href="/">
+              Mikian<span className="dot">.</span>Musser
+            </Link>
+          </span>
+          <BarNav active="home" />
+          <span className="bar-right">
+            <BarAccount signedIn rowerNumber={23} admin defaultOpen={searchParams.menu === "1"} />
+          </span>
         </div>
       ) : (
         <RowBar>
@@ -127,6 +138,9 @@ export default function Row100kPreview({
                   sessions={MOCK_ROWS.length}
                   rows={MOCK_ROWS}
                   phase="open"
+                  defaultDay="2026-09-20"
+                  defaultTitle={`Rowtember #${MOCK_ROWS.length + 1}`}
+                  simulate
                 />
               </div>
             ) : (

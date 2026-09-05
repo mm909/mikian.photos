@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { getEffectiveActor } from "@/lib/permissions";
+import { activeBlackout } from "@/lib/blackout";
+import { clockShape, digitCount } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
   FIRST_DAY,
@@ -12,8 +13,10 @@ import {
   daysElapsed,
   nowMs as clockNow,
   weekIndexOf,
+  type RecordRow,
   type WeeklyRow,
 } from "@/lib/row100k";
+import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
@@ -22,7 +25,7 @@ import { RowBar } from "../RowBar";
 import { TurnoutChart } from "../TurnoutChart";
 import { RowFooter } from "../RowFooter";
 import { StatsBoards } from "../Stats";
-import { boardData, EMPTY_BOARDS } from "../boardData";
+import { boardView, EMPTY_BOARDS } from "../boardData";
 
 export const metadata: Metadata = {
   title: "The stats — 100K September",
@@ -36,11 +39,64 @@ export const dynamic = "force-dynamic";
  * September as a calendar, and the curve. The main page keeps only the
  * standings; this is where the rest lives. */
 export default async function StatsPage() {
+  /* Who is looking decides what the boards may print: the weekly boards
+   * pull the signed-in rower into view below the top 10, and during a
+   * blackout the elite fifteen are hidden from everyone but admins and the
+   * rower themself (boardView, blackoutRules.ts). Cosmetic on failure —
+   * the anonymous view renders. */
+  const viewer = await resolveViewer();
+
   let boards = EMPTY_BOARDS;
+  let blackout: { active: boolean; endsAt?: string } = { active: false };
+  /* Set only when the board cannot be read while a window is open. The
+   * weekly and daily boards come off their own query below, which may well
+   * succeed on its own — and without the board this page cannot tell who
+   * is elite, so it blanks every row but the viewer's own: the same
+   * fail-closed line the profile and the feed hold, rather than being the
+   * one surface that ships an elite week in the clear. */
+  let hideAll = false;
   try {
-    boards = await boardData();
+    const view = await boardView(viewOpts(viewer));
+    boards = view.boards;
+    blackout = view.blackout;
   } catch (err) {
     console.error("row100k/stats: failed to load board data", err);
+    blackout = await activeBlackout();
+    hideAll = blackout.active && !viewer.isAdmin;
+    if (hideAll) {
+      console.warn("row100k/stats: board unreadable during a blackout window — blanking every row but the viewer's own");
+    }
+  }
+
+  /* THE masked set for this viewer — the fifteen the board hid, read off
+   * boardView (row100kViewer.maskedIds) so this page never decides who is
+   * elite on its own. StatsBoards is a client component, so every row
+   * shape that reaches it is blanked HERE, not there: the two meters
+   * records lose their value and keep a digit count, the pace records lose
+   * their time (owner rule, 2026-09-05 — a time over a known distance is
+   * the meters by another route) and keep only its silhouette, plus they
+   * drop the length of the piece; further down the weekly and daily boards
+   * lose their meters. So the blocks are the width the number would have
+   * been and nothing more. Total rows arrive masked from boardView already. */
+  const hidden = maskedIds(boards);
+  const isHidden = (participantId: string) =>
+    hidden.has(participantId) || (hideAll && participantId !== viewer.myParticipantId);
+  const blankRecord = (r: RecordRow): RecordRow & { masked?: boolean; digits?: number } =>
+    hidden.has(r.participantId) ? { ...r, value: 0, masked: true, digits: digitCount(r.value) } : r;
+  const blankPace = (r: RecordRow): RecordRow & { masked?: boolean; shape?: string } =>
+    hidden.has(r.participantId)
+      ? { ...r, value: 0, meters: undefined, masked: true, shape: clockShape(r.value, true) }
+      : r;
+  if (hidden.size > 0) {
+    boards = {
+      ...boards,
+      longest: boards.longest.map(blankRecord),
+      bigDay: boards.bigDay.map(blankRecord),
+      fastest: {
+        5000: boards.fastest[5000].map(blankPace),
+        10000: boards.fastest[10000].map(blankPace),
+      },
+    };
   }
 
   /* The weekly boards need per-entry data that boardData() doesn't carry,
@@ -67,23 +123,14 @@ export default async function StatsPage() {
   } catch (err) {
     console.error("row100k/stats: failed to load weekly data", err);
   }
-
-  /* Who's looking, as a participant id — the weekly boards use it to pull
-   * the signed-in rower into view below the top 10. Cosmetic: any failure
-   * just renders the anonymous view. */
-  let meId: string | null = null;
-  try {
-    const actor = await getEffectiveActor();
-    if (actor) {
-      const me = await db.rowParticipant.findUnique({
-        where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
-        select: { id: true },
-      });
-      meId = me?.id ?? null;
-    }
-  } catch {
-    meId = null;
+  if (hidden.size > 0 || hideAll) {
+    const blankWeek = (r: WeeklyRow): WeeklyRow & { masked?: boolean; digits?: number } =>
+      isHidden(r.participantId) ? { ...r, meters: 0, masked: true, digits: digitCount(r.meters) } : r;
+    weekly = weekly.map((rows) => rows.map(blankWeek));
+    daily = daily.map((rows) => rows.map(blankWeek));
   }
+
+  const meId = viewer.myParticipantId;
 
   const started = clockNow() >= START_MS;
 
@@ -142,7 +189,7 @@ export default async function StatsPage() {
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
 
-      <RowBar active="stats" />
+      <RowBar active="stats" {...barProps(viewer)} />
 
       <section>
         <div className="wrap">
@@ -157,6 +204,8 @@ export default async function StatsPage() {
             defaultDay={defaultDay}
             started={started}
             meId={meId}
+            maskedIds={[...hidden]}
+            blackout={blackout}
           />
         </div>
       </section>

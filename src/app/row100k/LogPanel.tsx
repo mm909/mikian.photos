@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { SanityBand } from "@/lib/row100k";
 import { LogRow } from "./LogRow";
 import { MyRows, type MyRow } from "./MyRows";
 import { ShareDialog } from "./ShareMenu";
@@ -18,9 +19,11 @@ export function LogPanel({
   phase,
   earlyAdmin,
   simulate,
+  sanity,
 }: {
   data: ShareData;
   rows: MyRow[];
+  /* Pacific today clamped into September (the profile page computes it). */
   defaultDay: string;
   /* Prefill for the title field — "Rowtember #<next session number>". */
   defaultTitle?: string;
@@ -28,6 +31,9 @@ export function LogPanel({
   /* Challenge admin logging before Sep 1 — the form is open for test rows. */
   earlyAdmin?: boolean;
   simulate?: boolean;
+  /* The plausibility band for the second-look strip (sanity.ts); the form
+     uses its rowing-club defaults when a caller (the preview) has none. */
+  sanity?: SanityBand;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareRow, setShareRow] = useState<{
@@ -57,6 +63,9 @@ export function LogPanel({
         // The profile card shows LONGEST ROW — a first-ever log would read
         // "0" next to real meters until the refresh lands without this.
         longest: Math.max(base.longest ?? 0, entry.meters),
+        // A hidden rower's block count follows a digit boundary (99,999 →
+        // 100,000) before the refresh lands.
+        digits: base.masked ? String(base.meters + entry.meters).length : base.digits,
       };
     });
     setShareRow(entry);
@@ -89,16 +98,17 @@ export function LogPanel({
                     : "SEPTEMBER'S WRAPPED"}
             </span>
           </div>
-          <div className="panel">
-            <LogRow
-              defaultDay={defaultDay}
-              defaultTitle={defaultTitle}
-              phase={phase}
-              earlyAdmin={earlyAdmin}
-              simulate={simulate}
-              onLogged={onLogged}
-            />
-          </div>
+          {/* No panel box around the form any more — LogRow brings its own
+              flat chrome (owner call, 2026-09-05). */}
+          <LogRow
+            defaultDay={defaultDay}
+            defaultTitle={defaultTitle}
+            phase={phase}
+            earlyAdmin={earlyAdmin}
+            simulate={simulate}
+            sanity={sanity}
+            onLogged={onLogged}
+          />
         </div>
       </section>
 

@@ -54,19 +54,22 @@ export const css = `
 .home :focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .home .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-/* The bar: MIKIAN.MUSSER wordmark left, the two campaign chips right, each
- * in its own page colour (the ROW100K tag is water-blue, LASD26 is safety
- * orange, both with white type). */
-.home .bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 12px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
+/* The bar: MIKIAN MUSSER wordmark, then the two campaign chips right after
+ * it, each in its own page colour (ROWTEMBER water-blue, LASD26 safety
+ * orange, white bold mono on both) — one run from the left with nothing
+ * parked on the right (owner, 2026-09-05). The chips are bold mono so they
+ * read heavier than before yet never like the wordmark, which is Archivo
+ * Black; the ink rule under the bar stays as it was. Below 560px the run
+ * shrinks a size and may wrap onto a second line. */
+.home .bar{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:10px 14px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .home .bar .brand{font-family:var(--home-archivo-black),sans-serif;font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;line-height:1;white-space:nowrap}
-.home .bar .brand .dot{color:var(--water)}
-.home .bar nav{display:flex;gap:10px;align-items:center}
-.home .bar nav a{font-family:var(--home-mono),monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;white-space:nowrap;color:#fff;padding:3px 8px}
+.home .bar nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.home .bar nav a{font-family:var(--home-mono),monospace;font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;white-space:nowrap;color:#fff;padding:4px 9px;border-radius:0}
 .home .bar nav a.row{background:var(--water)}
 .home .bar nav a.row:hover{background:var(--water-hover)}
 .home .bar nav a.lasd{background:var(--safety)}
 .home .bar nav a.lasd:hover{background:var(--safety-hover)}
-@media(max-width:400px){ .home .bar nav{gap:8px} .home .bar nav a{font-size:11px;padding:3px 7px} }
+@media(max-width:560px){ .home .bar{gap:8px 10px} .home .bar .brand{font-size:13px} .home .bar nav{gap:8px} .home .bar nav a{font-size:11px;padding:3px 8px} }
 
 /* Live pulse next to the status line. */
 .home .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--water);margin-right:9px;vertical-align:middle;position:relative;top:-1px;animation:homePulse 1.6s ease-in-out infinite}

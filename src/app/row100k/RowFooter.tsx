@@ -1,20 +1,17 @@
-/* The one footer every /row100k page wears (owner call, cycle 3): the
- * ROWTEMBER wordmark, the questions line, and the tagline — nothing else,
- * no page-specific back links. */
+/* The one footer every /row100k page wears — and it is the landing footer,
+ * word for word (owner call, 2026-09-05: Rowtember signs off as Mikian
+ * Musser, same as the front page). Same classes as HomeFooter so the shared
+ * footer rules apply; keep the two in step if either changes. */
 export function RowFooter() {
   return (
     <footer>
       <div className="wrap" style={{ padding: 0 }}>
-        <div className="big">ROWTEMBER 2026</div>
+        <div className="big">MIKIAN MUSSER</div>
         <p className="mono">
-          Questions →{" "}
           <a href="https://instagram.com/mikian_" target="_blank" rel="noopener noreferrer">
             @mikian_
           </a>{" "}
-          ·{" "}
-          <a href="https://mikianmusser.com" target="_blank" rel="noopener noreferrer">
-            mikianmusser.com
-          </a>
+          · <a href="mailto:mikianmusser@gmail.com">mikianmusser@gmail.com</a>
         </p>
         <p className="mono" style={{ marginTop: 18 }}>
           for yourself and others

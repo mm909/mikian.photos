@@ -3,10 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-/* Admin-only (the server renders this solely for challenge admins): remove a
- * rower and their entire log from the board. Two-tap confirm, then back to
- * the board. */
-export function RemoveRower({ participantId, name }: { participantId: string; name: string }) {
+/* Admin-only (the server renders this solely for challenge admins, on
+ * /row100k/moderation): remove a rower and their entire log from the board.
+ * Two-tap confirm, then back to the moderation page with its picker — not
+ * the profile, which is gone, and not the board: the admin is mid-sweep
+ * (owner call, 2026-09-05: moderation is its own page). */
+export function RemoveRower({
+  participantId,
+  name,
+  redirectTo = "/row100k/moderation",
+}: {
+  participantId: string;
+  name: string;
+  /* Where to land once they are gone. */
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -19,7 +30,7 @@ export function RemoveRower({ participantId, name }: { participantId: string; na
       const res = await fetch(`/api/row100k/participants/${participantId}`, { method: "DELETE" });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
-        router.push("/row100k#board");
+        router.push(redirectTo);
         router.refresh();
         return;
       }

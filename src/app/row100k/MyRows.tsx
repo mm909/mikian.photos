@@ -4,14 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FIRST_DAY,
-  LAST_DAY,
   TITLE_MAX,
+  clampDay,
   fmtDay,
+  nowMs,
+  pacificDay,
   fmtDuration,
   fmtMeters,
   fmtSplit,
   parseDurationText,
 } from "@/lib/row100k";
+import { digitCount } from "@/lib/blackoutRules";
+import { Blocks } from "./Blackout";
 import { formatTimeDigits } from "./LogRow";
 import { Lightbox, type LightboxPhoto } from "./Lightbox";
 import { PHOTO_CAP, usePhotoPair } from "./PhotoPair";
@@ -22,11 +26,19 @@ export type MyRow = {
   meters: number;
   seconds: number;
   title?: string;
-  /* Display URLs for the row's photo pair (rower first), resolved
-   * server-side; absent when the photos can't resolve. */
+  /* Blackout (blackoutRules.ts): the caller has already replaced `meters`
+   * with a floor and says how many digits the real number had, so the strip
+   * draws blocks of the right width and drops the split (time over split
+   * is the meters again). The owner and admins never see a masked row —
+   * this is for any future read-only host of the ledger. */
+  masked?: boolean;
+  digits?: number;
+  /* Display URLs for the row's photo pair (rower first) — stable public CDN
+   * URLs resolved server-side; absent when the photos can't resolve. */
   photoUrls?: string[];
-  /* Same pair with grid-sized thumbs (thumb null when none exists) — the
-   * ledger squares render thumb ?? full and the lightbox opens full. */
+  /* Same pair with grid-sized thumbs (null only for callers that carry
+   * none) — the ledger squares render thumb ?? full, swap to full if the
+   * thumb 404s, and the lightbox opens full. */
   photos?: { full: string; thumb: string | null }[];
 };
 
@@ -58,10 +70,12 @@ export function RowPhotoThumbs({ urls }: { urls: string[] }) {
   );
 }
 
-/* The ledger strip's 64px photo pair — thumbnail-sized sources when a thumb
- * exists, and a click opens the shared lightbox over the whole log's photos
- * (buttons, not links — the divider the theme draws between paired anchors
- * is re-applied inline on the second image). */
+/* The ledger strip's 64px photo pair — thumbnail-sized sources, falling back
+ * to the full frame once if a thumb 404s (the server emits thumb URLs
+ * without an existence check so it never has to list the bucket), and a
+ * click opens the shared lightbox over the whole log's photos (buttons, not
+ * links — the divider the theme draws between paired anchors is re-applied
+ * inline on the second image). */
 function LedgerPics({
   media,
   onOpen,
@@ -95,6 +109,12 @@ function LedgerPics({
             alt={i === 0 ? "The rower" : "The erg screen"}
             loading="lazy"
             style={i > 0 ? { borderLeft: "1px solid var(--frame)" } : undefined}
+            onError={(e) => {
+              const img = e.currentTarget;
+              // The raw attribute, not .src: the getter resolves URLs and
+              // would never compare equal to a data: or relative value.
+              if (img.getAttribute("src") !== m.full) img.src = m.full;
+            }}
           />
         </button>
       ))}
@@ -274,7 +294,9 @@ export function MyRows({
                   aria-label="Day"
                   value={draft.day}
                   min={FIRST_DAY}
-                  max={LAST_DAY}
+                  /* The server refuses a future day (Pacific today is the
+                     line), so the picker stops there too. */
+                  max={clampDay(pacificDay(nowMs()))}
                   onChange={(e) => setDraft((d) => ({ ...d, day: e.target.value }))}
                 />
                 <input
@@ -390,9 +412,17 @@ export function MyRows({
                 {r.title ? <span>{r.title}</span> : null}
               </span>
               <span className="mlg-nums">
-                <span className="mlg-m">{fmtMeters(r.meters)}</span>
+                <span className="mlg-m">
+                  {r.masked ? (
+                    <>
+                      <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+                    </>
+                  ) : (
+                    fmtMeters(r.meters)
+                  )}
+                </span>
                 <span className="mlg-t">{fmtDuration(r.seconds)}</span>
-                <span className="mlg-s">{fmtSplit(r.meters, r.seconds)} /500M</span>
+                {!r.masked && <span className="mlg-s">{fmtSplit(r.meters, r.seconds)} /500M</span>}
               </span>
             </span>
             {(canEdit || onShare) && (

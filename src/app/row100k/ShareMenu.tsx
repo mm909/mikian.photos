@@ -104,15 +104,22 @@ export function ShareDialog({
   // it inline would render buttons the server HTML doesn't have. Clipboard
   // needs a secure context — on plain http (LAN-IP phone testing) the API
   // doesn't exist at all, so the COPY button hides instead of failing.
+  // `handheld` is the phone layout switch (owner call, 2026-09-05: on a
+  // phone SHARE and COPY are the two real exits and DOWNLOAD is an
+  // afterthought): a share sheet AND a coarse pointer, so desktop Chrome,
+  // which also has navigator.share, keeps its three buttons.
   const [canShareFiles, setCanShareFiles] = useState(false);
   const [canCopy, setCanCopy] = useState(false);
+  const [handheld, setHandheld] = useState(false);
   useEffect(() => {
-    setCanShareFiles(typeof navigator.canShare === "function");
+    const share = typeof navigator.canShare === "function";
+    setCanShareFiles(share);
     setCanCopy(
       typeof ClipboardItem !== "undefined" &&
         typeof navigator.clipboard?.write === "function" &&
         window.isSecureContext,
     );
+    setHandheld(share && !!window.matchMedia?.("(pointer: coarse)").matches);
   }, []);
 
   const toBlob = () =>
@@ -223,8 +230,10 @@ export function ShareDialog({
           }}
         >
           <div className="share-modal">
+            {/* The mark, centred, where SHAREABLES used to sit (owner call,
+                2026-09-05). Straight — the dialog is chrome, not a sticker. */}
             <div className="share-head">
-              <span className="mono">SHAREABLES</span>
+              <span className="share-mark">ROWTEMBER</span>
               <button type="button" className="share-x" onClick={onClose} aria-label="Close">
                 ×
               </button>
@@ -250,6 +259,9 @@ export function ShareDialog({
               <canvas ref={canvasRef} className="share-canvas" />
             </div>
 
+            {/* Phone: SHARE and COPY IMAGE both filled, DOWNLOAD a text link
+                under them. Desktop: whichever comes first is filled, the
+                rest outlined, DOWNLOAD last and quiet either way. */}
             <div className="share-actions">
               {canShareFiles && (
                 <button type="button" className="share-btn primary" onClick={onShare}>
@@ -257,14 +269,25 @@ export function ShareDialog({
                 </button>
               )}
               {canCopy && (
-                <button type="button" className="share-btn" onClick={onCopy}>
+                <button
+                  type="button"
+                  className={`share-btn${handheld || !canShareFiles ? " primary" : ""}`}
+                  onClick={onCopy}
+                >
                   COPY IMAGE
                 </button>
               )}
-              <button type="button" className="share-btn" onClick={onDownload}>
+              {!handheld && (
+                <button type="button" className="share-btn quiet" onClick={onDownload}>
+                  DOWNLOAD
+                </button>
+              )}
+            </div>
+            {handheld && (
+              <button type="button" className="share-link" onClick={onDownload}>
                 DOWNLOAD
               </button>
-            </div>
+            )}
 
             {status.message && (
               <p className={`share-status mono${status.kind === "error" ? " bad" : ""}`}>

@@ -152,8 +152,17 @@ export type EntryCheck =
   | { ok: true; value: EntryInput }
   | { ok: false; error: string };
 
-function addDaysUTC(ms: number, days: number): string {
-  return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
+/* The challenge day an instant falls on: Pacific, by the same UTC-7 shift
+ * the charts and the hour grid use. The form defaults to it, its date picker
+ * stops at it, and validateEntry refuses anything past it — one clock, so
+ * the three can never disagree about what "today" is. */
+export function pacificDay(atMs: number): string {
+  return new Date(atMs - 7 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/* Any day string pulled into the September window. */
+export function clampDay(day: string): string {
+  return day < FIRST_DAY ? FIRST_DAY : day > LAST_DAY ? LAST_DAY : day;
 }
 
 /* Validate a raw submission. The clock is injected for testability.
@@ -178,8 +187,10 @@ export function validateEntry(
   if (day < FIRST_DAY || day > LAST_DAY) {
     return { ok: false, error: "That day is outside September — the challenge runs Sep 1–30." };
   }
-  // Lenient +1 so "today" works from any timezone; blocks pre-logging the future.
-  if (!admin && day > addDaysUTC(atMs, 1)) {
+  // Past days are fine, the future is not (owner call, 2026-09-05): today
+  // means the Pacific day, which is what the form offers as its latest
+  // pick. The old UTC+1 slack let a Californian evening log tomorrow.
+  if (!admin && day > pacificDay(atMs)) {
     return { ok: false, error: "You can't log a row you haven't rowed yet." };
   }
 
@@ -209,6 +220,55 @@ export function validateEntry(
     typeof body.title === "string" ? body.title.replace(/\s+/g, " ").trim().slice(0, TITLE_MAX) : "";
 
   return { ok: true, value: { day, meters, seconds, note, title } };
+}
+
+/* ------------------------------------------------------------- plausibility */
+
+/* The "did you mean that?" band (owner call, 2026-09-05): the hard limits
+ * above only stop the physically impossible, so a fat-fingered 1:32 split
+ * sails through them. This band is drawn from the rows actually logged —
+ * split between the 2nd and 98th percentile, meters under the 99th — and
+ * the form asks for a second look outside it. It never blocks; the server
+ * keeps its loose hard band. Plain JSON, so it can ride into the client. */
+export type SanityBand = {
+  /* seconds per 500 m */
+  splitLo: number;
+  splitHi: number;
+  /* meters in one row */
+  metersHi: number;
+  /* how many rows the band was drawn from; 0 means the fallback below */
+  n: number;
+};
+
+/* Until twenty rows exist the distribution is nobody's: a handful of early
+ * rows would make the band the shape of one person. These are the sane
+ * rowing-club numbers instead. */
+export const SANITY_MIN_ROWS = 20;
+export const SANITY_FALLBACK: SanityBand = { splitLo: 90, splitHi: 200, metersHi: 30_000, n: 0 };
+
+/* Linear interpolation between order statistics (the R-7 / numpy default),
+ * on an ASCENDING sorted array. p in [0, 1]. */
+function percentile(sorted: number[], p: number): number {
+  const last = sorted.length - 1;
+  const pos = last * p;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+export function sanityBand(rows: { meters: number; seconds: number }[]): SanityBand {
+  // Junk (zero or negative) would put the band's floor at 0 — drop it, the
+  // same way validateEntry never let it in.
+  const clean = rows.filter((r) => r.meters > 0 && r.seconds > 0);
+  if (clean.length < SANITY_MIN_ROWS) return SANITY_FALLBACK;
+  const splits = clean.map((r) => splitSeconds(r.meters, r.seconds)).sort((a, b) => a - b);
+  const meters = clean.map((r) => r.meters).sort((a, b) => a - b);
+  return {
+    splitLo: percentile(splits, 0.02),
+    splitHi: percentile(splits, 0.98),
+    metersHi: percentile(meters, 0.99),
+    n: clean.length,
+  };
 }
 
 /* ------------------------------------------------------------- formatting */
@@ -314,6 +374,14 @@ export type TotalRow = {
    * Relative order within any division subset is preserved, so a filtered
    * board can rebuild its own before/after movement from just this. */
   prevRank: number;
+  /* Blackout (see blackoutRules.ts): set only on a public view while a
+   * window is open and this rower sits in THE ELITE FIFTEEN. Then `meters`
+   * and `pct` are the FLOOR of the tier reached, not the real total, and
+   * `digits` is how many digits the real total has — enough for the board
+   * to draw blocks of the right length, nothing more. Optional so the raw
+   * board, EMPTY_BOARDS and the preview mocks are unchanged. */
+  masked?: boolean;
+  digits?: number;
 };
 
 export type RecordRow = {
@@ -339,7 +407,11 @@ export type Boards = {
   bigDay: RecordRow[];
   /* Community cumulative meters per logged day, ascending — the curve. */
   daily: { day: string; cum: number }[];
-  community: { meters: number; people: number; sessions: number; finished: number };
+  community: CommunityStats & {
+    /* The same four figures per board (owner call, 2026-09-05: the strip
+     * above the table follows the Everyone / Men's / Women's tab). */
+    divisions: Record<Division, CommunityStats>;
+  };
 };
 
 export function computeBoards(participants: ParticipantLite[], entries: EntryLite[]): Boards {
@@ -484,7 +556,17 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
       return { day, cum };
     });
 
-  const communityMeters = total.reduce((s, r) => s + r.meters, 0);
+  const stats = (rows: TotalRow[], people: number): CommunityStats => ({
+    meters: rows.reduce((s, r) => s + r.meters, 0),
+    people,
+    sessions: rows.reduce((s, r) => s + r.sessions, 0),
+    finished: rows.filter((r) => r.meters >= GOAL_METERS).length,
+  });
+  const forDivision = (d: Division) =>
+    stats(
+      total.filter((r) => r.division === d),
+      participants.filter((p) => p.division === d).length,
+    );
   return {
     total,
     fastest,
@@ -492,13 +574,13 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
     bigDay,
     daily,
     community: {
-      meters: communityMeters,
-      people: participants.length,
-      sessions: total.reduce((s, r) => s + r.sessions, 0),
-      finished: total.filter((r) => r.meters >= GOAL_METERS).length,
+      ...stats(total, participants.length),
+      divisions: { M: forDivision("M"), F: forDivision("F") },
     },
   };
 }
+
+export type CommunityStats = { meters: number; people: number; sessions: number; finished: number };
 
 /* ------------------------------------------------------------------ tiers */
 
@@ -507,12 +589,16 @@ export function computeBoards(participants: ParticipantLite[], entries: EntryLit
  * 250k section — so the ladder always shows one rung of ambition and never
  * a whole column of empty boxes. */
 /* `rarity` keys the color treatment only — the words never render (owner
- * call, cycle 2). `title` is what the board sections say. */
+ * call, cycle 2). `title` is what the board sections say. The top rung is
+ * ".25M", not "250K Legend" — the owner does not like the word legend, and
+ * the tier's name and threshold stay behind blackout blocks on the board
+ * until somebody actually reaches it (the rarity key `legend` survives as a
+ * CSS class name only). */
 export const TIERS = [
   { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: "Rowtember Participant" },
   { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },
   { meters: 100_000, key: "t100", label: "100K", rarity: "epic", title: "The 100K Club" },
-  { meters: 250_000, key: "t250", label: "250K", rarity: "legend", title: "250K Legend" },
+  { meters: 250_000, key: "t250", label: ".25M", rarity: "legend", title: ".25M" },
 ] as const;
 export type Tier = (typeof TIERS)[number];
 
@@ -530,6 +616,20 @@ export function visibleTiers(maxMeters: number): Tier[] {
   const reached = TIERS.filter((t) => maxMeters >= t.meters);
   const next = TIERS.find((t) => maxMeters < t.meters);
   return next ? [...reached, next] : [...reached];
+}
+
+/* The next rung above this many meters, or null past the top. Nobody is
+ * told its name or threshold ahead of time (owner call, 2026-09-05: you
+ * just have to row until you get it) — callers hide both behind blocks. */
+export function nextTierFor(meters: number): Tier | null {
+  return TIERS.find((t) => meters < t.meters) ?? null;
+}
+
+/* The floor of the tier this many meters sits in — what a blacked-out row
+ * shows instead of its real total, so tier sectioning still works while
+ * the number itself stays hidden. 0 below 10k. */
+export function tierFloor(meters: number): number {
+  return tierFor(meters)?.meters ?? 0;
 }
 
 /* ----------------------------------------------------------------- weeks */
@@ -674,7 +774,9 @@ export function recordPlacements(boards: Boards, participantId: string, topN = 3
     }
   };
 
-  check("total", inDivision(boards.total.filter((r) => r.meters > 0)), (r: TotalRow) =>
+  // A masked row (blackout) may carry a floor of 0 while its real total is
+  // well above it; it still holds its place on the board, so keep it in.
+  check("total", inDivision(boards.total.filter((r) => r.meters > 0 || r.masked)), (r: TotalRow) =>
     fmtMeters(r.meters),
   );
   for (const dist of RECORD_DISTANCES)
@@ -693,8 +795,11 @@ export function divisionRank(
   participantId: string,
 ): { place: number; of: number } | null {
   const me = boards.total.find((r) => r.participantId === participantId);
-  if (!me || me.meters <= 0) return null;
-  const rows = boards.total.filter((r) => r.division === me.division && r.meters > 0);
+  if (!me || (me.meters <= 0 && !me.masked)) return null;
+  // Masked (blackout) rows keep their place even when their floor is 0.
+  const rows = boards.total.filter(
+    (r) => r.division === me.division && (r.meters > 0 || r.masked),
+  );
   const place = rows.findIndex((r) => r.participantId === participantId) + 1;
   return place >= 1 ? { place, of: rows.length } : null;
 }

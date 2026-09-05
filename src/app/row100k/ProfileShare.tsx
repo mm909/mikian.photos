@@ -20,7 +20,7 @@ export function ProfileShare({ data }: { data: ShareData }) {
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        Shareables
+        Share
       </button>
       <ShareDialog data={data} open={open} onClose={() => setOpen(false)} />
     </>

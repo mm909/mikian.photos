@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo } from "react";
+import { metersText, tokensFor } from "@/components/home/digits";
+import { fmtRowerNumber, type Division, type RecordBadge, type SanityBand } from "@/lib/row100k";
 import { type MyRow } from "./MyRows";
-import { ShareDialog } from "./ShareMenu";
-import {
-  GOAL_METERS,
-  RECORD_DISTANCES,
-  computeBoards,
-  fmtMeters,
-  fmtRecordTime,
-  fmtRowerNumber,
-  fmtSplit,
-  type Division,
-  type RecordBadge,
-} from "@/lib/row100k";
+import { LogInPlace } from "./LogInPlace";
 
-/* Signed-in + joined: your bib (→ your profile), the two actions that matter
- * — log a row, share a card — then a takeout-menu stat list. The log form
- * itself lives on your profile page (LogPanel); LOG A ROW links there. */
+/* The signed-in rower's top of the front page (owner call, 2026-09-05:
+ * "almost the same as mikianmusser.com"): their meters in the landing's
+ * odometer look — eight digits with commas, room for ten million, the
+ * leading zeros dimmed — tapping it opens their profile; then LOG A ROW
+ * and SHARE (LogInPlace, the form opens right there); then who they are
+ * as a line of newspaper text, not a bib card. The takeout-menu stats and
+ * the progress bar moved to the profile. Still called Dashboard so the dev
+ * preview and JoinSim keep their import.
+ *
+ * The number is the rower's OWN total, summed from their fresh rows on the
+ * server: a blackout never masks you from yourself. Static digits — the
+ * landing rolls because it polls; this page refreshes on write. */
 export function Dashboard(props: {
   rowerNumber: number;
   displayName: string;
@@ -28,140 +29,62 @@ export function Dashboard(props: {
   rows: MyRow[];
   phase: "before" | "open" | "closed";
   /* Board standing + record placements (to #10, with display values) for the
-   * share cards — optional so the dashboard still works when the cached board
+   * share cards — optional so the block still works when the cached board
    * is unavailable. */
   rank?: { place: number; of: number } | null;
   records?: RecordBadge[];
-  /* Dev preview only: behave as if the join JUST happened (bib dialog pops). */
+  /* Prefills for the log form (LogRow). */
+  defaultDay?: string;
+  defaultTitle?: string;
+  earlyAdmin?: boolean;
+  /* Blackout (blackoutRules.ts): this rower is in the elite fifteen right
+   * now, read off the PUBLIC board by the page. Their own number stays on
+   * the page; the cards draw `digits` blocks instead (share/cards.ts). */
+  masked?: boolean;
+  digits?: number;
+  /* September days elapsed, so the curve and month cards stop at today. */
+  days?: number;
+  /* The did-you-mean-that band for the log form (sanity.ts). */
+  sanity?: SanityBand;
+  /* Dev preview only. */
+  simulate?: boolean;
   simulateJustJoined?: boolean;
 }) {
-  const [shareOpen, setShareOpen] = useState(false);
-  // Set only when this dashboard just replaced the join form: JoinPanel
-  // leaves a one-shot flag, and the dialog opens straight onto the bib card.
-  const [preferredCardId, setPreferredCardId] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    try {
-      if (props.simulateJustJoined || sessionStorage.getItem("row100k.justJoined") === "1") {
-        sessionStorage.removeItem("row100k.justJoined");
-        setPreferredCardId("rowtember-bib");
-        setShareOpen(true);
-      }
-    } catch {
-      /* storage blocked — no auto-open */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const pct = Math.min(100, Math.round((props.meters / GOAL_METERS) * 100));
   const profileHref = `/row100k/r/${props.rowerNumber}`;
 
-  // Reuse the board math on a board of one to get personal bests.
-  const bests = useMemo(() => {
-    const b = computeBoards(
-      [
-        {
-          id: "me",
-          displayName: props.displayName,
-          division: props.division,
-          rowerNumber: props.rowerNumber,
-          instagram: props.instagram,
-        },
-      ],
-      props.rows.map((r) => ({ participantId: "me", day: r.day, meters: r.meters, seconds: r.seconds })),
-    );
-    return {
-      longest: b.longest[0]?.value ?? 0,
-      fastest: RECORD_DISTANCES.map((d) => ({ d, s: b.fastest[d][0]?.value ?? null })),
-    };
-  }, [props.rows, props.displayName, props.division, props.rowerNumber, props.instagram]);
-
-  const totalSeconds = props.rows.reduce((s, r) => s + r.seconds, 0);
-  const byDay = useMemo(() => {
+  const { byDay, longest } = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of props.rows) m[r.day] = (m[r.day] ?? 0) + r.meters;
-    return m;
+    let longest = 0;
+    for (const r of props.rows) {
+      m[r.day] = (m[r.day] ?? 0) + r.meters;
+      if (r.meters > longest) longest = r.meters;
+    }
+    return { byDay: m, longest };
   }, [props.rows]);
 
-  const menu: { k: string; val: string; tone?: "blue" | "dim" }[] = [
-    { k: "Total meters", val: props.meters.toLocaleString("en-US"), tone: "blue" },
-    { k: "Sessions", val: String(props.sessions) },
-    { k: "Longest row", val: bests.longest > 0 ? fmtMeters(bests.longest) : "—", tone: bests.longest > 0 ? undefined : "dim" },
-    {
-      k: "Avg split",
-      val: props.meters > 0 ? `${fmtSplit(props.meters, totalSeconds)} /500m` : "—",
-      tone: props.meters > 0 ? undefined : "dim",
-    },
-    ...bests.fastest.map(({ d, s }) => ({
-      k: `Fastest ${d / 1000}k`,
-      val: s !== null ? fmtRecordTime(s) : "—",
-      tone: s !== null ? undefined : ("dim" as const),
-    })),
-  ];
+  const tokens = tokensFor(metersText(props.meters, 8));
 
   return (
-    <div>
-      <a href={profileHref} style={{ textDecoration: "none", display: "block" }}>
-        <div className="bib">
-          <div className="pins"><i /><i /></div>
-          <div className="ev">ROWTEMBER · 2026</div>
-          <div className="num">{fmtRowerNumber(props.rowerNumber)}</div>
-          <div className="nm">
-            {props.displayName} · @{props.instagram}
-          </div>
+    <div className="mine">
+      <Link href={profileHref} className="my-od-link" aria-label="your stats">
+        <div className="my-od" role="img" aria-label={`${props.meters.toLocaleString("en-US")} meters rowed`}>
+          {tokens.map((t, i) => (
+            <span
+              key={i}
+              className={`${t.sep ? "sep" : "cell"}${t.lead ? " lead" : ""}`}
+              aria-hidden="true"
+            >
+              {t.ch}
+            </span>
+          ))}
         </div>
-      </a>
+      </Link>
+      <p className="my-unit mono">
+        Meters · <b>you</b>
+      </p>
 
-      <div className="act-row">
-        <button
-          type="button"
-          className="big-act"
-          onClick={() => {
-            setPreferredCardId(undefined);
-            setShareOpen(true);
-          }}
-        >
-          Share a card
-        </button>
-        {props.phase !== "closed" && (
-          <a className="big-act primary" href={`${profileHref}#log`}>
-            Log a row
-          </a>
-        )}
-      </div>
-
-      <div className="grid2" style={{ marginTop: 26 }}>
-        <ul className="menu">
-          {menu.slice(0, Math.ceil(menu.length / 2)).map((m) => (
-            <li key={m.k}>
-              <span className="k">{m.k}</span>
-              <span className="dots" />
-              <span className={`val${m.tone ? ` ${m.tone}` : ""}`}>{m.val}</span>
-            </li>
-          ))}
-        </ul>
-        <ul className="menu">
-          {menu.slice(Math.ceil(menu.length / 2)).map((m) => (
-            <li key={m.k}>
-              <span className="k">{m.k}</span>
-              <span className="dots" />
-              <span className={`val${m.tone ? ` ${m.tone}` : ""}`}>{m.val}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="me-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-        <div className="fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="me-bar-label">
-        <span>{fmtMeters(props.meters)}</span>
-        <span>
-          {props.meters >= GOAL_METERS
-            ? "100K — DONE. KEEP GOING."
-            : `${fmtMeters(GOAL_METERS - props.meters)} TO GO`}
-        </span>
-      </div>
-
-      <ShareDialog
-        data={{
+      <LogInPlace
+        share={{
           displayName: props.displayName,
           rowerNumber: props.rowerNumber,
           instagram: props.instagram,
@@ -169,14 +92,26 @@ export function Dashboard(props: {
           sessions: props.sessions,
           byDay,
           division: props.division,
-          longest: bests.longest,
+          longest,
           rank: props.rank,
           records: props.records,
+          days: props.days,
+          masked: props.masked,
+          digits: props.digits,
         }}
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        preferredCardId={preferredCardId}
+        defaultDay={props.defaultDay}
+        defaultTitle={props.defaultTitle}
+        phase={props.phase}
+        earlyAdmin={props.earlyAdmin}
+        sanity={props.sanity}
+        simulate={props.simulate}
+        justJoined={props.simulateJustJoined}
       />
+
+      <p className="front-id mono">
+        ROWER {fmtRowerNumber(props.rowerNumber)} · {props.displayName.toUpperCase()}
+        {props.instagram ? ` · @${props.instagram.toUpperCase()}` : ""}
+      </p>
     </div>
   );
 }

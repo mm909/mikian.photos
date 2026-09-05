@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { BlockClock, Blocks } from "./Blackout";
 import { Who } from "./Boards";
 import {
   WEEKS,
@@ -31,7 +33,21 @@ import {
  * eyebrows — pace and distance (owner call, cycle 2: the flat grid is out,
  * total meters is dominant again). Each card shows the podium and links out
  * to its full ranking at /row100k/records/[key]; the total-meters standings
- * themselves live on the home page. */
+ * themselves live on the home page.
+ *
+ * Blackout: the page hands in the ids boardView masked (one set for every
+ * surface — row100kViewer.maskedIds) and has already blanked those rows'
+ * numbers before they got here, since anything in these props is in the
+ * browser. A hidden row keeps its rank and its name and draws blocks of
+ * the shape the number had — a digit count for meters, a "##:##.#"
+ * silhouette for a pace record, which is hidden too (owner rule,
+ * 2026-09-05: a time over a known distance is the meters by another
+ * route) along with its split. */
+
+/* What a row carries when the page blanked its number: the digit count of
+ * a meters value, or the silhouette of a time. TotalRow has the first pair
+ * already; weekly and record rows get them added by the page. */
+type Hideable = { masked?: boolean; digits?: number; shape?: string };
 
 const defOf = (key: RecordDef["key"]): RecordDef => RECORD_DEFS.find((d) => d.key === key)!;
 
@@ -56,21 +72,29 @@ export function StatsBoards({
   defaultDay,
   started,
   meId,
+  maskedIds,
+  blackout = { active: false },
 }: {
   boards: BoardData;
-  weekly: WeeklyRow[][];
+  weekly: (WeeklyRow & Hideable)[][];
   /* One board per September day, index = day-of-month − 1. */
-  daily: WeeklyRow[][];
+  daily: (WeeklyRow & Hideable)[][];
   defaultWeek: number;
   /* Today's index into `daily` (clamped into the challenge). */
   defaultDay: number;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
   meId: string | null;
+  /* Participant ids hidden from this viewer (empty outside a blackout). */
+  maskedIds: string[];
+  blackout?: { active: boolean; endsAt?: string };
 }) {
   const [div, setDiv] = useState<DivKey>("all");
   const [week, setWeek] = useState(defaultWeek);
   const [day, setDay] = useState(defaultDay);
+
+  const hidden = new Set(maskedIds);
+  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   // The server's "today" is UTC — an evening viewer in the US would land on
   // tomorrow's empty board. After mount the browser knows the local date, so
@@ -124,8 +148,19 @@ export function StatsBoards({
         ))}
       </div>
 
+      {/* Same line the board prints: an admin (nothing hidden while a window
+          is open) is told what they are looking at rather than about rows
+          that are not hidden for them. */}
+      {(blackout.active || hidden.size > 0) && (
+        <p className="bo-note">
+          {hidden.size > 0
+            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+            : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
+        </p>
+      )}
+
       <div className="records solo">
-        <RecordCard def={defOf("total")} boards={boards} div={div} started={started} headline />
+        <RecordCard def={defOf("total")} boards={boards} div={div} started={started} hidden={hidden} headline />
       </div>
 
       {RECORD_GROUPS.map((g) => (
@@ -133,7 +168,7 @@ export function StatsBoards({
           <div className="rec-eyebrow">{g.eyebrow}</div>
           <div className="records vol">
             {g.keys.map((k) => (
-              <RecordCard key={k} def={defOf(k)} boards={boards} div={div} started={started} />
+              <RecordCard key={k} def={defOf(k)} boards={boards} div={div} started={started} hidden={hidden} />
             ))}
           </div>
         </Fragment>
@@ -189,7 +224,7 @@ export function StatsBoards({
         </button>
       </div>
 
-      <BoardWindow rows={dayRows} meId={meId} started={started} />
+      <BoardWindow rows={dayRows} meId={meId} started={started} hidden={hidden} />
 
       <div className="sec-head" style={{ marginTop: 52 }}>
         <h2>The weeks</h2>
@@ -209,7 +244,7 @@ export function StatsBoards({
         ))}
       </div>
 
-      <BoardWindow rows={weekRows} meId={meId} started={started} />
+      <BoardWindow rows={weekRows} meId={meId} started={started} hidden={hidden} />
     </div>
   );
 }
@@ -223,10 +258,12 @@ function BoardWindow({
   rows,
   meId,
   started,
+  hidden,
 }: {
-  rows: WeeklyRow[];
+  rows: (WeeklyRow & Hideable)[];
   meId: string | null;
   started: boolean;
+  hidden: Set<string>;
 }) {
   const [all, setAll] = useState(false);
   const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
@@ -258,7 +295,13 @@ function BoardWindow({
           </thead>
           <tbody>
             {top.map((r, i) => (
-              <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} />
+              <WeekTr
+                key={r.participantId}
+                r={r}
+                rank={i + 1}
+                me={r.participantId === meId}
+                hidden={r.masked || hidden.has(r.participantId)}
+              />
             ))}
             {showCtx && ctxStart > 10 && (
               <tr className="gaprow">
@@ -271,6 +314,7 @@ function BoardWindow({
                 r={r}
                 rank={ctxStart + i + 1}
                 me={r.participantId === meId}
+                hidden={r.masked || hidden.has(r.participantId)}
               />
             ))}
           </tbody>
@@ -292,15 +336,35 @@ function BoardWindow({
 }
 
 /* One row of the weekly board; the signed-in rower's row wears the
- * finisher tint (tr.fin) so they can spot themselves. */
-function WeekTr({ r, rank, me }: { r: WeeklyRow; rank: number; me: boolean }) {
+ * finisher tint (tr.fin) so they can spot themselves. A hidden row keeps
+ * its place and its name (the profile masks the same way, so the link is
+ * safe) and draws blocks for the meters. */
+function WeekTr({
+  r,
+  rank,
+  me,
+  hidden,
+}: {
+  r: WeeklyRow & Hideable;
+  rank: number;
+  me: boolean;
+  hidden: boolean;
+}) {
   return (
     <tr className={me ? "fin" : undefined}>
       <td className="rk">{rank}</td>
       <td>
         <Who row={r} />
       </td>
-      <td className="num">{fmtMeters(r.meters)}</td>
+      <td className="num">
+        {hidden ? (
+          <>
+            <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+          </>
+        ) : (
+          fmtMeters(r.meters)
+        )}
+      </td>
       <td className="num" style={{ color: "var(--gray)" }}>
         {r.sessions}
       </td>
@@ -316,30 +380,52 @@ function RecordCard({
   boards,
   div,
   started,
+  hidden,
   headline,
 }: {
   def: RecordDef;
   boards: BoardData;
   div: DivKey;
   started: boolean;
+  hidden: Set<string>;
   headline?: boolean;
 }) {
   const rows = rankedRows(boards, def.key).filter((r) => divMatch(div, r.row.division));
   const [first, second, third] = rows;
 
-  const val = (r: Ranked) =>
-    def.kind === "time" ? (
-      fmtRecordTime(r.value)
-    ) : (
+  // A hidden rower's record draws blocks of the shape the page attached
+  // (the value itself is blanked): a digit count for meters, the time's
+  // silhouette for a pace record. The belt-and-braces fallbacks read the
+  // value that is already here — 0 once the page blanked it.
+  const isHidden = (r: Ranked) => (r.row as Hideable).masked || hidden.has(r.row.participantId);
+  const val = (r: Ranked) => {
+    const h = r.row as Hideable;
+    if (def.kind === "time") {
+      if (isHidden(r)) return <BlockClock shape={h.shape ?? clockShape(r.value, true)} />;
+      return fmtRecordTime(r.value);
+    }
+    if (isHidden(r)) {
+      return (
+        <>
+          <Blocks digits={h.digits ?? digitCount(r.value)} /> <em>m</em>
+        </>
+      );
+    }
+    return (
       <>
         {Math.round(r.value).toLocaleString("en-US")} <em>m</em>
       </>
     );
+  };
 
+  // The split is the time by another name, so a hidden holder's line
+  // keeps the day and the session count only.
   const topMeta = first
     ? [
         first.day ? fmtDay(first.day) : null,
-        def.kind === "time" && def.dist ? `${fmtSplit(def.dist, first.value)} /500m` : null,
+        def.kind === "time" && def.dist && !isHidden(first)
+          ? `${fmtSplit(def.dist, first.value)} /500m`
+          : null,
         first.sessions != null ? `${first.sessions} sessions` : null,
       ]
         .filter(Boolean)

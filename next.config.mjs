@@ -17,6 +17,18 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["tesseract.js", "sharp"],
   },
+
+  // /rowtember is a second front door to the challenge. The challenge was
+  // named 100K September when it launched and /row100k is printed on shirts,
+  // stickers and share cards, so that stays the canonical path; /rowtember is
+  // a rewrite (the address bar keeps what the reader typed) rather than a
+  // redirect, so both spellings read as first-class.
+  async rewrites() {
+    return [
+      { source: "/rowtember", destination: "/row100k" },
+      { source: "/rowtember/:path*", destination: "/row100k/:path*" },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -29,6 +29,7 @@ export function JoinSim() {
           sessions={0}
           rows={[]}
           phase="open"
+          simulate
           simulateJustJoined
         />
       ) : (

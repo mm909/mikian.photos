@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { CARDS, type ShareCard, type ShareData, type ShareFonts } from "../../share/cards";
+import { ELITE_N } from "@/lib/blackoutRules";
 
 /* The card catalogue: every shareable in the registry, painted at quarter
  * size, with how many times it has actually been shared. The counts alone
@@ -20,14 +21,17 @@ const SCALE = 0.25;
 /* One rower and one community month, invented but realistic, chosen to
  * unlock EVERY card's available() gate so nothing in the registry is missing
  * from the catalogue. These numbers are illustrative — the point of this page
- * is what each card looks like, not what it currently says. */
-function sampleData(): ShareData {
+ * is what each card looks like, not what it currently says. `masked` is the
+ * same rower under a blackout, for the cards that change shape then. */
+const SAMPLE_DAYS = 21;
+
+function sampleData(masked = false): ShareData {
   const byDay: Record<string, number> = {};
   const communityByDay: Record<string, number> = {};
   const daily: { day: string; cum: number }[] = [];
   const hourGrid: number[][] = [];
   let cum = 0;
-  for (let d = 1; d <= 21; d++) {
+  for (let d = 1; d <= SAMPLE_DAYS; d++) {
     const day = `2026-09-${String(d).padStart(2, "0")}`;
     // A month with rest days and a couple of big ones, so the calendar and
     // the bars have shape instead of a flat block.
@@ -44,6 +48,19 @@ function sampleData(): ShareData {
     );
   }
 
+  // A board with the elite fifteen hidden, so the sticker pages paint too.
+  const standings = Array.from({ length: 25 }, (_, i) => {
+    const meters = 118_000 - i * 4_300;
+    const hidden = i < ELITE_N;
+    return {
+      name: `Rower ${String.fromCharCode(65 + i)}`,
+      rowerNumber: 40 + i,
+      meters: hidden ? Math.floor(meters / 10_000) * 10_000 : meters,
+      masked: hidden || undefined,
+      digits: hidden ? String(meters).length : undefined,
+    };
+  });
+
   return {
     displayName: "Sample Rower",
     rowerNumber: 23,
@@ -51,6 +68,9 @@ function sampleData(): ShareData {
     meters: 100_000,
     sessions: 24,
     byDay,
+    days: SAMPLE_DAYS,
+    masked,
+    digits: masked ? 6 : undefined,
     row: { day: "2026-09-14", meters: 10_000, seconds: 2461, title: "Sunrise 10k" },
     division: "M",
     longest: 21_097,
@@ -62,12 +82,27 @@ function sampleData(): ShareData {
       sessions: 902,
       byDay: communityByDay,
       daily,
+      days: SAMPLE_DAYS,
       hourGrid,
+      standings,
+      asOf: `Sep ${SAMPLE_DAYS}`,
     },
   };
 }
 
-function Preview({ card, fonts }: { card: ShareCard; fonts: React.RefObject<ShareFonts | null> }) {
+/* The cards that look different under a blackout — painted a second time
+ * with the masked sample so the owner can check the blocks. */
+const BLACKOUT_IDS = ["rowtember-total", "rowtember-named", "rowtember-profile", "rowtember-club"];
+
+function Preview({
+  card,
+  fonts,
+  masked = false,
+}: {
+  card: ShareCard;
+  fonts: React.RefObject<ShareFonts | null>;
+  masked?: boolean;
+}) {
   const ref = useRef<HTMLCanvasElement | null>(null);
 
   const paint = useCallback(async () => {
@@ -88,12 +123,12 @@ function Preview({ card, fonts }: { card: ShareCard; fonts: React.RefObject<Shar
     // context is what shrinks it without touching a single card's code.
     ctx.scale(SCALE, SCALE);
     try {
-      card.draw(ctx, sampleData(), fonts.current ?? { black: "sans-serif", mono: "monospace" });
+      card.draw(ctx, sampleData(masked), fonts.current ?? { black: "sans-serif", mono: "monospace" });
     } catch (err) {
       console.error(`dev/stats: ${card.id} failed to paint`, err);
     }
     ctx.restore();
-  }, [card, fonts]);
+  }, [card, fonts, masked]);
 
   useEffect(() => {
     void paint();
@@ -118,8 +153,15 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
   }, []);
 
   /* Most-shared first; never-shared cards keep registry order at the bottom,
-   * which is exactly where an unfamiliar card should be findable. */
-  const ordered = [...CARDS].sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+   * which is exactly where an unfamiliar card should be findable. A card the
+   * sample cannot unlock in either state (board pages past the 25 sample
+   * rows) would paint blank, so it is left out. */
+  const plain = sampleData(false);
+  const dark = sampleData(true);
+  const ordered = CARDS.filter(
+    (c) => !c.available || c.available(plain) || c.available(dark),
+  ).sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+  const blackout = CARDS.filter((c) => BLACKOUT_IDS.includes(c.id));
 
   return (
     <>
@@ -128,10 +170,12 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
       <div className="dst-cards">
         {ordered.map((card) => {
           const n = counts[card.id] ?? 0;
+          // The elite card only exists under a blackout, so it paints masked.
+          const masked = card.id === "rowtember-elite";
           return (
             <figure className="dst-card" key={card.id}>
               <div className="dst-stage">
-                <Preview card={card} fonts={fonts} />
+                <Preview card={card} fonts={fonts} masked={masked} />
               </div>
               <figcaption>
                 <span className="dst-name">{card.label}</span>
@@ -144,6 +188,20 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
             </figure>
           );
         })}
+        {blackout.map((card) => (
+          <figure className="dst-card" key={`${card.id}-blackout`}>
+            <div className="dst-stage">
+              <Preview card={card} fonts={fonts} masked />
+            </div>
+            <figcaption>
+              <span className="dst-name">{card.label} · blackout</span>
+              <span className="dst-id">{card.id}</span>
+              <span className="dst-n">
+                <em>same id, hidden meters</em>
+              </span>
+            </figcaption>
+          </figure>
+        ))}
       </div>
     </>
   );

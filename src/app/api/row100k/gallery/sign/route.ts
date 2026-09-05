@@ -1,20 +1,28 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { r2Configured, r2PresignPut } from "@/lib/r2";
+import { GALLERY_TAG } from "@/app/row100k/galleryList";
 import { thumbKey } from "@/app/row100k/photoUrls";
 
 export const runtime = "nodejs";
 
 /* Mint a presigned PUT so the gallery page can push a finished export
  * straight to R2 — no deploy needed, unlike the legacy public/ batch. Keys
- * live under row100k/gallery/ and the gallery page lists that exact prefix,
- * so an upload appears on the next page load. Admin-only: this is the
- * owner's publish surface, not a community drop box. The owner uploads
- * full-resolution exports, hence the larger byte cap than the row-photo
- * route (whose clients downscale first). */
+ * live under row100k/gallery/ and the gallery page reads that exact prefix
+ * through a cached listing, so an upload appears on the next page load.
+ * Admin-only: this is the owner's publish surface, not a community drop box.
+ * The owner uploads full-resolution exports, hence the larger byte cap than
+ * the row-photo route (whose clients downscale first).
+ *
+ * Every mint drops the gallery listing cache (GALLERY_TAG). The bytes land a
+ * few seconds AFTER the URL is minted, so a visitor rendering in that gap can
+ * re-cache a listing without the new photo — which is why the thumb mint
+ * revalidates too: the uploader asks for it only after the main PUT has
+ * completed, and the owner's own refresh comes after that. */
 
 const MAX_PHOTO_BYTES = 12_000_000;
 
@@ -92,10 +100,12 @@ export async function POST(req: Request) {
     }
     const key = thumbKey(thumbFor);
     const url = await r2PresignPut(key, contentType, 600, contentLength);
+    revalidateTag(GALLERY_TAG);
     return NextResponse.json({ ok: true, key, url });
   }
 
   const key = `row100k/gallery/${randomUUID()}.${ext}`;
   const url = await r2PresignPut(key, contentType, 600, contentLength);
+  revalidateTag(GALLERY_TAG);
   return NextResponse.json({ ok: true, key, url });
 }

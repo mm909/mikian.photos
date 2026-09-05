@@ -228,7 +228,7 @@ type TableInfo = { table: string; pk: string[] };
  * challenge telemetry and is nothing but card ids and counts.
  *
  * To back the whole database up again, drop the filter in listTables(). */
-export const ROWTEMBER_TABLES = ["RowParticipant", "RowEntry", "ShareEvent"];
+export const ROWTEMBER_TABLES = ["RowParticipant", "RowEntry", "ShareEvent", "RowBlackout", "RowLinkClick"];
 
 /* The Rowtember tables, with their primary-key columns (the export pages
  * through a table in key order so batches never overlap or skip). */

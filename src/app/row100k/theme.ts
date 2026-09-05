@@ -51,30 +51,50 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .bar{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .row100k .bar .mono{font-size:12px;letter-spacing:.08em}
 .row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
-/* The bar-scale ROWTEMBER stamp: the cc-mark idiom shrunk to chip size —
- * same white Archivo Black caps on water, same rotate and skew. */
 /* Who is putting this on, then what it is: the Mikian.Musser wordmark from
- * the landing page sits to the left of the ROWTEMBER stamp, so the bar reads
- * as Mikian Musser hosting Rowtember. Both live in .bar-lead so the pair
- * stays together when the bar wraps on a phone. */
+ * the landing page leads (kept, blue dot and all — owner call 2026-09-05),
+ * the ROWTEMBER mark opens the nav rail beside it, so the bar reads as
+ * Mikian Musser hosting Rowtember. */
 .row100k .bar-lead{display:flex;align-items:center;gap:12px;flex:none;min-width:0}
-.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:12px;line-height:1;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap}
+.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:12px;line-height:1;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
 .row100k .bar-brand .dot{color:var(--water)}
 .row100k .bar-brand:hover{color:var(--water)}
-.row100k .bar-mark{display:inline-block;flex:none;font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;text-transform:uppercase;letter-spacing:.01em;color:#fff;background:var(--water);padding:6px 10px 5px;transform:rotate(-1.2deg) skewX(-2deg)}
-.row100k a.bar-mark{text-decoration:none;cursor:pointer}
-.row100k a.bar-mark:hover{background:var(--water-hover)}
-/* Nav links group + right-hand chip group; the right group pushes itself
- * to the far edge so the bar needs no justify rule. */
-.row100k .bar-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+/* Nav rail + the one blue pill (owner call, 2026-09-05). ROWTEMBER and the
+ * section links share a strip; one straight water-blue rectangle rests
+ * under the current page and slides to whatever the pointer is over (BarNav
+ * measures and moves it). Colour rules: the item under the pill is white;
+ * ROWTEMBER off the pill is water-blue and stays Archivo Black; every other
+ * item off the pill is the gray mono of .back-link. Until the client has
+ * measured, the active link paints its own blue box (.on) so the server
+ * markup already looks right; .live hands over to the pill. .jump switches
+ * every transition off for one frame so the pill can be placed, not flown.
+ * Both link boxes are 27px tall (16px line + padding) so the pill keeps
+ * its height as it crosses from the mark to the mono links. No skew. */
+.row100k .rail{position:relative;display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}
+.row100k .rail a{position:relative;z-index:1;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;text-decoration:none;color:var(--gray);padding:6px 9px 5px;white-space:nowrap;transition:color 160ms ease}
+.row100k .rail a.brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.01em;color:var(--water);padding:6px 10px 5px}
+.row100k .rail a.lit{color:#fff}
+.row100k .rail:not(.live) a.on{background:var(--water)}
+.row100k .rail-pill{position:absolute;z-index:0;left:0;top:0;width:0;height:0;background:var(--water);opacity:0;pointer-events:none;transition:left 220ms cubic-bezier(.2,.7,.2,1),top 220ms cubic-bezier(.2,.7,.2,1),width 220ms cubic-bezier(.2,.7,.2,1),height 220ms cubic-bezier(.2,.7,.2,1),opacity 160ms ease}
+.row100k .rail.jump .rail-pill,.row100k .rail.jump a{transition:none}
+.row100k .rail-break{display:none}
+/* Right-hand chip group pushes itself to the far edge so the bar needs no
+ * justify rule. */
 .row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto}
-/* Phone widths: an intentional two-row bar — stamp + account chip on the
- * first line, the nav links on their own dashed-ruled line beneath. */
+/* Phone widths (560px and under): an intentional two-row bar — wordmark,
+ * ROWTEMBER and the account chip on the masthead row, the section links on
+ * their own dashed-ruled row beneath. The rail gives up its box (display
+ * contents) so ROWTEMBER can sit up top with the wordmark while the rest
+ * drop past the break; the pill then positions against the bar, which is
+ * why RowBar keeps the bar positioned even when it is not sticky. Both link
+ * boxes are 25px here. */
 @media(max-width:560px){
-  .row100k .bar{flex-wrap:wrap;gap:10px 18px;padding:12px 16px}
-  .row100k .bar-lead{gap:9px}
+  .row100k .bar{flex-wrap:wrap;gap:8px 4px;padding:10px 16px 12px}
   .row100k .bar-brand{font-size:11px;letter-spacing:.03em}
-  .row100k .bar-links{order:3;flex-basis:100%;gap:22px;border-top:1px dashed var(--line);padding-top:10px}
+  .row100k .rail{display:contents}
+  .row100k .rail a{font-size:11px;letter-spacing:.06em;padding:5px 6px 4px;order:2}
+  .row100k .rail a.brand{font-size:12px;padding:5px 8px 4px;margin-left:6px;order:0}
+  .row100k .rail-break{display:block;flex-basis:100%;height:0;border-top:1px dashed var(--line);order:1}
 }
 /* Account chip + dropdown (top-right of the bar). */
 .row100k .acct{position:relative;display:flex;align-items:center}
@@ -86,35 +106,115 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .acct-item:last-child{border-bottom:none}
 .row100k .acct-item:hover{color:var(--water)}
 .row100k .acct-item.danger:hover{color:#b3400f}
+/* Phone masthead row has to hold wordmark + ROWTEMBER + this chip at 360px;
+ * a tighter chip buys the room. Sits after the base rule so it wins. */
+@media(max-width:560px){
+  .row100k .acct-chip{letter-spacing:.06em;padding:6px 10px}
+}
 
-.row100k .hero{padding:28px 20px 8px}
-.row100k .hero h1{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(46px,13vw,110px);line-height:.92;letter-spacing:-.02em;text-transform:uppercase}
-.row100k .hero h1 .o{color:var(--water)}
-.row100k .hero .sub{margin-top:16px;max-width:54ch;color:var(--ink-soft);font-size:15px}
-.row100k .mark-row{display:flex;gap:14px;margin-top:22px;flex-wrap:wrap;align-items:center}
-.row100k .cc-mark{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(20px,5.6vw,32px);text-transform:uppercase;letter-spacing:.01em;color:#fff;background:var(--water);padding:7px 16px 6px;transform:rotate(-1.2deg) skewX(-2deg)}
-.row100k a.cc-mark{text-decoration:none;cursor:pointer}
-.row100k .cc-mark.btn-mark{background:var(--ink);transform:rotate(1deg) skewX(-2deg)}
-.row100k .cc-mark.btn-mark:hover{background:var(--water)}
+/* ----------------------------------------------------------------------
+ * The front page (owner call, 2026-09-05: the front page of the newspaper
+ * — the nameplate, then the news; nothing sells, the pitch is in pitch.ts).
+ * The front page is set on the landing measure (1040 = 1000 + gutters) so
+ * a signed-in rower gets their meters at exactly the landing counter width;
+ * every inside page keeps the 760 column. Under 560px the year drops to
+ * its own line so ROWTEMBER can be as big as the phone allows: 14.5vw - 6px
+ * is (100vw - 40px) / 6.68em (the width of ROWTEMBER in Archivo Black);
+ * one line from 561px is 10.2vw - 4px for the 9.65em of ROWTEMBER 2026,
+ * and 100px is where 965px fills the 1000px measure. */
+.row100k .wrap.front{max-width:1040px}
+.row100k .front-head{padding:26px 0 0}
+.row100k .front-head h1{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(36px,calc(14.5vw - 6px),100px);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.12em}
+.row100k .front-head .yr{display:block}
+.row100k .front-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px}
+@media(min-width:561px){
+  .row100k .front-head h1{font-size:min(calc(10.2vw - 4px),100px)}
+  .row100k .front-head .yr{display:inline}
+}
+/* Front-page sections sit tighter than the inside pages (52px). */
+.row100k section.fs{padding:28px 0 0}
+.row100k section.front-cta{padding-top:clamp(34px,7vh,64px)}
+/* Everyone together: bold number over a lighter descriptor, two tiles. */
+.row100k .front-stats{display:grid;grid-template-columns:1fr;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.row100k .front-stats .cell{padding:16px 0 15px;border-bottom:1px solid var(--ink);min-width:0}
+.row100k .front-stats .cell:last-child{border-bottom:none}
+.row100k .front-stats .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.4vw,48px);line-height:1;font-variant-numeric:tabular-nums}
+.row100k .front-stats .l{font-size:11px;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-top:7px}
+@media(min-width:640px){
+  .row100k .front-stats{grid-template-columns:1fr 1fr}
+  .row100k .front-stats .cell{border-bottom:none;border-right:1px solid var(--ink);padding-right:18px}
+  .row100k .front-stats .cell+.cell{border-right:none;padding-left:18px}
+}
+/* The leader headline and the clock: one box each, the same size, side by
+ * side from 640px, stacked on a phone. The grid stretches both to the
+ * taller one, and the clock cells centre themselves in the extra height. */
+.row100k .front-duo{display:grid;grid-template-columns:1fr;gap:14px;align-items:stretch}
+@media(min-width:640px){.row100k .front-duo{grid-template-columns:1fr 1fr}}
+.row100k .front-box{border:2px solid var(--ink);padding:14px 16px 16px;min-width:0}
+.row100k .front-box .eyebrow{font-size:10px;letter-spacing:.18em;color:var(--gray);text-transform:uppercase}
+.row100k .front-box .head{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--water);text-transform:uppercase;margin-top:6px}
+.row100k .front-box .v{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,6vw,36px);line-height:1.05;margin-top:8px;font-variant-numeric:tabular-nums}
+.row100k .front-box .nm{font-weight:700;font-size:14px;margin-top:6px}
+.row100k .front-box .nm a{text-decoration:none}
+.row100k .front-box .nm a:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .front-box.clock{display:flex;flex-direction:column}
+.row100k .front-box.clock .count,.row100k .front-box.clock .count-done{flex:1;margin-top:8px}
+/* The corner clock (Countdown size small): the box is the parent, the
+ * numerals a third of the big clock. */
+.row100k .count.small{border:none}
+.row100k .count.small .c{padding:8px 4px 6px;display:flex;flex-direction:column;justify-content:center}
+.row100k .count.small .n{font-size:clamp(22px,5vw,34px)}
+.row100k .count.small .l{font-size:9px;letter-spacing:.12em;margin-top:5px}
+.row100k .count-done.small{padding:14px 10px;font-size:12px}
+/* The top three men and women: two compact boards. */
+.row100k .front-top{display:grid;grid-template-columns:1fr;gap:22px}
+@media(min-width:640px){.row100k .front-top{grid-template-columns:1fr 1fr}}
+.row100k .front-three{min-width:0}
+.row100k .front-three h3{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:8px}
+.row100k .front-three table.board td{padding:9px 6px}
+/* The latest row, one mono line; also the one line on the board page for
+ * a signed-out visitor. */
+.row100k .front-latest{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);line-height:1.8}
+.row100k .front-latest b{color:var(--ink);font-weight:700}
+/* The signed-in top: the meters of the rower in the landing counter, the
+ * same geometry as .home .od (Home.tsx): Archivo Black digits are .667em
+ * and the comma .333em, so the cells are .68em and .34em, and eight digits
+ * plus two commas make 6.12em; the size formula is the landing one, so the
+ * two counters are the same width on the same screen. Static digits, the
+ * leading zeros dimmed; tapping it opens the profile. */
+.row100k .my-od-link{display:block;text-decoration:none;color:inherit;margin-top:6px}
+.row100k .my-od{--od-size:clamp(40px,min(calc(16.3vw - 10px),30vh),160px);--od-cw:.68em;--od-sw:.34em;display:flex;align-items:flex-start;font-family:var(--row-archivo-black),sans-serif;font-size:var(--od-size);line-height:1;color:var(--water);letter-spacing:0;font-variant-numeric:tabular-nums;transition:color 160ms ease}
+.row100k .my-od-link:hover .my-od{color:var(--ink)}
+.row100k .my-od .cell{flex:none;width:var(--od-cw);height:1em;text-align:center}
+.row100k .my-od .sep{flex:none;width:var(--od-sw);height:1em;text-align:center}
+.row100k .my-od .lead{opacity:.25}
+.row100k .my-unit{margin-top:14px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.row100k .my-unit b{color:var(--ink);font-weight:700}
+/* LOG A ROW on the left (the OPT IN button, relabelled), SHARE on the
+ * right in the same face, smaller and without the arrow; the log form
+ * opens beneath them (LogInPlace). */
+.row100k .act-row.front{justify-content:space-between;align-items:baseline;gap:10px 20px;margin-top:clamp(22px,4vh,40px)}
+/* margin-left auto keeps SHARE on the right even when a 375px phone wraps
+ * it under LOG A ROW (38px minimum type plus the arrow is wider than the
+ * column with SHARE beside it). */
+.row100k .front-share{margin-left:auto;background:none;border:none;padding:0;cursor:pointer;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,4vw,34px);line-height:1;text-transform:uppercase;letter-spacing:-.01em;color:var(--ink);text-decoration:underline;text-decoration-color:var(--water);text-decoration-thickness:.09em;text-underline-offset:.12em;text-decoration-skip-ink:none;transition:color 160ms ease}
+.row100k .front-share:hover{color:var(--water)}
+/* The log form (LogRow, which carries its own flat panel) sits under the
+ * act row, on a rule so it reads as opened, not as more page. */
+.row100k .front-log{margin-top:18px;border-top:2px solid var(--ink);padding-top:6px}
+.row100k .front-id{margin-top:22px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+/* The join form, vertical: one field a line, one board pill a line, then
+ * OPT IN as the submit. */
+.row100k .join-v .fl:first-child{margin-top:0}
+.row100k .join-v .pills.col{flex-direction:column;gap:8px}
+.row100k .join-v .pills.col .pill{display:block}
+.row100k .join-v .pills.col .pill span{display:block;width:100%;text-align:left}
+.row100k .join-go{margin-top:28px}
 
 .row100k .frame{margin:26px auto 0;max-width:760px;padding:0 20px}
 .row100k .frame .ph,.row100k .inter .ph{border:14px solid var(--frame);background:var(--frame)}
 .row100k .frame img,.row100k .inter img{display:block;width:100%;height:auto}
 .row100k .inter{margin:56px auto 0;max-width:760px;padding:0 20px}
-
-.row100k .facts{border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);margin-top:34px}
-.row100k .facts .in{display:grid;grid-template-columns:1fr;max-width:760px;margin:0 auto}
-.row100k .facts .cell{padding:16px 20px;border-bottom:1px solid var(--ink)}
-.row100k .facts .cell:last-child{border-bottom:none}
-.row100k .facts .k{font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase}
-.row100k .facts .v{font-family:var(--row-archivo-black),sans-serif;font-size:20px;text-transform:uppercase;line-height:1.15;margin-top:4px}
-.row100k .facts .v.blue{color:var(--water)}
-.row100k .facts .v small{font-family:var(--row-archivo),sans-serif;font-weight:600;font-size:12px;color:var(--ink-soft);display:block;text-transform:none}
-@media(min-width:640px){
-  .row100k .facts .in{grid-template-columns:repeat(3,1fr)}
-  .row100k .facts .cell{border-bottom:none;border-right:1px solid var(--ink)}
-  .row100k .facts .cell:last-child{border-right:none}
-}
 
 .row100k section{padding:52px 0 8px}
 .row100k .sec-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:22px;flex-wrap:wrap}
@@ -137,6 +237,10 @@ html:has(.row100k){scroll-behavior:smooth}
 
 /* Join / dashboard panel — paper with a heavy ink border (no dark slab). */
 .row100k .panel{border:2px solid var(--ink);padding:26px 22px 30px;margin-top:8px}
+/* The log form drops the box (the owner found the 2px outline hard, like a
+ * C# dialog, 2026-09-05): same underline inputs, no border, no padding,
+ * dashed hairlines between its rows instead. The join form keeps the box. */
+.row100k .panel.flat{border:none;padding:0;margin-top:0}
 .row100k .panel .p-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .row100k .panel .p-head h3{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(20px,5vw,28px);text-transform:uppercase}
 .row100k .panel .p-head .mono{font-size:11px;color:var(--water)}
@@ -171,9 +275,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-probe.mono{font-family:var(--row-mono),monospace}
 .row100k .share-overlay{position:fixed;inset:0;background:rgba(21,23,26,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
 .row100k .share-modal{background:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 rgba(21,23,26,.2);width:min(560px,100%);max-height:90vh;overflow-y:auto;padding:16px 18px 18px}
-.row100k .share-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:10px}
-.row100k .share-head .mono{font-size:12px;letter-spacing:.12em}
-.row100k .share-x{background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
+.row100k .share-head{position:relative;display:flex;justify-content:center;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:10px;min-height:30px}
+.row100k .share-mark{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:14px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:#fff;background:var(--water);padding:7px 12px 6px}
+.row100k .share-x{position:absolute;right:0;top:0;background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
 .row100k .share-x:hover{color:var(--water)}
 .row100k .share-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .row100k .share-pick{border:2px solid var(--line);background:none;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 11px;cursor:pointer;color:var(--ink-soft)}
@@ -183,22 +287,23 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-canvas{display:block;width:100%;height:auto}
 .row100k .share-note{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 .row100k .share-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.row100k .share-btn{border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;padding:11px 16px;cursor:pointer;flex:1 1 auto}
+/* The ONE .share-btn rule set (a second, later definition used to override
+ * this into a blue Archivo block; it is gone): outlined mono by default,
+ * .primary filled water, .quiet a gray outline for the exit nobody on a
+ * phone needs. .share-link is the phone DOWNLOAD — a text link under the
+ * two filled buttons. */
+.row100k .share-btn{border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:12px 16px;cursor:pointer;flex:1 1 auto;border-radius:0}
 .row100k .share-btn:hover{background:var(--water);border-color:var(--water);color:#fff}
 .row100k .share-btn.primary{background:var(--water);border-color:var(--water);color:#fff}
 .row100k .share-btn.primary:hover{background:var(--water-hover);border-color:var(--water-hover)}
+.row100k .share-btn.quiet{border-color:var(--line);color:var(--gray);flex:0 1 auto}
+.row100k .share-btn.quiet:hover{background:none;border-color:var(--ink);color:var(--ink)}
+.row100k .share-link{display:block;width:100%;margin-top:12px;background:none;border:none;padding:4px 0;text-align:center;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.row100k .share-link:hover{color:var(--water)}
 .row100k .share-status{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--water)}
 .row100k .share-status.bad{color:#b3400f}
 .row100k .signed-note{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);margin-top:14px;letter-spacing:.04em}
 
-/* Rower-number bib card (join confirmation + dashboard header). */
-.row100k .bib{max-width:340px;margin:6px auto 0;border:3px solid var(--ink);background:#fff;padding:18px 20px 16px;text-align:center;box-shadow:6px 6px 0 rgba(21,23,26,.14)}
-.row100k .bib-actions{text-align:center;margin-top:16px}
-.row100k .bib .pins{display:flex;justify-content:space-between;margin-bottom:6px}
-.row100k .bib .pins i{width:10px;height:10px;border-radius:50%;border:2px solid var(--line);display:block}
-.row100k .bib .ev{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;color:var(--gray);text-transform:uppercase}
-.row100k .bib .num{font-family:var(--row-archivo-black),sans-serif;font-size:64px;line-height:1;margin:6px 0 2px}
-.row100k .bib .nm{font-family:var(--row-mono),monospace;font-size:12px;color:var(--water);letter-spacing:.08em;text-transform:uppercase}
 
 /* Personal stats row inside the dashboard (and profiles). */
 .row100k .me-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
@@ -220,6 +325,32 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .split-live{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);margin-top:10px;min-height:18px}
 .row100k .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
 @media(max-width:560px){.row100k .grid2{grid-template-columns:1fr}}
+/* Log-a-row form (LogRow.tsx). The owner wanted meters and time to be THE
+ * numbers and the day and title to read as inferred, secondary information
+ * (2026-09-05), so the form is two tiers: the big pair in Archivo Black at
+ * stat size over a plain underline, the split readout beneath them, then a
+ * dashed hairline and the small pair. The form styles its own inputs (the
+ * front page mounts it outside any panel). No box, no skew. */
+.row100k .logf-big{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+.row100k .logf-big label.fl{margin-top:6px}
+.row100k .logf input.logf-num{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8vw,52px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;padding:4px 0 8px}
+.row100k .logf input.logf-num::placeholder{color:var(--line)}
+.row100k .logf .split-live{margin-top:12px;font-size:13px}
+.row100k .logf .split-live b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.row100k .logf-small{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;border-top:1px dashed var(--line);margin-top:16px}
+.row100k .logf-small input[type=text],.row100k .logf-small input[type=date]{font-size:15px;color:var(--ink-soft)}
+.row100k .logf-photos{border-top:1px dashed var(--line);margin-top:24px}
+.row100k .logf .send{margin-top:26px;font-size:18px;padding:16px}
+.row100k .logf .form-ok{border:none;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);text-align:left;padding:14px 0}
+/* The second-look strip: sits between the photos and the button when a row
+ * falls outside the band everyone else has logged. It asks, it never
+ * blocks — both answers are plain outline buttons. */
+.row100k .logf-ask{margin-top:22px;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:14px 0 16px}
+.row100k .logf-ask .k{display:block;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--water)}
+.row100k .logf-ask p{margin-top:6px;font-size:14px;line-height:1.5;color:var(--ink-soft)}
+.row100k .logf-ask p b{color:var(--ink);font-variant-numeric:tabular-nums}
+.row100k .logf-ask-acts{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+@media(max-width:560px){.row100k .logf-big,.row100k .logf-small{grid-template-columns:1fr;gap:0}}
 
 /* My rows — the photo ledger on the editable log (own profile + admin view).
  * Each row is an ink-bordered strip: photo pair at the left, numbers in the
@@ -267,8 +398,11 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tabs button{background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
 .row100k .tabs button.on{background:var(--ink);color:var(--paper)}
 .row100k .tabs button:hover:not(.on){border-color:var(--water);color:var(--water)}
-.row100k table.board{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:13px}
-.row100k table.board th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:2px solid var(--ink)}
+/* The board sits on a faint cream (the cream of a cream shirt, not a slab)
+ * over the paper, and its rules are a single hair of ink: the thick bars
+ * over each section came out (owner call, 2026-09-05). */
+.row100k table.board{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:13px;background:rgba(236,220,170,.22)}
+.row100k table.board th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);font-weight:400;padding:8px 6px;border-bottom:1px solid var(--ink)}
 .row100k table.board td{padding:10px 6px;border-bottom:1px dashed var(--line);vertical-align:middle}
 .row100k table.board td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k table.board .rk{color:var(--gray);width:44px;font-variant-numeric:tabular-nums}
@@ -333,7 +467,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .mv.up{color:var(--water)}
 .row100k .mv.dn{color:#b3400f}
 .row100k tr.fin td{background:var(--water-pale)}
-.row100k tr.divrow td{border-bottom:2px solid var(--ink);padding:14px 6px 6px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
+.row100k tr.divrow td{border-bottom:1px dashed var(--line);padding:14px 6px 6px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
 .row100k tr.divrow.rest td{color:var(--gray)}
 
 /* The curve — cumulative community meters. */
@@ -350,8 +484,6 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .comm .l{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin-top:6px}
 @media(max-width:560px){.row100k .comm{grid-template-columns:1fr 1fr}.row100k .comm .c:nth-child(2){border-right:none}.row100k .comm .c:nth-child(-n+2){border-bottom:1px solid var(--ink)}}
 
-.row100k .share-btn{background:var(--water);color:#fff;border:none;font-family:var(--row-archivo-black),sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.04em;padding:12px 18px;cursor:pointer}
-.row100k .share-btn:hover{background:var(--water-hover)}
 .row100k .pace-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:12px;line-height:1.9;text-transform:uppercase}
 .row100k .pace-note b{color:var(--water);font-weight:700}
 
@@ -359,6 +491,16 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .prof-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(28px,7vw,44px);text-transform:uppercase;line-height:1.02;letter-spacing:-.01em}
 .row100k .prof-ig{font-family:var(--row-mono),monospace;font-size:13px;color:var(--water);text-decoration:none;letter-spacing:.04em}
 .row100k .prof-ig:hover{text-decoration:underline;text-underline-offset:3px}
+/* Blackout on a profile: the progress bar is not drawn at all (its width IS
+ * the number), and the month section is one bordered note in place of the
+ * calendar and the curve. */
+.row100k .prof-bo{border:2px solid var(--ink);padding:16px 18px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);line-height:1.7}
+/* Moderation page: the lede under a picked rower, and the remove control
+ * under its own rule so it is never one stray tap from the edit menu. */
+.row100k .mod-lede{margin-top:14px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);line-height:1.8}
+.row100k .mod-danger{margin-top:40px;border-top:2px solid var(--ink);padding-top:18px}
+.row100k .mod-danger .k{display:block;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink)}
+.row100k .mod-danger .mod-lede{margin:6px 0 12px}
 .row100k .back-link{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-decoration:none;color:var(--gray)}
 .row100k .back-link:hover{color:var(--water)}
 
@@ -388,30 +530,52 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .row100k footer a:hover{color:var(--water)}
 
+/* OPT IN, ported from the landing page (src/components/home/Home.tsx .opt):
+ * Archivo Black at poster size, water-blue underline, the blunt arrow. One
+ * class for both the link and the button form (OptIn.tsx), so the button
+ * resets its own chrome here. Size m is the panel cut. No skew. */
+.row100k .optin{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(38px,8.6vw,96px);line-height:1;text-transform:uppercase;letter-spacing:-.01em;color:var(--ink);white-space:nowrap;
+  text-decoration:underline;text-decoration-color:var(--water);text-decoration-thickness:.09em;text-underline-offset:.12em;text-decoration-skip-ink:none;transition:color 160ms ease;
+  background:none;border:none;padding:0;margin:0;cursor:pointer;text-align:left}
+.row100k .optin.m{font-size:clamp(26px,5vw,48px)}
+.row100k .optin:hover{color:var(--water)}
+.row100k .optin:focus-visible{outline-offset:8px}
+.row100k .optin .arr{display:inline-block;width:.8em;height:.8em;margin-left:.14em;vertical-align:-.06em}
+.row100k .optin .arr svg{display:block;width:100%;height:100%}
+
 /* ----------------------------------------------------------------------
  * Tier rarity, record-card links, and tab-chips-as-links (stats rebuild).
- * The main board is sectioned like item drops: 10K common (muted
- * gray-green), 50K rare (green), 100K epic (the water blue the 100K CLUB
- * already wore), 250K legend (gold). The -ink shade of each family carries
- * text and badges (dark enough to hold contrast on paper); the -pale shade
- * tints the rows. */
+ * The main board is sectioned like item drops: 10K common (a plain black
+ * tag, owner call 2026-09-05), 50K rare (green), 100K epic (the water blue
+ * the 100K CLUB already wore), .25M legend (gold; the word never renders).
+ * The -ink shade of each family carries the section text and the badge.
+ * Rows are NOT tinted any more — the board stays on its cream and the
+ * badge alone says the tier. */
 .row100k{
-  --tier-common-ink:#5d6f5d; --tier-common-pale:#e9ebe3;
-  --tier-rare-ink:#256e45; --tier-rare-pale:#dfeee4;
-  --tier-epic-ink:var(--water); --tier-epic-pale:var(--water-pale);
-  --tier-legend-ink:#8a6508; --tier-legend-pale:#f3ead1;
+  --tier-common-ink:var(--ink);
+  --tier-rare-ink:#256e45;
+  --tier-epic-ink:var(--water);
+  --tier-legend-ink:#8a6508;
 }
-/* Badge chip next to names — same voice as .donebadge, colored by rarity. */
-.row100k .tierbadge{display:inline-block;font-size:10px;color:#fff;padding:1px 6px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace;letter-spacing:.04em}
+/* Badge chip IN FRONT of the name — same voice as .donebadge, colored by
+ * rarity. .elite is the black ELITE 15 tag a blacked-out row wears in its
+ * place. */
+.row100k .tierbadge{display:inline-block;font-size:10px;color:#fff;padding:1px 6px;margin-right:8px;vertical-align:1px;font-family:var(--row-mono),monospace;letter-spacing:.04em}
 .row100k .tierbadge.common{background:var(--tier-common-ink)}
 .row100k .tierbadge.rare{background:var(--tier-rare-ink)}
 .row100k .tierbadge.epic{background:var(--tier-epic-ink)}
 .row100k .tierbadge.legend{background:var(--tier-legend-ink)}
-/* Row tint per tier. */
-.row100k tr.tier-common td{background:var(--tier-common-pale)}
-.row100k tr.tier-rare td{background:var(--tier-rare-pale)}
-.row100k tr.tier-epic td{background:var(--tier-epic-pale)}
-.row100k tr.tier-legend td{background:var(--tier-legend-pale)}
+.row100k .tierbadge.elite{background:var(--ink)}
+/* Blackout blocks: one fat cursor per hidden digit, sized off the inherited
+ * font so a run of them is exactly as wide as the number it stands in for
+ * (Space Mono advances .6em a glyph: a .54em block with .03em either side).
+ * The comma between thousands groups is a real glyph on the real baseline,
+ * so you can see where the hundred-thousands start. */
+.row100k .bo{display:inline;white-space:nowrap}
+.row100k .bo i{display:inline-block;width:.54em;height:.92em;margin:0 .03em;background:var(--ink);border-radius:1px;vertical-align:-.04em}
+.row100k .bo b{font-weight:400}
+/* The line under the tabs while a blackout is on. */
+.row100k .bo-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);margin:-6px 0 16px;line-height:1.7}
 /* Section headers pick up their tier color; a locked tier goes quiet. */
 .row100k tr.divrow.common td{color:var(--tier-common-ink)}
 .row100k tr.divrow.rare td{color:var(--tier-rare-ink)}

@@ -46,8 +46,25 @@ const WHITE_TEXT = "rgba(255,255,255,0.82)";
 
 /* ------------------------------------------------------------------ data */
 
-export type PostRow = { name: string; num: number; meters: number };
-export type PostRecord = { label: string; value: string; who: string };
+export type PostRow = {
+  name: string;
+  num: number;
+  meters: number;
+  /** Blackout (lib/blackoutRules.ts): the number is hidden — `meters` is a
+   * tier floor and `digits` says how many blocks the board slide draws. */
+  masked?: boolean;
+  digits?: number;
+};
+export type PostRecord = {
+  label: string;
+  value: string;
+  who: string;
+  /** Blackout (lib/blackoutRules.ts): the holder is one of the hidden
+   * fifteen — `value` is "" and `shape` is its silhouette ("#:##.#" for a
+   * split, "##,### m" for a distance), drawn as blocks on the stats slide. */
+  masked?: boolean;
+  shape?: string;
+};
 
 export type PostData = {
   /** "Sep 3" — the Pacific day the numbers were read. */
@@ -70,7 +87,7 @@ export type PostData = {
   first100k: PostRow | null;
   /** Sessions logged per [September day][Pacific hour]. */
   hourGrid: number[][];
-  /** Newest gallery photos, presigned. */
+  /** Newest gallery photos, as stable public CDN URLs. */
   photos: string[];
 };
 
@@ -282,6 +299,77 @@ function ellipsize(ctx: Ctx, text: string, maxW: number, font: string): string {
   return `${t.trimEnd()}…`;
 }
 
+/* Blackout digits: one fat block per hidden digit with a real comma between
+ * thousands groups, right-aligned on `right` like the meters text it stands
+ * in for. Same geometry as share/cards.ts drawBlockDigits (a 0.6-size cell
+ * per digit, the block 0.54 wide and 0.92 tall on the baseline) — ported
+ * rather than imported so this module keeps its own font helpers. Returns
+ * the width so the name can yield to it. */
+function drawBlocks(
+  ctx: Ctx,
+  right: number,
+  baseline: number,
+  digits: number,
+  size: number,
+  font: string,
+  color: string,
+): number {
+  const count = Math.max(1, Math.floor(digits));
+  const cell = size * 0.6;
+  const gap = size * 0.06;
+  const block = cell - gap;
+  ctx.font = font;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = color;
+  const commaW = ctx.measureText(",").width;
+  const width = count * cell + Math.floor((count - 1) / 3) * commaW;
+  let x = right - width;
+  for (let i = 0; i < count; i++) {
+    ctx.fillRect(x + gap / 2, baseline - size * 0.88, block, size * 0.92);
+    x += cell;
+    if (i < count - 1 && (count - i - 1) % 3 === 0) {
+      ctx.fillText(",", x, baseline);
+      x += commaW;
+    }
+  }
+  return width;
+}
+
+/* Blackout blocks for a number of any shape (blackoutRules.ts shapeOf): a
+ * block per `#` cell, every other character — a colon, a point, a comma,
+ * a unit — as the real glyph, left-aligned at `x`. The stats slide's
+ * record list needs this because its values are splits and distances, not
+ * bare digit runs. Same cell geometry as drawBlocks. Returns the width. */
+function drawBlockShape(
+  ctx: Ctx,
+  x: number,
+  baseline: number,
+  shape: string,
+  size: number,
+  font: string,
+  color: string,
+): number {
+  const cell = size * 0.6;
+  const gap = size * 0.06;
+  const block = cell - gap;
+  ctx.font = font;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = color;
+  let cx = x;
+  for (const ch of shape || "#") {
+    if (ch === "#") {
+      ctx.fillRect(cx + gap / 2, baseline - size * 0.88, block, size * 0.92);
+      cx += cell;
+    } else {
+      ctx.fillText(ch, cx, baseline);
+      cx += ctx.measureText(ch).width;
+    }
+  }
+  return cx - x;
+}
+
 function shadow(ctx: Ctx, color: string, blur: number, offsetY: number): void {
   ctx.shadowColor = color;
   ctx.shadowBlur = blur;
@@ -475,9 +563,22 @@ function drawBoardSlide(
   rows.forEach((r, i) => {
     const place = start + i;
     const baseline = y + i * 88 + rowM.asc;
-    const metersText = meters(r.meters);
-    drawRight(ctx, metersText, CONTENT_R, baseline, rowFont, "#ffffff");
-    const metersW = measure(ctx, metersText, rowFont);
+    // A blacked-out row gets blocks where the digits would go, the " m"
+    // unit kept: the carousel leaves the site, so it hides what the board
+    // hides.
+    let metersW: number;
+    if (r.masked) {
+      const unit = " m";
+      drawRight(ctx, unit, CONTENT_R, baseline, rowFont, "#ffffff");
+      const unitW = measure(ctx, unit, rowFont);
+      const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
+      metersW =
+        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 42, rowFont, "#ffffff");
+    } else {
+      const metersText = meters(r.meters);
+      drawRight(ctx, metersText, CONTENT_R, baseline, rowFont, "#ffffff");
+      metersW = measure(ctx, metersText, rowFont);
+    }
     drawText(
       ctx,
       pad2(place),
@@ -581,7 +682,13 @@ function drawStatsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: Slid
   rows.forEach((rec, i) => {
     const baseline = y + 14 + recM.asc;
     drawText(ctx, rec.label.toUpperCase(), CONTENT_L, baseline, labelFont, WHITE_DIM, 21 * 0.1);
-    drawText(ctx, rec.value, CONTENT_L + 296, baseline, recValueFont, MATTE, 0);
+    // A hidden holder's value is blocks in the shape of the number — the
+    // page sent no value, only the silhouette.
+    if (rec.masked) {
+      drawBlockShape(ctx, CONTENT_L + 296, baseline, rec.shape ?? "#", 28, recValueFont, MATTE);
+    } else {
+      drawText(ctx, rec.value, CONTENT_L + 296, baseline, recValueFont, MATTE, 0);
+    }
     const whoX = CONTENT_L + 492; // 280 + 16 + 180 + 16
     drawText(
       ctx,
@@ -683,9 +790,14 @@ function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: S
       0,
     );
     hy += whoLh + 14;
+    // The first to 100k is all but certainly one of the elite fifteen, so
+    // under a blackout the line says only that the prize is claimed — the
+    // board slide just blocked this same number out.
     drawText(
       ctx,
-      `${meters(hero.meters)} · the Grizzly Health prize is claimed`,
+      hero.masked
+        ? "the Grizzly Health prize is claimed"
+        : `${meters(hero.meters)} · the Grizzly Health prize is claimed`,
       innerL,
       baselineOf(hy, subM.lh, subM),
       subFont,
@@ -724,9 +836,22 @@ function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: S
   const shown = showAll ? data.club50 : data.club50.slice(0, Math.max(0, fits - 1));
   shown.forEach((r, i) => {
     const baseline = y + 12 + nameM.asc;
-    const metersText = meters(r.meters);
-    drawRight(ctx, metersText, CONTENT_R, baseline, clubValueFont, MATTE);
-    const metersW = measure(ctx, metersText, clubValueFont);
+    // A blacked-out member gets blocks here too: their `meters` is the tier
+    // floor, and printing it as-is would put a made-up exact figure next to
+    // a name on a public carousel.
+    let metersW: number;
+    if (r.masked) {
+      const unit = " m";
+      drawRight(ctx, unit, CONTENT_R, baseline, clubValueFont, MATTE);
+      const unitW = measure(ctx, unit, clubValueFont);
+      const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
+      metersW =
+        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 28, clubValueFont, MATTE);
+    } else {
+      const metersText = meters(r.meters);
+      drawRight(ctx, metersText, CONTENT_R, baseline, clubValueFont, MATTE);
+      metersW = measure(ctx, metersText, clubValueFont);
+    }
     const maxW = CONTENT_R - metersW - 18 - CONTENT_L;
     drawText(
       ctx,

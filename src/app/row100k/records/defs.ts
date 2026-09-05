@@ -76,7 +76,9 @@ export type Ranked = {
 export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
   if (key === "total") {
     return boards.total
-      .filter((r) => r.meters > 0)
+      // A masked (blackout) row is on the board by definition even when its
+      // tier floor is 0 — dropping it would shift everyone below up a place.
+      .filter((r) => r.meters > 0 || r.masked)
       .map((r) => ({ row: r, value: r.meters, sessions: r.sessions }));
   }
   const rows =

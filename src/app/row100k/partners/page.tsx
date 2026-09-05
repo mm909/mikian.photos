@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { digitCount } from "@/lib/blackoutRules";
 import { fmtDay, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
+import { Blocks } from "../Blackout";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
+import { TrackedLink } from "../TrackedLink";
 import { boardData, EMPTY_BOARDS } from "../boardData";
 import { firstToGoal, type GoalClaim } from "../firstToGoal";
 
@@ -123,10 +126,25 @@ export default async function PartnersPage() {
   } catch (err) {
     console.error("row100k partners: failed to load prize state", err);
   }
+  // boardData() is the PUBLIC board: during a blackout the leader arrives
+  // already masked (blackoutRules.ts) with a tier floor that can be 0, so a
+  // masked row counts as leading even at a 0 floor — it is first on the
+  // board by definition — and prints blocks instead of the floor.
   const leader = (division: "M" | "F") =>
-    boards.total.find((r) => r.division === division && r.meters > 0) ?? null;
+    boards.total.find((r) => r.division === division && (r.meters > 0 || r.masked)) ?? null;
   const men = leader("M");
   const women = leader("F");
+
+  // The claimed card prints the claimant's running total, and firstToGoal()
+  // reads the raw rows — the truth, blackout or not. The first rower to
+  // 100k is in the elite fifteen by construction, so the card asks the same
+  // PUBLIC board whether that rower is masked right now and prints blocks
+  // when they are. Promise.all above loads the board and the claim together
+  // or not at all, and a rower with 100k is on the board, so a missing row
+  // cannot happen — but if it ever does the card hides rather than leaks.
+  const claimNum = claim?.rowerNumber;
+  const claimRow = claim ? boards.total.find((r) => r.rowerNumber === claimNum) : undefined;
+  const claimHidden = claim ? !claimRow || claimRow.masked === true : false;
 
   const leading = (r: typeof men) =>
     r ? (
@@ -135,7 +153,14 @@ export default async function PartnersPage() {
         <a href={`/row100k/r/${r.rowerNumber}`}>
           {r.name} · {fmtRowerNumber(r.rowerNumber)}
         </a>{" "}
-        · {fmtMeters(r.meters)}
+        ·{" "}
+        {r.masked ? (
+          <>
+            <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+          </>
+        ) : (
+          fmtMeters(r.meters)
+        )}
       </>
     ) : (
       <>In play — decided Sep 30</>
@@ -152,21 +177,25 @@ export default async function PartnersPage() {
         <div className="wrap">
           <div className="ptn-logos">
             <div className="eyebrow">Rowtember 2026 · Partners</div>
-            <a className="ptn-mark" href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="bear" src={GRIZZLY.bear} alt="" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                className="word"
-                src={GRIZZLY.wordmark}
-                alt="Grizzly Health — You Gotta Be Hungry"
-              />
-            </a>
+            <TrackedLink link="grizzly">
+              <a className="ptn-mark" href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="bear" src={GRIZZLY.bear} alt="" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="word"
+                  src={GRIZZLY.wordmark}
+                  alt="Grizzly Health — You Gotta Be Hungry"
+                />
+              </a>
+            </TrackedLink>
             <p className="ptn-sub">
               Prepared meals · Coaching ·{" "}
-              <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
-                grizzlyhealth.org
-              </a>
+              <TrackedLink link="grizzly">
+                <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
+                  grizzlyhealth.org
+                </a>
+              </TrackedLink>
             </p>
           </div>
 
@@ -194,7 +223,14 @@ export default async function PartnersPage() {
                     </a>
                   </span>
                   <div className="meta">
-                    Crossed 100k on {fmtDay(claim.day)} · now {fmtMeters(claim.total)}
+                    Crossed 100k on {fmtDay(claim.day)} · now{" "}
+                    {claimHidden ? (
+                      <>
+                        <Blocks digits={claimRow?.digits ?? digitCount(claim.total)} /> m
+                      </>
+                    ) : (
+                      fmtMeters(claim.total)
+                    )}
                     {claim.instagram ? (
                       <>
                         {" "}
@@ -254,9 +290,11 @@ export default async function PartnersPage() {
               <div className="word">ROWTEMBER</div>
               <div className="deal">
                 10% OFF MEALS AT{" "}
-                <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
-                  GRIZZLYHEALTH.ORG
-                </a>
+                <TrackedLink link="grizzly-code">
+                  <a href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
+                    GRIZZLYHEALTH.ORG
+                  </a>
+                </TrackedLink>
               </div>
             </div>
           </div>

@@ -267,12 +267,12 @@ export function PostPack({ data }: { data: PostData }) {
    * no picture, which is the one to paste over your own shot (owner ask:
    * "copy the top 10 sticker without the images"). Another tap starts the
    * photos over. */
-  const swapPhoto = async (index: number) => {
+  const swapPhoto = async (index: number, to?: number) => {
     const slide = slidesRef.current[index];
     const photos = dataRef.current.photos;
     if (!slide?.usesPhoto || photos.length < 1 || working !== null) return;
     const cur = picksRef.current[index] ?? -1;
-    const next = cur + 1 >= photos.length ? -1 : cur + 1;
+    const next = to !== undefined ? to : cur + 1 >= photos.length ? -1 : cur + 1;
     const nextPicks = picksRef.current.slice();
     nextPicks[index] = next;
     picksRef.current = nextPicks;
@@ -441,6 +441,19 @@ export function PostPack({ data }: { data: PostData }) {
                   {swappable ? (picks[i] >= 0 ? ` · photo ${picks[i] + 1}` : " · plain") : ""}
                 </span>
                 <span style={{ display: "flex", gap: 14, flex: "none" }}>
+                  {/* One tap to the version with no picture (and back), so
+                   * the plain sticker is a button, not a hunt through the
+                   * photos (owner ask, 2026-09-05). */}
+                  {swappable && (
+                    <button
+                      type="button"
+                      className="pk-save"
+                      onClick={() => void swapPhoto(i, picks[i] >= 0 ? -1 : 0)}
+                      disabled={!out || working !== null}
+                    >
+                      {picks[i] >= 0 ? "Plain" : "Photo"}
+                    </button>
+                  )}
                   {canCopy && (
                     <button
                       type="button"

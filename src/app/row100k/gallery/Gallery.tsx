@@ -6,9 +6,11 @@ import { Lightbox } from "../Lightbox";
 import { uploadThumbForKey } from "../PhotoPair";
 
 /* `src` is what the grid tile renders (the thumb when one exists, else the
- * full image); `full` is what the lightbox shows. `key` is the R2 object key
- * for photos the owner uploaded — null for the legacy public/ batch, which
- * ships inside the deploy and therefore can't be deleted at runtime. */
+ * full image); `full` is what the lightbox shows. Both are stable public CDN
+ * URLs (or deploy-relative paths for the legacy batch), so the browser keeps
+ * them across visits. `key` is the R2 object key for photos the owner
+ * uploaded — null for the legacy public/ batch, which ships inside the
+ * deploy and therefore can't be deleted at runtime. */
 export type GalleryPhoto = { src: string; full: string; alt: string; key: string | null };
 
 /* Owner-only upload strip on the black band. Each file goes sign → PUT
@@ -188,7 +190,18 @@ export function Gallery({ photos, admin }: { photos: GalleryPhoto[]; admin: bool
               aria-label={`${p.alt} — open viewer`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.src} alt={p.alt} loading="lazy" />
+              <img
+                src={p.src}
+                alt={p.alt}
+                loading="lazy"
+                // Thumb presence comes from a listing cached for minutes, so
+                // a thumb removed or never written in the gap degrades to the
+                // full export — once, never a loop on a dead full frame.
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.getAttribute("src") !== p.full) img.src = p.full;
+                }}
+              />
             </button>
           ))}
         </div>

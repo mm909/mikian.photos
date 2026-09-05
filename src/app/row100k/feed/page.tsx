@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { activeBlackout } from "@/lib/blackout";
+import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { resolvePhotoMedia } from "../photoUrls";
 import {
   CHALLENGE,
@@ -8,7 +10,9 @@ import {
   fmtRowerNumber,
   fmtSplit,
 } from "@/lib/row100k";
+import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
+import { boardView, EMPTY_BOARDS } from "../boardData";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { FeedViews, type FeedItem } from "./FeedViews";
@@ -72,6 +76,7 @@ type SearchParams = { [key: string]: string | string[] | undefined };
 
 type EntryWithParticipant = {
   id: string;
+  participantId: string;
   meters: number;
   seconds: number;
   title: string;
@@ -116,6 +121,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       take: PAGE,
       select: {
         id: true,
+        participantId: true,
         meters: true,
         seconds: true,
         title: true,
@@ -128,27 +134,70 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     console.error("row100k/feed: failed to load feed data", err);
   }
 
+  // Blackout: a row by one of the hidden fifteen shows blocks for its
+  // meters AND its time, and no split (any two of the three give the
+  // third; the owner's rule, 2026-09-05, after the feed was found still
+  // printing elite times). The set is
+  // the board's own, as THIS viewer sees it — self and admins exempt
+  // (row100kViewer.maskedIds over boardView). A board failure while a
+  // window is open hides every row rather than guess: the feed cannot know
+  // which rowers are elite without it.
+  const viewer = await resolveViewer();
+  let blackout: { active: boolean; endsAt?: string } = { active: false };
+  let hidden = new Set<string>();
+  let hideAll = false;
+  try {
+    const view = await boardView(viewOpts(viewer));
+    blackout = view.blackout;
+    hidden = maskedIds(view.boards);
+  } catch (err) {
+    console.error("row100k/feed: failed to load board data for the blackout", err);
+    // The window state lives in its own table and activeBlackout() never
+    // throws, so the fail-closed hide fires only while a window is actually
+    // open — a plain board hiccup outside one must not black out the feed.
+    blackout = await activeBlackout();
+    hideAll = blackout.active && !viewer.isAdmin;
+    if (hideAll) {
+      console.warn("row100k/feed: board unreadable during a blackout window — hiding every row but the viewer's own");
+    }
+    hidden = maskedIds(EMPTY_BOARDS);
+  }
+  const isHidden = (participantId: string) =>
+    (hideAll && participantId !== viewer.myParticipantId) || hidden.has(participantId);
+
   // Resolve photo media (rows keep the rower photo at index 0) — each photo
-  // carries its full URL plus a thumb URL when the thumb object exists (the
-  // 64px strip prefers the thumb; legacy photos fall back to full). Rows
-  // whose photos can't resolve still show as text strips with the
-  // placeholder square holding the left edge.
+  // carries its full URL plus its thumb URL, both plain public CDN strings
+  // built without touching R2 (the 64px strip renders the thumb and swaps in
+  // the full frame if it ever 404s). The Prisma query above is this page's
+  // only network wait. Rows whose photos can't resolve still show as text
+  // strips with the placeholder square holding the left edge.
   const photoMedia = await Promise.all(entries.map((e) => resolvePhotoMedia(e.photos)));
 
-  const items: FeedItem[] = entries.map((e, i) => ({
-    id: e.id,
-    // Absolute Pacific stamp of when the row LANDED — no relative time.
-    whenStr: stampWhen(e.createdAt),
-    absIso: e.createdAt.toISOString(),
-    rowerNumber: e.participant.rowerNumber,
-    numStr: fmtRowerNumber(e.participant.rowerNumber),
-    name: e.participant.displayName,
-    metersStr: fmtMeters(e.meters),
-    durationStr: fmtDuration(e.seconds),
-    splitStr: fmtSplit(e.meters, e.seconds),
-    title: e.title,
-    photos: photoMedia[i],
-  }));
+  const items: FeedItem[] = entries.map((e, i) => {
+    const masked = isHidden(e.participantId);
+    return {
+      id: e.id,
+      // Absolute Pacific stamp of when the row LANDED — no relative time.
+      whenStr: stampWhen(e.createdAt),
+      absIso: e.createdAt.toISOString(),
+      rowerNumber: e.participant.rowerNumber,
+      numStr: fmtRowerNumber(e.participant.rowerNumber),
+      name: e.participant.displayName,
+      // A hidden row carries NO meters, time or split string — FeedViews is
+      // a client component, and none of the numbers may reach the browser.
+      // Only their shapes travel: the digit count and the time silhouette.
+      metersStr: masked ? "" : fmtMeters(e.meters),
+      durationStr: masked ? "" : fmtDuration(e.seconds),
+      splitStr: masked ? "" : fmtSplit(e.meters, e.seconds),
+      title: e.title,
+      photos: photoMedia[i],
+      masked,
+      digits: masked ? digitCount(e.meters) : undefined,
+      timeShape: masked ? clockShape(e.seconds) : undefined,
+    };
+  });
+  const anyHidden = items.some((it) => it.masked);
+  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   const full = entries.length === PAGE;
   const olderCursor = full
@@ -161,13 +210,23 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       <style>{css}</style>
       <style>{feedCss}</style>
 
-      <RowBar active="feed" />
+      <RowBar active="feed" {...barProps(viewer)} />
 
       <section>
         <div className="wrap">
           <div className="sec-head">
             <h2>The feed</h2>
-            <span className="mono">EVERY ROW, AS IT LANDS</span>
+            {/* The eyebrow doubles as the blackout line — the feed has no
+                tab row for the board's note to sit under. */}
+            <span className="mono">
+              {anyHidden
+                ? hideAll
+                  ? `BLACKOUT — ROWS HIDDEN${until}`
+                  : `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+                : blackout.active
+                  ? `BLACKOUT ON${until} — YOU SEE EVERYTHING`
+                  : "EVERY ROW, AS IT LANDS"}
+            </span>
           </div>
 
           {items.length === 0 ? (
