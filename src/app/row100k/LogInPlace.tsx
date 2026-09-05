@@ -64,6 +64,18 @@ export function LogInPlace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // /row100k#log (the account menu's LOG A ROW) lands here with the form
+  // already open — the browser scrolls to the id, this opens the seam. Also
+  // answers a hash change on a page that is already up.
+  useEffect(() => {
+    const openIfAsked = () => {
+      if (window.location.hash === "#log" && phase !== "closed") setOpen(true);
+    };
+    openIfAsked();
+    window.addEventListener("hashchange", openIfAsked);
+    return () => window.removeEventListener("hashchange", openIfAsked);
+  }, [phase]);
+
   const onLogged = (entry: { day: string; meters: number; seconds: number; title?: string }) => {
     // Fold into the previous fold-in, not the props — a second quick log
     // before the first refresh lands must keep both rows on the card.
@@ -87,7 +99,7 @@ export function LogInPlace({
   };
 
   return (
-    <div className="front-act">
+    <div className="front-act" id="log" style={{ scrollMarginTop: 72 }}>
       <div className="act-row front">
         {phase !== "closed" && (
           <OptIn onClick={() => setOpen((v) => !v)}>Log a row</OptIn>

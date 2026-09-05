@@ -56,6 +56,12 @@ export function BarAccount({
           <div className="acct-panel" role="menu">
             {rowerNumber !== null ? (
               <>
+                {/* The one thing a rower comes back for — first in the menu
+                 * (owner call, 2026-09-05). #log opens the in-place form on
+                 * the front page. */}
+                <Link className="acct-item" href="/row100k#log" onClick={close}>
+                  Log a row →
+                </Link>
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>

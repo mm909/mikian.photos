@@ -124,12 +124,11 @@ html:has(.row100k){scroll-behavior:smooth}
  * and 100px is where 965px fills the 1000px measure. */
 .row100k .wrap.front{max-width:1040px}
 .row100k .front-head{padding:26px 0 0}
-.row100k .front-head h1{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(36px,calc(14.5vw - 6px),100px);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.12em}
-.row100k .front-head .yr{display:block}
+.row100k .front-head h1{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,calc(10vw - 4px),100px);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.12em;white-space:nowrap}
+.row100k .front-head .yr{display:inline}
 .row100k .front-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px}
 @media(min-width:561px){
   .row100k .front-head h1{font-size:min(calc(10.2vw - 4px),100px)}
-  .row100k .front-head .yr{display:inline}
 }
 /* Front-page sections sit tighter than the inside pages (52px). */
 .row100k section.fs{padding:28px 0 0}
