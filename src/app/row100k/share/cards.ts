@@ -1,10 +1,13 @@
 import {
+  END_MS,
   dayTicks,
   daysElapsed,
+  fmtDay,
   fmtDuration,
   fmtMeters,
   fmtRowerNumber,
   fmtSplit,
+  nowMs,
   type RecordBadge,
 } from "@/lib/row100k";
 import { ELITE_LABEL, clockShape, digitCount, shapeOf } from "@/lib/blackoutRules";
@@ -405,6 +408,51 @@ function spanFor(days: number | undefined): number {
   return Math.min(30, Math.max(1, Math.round(days ?? daysElapsed())));
 }
 
+/* Which byDay key a card means by "today". The day count the page already
+ * handed over IS the clock: `days` is daysElapsed() read once by the page
+ * (1..30), so day 6 is "2026-09-06" and the drawing stays pure — two cards
+ * painted from one payload can never disagree about what day it is, and a
+ * card saved at 11:59 says the same thing as the page behind it.
+ *
+ * With no `days` at all the card falls back to the LAST day byDay actually
+ * carries. That is the most recent day with meters on it, which is only
+ * really today when the rower rowed today — the honest reading of a payload
+ * that never says what day it is. Every surface that matters passes `days`
+ * (page.tsx -> Dashboard, r/[num]/page.tsx, StatsShare); the dev preview
+ * does not, and there the card names its mock month's last logged day. */
+function todayKey(byDay: Record<string, number>, days: number | undefined): string | null {
+  if (typeof days === "number" && Number.isFinite(days)) {
+    const d = Math.min(30, Math.max(1, Math.round(days)));
+    return `2026-09-${String(d).padStart(2, "0")}`;
+  }
+  // "YYYY-MM-DD" sorts lexically, so the last key is the latest day.
+  const logged = Object.keys(byDay).sort();
+  return logged.length > 0 ? logged[logged.length - 1] : null;
+}
+
+/* Meters logged on that day — 0 when the day is empty or unknown, which is
+ * what keeps a card reading "0 METERS TODAY" out of the menu. */
+function metersToday(byDay: Record<string, number>, days: number | undefined): number {
+  const key = todayKey(byDay, days);
+  return key ? Math.max(0, byDay[key] ?? 0) : 0;
+}
+
+/* Is September still running? The word TODAY is the one claim in this family
+ * that expires. daysElapsed() pins to 30 from Sep 30 onward and stays there
+ * forever, so without this gate both day cards would go on offering Sep 30's
+ * meters under "METERS TODAY" through the Oct 1–3 late-log window and every
+ * archive view after it — the rest of the family are September statements
+ * that stay true for good (review, 2026-09-06).
+ *
+ * The clock lives HERE, in the menu predicate, and never in a draw: a card
+ * that is offered paints the same picture whenever it is painted. Safe for
+ * the server render too — availableCards has one caller (ShareMenu), and the
+ * chip list it feeds only renders inside a dialog the rower has opened, so no
+ * server HTML depends on the answer. */
+function monthIsRunning(): boolean {
+  return nowMs() < END_MS;
+}
+
 /* A rounded rectangle path — roundRect is still missing from a few WebViews
  * the share sheet runs in, so the corners are drawn by hand. */
 function roundRectPath(
@@ -587,6 +635,74 @@ const rowtemberTotal: ShareCard = {
       size: 112,
       fontFamily: fonts.black,
       box: (top10 && medalColor(top10.place)) || undefined,
+    });
+  },
+};
+
+/* The total card's twin, one day wide: the meters logged TODAY, the label,
+ * the mark. The card you post straight after the row, when the season total
+ * is not the news — same 1080x620 stage, same figure baseline, same shrink-
+ * to-fit, so the two read as one pair.
+ *
+ * No place and no medal on the mark: a standing is the total's story, and a
+ * day's meters next to "#3" would read as a place in a race that isn't run.
+ *
+ * Out of the menu on a day with nothing logged — a card saying 0 is worse
+ * than no card at all — and out of the menu once the month is over, when
+ * there is no today left to have rowed (monthIsRunning). */
+const rowtemberToday: ShareCard = {
+  id: "rowtember-today",
+  label: "Today",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => monthIsRunning() && metersToday(d.byDay, d.days) > 0,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    const meters = metersToday(data.byDay, data.days);
+    if (meters <= 0) return;
+
+    // Blackout: blocks for the figure, exactly as the total card draws them
+    // — the day is the season total by another route once you have a few of
+    // them. The count comes off TODAY's number: `data.digits` is the SEASON
+    // total's digit count (six blocks for a four-figure day), so reusing it
+    // would tell the reader the wrong size of number.
+    const digits = digitCount(meters);
+    const metersText = meters.toLocaleString("en-US");
+    const maxW = this.width - 90;
+    let mSize = 210;
+    const lineW = () => {
+      if (data.masked) return blockDigitsWidth(ctx, digits, mSize, fonts);
+      ctx.font = `${mSize}px ${fonts.black}`;
+      return ctx.measureText(metersText).width;
+    };
+    while (mSize > 110 && lineW() > maxW) mSize -= 6;
+
+    if (data.masked) {
+      drawBlockDigits(ctx, cx - lineW() / 2, 250, digits, mSize, fonts);
+    } else {
+      drawCenteredText(ctx, metersText, {
+        cx,
+        baseline: 250,
+        font: `${mSize}px ${fonts.black}`,
+        color: "#ffffff",
+        maxWidth: maxW,
+      });
+    }
+
+    drawCenteredText(ctx, "METERS TODAY", {
+      cx,
+      baseline: 318,
+      font: `38px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 9,
+    });
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 470,
+      size: 112,
+      fontFamily: fonts.black,
     });
   },
 };
@@ -1436,6 +1552,78 @@ const rowtemberCommunityTotal: ShareCard = {
   },
 };
 
+/* The community total, one day wide: everyone's combined meters TODAY, with
+ * the day named under the label the way the bar chart names its axis (SEP 6
+ * — fmtDay, uppercased, the same mono line the month card spends on ROWERS
+ * TOGETHER). A day's number is meaningless without the day on it, and this
+ * is the card that goes out at night.
+ *
+ * Nothing is masked here, ever: the hidden fifteen's meters are inside this
+ * number and nothing on the card says whose, so the aggregate stays the
+ * public number it is on the board. Out of the menu until the day has
+ * meters in it, and out of it again once the month is over — the day line
+ * would keep reading SEP 30 under TODAY otherwise (monthIsRunning). */
+const rowtemberCommunityToday: ShareCard = {
+  id: "rowtember-community-today",
+  label: "Today",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) =>
+    monthIsRunning() &&
+    !!d.community &&
+    metersToday(d.community.byDay, d.community.days ?? d.days) > 0,
+  draw(ctx, data, fonts) {
+    const community = data.community;
+    if (!community) return;
+    const cx = this.width / 2;
+    const key = todayKey(community.byDay, community.days ?? data.days);
+    if (!key) return;
+    const meters = Math.max(0, community.byDay[key] ?? 0);
+    if (meters <= 0) return;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 88,
+      fontFamily: fonts.black,
+    });
+
+    // Same shrink-to-fit as the community total; digits only, so no ellipsis.
+    const metersText = meters.toLocaleString("en-US");
+    const maxW = this.width - 90;
+    let mSize = 210;
+    ctx.font = `${mSize}px ${fonts.black}`;
+    while (mSize > 110 && ctx.measureText(metersText).width > maxW) {
+      mSize -= 6;
+      ctx.font = `${mSize}px ${fonts.black}`;
+    }
+    // The stack sits a notch higher than the total card's to make room for
+    // the date line without crowding the bottom edge.
+    drawCenteredText(ctx, metersText, {
+      cx,
+      baseline: 430,
+      font: `${mSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: maxW,
+    });
+    drawCenteredText(ctx, "METERS TODAY", {
+      cx,
+      baseline: 498,
+      font: `34px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 9,
+    });
+    drawCenteredText(ctx, fmtDay(key).toUpperCase(), {
+      cx,
+      baseline: 546,
+      font: `28px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.9)",
+      tracking: 5,
+    });
+  },
+};
+
 /* The community's cumulative line — same vocabulary as the personal curve,
  * but no 100k pace line: at this scale there's no finish to race. */
 const rowtemberCommunityCurve: ShareCard = {
@@ -1990,6 +2178,7 @@ export const CARDS: ShareCard[] = [
   rowtemberRowFull,
   rowtemberBest,
   rowtemberTotal,
+  rowtemberToday,
   rowtemberNamed,
   rowtemberProfile,
   // The personal curve card is retired (owner call, 2026-09-05: "the curve
@@ -2001,6 +2190,7 @@ export const CARDS: ShareCard[] = [
   rowtemberLogo,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
+  rowtemberCommunityToday,
   rowtemberCommunityCurve,
   rowtemberCommunityDaily,
   rowtemberCommunityHours,

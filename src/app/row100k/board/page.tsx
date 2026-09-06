@@ -132,13 +132,15 @@ export default async function BoardPage() {
           <div className="wrap front">
             <div className="sec-head">
               <h2>The board</h2>
-              <span className="mono">
-                {nowMs >= LOG_CLOSE_MS
-                  ? "FINAL"
-                  : nowMs >= END_MS
-                    ? "CLOSING — LATE LOGS THROUGH OCT 3"
-                    : "LIVE — UPDATES AS ROWS LAND"}
-              </span>
+              {/* Nothing to say while the month is running (owner,
+               * 2026-09-06: the LIVE line came out) — a board that is up
+               * is live, and the eyebrow only earns its place once the
+               * month is closing or closed. */}
+              {nowMs >= END_MS && (
+                <span className="mono">
+                  {nowMs >= LOG_CLOSE_MS ? "FINAL" : "CLOSING — LATE LOGS THROUGH OCT 3"}
+                </span>
+              )}
             </div>
             {/* Only the slices the board reads. Boards is a client
              * component, so whatever is handed in is serialized into the

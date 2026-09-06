@@ -109,6 +109,11 @@ export default function Row100kPreview({
             meters,
             sessions: MOCK_ROWS.length,
             byDay,
+            /* The mock month's clock: Sep 20 is its last logged day and the
+             * one the panel opens on (defaultDay below), so the cards that
+             * read a day — the calendar's frame, "METERS TODAY" — line up
+             * with the rest of the preview instead of the real date. */
+            days: 20,
             division: "M",
             longest: Math.max(...MOCK_ROWS.map((r) => r.meters)),
             rank: { place: 3, of: 14 },

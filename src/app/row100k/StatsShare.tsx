@@ -16,6 +16,10 @@ import type { ShareData } from "./share/cards";
 export const COMMUNITY_CARD_IDS = [
   "rowtember-community-month",
   "rowtember-community-total",
+  // Everyone's meters today. This list is the `only` filter for every
+  // community picker on the site, so a card missing from it is a card no
+  // page can open, however available it says it is (review, 2026-09-06).
+  "rowtember-community-today",
   "rowtember-community-curve",
   "rowtember-community-daily",
   "rowtember-community-hours",

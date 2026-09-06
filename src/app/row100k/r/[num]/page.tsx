@@ -32,7 +32,7 @@ import { resolvePhotoMedia } from "../../photoUrls";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import { Profile } from "./looks/Profile";
-import type { ProfileBest, ProfileView } from "./looks/view";
+import type { ProfileBest, ProfileView, RosterRower } from "./looks/view";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +77,28 @@ const getRower = cache(async (num: number) => {
   return { participant, entries };
 });
 
+/* The roster the nameplate search reads (looks/RowerSearch.tsx): every
+ * rower in the challenge by number and name. A hundred rows of three
+ * public fields, read here on the server and passed down — no API route,
+ * no client fetch.
+ *
+ * The select is the whole guard, so keep it exactly this wide: names,
+ * numbers and boards are always public (blackoutRules.ts), and the list
+ * goes to a client component, so one meters or seconds field added here
+ * would publish a figure for all hundred rowers, the hidden fifteen
+ * included. It is NOT read off boardData: that cached object carries every
+ * number on the board, and the roster must never be a reason to widen it.
+ * cache() here is React's per-request dedupe and nothing more — a second
+ * call inside one render is free, and every request still reads the live
+ * roster, which is what a page that is already force-dynamic wants. */
+const getRoster = cache(async (): Promise<RosterRower[]> =>
+  db.rowParticipant.findMany({
+    where: { challenge: CHALLENGE },
+    select: { rowerNumber: true, displayName: true, division: true },
+    orderBy: { rowerNumber: "asc" },
+  }),
+);
+
 function parseNum(raw: string): number | null {
   const n = Number(raw);
   return Number.isInteger(n) && n >= 1 && n <= 999999 ? n : null;
@@ -98,10 +120,23 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   if (!data) notFound();
   const { participant: p, entries } = data;
 
-  // Who is looking. Their own page carries the logging station; admins see
-  // the real numbers everywhere but otherwise get the visitor's page plus
-  // the share button — their tools moved to /row100k/moderation.
-  const viewer = await resolveViewer();
+  // The roster for the nameplate search, and who is looking. Together, not
+  // one after the other: the roster is only read for a panel most visitors
+  // never open, so it must not add a round trip to the time this page takes
+  // to answer (review, 2026-09-06). A roster failure costs the search and
+  // nothing else — the name stays a control, the panel says the roster
+  // could not be read.
+  //
+  // The viewer decides the page: their own carries the logging station;
+  // admins see the real numbers everywhere but otherwise get the visitor's
+  // page plus the share button — their tools moved to /row100k/moderation.
+  const [roster, viewer] = await Promise.all([
+    getRoster().catch((err) => {
+      console.error(`row100k: failed to load the roster for the name search (rower ${num})`, err);
+      return [] as RosterRower[];
+    }),
+    resolveViewer(),
+  ]);
   const isAdmin = viewer.isAdmin;
   const isMe = viewer.myParticipantId === p.id;
 
@@ -317,6 +352,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // once; Profile.tsx only lays it out.
   const view: ProfileView = {
     rower: p,
+    roster,
     isMe,
     isAdmin,
     masked,

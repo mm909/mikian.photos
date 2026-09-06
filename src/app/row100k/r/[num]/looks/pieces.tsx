@@ -10,13 +10,15 @@ import { ProfileShare } from "../../../ProfileShare";
 import { BestsTables } from "./BestsTables";
 import { BestsTablesShare } from "./BestsTablesShare";
 import { MyLog } from "./MyLog";
+import { RowerSearch } from "./RowerSearch";
 import type { ProfileView } from "./view";
 
 /* The pieces the profile (Profile.tsx) is built from — server components,
  * all of them, so the raw numbers in the view never leave the server
  * except through the client components this file mounts on purpose:
  * LogInPlace and MyLog (the rower's own page only), BestsTablesShare (a
- * profile that is not masked), ProfileLog (rows the page already blanked).
+ * profile that is not masked), ProfileLog (rows the page already blanked),
+ * RowerSearch (the roster, which is numbers and names and nothing else).
  *
  * Every number of the rower's goes through Num / Clock below, which draw
  * blocks while the viewer is masked (blackoutRules.ts), so the layout
@@ -63,15 +65,22 @@ function dateline(view: ProfileView): string {
 }
 
 /* The nameplate: number and name in the front page's masthead face, one
- * step smaller, over a hairline; the dateline in the front page's mono. */
+ * step smaller, over a hairline; the dateline in the front page's mono.
+ *
+ * The NAME is also the way off this page (owner ask, 2026-09-06: tap the
+ * name and search for someone) — so the head itself is RowerSearch, a
+ * client component: the number stays plain text, the name carries the
+ * caret and drops the search panel under the dateline. The dateline is
+ * still computed and rendered here, on the server, and handed in. */
 export function Nameplate({ view }: { view: ProfileView }) {
   return (
-    <div className="pf-head">
-      <h1 className="pf-name">
-        <span className="num">{fmtRowerNumber(view.rower.rowerNumber)}</span> {view.rower.displayName}
-      </h1>
+    <RowerSearch
+      rowerNumber={view.rower.rowerNumber}
+      displayName={view.rower.displayName}
+      roster={view.roster}
+    >
       <p className="pf-date mono">{dateline(view)}</p>
-    </div>
+    </RowerSearch>
   );
 }
 

@@ -35,6 +35,25 @@ export type ProfileBest = {
 
 export type ProfilePhase = "before" | "open" | "closed";
 
+/* One line of the roster the nameplate search reads (RowerSearch.tsx) —
+ * every rower in the challenge, by the two things that are ALWAYS public
+ * (blackoutRules.ts): the number and the name. Division rides along because
+ * it is the board a rower is on, not a figure of theirs.
+ *
+ * This type is the guard: it has no meters, seconds, place, split or tier
+ * field and must never grow one. The whole roster is handed to a CLIENT
+ * component, so anything added here is published for all hundred rowers,
+ * the blacked-out fifteen included — and a hidden rower publishes no
+ * number of their own. Number, name and board are not numbers of theirs. */
+export type RosterRower = {
+  rowerNumber: number;
+  displayName: string;
+  /* "M" / "F" — which board they row on. Carried, not printed: the search
+   * list is the board idiom, number then name, and a division tag beside a
+   * name reads like a standing. Here for the day one is wanted. */
+  division: string;
+};
+
 export type ProfileView = {
   rower: {
     id: string;
@@ -43,6 +62,13 @@ export type ProfileView = {
     instagram: string;
     division: string;
   };
+  /* Every rower, for the search that opens off the name in the nameplate
+   * (owner ask, 2026-09-06: tap the name, find someone else). It lives on
+   * the view rather than beside it because Profile.tsx takes exactly one
+   * prop and hands it down; a second prop would have to be threaded through
+   * the layout to reach one piece. Public by construction — see
+   * RosterRower. */
+  roster: RosterRower[];
   isMe: boolean;
   isAdmin: boolean;
   /* Blackout (blackoutRules.ts): this viewer sees blocks wherever one of

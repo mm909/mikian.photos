@@ -22,7 +22,19 @@ const SCALE = 0.25;
  * unlock EVERY card's available() gate so nothing in the registry is missing
  * from the catalogue. These numbers are illustrative — the point of this page
  * is what each card looks like, not what it currently says. `masked` is the
- * same rower under a blackout, for the cards that change shape then. */
+ * same rower under a blackout, for the cards that change shape then.
+ *
+ * The last day of the sample month has to be a ROWED day, for both the
+ * rower and the community: the two Today cards read day `SAMPLE_DAYS` out
+ * of byDay and drop out of the menu when it is empty, so a rest day here
+ * would quietly empty two slots in the catalogue. 21 is not a multiple of
+ * six, which is where the rest days fall below.
+ *
+ * No sample can hold those two open past Sep 30, though: both Today cards
+ * also close their available() gate when the month ends (cards.ts,
+ * monthIsRunning), and this page paints only what available() allows. From
+ * October the catalogue is two cards shorter, on purpose — the same two
+ * nobody can share any more. */
 const SAMPLE_DAYS = 21;
 
 function sampleData(masked = false): ShareData {
@@ -108,6 +120,10 @@ function sampleData(masked = false): ShareData {
  * with the masked sample so the owner can check the blocks. */
 const BLACKOUT_IDS = [
   "rowtember-total",
+  // The day card blocks its figure too, and sizes the run off the DAY's
+  // digits — four blocks against the total card's six, which is the thing
+  // to check by eye here.
+  "rowtember-today",
   "rowtember-named",
   "rowtember-profile",
   "rowtember-club",
@@ -195,7 +211,12 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
   const ordered = CARDS.filter(
     (c) => !c.available || c.available(plain) || c.available(dark),
   ).sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
-  const blackout = CARDS.filter((c) => BLACKOUT_IDS.includes(c.id));
+  /* Same gate as the row above: a blackout twin of a card the masked sample
+   * cannot unlock (the day card, once September is over) would paint an
+   * empty stage. */
+  const blackout = CARDS.filter(
+    (c) => BLACKOUT_IDS.includes(c.id) && (!c.available || c.available(dark)),
+  );
 
   return (
     <>

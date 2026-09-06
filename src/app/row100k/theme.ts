@@ -864,6 +864,54 @@ html:has(.row100k){scroll-behavior:smooth}
 }
 
 /* ----------------------------------------------------------------------
+ * FIND A ROWER, off the nameplate (looks/RowerSearch.tsx — owner ask,
+ * 2026-09-06: tap the name and search for someone). The NAME is the
+ * control, in the headline face it already had: no box, no button chrome,
+ * only a small water caret after it — the account chip idiom at masthead
+ * size — and water on hover. The number beside it stays plain text.
+ *
+ * The panel is the account menu (BarAccount.tsx) hung under the head:
+ * paper, a 2px ink border, over a full-screen overlay so a click anywhere
+ * else shuts it. Square and flat, no shadow.
+ *
+ * Both sit UNDER the sticky bar (z-index 50), which is why the panel has
+ * its own overlay instead of borrowing .acct-overlay: 55 is right for a
+ * menu that hangs off the bar and wrong for a panel that belongs to the
+ * page — that one has to scroll behind the masthead the way the page does,
+ * not paint over the wordmark on the way past (review, 2026-09-06).
+ *
+ * Inside, a mono field on a 2px ink underline — 16px, because anything
+ * under 16 makes iOS Safari zoom the whole page the moment the field takes
+ * focus, and this field focuses itself — then the matches as board rows:
+ * grey mono number, name in bold sans, dashed hairlines. */
+.row100k .pf-head{position:relative}
+.row100k .pf-find-btn{cursor:pointer;overflow-wrap:anywhere}
+.row100k .pf-find-btn:hover{color:var(--water)}
+.row100k .pf-find-btn:focus-visible{outline:2px solid var(--water);outline-offset:3px}
+.row100k .pf-find-caret{font-family:var(--row-mono),monospace;font-size:max(15px,.4em);line-height:1;letter-spacing:0;color:var(--water);margin-left:.28em;vertical-align:.3em}
+.row100k .pf-find-overlay{position:fixed;inset:0;z-index:30}
+.row100k .pf-find{position:absolute;top:100%;left:0;width:100%;max-width:420px;margin-top:12px;padding:14px 16px 8px;background:var(--paper);border:2px solid var(--ink);max-height:min(460px,max(180px,calc(100vh - 260px)));overflow-y:auto;z-index:40}
+.row100k .pf-find[hidden]{display:none}
+.row100k .pf-find-in{width:100%;background:transparent;border:0;border-bottom:2px solid var(--ink);padding:4px 0 8px;font-family:var(--row-mono),monospace;font-size:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.row100k .pf-find-in::placeholder{color:var(--gray);font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+.row100k .pf-find-in:focus{outline:0;border-bottom-color:var(--water)}
+.row100k .pf-find-list{list-style:none;margin-top:6px}
+.row100k .pf-find-row{display:flex;align-items:baseline;gap:12px;padding:10px 2px;border-bottom:1px dashed var(--line);color:var(--ink);text-decoration:none}
+.row100k .pf-find-list li:last-child .pf-find-row{border-bottom:0}
+.row100k .pf-find-row .n{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);font-variant-numeric:tabular-nums}
+.row100k .pf-find-row .nm{font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.row100k a.pf-find-row:hover .nm{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k a.pf-find-row:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
+.row100k .pf-find-row.self .nm{color:var(--ink-soft)}
+.row100k .pf-find-row .tag{margin-left:auto;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);white-space:nowrap}
+.row100k .pf-find-note,.row100k .pf-find-more{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);line-height:1.7;padding:12px 2px}
+.row100k .pf-find-more{border-top:1px dashed var(--line);padding:10px 2px}
+/* The count, for a screen reader only: the list swaps in silently as you
+ * type, so the live region says how many came back. Off-screen rather than
+ * printed — on the page the list IS the answer (review, 2026-09-06). */
+.row100k .pf-find-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;white-space:nowrap;clip-path:inset(50%)}
+
+/* ----------------------------------------------------------------------
  * The feed (feed/ — the strips, the owner pick of 2026-09-05): the
  * profile language on the ticker. THE FEED as a nameplate over a
  * hairline with a mono dateline that carries the blackout line, the one
