@@ -117,7 +117,7 @@ export default async function RecordRankingPage({
           {(blackout.active || hidden.size > 0) && (
             <p className="bo-note">
               {hidden.size > 0
-                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.key === "total" ? " · LISTED BY DIGITS" : ""}`
                 : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
             </p>
           )}
@@ -148,7 +148,13 @@ export default async function RecordRankingPage({
                       key={r.row.participantId}
                       className={r.row.participantId === viewer.myParticipantId ? "fin" : undefined}
                     >
-                      <td className="rk">{i + 1}</td>
+                      {/* The places half of the rule: on TOTAL METERS one of
+                          the hidden fifteen carries no place at all, so the
+                          cell is empty (it keeps the column) and the rows
+                          from sixteen down still read their real place off
+                          the index. The other four boards are untouched —
+                          a fastest-5k place is not the meters ranking. */}
+                      <td className="rk">{r.unranked ? "" : i + 1}</td>
                       <td>
                         {/* Who is a client component (Boards.tsx), so every
                             prop it gets is serialized into the page source —

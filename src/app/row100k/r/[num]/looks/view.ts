@@ -54,7 +54,8 @@ export type ProfileView = {
   club: boolean;
   /* The challenge clock, for the dateline. */
   phase: ProfilePhase;
-  /* September days elapsed — the calendar stops here. */
+  /* September days elapsed (never below 1) — the calendar stops here, and
+   * METERS A DAY in the ledger divides the total by it. */
   days: number;
   totals: {
     meters: number;
@@ -63,11 +64,20 @@ export type ProfileView = {
      * 2026-09-05: how long they have spent rowing matters). */
     seconds: number;
     longest: number;
-    daysRowed: number;
   };
   /* Standing on total meters within the division — cosmetic, off the
-   * cached board; undefined when the board could not be read. */
+   * cached board; undefined when the board could not be read. Null for one
+   * of the hidden fifteen (see `elite`), who does hold a place. */
   rank: { place: number; of: number } | null | undefined;
+  /* Blackout, the PLACES half (blackoutRules.ts): this rower is one of the
+   * hidden fifteen on the board as THIS viewer sees it — the rower themself
+   * included, admins excepted, whose board is ranked — so `rank` is null
+   * though they hold a place, and the ledger says ELITE 15 in its stead
+   * rather than a dash (with the division dropped from the label: the
+   * fifteen are cut off the combined board). False when the board cannot be
+   * read at all: the page still masks the numbers, but it will not badge a
+   * rower it cannot place, so the ledger dashes instead. */
+  elite: boolean;
   bests: ProfileBest[];
   byDay: Record<string, number>;
   shareData: ShareData;

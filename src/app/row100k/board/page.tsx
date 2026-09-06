@@ -108,6 +108,11 @@ export default async function BoardPage() {
         meters: r.meters,
         masked: r.masked,
         digits: r.digits,
+        // The places half of the rule travels with the row: a hidden rower
+        // has no place on the sticker either. maskStandings sets this on
+        // the fifteen itself, so this only carries an already-masked
+        // board's intent forward — the map is not the reason it works.
+        unranked: r.unranked,
       })),
       { active: blackout.active, admin: false },
     ),

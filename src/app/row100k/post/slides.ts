@@ -18,11 +18,28 @@
  * DOM (same trick as share/ShareMenu.tsx) and hands them over.
  *
  * Slide size is 1080x1350 — Instagram 4:5, not the 1080x1080 the share
- * stickers use.
+ * stickers use. The story (1080x1920) is the SAME composition on a taller
+ * photo: the FRAME grows, the 1080x1350 box of type and decals does not, and
+ * the renderer drops that box into the middle of the taller frame. Nothing
+ * below is re-laid-out for it — only the photo bed, the ground and the scrim
+ * know the real frame, and they paint it edge to edge. Even there the scrim
+ * keeps the composition: it covers the frame, but its gradient is anchored to
+ * the 1350 band, so the darkening stays under the type it was drawn for.
  */
 
 export const SLIDE_W = 1080;
 export const SLIDE_H = 1350;
+
+/* The two frames the pack renders into (owner, 2026-09-05: "crop to story
+ * size and put the decals on those as well"). `suffix` goes on the filename
+ * so a story is never mistaken for a post; the post keeps the name it has
+ * always had. */
+export type SizeKey = "post" | "story";
+export type SlideSize = { key: SizeKey; label: string; w: number; h: number; suffix: string };
+export const SIZES: Record<SizeKey, SlideSize> = {
+  post: { key: "post", label: "Post 4:5", w: SLIDE_W, h: SLIDE_H, suffix: "" },
+  story: { key: "story", label: "Story 9:16", w: 1080, h: 1920, suffix: "-story" },
+};
 
 /* Palette, lifted straight from the approved design. The photo slides are
  * black and white through and through: the accent that used to be a matte
@@ -54,6 +71,11 @@ export type PostRow = {
    * tier floor and `digits` says how many blocks the board slide draws. */
   masked?: boolean;
   digits?: number;
+  /** Blackout, the places half: one of the hidden fifteen, who carries no
+   * place at all — the board slide prints no number and no medal for the
+   * row (maskBoards has already reordered them by digit count, then name,
+   * so their order on the slide is not a ranking either). */
+  unranked?: boolean;
 };
 export type PostRecord = {
   label: string;
@@ -64,6 +86,19 @@ export type PostRecord = {
    * split, "##,### m" for a distance), drawn as blocks on the stats slide. */
   masked?: boolean;
   shape?: string;
+};
+
+/* One club somebody joined in the last 24 hours (../post/clubJoins.ts). The
+ * label and threshold are a TIER's, so ".25M" and "500K" read the way the
+ * boards say them. `rowers` is never empty — a club nobody joined does not
+ * reach here, and a slide is never built for one. */
+export type PostClubJoin = {
+  /** The TIERS label: "50K", "100K", ".25M". */
+  label: string;
+  /** That tier's threshold, so the slide can order clubs without TIERS. */
+  meters: number;
+  /** Who crossed it in the window, earliest crossing first. */
+  rowers: PostRow[];
 };
 
 export type PostData = {
@@ -85,6 +120,9 @@ export type PostData = {
   club50: PostRow[];
   /** First rower over 100,000 m, by the crossing rule in ../firstToGoal. */
   first100k: PostRow | null;
+  /** Clubs joined in the last 24 hours, highest club first — empty when
+   * nobody crossed one, and then no welcome slide is built (./clubJoins). */
+  clubJoins: PostClubJoin[];
   /** Sessions logged per [September day][Pacific hour]. */
   hourGrid: number[][];
   /** Newest gallery photos, as stable public CDN URLs. */
@@ -305,6 +343,27 @@ function ellipsize(ctx: Ctx, text: string, maxW: number, font: string): string {
  * per digit, the block 0.54 wide and 0.92 tall on the baseline) — ported
  * rather than imported so this module keeps its own font helpers. Returns
  * the width so the name can yield to it. */
+/* Blocks are BLOCK_INK on these slides too (owner, 2026-09-05: black, not
+ * white, anywhere a hidden number shows), on a white halo so ink still
+ * reads over a night photo — the same treatment share/cards.ts gives them.
+ * Two halo passes, because one barely registers at 1080px. A caller that
+ * asks for another colour keeps it and gets no halo. */
+const BLOCK_INK = "#15171A";
+
+function blockHalo(ctx: Ctx, size: number, color: string, run: () => void): void {
+  if (color === BLOCK_INK) {
+    ctx.save();
+    ctx.shadowColor = "rgba(255,255,255,0.95)";
+    ctx.shadowBlur = Math.max(12, size * 0.24);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    run();
+    run();
+    ctx.restore();
+  }
+  run();
+}
+
 function drawBlocks(
   ctx: Ctx,
   right: number,
@@ -312,7 +371,7 @@ function drawBlocks(
   digits: number,
   size: number,
   font: string,
-  color: string,
+  color: string = BLOCK_INK,
 ): number {
   const count = Math.max(1, Math.floor(digits));
   const cell = size * 0.6;
@@ -324,15 +383,18 @@ function drawBlocks(
   ctx.fillStyle = color;
   const commaW = ctx.measureText(",").width;
   const width = count * cell + Math.floor((count - 1) / 3) * commaW;
-  let x = right - width;
-  for (let i = 0; i < count; i++) {
-    ctx.fillRect(x + gap / 2, baseline - size * 0.88, block, size * 0.92);
-    x += cell;
-    if (i < count - 1 && (count - i - 1) % 3 === 0) {
-      ctx.fillText(",", x, baseline);
-      x += commaW;
+  const startX = right - width;
+  blockHalo(ctx, size, color, () => {
+    let x = startX;
+    for (let i = 0; i < count; i++) {
+      ctx.fillRect(x + gap / 2, baseline - size * 0.88, block, size * 0.92);
+      x += cell;
+      if (i < count - 1 && (count - i - 1) % 3 === 0) {
+        ctx.fillText(",", x, baseline);
+        x += commaW;
+      }
     }
-  }
+  });
   return width;
 }
 
@@ -348,7 +410,7 @@ function drawBlockShape(
   shape: string,
   size: number,
   font: string,
-  color: string,
+  color: string = BLOCK_INK,
 ): number {
   const cell = size * 0.6;
   const gap = size * 0.06;
@@ -357,17 +419,21 @@ function drawBlockShape(
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = color;
-  let cx = x;
-  for (const ch of shape || "#") {
-    if (ch === "#") {
-      ctx.fillRect(cx + gap / 2, baseline - size * 0.88, block, size * 0.92);
-      cx += cell;
-    } else {
-      ctx.fillText(ch, cx, baseline);
-      cx += ctx.measureText(ch).width;
+  let end = x;
+  blockHalo(ctx, size, color, () => {
+    let cx = x;
+    for (const ch of shape || "#") {
+      if (ch === "#") {
+        ctx.fillRect(cx + gap / 2, baseline - size * 0.88, block, size * 0.92);
+        cx += cell;
+      } else {
+        ctx.fillText(ch, cx, baseline);
+        cx += ctx.measureText(ch).width;
+      }
     }
-  }
-  return cx - x;
+    end = cx;
+  });
+  return end - x;
 }
 
 function shadow(ctx: Ctx, color: string, blur: number, offsetY: number): void {
@@ -399,15 +465,52 @@ function drawCenteredStack(blocks: Block[]): void {
 
 /* --------------------------------------------------------------- photos */
 
-/* object-fit: cover. */
-function drawCover(ctx: Ctx, img: HTMLImageElement): void {
+/* The frame, not the composition box. Everything above lays out inside
+ * 1080x1350; the canvas underneath may be taller (the story). The ground,
+ * the picture and the scrim have to reach all four edges of the REAL canvas,
+ * so they paint in canvas space: the transform is reset for the duration,
+ * which undoes the renderer's translate of the composition box and puts them
+ * back on the corners.
+ *
+ * When the frame IS the composition box — the post, 1080x1350 — there is
+ * nothing to undo: the renderer's translate is (0,0) and canvas space is
+ * already frame space. That case runs straight through with no save /
+ * setTransform / restore around it, so the 4:5 slide executes the exact
+ * sequence of canvas calls it executed before the story existed. Not a
+ * micro-optimisation: with the pair in place the post render came back a
+ * shade off the old one along every shadowed edge (review, 2026-09-05), and
+ * "the 4:5 output is untouched" has to be true to the byte, not to the eye. */
+function inFrame(ctx: Ctx, run: (w: number, h: number) => void): void {
+  const w = ctx.canvas.width || SLIDE_W;
+  const h = ctx.canvas.height || SLIDE_H;
+  if (w === SLIDE_W && h === SLIDE_H) {
+    run(w, h);
+    return;
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  run(w, h);
+  ctx.restore();
+}
+
+/* A flat ground over the whole frame — the slides with no photograph. */
+function fillFrame(ctx: Ctx, color: string): void {
+  inFrame(ctx, (w, h) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
+/* object-fit: cover, on the frame it is handed — a portrait photo fills the
+ * taller story frame by losing its sides, which is the crop. */
+function drawCover(ctx: Ctx, img: HTMLImageElement, fw: number, fh: number): void {
   const iw = img.naturalWidth || img.width;
   const ih = img.naturalHeight || img.height;
   if (!iw || !ih) return;
-  const scale = Math.max(SLIDE_W / iw, SLIDE_H / ih);
+  const scale = Math.max(fw / iw, fh / ih);
   const w = iw * scale;
   const h = ih * scale;
-  ctx.drawImage(img, (SLIDE_W - w) / 2, (SLIDE_H - h) / 2, w, h);
+  ctx.drawImage(img, (fw - w) / 2, (fh - h) / 2, w, h);
 }
 
 /* filter: grayscale(1) contrast(1.04) brightness(1.32), applied by hand
@@ -416,8 +519,8 @@ function drawCover(ctx: Ctx, img: HTMLImageElement): void {
  * only safe because gallery images are loaded with crossOrigin=anonymous
  * against a bucket that allows GET; a tainted canvas would throw here rather
  * than later at toBlob(). */
-function toBlackAndWhite(ctx: Ctx): void {
-  const image = ctx.getImageData(0, 0, SLIDE_W, SLIDE_H);
+function toBlackAndWhite(ctx: Ctx, fw: number, fh: number): void {
+  const image = ctx.getImageData(0, 0, fw, fh);
   const px = image.data;
   for (let i = 0; i < px.length; i += 4) {
     // Rec.709 luminance, the sRGB matrix CSS grayscale() uses.
@@ -432,24 +535,40 @@ function toBlackAndWhite(ctx: Ctx): void {
   ctx.putImageData(image, 0, 0);
 }
 
-function scrim(ctx: Ctx, stops: [number, number][]): void {
-  const grad = ctx.createLinearGradient(0, 0, 0, SLIDE_H);
+/* The scrim COVERS the whole frame but is ANCHORED to the composition band.
+ * Its stops were chosen against the type they sit under — the board's 0.10
+ * window is where the list is lightest, the 0.42 at the top is what holds the
+ * title — and the type does not move when the frame grows, so the darkening
+ * must not either. Stretched over 1920 instead, the last board rows lost
+ * about a third of their scrim and the heaviest part of the vignette landed
+ * on the empty band above the title, where nothing needs contrast (review,
+ * 2026-09-05).
+ *
+ * So the gradient line runs the 1350 band and the fill runs the frame: canvas
+ * clamps a gradient to its first and last stop beyond the line, so the extra
+ * picture above and below keeps the composed end alphas (0.42 / 0.22 on the
+ * board) with no seam. At 4:5 `top` is 0 and this is the old call exactly. */
+function scrim(ctx: Ctx, stops: [number, number][], fw: number, fh: number): void {
+  const top = (fh - SLIDE_H) / 2;
+  const grad = ctx.createLinearGradient(0, top, 0, top + SLIDE_H);
   for (const [at, alpha] of stops) grad.addColorStop(at, `rgba(0,0,0,${alpha})`);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+  ctx.fillRect(0, 0, fw, fh);
 }
 
 /* Photo bed: the picture in black and white under its scrim. With no photo
  * (none uploaded, or the load failed) the slide keeps its dark ground so the
  * white type still reads. */
 function photoBed(ctx: Ctx, photo: HTMLImageElement | null, stops: [number, number][]): void {
-  ctx.fillStyle = "#23272b";
-  ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
-  if (photo) {
-    drawCover(ctx, photo);
-    toBlackAndWhite(ctx);
-  }
-  scrim(ctx, stops);
+  inFrame(ctx, (w, h) => {
+    ctx.fillStyle = "#23272b";
+    ctx.fillRect(0, 0, w, h);
+    if (photo) {
+      drawCover(ctx, photo, w, h);
+      toBlackAndWhite(ctx, w, h);
+    }
+    scrim(ctx, stops, w, h);
+  });
 }
 
 const BOARD_SCRIM: [number, number][] = [
@@ -512,6 +631,29 @@ function dottedRule(ctx: Ctx, y: number, left: number, right: number, color: str
 
 /* --------------------------------------------------------- 1-3: the board */
 
+/* THE ELITE FIFTEEN as the section line sets it — sentence case, like
+ * "The board · 11–20" it stands in for (same words as ELITE_LABEL in
+ * lib/blackoutRules.ts, which shouts them where the page shouts). */
+const ELITE_SECTION = "The Elite Fifteen";
+
+/* The dim line under the title. Twin of boardSectionLabel in
+ * share/cards.ts, kept here so the post pack does not pull the whole card
+ * registry into its bundle: all-hidden pages say the fifteen, a page that
+ * mixes hidden rows with real places says nothing about places (no range is
+ * true of all ten lines, and "11–20" over five blank places would be the
+ * ranking the rule just took away), everything else is the range. */
+export function boardSlideSection(rows: { unranked?: boolean }[], start: number): string {
+  if (rows.length > 0 && rows.every((r) => r.unranked)) return `The board · ${ELITE_SECTION}`;
+  if (rows.some((r) => r.unranked)) return "The board";
+  return `The board · ${start}–${start + 9}`;
+}
+
+/* The place column: blank for one of the hidden fifteen (they carry no
+ * place), the padded number otherwise. */
+export function boardSlidePlace(row: { unranked?: boolean }, place: number): string {
+  return row.unranked ? "" : pad2(place);
+}
+
 /* Ten places over a photo: bold mono title, dim section label, then a
  * place / name / meters list in white mono, each line carrying a soft shadow
  * so it stays legible on a bright frame. */
@@ -546,7 +688,7 @@ function drawBoardSlide(
   const secM = metricsOf(ctx, fonts, secFont, 29);
   drawText(
     ctx,
-    `The board · ${start}–${start + 9}`,
+    boardSlideSection(rows, start),
     CONTENT_L,
     baselineOf(y, secM.lh, secM),
     secFont,
@@ -573,23 +715,280 @@ function drawBoardSlide(
       const unitW = measure(ctx, unit, rowFont);
       const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
       metersW =
-        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 42, rowFont, "#ffffff");
+        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 42, rowFont);
     } else {
       const metersText = meters(r.meters);
       drawRight(ctx, metersText, CONTENT_R, baseline, rowFont, "#ffffff");
       metersW = measure(ctx, metersText, rowFont);
     }
-    drawText(
-      ctx,
-      pad2(place),
-      CONTENT_L,
-      baseline,
-      placeFont,
-      medalColor(place) ?? "rgba(255,255,255,0.55)",
-    );
+    // The place — nothing at all for a hidden row, and no medal on it
+    // either, whatever index it landed on after the reorder. The column
+    // stays, so the names keep their line down the slide.
+    const placeText = boardSlidePlace(r, place);
+    if (placeText) {
+      drawText(
+        ctx,
+        placeText,
+        CONTENT_L,
+        baseline,
+        placeFont,
+        medalColor(place) ?? "rgba(255,255,255,0.55)",
+      );
+    }
     const maxW = CONTENT_R - metersW - 24 - nameX;
     drawText(ctx, ellipsize(ctx, r.name, maxW, rowFont), nameX, baseline, rowFont, "#ffffff");
   });
+
+  ctx.restore();
+  noShadow(ctx);
+}
+
+/* --------------------------------------------------- 3b: the club welcome */
+
+/* Who joined a club in the last 24 hours, over a photo — the owner's ask
+ * (2026-09-05 late): "if you just hit 50k I want a picture that is shareable
+ * to tag you in, same style as the others". So it is the congrats slide's
+ * idiom exactly: the same photo bed and scrim, the same kick line, a big
+ * Archivo Black headline, and the congrats hero's 4px matte box — repeated,
+ * once per rower, instead of once for the first to 100k.
+ *
+ * One slide per club (the headline names it), highest club first, six rowers
+ * to a slide. A seventh gets a slide of their own rather than smaller type. */
+const CLUB_PER_SLIDE = 6;
+
+/* Greedy word wrap for the headline, dropping a size step when the words need
+ * more than two lines. The ONLY type on this slide that resizes: the rower
+ * rows below keep theirs whatever happens, which is what the overflow slide
+ * is for. */
+function headlineLines(
+  ctx: Ctx,
+  words: string[],
+  fonts: PostFonts,
+  sizes: number[],
+  maxW: number,
+): { size: number; lines: string[] } {
+  let out = { size: sizes[sizes.length - 1] ?? 96, lines: [words.join(" ")] };
+  for (const size of sizes) {
+    const font = `${size}px ${fonts.black}`;
+    const tracking = -size * 0.02;
+    const lines: string[] = [];
+    let line = "";
+    for (const w of words) {
+      const next = line ? `${line} ${w}` : w;
+      if (line && measure(ctx, next, font, tracking) > maxW) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = next;
+      }
+    }
+    if (line) lines.push(line);
+    out = { size, lines };
+    if (lines.length <= 2 && lines.every((l) => measure(ctx, l, font, tracking) <= maxW)) {
+      return out;
+    }
+  }
+  return out;
+}
+
+/* Who a welcome slide actually names. The first rower to 100,000 m is the
+ * congrats slide's hero a couple of cards later, under the same photo and the
+ * same matte box, so they are not ALSO welcomed into the 100K club: one
+ * event, one slide, and the carousel stops repeating itself (review,
+ * 2026-09-05). Any other club that rower joins later — .25M — is news the
+ * congrats slide does not carry, so that welcome stands. A club this empties
+ * out builds no slide at all, which clubSlides already handles. */
+/* The threshold the congrats slide celebrates — the same 100,000 m its hero
+ * heading prints two hundred lines down, and lib/row100k's GOAL_METERS. It is
+ * written out here rather than imported so this module keeps drawing in a
+ * bare canvas with no app config behind it (importing lib/row100k drags in
+ * its env-dependent namespace switch, which a plain harness has to shim). */
+const CONGRATS_GOAL = 100_000;
+
+function clubRowers(data: PostData, club: PostClubJoin): PostRow[] {
+  const hero = data.first100k;
+  if (!hero || club.meters !== CONGRATS_GOAL) return club.rowers;
+  return club.rowers.filter((r) => r.num !== hero.num);
+}
+
+/* The slide's top edge when it flows from the top — the same 92 the congrats
+ * and board slides start their kick line on. */
+const CLUB_TOP = 92;
+
+function drawClubSlide(
+  ctx: Ctx,
+  data: PostData,
+  fonts: PostFonts,
+  assets: SlideAssets,
+  clubIndex: number,
+  part: number,
+): void {
+  photoBed(ctx, assets.photo, CONGRATS_SCRIM);
+  const club = data.clubJoins[clubIndex];
+  if (!club) return;
+  const rows = clubRowers(data, club).slice(part * CLUB_PER_SLIDE, (part + 1) * CLUB_PER_SLIDE);
+  // The numbers moved under the slide list (a refresh mid-render): the bed is
+  // already painted, and an empty welcome is never drawn.
+  if (rows.length === 0) return;
+
+  ctx.save();
+  shadow(ctx, "rgba(0,0,0,0.7)", 18, 3);
+
+  const kickFont = `700 25px ${fonts.mono}`;
+  const kickM = metricsOf(ctx, fonts, kickFont, 25);
+  const kickText = `ROWTEMBER 2026 · ${data.asOfDay}`.toUpperCase();
+
+  // "WELCOME TO THE 50K CLUB." — the club's own label, so ".25M" and "500K"
+  // read the way the boards say them. The label and CLUB. stay on one line
+  // together; the rest wraps.
+  const head = headlineLines(
+    ctx,
+    ["WELCOME", "TO", "THE", `${club.label} CLUB.`],
+    fonts,
+    [96, 84, 72],
+    CONTENT_W,
+  );
+  const headFont = `${head.size}px ${fonts.black}`;
+  const headM = metricsOf(ctx, fonts, headFont, head.size);
+  const headLh = head.size * 0.98;
+
+  // One box per rower: the name and rower number in black over a mono line
+  // carrying the total.
+  const whoFont = `46px ${fonts.black}`;
+  const whoM = metricsOf(ctx, fonts, whoFont, 46);
+  const whoLh = 46 * 1.05;
+  const subFont = `22px ${fonts.mono}`;
+  const subM = metricsOf(ctx, fonts, subFont, 22);
+  const valueFont = `700 24px ${fonts.mono}`;
+  const padY = 22;
+  const boxH = 4 + padY + whoLh + 10 + subM.lh + padY + 4;
+  const innerL = CONTENT_L + 4 + 28;
+  const innerR = CONTENT_R - 4 - 28;
+  const innerW = innerR - innerL;
+
+  // The club is named under the name only on a one- or two-rower slide: that
+  // is the card somebody crops their own box out of, and it has to say what
+  // they joined on its own. On a full slide the headline has already said it
+  // and six more copies of the same five words read as a stuck record
+  // (review, 2026-09-05). The wording follows the picker label, "New to the".
+  const subText = rows.length <= 2 ? `NEW TO THE ${club.label} CLUB` : "JOINED TODAY";
+
+  // Six boxes fit the room the headline leaves when the slide flows from the
+  // top; the gap between them takes up whatever slack is left, and tightens
+  // (never below 6px) rather than letting the last box hang off the slide on
+  // a family with a taller line box. Measured against the TOP-ANCHORED
+  // layout, which is the crowded one — a centred slide has room to spare.
+  const boxesTop = CLUB_TOP + kickM.lh + 22 + headLh * head.lines.length + 38;
+  const room = SLIDE_H - 40 - boxesTop;
+  const gap =
+    rows.length > 1
+      ? Math.max(6, Math.min(16, (room - rows.length * boxH) / (rows.length - 1)))
+      : 0;
+
+  const drawRow = (r: PostRow, top: number) => {
+    ctx.save();
+    noShadow(ctx);
+    ctx.strokeStyle = MATTE;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(CONTENT_L + 2, top + 2, CONTENT_W - 4, boxH - 4);
+    ctx.restore();
+
+    let by = top + 4 + padY;
+    // The rower number rides with the name so the post can be tagged.
+    const whoText = `${r.name} · ${pad2(r.num)}`.toUpperCase();
+    drawText(
+      ctx,
+      ellipsize(ctx, whoText, innerW, whoFont),
+      innerL,
+      baselineOf(by, whoLh, whoM),
+      whoFont,
+      MATTE,
+      0,
+    );
+    by += whoLh + 10;
+
+    const subBase = baselineOf(by, subM.lh, subM);
+    // One of the hidden fifteen gets blocks where their total would go — a
+    // welcome names the club they just joined, never their number (blackout
+    // rule, 2026-09-05). The board slide blocks the same figure out.
+    let valueW: number;
+    if (r.masked) {
+      const unit = " m";
+      drawRight(ctx, unit, innerR, subBase, valueFont, MATTE);
+      const unitW = measure(ctx, unit, valueFont);
+      const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
+      valueW = unitW + drawBlocks(ctx, innerR - unitW, subBase, digits, 24, valueFont);
+    } else {
+      const metersText = meters(r.meters);
+      drawRight(ctx, metersText, innerR, subBase, valueFont, MATTE);
+      valueW = measure(ctx, metersText, valueFont);
+    }
+    drawText(
+      ctx,
+      ellipsize(ctx, subText, innerW - valueW - 20, subFont),
+      innerL,
+      subBase,
+      subFont,
+      WHITE_SOFT,
+      22 * 0.16,
+    );
+  };
+
+  const blocks: Block[] = [
+    {
+      gap: 0,
+      h: kickM.lh,
+      draw: (top) =>
+        drawText(
+          ctx,
+          kickText,
+          CONTENT_L,
+          baselineOf(top, kickM.lh, kickM),
+          kickFont,
+          WHITE_DIM,
+          25 * 0.18,
+        ),
+    },
+    {
+      gap: 22,
+      h: headLh * head.lines.length,
+      draw: (top) => {
+        head.lines.forEach((line, i) => {
+          drawText(
+            ctx,
+            line,
+            CONTENT_L,
+            baselineOf(top + i * headLh, headLh, headM),
+            headFont,
+            "#ffffff",
+            -head.size * 0.02,
+          );
+        });
+      },
+    },
+    ...rows.map((r, i) => ({
+      gap: i === 0 ? 38 : gap,
+      h: boxH,
+      draw: (top: number) => drawRow(r, top),
+    })),
+  ];
+
+  // One or two rowers is the ordinary day, not the exception. Flowed from the
+  // top, that slide stops dead a third of the way down with 800px of picture
+  // and nothing under it — it reads as cut off rather than composed. So a
+  // small welcome is CENTRED and the photo frames it, the move three other
+  // slides in this file already make. From three rowers up the flow from the
+  // top is what fits (review, 2026-09-05).
+  if (rows.length <= 2) {
+    drawCenteredStack(blocks);
+  } else {
+    let top = CLUB_TOP;
+    blocks.forEach((b, i) => {
+      if (i > 0) top += b.gap;
+      b.draw(top);
+      top += b.h;
+    });
+  }
 
   ctx.restore();
   noShadow(ctx);
@@ -685,7 +1084,7 @@ function drawStatsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: Slid
     // A hidden holder's value is blocks in the shape of the number — the
     // page sent no value, only the silhouette.
     if (rec.masked) {
-      drawBlockShape(ctx, CONTENT_L + 296, baseline, rec.shape ?? "#", 28, recValueFont, MATTE);
+      drawBlockShape(ctx, CONTENT_L + 296, baseline, rec.shape ?? "#", 28, recValueFont);
     } else {
       drawText(ctx, rec.value, CONTENT_L + 296, baseline, recValueFont, MATTE, 0);
     }
@@ -846,7 +1245,7 @@ function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: S
       const unitW = measure(ctx, unit, clubValueFont);
       const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
       metersW =
-        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 28, clubValueFont, MATTE);
+        unitW + drawBlocks(ctx, CONTENT_R - unitW, baseline, digits, 28, clubValueFont);
     } else {
       const metersText = meters(r.meters);
       drawRight(ctx, metersText, CONTENT_R, baseline, clubValueFont, MATTE);
@@ -881,8 +1280,10 @@ function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: S
 /* --------------------------------------------------------- 6: the partner */
 
 function drawPartnerSlide(ctx: Ctx, fonts: PostFonts, assets: SlideAssets): void {
-  ctx.fillStyle = GREEN;
-  ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+  // The one slide with no photograph: its green is the frame's ground, so it
+  // fills the real canvas (the story frame included) rather than the
+  // composition box. Same colour, same everything else.
+  fillFrame(ctx, GREEN);
   const cx = SLIDE_W / 2;
 
   const topFont = `24px ${fonts.mono}`;
@@ -1255,12 +1656,49 @@ const HOURS_SLIDE: Slide = {
   draw: (ctx, data, fonts, assets) => drawHoursSlide(ctx, data, fonts, assets),
 };
 
+/* The welcome slides: one per club joined in the last day, highest club
+ * first, split at six rowers. They sit between the board and the stats, so
+ * their filenames sort there too — "03-club-01-50k.png" lands after the last
+ * board page and before "04-stats.png". Nothing is built for a club nobody
+ * joined, or for a 100K club whose only new member is the congrats hero; an
+ * empty clubJoins makes no slide at all. */
+function clubSlides(data: PostData): Slide[] {
+  const out: Slide[] = [];
+  data.clubJoins.forEach((club, clubIndex) => {
+    // clubRowers, not club.rowers: the congrats hero is dropped from the 100K
+    // welcome, and a club that leaves empty makes no slide.
+    const members = clubRowers(data, club);
+    if (members.length === 0) return;
+    const slug = club.label.toLowerCase().replace(/[^a-z0-9]+/g, "") || `t${club.meters}`;
+    const parts = Math.ceil(members.length / CLUB_PER_SLIDE);
+    for (let part = 0; part < parts; part++) {
+      // NOT `n` — that is this module's number formatter (line ~170), and
+      // shadowing it here would turn the next n(...) inside this block into a
+      // runtime error inside a try/catch (review, 2026-09-05).
+      const seq = out.length + 1;
+      out.push({
+        id: `club-${slug}-${part + 1}`,
+        label:
+          parts > 1
+            ? `New to the ${club.label} club · ${part + 1}/${parts}`
+            : `New to the ${club.label} club`,
+        file: `03-club-${pad2(seq)}-${slug}.png`,
+        usesPhoto: true,
+        draw: (ctx, live, fonts, assets) =>
+          drawClubSlide(ctx, live, fonts, assets, clubIndex, part),
+      });
+    }
+  });
+  return out;
+}
+
 /* The carousel, in post order. Board pages with nobody on them drop out, so
- * a thin board makes a shorter pack rather than an empty slide; the congrats
+ * a thin board makes a shorter pack rather than an empty slide; the welcome
+ * slides exist only while somebody has just joined a club; the congrats
  * slide waits for someone to be worth congratulating. */
 export function slidesFor(data: PostData): Slide[] {
   const boards = [1, 11, 21].filter((start) => data.standings.length >= start).map(boardSlide);
   const middle: Slide[] = [STATS_SLIDE];
   if (data.first100k || data.club50.length > 0) middle.push(CONGRATS_SLIDE);
-  return [...boards, ...middle, PARTNER_SLIDE, END_SLIDE, HOURS_SLIDE];
+  return [...boards, ...clubSlides(data), ...middle, PARTNER_SLIDE, END_SLIDE, HOURS_SLIDE];
 }

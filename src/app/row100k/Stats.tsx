@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { BlockClock, Blocks } from "./Blackout";
 import { Who } from "./Boards";
+import { EliteList } from "./EliteList";
 import {
   WEEKS,
   fmtDay,
@@ -89,13 +90,34 @@ export function StatsRecords({
   const rows = records[key] ?? [];
   const first = rows[0];
   const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
+  const untilDay = blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined;
+
+  /* TOTAL METERS while the fifteen are hidden: they carry no place, so
+   * there is no number one to headline (the row at the top of the list is
+   * the alphabetically first hidden rower, nobody's leader) and no podium
+   * to draw from a ranking that no longer exists. The list stands in — by
+   * digit count then name, exactly the order maskBoards handed over — and
+   * a signed-in rower from sixteen down still gets their own place under
+   * it. The other four records are untouched: a fastest 5k is a time, not
+   * the meters ranking (owner, 2026-09-05 evening). */
+  const eliteRows = key === "total" ? rows.filter((r) => r.unranked) : [];
+  const hiddenRanking = eliteRows.length > 0;
 
   /* A rower in neither division (X, the schema default — overall boards
    * only) has no podium to sit under, so their neighbourhood is drawn once
    * more against the whole ranking: the owner said seeing where you stand
    * on this page matters. */
   const meRow = meId ? rows.find((r) => r.participantId === meId) : undefined;
-  const overall = meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
+  const overall =
+    !hiddenRanking && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
+
+  /* Where the viewer stands when the ranking is hidden: the places are the
+   * real ones (the fifteen still occupy the first fifteen indexes, so row
+   * sixteen is sixteenth), and a viewer inside the fifteen gets nothing —
+   * their tinted row is up in the list, and a neighbourhood would say which
+   * place they hold. */
+  const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
+  const near = hiddenRanking ? podiumWindow(rows, meIdx, eliteRows.length) : null;
 
   /* The holder line under the headline: number · NAME · day, plus the
    * split for a pace record and the session count for total meters. A
@@ -127,7 +149,31 @@ export function StatsRecords({
           opens with the record's name: the section head that used to say
           it is gone, and a bare time does not say 5k from 10k — one
           descriptor line, no extra title (owner call, 2026-09-05). */}
-      {first ? (
+      {hiddenRanking ? (
+        /* The list where the headline would be: no place column, no
+           number one. Only the viewer's own row may carry a real figure,
+           and a lite row already zeroed its value when masked. */
+        <EliteList
+          rows={eliteRows.map((r) => ({
+            name: r.name,
+            rowerNumber: r.rowerNumber,
+            division: r.division,
+            masked: r.masked,
+            digits: r.digits,
+            paceTag: r.paceTag,
+            meters: r.masked ? undefined : r.value,
+          }))}
+          until={untilDay}
+          meRowerNumber={meRow?.rowerNumber ?? null}
+          /* The bo-note above already names the fifteen and the day they
+             come back, so the list drops its own heading rather than say it
+             twice one line apart (review, 2026-09-05); the foot line under
+             the table still says NO PLACES WHILE HIDDEN. The eyebrow comes
+             back on the one board that gets no note — the viewer alone in
+             the fifteen, nothing masked from them. */
+          eyebrow={!anyHidden}
+        />
+      ) : first ? (
         <div className="bhead st-rec">
           <div className="bhead-n">
             <Val r={first} def={def} unit="big" />
@@ -164,13 +210,36 @@ export function StatsRecords({
         ))}
       </div>
 
-      {!unavailable && (
+      {!unavailable && !hiddenRanking && (
         <div className="front-top st-podiums">
           <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
           <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
         </div>
       )}
       {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
+      {near && near.ctx.length > 0 && (
+        /* The gap row always leads: everything above the viewer is either
+           hidden or simply not listed here. */
+        <div className="front-three st-overall">
+          <h3 className="mono">Where you stand</h3>
+          <table className="board">
+            <tbody>
+              <tr className="gaprow">
+                <td colSpan={3}>···</td>
+              </tr>
+              {near.ctx.map((r, i) => (
+                <RecTr
+                  key={r.participantId}
+                  r={r}
+                  rank={near.ctxStart + i + 1}
+                  def={def}
+                  me={r.participantId === meId}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="ms-actions">
         <a className="quiet-btn" href={`/row100k/records/${key}?d=all`}>
@@ -248,10 +317,13 @@ function Podium({
   );
 }
 
+/* One record row. A hidden rower on the TOTAL board carries no place, so
+ * the # cell is empty wherever such a row can still appear (the cell keeps
+ * the column). */
 function RecTr({ r, rank, def, me }: { r: RecordRowLite; rank: number; def: RecordDef; me: boolean }) {
   return (
     <tr className={me ? "fin" : undefined}>
-      <td className="rk">{rank}</td>
+      <td className="rk">{r.unranked ? "" : rank}</td>
       <td>
         <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} />
       </td>
@@ -264,9 +336,18 @@ function RecTr({ r, rank, def, me }: { r: RecordRowLite; rank: number; def: Reco
 
 /* -------------------------------------------------------------- boards */
 
+/* The ledger total under a period board — the whole day or the whole week,
+ * everyone in it (owner ask, 2026-09-05: "show a total somewhere here").
+ * Summed on the SERVER off the raw entries, hidden rowers included: their
+ * meters count in every aggregate, and the rows that reach this component
+ * carry 0 for a masked rower, so a client-side sum would be a lie. */
+export type PeriodTotal = { meters: number; sessions: number; rowers: number };
+
 export function StatsBoards({
   weekly,
   daily,
+  dayTotals,
+  weekTotals,
   defaultWeek,
   defaultDay,
   started,
@@ -276,6 +357,9 @@ export function StatsBoards({
   weekly: (WeeklyRow & Hideable)[][];
   /* One board per September day, index = day-of-month − 1. */
   daily: (WeeklyRow & Hideable)[][];
+  /* One total per day / per week, same indexes as `daily` / `weekly`. */
+  dayTotals?: PeriodTotal[];
+  weekTotals?: PeriodTotal[];
   defaultWeek: number;
   /* Today's index into `daily` (clamped into the challenge). */
   defaultDay: number;
@@ -414,7 +498,13 @@ export function StatsBoards({
         </div>
       )}
 
-      <BoardWindow rows={period === "day" ? dayRows : weekRows} meId={meId} started={started} hidden={hidden} />
+      <BoardWindow
+        rows={period === "day" ? dayRows : weekRows}
+        meId={meId}
+        started={started}
+        hidden={hidden}
+        total={period === "day" ? dayTotals?.[dy] : weekTotals?.[wk]}
+      />
     </div>
   );
 }
@@ -429,11 +519,15 @@ function BoardWindow({
   meId,
   started,
   hidden,
+  total,
 }: {
   rows: (WeeklyRow & Hideable)[];
   meId: string | null;
   started: boolean;
   hidden: Set<string>;
+  /* The period's own total, from the server. Absent (or empty) on a day
+   * nobody logged, and then no total row prints. */
+  total?: PeriodTotal;
 }) {
   const [all, setAll] = useState(false);
   const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
@@ -487,6 +581,21 @@ function BoardWindow({
                 hidden={r.masked || hidden.has(r.participantId)}
               />
             ))}
+            {total && total.rowers > 0 && (
+              /* The ledger line: everyone in the period, hidden rowers
+                 counted (the sum comes off the server's raw entries, never
+                 off these rows). No place — it is not a standing. */
+              <tr className="totrow">
+                {/* The label runs across the place column: the total holds
+                    no place, and at 375px the two columns together are what
+                    keeps EVERYONE and the rower count on one line. */}
+                <td className="lbl" colSpan={2}>
+                  EVERYONE · {total.rowers} {total.rowers === 1 ? "ROWER" : "ROWERS"}
+                </td>
+                <td className="num">{fmtMeters(total.meters)}</td>
+                <td className="num">{total.sessions}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -506,9 +615,14 @@ function BoardWindow({
 }
 
 /* One row of the period board; the signed-in rower's row wears the
- * finisher tint (tr.fin) so they can spot themselves. A hidden row keeps
- * its place and its name (the profile masks the same way, so the link is
- * safe) and draws blocks for the meters. */
+ * finisher tint (tr.fin) so they can spot themselves. A hidden row keeps its
+ * name (the profile masks the same way, so the link is safe), draws blocks
+ * for the meters and carries NO place: the owner's rule says the fifteen
+ * hold no place wherever they are listed, and this is the one table on the
+ * page that still printed one for them (review, 2026-09-05). The ORDER here
+ * is still the period's — these boards rank by the day's or the week's
+ * meters, not by the total — so the cell going empty is the whole change;
+ * see the note to the owner about whether a day board is a ranking at all. */
 function WeekTr({
   r,
   rank,
@@ -522,7 +636,7 @@ function WeekTr({
 }) {
   return (
     <tr className={me ? "fin" : undefined}>
-      <td className="rk">{rank}</td>
+      <td className="rk">{hidden ? "" : rank}</td>
       <td>
         <Who row={r} />
       </td>

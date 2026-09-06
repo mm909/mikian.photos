@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { fmtClock, fmtInt, fmtK, fmtM } from "../analysis/fmt";
-import { KdeSvg } from "../analysis/charts";
+import { KdeScrub } from "./KdeScrub";
 import type { FieldModel, FieldYou } from "./field";
 
 /* THE FIELD: the stat tiles and the two densities, all precomputed on the
@@ -44,7 +44,7 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
   if (!field || field.sessions === 0) {
     return <p className="board-empty">NOTHING LOGGED YET — THE FIELD DRAWS ITSELF AS ROWS LAND.</p>;
   }
-  const { length, pace, mode } = field;
+  const { length, pace } = field;
 
   return (
     <div>
@@ -72,13 +72,6 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
             k="Pace · median split"
             n={SPLIT(pace.median)}
             l={`MEAN ${fmtClock(pace.mean)} · SD ${fmtClock(pace.sd)} · P10–P90 ${fmtClock(pace.p10)}–${fmtClock(pace.p90)}`}
-          />
-        )}
-        {mode && (
-          <Tile
-            k="Most common row"
-            n={M(mode.meters)}
-            l={`${sessions(mode.count)} · ${Math.round(mode.share * 100)}% OF EVERY ROW`}
           />
         )}
         {on && you && (
@@ -110,13 +103,16 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
       </div>
 
       {/* The two densities sit under the tiles with a small mono title and
-          a dashed hairline each — no 2px box (.st-kde, not .curve). */}
+          a dashed hairline each — no 2px box (.st-kde, not .curve). Each
+          is a scrub (KdeScrub): a finger, the mouse or the arrow keys read
+          a value and its share of the field off the curve. */}
       {field.lengthKde && (
         <div className="st-kde">
           <div className="t">Length of every row</div>
-          <KdeSvg
+          <KdeScrub
             c={field.lengthKde}
             you={on && you ? you.lengthYou : null}
+            kind="length"
             fmt={fmtK}
             ends={["← SHORTER", "LONGER →"]}
             label="Kernel density of meters per row across every session"
@@ -127,7 +123,7 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
       {field.paceKde && (
         <div className="st-kde">
           <div className="t">Split per 500 m</div>
-          <KdeSvg c={field.paceKde} you={on && you ? you.paceYou : null} />
+          <KdeScrub c={field.paceKde} you={on && you ? you.paceYou : null} kind="split" />
         </div>
       )}
     </div>

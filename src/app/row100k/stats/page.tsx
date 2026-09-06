@@ -25,7 +25,7 @@ import { MonthSection } from "../MonthSection";
 import { StatsShare } from "../StatsShare";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { StatsBoards, StatsRecords } from "../Stats";
+import { StatsBoards, StatsRecords, type PeriodTotal } from "../Stats";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { liteRecords, type RecordsProp } from "../records/defs";
 import { buildField, type FieldEntry, type FieldModel, type FieldYou } from "./field";
@@ -103,6 +103,14 @@ export default async function StatsPage() {
   let daily: WeeklyRow[][] = Array.from({ length: 30 }, () => []);
   let gridEntries: { meters: number; createdAt: Date }[] = [];
   let fieldEntries: FieldEntry[] = [];
+  /* The ledger total under each period board (owner ask, 2026-09-05: show a
+   * total somewhere on the meters-by-day board). Summed HERE off the raw
+   * entries so the hidden fifteen are counted — their meters belong to every
+   * aggregate, and the rows handed to the client carry 0 for them. */
+  const emptyTotals = (n: number): PeriodTotal[] =>
+    Array.from({ length: n }, () => ({ meters: 0, sessions: 0, rowers: 0 }));
+  let dayTotals: PeriodTotal[] = emptyTotals(30);
+  let weekTotals: PeriodTotal[] = emptyTotals(WEEKS.length);
   try {
     const [participants, entries] = await Promise.all([
       db.rowParticipant.findMany({
@@ -125,6 +133,37 @@ export default async function StatsPage() {
     fieldEntries = entries
       .filter((e) => known.has(e.participantId))
       .map((e) => ({ participantId: e.participantId, meters: e.meters, seconds: e.seconds }));
+
+    /* Same two buckets computeDaily / computeWeekly file a row into, so a
+     * total always matches the board under it: September days only, weeks
+     * by WEEKS, orphan rows dropped. Rowers are distinct loggers, not the
+     * start list. */
+    const month = FIRST_DAY.slice(0, 7);
+    const dayWho = Array.from({ length: dayTotals.length }, () => new Set<string>());
+    const weekWho = WEEKS.map(() => new Set<string>());
+    for (const e of entries) {
+      if (!known.has(e.participantId)) continue;
+      if (e.day.slice(0, 7) === month) {
+        const di = Number(e.day.slice(8, 10)) - 1;
+        if (di >= 0 && di < dayTotals.length) {
+          dayTotals[di].meters += e.meters;
+          dayTotals[di].sessions += 1;
+          dayWho[di].add(e.participantId);
+        }
+      }
+      const ewi = weekIndexOf(e.day);
+      if (ewi >= 0) {
+        weekTotals[ewi].meters += e.meters;
+        weekTotals[ewi].sessions += 1;
+        weekWho[ewi].add(e.participantId);
+      }
+    }
+    dayTotals.forEach((t, i) => {
+      t.rowers = dayWho[i].size;
+    });
+    weekTotals.forEach((t, i) => {
+      t.rowers = weekWho[i].size;
+    });
   } catch (err) {
     console.error("row100k/stats: failed to load weekly data", err);
   }
@@ -273,6 +312,8 @@ export default async function StatsPage() {
           <StatsBoards
             weekly={weekly}
             daily={daily}
+            dayTotals={dayTotals}
+            weekTotals={weekTotals}
             defaultWeek={defaultWeek}
             defaultDay={defaultDay}
             started={started}

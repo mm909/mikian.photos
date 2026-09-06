@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { computeBoards, type Division } from "@/lib/row100k";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { BarAccount } from "../BarAccount";
+import { BarLog } from "../BarLog";
 import { BarNav } from "../BarNav";
 import { RowBar } from "../RowBar";
 import { Dashboard } from "../Dashboard";
@@ -77,8 +78,8 @@ export default function Row100kPreview({
       {view === "dashboard" ? (
         /* Menu preview needs a pre-opened menu, which the real RowBar has no
          * prop for — this one view keeps a hand bar, built from the same
-         * three children (.bar-lead, rail, .bar-right) so the phone reflow
-         * and the pill behave exactly as on the real pages. */
+         * children (.bar-lead, rail, .bar-log, .bar-right) so the phone
+         * reflow and the pill behave exactly as on the real pages. */
         <div className="bar">
           <span className="bar-lead">
             <Link className="bar-brand" href="/">
@@ -86,6 +87,7 @@ export default function Row100kPreview({
             </Link>
           </span>
           <BarNav active="home" />
+          <BarLog />
           <span className="bar-right">
             <BarAccount signedIn rowerNumber={23} admin defaultOpen={searchParams.menu === "1"} />
           </span>

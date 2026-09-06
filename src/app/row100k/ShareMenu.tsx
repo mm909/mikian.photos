@@ -249,7 +249,10 @@ export function ShareDialog({
                     aria-pressed={c.id === card.id}
                     onClick={() => setCardId(c.id)}
                   >
-                    {c.label}
+                    {/* A board chip has to read the data: under a blackout its
+                        page carries no places, so it cannot be named by one
+                        (review, 2026-09-05). */}
+                    {c.labelFor?.(data) ?? c.label}
                   </button>
                 ))}
               </div>

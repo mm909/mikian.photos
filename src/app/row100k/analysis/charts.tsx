@@ -52,6 +52,7 @@ const PW = W - L - R;
 const PH = H - T - B;
 const MONO = "var(--row-mono), monospace";
 const INK = "#15171a";
+const PAPER = "#F4F3EE";
 const GRAY = "#8a8a85";
 const GRID = "#dddbd2";
 const FIELD = "rgba(0,119,182,0.16)";
@@ -62,6 +63,10 @@ const WATER = "#0077B6";
 /* Bins and bars under this many sessions are drawn dashed and unlabelled —
  * a cell of four is close enough to a person to be a person. */
 const SMALL = 5;
+
+/* The frame, for a client wrapper that maps a pointer onto a chart
+ * (stats/KdeScrub.tsx): clientX → viewBox x → data x. */
+export const PLOT = { W, H, L, R, T, B, PW, PH } as const;
 
 const r = (v: number) => Math.round(v * 10) / 10;
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -263,19 +268,103 @@ export function HistSvg({ c, you }: { c: HistChart; you: HistYou | null }) {
 /* ------------------------------------------------------------- 2 · kde */
 /* `fmt`, `ends` and `label` default to the split density this was drawn
  * for; the stats page reuses the same frame for meters per row (fmtK,
- * SHORTER / LONGER) — one KDE, two axes. */
+ * SHORTER / LONGER) — one KDE, two axes.
+ *
+ * `cursor` is the scrub (stats page, owner ask 2026-09-05 evening): a 1px
+ * ink hairline at a data x, a dot where it meets the curve and one mono
+ * readout on the plot's top line — which the MED and end labels give up
+ * while it shows. Left out, the chart is exactly what the numbers page has
+ * always drawn. `scale` is viewBox units per CSS pixel, so the readout can
+ * hold a readable size on a phone, where the frame renders at half size.
+ * `decorative` takes the svg out of the accessibility tree for a wrapper
+ * that carries the name itself (the scrub is a slider). */
+export type KdeCursor = { x: number; label: string; scale?: number };
+
+/* The curve's height at v, linear between grid points. */
+function densityAt(c: KdeChart, v: number): number {
+  const n = c.xs.length;
+  if (v <= c.xs[0]) return c.ys[0];
+  if (v >= c.xs[n - 1]) return c.ys[n - 1];
+  let i = 0;
+  while (i < n - 2 && c.xs[i + 1] < v) i++;
+  const t = (v - c.xs[i]) / (c.xs[i + 1] - c.xs[i] || 1);
+  return c.ys[i] + (c.ys[i + 1] - c.ys[i]) * t;
+}
+
+function KdeCursorMark({
+  c,
+  cur,
+  x,
+  y,
+  y0,
+}: {
+  c: KdeChart;
+  cur: KdeCursor;
+  x: (v: number) => number;
+  y: (d: number) => number;
+  y0: number;
+}) {
+  const k = Math.max(0.5, Math.min(3, cur.scale ?? 1));
+  /* Space Mono runs about 0.61 em a glyph, plus the tracking and the
+   * halo (measured: 0.75 em a glyph is the width the browser draws). */
+  const perGlyph = 0.75;
+  /* 11 in the frame's units on a desktop, and never under ~10 CSS px on a
+   * phone: the readout is the one label a finger has to read — but never
+   * wider than the plot, so the tail of the line is not cut on a 320 px
+   * phone (there the cap lands near 22 units, still ~9 CSS px). */
+  const size = Math.min(Math.max(11, Math.min(24, 10 * k)), PW / (cur.label.length * perGlyph));
+  const cx = x(cur.x);
+  const cy = y(densityAt(c, cur.x));
+  const est = cur.label.length * size * perGlyph;
+  let lx = cx + 6;
+  let a: "start" | "end" = "start";
+  if (cx + 6 + est > W - R) {
+    if (cx - 6 - est >= L) {
+      lx = cx - 6;
+      a = "end";
+    } else {
+      lx = Math.max(L, W - R - est);
+    }
+  }
+  return (
+    <g pointerEvents="none">
+      <line x1={r(cx)} x2={r(cx)} y1={T} y2={r(y0)} stroke={INK} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      <circle cx={r(cx)} cy={r(cy)} r={r(size * 0.32)} fill={INK} stroke={PAPER} strokeWidth={r(size * 0.12)} />
+      <text
+        x={r(lx)}
+        y={T + 10}
+        textAnchor={a}
+        fontSize={r(size)}
+        letterSpacing={r(size * 0.12)}
+        fontFamily={MONO}
+        fill={INK}
+        stroke={PAPER}
+        strokeWidth={r(size * 0.3)}
+        strokeLinejoin="round"
+        paintOrder="stroke"
+      >
+        {cur.label}
+      </text>
+    </g>
+  );
+}
+
 export function KdeSvg({
   c,
   you,
   fmt = fmtClock,
   ends = ["← FASTER", "SLOWER →"],
   label = "Kernel density of split per 500 m across every session",
+  cursor = null,
+  decorative = false,
 }: {
   c: KdeChart;
   you: KdeYou | null;
   fmt?: (v: number) => string;
   ends?: [string, string] | null;
   label?: string;
+  cursor?: KdeCursor | null;
+  decorative?: boolean;
 }) {
   if (c.xs.length < 2 || c.xs.length !== c.ys.length || !(c.xMax > c.xMin)) return null;
   const top = Math.max(...c.ys);
@@ -283,6 +372,7 @@ export function KdeSvg({
   const x = (v: number) => L + ((v - c.xMin) / (c.xMax - c.xMin)) * PW;
   const y = (d: number) => T + (1 - d / (top * 1.08)) * PH;
   const y0 = y(0);
+  const cur = cursor && Number.isFinite(cursor.x) && cursor.x >= c.xMin && cursor.x <= c.xMax ? cursor : null;
   const line = c.xs.map((v, i) => `${i ? "L" : "M"}${r(x(v))},${r(y(c.ys[i]))}`).join("");
   const area = `${line}L${r(x(c.xs[c.xs.length - 1]))},${r(y0)}L${r(x(c.xs[0]))},${r(y0)}Z`;
   const inBand = c.xs.map((v, i) => [v, c.ys[i]] as const).filter(([v]) => v >= c.mean - c.sd && v <= c.mean + c.sd);
@@ -291,7 +381,7 @@ export function KdeSvg({
       ? `M${r(x(inBand[0][0]))},${r(y0)}${inBand.map(([v, d]) => `L${r(x(v))},${r(y(d))}`).join("")}L${r(x(inBand[inBand.length - 1][0]))},${r(y0)}Z`
       : null;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+    <svg viewBox={`0 0 ${W} ${H}`} role={decorative ? undefined : "img"} aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined}>
       {c.ticks.map((t) => (
         <g key={t}>
           <line x1={r(x(t))} x2={r(x(t))} y1={T} y2={r(y0)} stroke={GRID} strokeWidth="1" strokeDasharray="3 4" />
@@ -304,10 +394,12 @@ export function KdeSvg({
       {band && <path d={band} fill={BAND} />}
       <path d={line} fill="none" stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />
       <VLine x={x(c.median)} />
-      <Lbl x={x(c.median) + 4} y={T + 10} a="start" size={9} fill={INK}>
-        MED {fmt(c.median)}
-      </Lbl>
-      {ends && (
+      {!cur && (
+        <Lbl x={x(c.median) + 4} y={T + 10} a="start" size={9} fill={INK}>
+          MED {fmt(c.median)}
+        </Lbl>
+      )}
+      {ends && !cur && (
         <>
           <Lbl x={L} y={T + 10} a="start" size={9}>
             {ends[0]}
@@ -334,6 +426,7 @@ export function KdeSvg({
           )}
         </g>
       )}
+      {cur && <KdeCursorMark c={c} cur={cur} x={x} y={y} y0={y0} />}
     </svg>
   );
 }

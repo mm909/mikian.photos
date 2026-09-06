@@ -385,6 +385,19 @@ export type TotalRow = {
    * board, EMPTY_BOARDS and the preview mocks are unchanged. */
   masked?: boolean;
   digits?: number;
+  /* Blackout: the rower's average split, "2:07", to the second — the one
+   * number of theirs that stays public while they are hidden (owner,
+   * 2026-09-05 late: rank the fifteen by average pace and print it where
+   * the club tag goes). A ratio of two hidden numbers gives neither away.
+   * Computed in blackoutRules.maskBoards, from values that never ship. */
+  paceTag?: string;
+  /* Blackout, the ranking half (owner, 2026-09-05 evening): one of the
+   * hidden fifteen has NO place anywhere — not on the board, not on a
+   * sticker, not on their own profile — because knowing you are third and
+   * not fourth is the number by another route. maskBoards sets this on all
+   * fifteen (the viewer's own row included, which keeps its real meters)
+   * and lists them by digit count, then name. */
+  unranked?: true;
 };
 
 export type RecordRow = {
@@ -813,10 +826,14 @@ export function recordPlacements(boards: Boards, participantId: string, topN = 3
   };
 
   // A masked row (blackout) may carry a floor of 0 while its real total is
-  // well above it; it still holds its place on the board, so keep it in.
-  check("total", inDivision(boards.total.filter((r) => r.meters > 0 || r.masked)), (r: TotalRow) =>
-    fmtMeters(r.meters),
-  );
+  // well above it; it stays on the board so nobody below shifts up. One of
+  // the hidden fifteen has no total-meters placement at all (unranked): the
+  // other records keep theirs, a fastest-5k place is not the total rank.
+  if (!me.unranked) {
+    check("total", inDivision(boards.total.filter((r) => r.meters > 0 || r.masked)), (r: TotalRow) =>
+      fmtMeters(r.meters),
+    );
+  }
   for (const dist of RECORD_DISTANCES)
     check(`fastest${dist}`, inDivision(boards.fastest[dist]), (r: RecordRow) =>
       fmtRecordTime(r.value),
@@ -834,6 +851,9 @@ export function divisionRank(
 ): { place: number; of: number } | null {
   const me = boards.total.find((r) => r.participantId === participantId);
   if (!me || (me.meters <= 0 && !me.masked)) return null;
+  // One of the hidden fifteen has no rank, to anyone (blackoutRules.ts):
+  // the profile prints a dash and the share cards draw no place.
+  if (me.unranked) return null;
   // Masked (blackout) rows keep their place even when their floor is 0.
   const rows = boards.total.filter(
     (r) => r.division === me.division && (r.meters > 0 || r.masked),

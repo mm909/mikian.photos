@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zipStore } from "@/lib/zip";
 import {
+  SIZES,
   SLIDE_H,
   SLIDE_W,
   slidesFor,
   type FontBox,
   type PostData,
   type PostFonts,
+  type SizeKey,
   type Slide,
   type SlideAssets,
 } from "./slides";
@@ -21,6 +23,13 @@ import {
  * canvas, turned into a PNG blob, and shown as an object URL. The canvases
  * are thrown away — eight live canvases at that size is 45 MB of backing
  * store on a phone, eight PNG blobs is a couple.
+ *
+ * Two sizes: POST is that 4:5 frame, STORY is 1080x1920. The story is the
+ * SAME composition on a taller photo — the picture fills the real canvas
+ * (slides.ts paints the bed frame-wide) and the 1080x1350 block of type and
+ * decals is dropped in centred, 285px down. Nothing is re-laid-out for it,
+ * which is what the owner asked for ("crop to story size and put the decals
+ * on those as well") and is why the 4:5 output is untouched.
  *
  * Fonts: next/font hashes the family names at build time, so the real names
  * are read off the probe spans below (the same trick share/ShareMenu.tsx
@@ -71,6 +80,14 @@ function boxOf(probe: HTMLElement | null): FontBox | undefined {
   return { lh, baseline };
 }
 
+/* The filename says which frame it is. A post keeps the name it always had,
+ * so nothing changes for someone who never touches the picker; a story picks
+ * up the suffix — 01-board-1-10-story.png. */
+function fileNameFor(slide: Slide, size: SizeKey): string {
+  const suffix = SIZES[size].suffix;
+  return suffix ? slide.file.replace(/\.png$/i, `${suffix}.png`) : slide.file;
+}
+
 function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -101,6 +118,11 @@ export function PostPack({ data }: { data: PostData }) {
   const outsRef = useRef<(Rendered | null)[]>(outs);
   const [picks, setPicks] = useState<number[]>(() => defaultPicks(slides, data.photos.length));
   const picksRef = useRef<number[]>(picks);
+  /* Which frame the whole pack renders into. POST by default. */
+  const [size, setSize] = useState<SizeKey>("post");
+  const sizeRef = useRef<SizeKey>(size);
+  sizeRef.current = size;
+  const frame = SIZES[size];
   const [working, setWorking] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -180,14 +202,26 @@ export function PostPack({ data }: { data: PostData }) {
       loadImage(WORDMARK),
     ]);
 
+    const box = SIZES[sizeRef.current];
     const attempt = (assets: SlideAssets): Promise<Rendered | null> => {
       const canvas = document.createElement("canvas");
-      canvas.width = SLIDE_W;
-      canvas.height = SLIDE_H;
+      canvas.width = box.w;
+      canvas.height = box.h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return Promise.resolve(null);
       try {
+        // THE STORY IS THE SAME COMPOSITION ON A TALLER PHOTO — the owner
+        // asked to "crop to story size and put the decals on those as well",
+        // not for a second layout. Every slide draws from absolute y
+        // coordinates inside a 1080x1350 box, so that box is dropped into
+        // the middle of the taller frame ((1920-1350)/2 = 285px) and the
+        // type and decals land exactly where they were composed. The photo
+        // bed ignores this translate and paints the real canvas edge to edge
+        // (slides.ts inFrame), so the picture is a true crop, not a letterbox.
+        ctx.save();
+        ctx.translate((box.w - SLIDE_W) / 2, (box.h - SLIDE_H) / 2);
         slide.draw(ctx, live, readFonts(), assets);
+        ctx.restore();
       } catch (err) {
         console.error("row100k/post: slide failed to draw", slide.id, err);
         return Promise.resolve(null);
@@ -215,12 +249,30 @@ export function PostPack({ data }: { data: PostData }) {
 
   /* Render everything on load, one slide at a time so the strip fills in
    * front of you instead of freezing the tab. Re-runs when the live numbers
-   * change (a refresh), never on an ordinary re-render. */
-  const signature = `${data.asOfIso}|${data.totalMeters}|${data.standings.length}|${data.photos.length}|${data.photos[0] ?? ""}`;
+   * change (a refresh) and when the frame changes (post to story), never on
+   * an ordinary re-render. A size flip is the same slides on a different
+   * canvas, so it keeps whatever photos you picked; new numbers start the
+   * picks over. */
+  /* The club welcome is the first slide whose EXISTENCE decays on the clock
+   * alone: a crossing rolls out of its 24-hour window with no new meters
+   * logged, so asOfIso, totalMeters and standings.length can all be unchanged
+   * while the slide list gets one shorter. It belongs in the signature, or a
+   * Refresh in that minute leaves outsRef longer than the list and every card
+   * from the dropped index on shows the previous slide's picture under the
+   * wrong label (review, 2026-09-05). */
+  const clubSig = data.clubJoins.map((c) => `${c.label}:${c.rowers.length}`).join(",");
+  const signature = `${data.asOfIso}|${data.totalMeters}|${data.standings.length}|${clubSig}|${data.photos.length}|${data.photos[0] ?? ""}`;
+  const sigRef = useRef<string>("");
   useEffect(() => {
     let cancelled = false;
     const list = slidesRef.current;
-    const nextPicks = defaultPicks(list, dataRef.current.photos.length);
+    const fresh = sigRef.current !== signature;
+    sigRef.current = signature;
+    const kept = picksRef.current;
+    const nextPicks =
+      fresh || kept.length !== list.length
+        ? defaultPicks(list, dataRef.current.photos.length)
+        : kept.slice();
     picksRef.current = nextPicks;
     setPicks(nextPicks);
     for (const out of outsRef.current) if (out) URL.revokeObjectURL(out.url);
@@ -250,9 +302,10 @@ export function PostPack({ data }: { data: PostData }) {
     return () => {
       cancelled = true;
     };
-    // Only the live numbers matter here; everything else is read off refs.
+    // Only the live numbers and the frame matter here; everything else is
+    // read off refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature]);
+  }, [signature, size]);
 
   // Unmount: hand every object URL back.
   useEffect(
@@ -278,14 +331,36 @@ export function PostPack({ data }: { data: PostData }) {
     picksRef.current = nextPicks;
     setPicks(nextPicks);
     setWorking(index);
+    // The frame can move under a swap. The size picker restarts the whole
+    // pack, and this render — begun at 4:5, landing after the flip — would
+    // otherwise commit a 1080x1350 blob into a story pack: hidden on screen
+    // (the preview crops it to fill), then shipped inside the -story zip at
+    // the wrong aspect. So the frame is read before the await and the work is
+    // thrown away if it moved, the way the render loop drops its own on
+    // `cancelled` (review, 2026-09-05). Returning here also leaves `working`
+    // alone: the restarted loop owns the indicator now.
+    const at = sizeRef.current;
     const out = await paint(index, next);
+    if (sizeRef.current !== at) {
+      if (out) URL.revokeObjectURL(out.url);
+      return;
+    }
     commit(index, out);
     setWorking(null);
   };
 
   const ready = () =>
     outsRef.current
-      .map((out, i) => (out ? { name: slidesRef.current[i].file, blob: out.blob } : null))
+      .map((out, i) => {
+        // Belt and braces on top of the signature: a filename needs a slide,
+        // and a render slot with no slide behind it is simply not packed —
+        // rather than Download all throwing on slide.file and the button
+        // doing nothing with no status line.
+        const slide = slidesRef.current[i];
+        return out && slide
+          ? { name: fileNameFor(slide, sizeRef.current), blob: out.blob }
+          : null;
+      })
       .filter((v): v is { name: string; blob: Blob } => v != null);
 
   /* The whole point of the page: every slide, one tap. */
@@ -298,7 +373,10 @@ export function PostPack({ data }: { data: PostData }) {
     // Built synchronously from blobs that already exist, so the share call
     // still sits inside the tap gesture iOS requires.
     const files = pack.map((p) => new File([p.blob], p.name, { type: "image/png" }));
-    const payload = { files, title: `Rowtember · ${data.asOfDay}` };
+    const payload = {
+      files,
+      title: `Rowtember · ${data.asOfDay}${size === "story" ? " · story" : ""}`,
+    };
     if (typeof navigator.canShare === "function" && navigator.canShare(payload)) {
       try {
         await navigator.share(payload);
@@ -315,7 +393,7 @@ export function PostPack({ data }: { data: PostData }) {
       const entries = await Promise.all(
         pack.map(async (p) => ({ name: p.name, data: new Uint8Array(await p.blob.arrayBuffer()) })),
       );
-      saveBlob(zipStore(entries), `rowtember-${data.asOfIso}.zip`);
+      saveBlob(zipStore(entries), `rowtember-${data.asOfIso}${SIZES[size].suffix}.zip`);
       setStatus(`SAVED ${entries.length} SLIDES AS A ZIP`);
     } catch (err) {
       console.error("row100k/post: zip failed", err);
@@ -330,7 +408,8 @@ export function PostPack({ data }: { data: PostData }) {
     const out = outsRef.current[index];
     const slide = slidesRef.current[index];
     if (!out || !slide) return;
-    const file = new File([out.blob], slide.file, { type: "image/png" });
+    const name = fileNameFor(slide, sizeRef.current);
+    const file = new File([out.blob], name, { type: "image/png" });
     const payload = { files: [file] };
     if (typeof navigator.canShare === "function" && navigator.canShare(payload)) {
       try {
@@ -340,7 +419,7 @@ export function PostPack({ data }: { data: PostData }) {
         if (err instanceof DOMException && err.name === "AbortError") return;
       }
     }
-    saveBlob(out.blob, slide.file);
+    saveBlob(out.blob, name);
   };
 
   /* One slide onto the clipboard, for pasting straight into a story or a
@@ -404,12 +483,45 @@ export function PostPack({ data }: { data: PostData }) {
         </div>
       </div>
 
+      {/* The frame, for the whole pack. Same control as the leaderboard tabs
+       * — square, mono, ink when it is on — because that is the switch this
+       * site already uses. POST is the default, so a pack nobody touches is
+       * the 4:5 carousel it has always been.
+       *
+       * It goes quiet while anything is rendering, exactly like the Refresh
+       * button above it: both restart the pack, and a restart landing on top
+       * of a slide already in flight is how a 4:5 image ends up in a story
+       * zip (review, 2026-09-05). The dimming is .pp-size in the theme, so
+       * a control that cannot act does not look live. */}
+      <div
+        className="tabs pp-size"
+        role="group"
+        aria-label="Slide size"
+        style={{ marginTop: 16, marginBottom: 0 }}
+      >
+        {(["post", "story"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            className={size === key ? "on" : undefined}
+            aria-pressed={size === key}
+            onClick={() => setSize(key)}
+            disabled={busy || working !== null}
+          >
+            {SIZES[key].label}
+          </button>
+        ))}
+      </div>
+
       <p className="pk-note">
         {canShareFiles
           ? "Download all opens the share sheet with every slide — save them all to Photos in one go."
           : "Download all saves every slide as one zip."}
         {data.photos.length > 0
           ? " Tap a photo slide to swap its picture; one tap past the last photo is the plain version, no picture."
+          : ""}
+        {size === "story"
+          ? " Story is the same slide on a 9:16 crop of the photo — files end in -story."
           : ""}
       </p>
 
@@ -422,6 +534,10 @@ export function PostPack({ data }: { data: PostData }) {
               <button
                 type="button"
                 className="pk-frame"
+                /* The preview is the frame it will save as: the card keeps
+                 * its width (so nothing can push the strip off a phone) and
+                 * the box takes the aspect of the picked size. */
+                style={{ aspectRatio: `${frame.w} / ${frame.h}` }}
                 onClick={() => (swappable ? void swapPhoto(i) : void saveOne(i))}
                 aria-label={
                   swappable ? `${slide.label} — tap to swap the photo` : `${slide.label} — save`
@@ -429,7 +545,7 @@ export function PostPack({ data }: { data: PostData }) {
               >
                 {out ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={out.url} alt={slide.label} width={SLIDE_W} height={SLIDE_H} />
+                  <img src={out.url} alt={slide.label} width={frame.w} height={frame.h} />
                 ) : null}
                 {(!out || working === i) && (
                   <span className="pk-wait">{working === i ? "Rendering" : "Waiting"}</span>

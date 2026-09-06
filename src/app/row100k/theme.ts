@@ -80,21 +80,59 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rail-break{display:none}
 /* Right-hand chip group pushes itself to the far edge so the bar needs no
  * justify rule. */
-.row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto}
-/* Phone widths (560px and under): an intentional two-row bar — wordmark,
- * ROWTEMBER and the account chip on the masthead row, the section links on
- * their own dashed-ruled row beneath. The rail gives up its box (display
- * contents) so ROWTEMBER can sit up top with the wordmark while the rest
- * drop past the break; the pill then positions against the bar, which is
- * why RowBar keeps the bar positioned even when it is not sticky. Both link
- * boxes are 25px here. */
-@media(max-width:560px){
+.row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex:none}
+/* LOG A ROW on the bar (owner call, 2026-09-05): the account chip idiom
+ * inverted — solid ink, white mono, water on hover — so a joined rower can
+ * always reach the form. One element (BarLog), moved by flex order: on
+ * desktop it takes the auto margin and the chip group loses its own, so
+ * the pair sits together at the far right, same height as the chip. Both
+ * are flex none: at tablet widths the rail wraps to make room, the button
+ * and the chip never get squeezed onto two lines. */
+.row100k .bar-log{display:inline-block;flex:none;margin-left:auto;background:var(--ink);color:#fff;border:2px solid var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:16px;text-transform:uppercase;padding:6px 12px;text-decoration:none;white-space:nowrap;transition:background 160ms ease,border-color 160ms ease}
+.row100k .bar-log:hover,.row100k .bar-log:focus-visible{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .bar-log + .bar-right{margin-left:0}
+/* Phone widths (under 640px, the same seam as the front-page grids): an
+ * intentional two-row bar — wordmark, ROWTEMBER and the account chip on
+ * the masthead row, the section links on their own dashed-ruled row
+ * beneath. The rail gives up its box (display contents) so ROWTEMBER can
+ * sit up top with the wordmark while the rest drop past the break; the
+ * pill then positions against the bar, which is why RowBar keeps the bar
+ * positioned even when it is not sticky. Both link boxes are 25px here,
+ * and so is LOG A ROW, which follows the links (order 3) and takes the
+ * auto margin to the far right — directly under the chip; the chip group
+ * gets its own auto margin back for the masthead row. Up to 639 rather
+ * than 560 because with the button beside the chip the one-row bar has no
+ * room left for the rail under 640: it stacked three and four lines. */
+@media(max-width:639px){
   .row100k .bar{flex-wrap:wrap;gap:8px 4px;padding:10px 16px 12px}
   .row100k .bar-brand{font-size:11px;letter-spacing:.03em}
   .row100k .rail{display:contents}
   .row100k .rail a{font-size:11px;letter-spacing:.06em;padding:5px 6px 4px;order:2}
   .row100k .rail a.brand{font-size:12px;padding:5px 8px 4px;margin-left:6px;order:0}
   .row100k .rail-break{display:block;flex-basis:100%;height:0;border-top:1px dashed var(--line);order:1}
+  .row100k .bar-log{order:3;margin-left:auto;font-size:11px;letter-spacing:.06em;line-height:16px;padding:3px 8px 2px}
+  .row100k .bar-log + .bar-right{margin-left:auto}
+}
+/* The link row has to hold THE BOARD, STATS, FEED, PARTNERS and LOG A ROW
+ * on one line: at 375px that is a fit by a hair, so from 389px down the
+ * button alone gives up tracking and side padding (the links keep their
+ * look at 375, the common phone; every box stays 25px). From 374px down
+ * the links follow with a little less tracking and padding, keeping their
+ * left edge, and the brand margin eases so the masthead row still holds
+ * the chip at 360px. Under 360px (320px phones) the whole row steps to
+ * 10px mono and the column gap tightens; the button never drops to a row
+ * of its own. */
+@media(max-width:389px){
+  .row100k .bar-log{letter-spacing:.02em;padding:3px 6px 2px}
+}
+@media(max-width:374px){
+  .row100k .rail a{letter-spacing:.03em;padding:5px 5px 4px}
+  .row100k .rail a.brand{margin-left:2px}
+}
+@media(max-width:359px){
+  .row100k .bar{gap:8px 2px}
+  .row100k .rail a{font-size:10px;letter-spacing:.02em;padding:5px 4px 4px}
+  .row100k .bar-log{font-size:10px;letter-spacing:.02em;padding:3px 6px 2px}
 }
 /* Account chip + dropdown (top-right of the bar). */
 .row100k .acct{position:relative;display:flex;align-items:center}
@@ -171,10 +209,21 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .front-three{min-width:0}
 .row100k .front-three h3{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:8px}
 .row100k .front-three table.board td{padding:9px 6px}
+/* While a blackout window is open the two podiums give way to one
+ * EliteList across the whole measure: the podium density kept, and the
+ * heading rule as heavy as a podium heading. */
+.row100k .front-elite{min-width:0}
+.row100k .front-elite .elite-eye{border-bottom-width:2px}
+.row100k .front-elite table.board td{padding:9px 6px}
 /* The latest row, one mono line; also the one line on the board page for
  * a signed-out visitor. */
 .row100k .front-latest{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);line-height:1.8}
 .row100k .front-latest b{color:var(--ink);font-weight:700}
+.row100k .front-latest .k,.row100k .front-latest .v{display:block}
+/* The board link under the news column. */
+.row100k .front-more{font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-top:14px}
+.row100k .front-more a{color:var(--water);text-decoration:none;border-bottom:2px solid var(--water);padding-bottom:2px}
+.row100k .front-more a:hover{color:var(--ink);border-color:var(--ink)}
 /* The signed-in top: the meters of the rower in the landing counter, the
  * same geometry as .home .od (Home.tsx): Archivo Black digits are .667em
  * and the comma .333em, so the cells are .68em and .34em, and eight digits
@@ -392,6 +441,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tabs button{background:transparent;border:2px solid var(--ink);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer}
 .row100k .tabs button.on{background:var(--ink);color:var(--paper)}
 .row100k .tabs button:hover:not(.on){border-color:var(--water);color:var(--water)}
+/* The post pack frame picker (POST 4:5 / STORY 9:16) is a .tabs group that
+   goes quiet while the pack renders, since flipping the frame restarts every
+   slide. Dimmed and unhovered like the pack buttons beside it, so a control
+   that cannot act does not look live. */
+.row100k .pp-size button:disabled{opacity:.45;cursor:default}
+.row100k .pp-size button:disabled:hover:not(.on){border-color:var(--ink);color:var(--ink)}
 /* The board sits on a faint cream (the cream of a cream shirt, not a slab)
  * over the paper, and its rules are a single hair of ink: the thick bars
  * over each section came out (owner call, 2026-09-05). */
@@ -469,6 +524,28 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .st-sub button,.row100k .st-sub a{display:inline-block;background:none;border:0;border-bottom:2px solid transparent;margin:0;padding:6px 0 4px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--gray);text-decoration:none}
 .row100k .st-sub .on{color:var(--ink);border-bottom-color:var(--water)}
 .row100k .st-sub button:hover:not(.on),.row100k .st-sub a:hover:not(.on){color:var(--water)}
+/* Records pick MOCK (dev/records — owner ask 2026-09-05: a picture, not
+ * live): the record submenu folded into ONE control. Look A: the record
+ * name under the holder line, ink on a water underline (the .st-sub .on
+ * idiom) with a water caret. Look B: the name as a small mono chip pushed
+ * to the right end of the holder line (margin-left auto keeps it on the
+ * right edge even when the line wraps on a phone). Both open the same
+ * inline list, hung off the same edge as its control: mono, dashed
+ * hairlines, the current record in ink, the rest grey. No box, no
+ * shadow, no radius. */
+.row100k .st-pick-eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gray);padding-bottom:8px;border-bottom:1px dashed var(--line);margin-bottom:14px}
+.row100k .st-pick-name{display:inline-block;background:none;border:0;border-bottom:2px solid var(--water);margin:12px 0 0;padding:6px 0 4px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--ink)}
+.row100k .st-pick-name:hover{color:var(--water)}
+.row100k .st-pick-caret{color:var(--water);margin-left:2px;font-size:1.25em;line-height:1}
+.row100k .st-pick-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px}
+.row100k .st-pick-holder{min-width:0}
+.row100k .st-pick-chip{margin-left:auto;background:none;border:1px solid var(--ink);padding:4px 8px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--ink);white-space:nowrap}
+.row100k .st-pick-chip:hover{border-color:var(--water);color:var(--water)}
+.row100k .st-pick-list{margin:10px 0 0;max-width:340px;border-top:1px dashed var(--line)}
+.row100k .st-pick-list.right{margin-left:auto;text-align:right}
+.row100k .st-pick-list button{display:block;width:100%;text-align:inherit;background:none;border:0;border-bottom:1px dashed var(--line);margin:0;padding:9px 0;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--gray)}
+.row100k .st-pick-list button.on{color:var(--ink)}
+.row100k .st-pick-list button:hover:not(.on){color:var(--water)}
 .row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
 .row100k .rec .duo .side+.side{border-left:1px dashed var(--line);padding-left:16px}
 .row100k .rec .duo .dv{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
@@ -577,6 +654,18 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge.legend{background:var(--tier-legend-ink)}
 .row100k .tierbadge.elite{background:var(--ink)}
 .row100k .tierbadge.pace{background:var(--ink);letter-spacing:.02em}
+/* THE ELITE FIFTEEN as a list (EliteList.tsx): the board idiom without a
+ * place column; a one-letter division cell where the rank would sit, the
+ * blocks on the right. The eyebrow is the profile one (.pf-eye). */
+.row100k .elite{margin-top:4px}
+.row100k .elite-eye{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:10px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.row100k .elite-eye .r{color:var(--gray);font-weight:400}
+.row100k table.board.elite-t td.dv{width:22px;color:var(--gray);font-size:11px;letter-spacing:.08em;padding-right:8px}
+.row100k .elite-foot{font-size:10px;letter-spacing:.16em;color:var(--gray);text-transform:uppercase;margin-top:10px}
+/* The same block INSIDE the standings (Boards.tsx): while they are hidden
+ * the fifteen leave the tier ladder and lead the table under one heading —
+ * ink, not a tier color, and the solid rule the elite eyebrow wears. */
+.row100k tr.divrow.elite td{color:var(--ink);border-bottom:1px solid var(--ink);padding-top:0}
 /* Blackout blocks: one fat cursor per hidden digit, sized off the inherited
  * font so a run of them is exactly as wide as the number it stands in for
  * (Space Mono advances .6em a glyph: a .54em block with .03em either side).
@@ -610,6 +699,11 @@ html:has(.row100k){scroll-behavior:smooth}
  * top 10; a signed-in rower sitting deeper gets their neighborhood after
  * this gap row (their own row reuses the tr.fin tint). */
 .row100k tr.gaprow td{padding:6px;border-bottom:1px dashed var(--line);color:var(--gray);text-align:center;font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.3em}
+/* The ledger total that closes a period board: a solid rule over it, bold
+ * ink, no dashed hairline under. The label cell drops a size so EVERYONE
+ * and the rower count sit on one line at 375px. */
+.row100k table.board tr.totrow td{border-top:2px solid var(--ink);border-bottom:0;color:var(--ink);font-weight:700;padding-top:11px}
+.row100k table.board tr.totrow td.lbl{font-size:11px;letter-spacing:.08em}
 
 /* ----------------------------------------------------------------------
  * Stats-page month block (MonthSection + the hour grid).
@@ -639,9 +733,10 @@ html:has(.row100k){scroll-behavior:smooth}
 /* ----------------------------------------------------------------------
  * THE FIELD on the stats page (owner ask, 2026-09-05): the front page
  * stat cells — bold number over a lighter mono descriptor, with a mono
- * eyebrow naming the figure — three across from 640px, one a line on a
- * phone. The two tiles that are the viewer go blue, the way every YOU
- * mark on the charts does. */
+ * eyebrow naming the figure — two across from 640px (two tiles, or a
+ * two-by-two with the viewer on; three left a hole once the most-common
+ * tile went, 2026-09-05 evening), one a line on a phone. The two tiles
+ * that are the viewer go blue, the way every YOU mark on the charts does. */
 .row100k .st-tiles{display:grid;grid-template-columns:1fr;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);margin-bottom:8px}
 .row100k .st-tile{padding:14px 0 13px;border-bottom:1px solid var(--ink);min-width:0}
 .row100k .st-tile:last-child{border-bottom:none}
@@ -652,12 +747,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .st-tile.you .n,.row100k .st-tile.you .l{color:var(--water)}
 .row100k .st-tile.you .n .u{color:var(--water);opacity:.7}
 @media(min-width:640px){
-  .row100k .st-tiles{grid-template-columns:repeat(3,1fr)}
+  .row100k .st-tiles{grid-template-columns:repeat(2,1fr)}
   .row100k .st-tile{border-bottom:none;border-right:1px solid var(--ink);padding-right:16px}
   .row100k .st-tile+.st-tile{padding-left:16px}
-  .row100k .st-tile:nth-child(3n+1){padding-left:0}
-  .row100k .st-tile:nth-child(3n),.row100k .st-tile:last-child{border-right:none}
-  .row100k .st-tile:nth-child(n+4){border-top:1px solid var(--ink)}
+  .row100k .st-tile:nth-child(2n+1){padding-left:0}
+  .row100k .st-tile:nth-child(2n),.row100k .st-tile:last-child{border-right:none}
+  .row100k .st-tile:nth-child(n+3){border-top:1px solid var(--ink)}
 }
 /* The two densities under the tiles: a mono title and a dashed hairline
  * each, no 2px box — the owner asked for them set quietly at the bottom
@@ -665,6 +760,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .st-kde{margin-top:30px;padding-top:12px;border-top:1px dashed var(--line)}
 .row100k .st-kde .t{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;color:var(--gray);text-transform:uppercase;margin-bottom:8px}
 .row100k .st-kde svg{display:block;width:100%;height:auto}
+/* The scrub (owner ask, 2026-09-05 evening): the density is a slider you
+ * read by hand — a finger, the mouse, the arrow keys — so the surface
+ * keeps vertical page scroll (pan-y), gives up text selection and the
+ * tap flash, and shows a dashed ring only to the keyboard. */
+.row100k .st-kde .scrub{touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline:none;cursor:default}
+.row100k .st-kde .scrub:focus-visible{outline:1px dashed var(--ink);outline-offset:6px}
 
 /* ----------------------------------------------------------------------
  * The profile (r/[num], looks/Profile.tsx — the owner picked it from
@@ -763,15 +864,13 @@ html:has(.row100k){scroll-behavior:smooth}
 }
 
 /* ----------------------------------------------------------------------
- * Feed looks (feed?look=a|b|c, owner pick pending, 2026-09-05): the
- * profile looks language on the ticker. THE FEED as a nameplate over a
+ * The feed (feed/ — the strips, the owner pick of 2026-09-05): the
+ * profile language on the ticker. THE FEED as a nameplate over a
  * hairline with a mono dateline that carries the blackout line, the one
  * big blue number (meters that landed today, Pacific — .bhead-n) with its
  * mono descriptor, then the rows under small mono day heads with a dashed
- * rule. No 2px boxes anywhere: rows part on dashed hairlines. Three
- * shapes — the wire (one dense mono line a row, 40px thumbs at the end),
- * the strips (96px thumbs left, the meters in Archivo Black), the gallery
- * (the rower photo square, a one-line caption). .fd- is the prefix. */
+ * rule. No 2px boxes anywhere: rows part on dashed hairlines. .fd- is the
+ * prefix. */
 .row100k section.fd-sec{padding:30px 0 8px}
 .row100k .fd-head{padding:26px 0 0}
 .row100k .fd-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em}
@@ -797,39 +896,21 @@ html:has(.row100k){scroll-behavior:smooth}
 /* The rower link everywhere: bold ink, blue underlined on hover. */
 .row100k .fd-who{color:var(--ink);text-decoration:none}
 .row100k .fd-who:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
-/* A — THE WIRE. One mono line a row: the clock, the number, the NAME, then
- * the meters (blue, bold), the time and the split in right-aligned fixed
- * columns so the figures stack down the page, the thumbs at the end. Under
- * 640px the line folds in two — who over figures — with the thumbs
- * spanning both rows; both text cells are pinned to column one so a line
- * without thumbs folds the same way. */
-.row100k .fd-line{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.03em;line-height:1.4;color:var(--ink);font-variant-numeric:tabular-nums}
-.row100k .fd-line .fd-a,.row100k .fd-line .fd-b{grid-column:1}
-.row100k .fd-line .fd-a{display:flex;align-items:baseline;gap:10px;min-width:0}
-.row100k .fd-line .fd-b{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
-.row100k .fd-line .fd-t,.row100k .fd-line .fd-n{color:var(--gray);white-space:nowrap}
-.row100k .fd-line .fd-who{font-weight:700;letter-spacing:.08em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.row100k .fd-line .fd-m{font-weight:700;color:var(--water);min-width:9ch;text-align:right}
-.row100k .fd-line .fd-d{min-width:7ch;text-align:right}
-.row100k .fd-line .fd-s{color:var(--gray);min-width:6ch;text-align:right}
-.row100k .fd-line .fd-pics{grid-column:2;grid-row:1/3;align-self:center}
-.row100k .fd-line .fd-pic{width:40px;height:40px}
-@media(min-width:640px){
-  .row100k .fd-line{display:flex;gap:14px}
-  .row100k .fd-line .fd-a{flex:1 1 auto}
-  .row100k .fd-line .fd-b,.row100k .fd-line .fd-pics{flex:0 0 auto}
-  .row100k .fd-line .fd-t{min-width:8ch}
-}
-/* B — THE STRIPS. The boxed photo ledger, unboxed: 96px thumbs left (72px
- * under 480px, so the meters still fit a phone), the name line, the
- * meters in Archivo Black at 26px, the time and the split in mono under
- * it, dashed hairlines between strips. */
+/* THE STRIPS. The boxed photo ledger, unboxed: 96px thumbs left (72px
+ * under 480px, so the 26px meters still fit a phone), the lead — the
+ * session title on its own gray line ABOVE the number · NAME line (owner,
+ * 2026-09-05; a row without a title has no title line; the two sit 3px
+ * apart so they read as one lead) — then the meters in Archivo Black at
+ * 26px, the time, the split and the clock in mono under it, dashed
+ * hairlines between strips. The lead wraps inside its column; the thumbs
+ * never move. */
 .row100k .fd-strip{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center;padding:14px 0;border-bottom:1px dashed var(--line)}
 .row100k .fd-strip .fd-pic,.row100k .fd-strip .fd-noph{width:96px;height:96px}
 .row100k .fd-strip .fd-mid{display:flex;flex-direction:column;gap:6px;min-width:0}
+.row100k .fd-strip .fd-lead{display:flex;flex-direction:column;gap:3px;min-width:0}
+.row100k .fd-strip .fd-ttl{font-family:var(--row-mono),monospace;font-size:11px;font-weight:400;letter-spacing:.04em;color:var(--gray);min-width:0;overflow-wrap:anywhere}
 .row100k .fd-strip .fd-nm{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline}
 .row100k .fd-strip .fd-nm .fd-n{color:var(--gray);font-weight:400}
-.row100k .fd-strip .fd-nm .fd-ttl{color:var(--gray);font-weight:400;letter-spacing:.04em;text-transform:none;min-width:0;overflow-wrap:anywhere}
 .row100k .fd-strip .fd-m{font-family:var(--row-archivo-black),sans-serif;font-size:26px;line-height:1;color:var(--water);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .row100k .fd-strip .fd-sub{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.04em;color:var(--ink);display:flex;flex-wrap:wrap;gap:2px 12px;font-variant-numeric:tabular-nums}
 .row100k .fd-strip .fd-sub .fd-s,.row100k .fd-strip .fd-sub .fd-t{color:var(--gray)}
@@ -837,26 +918,8 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .fd-strip{gap:12px}
   .row100k .fd-strip .fd-pic,.row100k .fd-strip .fd-noph{width:72px;height:72px}
 }
-/* C — THE GALLERY. The rower photo, square, two across from 640px (the
- * wire folds there too) and one under it; a one-line mono caption
- * (number, NAME, meters in blue, split), the clock and the title in gray
- * under it. Two across from 480px put the caption in a 211-270px column
- * where a typical one (about 250px at 11px mono) wrapped until roughly
- * 600px wide — landscape phones — so the fold moved up. */
-.row100k .fd-grid{display:grid;grid-template-columns:1fr;gap:24px 18px;margin-top:16px}
-@media(min-width:640px){.row100k .fd-grid{grid-template-columns:1fr 1fr}}
-.row100k .fd-cell{min-width:0}
-.row100k .fd-cell .fd-tile{width:100%}
-.row100k .fd-cell .fd-tile img{aspect-ratio:1;height:auto}
-.row100k .fd-cell .fd-noph.fd-tile{aspect-ratio:1}
-.row100k .fd-cap{margin-top:8px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline;font-variant-numeric:tabular-nums}
-.row100k .fd-cap .fd-n{color:var(--gray)}
-.row100k .fd-cap .fd-who{font-weight:700}
-.row100k .fd-cap .fd-m{color:var(--water);font-weight:700}
-.row100k .fd-cap .fd-s{color:var(--gray)}
-.row100k .fd-ttl2{margin-top:3px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.03em;color:var(--gray);line-height:1.5}
-/* The pager under a look: the same NEWER / OLDER as underlined mono words,
- * no boxes. */
+/* The pager under the feed: NEWER / OLDER as underlined mono words, no
+ * boxes. */
 .row100k .fd-pager{display:flex;justify-content:space-between;gap:10px;margin-top:30px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em}
 .row100k .fd-pager a{color:var(--ink);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--water);padding:6px 0}
 .row100k .fd-pager a:hover{color:var(--water)}

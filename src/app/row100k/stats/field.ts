@@ -14,10 +14,10 @@ import type { KdeChart, KdeYou } from "../analysis/model";
  *
  * Who is in what: the aggregates — means, medians, SDs, percentiles, the
  * density curves — count everyone. The individual marks (the grey rug
- * ticks) and the most-common-row count leave out a rower the blackout is
- * hiding from this viewer, since an unlabelled tick at a known distance,
- * or a distance only they repeat, is still that rower's number. The
- * viewer's own marks are always theirs. */
+ * ticks) leave out a rower the blackout is hiding from this viewer, since
+ * an unlabelled tick at a known distance is still that rower's number. The
+ * viewer's own marks are always theirs. (The most-common-row tile went on
+ * the owner's second look, 2026-09-05 evening.) */
 
 export type FieldEntry = { participantId: string; meters: number; seconds: number };
 
@@ -33,13 +33,6 @@ export type FieldModel = {
   rowers: number;
   length: FieldStats | null;
   pace: FieldStats | null;
-  /* the most-logged exact distance among the sessions this viewer may see,
-   * and its share of every session (null until some shown distance has
-   * been rowed twice). Counted over shown rows only: a mean is a blend, but
-   * a modal distance is one rower's own number when they alone repeat it,
-   * and a hidden rower's must not surface. The denominator stays every
-   * session, so the figure can only understate. */
-  mode: { meters: number; count: number; share: number } | null;
   lengthKde: KdeChart | null;
   paceKde: KdeChart | null;
 };
@@ -174,20 +167,6 @@ export function buildField(
     };
   }
 
-  /* ------------------------------------------------------ most common */
-  /* Shown sessions only (see FieldModel.mode): an elite rower who alone
-   * logs the same piece twice would otherwise have that exact distance
-   * printed in a public tile. The viewer's own rows are never hidden from
-   * them, so they still count for themselves. */
-  let mode: FieldModel["mode"] = null;
-  const counts = new Map<number, number>();
-  for (const s of sess) if (shown(s)) counts.set(s.meters, (counts.get(s.meters) ?? 0) + 1);
-  for (const [m, count] of counts) {
-    if (count >= 2 && (!mode || count > mode.count || (count === mode.count && m > mode.meters))) {
-      mode = { meters: m, count, share: count / n };
-    }
-  }
-
   /* ------------------------------------------------------- per rower */
   const perPid = new Map<string, { lens: number[]; splits: number[] }>();
   for (const s of sess) {
@@ -202,7 +181,6 @@ export function buildField(
     rowers: perPid.size,
     length,
     pace,
-    mode,
     lengthKde,
     paceKde,
   };

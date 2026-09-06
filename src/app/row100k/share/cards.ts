@@ -49,9 +49,10 @@ export type ShareData = {
    * headlines the best of them. */
   records?: RecordBadge[];
   /* One personal best, set when the dialog opens from a bests card —
-   * "Fastest 5k" / "22:30" / #2 in division when placed. Under `masked`
-   * the card draws the value's silhouette instead (shapeOf: "##:##.#" for
-   * a pace best, "##,### m" for a meters best); a page that blanks `value`
+   * "Fastest 5k" / "22:30.4" / #2 in division when placed. The card drops
+   * the tenth (roundToSeconds: "22:30"). Under `masked` the card draws the
+   * value's silhouette instead (shapeOf, minus the tenth: "##:##" for a
+   * pace best, "##,### m" for a meters best); a page that blanks `value`
    * before it reaches the client hands the silhouette over as `shape`. */
   best?: { label: string; value: string; place?: number | null; shape?: string };
   /* September days elapsed (daysElapsed()), 1..30. Every calendar and curve
@@ -91,6 +92,11 @@ export type ShareData = {
        * tier floor and `digits` says how many blocks to draw in its place. */
       masked?: boolean;
       digits?: number;
+      /* Blackout, the places half: one of the hidden fifteen. The row has
+       * no place at all — the sticker leaves its place column blank and
+       * never paints a medal on it (maskStandings reorders these rows by
+       * digit count then name, so their order carries no ranking either). */
+      unranked?: boolean;
     }[];
     /* "Sep 3" — the day the standings were read, for the sticker title. */
     asOf?: string;
@@ -103,6 +109,12 @@ export type ShareCard = {
   id: string;
   /* Menu label. */
   label: string;
+  /* A label that has to read the data before it can be true. The board
+   * stickers use it: under a blackout their page has no places to name, and
+   * a picker chip saying "1–10" over a sticker that refuses to print a place
+   * would hand the fifteen back the ranking the rule takes away. Falls back
+   * to `label` (review, 2026-09-05). */
+  labelFor?: (data: ShareData) => string;
   width: number;
   height: number;
   /* True when the art is white-on-transparent and needs a dark preview
@@ -236,6 +248,33 @@ function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): s
  * the 0.06*size gap split either side, 0.92*size tall on the baseline
  * `y`. `x` is the left edge, or the right edge with align right. Returns
  * the drawn width so a name can yield to it the way it yields to digits. */
+/* Blocks are INK, everywhere (owner, 2026-09-05: "instead of those squares
+ * being white on the blackout shareables — and anywhere — make them
+ * black"), which is what the page already draws (.bo i is var(--ink)). A
+ * card lands on somebody's photo, so ink alone would vanish on a night
+ * shot: every block run is laid on a white halo first — two passes,
+ * because one at 1080px barely registered when the Elite 15 card tried it
+ * — then painted flat on top. A caller that hands in its own fill (ink
+ * type on a light plate, say) gets no halo. */
+function haloed(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+  fill: string,
+  run: () => void,
+): void {
+  if (fill === INK) {
+    ctx.save();
+    ctx.shadowColor = "rgba(255,255,255,0.95)";
+    ctx.shadowBlur = Math.max(12, size * 0.24);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    run();
+    run();
+    ctx.restore();
+  }
+  run();
+}
+
 export function drawBlockDigits(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -256,16 +295,20 @@ export function drawBlockDigits(
   const commaW = ctx.measureText(",").width;
   const commas = Math.floor((n - 1) / 3);
   const width = n * cell + commas * commaW;
-  let cx = opts.align === "right" ? x - width : x;
-  ctx.fillStyle = opts.fill ?? "#ffffff";
-  for (let i = 0; i < n; i++) {
-    ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
-    cx += cell;
-    if (i < n - 1 && (n - i - 1) % 3 === 0) {
-      ctx.fillText(",", cx, y);
-      cx += commaW;
+  const start = opts.align === "right" ? x - width : x;
+  const fill = opts.fill ?? INK;
+  ctx.fillStyle = fill;
+  haloed(ctx, size, fill, () => {
+    let cx = start;
+    for (let i = 0; i < n; i++) {
+      ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
+      cx += cell;
+      if (i < n - 1 && (n - i - 1) % 3 === 0) {
+        ctx.fillText(",", cx, y);
+        cx += commaW;
+      }
     }
-  }
+  });
   ctx.restore();
   return width;
 }
@@ -312,17 +355,21 @@ function drawBlockShape(
   ctx.textBaseline = "alphabetic";
   const width = chars.reduce((w, ch) => w + (ch === "#" ? cell : ctx.measureText(ch).width), 0);
   if (opts.paint !== false) {
-    let cx = opts.align === "right" ? x - width : opts.align === "center" ? x - width / 2 : x;
-    ctx.fillStyle = opts.fill ?? "#ffffff";
-    for (const ch of chars) {
-      if (ch === "#") {
-        ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
-        cx += cell;
-      } else {
-        ctx.fillText(ch, cx, y);
-        cx += ctx.measureText(ch).width;
+    const start = opts.align === "right" ? x - width : opts.align === "center" ? x - width / 2 : x;
+    const fill = opts.fill ?? INK;
+    ctx.fillStyle = fill;
+    haloed(ctx, size, fill, () => {
+      let cx = start;
+      for (const ch of chars) {
+        if (ch === "#") {
+          ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
+          cx += cell;
+        } else {
+          ctx.fillText(ch, cx, y);
+          cx += ctx.measureText(ch).width;
+        }
       }
-    }
+    });
   }
   ctx.restore();
   return width;
@@ -546,9 +593,10 @@ const rowtemberTotal: ShareCard = {
 
 /* Card two: the club stamp. Earned, not given — it only appears in the menu
  * once the rower crosses 50k, and upgrades itself through the clubs. Each
- * club has its own colour (owner call, 2026-09-05), painted as an opaque
- * plaque behind the type so the four cards tell apart at a glance in a
- * story feed; the card stays see-through outside the plaque. */
+ * club has its own colour (owner call, 2026-09-05) and it is the SAME ink
+ * the board's tier tag uses (theme.ts --tier-*-ink: 50K green, 100K water,
+ * .25M gold-brown, 500K ink), so the sticker and the table say the same
+ * thing; the card stays see-through outside the tag. */
 const MILESTONES: { meters: number; label: string; plaque: string }[] = [
   { meters: 500_000, label: "500K", plaque: INK },
   // The quarter-million club is ".25M", not "250K" (owner rebrand).
@@ -568,26 +616,68 @@ const rowtemberClub: ShareCard = {
     const cx = this.width / 2;
     const club = MILESTONES.find((m) => data.meters >= m.meters) ?? MILESTONES[MILESTONES.length - 1];
 
-    // Just the club, in white, on nothing (owner call, 2026-09-05: "no
-    // background colour on the club card, just the 50K club in white and
-    // nothing else") — the sticker takes its ground from the story it lands
-    // on. Same soft shadow as the board stickers so it reads on a photo.
+    // The club is drawn the way the board tags it (owner call, 2026-09-05,
+    // second pass: "the same as the indicators on the table — a green square
+    // for the 50K and a blue square for the 100K"). That is .tierbadge in
+    // theme.ts: white mono caps on a solid rectangle in the tier ink, no
+    // skew, 10px type padded 1px/6px — the ratios below are that badge,
+    // blown up to sticker size. Everything outside the tag stays
+    // transparent; the soft shadow keeps it legible on a photo.
+    let size = 150;
+    const labelW = () => {
+      ctx.font = `${size}px ${fonts.mono}`;
+      return ctx.measureText(club.label).width + size * 1.2;
+    };
+    while (size > 60 && labelW() > this.width - 160) size -= 4;
+
+    ctx.font = `${size}px ${fonts.mono}`;
+    const boxW = ctx.measureText(club.label).width + size * 1.2; // 6/10 em each side
+    const boxH = size * 1.5; // the badge's line box
+    const capH = size * 0.72;
+    const clubSize = 118;
+    const clubCap = clubSize * 0.72;
+    const markSize = 96;
+    const markH = markSize * 1.28; // drawMark: caps + its two paddings
+    const G1 = 46; // tag -> CLUB
+    const G2 = 44; // CLUB -> the mark
+    const blockH = boxH + G1 + clubCap + G2 + markH;
+    const boxTop = Math.max(40, (this.height - blockH) / 2);
+    const clubBaseline = boxTop + boxH + G1 + clubCap;
+
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.55)";
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
+
+    ctx.fillStyle = club.plaque;
+    ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxH);
+
+    // Flat white on the ink, like the table: the tag casts a shadow, the
+    // caps inside it do not.
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0)";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     drawCenteredText(ctx, club.label, {
       cx,
-      baseline: 330,
-      font: `270px ${fonts.black}`,
+      baseline: boxTop + (boxH + capH) / 2,
+      font: `${size}px ${fonts.mono}`,
       color: "#ffffff",
-      maxWidth: this.width - 160,
     });
+    ctx.restore();
+
     drawCenteredText(ctx, "CLUB", {
       cx,
-      baseline: 480,
-      font: `118px ${fonts.black}`,
+      baseline: clubBaseline,
+      font: `${clubSize}px ${fonts.black}`,
       color: "#ffffff",
+    });
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: clubBaseline + G2 + markH / 2,
+      size: markSize,
+      fontFamily: fonts.black,
     });
     ctx.restore();
   },
@@ -760,9 +850,11 @@ const rowtemberBib: ShareCard = {
 };
 
 /* The profile header, redrawn white-on-transparent: number + name, the
- * meters as big as the card allows, the progress bar. The @ handle is gone
- * (owner call, 2026-09-05: just the bib number and the name), so the meters
- * move up and grow into the room it left. */
+ * meters as big as the card allows, then the total and the gap to 100k in
+ * words. The @ handle is gone (owner call, 2026-09-05: just the bib number
+ * and the name), so the meters move up and grow into the room it left; the
+ * progress bar under them is gone the same day, for being too small to see
+ * on a story. */
 const rowtemberProfile: ShareCard = {
   id: "rowtember-profile",
   label: "The profile",
@@ -824,28 +916,19 @@ const rowtemberProfile: ShareCard = {
     ctx.fillText("M E T E R S", M, 474);
     ctx.restore();
 
-    // Progress bar toward 100k. A masked rower keeps the empty track and
-    // the labels go dark: the fill and "X TO GO" would both give the
-    // hidden number away.
-    const barTop = 530;
-    const barH = 28;
-    const pct = Math.min(100, (data.meters / 100_000) * 100);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.fillRect(M, barTop, contentW, barH);
-    if (pct > 0 && !data.masked) {
-      const fillW = Math.max(6, (pct / 100) * contentW);
-      const grad = ctx.createLinearGradient(M, 0, M + contentW, 0);
-      grad.addColorStop(0, WATER);
-      grad.addColorStop(1, "#ffffff");
-      ctx.fillStyle = grad;
-      ctx.fillRect(M, barTop, fillW, barH);
-    }
+    // The progress-to-100k bar is gone (owner call, 2026-09-05: "remove the
+    // bar at the bottom, the progress to 100K — too small to see"). What sat
+    // under it keeps the card balanced at the same height: the ink now runs
+    // from the name's cap top (~98) to this baseline, so the air under the
+    // last line matches the air over the first (~98 either side of a 700-tall
+    // card). Pulled higher it left a 140px band hanging off the bottom
+    // (review, 2026-09-05); the room the track had reads as space instead.
+    const labelY = 596;
     ctx.save();
     ctx.font = `26px ${fonts.mono}`;
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "rgba(255,255,255,0.82)";
     ctx.textAlign = "left";
-    const labelY = barTop + barH + 44;
     if (data.masked) {
       const unit = " m";
       const w = drawBlockDigits(ctx, M, labelY, digits, 26, fonts);
@@ -862,125 +945,6 @@ const rowtemberProfile: ShareCard = {
       );
     }
     ctx.restore();
-  },
-};
-
-/* The rower's own cumulative curve for September so far — their line vs
- * the dashed finish-on-time line, same vocabulary as the profile's Curve.
- * The frame ends at today, not Sep 30 (owner call, 2026-09-05), and the
- * pace line is clipped with it. Out of the menu under a blackout: the
- * endpoint is the number being hidden. */
-const rowtemberCurve: ShareCard = {
-  id: "rowtember-curve",
-  label: "The curve",
-  width: 1080,
-  height: 1080,
-  light: true,
-  // A one-day month is a dot, not a curve: on Sep 1 the card stays out of
-  // the menu rather than drawing a lone point between two SEP 1 labels.
-  available: (d) =>
-    !d.masked && spanFor(d.days) > 1 && Object.values(d.byDay).some((m) => m > 0),
-  draw(ctx, data, fonts) {
-    const cx = this.width / 2;
-    const span = spanFor(data.days);
-
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
-      cx,
-      cy: 120,
-      size: 80,
-      fontFamily: fonts.black,
-    });
-
-    // Cumulative points from byDay, September days only, ascending.
-    const days = Object.keys(data.byDay)
-      .filter((d) => d.startsWith("2026-09-") && (data.byDay[d] ?? 0) > 0)
-      .filter((d) => Number(d.slice(8, 10)) <= span)
-      .sort();
-    let cum = 0;
-    const pts = days.map((d) => {
-      cum += data.byDay[d];
-      return { dayNum: Number(d.slice(8, 10)), cum };
-    });
-    if (pts.length === 0) return;
-    if (pts[0].dayNum > 1) pts.unshift({ dayNum: pts[0].dayNum - 1, cum: 0 });
-    const total = pts[pts.length - 1].cum;
-
-    // Chart frame. The y range tops out where the pace line reaches today,
-    // so the dashed line still runs corner to corner in a short month.
-    const L = 110;
-    const R = 1010;
-    const T = 240;
-    const B = 790;
-    const paceAt = (dayNum: number) => (100_000 * (dayNum - 1)) / 29;
-    const maxV = Math.max(total, paceAt(span), 1);
-    const x = (dayNum: number) => L + ((dayNum - 1) / Math.max(1, span - 1)) * (R - L);
-    const y = (v: number) => B - (v / maxV) * (B - T);
-
-    // Minimal axes: baseline + two day ticks + the pace mark on the right.
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.4)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(L, B);
-    ctx.lineTo(R, B);
-    ctx.stroke();
-    ctx.font = `24px ${fonts.mono}`;
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.textBaseline = "alphabetic";
-    ctx.textAlign = "left";
-    ctx.fillText("SEP 1", L, B + 40);
-    ctx.textAlign = "right";
-    ctx.fillText(`SEP ${span}`, R, B + 40);
-    if (span >= 30) {
-      ctx.fillText("100K", R, y(100_000) - 14);
-    } else if (span > 1) {
-      // Mid-month the dashed line ends short of 100k; say what it is.
-      ctx.fillText("100K PACE", R, y(paceAt(span)) - 14);
-    }
-
-    // The finish-on-time line: 0 on Sep 1 → 100k on Sep 30, dashed, quiet,
-    // drawn as far as today.
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([12, 12]);
-    ctx.beginPath();
-    ctx.moveTo(x(1), y(0));
-    ctx.lineTo(x(span), y(paceAt(span)));
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // The rower's line, solid white, with a bright endpoint dot.
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 7;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-      if (i === 0) ctx.moveTo(x(p.dayNum), y(p.cum));
-      else ctx.lineTo(x(p.dayNum), y(p.cum));
-    });
-    ctx.stroke();
-    const last = pts[pts.length - 1];
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.arc(x(last.dayNum), y(last.cum), 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // The total under the chart.
-    drawCenteredText(ctx, total.toLocaleString("en-US"), {
-      cx,
-      baseline: 950,
-      font: `96px ${fonts.black}`,
-      color: "#ffffff",
-    });
-    drawCenteredText(ctx, "METERS", {
-      cx,
-      baseline: 998,
-      font: `28px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.82)",
-      tracking: 8,
-    });
   },
 };
 
@@ -1160,11 +1124,41 @@ const rowtemberNamed: ShareCard = {
   },
 };
 
-/* One personal best: the label, the number, the place when they hold one.
- * Only in the menu when the dialog was opened from a bests card. A hidden
- * rower's best is drawn as its silhouette — ▮▮:▮▮.▮ for a pace best,
- * ▮▮,▮▮▮ m for a meters one — with the place kept, since places are
- * public and the number is not. */
+/* A record time without its tenth, for the best card (owner call,
+ * 2026-09-05: "it is only ever going to be seconds, never less than
+ * seconds, so that .0 can be removed"). Parses fmtRecordTime's h:mm:ss.t,
+ * mm:ss.t and m:ss.t, ROUNDS to the whole second in integer tenths so a
+ * float can never shave a digit, and reformats through fmtDuration, which
+ * carries properly: 18:51.6 -> 18:52, 59:59.5 -> 1:00:00. Anything else —
+ * a meters best ("10,000 m"), a bare "—", a time already in seconds —
+ * comes back untouched. */
+export function roundToSeconds(value: string): string {
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})\.(\d)$/.exec(value.trim());
+  if (!m) return value;
+  const tenths =
+    (m[1] ? Number(m[1]) : 0) * 36_000 + Number(m[2]) * 600 + Number(m[3]) * 10 + Number(m[4]);
+  return fmtDuration(Math.floor((tenths + 5) / 10));
+}
+
+/* The same rule for a hidden time's silhouette (clockShape with tenths):
+ * "##:##.#" -> "##:##", "#:##:##.#" -> "#:##:##". A meters silhouette has
+ * no tenth and passes through. The hidden number cannot be rounded, so a
+ * carry that would add an hour digit is not reflected — the silhouette
+ * keeps the digit count of the seconds it stands in for. */
+export function shapeToSeconds(shape: string): string {
+  return shape.replace(/^((?:#+:)?#{1,2}:##)\.#$/, "$1");
+}
+
+/* One personal best in the total card's idiom: the label as the mono
+ * eyebrow, then the number and its place ("18:52 #1") on ONE baseline,
+ * centred as a single line, the number shrinking until the pair fits; a
+ * podium place paints the mark's box in the medal metal (owner call,
+ * 2026-09-05: "the #1 at the end of it, like the Rowtember total card, and
+ * the ROWTEMBER mark gold or silver or bronze"). Times lose their tenth
+ * (roundToSeconds). Only in the menu when the dialog was opened from a
+ * bests card. A hidden rower's best is drawn as its silhouette — ▮▮:▮▮
+ * for a pace best, ▮▮,▮▮▮ m for a meters one — with the place kept, since
+ * places are public and the number is not. */
 const rowtemberBest: ShareCard = {
   id: "rowtember-best",
   label: "This best",
@@ -1176,6 +1170,7 @@ const rowtemberBest: ShareCard = {
     const cx = this.width / 2;
     const best = data.best;
     if (!best) return;
+    const place = best.place && best.place > 0 ? best.place : null;
 
     drawCenteredText(ctx, best.label.toUpperCase(), {
       cx,
@@ -1184,38 +1179,60 @@ const rowtemberBest: ShareCard = {
       color: "rgba(255,255,255,0.82)",
       tracking: 8,
     });
-    if (data.masked) {
-      // The page may have blanked the value and sent only its shape; when
-      // the dialog is the rower's own the value is still here and the
-      // shape is read off it.
-      const shape = best.shape || shapeOf(best.value);
-      const maxW = this.width - 120;
-      let size = 170;
-      while (size > 80 && drawBlockShape(ctx, 0, 0, shape, size, fonts, { paint: false }) > maxW) size -= 6;
-      drawBlockShape(ctx, cx, 320, shape, size, fonts, { align: "center" });
-    } else {
-      drawCenteredText(ctx, best.value, {
-        cx,
-        baseline: 320,
-        font: `170px ${fonts.black}`,
-        color: "#ffffff",
-        maxWidth: this.width - 120,
-      });
-    }
-    if (best.place) {
-      drawCenteredText(ctx, `#${best.place}`, {
-        cx,
-        baseline: 402,
-        font: `52px ${fonts.black}`,
-        color: medalColor(best.place) ?? "#ffffff",
-      });
-    }
 
+    // The page may have blanked the value and sent only its shape; when
+    // the dialog is the rower's own the value is still here and the shape
+    // is read off it — after rounding, so the silhouette is the seconds'.
+    const valueText = roundToSeconds(best.value);
+    const shape = best.shape ? shapeToSeconds(best.shape) : shapeOf(valueText);
+    const rankText = place ? `#${place}` : null;
+    const rankSize = 64;
+    const gap = 26;
+    const maxW = this.width - 90;
+    let vSize = 170;
+    const valueW = () => {
+      if (data.masked) return drawBlockShape(ctx, 0, 0, shape, vSize, fonts, { paint: false });
+      ctx.font = `${vSize}px ${fonts.black}`;
+      return ctx.measureText(valueText).width;
+    };
+    const lineW = () => {
+      let w = valueW();
+      if (rankText) {
+        ctx.font = `${rankSize}px ${fonts.black}`;
+        w += gap + ctx.measureText(rankText).width;
+      }
+      return w;
+    };
+    while (vSize > 80 && lineW() > maxW) vSize -= 6;
+
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#ffffff";
+    let x = cx - lineW() / 2;
+    if (data.masked) {
+      x += drawBlockShape(ctx, x, 320, shape, vSize, fonts) + gap;
+    } else {
+      ctx.font = `${vSize}px ${fonts.black}`;
+      ctx.fillText(valueText, x, 320);
+      x += ctx.measureText(valueText).width + gap;
+    }
+    if (rankText) {
+      ctx.font = `${rankSize}px ${fonts.black}`;
+      ctx.fillText(rankText, x, 320);
+    }
+    ctx.restore();
+
+    // The mark moves up and grows a little into the room the old "#N" line
+    // left, so the value does not float between the label and the box. It is
+    // drawn at the total card's 112px (review, 2026-09-05) so a best and a
+    // total posted in the same story wear the same mark.
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
-      cy: 500,
-      size: 96,
+      cy: 480,
+      size: 112,
       fontFamily: fonts.black,
+      box: (place && medalColor(place)) || undefined,
     });
   },
 };
@@ -1246,17 +1263,8 @@ const rowtemberElite: ShareCard = {
     const maxW = this.width - 120;
     while (size > 80 && blockDigitsWidth(ctx, digits, size, fonts) > maxW) size -= 6;
     const w = blockDigitsWidth(ctx, digits, size, fonts);
-    // The halo is laid down twice before the ink: one pass at 60% barely
-    // registered at 1080px and the blocks read as plain black slabs on a
-    // night photo. Stacking two near-white shadows gives them a light field
-    // to sit on without painting a white card behind them.
-    ctx.save();
-    ctx.shadowColor = "rgba(255,255,255,0.95)";
-    ctx.shadowBlur = 36;
-    drawBlockDigits(ctx, cx - w / 2, 440, digits, size, fonts, { fill: INK });
-    drawBlockDigits(ctx, cx - w / 2, 440, digits, size, fonts, { fill: INK });
-    ctx.restore();
-    drawBlockDigits(ctx, cx - w / 2, 440, digits, size, fonts, { fill: INK });
+    // Ink on a white halo — drawBlockDigits does that for every card now.
+    drawBlockDigits(ctx, cx - w / 2, 440, digits, size, fonts);
 
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.55)";
@@ -1828,19 +1836,67 @@ const rowtemberCommunityHoursTall: ShareCard = {
 const BOARD_PAGE = 10;
 const BOARD_PAGES = 12;
 
+/* THE ELITE FIFTEEN in the sticker's own voice: the section line under the
+ * title is sentence case ("The board · 11–20"), so the group's name is set
+ * the same way rather than shouted mid-sentence. Same words as ELITE_LABEL. */
+const ELITE_SECTION = "The Elite Fifteen";
+
+/* Blackout, the places half (blackoutRules.ts): a hidden row carries no
+ * place at all, so the sticker leaves the place column blank — the name and
+ * the meters stay on exactly the grid a ranked row uses, so the ten lines
+ * still read as one list. Exported so the rule can be checked without a
+ * canvas. */
+export function boardPlaceText(row: { unranked?: boolean }, place: number): string {
+  return row.unranked ? "" : String(place).padStart(2, "0");
+}
+
+/* The dim line under the title. A page whose rows are ALL hidden is the
+ * fifteen and says so. A page that mixes them with real places (11–20 with
+ * fifteen hidden: five unranked, then 16 to 20) prints no range at all —
+ * no range is true of all ten lines, and "11–20" over five blank places
+ * would be the ranking the rule just took away. Everything else: the
+ * places, as before. */
+export function boardSectionLabel(
+  rows: { unranked?: boolean }[],
+  start: number,
+  end: number,
+): string {
+  if (rows.length > 0 && rows.every((r) => r.unranked)) return `The board · ${ELITE_SECTION}`;
+  if (rows.some((r) => r.unranked)) return "The board";
+  return `The board · ${start}–${end}`;
+}
+
+/* The same decision at chip length, for the picker (review, 2026-09-05): a
+ * chip reading "1–10" over a sticker that prints no place at all IS a place,
+ * and a false one — after the reorder those ten are in digit-count-then-name
+ * order, not places 1 to 10. "ELITE 15" is the chip the elite card already
+ * uses, so the picker keeps one vocabulary. */
+export function boardPageLabel(
+  rows: { unranked?: boolean }[],
+  start: number,
+  end: number,
+): string {
+  if (rows.length > 0 && rows.every((r) => r.unranked)) return "Elite 15";
+  if (rows.some((r) => r.unranked)) return "The board";
+  return `${start}–${end}`;
+}
+
 function boardCard(page: number): ShareCard {
   const start = page * BOARD_PAGE + 1;
   const end = start + BOARD_PAGE - 1;
   const pad = (n: number) => String(n).padStart(2, "0");
+  const pageRows = (d: ShareData) =>
+    d.community?.standings?.slice(page * BOARD_PAGE, (page + 1) * BOARD_PAGE) ?? [];
   return {
     id: `rowtember-board-${pad(start)}-${pad(end)}`,
     label: `${start}–${end}`,
+    labelFor: (d) => boardPageLabel(pageRows(d), start, end),
     width: 1080,
     height: 1080,
     light: true,
     available: (d) => (d.community?.standings?.length ?? 0) > page * BOARD_PAGE,
     draw(ctx, data, fonts) {
-      const rows = data.community?.standings?.slice(page * BOARD_PAGE, (page + 1) * BOARD_PAGE) ?? [];
+      const rows = pageRows(data);
       if (rows.length === 0) return;
       const L = 70;
       const R = this.width - 70;
@@ -1858,10 +1914,11 @@ function boardCard(page: number): ShareCard {
       const asOf = data.community?.asOf;
       ctx.fillText(asOf ? `Rowtember · ${asOf}` : "Rowtember 2026", L, 118);
 
-      // Section label, dim: which ten places this is.
+      // Section label, dim: which ten places this is — or the fifteen's
+      // name when the page has no places to give.
       ctx.font = `30px ${fonts.mono}`;
       ctx.fillStyle = "rgba(255,255,255,0.62)";
-      ctx.fillText(`The board · ${start}–${end}`, L, 196);
+      ctx.fillText(boardSectionLabel(rows, start, end), L, 196);
 
       const top = 292;
       const step = 82;
@@ -1869,7 +1926,9 @@ function boardCard(page: number): ShareCard {
       rows.forEach((r, i) => {
         const place = start + i;
         const y = top + i * step;
-        const medal = medalColor(place);
+        // No place, no metal: a hidden row is not on the podium, whatever
+        // index it happens to sit at after the reorder.
+        const medal = r.unranked ? null : medalColor(place);
 
         // Meters, right-aligned, measured first so the name can yield to it.
         // A blacked-out row gets blocks where the digits would go: the
@@ -1893,11 +1952,18 @@ function boardCard(page: number): ShareCard {
           metersW = ctx.measureText(metersText).width;
         }
 
-        // Place number — dim, or the medal colour on the podium.
+        // Place number — dim, or the medal colour on the podium. A hidden
+        // row draws nothing here and keeps the column, so the names stay on
+        // one line down the sticker.
+        // (textAlign is set back to left for the name either way — the
+        // meters above left it on right.)
         ctx.textAlign = "left";
-        ctx.font = `${size * 0.72}px ${fonts.mono}`;
-        ctx.fillStyle = medal ?? "rgba(255,255,255,0.55)";
-        ctx.fillText(pad(place), L, y);
+        const placeText = boardPlaceText(r, place);
+        if (placeText) {
+          ctx.font = `${size * 0.72}px ${fonts.mono}`;
+          ctx.fillStyle = medal ?? "rgba(255,255,255,0.55)";
+          ctx.fillText(placeText, L, y);
+        }
 
         // Name, ellipsized into what is left between the number and the meters.
         ctx.font = `${size}px ${fonts.mono}`;
@@ -1922,7 +1988,8 @@ export const CARDS: ShareCard[] = [
   rowtemberTotal,
   rowtemberNamed,
   rowtemberProfile,
-  rowtemberCurve,
+  // The personal curve card is retired (owner call, 2026-09-05: "the curve
+  // shareable can be retired"). The community curve on the stats page stays.
   rowtemberBib,
   rowtemberClub,
   rowtemberMonth,

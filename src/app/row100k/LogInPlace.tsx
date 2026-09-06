@@ -71,9 +71,18 @@ export function LogInPlace({
     const openNow = () => {
       if (phase === "closed") return;
       setOpen(true);
-      window.requestAnimationFrame(() =>
-        document.getElementById("log")?.scrollIntoView({ block: "start", behavior: "smooth" }),
-      );
+      window.requestAnimationFrame(() => {
+        const el = document.getElementById("log");
+        if (!el) return;
+        // The sticky bar is one row on desktop and two on a phone (taller
+        // still where the masthead wraps), and this element's top edge IS
+        // the LOG A ROW heading: measure the bar so the heading lands under
+        // its rule instead of behind it. Desktop stays at the 72 the inline
+        // style starts from; a phone gets the bar's own height plus air.
+        const bar = document.querySelector(".row100k .bar");
+        if (bar) el.style.scrollMarginTop = `${Math.round(bar.getBoundingClientRect().height) + 10}px`;
+        el.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
     };
     const openIfAsked = () => {
       if (window.location.hash === "#log") openNow();

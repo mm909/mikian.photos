@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
-import { digitCount } from "@/lib/blackoutRules";
+import { ELITE_TAG, digitCount } from "@/lib/blackoutRules";
 import { fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit } from "@/lib/row100k";
 import { BlockClock, Blocks } from "../../../Blackout";
 import { Heatmap } from "../../../Heatmap";
@@ -205,13 +205,40 @@ export function Ledger({ items }: { items: LedgerItem[] }) {
   );
 }
 
+/* METERS A DAY — the total over the September days ELAPSED so far
+ * (view.days, the day the month calendar stops at; never below 1), not
+ * over the days rowed: it is the rower's pace toward the goal, so a rest
+ * day counts against it (owner ask, 2026-09-05; to average over the days
+ * they actually rowed instead, count the days in view.byDay — the view no
+ * longer carries a days-rowed total). Rounded to the metre. */
+export function metersPerDay(view: ProfileView): number {
+  return Math.round(view.totals.meters / Math.max(1, view.days));
+}
+
 /* The six figures under the big number: TIME ROWED first (the owner's
- * ask), then sessions, the longest row, the average split, days rowed and
- * the rank. The split is dropped whole while masked — with either the
- * meters or the time it is the third. Days rowed goes too: it is only a
- * count, but no public surface printed it for an elite rower before (the
- * old page hid their whole calendar), and the rule is to publish nothing
- * new on a masked profile — sessions is the one count the rules name. */
+ * ask), then sessions, the longest row, the average split, meters a day
+ * and the rank. DAYS ROWED is gone (owner, 2026-09-05 evening) — and six
+ * rows fill the two-column ledger (640-719px) evenly, where seven left the
+ * rank orphaned.
+ *
+ * Two of the six are dropped WHOLE while masked rather than drawn as
+ * blocks — the average split and meters a day. Both are the hidden total by
+ * another route over something the page already prints: the split needs
+ * only the time, and meters a day divides by the day count in the dateline
+ * ("DAY 5 OF 30"), so a five-block per-day figure beside a five-block total
+ * would cut the range the total's own blocks are allowed to admit (review,
+ * 2026-09-05). One block per digit of the total and nothing sharper: the
+ * longest row keeps its blocks because it is a figure of its own.
+ *
+ * The rank is the PLACES half of the blackout rule (blackoutRules.ts): one
+ * of the hidden fifteen has no place to show — divisionRank hands back null
+ * for them exactly as it does for a rower who has never rowed — so the row
+ * says ELITE 15 when `elite` and keeps the dash for the rower who genuinely
+ * has no standing yet. An admin's board is ranked, so they see the place.
+ * The key drops its division word in that state: the fifteen are cut off
+ * the COMBINED board (blackoutRules.eliteIndexes walks boards.total), so
+ * "Rank · women ... ELITE 15" would claim the top fifteen of the women,
+ * which is a different and stronger thing than the truth. */
 export function coreLedger(view: ProfileView): LedgerItem[] {
   const t = view.totals;
   const rowed = t.sessions > 0;
@@ -232,11 +259,19 @@ export function coreLedger(view: ProfileView): LedgerItem[] {
       k: "Average split",
       v: rowed && !view.masked && t.seconds > 0 ? `${fmtSplit(t.meters, t.seconds)} /500m` : "—",
     },
-    { key: "days", k: "Days rowed", v: view.masked ? "—" : String(t.daysRowed) },
+    {
+      key: "perday",
+      k: "Meters a day",
+      v: rowed && !view.masked ? <Num view={view} n={metersPerDay(view)} /> : "—",
+    },
     {
       key: "rank",
-      k: view.rower.division === "F" ? "Rank · women" : "Rank · men",
-      v: view.rank ? `#${view.rank.place} of ${view.rank.of}` : "—",
+      k: view.elite
+        ? "Rank"
+        : view.rower.division === "F"
+          ? "Rank · women"
+          : "Rank · men",
+      v: view.elite ? ELITE_TAG : view.rank ? `#${view.rank.place} of ${view.rank.of}` : "—",
     },
   ];
 }

@@ -50,6 +50,9 @@ function sampleData(masked = false): ShareData {
   }
 
   // A board with the elite fifteen hidden, so the sticker pages paint too.
+  // Hidden rows are UNRANKED as well (blackoutRules.ts, the places half):
+  // page 1 of the stickers is all fifteen and carries no place at all, page
+  // 2 mixes five of them with places 16–20.
   const standings = Array.from({ length: 25 }, (_, i) => {
     const meters = 118_000 - i * 4_300;
     const hidden = i < ELITE_N;
@@ -59,6 +62,7 @@ function sampleData(masked = false): ShareData {
       meters: hidden ? Math.floor(meters / 10_000) * 10_000 : meters,
       masked: hidden || undefined,
       digits: hidden ? String(meters).length : undefined,
+      unranked: hidden || undefined,
     };
   });
 
@@ -75,8 +79,17 @@ function sampleData(masked = false): ShareData {
     row: { day: "2026-09-14", meters: 10_000, seconds: 2461, title: "Sunrise 10k" },
     division: "M",
     longest: 21_097,
-    rank: { place: 3, of: 91 },
-    best: { label: "Fastest 5k", value: "19:59.5", place: 1 },
+    // Blackout, the places half: a hidden rower has no place to send, so the
+    // sample sends none — exactly what r/[num]/page.tsx and page.tsx do
+    // (`rank: shareElite ? null : rank`). Without this the catalogue painted
+    // "#3" and a bronze mark on a blacked-out total (review, 2026-09-05).
+    rank: masked ? null : { place: 3, of: 91 },
+    // Tenths on purpose: the best card rounds them away (18:52) and a first
+    // place paints its mark gold. The masked twin gets the same best with
+    // the value blanked and only its tenths silhouette, like the page does.
+    best: masked
+      ? { label: "Fastest 5k", value: "", place: 1, shape: "##:##.#" }
+      : { label: "Fastest 5k", value: "18:51.6", place: 1 },
     community: {
       meters: cum,
       rowers: 91,
@@ -93,7 +106,21 @@ function sampleData(masked = false): ShareData {
 
 /* The cards that look different under a blackout — painted a second time
  * with the masked sample so the owner can check the blocks. */
-const BLACKOUT_IDS = ["rowtember-total", "rowtember-named", "rowtember-profile", "rowtember-club"];
+const BLACKOUT_IDS = [
+  "rowtember-total",
+  "rowtember-named",
+  "rowtember-profile",
+  "rowtember-club",
+  "rowtember-best",
+];
+
+/* What the share picker would call this card in front of this sample — a
+ * board page under a blackout is not named by a place range (cards.ts
+ * labelFor). The catalogue captioned a no-places sticker "1–10" until this
+ * (review, 2026-09-05). */
+function labelOf(card: ShareCard, data: ShareData): string {
+  return card.labelFor?.(data) ?? card.label;
+}
 
 function Preview({
   card,
@@ -135,7 +162,13 @@ function Preview({
     void paint();
   }, [paint]);
 
-  return <canvas ref={ref} className="dst-canvas" aria-label={`${card.label} preview`} />;
+  return (
+    <canvas
+      ref={ref}
+      className="dst-canvas"
+      aria-label={`${labelOf(card, sampleData(masked))} preview`}
+    />
+  );
 }
 
 export function CardPreviews({ counts }: { counts: Record<string, number> }) {
@@ -179,7 +212,7 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
                 <Preview card={card} fonts={fonts} masked={masked} />
               </div>
               <figcaption>
-                <span className="dst-name">{card.label}</span>
+                <span className="dst-name">{labelOf(card, masked ? dark : plain)}</span>
                 <span className="dst-id">{card.id}</span>
                 <span className={n > 0 ? "dst-n on" : "dst-n"}>
                   {n}
@@ -195,7 +228,7 @@ export function CardPreviews({ counts }: { counts: Record<string, number> }) {
               <Preview card={card} fonts={fonts} masked />
             </div>
             <figcaption>
-              <span className="dst-name">{card.label} · blackout</span>
+              <span className="dst-name">{labelOf(card, dark)} · blackout</span>
               <span className="dst-id">{card.id}</span>
               <span className="dst-n">
                 <em>same id, hidden meters</em>

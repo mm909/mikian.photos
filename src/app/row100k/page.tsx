@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
@@ -19,7 +20,7 @@ import {
   type RecordBadge,
   type TotalRow,
 } from "@/lib/row100k";
-import { digitCount } from "@/lib/blackoutRules";
+import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
@@ -31,6 +32,7 @@ import { JoinPanel } from "./JoinPanel";
 import { Dashboard } from "./Dashboard";
 import { Who } from "./Boards";
 import { Blocks } from "./Blackout";
+import { EliteList, type EliteRow } from "./EliteList";
 import {
   EMPTY_BOARDS,
   EMPTY_FRONT,
@@ -160,11 +162,16 @@ export default async function Row100kPage() {
   // The board comes through boardView, which needs to know who is looking:
   // during a blackout the top fifteen are hidden from everyone but admins
   // and the rower themself (blackoutRules.ts), so this waits for `me`. The
-  // front page prints only rows (leader, top three, latest), never the
-  // table, so the window itself is not needed here — /row100k/board has it.
+  // window's end comes back with it, for the one date this page prints
+  // ("HIDDEN UNTIL SEP 27"); whether the fifteen are hidden at all is read
+  // off the board's own rows (`unranked`), never off the window, so an
+  // admin — whose board is never masked — sees the ordinary page.
   let boards = EMPTY_BOARDS;
+  let blackoutEndsAt: string | undefined;
   try {
-    boards = (await boardView({ viewerParticipantId: me?.id, admin: isAdmin })).boards;
+    const view = await boardView({ viewerParticipantId: me?.id, admin: isAdmin });
+    boards = view.boards;
+    blackoutEndsAt = view.blackout.endsAt;
   } catch (err) {
     console.error("row100k: failed to load board data", err);
   }
@@ -223,9 +230,44 @@ export default async function Row100kPage() {
           ? `${stamp} · LATE LOGS THROUGH OCT 3`
           : `${stamp} · DAY ${today} OF 30`;
 
+  // The PLACES half of the blackout rule (blackoutRules.ts): while a window
+  // is open the top fifteen come back unranked, and a page may not order
+  // them at all. So this page stops naming a leader and stops printing two
+  // podiums — it prints THE ELITE FIFTEEN as a list, in the order the board
+  // already put them (digit count, then name). Rows sixteen and down keep
+  // their real places, on the board page. Admins and any board with no
+  // window open carry no `unranked` row, so nothing below changes for them.
+  const hidden = boards.total.some((r) => r.unranked);
+  const eliteRows: EliteRow[] = hidden
+    ? boards.total
+        .filter((r) => r.unranked)
+        .map((r) => ({
+          name: r.name,
+          rowerNumber: r.rowerNumber,
+          division: r.division,
+          masked: r.masked,
+          // A masked row carries the real total's digit count; the viewer's
+          // own row is exempt from the mask, so its meters are the truth and
+          // their length is the count.
+          digits: r.digits ?? digitCount(r.meters),
+          // Their average split — the tag in front of the name, and the order
+          // the list is in (owner, 2026-09-05).
+          paceTag: r.paceTag,
+          // The number itself only on a row the mask spared: the viewer's.
+          meters: r.masked ? undefined : r.meters,
+        }))
+    : [];
+  // The one thing the owner keeps visible: "if I have another digit than
+  // everyone else, that is visible". The headline draws the longest total in
+  // the fifteen, so the list below it can never be the only place it shows.
+  const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? 1), 1);
+  const eliteUntil = blackoutEndsAt ? fmtPacificDay(blackoutEndsAt) : "";
+
   // A masked leader carries a tier floor (0 under 10k), so the mask itself
   // has to count as "has meters" or the headline would name the wrong rower.
-  const leader = boards.total.find((r) => r.meters > 0 || r.masked);
+  // Nobody leads while the fifteen are hidden: no leader is looked up and the
+  // streak is not even computed — how many days a rower has led is a place.
+  const leader = hidden ? undefined : boards.total.find((r) => r.meters > 0 || r.masked);
   const streak = leader ? leaderStreak(extras, leader.participantId, today) : 0;
 
   // The together numbers come from the board's own sums, never a reduce
@@ -236,7 +278,9 @@ export default async function Row100kPage() {
     maximumFractionDigits: 1,
   });
 
-  const onBoard = boards.total.filter((r) => r.meters > 0 || r.masked);
+  // Empty while the fifteen are hidden — the podiums are not rendered then,
+  // and an empty list is one less way for an order to leak.
+  const onBoard = hidden ? [] : boards.total.filter((r) => r.meters > 0 || r.masked);
   const topMen = onBoard.filter((r) => r.division === "M").slice(0, 3);
   const topWomen = onBoard.filter((r) => r.division === "F").slice(0, 3);
 
@@ -249,6 +293,14 @@ export default async function Row100kPage() {
   // Standing + record placements for the signed-in rower's share cards —
   // best-effort off the cached board (fails to undefined, cards just hide).
   // To #10, so the profile card can headline any top-ten stat.
+  //
+  // The dashboard prints no place of its own: `rank` below rides straight
+  // into the share payload, and it is handed over as `elite ? null : myRank`
+  // so a card of one of the hidden fifteen carries no "#N" (the PLACES half
+  // of the rule, review 2026-09-05). It has to be blanked at the prop and
+  // not here, because `myRank` is read off the VIEWER board, which is ranked
+  // for an admin — without it an admin in the fifteen would repost blocks
+  // with a real "#1" beside them.
   let myRank: { place: number; of: number } | null | undefined;
   let myRecords: RecordBadge[] | undefined;
   try {
@@ -296,7 +348,7 @@ export default async function Row100kPage() {
               sessions={myRows.length}
               rows={myRows}
               phase={earlyAdmin ? "open" : phase}
-              rank={myRank}
+              rank={elite ? null : myRank}
               records={myRecords}
               defaultDay={defaultDay}
               defaultTitle={`Rowtember #${myRows.length + 1}`}
@@ -320,7 +372,7 @@ export default async function Row100kPage() {
             </div>
             <div className="cell">
               <div className="n">{hoursText} h</div>
-              <div className="l mono">time rowed · everyone, every session</div>
+              <div className="l mono">time rowed</div>
             </div>
           </div>
         </div>
@@ -332,7 +384,19 @@ export default async function Row100kPage() {
           <div className="front-duo">
             <div className="front-box">
               <div className="eyebrow mono">The leader</div>
-              {leader ? (
+              {hidden ? (
+                /* No name, no streak, no place: the box says the fifteen are
+                 * hidden and draws the longest total among them in blocks. */
+                <>
+                  <div className="head mono">
+                    {eliteUntil ? `BLACKOUT — HIDDEN UNTIL ${eliteUntil.toUpperCase()}` : "BLACKOUT"}
+                  </div>
+                  <div className="v">
+                    <Blocks digits={eliteDigits} /> m
+                  </div>
+                  <div className="nm">{ELITE_LABEL}</div>
+                </>
+              ) : leader ? (
                 <>
                   <div className="head mono">
                     {streak <= 1 ? "NEW LEADER" : `IN THE LEAD FOR ${streak} DAYS`}
@@ -360,28 +424,53 @@ export default async function Row100kPage() {
 
       <section className="fs">
         <div className="wrap front">
-          <div className="front-top">
-            <TopThree label="Men" rows={topMen} />
-            <TopThree label="Women" rows={topWomen} />
-          </div>
+          {hidden ? (
+            /* One list across the measure instead of two podiums: no places,
+             * no divisions split, no order but digits-then-name. */
+            <div className="front-elite">
+              <EliteList
+                rows={eliteRows}
+                until={eliteUntil || undefined}
+                meRowerNumber={me?.rowerNumber ?? null}
+              />
+            </div>
+          ) : (
+            <div className="front-top">
+              <TopThree label="Men" rows={topMen} />
+              <TopThree label="Women" rows={topWomen} />
+            </div>
+          )}
         </div>
       </section>
 
       {latestRow && extras.latest && (
         <section className="fs">
           <div className="wrap front">
+            {/* Two lines, not one (owner, 2026-09-05): the label and when it
+             * landed on top, the rower and the length under it — on a phone
+             * the single line wrapped mid-number and put a lone M on its own
+             * row. */}
             <p className="front-latest mono">
-              LATEST ROW — {fmtRowerNumber(latestRow.rowerNumber)} · <b>{latestRow.name}</b> ·{" "}
-              <b>
-                {latestRow.masked ? (
-                  <>
-                    <Blocks digits={digitCount(extras.latest.meters)} /> m
-                  </>
-                ) : (
-                  fmtMeters(extras.latest.meters)
-                )}
-              </b>{" "}
-              · {ago(extras.latest.createdAtMs, nowMs)}
+              <span className="k">
+                LATEST ROW — {ago(extras.latest.createdAtMs, nowMs)}
+              </span>
+              <span className="v">
+                {fmtRowerNumber(latestRow.rowerNumber)} · <b>{latestRow.name}</b> ·{" "}
+                <b>
+                  {latestRow.masked ? (
+                    <>
+                      <Blocks digits={digitCount(extras.latest.meters)} /> m
+                    </>
+                  ) : (
+                    fmtMeters(extras.latest.meters)
+                  )}
+                </b>
+              </span>
+            </p>
+            {/* The board is a tab away, but the news column should offer it
+             * where the reader has just met the names (owner, 2026-09-05). */}
+            <p className="front-more mono">
+              <Link href="/row100k/board">See the whole board →</Link>
             </p>
           </div>
         </section>

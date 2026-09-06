@@ -51,7 +51,9 @@ export const dynamic = "force-dynamic";
  * print — meters, times and the pace bests alike (owner rule, 2026-09-05:
  * a time over a known distance is the meters by another route); the
  * calendar, which is the numbers by another name, goes entirely. Names,
- * places, dates and the sessions count stay. */
+ * dates and the sessions count stay. Their PLACE does not (owner, same
+ * evening): the fifteen carry none while hidden, themself included, so the
+ * ledger says ELITE 15 where the rank would be and no card draws a #. */
 
 const getRower = cache(async (num: number) => {
   const participant = await db.rowParticipant.findUnique({
@@ -126,10 +128,19 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   let floor = me.meters;
   let rank: { place: number; of: number } | null | undefined;
   let records: RecordBadge[] | undefined;
+  // The PLACES half of the rule (owner, 2026-09-05 evening): one of the
+  // hidden fifteen carries no place at all — not even to themself — so
+  // divisionRank hands back null though they do hold one. `elite` is how
+  // the ledger tells that apart from a rower who genuinely has no rank
+  // (nothing logged yet): it is the unranked flag off the board as THIS
+  // viewer sees it, which is set on all fifteen including the viewer's own
+  // row and on none of them for an admin, whose board is ranked.
+  let elite = false;
   try {
     const { boards: full } = await boardView(viewOpts(viewer));
     rank = divisionRank(full, p.id);
     records = recordPlacements(full, p.id, 10);
+    elite = full.total.find((r) => r.participantId === p.id)?.unranked === true;
     if (masked) {
       masked = maskedIds(full).has(p.id);
       floor = full.total.find((r) => r.participantId === p.id)?.meters ?? 0;
@@ -138,6 +149,13 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     console.error(`row100k: failed to load board data for placements (rower ${num})`, err);
     if (masked) {
       floor = 0;
+      // `elite` stays FALSE here on purpose (review, 2026-09-05): the
+      // numbers fail closed because blocks disclose nothing, but ELITE 15 is
+      // not a withheld value, it is a claim — and in this state the page
+      // cannot tell rank 3 from rank 40, so it would pin a top-fifteen badge
+      // on rowers who are nowhere near it. With no rank read, the ledger
+      // prints the dash, which claims nothing about anyone.
+      //
       // Every stranger's profile masks in this state, rank 40 included —
       // said out loud at warn level so a mass-mask reads as a board outage
       // in the logs, not as a blackout that swallowed the whole roster.
@@ -151,13 +169,13 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // the site, so an elite rower's own dialog (and an admin's repost card)
   // must draw blocks too. Fails closed while a window is open and the board
   // cannot be read.
-  let elite = false;
+  let shareElite = false;
   if (blackout.active) {
     try {
       const { boards: pub } = await boardView({});
-      elite = maskedIds(pub).has(p.id);
+      shareElite = maskedIds(pub).has(p.id);
     } catch {
-      elite = true;
+      shareElite = true;
     }
   }
   const hiddenUntil = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
@@ -176,12 +194,16 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     byDay,
     division: p.division,
     longest: longestM,
-    rank,
+    // No place on a card of one of the fifteen, ever: the page may show an
+    // admin (or the rower) the ranked board, but a card leaves the site,
+    // and "#3" is the number by another route (the PLACES half of the
+    // rule). For everyone else this is the rank the page prints.
+    rank: shareElite ? null : rank,
     records: masked ? records?.map((r) => ({ ...r, value: "" })) : records,
     // The cards stop at today like the page calendar does.
     days: daysElapsed(),
-    masked: elite,
-    digits: elite ? digits : undefined,
+    masked: shareElite,
+    digits: shareElite ? digits : undefined,
   };
 
   const now = clockNow();
@@ -307,9 +329,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       sessions: me.sessions,
       seconds: totalSeconds,
       longest: longestM,
-      daysRowed: me.days,
     },
     rank,
+    elite,
     bests,
     byDay,
     shareData,

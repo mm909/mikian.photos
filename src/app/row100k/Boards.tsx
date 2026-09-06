@@ -135,9 +135,22 @@ export function Boards({
   // carry their tier floor, so the reach is the same as the truth's.
   const maxMeters = boards.total.reduce((m, r) => Math.max(m, r.meters), 0);
   const sections = [...visibleTiers(maxMeters)].reverse(); // highest first
+
+  // THE ELITE FIFTEEN come OUT of the tier ladder while they are hidden
+  // (review, 2026-09-05). A tier heading is a bracket, and bracketing them —
+  // .25M above The 100K Club, 50K above 10K — publishes a finer ranking than
+  // the blocks do: two rowers drawing six blocks each would be sorted by the
+  // sections into an order the digit count never gave away, which is exactly
+  // the "am I three or four" the owner took off the board. So they stand in
+  // one block at the top of the table, in the order maskBoards handed over
+  // (digit count, then name), and the sections below carry sixteen and down.
+  // Places are untouched: rankOf still counts every row, so the first number
+  // printed is 16.
+  const eliteRows = total.filter((r) => r.unranked);
+  const listed = eliteRows.length > 0 ? total.filter((r) => !r.unranked) : total;
   // Warming up = under 10k. Joined-but-not-logged rowers count toward the
   // number, not the meters; nobody here is listed by name until 10k.
-  const warming = total.filter((r) => sectionOf(r) === null);
+  const warming = listed.filter((r) => sectionOf(r) === null);
   const warmingMeters = warming.reduce((s, r) => s + r.meters, 0);
   const rankOf = new Map(total.map((r, i) => [r.participantId, i + 1]));
 
@@ -146,8 +159,11 @@ export function Boards({
   // tab: a Women's tab with no woman in the fifteen is still blacked out.
   // An admin (nothing masked while a window is open) gets told the truth
   // about what they are looking at rather than a line about hidden rows.
-  const anyMasked = boards.total.some((r) => r.masked);
-  const blackedOut = blackout.active || anyMasked;
+  // `unranked` counts too: the one board where nothing is masked but a row is
+  // hidden is the viewer's own, alone in the fifteen — they get the note, not
+  // an unexplained ELITE FIFTEEN block.
+  const anyHidden = boards.total.some((r) => r.masked || r.unranked);
+  const blackedOut = blackout.active || anyHidden;
   const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   // The head follows the tab (owner call, 2026-09-05): on the men's or
@@ -199,8 +215,8 @@ export function Boards({
 
       {blackedOut && (
         <p className="bo-note">
-          {anyMasked
-            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+          {anyHidden
+            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until} · LISTED BY DIGITS`
             : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
         </p>
       )}
@@ -223,12 +239,25 @@ export function Boards({
               </tr>
             </thead>
             <tbody>
+              {eliteRows.length > 0 && (
+                <>
+                  {/* One block, no tier, no places — the list the note above
+                      promises. It leads the table: they are the top of the
+                      board, that much is public. */}
+                  <tr className="divrow elite">
+                    <td colSpan={4}>{ELITE_LABEL}</td>
+                  </tr>
+                  {eliteRows.map((r) => (
+                    <TotalRowTr key={r.participantId} r={r} rank={0} />
+                  ))}
+                </>
+              )}
               {sections.map((t) => {
                 const locked = maxMeters < t.meters;
                 // Only the rung past the goal is a secret; the ladder up to
                 // 100k is the challenge's own pitch.
                 const hidden = locked && t.meters > GOAL_METERS;
-                const members = total.filter((r) => sectionOf(r) === t.key);
+                const members = listed.filter((r) => sectionOf(r) === t.key);
                 return (
                   <Fragment key={t.key}>
                     <tr className={`divrow ${locked ? "locked" : t.rarity}`}>
@@ -258,9 +287,13 @@ export function Boards({
                       /* Reached by somebody, empty on this tab: on ALL that
                        * means everyone in range moved up; on a division tab
                        * it means the other division got there first. One
-                       * line for both (owner call, 2026-09-05). */
+                       * line for both (owner call, 2026-09-05). While the
+                       * fifteen are out of the ladder the line says LISTED,
+                       * since one of them may well be standing in this tier —
+                       * "NO ONE HERE YET" would be a claim the board cannot
+                       * make. */
                       <tr className="lockrow">
-                        <td colSpan={4}>NO ONE HERE YET</td>
+                        <td colSpan={4}>{eliteRows.length > 0 ? "NO ONE LISTED HERE" : "NO ONE HERE YET"}</td>
                       </tr>
                     )}
                   </Fragment>
@@ -295,12 +328,27 @@ export function Boards({
  * a blacked-out row wears ELITE 15 there instead of its tier, shows blocks
  * for its meters and drops the progress bar — the bar width would give the
  * number away. The name still links: /row100k/r/[num] masks the same
- * fifteen the same way, so the profile is no way around the blocks. */
+ * fifteen the same way, so the profile is no way around the blocks.
+ *
+ * The places half of the rule (owner, 2026-09-05 evening): one of the
+ * hidden fifteen carries NO place — the # cell stays empty (the cell keeps
+ * the column, so every row below still lines up) and no movement arrow is
+ * drawn, since a place moved is a place known. The tab re-derives movement
+ * from prevRank, so the skip has to happen here rather than lean on the
+ * zeroed delta maskBoards hands over. They wear ELITE 15 and no tier tag:
+ * the row sits in the elite block, outside the ladder, and a pace tag would
+ * be one more number of theirs (the viewer's own row keeps its meters, but
+ * it is in the same block and reads the same). */
 function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier }) {
   // Past PACE_TAG_FROM the tag is the rower's average split, to the second —
   // pace as identity, the way a marathoner is a 3:10 (owner, 2026-09-05).
   // Never on a masked row: the split is their number by another route.
-  const badge = r.masked ? (
+  // While hidden, the tag is their average split (owner, 2026-09-05: the
+  // fifteen rank by pace and wear it where the club tag goes); ELITE 15
+  // only when there is no timed row to average.
+  const badge = r.unranked && r.paceTag ? (
+    <span className="tierbadge pace">{r.paceTag}</span>
+  ) : r.masked || r.unranked ? (
     <span className="tierbadge elite">{ELITE_TAG}</span>
   ) : r.meters >= PACE_TAG_FROM && r.seconds > 0 ? (
     <span className="tierbadge pace">{fmtPaceTag(r.meters, r.seconds)}</span>
@@ -309,13 +357,11 @@ function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier 
   );
   return (
     <tr>
-      <td className="rk">{rank}</td>
+      <td className="rk">{r.unranked ? "" : rank}</td>
       <td>
         <Who row={r} badge={badge} />
       </td>
-      <td>
-        <Movement delta={r.delta} />
-      </td>
+      <td>{r.unranked ? null : <Movement delta={r.delta} />}</td>
       <td className="num">
         {r.masked ? (
           <>

@@ -1,6 +1,7 @@
 import {
   GOAL_METERS,
   fmtDay,
+  fmtPaceTag,
   fmtDuration,
   fmtRecordTime,
   tierFloor,
@@ -23,6 +24,14 @@ import {
  * is the meters by another route. Names, rower numbers, places, session
  * counts, dates and titles stay. Share cards leave the site, so they draw
  * blocks even in the rower's own dialog.
+ *
+ * The ranking half (owner, same evening): the fifteen carry no place at
+ * all while hidden — not even to themself ("I shouldn't be able to know
+ * that I'm number three or number four, I should just know that I'm in the
+ * top fifteen") — and are listed by how many digits their total has, then
+ * by name. A rower with one digit more than the rest is visible as such;
+ * that is the one thing the blocks say. Rows sixteen and down keep their
+ * places, which the reorder never moves.
  *
  * Masking happens on the way OUT of the cached board (boardView), never in
  * computeBoards, so the cached object stays the one source of truth and the
@@ -96,19 +105,92 @@ function maskRow<T extends { meters: number; pct?: number; seconds?: number }>(
   };
 }
 
-/* The public board. Rank order is untouched — the hidden rows keep their
- * places, only their numbers go. Returns the same object when nothing needs
- * hiding so the cached board is not copied for nothing. */
+/* How many digits a row shows: the real total's count on a masked row
+ * (that is what its blocks draw), the total itself otherwise. */
+function shownDigits(r: { meters: number; masked?: boolean; digits?: number }): number {
+  return r.masked && r.digits != null ? r.digits : digitCount(r.meters);
+}
+
+/* The order of the hidden fifteen: more digits first, then the name A to Z
+ * (case and accents ignored), then the rower number so it is total (owner,
+ * 2026-09-05: keep the blackout board sorted by digit first, then
+ * alphabetically, and still show the average pace). It is not a ranking —
+ * the digit count is already on the screen as the length of the blocks, and
+ * within a digit group the alphabet says nothing about who is ahead. The
+ * pace tag rides along on every row but does not order them. Exported for
+ * any surface that lists the fifteen on its own. */
+export function eliteOrder<T extends { meters: number; name: string; rowerNumber: number; masked?: boolean; digits?: number; paceTag?: string }>(
+  a: T,
+  b: T,
+): number {
+  return (
+    shownDigits(b) - shownDigits(a) ||
+    a.name.localeCompare(b.name, "en", { sensitivity: "base" }) ||
+    a.rowerNumber - b.rowerNumber
+  );
+}
+
+/* prevRank — where a rower stood before the latest logged day landed — is a
+ * field of the row, and the board is a client component: it travels into the
+ * page source of every board page. On a field that moves as little as this
+ * one, yesterday's places ARE today's ranking, so leaving the fifteen's own
+ * prevRanks attached hands the hidden order to anyone who reads the source
+ * (review, 2026-09-05).
+ *
+ * So: keep the multiset, destroy the mapping. Within a division the fifteen's
+ * prevRanks are collected, sorted and dealt back out in eliteOrder. Every row
+ * that is NOT hidden keeps exactly the neighbours it had when a board sorts on
+ * prevRank — which is how Boards.tsx rebuilds each tab's movement — so no
+ * visible arrow changes; and the only order the field now carries for the
+ * fifteen is the one already on the screen, digit count then name. */
+function dealPrevRanks(fifteen: TotalRow[]): TotalRow[] {
+  const pool = new Map<string, number[]>();
+  fifteen.forEach((r) => {
+    const list = pool.get(r.division);
+    if (list) list.push(r.prevRank);
+    else pool.set(r.division, [r.prevRank]);
+  });
+  pool.forEach((list) => list.sort((a, b) => a - b));
+  const taken = new Map<string, number>();
+  return fifteen.map((r) => {
+    const i = taken.get(r.division) ?? 0;
+    taken.set(r.division, i + 1);
+    return { ...r, prevRank: pool.get(r.division)?.[i] ?? r.prevRank };
+  });
+}
+
+/* The public board. The hidden fifteen lose their numbers (the viewer's own
+ * row keeps its meters) AND their places: all fifteen come back unranked
+ * and reordered by eliteOrder, with their movement zeroed (a place moved is
+ * a place known). Rows from sixteen down are untouched and still occupy the
+ * same indexes, so their places are unchanged. Idempotent: a second pass
+ * finds the same fifteen (masked rows count as elite) in the same order.
+ * Returns the same object when nothing needs hiding so the cached board is
+ * not copied for nothing. */
 export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
   if (!opts.active || opts.admin) return boards;
   const elite = eliteIndexes(boards.total);
   if (elite.size === 0) return boards;
-  const total: TotalRow[] = boards.total.map((r, i) => {
-    if (!elite.has(i) || r.masked) return r;
-    if (opts.viewerParticipantId && r.participantId === opts.viewerParticipantId) return r;
-    return maskRow(r);
+  const fifteen: TotalRow[] = [];
+  const rest: TotalRow[] = [];
+  boards.total.forEach((r, i) => {
+    if (!elite.has(i)) {
+      rest.push(r);
+      return;
+    }
+    const self = !!opts.viewerParticipantId && r.participantId === opts.viewerParticipantId;
+    // The pace comes off the row as it arrived — real meters and seconds —
+    // and is the only figure of theirs that survives the mask. A second
+    // pass over an already-masked board keeps the tag it computed then.
+    const paceTag =
+      r.paceTag ?? (r.meters > 0 && r.seconds > 0 ? fmtPaceTag(r.meters, r.seconds) : undefined);
+    const row = r.masked || self ? r : maskRow(r);
+    fifteen.push({ ...row, unranked: true, delta: 0, ...(paceTag ? { paceTag } : {}) });
   });
-  return { ...boards, total };
+  fifteen.sort(eliteOrder);
+  // Their previous places travel with the row, so they are dealt out again
+  // in this order before the board leaves the server (dealPrevRanks).
+  return { ...boards, total: [...dealPrevRanks(fifteen), ...rest] };
 }
 
 /* The share-sticker rows (cards.ts boardCard) carry no participant id, so
@@ -122,6 +204,10 @@ export type StandingRow = {
   meters: number;
   masked?: boolean;
   digits?: number;
+  /* One of the hidden fifteen: no place is drawn for the row. */
+  unranked?: boolean;
+  /* Their average split, "2:07" — printed where the club tag goes. */
+  paceTag?: string;
 };
 
 export function maskStandings(
@@ -131,11 +217,19 @@ export function maskStandings(
   if (!opts.active || opts.admin) return rows;
   const elite = eliteIndexes(rows);
   if (elite.size === 0) return rows;
-  return rows.map((r, i) => {
-    if (!elite.has(i) || r.masked) return r;
-    if (opts.viewerRowerNumber != null && r.rowerNumber === opts.viewerRowerNumber) return r;
-    return maskRow(r);
+  const fifteen: StandingRow[] = [];
+  const rest: StandingRow[] = [];
+  rows.forEach((r, i) => {
+    if (!elite.has(i)) {
+      rest.push(r);
+      return;
+    }
+    const self = opts.viewerRowerNumber != null && r.rowerNumber === opts.viewerRowerNumber;
+    const row = r.masked || self ? r : maskRow(r);
+    fifteen.push({ ...row, unranked: true });
   });
+  fifteen.sort(eliteOrder);
+  return [...fifteen, ...rest];
 }
 
 /* ------------------------------------------------------------- pacific */

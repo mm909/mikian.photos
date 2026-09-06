@@ -18,6 +18,7 @@ import { listGallery } from "../galleryList";
 import { photoUrl, photosServable } from "../photoUrls";
 import { boardData, EMPTY_BOARDS } from "../boardData";
 import { firstToGoal } from "../firstToGoal";
+import { clubJoinsFor, type ClubEntry } from "./clubJoins";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -127,13 +128,23 @@ export default async function PostPackPage() {
     () => Array(24).fill(0) as number[],
   );
   let totalSeconds = 0;
+  /* The same rows again, kept for the club welcome: who crossed 50K, 100K or
+   * .25M in the last 24 hours needs a running total per rower, which no board
+   * carries (./clubJoins). Orphan rows are dropped here, the way computeBoards
+   * drops them, so a removed rower cannot be welcomed. */
+  const joinEntries: ClubEntry[] = [];
   try {
     const entries = await db.rowEntry.findMany({
       where: { challenge: CHALLENGE },
-      select: { participantId: true, seconds: true, createdAt: true },
+      select: { participantId: true, meters: true, seconds: true, createdAt: true },
     });
     for (const e of entries) {
       if (!known.has(e.participantId)) continue;
+      joinEntries.push({
+        participantId: e.participantId,
+        meters: e.meters,
+        createdAt: e.createdAt,
+      });
       totalSeconds += e.seconds;
       const shifted = new Date(e.createdAt.getTime() - SHIFT_MS);
       const day = shifted.toISOString().slice(0, 10);
@@ -169,18 +180,39 @@ export default async function PostPackPage() {
 
   // boardData() is the public, masked board: during a blackout the elite
   // fifteen arrive with a tier floor and a digit count, and the board slide
-  // draws blocks for them. A masked row under 10k carries a floor of 0, so
-  // the filter keeps masked rows regardless.
+  // draws blocks for them. They also arrive UNRANKED and reordered by digit
+  // count then name (the places half of the rule), which the slide carries
+  // through as a blank place column. A masked row under 10k carries a floor
+  // of 0, so the filter keeps masked rows regardless.
+  const toPostRow = (r: (typeof boards.total)[number]): PostRow => ({
+    name: r.name,
+    num: r.rowerNumber,
+    meters: r.meters,
+    masked: r.masked,
+    digits: r.digits,
+    unranked: r.unranked,
+  });
   const standings: PostRow[] = boards.total
     .filter((r) => r.meters > 0 || r.masked)
-    .map((r) => ({
-      name: r.name,
-      num: r.rowerNumber,
-      meters: r.meters,
-      masked: r.masked,
-      digits: r.digits,
-    }));
+    .map(toPostRow);
   const club50 = standings.filter((r) => r.meters >= 50_000);
+
+  // WHO JOINED A CLUB IN THE LAST DAY (owner ask, 2026-09-05 late) — the
+  // welcome slides. The crossing is computed from the raw rows above, in the
+  // order they LANDED (./clubJoins), but the row that reaches the slide is the
+  // one off the masked board: a hidden rower's welcome names the club and
+  // draws blocks where their total would be. Nobody with no board row at all
+  // is welcomed, which is also what an unreadable board means — no board, no
+  // welcome, rather than a name with a made-up number beside it.
+  const boardRow = new Map(boards.total.map((r) => [r.participantId, r]));
+  const clubJoins = clubJoinsFor(
+    joinEntries,
+    (participantId) => {
+      const row = boardRow.get(participantId);
+      return row ? toPostRow(row) : undefined;
+    },
+    nowMs(),
+  );
 
   // The record list. Fastest boards print the average 500m split, which is
   // what the approved slide shows. boardData() masks only the total rows,
@@ -238,7 +270,16 @@ export default async function PostPackPage() {
         masked: claimHidden || undefined,
         digits: claimHidden ? (claimRow?.digits ?? digitCount(claim.total)) : undefined,
       }
-    : (standings.find((r) => r.meters >= 100_000) ?? null);
+    : // The fallback (firstToGoal returned nothing, or threw) used to mean
+      // "the leader", because the board arrived in meters order. Under an
+      // open window the fifteen come back in digit-count-then-name order and
+      // a hidden 100K row keeps a floor of exactly 100000, so the find would
+      // name the alphabetically-first six-figure rower as first to 100k. A
+      // masked board therefore skips the claim rather than guessing (review,
+      // 2026-09-05); the congrats slide still runs off club50.
+      standings.some((r) => r.unranked)
+      ? null
+      : (standings.find((r) => r.meters >= 100_000) ?? null);
 
   const data: PostData = {
     asOfDay: fmtDay(today),
@@ -252,6 +293,7 @@ export default async function PostPackPage() {
     records,
     club50,
     first100k,
+    clubJoins,
     hourGrid,
     photos,
   };

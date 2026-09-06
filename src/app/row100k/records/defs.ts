@@ -73,6 +73,14 @@ export type Ranked = {
   value: number;
   day?: string;
   sessions?: number;
+  /* Total board only: one of the hidden fifteen, who carry no place while a
+   * blackout window is open (blackoutRules.maskBoards). The other four
+   * boards never set it — a fastest-5k place is not the meters ranking, and
+   * the owner rule is about the meters (2026-09-05). */
+  unranked?: boolean;
+  /* With it: the hidden rower average split, "2:07" — printed where the
+   * club tag goes and the order the fifteen are listed in. */
+  paceTag?: string;
 };
 
 export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
@@ -81,7 +89,15 @@ export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
       // A masked (blackout) row is on the board by definition even when its
       // tier floor is 0 — dropping it would shift everyone below up a place.
       .filter((r) => r.meters > 0 || r.masked)
-      .map((r) => ({ row: r, value: r.meters, sessions: r.sessions }));
+      .map((r) => ({
+        row: r,
+        value: r.meters,
+        sessions: r.sessions,
+        // Only when set, so a board with no window open serializes exactly
+        // the object it did before.
+        ...(r.unranked ? { unranked: true } : {}),
+        ...(r.paceTag ? { paceTag: r.paceTag } : {}),
+      }));
   }
   const rows =
     key === "longest"
@@ -113,6 +129,13 @@ export type RecordRowLite = {
   masked?: boolean;
   digits?: number;
   shape?: string;
+  /* Total meters only: one of the hidden fifteen. No place is drawn for the
+   * row anywhere it is listed, and the records section lists the fifteen by
+   * average split instead of ranking them on meters (owner, 2026-09-05). */
+  unranked?: boolean;
+  /* With it: their average split, "2:07", the tag in front of the name and
+   * the order the list is in. A ratio of two hidden numbers. */
+  paceTag?: string;
 };
 
 export type RecordsProp = Record<RecordKey, RecordRowLite[]>;
@@ -129,6 +152,8 @@ export function liteRecords(boards: Boards, hidden: Set<string>): RecordsProp {
         value: r.value,
         day: r.day,
         sessions: r.sessions,
+        ...(r.unranked ? { unranked: true } : {}),
+        ...(r.paceTag ? { paceTag: r.paceTag } : {}),
       };
       const src = r.row as { masked?: boolean; digits?: number };
       if (!src.masked && !hidden.has(r.row.participantId)) return lite;
