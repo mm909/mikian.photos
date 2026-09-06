@@ -62,7 +62,10 @@ export function Dashboard(props: {
     return { byDay: m, longest };
   }, [props.rows]);
 
-  const tokens = tokensFor(metersText(props.meters, 8));
+  // Seven wheels, not the landing's eight: nobody rows ten million meters
+  // in a month, and the empty ten-millions digit read as noise (owner,
+  // 2026-09-05). Room for 9,999,999 stays.
+  const tokens = tokensFor(metersText(props.meters, 7));
 
   return (
     <div className="mine">

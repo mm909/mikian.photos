@@ -6,11 +6,10 @@ import { activeBlackout } from "@/lib/blackout";
 import { clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
-  FIRST_DAY,
   GOAL_METERS,
-  LAST_DAY,
   LOG_CLOSE_MS,
   START_MS,
+  clampDay,
   computeBoards,
   daysElapsed,
   divisionRank,
@@ -21,31 +20,29 @@ import {
   fmtRowerNumber,
   fmtSplit,
   nowMs as clockNow,
+  pacificDay,
   recordPlacements,
   type RecordBadge,
 } from "@/lib/row100k";
 import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { boardView } from "../../boardData";
-import { BlockClock, Blocks } from "../../Blackout";
-import { Curve } from "../../Curve";
-import { Heatmap } from "../../Heatmap";
-import { BestsGrid, type Best } from "../../BestsGrid";
-import { LogPanel } from "../../LogPanel";
 import { sanityBandForForm } from "../../sanity";
-import { ProfileLog } from "../../ProfileLog";
-import { ProfileShare } from "../../ProfileShare";
 import { resolvePhotoMedia } from "../../photoUrls";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import { Profile } from "./looks/Profile";
+import type { ProfileBest, ProfileView } from "./looks/view";
 
 export const dynamic = "force-dynamic";
 
 /* One rower's public page: their stats, their September calendar, their
- * curve, their log. Reached by clicking any name on the boards. Settings
- * live on /row100k/settings and moderation on /row100k/moderation (owner
- * call, 2026-09-05) — this page is the rower's, and only the logging
- * station and the share button change with who is looking.
+ * log. Reached by clicking any name on the boards. Settings live on
+ * /row100k/settings and moderation on /row100k/moderation (owner call,
+ * 2026-09-05) — this page is the rower's, and only the logging station
+ * and the share button change with who is looking. This file computes
+ * the view; looks/Profile.tsx lays it out (the owner's pick from three
+ * looks, same day — the ?look= switch is gone with the other two).
  *
  * Blackout: while a window is open, THE ELITE FIFTEEN have their numbers
  * hidden from the public (blackoutRules.ts). This page hides exactly the
@@ -53,8 +50,8 @@ export const dynamic = "force-dynamic";
  * and draws blocks of the right shape wherever a number of theirs would
  * print — meters, times and the pace bests alike (owner rule, 2026-09-05:
  * a time over a known distance is the meters by another route); the
- * calendar and the curve, which are the numbers by another name, go
- * entirely. Names, places, dates and the sessions count stay. */
+ * calendar, which is the numbers by another name, goes entirely. Names,
+ * places, dates and the sessions count stay. */
 
 const getRower = cache(async (num: number) => {
   const participant = await db.rowParticipant.findUnique({
@@ -110,7 +107,6 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const me = b.total[0];
   const byDay: Record<string, number> = {};
   for (const e of entries) byDay[e.day] = (byDay[e.day] ?? 0) + e.meters;
-  const pct = Math.min(100, me.pct);
   const longestM = b.longest[0]?.value ?? 0;
 
   // Is THIS rower hidden from THIS viewer? Read off the board as the viewer
@@ -182,7 +178,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     longest: longestM,
     rank,
     records: masked ? records?.map((r) => ({ ...r, value: "" })) : records,
-    // The cards stop at today like the page charts do.
+    // The cards stop at today like the page calendar does.
     days: daysElapsed(),
     masked: elite,
     digits: elite ? digits : undefined,
@@ -201,10 +197,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;
   // A masked profile's bests carry no value string at all: the two meters
   // bests keep only a digit count for the blocks, the two pace bests only
-  // the silhouette of the time (Best.shape, "##:##.#") and no split — and
-  // the prorated note stops naming the piece, since "pace from a 12,345 m
-  // row" is a row's meters by another route.
-  type ProfileBest = Best & { digits?: number };
+  // the silhouette of the time (ProfileBest.shape, "##:##.#") and no split
+  // — and the prorated note stops naming the piece, since "pace from a
+  // 12,345 m row" is a row's meters by another route.
   const metersBest = (
     key: string,
     label: string,
@@ -273,198 +268,64 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     timeShape: masked ? clockShape(r.seconds) : undefined,
   }));
 
+  // The logging station's prefills, on the rower's own page only: Pacific
+  // today (the same UTC-7 shift every chart uses) clamped into September —
+  // the day the rower actually rowed, not the UTC date that has already
+  // rolled over by a Californian evening; validateEntry draws its future
+  // line at this same day, and the picker stops here. The next session
+  // number for the title. Admins can log before Sep 1 to test the pipeline
+  // on their own account — the rows API waves the same people through. The
+  // did-you-mean-that band never blocks, never throws (rowing-club
+  // defaults when it cannot be drawn).
+  const log: ProfileView["log"] = isMe
+    ? {
+        phase: isAdmin && phase === "before" ? "open" : phase,
+        earlyAdmin: isAdmin && phase === "before",
+        defaultDay: clampDay(pacificDay(now)),
+        defaultTitle: `Rowtember #${entries.length + 1}`,
+        sanity: await sanityBandForForm(),
+      }
+    : null;
+
+  // TIME ROWED — the sum of every session (owner ask, 2026-09-05: how long
+  // they have spent rowing is the figure the profile was missing).
+  const totalSeconds = entries.reduce((s, e) => s + e.seconds, 0);
+
+  // One object for the layout (looks/view.ts): everything above, computed
+  // once; Profile.tsx only lays it out.
+  const view: ProfileView = {
+    rower: p,
+    isMe,
+    isAdmin,
+    masked,
+    blackoutNote,
+    club: (masked ? floor : me.meters) >= GOAL_METERS,
+    phase,
+    days: daysElapsed(),
+    totals: {
+      meters: me.meters,
+      sessions: me.sessions,
+      seconds: totalSeconds,
+      longest: longestM,
+      daysRowed: me.days,
+    },
+    rank,
+    bests,
+    byDay,
+    shareData,
+    rows,
+    logRows,
+    log,
+  };
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
-
-      {/* No ROWER-number tag here — with the account chip on the right it
-          crowded the bar on phones; the big number just below says whose
-          page this is. The viewer is already resolved, so the bar skips
-          its own lookup. */}
+      {/* The viewer is already resolved, so the bar skips its own lookup.
+          No ROWER-number tag in it — the nameplate just below says whose
+          page this is. */}
       <RowBar {...barProps(viewer)} />
-
-      <section>
-        <div className="wrap">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
-            <div>
-              <div className="prof-name">
-                <span style={{ color: "var(--gray)" }}>{fmtRowerNumber(p.rowerNumber)}</span>{" "}
-                {p.displayName}
-              </div>
-              <p style={{ marginTop: 8 }}>
-                <a
-                  className="prof-ig"
-                  href={`https://instagram.com/${p.instagram}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  @{p.instagram}
-                </a>
-              </p>
-              {/* Card-making stays for the rower and for admins (the repost
-                  case: a card with their name and number on it). */}
-              {(isMe || isAdmin) && <ProfileShare data={shareData} />}
-            </div>
-            <span className="mono" style={{ fontSize: 11, letterSpacing: ".12em", color: "var(--gray)" }}>
-              {p.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD"}
-              {(masked ? floor : me.meters) >= GOAL_METERS ? " · 100K CLUB" : ""}
-            </span>
-          </div>
-
-          <div className="me-stats">
-            <div className="me-stat">
-              <div className="n">{masked ? <Blocks digits={digits} /> : me.meters.toLocaleString("en-US")}</div>
-              <div className="l">meters</div>
-            </div>
-            <div className="me-stat">
-              <div className="n">{me.sessions}</div>
-              <div className="l">sessions</div>
-            </div>
-            <div className="me-stat">
-              <div className="n">
-                {masked ? <Blocks digits={digitCount(longestM)} /> : longestM.toLocaleString("en-US")}
-              </div>
-              <div className="l">longest row</div>
-            </div>
-          </div>
-          {masked ? (
-            /* No bar at all: its fill width and the TO GO remainder each
-               hand the number back, and a bar drawn without either would be
-               a new look the owner never asked for. The label row stays so
-               the blocks sit where everyone else's meters line does; the
-               blackout note prints once, down in The month. */
-            <div className="me-bar-label">
-              <span>
-                <Blocks digits={digits} /> M
-              </span>
-            </div>
-          ) : (
-            <>
-              <div className="me-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                <div className="fill" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="me-bar-label">
-                <span>{fmtMeters(me.meters)}</span>
-                <span>
-                  {me.meters >= GOAL_METERS ? "100K — DONE" : `${fmtMeters(GOAL_METERS - me.meters)} TO GO`}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>The bests</h2>
-            <span className="mono">PERSONAL — THIS SEPTEMBER</span>
-          </div>
-          {masked ? (
-            /* The same cards BestsGrid draws, rendered here on the server
-               with blocks where the meters and the times would be: the grid
-               takes value strings, and the real numbers must not reach the
-               browser. No SHARE — a visitor never has it anyway. No inline
-               column style either: .records.vol is already two-up and drops
-               to one column on phones (an inline style would pin two-up). */
-            <div className="records vol">
-              {bests.map((r) => (
-                <a className="rec" href={r.href} key={r.key}>
-                  <div className="t">
-                    {r.label}
-                    {r.place ? (
-                      <span className={`dtag${r.place <= 3 ? ` m${r.place}` : ""}`}>#{r.place}</span>
-                    ) : null}
-                  </div>
-                  <div className="v">
-                    {r.shape ? (
-                      <BlockClock shape={r.shape} />
-                    ) : r.digits ? (
-                      <Blocks digits={r.digits} />
-                    ) : (
-                      r.value
-                    )}
-                  </div>
-                  <div className="meta">{r.sub}</div>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <BestsGrid bests={bests} data={shareData} canShare={isMe || isAdmin} />
-          )}
-        </div>
-      </section>
-
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>The month</h2>
-            <span className="mono">METERS PER DAY</span>
-          </div>
-          {masked ? (
-            /* The calendar's shading and the curve are the numbers by
-               another name — skipped whole rather than drawn blank. */
-            <p className="prof-bo">{blackoutNote}</p>
-          ) : (
-            <>
-              <Heatmap byDay={byDay} days={daysElapsed()} />
-              <div style={{ marginTop: 10 }}>
-                <Curve
-                  daily={b.daily}
-                  title="Their curve — vs the finish-on-time line"
-                  goal={GOAL_METERS}
-                  days={daysElapsed()}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Your own page carries the logging station: the form sits just above
-          the log, and every row in the log can be shared, fixed or deleted. */}
-      {isMe ? (
-        <LogPanel
-          data={shareData}
-          rows={rows}
-          /* Pacific today (the same UTC-7 shift every chart uses), clamped
-             into September: the day the rower actually rowed, not the UTC
-             date that has already rolled over by a Californian evening.
-             validateEntry draws its future line at this same day, and the
-             picker stops here. */
-          defaultDay={((d) => (d < FIRST_DAY ? FIRST_DAY : d > LAST_DAY ? LAST_DAY : d))(
-            new Date(now - 7 * 3_600_000).toISOString().slice(0, 10),
-          )}
-          defaultTitle={`Rowtember #${entries.length + 1}`}
-          /* Admins can log before Sep 1 to test the pipeline on their own
-             account — the rows API waves the same people through. */
-          phase={isAdmin && phase === "before" ? "open" : phase}
-          earlyAdmin={isAdmin && phase === "before"}
-          /* The did-you-mean-that band for the form (never blocks, never
-             throws — falls back to the rowing-club defaults). */
-          sanity={await sanityBandForForm()}
-        />
-      ) : (
-        /* Everyone else — admins included: their tools live on
-           /row100k/moderation now, so on someone else's page an admin reads
-           the same log a visitor does (and keeps the share button above). */
-        <section>
-          <div className="wrap">
-            <div className="sec-head">
-              <h2>The log</h2>
-              <span className="mono">{rows.length} SESSIONS</span>
-            </div>
-            {rows.length === 0 ? (
-              <p className="board-empty">NOTHING LOGGED YET.</p>
-            ) : (
-              /* Two views: the clean numbers table (untouched, owner call)
-                 and a photos view with the pair each session posted. */
-              <ProfileLog rows={logRows} />
-            )}
-          </div>
-        </section>
-      )}
-
+      <Profile view={view} />
       <RowFooter />
     </div>
   );

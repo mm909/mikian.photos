@@ -1,4 +1,5 @@
 import {
+  dayTicks,
   daysElapsed,
   fmtDuration,
   fmtMeters,
@@ -1614,79 +1615,202 @@ const rowtemberCommunityDaily: ShareCard = {
   },
 };
 
-/* The hours grid as a sticker — the stats page's commit-graph (one row per
- * September day so far, 24 hour columns) in the community month card's alpha
- * ramp. Rows fatten early in the month and thin toward GitHub-graph texture
- * as days accumulate; the block stays vertically centered either way. Just
- * the grid — no mark, no caption (owner call, day 3). */
+/* ------------------------------------------------------------ hours cards */
+
+/* The stats page's commit-graph as two stickers: one laid out like the page
+ * (days down, hours across) and one turned tall (hours down, days across),
+ * because a story is portrait and a feed post is not (owner call,
+ * 2026-09-05: "we need to be able to share both horizontally and
+ * vertically"). Both are 1080 squares and both draw SQUARE cells ("squares,
+ * not rectangles — squares like git commits"): the side is whatever fits
+ * BOTH axes, so a two-day grid is a short strip of squares in the middle of
+ * the card instead of a slab of wide rectangles, and a thirty-day grid is
+ * GitHub-graph texture. The block — cells plus their label gutters — is
+ * what sits centred. Same alpha ramp on both (25/50/75% of the busiest
+ * hour, counted in sessions), same faint outline on an empty hour so the
+ * grid keeps its shape. No mark and no caption on either (owner call, day
+ * 3, still standing): the grid is the whole sticker. */
+
+const HOURS = 24;
+/* One gap on both axes, so the squares stay squares. */
+const HOURS_GAP = 6;
+/* Breathing room between the block and the card edge. */
+const HOURS_PAD = 40;
+const HOUR_TICKS = [[0, "12A"], [6, "6A"], [12, "12P"], [18, "6P"]] as const;
+
+/* In the menu once anyone has logged a row: an all-outline grid says nothing. */
+const hoursAvailable = (d: ShareData): boolean =>
+  !!d.community?.hourGrid && d.community.hourGrid.some((row) => row.some((m) => m > 0));
+
+/* The alpha ramp, bucketed off the busiest hour of the month so far. */
+function hourAlpha(grid: number[][]): (m: number) => number {
+  const busiest = Math.max(0, ...grid.map((row) => Math.max(...row, 0)));
+  return (m) =>
+    m <= 0 || busiest <= 0
+      ? 0
+      : m < busiest * 0.25
+        ? 0.3
+        : m < busiest * 0.5
+          ? 0.55
+          : m < busiest * 0.75
+            ? 0.78
+            : 1;
+}
+
+/* The square's side for a cols × rows grid inside availW × availH: the
+ * smaller of the width fit and the height fit, floored so every edge lands
+ * on a whole pixel. Never below 1, so a stray oversized grid still paints. */
+function squareCell(cols: number, rows: number, availW: number, availH: number): number {
+  const g = HOURS_GAP;
+  const wFit = (availW - (cols - 1) * g) / cols;
+  const hFit = (availH - (rows - 1) * g) / rows;
+  return Math.max(1, Math.floor(Math.min(wFit, hFit)));
+}
+
+/* The page's tick rule (dayTicks: every day while the month is short,
+ * 1 · 10 · 20 · today once it is long), thinned so two labels never crowd:
+ * walking back from the last day — which always stays — a tick is kept only
+ * when it sits at least minGap px from the tick kept after it. Squares make
+ * the steps small (a 30px step on Sep 30), so the old fixed 60px rule would
+ * have dropped every label but the last on a short month. */
+function thinTicks(n: number, step: number, minGap: number): number[] {
+  const kept: number[] = [];
+  for (const d of [...dayTicks(n)].reverse()) {
+    if (kept.length === 0 || (kept[kept.length - 1] - d) * step >= minGap) kept.push(d);
+  }
+  return kept.reverse();
+}
+
+/* One hour: a fill at its alpha, or the faint outline for an empty hour. */
+function drawHourCell(ctx: CanvasRenderingContext2D, x: number, y: number, cell: number, a: number) {
+  if (a === 0) {
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
+  } else {
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fillRect(x, y, cell, cell);
+  }
+}
+
+/* Like the page: one row per September day so far, 24 hour columns, the
+ * quarter-day ticks along the top and the day labels down the left in the
+ * page's own words ("SEP 1", then bare numbers). */
 const rowtemberCommunityHours: ShareCard = {
   id: "rowtember-community-hours",
   label: "The hours",
   width: 1080,
   height: 1080,
   light: true,
-  available: (d) =>
-    !!d.community?.hourGrid && d.community.hourGrid.some((row) => row.some((m) => m > 0)),
+  available: hoursAvailable,
   draw(ctx, data, fonts) {
-    const community = data.community;
-    const grid = community?.hourGrid;
-    if (!community || !grid || grid.length === 0) return;
-    const busiest = Math.max(0, ...grid.map((row) => Math.max(...row, 0)));
-    const alphaFor = (m: number) =>
-      m <= 0 || busiest <= 0
-        ? 0
-        : m < busiest * 0.25
-          ? 0.3
-          : m < busiest * 0.5
-            ? 0.55
-            : m < busiest * 0.75
-              ? 0.78
-              : 1;
-
+    const grid = data.community?.hourGrid;
+    if (!grid || grid.length === 0) return;
     const n = grid.length;
-    const cw = 32;
-    const cgap = 6;
-    const rgap = 6;
-    const labelW = 92;
-    const gridW = 24 * cw + 23 * cgap;
-    const left = (this.width - (labelW + gridW)) / 2 + labelW;
-    const tickH = 34;
-    const bandTop = 90;
-    const bandH = 900;
-    const rowH = Math.min(44, Math.floor((bandH - tickH - (n - 1) * rgap) / n));
-    const gridH = n * rowH + (n - 1) * rgap;
-    const top = bandTop + Math.max(0, (bandH - tickH - gridH) / 2) + tickH;
+    const alphaFor = hourAlpha(grid);
+
+    // Geometry: the day gutter on the left and the hour ticks above are part
+    // of the block, so the block — not just the cells — is what sits centred.
+    const labelW = 96; // "SEP 1" at 24px mono, plus its 16px gap
+    const tickH = 40;
+    const gap = HOURS_GAP;
+    const cell = squareCell(
+      HOURS,
+      n,
+      this.width - HOURS_PAD * 2 - labelW,
+      this.height - HOURS_PAD * 2 - tickH,
+    );
+    const step = cell + gap;
+    const gridW = HOURS * cell + (HOURS - 1) * gap;
+    const gridH = n * cell + (n - 1) * gap;
+    const left = Math.round((this.width - (labelW + gridW)) / 2) + labelW;
+    const top = Math.round((this.height - (tickH + gridH)) / 2) + tickH;
 
     ctx.save();
-    ctx.font = `22px ${fonts.mono}`;
+    ctx.font = `24px ${fonts.mono}`;
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    for (const [h, label] of [[0, "12A"], [6, "6A"], [12, "12P"], [18, "6P"]] as const) {
-      ctx.fillText(label, left + h * (cw + cgap) + cw / 2, top - 14);
+    for (const [h, label] of HOUR_TICKS) {
+      ctx.fillText(label, left + h * step + cell / 2, top - 14);
     }
 
-    // Every row gets a label while rows are chunky; every 5th once they thin.
-    const labelEvery = rowH >= 22 ? 1 : 5;
+    // Day labels, right-aligned in the gutter and centred on their row; a
+    // row is never shorter than a line of 24px type, so the thinning only
+    // bites if the tick rule ever changes.
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
+    for (const d of thinTicks(n, step, 30)) {
+      ctx.fillText(d === 1 ? "SEP 1" : String(d), left - 16, top + (d - 1) * step + cell / 2 + 1);
+    }
+
     for (let di = 0; di < n; di++) {
-      const y = top + di * (rowH + rgap);
-      if (di === 0 || (di + 1) % labelEvery === 0) {
-        ctx.fillText(`SEP ${di + 1}`, left - 16, y + rowH / 2 + 1);
+      for (let h = 0; h < HOURS; h++) {
+        drawHourCell(ctx, left + h * step, top + di * step, cell, alphaFor(grid[di]?.[h] ?? 0));
       }
-      for (let h = 0; h < 24; h++) {
-        const x = left + h * (cw + cgap);
-        const a = alphaFor(grid[di][h]);
-        if (a === 0) {
-          ctx.strokeStyle = "rgba(255,255,255,0.25)";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(x + 1, y + 1, cw - 2, rowH - 2);
-        } else {
-          ctx.fillStyle = `rgba(255,255,255,${a})`;
-          ctx.fillRect(x, y, cw, rowH);
-        }
+    }
+    ctx.restore();
+  },
+};
+
+/* Turned tall: the 24 hours run top to bottom, midnight at the top, with
+ * their ticks down the left; the days run left to right with their numbers
+ * along the bottom. Square cells make every column narrower than "SEP 1",
+ * so the bottom row borrows the page's own idiom instead: SEP once in the
+ * corner of the gutter, bare numbers under the columns. */
+const rowtemberCommunityHoursTall: ShareCard = {
+  id: "rowtember-community-hours-tall",
+  label: "The hours · tall",
+  width: 1080,
+  height: 1080,
+  light: true,
+  available: hoursAvailable,
+  draw(ctx, data, fonts) {
+    const grid = data.community?.hourGrid;
+    if (!grid || grid.length === 0) return;
+    const n = grid.length;
+    const alphaFor = hourAlpha(grid);
+
+    const labelW = 72; // "12A" at 24px mono, plus its 16px gap
+    const tickH = 48;
+    const gap = HOURS_GAP;
+    const cell = squareCell(
+      n,
+      HOURS,
+      this.width - HOURS_PAD * 2 - labelW,
+      this.height - HOURS_PAD * 2 - tickH,
+    );
+    const step = cell + gap;
+    const gridW = n * cell + (n - 1) * gap;
+    const gridH = HOURS * cell + (HOURS - 1) * gap;
+    const left = Math.round((this.width - (labelW + gridW)) / 2) + labelW;
+    const top = Math.round((this.height - (gridH + tickH)) / 2);
+
+    ctx.save();
+    ctx.font = `24px ${fonts.mono}`;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "right";
+    for (const [h, label] of HOUR_TICKS) {
+      ctx.fillText(label, left - 16, top + h * step + cell / 2 + 1);
+    }
+
+    for (let di = 0; di < n; di++) {
+      for (let h = 0; h < HOURS; h++) {
+        drawHourCell(ctx, left + di * step, top + h * step, cell, alphaFor(grid[di]?.[h] ?? 0));
       }
+    }
+
+    // The bottom row: SEP in the gutter corner, then the day numbers centred
+    // under their columns, thinned so a two-digit label never touches the
+    // next one.
+    ctx.textBaseline = "alphabetic";
+    const baseline = top + gridH + 42;
+    ctx.textAlign = "right";
+    ctx.fillText("SEP", left - 16, baseline);
+    ctx.textAlign = "center";
+    for (const d of thinTicks(n, step, ctx.measureText("30").width + 8)) {
+      ctx.fillText(String(d), left + (d - 1) * step + cell / 2, baseline);
     }
     ctx.restore();
   },
@@ -1809,6 +1933,7 @@ export const CARDS: ShareCard[] = [
   rowtemberCommunityCurve,
   rowtemberCommunityDaily,
   rowtemberCommunityHours,
+  rowtemberCommunityHoursTall,
   ...boardCards,
 ];
 

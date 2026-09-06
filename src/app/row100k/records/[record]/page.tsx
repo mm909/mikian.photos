@@ -141,7 +141,13 @@ export default async function RecordRankingPage({
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={r.row.participantId}>
+                    /* The viewer's own row wears the tint the stats boards
+                       use, so their place is findable on the full list
+                       (owner, 2026-09-05: seeing where you are matters). */
+                    <tr
+                      key={r.row.participantId}
+                      className={r.row.participantId === viewer.myParticipantId ? "fin" : undefined}
+                    >
                       <td className="rk">{i + 1}</td>
                       <td>
                         {/* Who is a client component (Boards.tsx), so every

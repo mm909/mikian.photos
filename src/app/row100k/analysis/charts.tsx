@@ -261,7 +261,22 @@ export function HistSvg({ c, you }: { c: HistChart; you: HistYou | null }) {
 }
 
 /* ------------------------------------------------------------- 2 · kde */
-export function KdeSvg({ c, you }: { c: KdeChart; you: KdeYou | null }) {
+/* `fmt`, `ends` and `label` default to the split density this was drawn
+ * for; the stats page reuses the same frame for meters per row (fmtK,
+ * SHORTER / LONGER) — one KDE, two axes. */
+export function KdeSvg({
+  c,
+  you,
+  fmt = fmtClock,
+  ends = ["← FASTER", "SLOWER →"],
+  label = "Kernel density of split per 500 m across every session",
+}: {
+  c: KdeChart;
+  you: KdeYou | null;
+  fmt?: (v: number) => string;
+  ends?: [string, string] | null;
+  label?: string;
+}) {
   if (c.xs.length < 2 || c.xs.length !== c.ys.length || !(c.xMax > c.xMin)) return null;
   const top = Math.max(...c.ys);
   if (!(top > 0)) return null;
@@ -276,12 +291,12 @@ export function KdeSvg({ c, you }: { c: KdeChart; you: KdeYou | null }) {
       ? `M${r(x(inBand[0][0]))},${r(y0)}${inBand.map(([v, d]) => `L${r(x(v))},${r(y(d))}`).join("")}L${r(x(inBand[inBand.length - 1][0]))},${r(y0)}Z`
       : null;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Kernel density of split per 500 m across every session">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
       {c.ticks.map((t) => (
         <g key={t}>
           <line x1={r(x(t))} x2={r(x(t))} y1={T} y2={r(y0)} stroke={GRID} strokeWidth="1" strokeDasharray="3 4" />
           <Lbl x={x(t)} y={H - 8}>
-            {fmtClock(t)}
+            {fmt(t)}
           </Lbl>
         </g>
       ))}
@@ -290,14 +305,18 @@ export function KdeSvg({ c, you }: { c: KdeChart; you: KdeYou | null }) {
       <path d={line} fill="none" stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />
       <VLine x={x(c.median)} />
       <Lbl x={x(c.median) + 4} y={T + 10} a="start" size={9} fill={INK}>
-        MED {fmtClock(c.median)}
+        MED {fmt(c.median)}
       </Lbl>
-      <Lbl x={L} y={T + 10} a="start" size={9}>
-        ← FASTER
-      </Lbl>
-      <Lbl x={W - R} y={T + 10} a="end" size={9}>
-        SLOWER →
-      </Lbl>
+      {ends && (
+        <>
+          <Lbl x={L} y={T + 10} a="start" size={9}>
+            {ends[0]}
+          </Lbl>
+          <Lbl x={W - R} y={T + 10} a="end" size={9}>
+            {ends[1]}
+          </Lbl>
+        </>
+      )}
       <Rug xs={c.rug} x={x} />
       <Base />
       {you && (
@@ -308,9 +327,11 @@ export function KdeSvg({ c, you }: { c: KdeChart; you: KdeYou | null }) {
           <Tag x={Math.min(Math.max(x(you.median), L), W - R)} y={T + 24} blue>
             {you.tag}
           </Tag>
-          <Tag x={Math.min(Math.max(x(you.best), L), W - R)} y={T + 38} blue>
-            {you.bestTag}
-          </Tag>
+          {you.bestTag && Number.isFinite(you.best) && (
+            <Tag x={Math.min(Math.max(x(you.best), L), W - R)} y={T + 38} blue>
+              {you.bestTag}
+            </Tag>
+          )}
         </g>
       )}
     </svg>

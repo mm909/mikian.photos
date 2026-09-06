@@ -1,11 +1,14 @@
 import { Fragment } from "react";
 
 /* When rows get LOGGED, hour by hour — a commit-graph grid: one row per
- * September day (up to today), 24 hour columns, the heatmap's blue ramp
- * bucketed at 25/50/75% of the busiest hour. This reads createdAt, so it's
- * honest about being log time, not erg time; the page shifts it to US-west
- * wall clock before bucketing. Pure server markup, tooltips via title;
- * .hg-scroll pans horizontally on phones. */
+ * September day (up to today), 24 square hour columns, the heatmap's blue
+ * ramp bucketed at 25/50/75% of the busiest hour. This reads createdAt, so
+ * it is honest about being log time, not erg time; the page shifts it to
+ * US-west wall clock before bucketing. Pure server markup, tooltips via
+ * title. The whole grid fits the viewport — the owner wants to see all of
+ * it without panning (2026-09-05) — so the day column is just the day
+ * number under a SEP header and the cells are whatever 24 equal columns
+ * leave, squares down to a 375px phone. */
 
 const TICKS: Record<number, string> = { 0: "12A", 6: "6A", 12: "12P", 18: "6P" };
 
@@ -24,9 +27,9 @@ export function HourGrid({ grid }: { grid: number[][] }) {
   };
 
   return (
-    <div className="hg-scroll">
+    <div className="hg-box">
       <div className="hg" role="img" aria-label="Meters logged per hour of day in September, Pacific time">
-        <div />
+        <div className="hg-day">Sep</div>
         {Array.from({ length: 24 }, (_, h) => (
           <div key={h} className="hg-tick">
             {TICKS[h] ?? ""}
@@ -34,12 +37,12 @@ export function HourGrid({ grid }: { grid: number[][] }) {
         ))}
         {grid.map((row, di) => (
           <Fragment key={di}>
-            <div className="hg-day">SEP {di + 1}</div>
+            <div className="hg-day">{di + 1}</div>
             {row.map((m, h) => (
               <div
                 key={h}
                 className={`hg-cell${bucket(m)}`}
-                title={`SEP ${di + 1} — ${hourLabel(h)} — ${m.toLocaleString("en-US")} M`}
+                title={`SEP ${di + 1} — ${hourLabel(h)} — ${m.toLocaleString("en-US")} ${m === 1 ? "ROW" : "ROWS"}`}
               />
             ))}
           </Fragment>

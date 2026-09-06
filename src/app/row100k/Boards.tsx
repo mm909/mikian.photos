@@ -3,8 +3,10 @@
 import { Fragment, useState, type ReactNode } from "react";
 import {
   GOAL_METERS,
+  PACE_TAG_FROM,
   TIERS,
   fmtMeters,
+  fmtPaceTag,
   fmtRowerNumber,
   tierFor,
   visibleTiers,
@@ -102,7 +104,7 @@ function sectionOf(r: TotalRow): Tier["key"] | null {
  * Blackout: the rows arrive already masked from boardView (blackoutRules),
  * so the top fifteen show digit blocks and an ELITE 15 tag — this
  * component never sees their real numbers. Everything deeper (records, the
- * weeks, the calendar, the curve) lives on /row100k/stats. */
+ * boards, the calendar, the hours, the field) lives on /row100k/stats. */
 export function Boards({
   boards,
   started,
@@ -156,7 +158,8 @@ export function Boards({
   const ledger: [string, string][] = [
     ["Rowers in", comm.people.toLocaleString("en-US")],
     ["Sessions", comm.sessions.toLocaleString("en-US")],
-    ["Finished 100K", comm.finished.toLocaleString("en-US")],
+    /* "100K club", not "finished" — the tier's own name (owner, 2026-09-05). */
+    ["100K club", comm.finished.toLocaleString("en-US")],
     ["Time rowed", hours(comm.seconds)],
     ["Today", `${comm.todayMeters.toLocaleString("en-US")} m · ${hours(comm.todaySeconds)}`],
   ];
@@ -282,7 +285,7 @@ export function Boards({
       )}
 
       <a className="big-act stats-link" href="/row100k/stats">
-        Records, the calendar &amp; the curve →
+        Records, the boards &amp; the field →
       </a>
     </div>
   );
@@ -294,8 +297,13 @@ export function Boards({
  * number away. The name still links: /row100k/r/[num] masks the same
  * fifteen the same way, so the profile is no way around the blocks. */
 function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier }) {
+  // Past PACE_TAG_FROM the tag is the rower's average split, to the second —
+  // pace as identity, the way a marathoner is a 3:10 (owner, 2026-09-05).
+  // Never on a masked row: the split is their number by another route.
   const badge = r.masked ? (
     <span className="tierbadge elite">{ELITE_TAG}</span>
+  ) : r.meters >= PACE_TAG_FROM && r.seconds > 0 ? (
+    <span className="tierbadge pace">{fmtPaceTag(r.meters, r.seconds)}</span>
   ) : (
     tier && <span className={`tierbadge ${tier.rarity}`}>{tier.label}</span>
   );

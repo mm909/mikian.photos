@@ -363,6 +363,9 @@ export type TotalRow = {
   instagram: string;
   meters: number;
   sessions: number;
+  /* Time on the erg, all sessions — the board turns it into a pace tag past
+   * PACE_TAG_FROM. Zeroed on a masked row (blackoutRules.ts). */
+  seconds: number;
   days: number;
   pct: number; // toward GOAL_METERS, uncapped (110% shows as 110)
   /* Places moved since the latest logged day landed (+2 = up two), on the
@@ -441,6 +444,7 @@ export function computeBoards(
       instagram: p.instagram,
       meters,
       sessions: list.length,
+      seconds: list.reduce((s, e) => s + e.seconds, 0),
       days,
       pct: Math.round((meters / GOAL_METERS) * 100),
       delta: 0,
@@ -615,6 +619,19 @@ export type CommunityStats = {
  * the tier's name and threshold stay behind blackout blocks on the board
  * until somebody actually reaches it (the rarity key `legend` survives as a
  * CSS class name only). */
+/* Pace as identity (owner, 2026-09-05: "like how people say they are a
+ * 2:xx marathoner"). Past this many meters the board swaps a rower's club
+ * tag for their average split, to the second — nowhere else. */
+export const PACE_TAG_FROM = 500_000;
+
+/* "2:07" — the average split over everything rowed, rounded to the second. */
+export function fmtPaceTag(meters: number, seconds: number): string {
+  const split = Math.round(seconds / (meters / 500));
+  const m = Math.floor(split / 60);
+  const s = split % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export const TIERS = [
   { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: "Rowtember Participant" },
   { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },

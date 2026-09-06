@@ -80,12 +80,17 @@ function eliteIndexes<T extends { meters: number; masked?: boolean }>(rows: T[])
  * keep only the digit count of the truth. `pct` follows the floor only on
  * rows that carry one (board rows do, sticker rows do not) so a masked row
  * never grows a field its neighbours lack. */
-function maskRow<T extends { meters: number; pct?: number }>(r: T): T & { masked: true; digits: number } {
+function maskRow<T extends { meters: number; pct?: number; seconds?: number }>(
+  r: T,
+): T & { masked: true; digits: number } {
   const floor = tierFloor(r.meters);
   return {
     ...r,
     meters: floor,
     ...("pct" in r ? { pct: Math.round((floor / GOAL_METERS) * 100) } : {}),
+    // Time on the erg is a number of theirs too (it is the meters by way
+    // of a pace); a masked row carries none.
+    ...("seconds" in r ? { seconds: 0 } : {}),
     masked: true as const,
     digits: digitCount(r.meters),
   };

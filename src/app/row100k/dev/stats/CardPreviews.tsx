@@ -41,10 +41,11 @@ function sampleData(masked = false): ShareData {
     communityByDay[day] = everyone;
     cum += everyone;
     daily.push({ day, cum });
+    // Sessions per hour, not meters — the grid counts when rows get LOGGED.
+    // Nothing before 4am or after 9pm, and a few empty hours in between so
+    // the outline cells show too.
     hourGrid.push(
-      Array.from({ length: 24 }, (_, h) =>
-        h < 4 || h > 21 ? 0 : Math.round((everyone / 14) * (((h * 37 + d * 11) % 10) / 9)),
-      ),
+      Array.from({ length: 24 }, (_, h) => (h < 4 || h > 21 ? 0 : (h * 37 + d * 11) % 10)),
     );
   }
 

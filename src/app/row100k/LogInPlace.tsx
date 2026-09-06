@@ -14,7 +14,7 @@ import type { ShareData } from "./share/cards";
  * on the right opens the card dialog. Logging a row still refreshes the
  * server props (LogRow does that), and the share dialog pops on the
  * single-row card the moment the save lands — the same fold-in LogPanel
- * does on the profile, so the card shows the new meters before the refresh
+ * does on the dev preview, so the card shows the new meters before the refresh
  * catches up. Right after joining, the bib card pops instead (JoinPanel
  * leaves the one-shot sessionStorage note). */
 export function LogInPlace({

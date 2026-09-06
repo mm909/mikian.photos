@@ -19,6 +19,7 @@ export const COMMUNITY_CARD_IDS = [
   "rowtember-community-curve",
   "rowtember-community-daily",
   "rowtember-community-hours",
+  "rowtember-community-hours-tall",
 ];
 
 export type CommunityShare = NonNullable<ShareData["community"]>;

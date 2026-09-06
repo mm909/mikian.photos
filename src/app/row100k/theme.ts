@@ -184,6 +184,11 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .my-od-link{display:block;text-decoration:none;color:inherit;margin-top:6px}
 .row100k .my-od{--od-size:clamp(40px,min(calc(16.3vw - 10px),30vh),160px);--od-cw:.68em;--od-sw:.34em;display:flex;align-items:flex-start;font-family:var(--row-archivo-black),sans-serif;font-size:var(--od-size);line-height:1;color:var(--water);letter-spacing:0;font-variant-numeric:tabular-nums;transition:color 160ms ease}
 .row100k .my-od-link:hover .my-od{color:var(--ink)}
+/* The signed-in front page: seven wheels and two commas are 5.44em, sized
+ * off the box itself (cqw) so the number can never run past the frame the
+ * way the vw formula did on a wide screen; 180px is where it stops growing. */
+.row100k .mine{container-type:inline-size}
+.row100k .mine .my-od{--od-size:min(calc(100cqw / 5.44),30vh,180px)}
 .row100k .my-od .cell{flex:none;width:var(--od-cw);height:1em;text-align:center}
 .row100k .my-od .sep{flex:none;width:var(--od-sw);height:1em;text-align:center}
 .row100k .my-od .lead{opacity:.25}
@@ -304,16 +309,6 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .signed-note{font-family:var(--row-mono),monospace;font-size:11px;color:var(--gray);margin-top:14px;letter-spacing:.04em}
 
 
-/* Personal stats row inside the dashboard (and profiles). */
-.row100k .me-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
-.row100k .me-stats.four{grid-template-columns:repeat(4,1fr)}
-@media(max-width:560px){.row100k .me-stats.four{grid-template-columns:1fr 1fr}}
-.row100k .me-stat{border:2px solid var(--ink);padding:14px 12px 12px;text-align:center}
-.row100k .me-stat .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,5vw,30px);line-height:1;font-variant-numeric:tabular-nums}
-.row100k .me-stat .l{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin-top:6px}
-.row100k .me-bar{margin-top:16px;height:14px;border:2px solid var(--ink);background:transparent;position:relative;overflow:hidden}
-.row100k .me-bar .fill{position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--water),#63b6dc)}
-.row100k .me-bar-label{display:flex;justify-content:space-between;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;color:var(--gray);margin-top:8px}
 /* The two big actions on the dashboard: log (blue, links to the profile
  * form) and share (ink outline, opens the card dialog). Same voice as .send. */
 .row100k .act-row{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
@@ -451,9 +446,29 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rec .also b{color:var(--ink-soft);font-weight:400}
 .row100k .rec-empty{font-family:var(--row-mono),monospace;font-size:10px;color:var(--gray);margin-top:8px;line-height:1.7}
 .row100k .rec-open{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;color:var(--water);margin-top:9px;text-transform:uppercase}
-/* Stats page: the total-meters headline card stands alone, full width. */
-.row100k .records.solo{grid-template-columns:1fr}
-.row100k .rec.headline .v{font-size:clamp(28px,7vw,40px)}
+/* Stats page, THE RECORDS (owner call, 2026-09-05): the record cards are
+ * gone. The chosen record wears the board head — the big blue number one
+ * step under the front page, the holder on the mono line — over the men
+ * and women podiums (.front-top / .front-three, the front page markup).
+ * The unit rides small and grey inside the number. */
+.row100k .st-rec .bhead-n{font-size:clamp(40px,11vw,88px)}
+.row100k .st-rec .bhead-n .u{font-size:.4em;color:var(--gray);font-family:var(--row-archivo),sans-serif;font-weight:700}
+.row100k .st-podiums{margin-top:26px}
+/* The Overall neighbourhood a division-X rower gets under the podiums. */
+.row100k .st-overall{margin-top:22px}
+/* The stats-page submenu (owner call, 2026-09-05, second look): the
+ * record picker and the by-day / by-week switch are small mono links in
+ * a row, the picked one in ink on a 2px water underline, the rest grey —
+ * no border, no chip fill, so five of them wrap on a phone without
+ * reading as buttons. The leaders and their numbers carry the section;
+ * this is a submenu. Buttons and links share the look. .lead is the
+ * variant that sits under a section head, ahead of what it switches. */
+.row100k .st-sub{display:flex;flex-wrap:wrap;gap:2px 18px;margin:24px 0 0;padding:0}
+.row100k .st-sub.lead{margin:-8px 0 14px}
+.row100k .st-sub.tight{margin:12px 0 22px}
+.row100k .st-sub button,.row100k .st-sub a{display:inline-block;background:none;border:0;border-bottom:2px solid transparent;margin:0;padding:6px 0 4px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--gray);text-decoration:none}
+.row100k .st-sub .on{color:var(--ink);border-bottom-color:var(--water)}
+.row100k .st-sub button:hover:not(.on),.row100k .st-sub a:hover:not(.on){color:var(--water)}
 .row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
 .row100k .rec .duo .side+.side{border-left:1px dashed var(--line);padding-left:16px}
 .row100k .rec .duo .dv{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
@@ -490,14 +505,6 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pace-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:12px;line-height:1.9;text-transform:uppercase}
 .row100k .pace-note b{color:var(--water);font-weight:700}
 
-/* Rower profile. */
-.row100k .prof-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(28px,7vw,44px);text-transform:uppercase;line-height:1.02;letter-spacing:-.01em}
-.row100k .prof-ig{font-family:var(--row-mono),monospace;font-size:13px;color:var(--water);text-decoration:none;letter-spacing:.04em}
-.row100k .prof-ig:hover{text-decoration:underline;text-underline-offset:3px}
-/* Blackout on a profile: the progress bar is not drawn at all (its width IS
- * the number), and the month section is one bordered note in place of the
- * calendar and the curve. */
-.row100k .prof-bo{border:2px solid var(--ink);padding:16px 18px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);line-height:1.7}
 /* Moderation page: the lede under a picked rower, and the remove control
  * under its own rule so it is never one stray tap from the edit menu. */
 .row100k .mod-lede{margin-top:14px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);line-height:1.8}
@@ -569,6 +576,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge.epic{background:var(--tier-epic-ink)}
 .row100k .tierbadge.legend{background:var(--tier-legend-ink)}
 .row100k .tierbadge.elite{background:var(--ink)}
+.row100k .tierbadge.pace{background:var(--ink);letter-spacing:.02em}
 /* Blackout blocks: one fat cursor per hidden digit, sized off the inherited
  * font so a run of them is exactly as wide as the number it stands in for
  * (Space Mono advances .6em a glyph: a .54em block with .03em either side).
@@ -604,7 +612,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k tr.gaprow td{padding:6px;border-bottom:1px dashed var(--line);color:var(--gray);text-align:center;font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.3em}
 
 /* ----------------------------------------------------------------------
- * Stats-page month block (MonthSection + the hour grid + turnout).
+ * Stats-page month block (MonthSection + the hour grid).
  * The per-day k labels inside heatmap cells: bold mono, sized to the cell.
  * Only b4 (#0077B6) is deep enough for white type (4.9:1); ink wins on
  * every lighter bucket — b3 puts white at 2.95:1, ink at 6.1:1. */
@@ -612,17 +620,247 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .hm-cell.b4 .hm-num{color:#fff}
 /* The small share row tucked under a chart. */
 .row100k .ms-actions{display:flex;justify-content:flex-end;margin-top:10px}
-/* Hour grid: one row per day, 24 hour columns, GitHub-commit style.
- * Fixed-ish column widths inside a horizontal scroller so phones pan. */
-.row100k .hg-scroll{overflow-x:auto;border:2px solid var(--ink);padding:16px;margin-top:8px}
-.row100k .hg{display:grid;grid-template-columns:52px repeat(24,minmax(18px,1fr));gap:4px;min-width:620px}
-.row100k .hg-day{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;align-self:center;white-space:nowrap}
-.row100k .hg-tick{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.08em;color:var(--gray);text-transform:uppercase;padding-bottom:2px;white-space:nowrap}
-.row100k .hg-cell{aspect-ratio:1;border:1px dashed var(--line)}
-.row100k .hg-cell.b1{background:#d9e8f2;border:1px solid #d9e8f2}
-.row100k .hg-cell.b2{background:#a5cde3;border:1px solid #a5cde3}
-.row100k .hg-cell.b3{background:#4d9fc9;border:1px solid #4d9fc9}
-.row100k .hg-cell.b4{background:var(--water);border:1px solid var(--water)}
+/* Hour grid: one row per September day, 24 square hour columns, and the
+ * whole thing in the viewport — no horizontal pan (owner call,
+ * 2026-09-05). A narrow mono day column (SEP over the day numbers), the
+ * 12A 6A 12P 6P ticks over hours 0, 6, 12 and 18; a tick may hang past
+ * its own column, whose neighbours are blank. Empty cells are a faint
+ * wash rather than a dashed hairline, which at nine pixels reads as dots. */
+.row100k .hg-box{border:2px solid var(--ink);padding:14px 12px 12px;margin-top:8px}
+.row100k .hg{display:grid;grid-template-columns:auto repeat(24,minmax(0,1fr));gap:2px}
+.row100k .hg-day{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;align-self:center;white-space:nowrap;text-align:right;padding-right:4px}
+.row100k .hg-tick{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;padding-bottom:3px;white-space:nowrap;min-width:0;overflow:visible}
+.row100k .hg-cell{aspect-ratio:1;min-width:0;background:rgba(21,23,26,.05)}
+.row100k .hg-cell.b1{background:#d9e8f2}
+.row100k .hg-cell.b2{background:#a5cde3}
+.row100k .hg-cell.b3{background:#4d9fc9}
+.row100k .hg-cell.b4{background:var(--water)}
+
+/* ----------------------------------------------------------------------
+ * THE FIELD on the stats page (owner ask, 2026-09-05): the front page
+ * stat cells — bold number over a lighter mono descriptor, with a mono
+ * eyebrow naming the figure — three across from 640px, one a line on a
+ * phone. The two tiles that are the viewer go blue, the way every YOU
+ * mark on the charts does. */
+.row100k .st-tiles{display:grid;grid-template-columns:1fr;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);margin-bottom:8px}
+.row100k .st-tile{padding:14px 0 13px;border-bottom:1px solid var(--ink);min-width:0}
+.row100k .st-tile:last-child{border-bottom:none}
+.row100k .st-tile .k{font-size:10px;letter-spacing:.18em;color:var(--gray);text-transform:uppercase}
+.row100k .st-tile .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,5.6vw,36px);line-height:1;font-variant-numeric:tabular-nums;margin-top:6px;overflow-wrap:anywhere}
+.row100k .st-tile .n .u{font-size:.5em;color:var(--gray);font-family:var(--row-archivo),sans-serif;font-weight:700}
+.row100k .st-tile .l{font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin-top:7px;line-height:1.6}
+.row100k .st-tile.you .n,.row100k .st-tile.you .l{color:var(--water)}
+.row100k .st-tile.you .n .u{color:var(--water);opacity:.7}
+@media(min-width:640px){
+  .row100k .st-tiles{grid-template-columns:repeat(3,1fr)}
+  .row100k .st-tile{border-bottom:none;border-right:1px solid var(--ink);padding-right:16px}
+  .row100k .st-tile+.st-tile{padding-left:16px}
+  .row100k .st-tile:nth-child(3n+1){padding-left:0}
+  .row100k .st-tile:nth-child(3n),.row100k .st-tile:last-child{border-right:none}
+  .row100k .st-tile:nth-child(n+4){border-top:1px solid var(--ink)}
+}
+/* The two densities under the tiles: a mono title and a dashed hairline
+ * each, no 2px box — the owner asked for them set quietly at the bottom
+ * rather than framed (.curve stays for the numbers page). */
+.row100k .st-kde{margin-top:30px;padding-top:12px;border-top:1px dashed var(--line)}
+.row100k .st-kde .t{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;color:var(--gray);text-transform:uppercase;margin-bottom:8px}
+.row100k .st-kde svg{display:block;width:100%;height:auto}
+
+/* ----------------------------------------------------------------------
+ * The profile (r/[num], looks/Profile.tsx — the owner picked it from
+ * three looks on 2026-09-05): the front page shape on one rower. A
+ * nameplate one step under the front page masthead (number in gray, name
+ * in ink, a hairline under both), the one big blue number (the landing
+ * odometer on your own page, the board head on anyone else), LOG A ROW /
+ * SHARE in the front page face, the mono identity line, the dotted board
+ * ledger, and small mono eyebrows for every block below (the owner found
+ * the stats page spent too much room on titles). No 2px boxes here; the
+ * blackout line is a pair of dashed hairlines, not a frame. Sections sit
+ * tighter than the inside pages (30px) — the eyebrows carry the spacing. */
+.row100k section.pf-sec{padding:30px 0 0}
+.row100k .pf-head{padding:26px 0 0}
+.row100k .pf-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em;overflow-wrap:anywhere}
+.row100k .pf-name .num{color:var(--gray)}
+.row100k .pf-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px}
+/* The odometer on the profile: seven digits and two commas (5.44em) sized
+ * off its own column (cqw), so it fits the 760 measure and the narrower
+ * left column of the two-column layout alike. */
+.row100k .pf-od{margin-top:22px;container-type:inline-size}
+.row100k .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,130px)}
+/* THE BESTS descriptor: PERSONAL — only on the phone (look A wording),
+ * where the eyebrow has the room. */
+.row100k .pf-ph{display:inline}
+.row100k .pf-big{margin-top:22px}
+/* LOG A ROW / SHARE (LogInPlace) a step under the front page size, so
+ * both fit one line on the 760 column. */
+.row100k .pf-act .act-row.front{margin-top:clamp(18px,3vh,30px)}
+.row100k .pf-act .optin{font-size:clamp(34px,7.2vw,72px)}
+.row100k .pf-act .front-share{font-size:clamp(18px,3.4vw,30px)}
+/* An admin on someone else page: the same SHARE face, standing alone.
+ * ProfileShare carries an inline 12px top margin on its button (inline
+ * beats any rule here), so the wrapper gives those 12px back and the face
+ * lands where LOG A ROW / SHARE lands on the rower own page. */
+.row100k .pf-adm{margin-top:calc(clamp(18px,3vh,30px) - 12px)}
+.row100k .pf-adm .outline-btn{margin-top:0;background:none;border:none;padding:0;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,3.4vw,30px);line-height:1;letter-spacing:-.01em;color:var(--ink);text-decoration:underline;text-decoration-color:var(--water);text-decoration-thickness:.09em;text-underline-offset:.12em;text-decoration-skip-ink:none}
+.row100k .pf-adm .outline-btn:hover{color:var(--water)}
+.row100k .pf-id{margin-top:22px}
+.row100k .pf-id a{color:var(--water);text-decoration:none}
+.row100k .pf-id a:hover{text-decoration:underline;text-underline-offset:3px}
+/* The eyebrow: one bold mono line over a hairline, a gray descriptor on
+ * the right. */
+.row100k .pf-eye{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:14px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.row100k .pf-eye .r{color:var(--gray);font-weight:400}
+/* The bests as two small boards, the front page top-three voice: a mono
+ * title, the label bold with its date under it, the value on the right
+ * with the place chip, SHARE in a narrow last cell for the rower. */
+.row100k .pf-bests{display:grid;grid-template-columns:1fr;gap:22px}
+@media(min-width:640px){.row100k .pf-bests{grid-template-columns:1fr 1fr}}
+.row100k .pf-best{min-width:0}
+.row100k .pf-best h3{font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gray);padding-bottom:6px}
+.row100k .pf-best table.board td{padding:9px 6px}
+.row100k .pf-best .k{font-family:var(--row-archivo),sans-serif;font-weight:700;text-decoration:none}
+.row100k .pf-best .k:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+.row100k .pf-best .sub{font-size:10px;color:var(--gray);margin-top:2px}
+.row100k .pf-best td.num{font-weight:700}
+.row100k .pf-best td.num .dtag{vertical-align:2px}
+.row100k .pf-best td.sh{width:1%;text-align:right;padding-left:0}
+/* The blackout line where the calendar would be. */
+.row100k .pf-bo{border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:14px 0;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);line-height:1.7}
+/* The visitor log: the TABLE / PHOTOS switch as underlined mono words
+ * (the ink word is the one on), and a photo card between dashed
+ * hairlines — no 2px boxes (.tabs and .plog-card keep theirs elsewhere). */
+.row100k .pf-log .tabs{gap:18px;margin-bottom:16px}
+.row100k .pf-log .tabs button{border:0;padding:0 0 3px;background:none;color:var(--gray);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--water)}
+.row100k .pf-log .tabs button.on{background:none;color:var(--ink)}
+.row100k .pf-log .tabs button:hover:not(.on){color:var(--water)}
+.row100k .pf-log .plog-card{border:0;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:14px 0;margin-bottom:14px}
+/* One DOM, two shapes (the owner pick, 2026-09-05: look C on a desktop,
+ * look A on a phone). Under 720px the grid is one column in the phone
+ * order — the rower, THE BESTS, THE MONTH: the right-hand column
+ * (.pf-side) is display:contents there, so its two blocks are grid items
+ * of their own and order puts the bests ahead of the month. From 720px
+ * the column is a block again, on the right of the landing measure, the
+ * month over the bests; the rower on the left is cut down to fit half the
+ * measure: the odometer at 6.12em of its size, the nameplate, the two
+ * buttons. */
+.row100k .pf-two{display:grid;grid-template-columns:1fr;gap:34px}
+.row100k .pf-side{display:contents}
+.row100k .pf-bests-sec{order:1}
+.row100k .pf-month{order:2}
+@media(min-width:720px){
+  .row100k .pf-two{grid-template-columns:11fr 9fr;gap:48px;align-items:start}
+  .row100k .pf-side{display:block;padding-top:26px}
+  .row100k .pf-side .pf-bests-sec{margin-top:28px}
+  .row100k .pf-two .bl{grid-template-columns:1fr}
+  .row100k .pf-two .pf-bests{grid-template-columns:1fr}
+  .row100k .pf-two .pf-name{font-size:clamp(26px,4.6vw,52px)}
+  .row100k .pf-two .bhead-n{font-size:clamp(40px,7vw,76px)}
+  .row100k .pf-two .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,90px)}
+  .row100k .pf-ph{display:none}
+  .row100k .pf-two .pf-act .optin{font-size:clamp(30px,4.4vw,46px)}
+  .row100k .pf-two .pf-act .front-share{font-size:clamp(16px,2.2vw,24px)}
+  .row100k .pf-two .pf-adm .outline-btn{font-size:clamp(16px,2.2vw,24px)}
+}
+
+/* ----------------------------------------------------------------------
+ * Feed looks (feed?look=a|b|c, owner pick pending, 2026-09-05): the
+ * profile looks language on the ticker. THE FEED as a nameplate over a
+ * hairline with a mono dateline that carries the blackout line, the one
+ * big blue number (meters that landed today, Pacific — .bhead-n) with its
+ * mono descriptor, then the rows under small mono day heads with a dashed
+ * rule. No 2px boxes anywhere: rows part on dashed hairlines. Three
+ * shapes — the wire (one dense mono line a row, 40px thumbs at the end),
+ * the strips (96px thumbs left, the meters in Archivo Black), the gallery
+ * (the rower photo square, a one-line caption). .fd- is the prefix. */
+.row100k section.fd-sec{padding:30px 0 8px}
+.row100k .fd-head{padding:26px 0 0}
+.row100k .fd-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em}
+.row100k .fd-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px;line-height:1.7}
+.row100k .fd-big{margin-top:22px}
+.row100k .fd-list{margin-top:30px}
+/* The day head: ONE small mono line — the day, a dash, its whole total (a
+ * blue figure in the strips) — over a dashed rule; the first sits tight to
+ * the headline. Inline, not justified to the edges: 500px apart on the
+ * column the two halves read as two labels. It still wraps on a narrow
+ * phone. */
+.row100k .fd-dayh{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap;margin:28px 0 0;padding-bottom:7px;border-bottom:1px dashed var(--gray);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.row100k .fd-day:first-child .fd-dayh{margin-top:0}
+.row100k .fd-dayh .r{color:var(--gray);font-weight:400;font-variant-numeric:tabular-nums}
+.row100k .fd-dayh .r b{color:var(--water);font-weight:700}
+/* A thumb is a bare button around a plain lazy img; a row with no photo
+ * keeps a dashed square where one would go. */
+.row100k .fd-pic{display:block;flex-shrink:0;appearance:none;-webkit-appearance:none;background:none;border:0;border-radius:0;padding:0;margin:0;cursor:pointer;line-height:0;overflow:hidden}
+.row100k .fd-pic img{display:block;width:100%;height:100%;object-fit:cover;transition:opacity 160ms ease}
+.row100k .fd-pic:hover img{opacity:.82}
+.row100k .fd-noph{display:flex;flex-shrink:0;align-items:center;justify-content:center;border:1px dashed var(--line);color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.row100k .fd-pics{display:flex;gap:4px}
+/* The rower link everywhere: bold ink, blue underlined on hover. */
+.row100k .fd-who{color:var(--ink);text-decoration:none}
+.row100k .fd-who:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
+/* A — THE WIRE. One mono line a row: the clock, the number, the NAME, then
+ * the meters (blue, bold), the time and the split in right-aligned fixed
+ * columns so the figures stack down the page, the thumbs at the end. Under
+ * 640px the line folds in two — who over figures — with the thumbs
+ * spanning both rows; both text cells are pinned to column one so a line
+ * without thumbs folds the same way. */
+.row100k .fd-line{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:4px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.03em;line-height:1.4;color:var(--ink);font-variant-numeric:tabular-nums}
+.row100k .fd-line .fd-a,.row100k .fd-line .fd-b{grid-column:1}
+.row100k .fd-line .fd-a{display:flex;align-items:baseline;gap:10px;min-width:0}
+.row100k .fd-line .fd-b{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+.row100k .fd-line .fd-t,.row100k .fd-line .fd-n{color:var(--gray);white-space:nowrap}
+.row100k .fd-line .fd-who{font-weight:700;letter-spacing:.08em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.row100k .fd-line .fd-m{font-weight:700;color:var(--water);min-width:9ch;text-align:right}
+.row100k .fd-line .fd-d{min-width:7ch;text-align:right}
+.row100k .fd-line .fd-s{color:var(--gray);min-width:6ch;text-align:right}
+.row100k .fd-line .fd-pics{grid-column:2;grid-row:1/3;align-self:center}
+.row100k .fd-line .fd-pic{width:40px;height:40px}
+@media(min-width:640px){
+  .row100k .fd-line{display:flex;gap:14px}
+  .row100k .fd-line .fd-a{flex:1 1 auto}
+  .row100k .fd-line .fd-b,.row100k .fd-line .fd-pics{flex:0 0 auto}
+  .row100k .fd-line .fd-t{min-width:8ch}
+}
+/* B — THE STRIPS. The boxed photo ledger, unboxed: 96px thumbs left (72px
+ * under 480px, so the meters still fit a phone), the name line, the
+ * meters in Archivo Black at 26px, the time and the split in mono under
+ * it, dashed hairlines between strips. */
+.row100k .fd-strip{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center;padding:14px 0;border-bottom:1px dashed var(--line)}
+.row100k .fd-strip .fd-pic,.row100k .fd-strip .fd-noph{width:96px;height:96px}
+.row100k .fd-strip .fd-mid{display:flex;flex-direction:column;gap:6px;min-width:0}
+.row100k .fd-strip .fd-nm{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline}
+.row100k .fd-strip .fd-nm .fd-n{color:var(--gray);font-weight:400}
+.row100k .fd-strip .fd-nm .fd-ttl{color:var(--gray);font-weight:400;letter-spacing:.04em;text-transform:none;min-width:0;overflow-wrap:anywhere}
+.row100k .fd-strip .fd-m{font-family:var(--row-archivo-black),sans-serif;font-size:26px;line-height:1;color:var(--water);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.row100k .fd-strip .fd-sub{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.04em;color:var(--ink);display:flex;flex-wrap:wrap;gap:2px 12px;font-variant-numeric:tabular-nums}
+.row100k .fd-strip .fd-sub .fd-s,.row100k .fd-strip .fd-sub .fd-t{color:var(--gray)}
+@media(max-width:479px){
+  .row100k .fd-strip{gap:12px}
+  .row100k .fd-strip .fd-pic,.row100k .fd-strip .fd-noph{width:72px;height:72px}
+}
+/* C — THE GALLERY. The rower photo, square, two across from 640px (the
+ * wire folds there too) and one under it; a one-line mono caption
+ * (number, NAME, meters in blue, split), the clock and the title in gray
+ * under it. Two across from 480px put the caption in a 211-270px column
+ * where a typical one (about 250px at 11px mono) wrapped until roughly
+ * 600px wide — landscape phones — so the fold moved up. */
+.row100k .fd-grid{display:grid;grid-template-columns:1fr;gap:24px 18px;margin-top:16px}
+@media(min-width:640px){.row100k .fd-grid{grid-template-columns:1fr 1fr}}
+.row100k .fd-cell{min-width:0}
+.row100k .fd-cell .fd-tile{width:100%}
+.row100k .fd-cell .fd-tile img{aspect-ratio:1;height:auto}
+.row100k .fd-cell .fd-noph.fd-tile{aspect-ratio:1}
+.row100k .fd-cap{margin-top:8px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline;font-variant-numeric:tabular-nums}
+.row100k .fd-cap .fd-n{color:var(--gray)}
+.row100k .fd-cap .fd-who{font-weight:700}
+.row100k .fd-cap .fd-m{color:var(--water);font-weight:700}
+.row100k .fd-cap .fd-s{color:var(--gray)}
+.row100k .fd-ttl2{margin-top:3px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.03em;color:var(--gray);line-height:1.5}
+/* The pager under a look: the same NEWER / OLDER as underlined mono words,
+ * no boxes. */
+.row100k .fd-pager{display:flex;justify-content:space-between;gap:10px;margin-top:30px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em}
+.row100k .fd-pager a{color:var(--ink);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--water);padding:6px 0}
+.row100k .fd-pager a:hover{color:var(--water)}
+.row100k .fd-pager .fd-spacer{flex:1}
 
 /* Stay light in dark mode, but take the glare off (same as /lasd26). */
 @media (prefers-color-scheme: dark){
