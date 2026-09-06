@@ -92,10 +92,15 @@ function Meters({ r }: { r: Pick<TotalRow, "meters" | "masked" | "digits"> }) {
   );
 }
 
-/* The top three of one division, as a compact board. Names go to the
- * profile except for a masked row (the profile still prints the real
- * total — same rule as Boards.tsx). */
-function TopThree({ label, rows }: { label: string; rows: TotalRow[] }) {
+/* How deep each division board runs on the front page. Five since
+ * 2026-09-06 (owner: "let us show top five"), the same depth the stats page
+ * podiums use. */
+const FRONT_TOP = 5;
+
+/* The leaders of one division, as a compact board — as many rows as it is
+ * handed, which is FRONT_TOP. Names go to the profile except for a masked
+ * row (the profile still prints the real total — same rule as Boards.tsx). */
+function TopRows({ label, rows }: { label: string; rows: TotalRow[] }) {
   return (
     <div className="front-three">
       <h3 className="mono">{label}</h3>
@@ -281,8 +286,8 @@ export default async function Row100kPage() {
   // Empty while the fifteen are hidden — the podiums are not rendered then,
   // and an empty list is one less way for an order to leak.
   const onBoard = hidden ? [] : boards.total.filter((r) => r.meters > 0 || r.masked);
-  const topMen = onBoard.filter((r) => r.division === "M").slice(0, 3);
-  const topWomen = onBoard.filter((r) => r.division === "F").slice(0, 3);
+  const topMen = onBoard.filter((r) => r.division === "M").slice(0, FRONT_TOP);
+  const topWomen = onBoard.filter((r) => r.division === "F").slice(0, FRONT_TOP);
 
   // The latest row: the board row tells us the name and whether the rower
   // is blacked out; the row's own meters are printed only when they are not.
@@ -436,8 +441,8 @@ export default async function Row100kPage() {
             </div>
           ) : (
             <div className="front-top">
-              <TopThree label="Men" rows={topMen} />
-              <TopThree label="Women" rows={topWomen} />
+              <TopRows label="Men" rows={topMen} />
+              <TopRows label="Women" rows={topWomen} />
             </div>
           )}
         </div>

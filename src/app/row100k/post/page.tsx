@@ -77,8 +77,33 @@ const pkCss = `
 .row100k .pk-strip{display:flex;gap:14px;overflow-x:auto;padding:2px 0 16px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
 .row100k .pk-card{flex:0 0 auto;width:230px;scroll-snap-align:start}
 .row100k .pk-frame{position:relative;display:block;width:100%;aspect-ratio:4/5;appearance:none;-webkit-appearance:none;border:2px solid var(--ink);border-radius:0;background:#23272b;padding:0;margin:0;overflow:hidden;cursor:pointer}
-.row100k .pk-frame img{display:block;width:100%;height:100%;object-fit:cover}
-.row100k .pk-wait{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8a8a85}
+.row100k .pk-frame img{display:block;position:relative;z-index:1;width:100%;height:100%;object-fit:cover}
+/* The sticker preview: a checkerboard BEHIND the PNG, so whatever the slide
+   leaves transparent is obvious at a glance. It lives on the card and never
+   in the file — the ground the picker calls sticker paints nothing at all.
+   TWO BOARDS, ONE FRAME. The top half is the conventional light pair and the
+   bottom half the dark one, because the two things the owner is judging pull
+   opposite ways: a checkerboard proves what is transparent, and the ground it
+   is drawn in decides whether white type under a soft shadow reads at all.
+   Measured over a light ground the type falls to about 1.6:1 and over a dark
+   one it is nearer 9:1 — so a single dark board would tell him every sticker
+   works, and a single light one would show him a nearly blank card. Half and
+   half says the truth: it reads on a dark picture, it does not on a bright
+   one, and the ink blackout blocks hold up on both. */
+.row100k .pk-frame.checks{background-color:#e6e4de;background-image:linear-gradient(45deg,#c4c2bb 25%,transparent 25%,transparent 75%,#c4c2bb 75%),linear-gradient(45deg,#c4c2bb 25%,transparent 25%,transparent 75%,#c4c2bb 75%);background-size:18px 18px;background-position:0 0,9px 9px}
+/* The dark half, under the PNG and over the light board. A span rather than a
+   pseudo-element because this stylesheet is a style tag text child and cannot
+   hold the quotes an empty content property needs. */
+.row100k .pk-half{position:absolute;left:0;right:0;bottom:0;height:50%;z-index:0;background-color:#3f4347;background-image:linear-gradient(45deg,#54585d 25%,transparent 25%,transparent 75%,#54585d 75%),linear-gradient(45deg,#54585d 25%,transparent 25%,transparent 75%,#54585d 75%);background-size:18px 18px;background-position:0 0,9px 9px}
+.row100k .pk-wait{position:absolute;z-index:2;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#8a8a85}
+/* The ground row: three mono words under the card, the live one in ink over
+   a water rule. Same switch idiom as the size tabs above the strip. */
+.row100k .pk-grounds{display:flex;gap:12px;margin-top:8px}
+.row100k .pk-grounds button{appearance:none;-webkit-appearance:none;border:none;border-bottom:2px solid transparent;border-radius:0;background:none;padding:0 0 2px;margin:0;font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);cursor:pointer}
+.row100k .pk-grounds button.on{color:var(--ink);border-bottom-color:var(--water)}
+.row100k .pk-grounds button:disabled{opacity:.35;cursor:default}
+.row100k .pk-grounds button:focus{outline:none}
+.row100k .pk-grounds button:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .row100k .pk-cap{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:8px}
 .row100k .pk-name{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);line-height:1.5}
 .row100k .pk-save{appearance:none;-webkit-appearance:none;border:none;background:none;padding:0;margin:0;font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--water);cursor:pointer;flex:none}

@@ -97,7 +97,10 @@ export type PostClubJoin = {
   label: string;
   /** That tier's threshold, so the slide can order clubs without TIERS. */
   meters: number;
-  /** Who crossed it in the window, earliest crossing first. */
+  /** Who crossed it in the window, BIGGEST TOTAL FIRST (owner, 2026-09-06:
+   * "sort it in order of meters rowed"). ./clubJoins does the sorting, on the
+   * public meters — a hidden rower sorts on their tier floor, never on a real
+   * number. */
   rowers: PostRow[];
 };
 
@@ -144,12 +147,39 @@ export type PostFonts = {
   box?: { black?: FontBox; mono?: FontBox; archivo?: FontBox };
 };
 
+/* WHAT THE SLIDE SITS ON.
+ *   photo   — the gallery picture, black and white, under its scrim.
+ *   plain   — the same slide with no picture: the dark bed and the scrim.
+ *   sticker — nothing at all. No bed, no scrim, no flat fill, so the PNG
+ *             keeps its alpha channel and drops onto a photograph of the
+ *             owner's own (2026-09-06: "if I have a different photo I want to
+ *             put them on, I can put them on it. Even if it is plain, it
+ *             still has that black background, and I need it to NOT have
+ *             that black background").
+ *
+ * Nothing is restyled for the sticker, because nothing needs to be: the type
+ * is already white under a soft shadow and the blackout blocks are already
+ * ink on a white halo — the two treatments this composition was given so it
+ * would survive a picture nobody has seen.
+ *
+ * What it survives is a DARK picture. White under a soft shadow is a
+ * dark-ground treatment: composited over a bright photograph the type
+ * measures about 1.6:1 and all but disappears, while the ink blocks (ink on
+ * a white halo) hold up either way (review, 2026-09-06). So the sticker is
+ * the composition as composed, and the CARD says the truth about it — the
+ * preview is half a light checkerboard and half a dark one (post/page.tsx),
+ * which is where a sticker that will not read on a bright picture looks as
+ * faint as it will in the post. */
+export type Ground = "photo" | "plain" | "sticker";
+
 export type SlideAssets = {
   /** The gallery photo for this slide, or null when it could not load. */
   photo: HTMLImageElement | null;
   /** Grizzly Health marks, for the partner slide. */
   bear: HTMLImageElement | null;
   wordmark: HTMLImageElement | null;
+  /** What to paint under the type. The caller always says. */
+  ground: Ground;
 };
 
 export type Slide = {
@@ -160,6 +190,10 @@ export type Slide = {
   file: string;
   /** True when the slide paints a gallery photo full-bleed. */
   usesPhoto: boolean;
+  /** Set when the type on this slide carries NO shadow, so its sticker wants
+   * a dark picture under it — only the partner slide, whose green was always
+   * its contrast. The card marks it; nothing is restyled for it. */
+  needsDarkGround?: true;
   draw: (ctx: Ctx, data: PostData, fonts: PostFonts, assets: SlideAssets) => void;
 };
 
@@ -558,8 +592,16 @@ function scrim(ctx: Ctx, stops: [number, number][], fw: number, fh: number): voi
 
 /* Photo bed: the picture in black and white under its scrim. With no photo
  * (none uploaded, or the load failed) the slide keeps its dark ground so the
- * white type still reads. */
-function photoBed(ctx: Ctx, photo: HTMLImageElement | null, stops: [number, number][]): void {
+ * white type still reads.
+ *
+ * On the STICKER ground it paints nothing whatsoever and returns — no bed, no
+ * picture, no scrim — so the canvas is still transparent when the type goes
+ * down and the PNG comes out with a real alpha channel. The picture is read
+ * off the assets only on the photo ground, so a stale image can never end up
+ * under a plain slide. */
+function photoBed(ctx: Ctx, assets: SlideAssets, stops: [number, number][]): void {
+  if (assets.ground === "sticker") return;
+  const photo = assets.ground === "photo" ? assets.photo : null;
   inFrame(ctx, (w, h) => {
     ctx.fillStyle = "#23272b";
     ctx.fillRect(0, 0, w, h);
@@ -664,7 +706,7 @@ function drawBoardSlide(
   assets: SlideAssets,
   start: number,
 ): void {
-  photoBed(ctx, assets.photo, BOARD_SCRIM);
+  photoBed(ctx, assets, BOARD_SCRIM);
   const rows = data.standings.slice(start - 1, start + 9);
 
   ctx.save();
@@ -823,7 +865,7 @@ function drawClubSlide(
   clubIndex: number,
   part: number,
 ): void {
-  photoBed(ctx, assets.photo, CONGRATS_SCRIM);
+  photoBed(ctx, assets, CONGRATS_SCRIM);
   const club = data.clubJoins[clubIndex];
   if (!club) return;
   const rows = clubRowers(data, club).slice(part * CLUB_PER_SLIDE, (part + 1) * CLUB_PER_SLIDE);
@@ -852,26 +894,28 @@ function drawClubSlide(
   const headM = metricsOf(ctx, fonts, headFont, head.size);
   const headLh = head.size * 0.98;
 
-  // One box per rower: the name and rower number in black over a mono line
-  // carrying the total.
+  // ONE LINE PER ROWER: the name and rower number in black, the total on the
+  // same baseline at the right edge of the box.
+  //
+  // The line that used to sit under the name and repeat the club is gone
+  // (owner, 2026-09-06: "on the NEW TO 50K CLUB one, we do not need to write
+  // NEW IN THE 50K CLUB underneath their name — it is obvious"). The headline
+  // over the boxes names the club once, which is all a reader needs. So the
+  // box closes up around the single line it has left — 26px of padding either
+  // side of the name — rather than standing at its old height with a hole in
+  // it.
   const whoFont = `46px ${fonts.black}`;
   const whoM = metricsOf(ctx, fonts, whoFont, 46);
   const whoLh = 46 * 1.05;
-  const subFont = `22px ${fonts.mono}`;
-  const subM = metricsOf(ctx, fonts, subFont, 22);
-  const valueFont = `700 24px ${fonts.mono}`;
-  const padY = 22;
-  const boxH = 4 + padY + whoLh + 10 + subM.lh + padY + 4;
+  // The total moved up onto the name's baseline, so it takes the size the
+  // congrats slide gives the same figure in its club list (700 28px) instead
+  // of the 24 it wore on a line of its own.
+  const valueFont = `700 28px ${fonts.mono}`;
+  const padY = 26;
+  const boxH = 4 + padY + whoLh + padY + 4;
   const innerL = CONTENT_L + 4 + 28;
   const innerR = CONTENT_R - 4 - 28;
   const innerW = innerR - innerL;
-
-  // The club is named under the name only on a one- or two-rower slide: that
-  // is the card somebody crops their own box out of, and it has to say what
-  // they joined on its own. On a full slide the headline has already said it
-  // and six more copies of the same five words read as a stuck record
-  // (review, 2026-09-05). The wording follows the picker label, "New to the".
-  const subText = rows.length <= 2 ? `NEW TO THE ${club.label} CLUB` : "JOINED TODAY";
 
   // Six boxes fit the room the headline leaves when the slide flows from the
   // top; the gap between them takes up whatever slack is left, and tightens
@@ -893,44 +937,33 @@ function drawClubSlide(
     ctx.strokeRect(CONTENT_L + 2, top + 2, CONTENT_W - 4, boxH - 4);
     ctx.restore();
 
-    let by = top + 4 + padY;
+    const baseline = baselineOf(top + 4 + padY, whoLh, whoM);
+    // The total goes down first, because the name yields to it: one of the
+    // hidden fifteen gets blocks where their number would be — a welcome names
+    // the club they just joined, never their number (blackout rule,
+    // 2026-09-05). The board slide blocks the same figure out.
+    let valueW: number;
+    if (r.masked) {
+      const unit = " m";
+      drawRight(ctx, unit, innerR, baseline, valueFont, MATTE);
+      const unitW = measure(ctx, unit, valueFont);
+      const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
+      valueW = unitW + drawBlocks(ctx, innerR - unitW, baseline, digits, 28, valueFont);
+    } else {
+      const metersText = meters(r.meters);
+      drawRight(ctx, metersText, innerR, baseline, valueFont, MATTE);
+      valueW = measure(ctx, metersText, valueFont);
+    }
     // The rower number rides with the name so the post can be tagged.
     const whoText = `${r.name} · ${pad2(r.num)}`.toUpperCase();
     drawText(
       ctx,
-      ellipsize(ctx, whoText, innerW, whoFont),
+      ellipsize(ctx, whoText, innerW - valueW - 24, whoFont),
       innerL,
-      baselineOf(by, whoLh, whoM),
+      baseline,
       whoFont,
       MATTE,
       0,
-    );
-    by += whoLh + 10;
-
-    const subBase = baselineOf(by, subM.lh, subM);
-    // One of the hidden fifteen gets blocks where their total would go — a
-    // welcome names the club they just joined, never their number (blackout
-    // rule, 2026-09-05). The board slide blocks the same figure out.
-    let valueW: number;
-    if (r.masked) {
-      const unit = " m";
-      drawRight(ctx, unit, innerR, subBase, valueFont, MATTE);
-      const unitW = measure(ctx, unit, valueFont);
-      const digits = r.digits ?? String(Math.max(0, Math.round(r.meters))).length;
-      valueW = unitW + drawBlocks(ctx, innerR - unitW, subBase, digits, 24, valueFont);
-    } else {
-      const metersText = meters(r.meters);
-      drawRight(ctx, metersText, innerR, subBase, valueFont, MATTE);
-      valueW = measure(ctx, metersText, valueFont);
-    }
-    drawText(
-      ctx,
-      ellipsize(ctx, subText, innerW - valueW - 20, subFont),
-      innerL,
-      subBase,
-      subFont,
-      WHITE_SOFT,
-      22 * 0.16,
     );
   };
 
@@ -999,7 +1032,7 @@ function drawClubSlide(
 /* The month so far, over a photo: the kick line, the big matte-blue total,
  * the trio under white rules, then the record list with dotted leaders. */
 function drawStatsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: SlideAssets): void {
-  photoBed(ctx, assets.photo, STATS_SCRIM);
+  photoBed(ctx, assets, STATS_SCRIM);
   ctx.save();
   shadow(ctx, "rgba(0,0,0,0.7)", 18, 3);
 
@@ -1114,7 +1147,7 @@ function drawStatsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: Slid
 /* Who finished, over a photo: the headline, the matte-blue hero box for the
  * first rower to 100,000 m, then the 50k club. */
 function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: SlideAssets): void {
-  photoBed(ctx, assets.photo, CONGRATS_SCRIM);
+  photoBed(ctx, assets, CONGRATS_SCRIM);
   ctx.save();
   shadow(ctx, "rgba(0,0,0,0.7)", 18, 3);
 
@@ -1283,7 +1316,13 @@ function drawPartnerSlide(ctx: Ctx, fonts: PostFonts, assets: SlideAssets): void
   // The one slide with no photograph: its green is the frame's ground, so it
   // fills the real canvas (the story frame included) rather than the
   // composition box. Same colour, same everything else.
-  fillFrame(ctx, GREEN);
+  //
+  // On the sticker ground even that green stays off, the way the photo bed
+  // stays off everywhere else: the marks, the gold code box and the type come
+  // out on transparency. That one is cream on nothing, so it wants a dark
+  // picture under it — the type on this slide carries no shadow, because the
+  // green was always its contrast.
+  if (assets.ground !== "sticker") fillFrame(ctx, GREEN);
   const cx = SLIDE_W / 2;
 
   const topFont = `24px ${fonts.mono}`;
@@ -1409,7 +1448,7 @@ function drawPartnerSlide(ctx: Ctx, fonts: PostFonts, assets: SlideAssets): void
 
 /* Black and white only — no accent colour anywhere on this one. */
 function drawEndSlide(ctx: Ctx, fonts: PostFonts, assets: SlideAssets): void {
-  photoBed(ctx, assets.photo, CTA_SCRIM);
+  photoBed(ctx, assets, CTA_SCRIM);
   const cx = SLIDE_W / 2;
 
   ctx.save();
@@ -1475,7 +1514,7 @@ function drawEndSlide(ctx: Ctx, fonts: PostFonts, assets: SlideAssets): void {
 /* The commit graph: one row per September day so far, 24 hour columns, cell
  * alpha by how many SESSIONS were logged in that hour. */
 function drawHoursSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: SlideAssets): void {
-  photoBed(ctx, assets.photo, HOURS_SCRIM);
+  photoBed(ctx, assets, HOURS_SCRIM);
   const cx = SLIDE_W / 2;
   const grid = data.hourGrid.length > 0 ? data.hourGrid : [new Array<number>(24).fill(0)];
   const days = grid.length;
@@ -1637,6 +1676,10 @@ const PARTNER_SLIDE: Slide = {
   label: "The partner",
   file: "06-partner.png",
   usesPhoto: false,
+  // Cream type with no shadow: on transparency it needs a dark picture, and
+  // the card says so rather than offering the sticker as if it worked on any
+  // photograph (review, 2026-09-06).
+  needsDarkGround: true,
   draw: (ctx, _data, fonts, assets) => drawPartnerSlide(ctx, fonts, assets),
 };
 

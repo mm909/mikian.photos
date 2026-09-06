@@ -9,6 +9,7 @@ import {
   SLIDE_W,
   slidesFor,
   type FontBox,
+  type Ground,
   type PostData,
   type PostFonts,
   type SizeKey,
@@ -46,18 +47,58 @@ import {
 const BEAR = "/row100k/partners/grizzly-bear.png";
 const WORDMARK = "/row100k/partners/grizzly-wordmark.png";
 
-type Rendered = { url: string; blob: Blob };
+/* WHAT ONE CARD IS SET TO: the ground it paints on, and which gallery photo
+ * it took. The photo index survives a trip through plain or sticker, so
+ * coming back to Photo lands on the picture you were looking at. */
+type Pick = { ground: Ground; photo: number };
 
-/* Which gallery photo each slide starts on: the newest photo goes to the
- * first photo slide, the next to the second, and so on. */
-function defaultPicks(slides: Slide[], photoCount: number): number[] {
+/* A rendered slide carries the ground it was ACTUALLY painted on, not the one
+ * the picker is showing now: the filename is written off this, so a Save or a
+ * Copy taken while the next ground is still drawing can never hand out a
+ * -sticker file with the photo version inside it. */
+type Rendered = { url: string; blob: Blob; ground: Ground };
+
+/* The three grounds, in the order the picker offers them. */
+const GROUNDS: { key: Ground; label: string }[] = [
+  { key: "photo", label: "Photo" },
+  { key: "plain", label: "Plain" },
+  { key: "sticker", label: "Sticker" },
+];
+
+/* Where each slide starts: on a gallery photo, the newest going to the first
+ * photo slide, the next to the second, and so on. A slide that takes no
+ * photograph (the partner) — and every slide when the gallery is empty —
+ * starts plain. Nobody starts on a sticker: that is a thing you ask for. */
+function defaultPicks(slides: Slide[], photoCount: number): Pick[] {
   let taken = 0;
   return slides.map((s) => {
-    if (!s.usesPhoto || photoCount === 0) return -1;
-    const pick = taken % photoCount;
+    if (!s.usesPhoto || photoCount === 0) return { ground: "plain", photo: -1 };
+    const photo = taken % photoCount;
     taken += 1;
-    return pick;
+    return { ground: "photo", photo };
   });
+}
+
+/* WHAT THE CARD IS SHOWING — the ground of the image on screen, not the one
+ * the picker is set to. They are the same until a photo the bucket refuses
+ * with CORS makes paint() fall back: the render is then honestly a plain one
+ * and is named -plain, and the caption has to say plain too or the card reads
+ * "photo 3" over a file called 01-board-1-10-plain.png (review, 2026-09-06).
+ * While that card is redrawing there is no committed render to speak for yet,
+ * so it falls back to the pick. */
+function shownGround(
+  pick: Pick | undefined,
+  out: Rendered | null | undefined,
+  drawing: boolean,
+): Ground | undefined {
+  if (drawing) return pick?.ground;
+  return out?.ground ?? pick?.ground;
+}
+
+/* What the caption under a card says it is on. */
+function groundCaption(pick: Pick | undefined, shown: Ground | undefined): string {
+  if (!pick || !shown) return "";
+  return shown === "photo" ? `photo ${pick.photo + 1}` : shown;
 }
 
 /* Read a family's layout box off a probe: the probe is one line of text at
@@ -80,11 +121,21 @@ function boxOf(probe: HTMLElement | null): FontBox | undefined {
   return { lh, baseline };
 }
 
-/* The filename says which frame it is. A post keeps the name it always had,
- * so nothing changes for someone who never touches the picker; a story picks
- * up the suffix — 01-board-1-10-story.png. */
-function fileNameFor(slide: Slide, size: SizeKey): string {
-  const suffix = SIZES[size].suffix;
+/* The filename says which ground and which frame it is. A post on its photo
+ * keeps the name it always had, so nothing changes for someone who never
+ * touches the picker; everything else says what it is —
+ * 01-board-1-10-sticker.png, 01-board-1-10-plain-story.png.
+ *
+ * The partner slide takes no photograph, so ITS plain is simply the slide and
+ * keeps the bare name; only its sticker picks up a suffix. */
+function groundSuffix(slide: Slide, ground: Ground): string {
+  if (ground === "sticker") return "-sticker";
+  if (ground === "plain" && slide.usesPhoto) return "-plain";
+  return "";
+}
+
+function fileNameFor(slide: Slide, size: SizeKey, ground: Ground): string {
+  const suffix = `${groundSuffix(slide, ground)}${SIZES[size].suffix}`;
   return suffix ? slide.file.replace(/\.png$/i, `${suffix}.png`) : slide.file;
 }
 
@@ -116,8 +167,8 @@ export function PostPack({ data }: { data: PostData }) {
 
   const [outs, setOuts] = useState<(Rendered | null)[]>(() => slides.map(() => null));
   const outsRef = useRef<(Rendered | null)[]>(outs);
-  const [picks, setPicks] = useState<number[]>(() => defaultPicks(slides, data.photos.length));
-  const picksRef = useRef<number[]>(picks);
+  const [picks, setPicks] = useState<Pick[]>(() => defaultPicks(slides, data.photos.length));
+  const picksRef = useRef<Pick[]>(picks);
   /* Which frame the whole pack renders into. POST by default. */
   const [size, setSize] = useState<SizeKey>("post");
   const sizeRef = useRef<SizeKey>(size);
@@ -189,14 +240,14 @@ export function PostPack({ data }: { data: PostData }) {
     },
   });
 
-  const paint = async (index: number, photoPick: number): Promise<Rendered | null> => {
+  const paint = async (index: number, pick: Pick): Promise<Rendered | null> => {
     const slide = slidesRef.current[index];
     const live = dataRef.current;
     if (!slide) return null;
 
     const [photo, bear, wordmark] = await Promise.all([
-      slide.usesPhoto && photoPick >= 0 && live.photos[photoPick]
-        ? loadImage(live.photos[photoPick])
+      slide.usesPhoto && pick.ground === "photo" && pick.photo >= 0 && live.photos[pick.photo]
+        ? loadImage(live.photos[pick.photo])
         : Promise.resolve(null),
       loadImage(BEAR),
       loadImage(WORDMARK),
@@ -226,10 +277,15 @@ export function PostPack({ data }: { data: PostData }) {
         console.error("row100k/post: slide failed to draw", slide.id, err);
         return Promise.resolve(null);
       }
+      // image/png keeps the alpha channel, which is the whole sticker: the
+      // draw above painted no bed, so every pixel the type did not touch
+      // encodes as transparent. Nothing here flattens it onto a colour.
+      const drawn: Ground =
+        assets.ground === "photo" && !assets.photo ? "plain" : assets.ground;
       return new Promise<Rendered | null>((resolve) => {
         try {
           canvas.toBlob(
-            (blob) => resolve(blob ? { url: URL.createObjectURL(blob), blob } : null),
+            (blob) => resolve(blob ? { url: URL.createObjectURL(blob), blob, ground: drawn } : null),
             "image/png",
           );
         } catch (err) {
@@ -239,12 +295,13 @@ export function PostPack({ data }: { data: PostData }) {
       });
     };
 
-    const out = await attempt({ photo, bear, wordmark });
+    const out = await attempt({ photo, bear, wordmark, ground: pick.ground });
     if (out || !photo) return out;
     // A photo the bucket refused to serve with CORS taints the canvas, and
     // both the grayscale pass and toBlob throw on it. Draw the slide again
-    // without the picture rather than showing an empty card.
-    return attempt({ photo: null, bear, wordmark });
+    // without the picture rather than showing an empty card — and the render
+    // that comes back is honestly a plain one, so it is named as one.
+    return attempt({ photo: null, bear, wordmark, ground: pick.ground });
   };
 
   /* Render everything on load, one slide at a time so the strip fills in
@@ -263,6 +320,21 @@ export function PostPack({ data }: { data: PostData }) {
   const clubSig = data.clubJoins.map((c) => `${c.label}:${c.rowers.length}`).join(",");
   const signature = `${data.asOfIso}|${data.totalMeters}|${data.standings.length}|${clubSig}|${data.photos.length}|${data.photos[0] ?? ""}`;
   const sigRef = useRef<string>("");
+
+  /* WHAT A GIVEN CARD'S IMAGE IS OF — the pack signature (the live numbers),
+   * the frame, and the ground and photo this card is set to. Everything that
+   * can change the pixels is in the string.
+   *
+   * It is per SLIDE, not per pack, and that is deliberate: the grounds belong
+   * to the cards, so folding them into the pack signature above would restart
+   * all eight renders and throw away the photos you had picked every time you
+   * asked one slide for its sticker. Instead a card that changes ground
+   * repaints exactly itself, and any render landing after its own key moved —
+   * a second tap, a size flip mid-draw — is dropped rather than committed. */
+  const renderSig = (index: number): string => {
+    const p = picksRef.current[index];
+    return `${sigRef.current}|${sizeRef.current}|${p?.ground ?? "photo"}|${p?.photo ?? -1}`;
+  };
   useEffect(() => {
     let cancelled = false;
     const list = slidesRef.current;
@@ -279,6 +351,13 @@ export function PostPack({ data }: { data: PostData }) {
     outsRef.current = list.map(() => null);
     setOuts(outsRef.current);
     setStatus(null);
+    // The loop below only claims the indicator after `await document.fonts.ready`,
+    // which on a cold load is a real wait — and every per-card control reads
+    // `working` to know whether the pack is busy. Claim it here, in the same
+    // synchronous pass that cleared the strip, so there is no window where the
+    // ground buttons are live over a pack that is about to be repainted from
+    // the picks captured above (review, 2026-09-06).
+    setWorking(0);
 
     void (async () => {
       try {
@@ -315,38 +394,55 @@ export function PostPack({ data }: { data: PostData }) {
     [],
   );
 
-  /* Tap a photo slide to move it to the next gallery photo; one tap past the
-   * last photo is the PLAIN version — the same type on the dark ground with
-   * no picture, which is the one to paste over your own shot (owner ask:
-   * "copy the top 10 sticker without the images"). Another tap starts the
-   * photos over. */
-  const swapPhoto = async (index: number, to?: number) => {
-    const slide = slidesRef.current[index];
-    const photos = dataRef.current.photos;
-    if (!slide?.usesPhoto || photos.length < 1 || working !== null) return;
-    const cur = picksRef.current[index] ?? -1;
-    const next = to !== undefined ? to : cur + 1 >= photos.length ? -1 : cur + 1;
+  /* ONE CARD, REPAINTED: a new ground or a new photo on a single slide, with
+   * nothing else on the page disturbed. */
+  const applyPick = async (index: number, next: Pick) => {
+    if (working !== null) return;
     const nextPicks = picksRef.current.slice();
     nextPicks[index] = next;
     picksRef.current = nextPicks;
     setPicks(nextPicks);
     setWorking(index);
-    // The frame can move under a swap. The size picker restarts the whole
+    // The frame can move under a repaint. The size picker restarts the whole
     // pack, and this render — begun at 4:5, landing after the flip — would
     // otherwise commit a 1080x1350 blob into a story pack: hidden on screen
     // (the preview crops it to fill), then shipped inside the -story zip at
-    // the wrong aspect. So the frame is read before the await and the work is
-    // thrown away if it moved, the way the render loop drops its own on
-    // `cancelled` (review, 2026-09-05). Returning here also leaves `working`
-    // alone: the restarted loop owns the indicator now.
-    const at = sizeRef.current;
+    // the wrong aspect. So the card's render key is read before the await and
+    // the work is thrown away if it moved, the way the render loop drops its
+    // own on `cancelled` (review, 2026-09-05). Returning here also leaves
+    // `working` alone: whoever moved it owns the indicator now.
+    const at = renderSig(index);
     const out = await paint(index, next);
-    if (sizeRef.current !== at) {
+    if (renderSig(index) !== at) {
       if (out) URL.revokeObjectURL(out.url);
       return;
     }
     commit(index, out);
     setWorking(null);
+  };
+
+  /* Tap a photo slide to move it to the next gallery photo, and round to the
+   * first again at the end. The plain version used to be smuggled in as one
+   * tap past the last photo; it is a button of its own now, next to the
+   * sticker, so the cycle is only ever photographs. */
+  const cyclePhoto = (index: number) => {
+    const slide = slidesRef.current[index];
+    const photos = dataRef.current.photos;
+    const cur = picksRef.current[index];
+    if (!slide?.usesPhoto || photos.length < 1 || !cur) return;
+    const photo = cur.photo + 1 >= photos.length ? 0 : cur.photo + 1;
+    void applyPick(index, { ground: "photo", photo });
+  };
+
+  /* The ground buttons. Coming back to Photo lands on the picture the card
+   * was on before (or the first one, if it never had one). */
+  const setGround = (index: number, ground: Ground) => {
+    const cur = picksRef.current[index];
+    if (!cur || cur.ground === ground) return;
+    void applyPick(index, {
+      ground,
+      photo: ground === "photo" && cur.photo < 0 ? 0 : cur.photo,
+    });
   };
 
   const ready = () =>
@@ -358,7 +454,7 @@ export function PostPack({ data }: { data: PostData }) {
         // doing nothing with no status line.
         const slide = slidesRef.current[i];
         return out && slide
-          ? { name: fileNameFor(slide, sizeRef.current), blob: out.blob }
+          ? { name: fileNameFor(slide, sizeRef.current, out.ground), blob: out.blob }
           : null;
       })
       .filter((v): v is { name: string; blob: Blob } => v != null);
@@ -408,7 +504,7 @@ export function PostPack({ data }: { data: PostData }) {
     const out = outsRef.current[index];
     const slide = slidesRef.current[index];
     if (!out || !slide) return;
-    const name = fileNameFor(slide, sizeRef.current);
+    const name = fileNameFor(slide, sizeRef.current, out.ground);
     const file = new File([out.blob], name, { type: "image/png" });
     const payload = { files: [file] };
     if (typeof navigator.canShare === "function" && navigator.canShare(payload)) {
@@ -423,14 +519,17 @@ export function PostPack({ data }: { data: PostData }) {
   };
 
   /* One slide onto the clipboard, for pasting straight into a story or a
-   * message without the round trip through Photos. */
+   * message without the round trip through Photos. The blob is the PNG that
+   * was encoded for the card, alpha and all — a sticker arrives on the
+   * clipboard transparent, and stays that way anywhere the paste target keeps
+   * an alpha channel. */
   const copyOne = async (index: number) => {
     const out = outsRef.current[index];
     const slide = slidesRef.current[index];
     if (!out || !slide) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": out.blob })]);
-      setStatus(`COPIED ${slide.label.toUpperCase()}`);
+      setStatus(`COPIED ${slide.label.toUpperCase()} · ${out.ground.toUpperCase()}`);
     } catch (err) {
       console.error("row100k/post: copy failed", err);
       setStatus("COULD NOT COPY — SAVE IT INSTEAD");
@@ -517,9 +616,11 @@ export function PostPack({ data }: { data: PostData }) {
         {canShareFiles
           ? "Download all opens the share sheet with every slide — save them all to Photos in one go."
           : "Download all saves every slide as one zip."}
-        {data.photos.length > 0
-          ? " Tap a photo slide to swap its picture; one tap past the last photo is the plain version, no picture."
-          : ""}
+        {data.photos.length > 0 ? " Tap a photo slide to swap its picture." : ""}
+        {/* One line, in the owner's own words. The three buttons under every
+         * card already say what the choice is, so the note does not gloss
+         * them (review, 2026-09-06). */}
+        {" Sticker saves the type on its own, no background, for a photo of your own."}
         {size === "story"
           ? " Story is the same slide on a 9:16 crop of the photo — files end in -story."
           : ""}
@@ -528,21 +629,53 @@ export function PostPack({ data }: { data: PostData }) {
       <div className="pk-strip">
         {slides.map((slide, i) => {
           const out = outs[i];
-          const swappable = slide.usesPhoto && data.photos.length > 0;
+          const pick = picks[i];
+          const hasPhotos = slide.usesPhoto && data.photos.length > 0;
+          const cyclable = hasPhotos && pick?.ground === "photo";
+          /* The ground of the picture on screen — what the checks and the
+           * caption both describe. */
+          const shown = shownGround(pick, out, working === i);
+          const sticker = shown === "sticker";
+          /* THE TAP. A photo slide cycles its picture, the way it always has.
+           * A slide that can never take one (the partner) saves, the way it
+           * always has. A photo slide sitting on plain or a sticker does
+           * NOTHING: falling through to Save there means the card the owner
+           * taps to look at the checkerboard fires a download instead
+           * (review, 2026-09-06). */
+          const tappable = cyclable || !slide.usesPhoto;
           return (
             <div className="pk-card" key={slide.id}>
               <button
                 type="button"
-                className="pk-frame"
+                /* A sticker previews over a checkerboard, so what is
+                 * transparent is obvious at a glance — the checks are the
+                 * card's own background showing through the PNG, never
+                 * painted into it. Light checks on the top half, dark on the
+                 * bottom (the .pk-half span below), because white type under
+                 * a soft shadow reads on a dark picture and vanishes on a
+                 * bright one: the card has to show both, or it flatters every
+                 * sticker (review, 2026-09-06). */
+                className={sticker ? "pk-frame checks" : "pk-frame"}
                 /* The preview is the frame it will save as: the card keeps
                  * its width (so nothing can push the strip off a phone) and
                  * the box takes the aspect of the picked size. */
-                style={{ aspectRatio: `${frame.w} / ${frame.h}` }}
-                onClick={() => (swappable ? void swapPhoto(i) : void saveOne(i))}
+                style={{
+                  aspectRatio: `${frame.w} / ${frame.h}`,
+                  cursor: tappable ? undefined : "default",
+                }}
+                onClick={() => {
+                  if (cyclable) cyclePhoto(i);
+                  else if (!slide.usesPhoto) void saveOne(i);
+                }}
                 aria-label={
-                  swappable ? `${slide.label} — tap to swap the photo` : `${slide.label} — save`
+                  cyclable
+                    ? `${slide.label} — tap to swap the photo`
+                    : slide.usesPhoto
+                      ? slide.label
+                      : `${slide.label} — save`
                 }
               >
+                {sticker && <span className="pk-half" aria-hidden />}
                 {out ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={out.url} alt={slide.label} width={frame.w} height={frame.h} />
@@ -551,25 +684,42 @@ export function PostPack({ data }: { data: PostData }) {
                   <span className="pk-wait">{working === i ? "Rendering" : "Waiting"}</span>
                 )}
               </button>
+              {/* THE GROUND, one tap each: the picture, the dark slide, or
+                * the sticker on transparency. A slide that takes no
+                * photograph — or a pack with an empty gallery — has its
+                * Photo button off rather than hidden, so the row reads the
+                * same down the strip. */}
+              <div className="pk-grounds" role="group" aria-label={`${slide.label} — ground`}>
+                {GROUNDS.map((g) => (
+                  <button
+                    key={g.key}
+                    type="button"
+                    className={pick?.ground === g.key ? "on" : undefined}
+                    aria-pressed={pick?.ground === g.key}
+                    onClick={() => setGround(i, g.key)}
+                    /* Dead until this card has an image, exactly like Copy
+                     * and Save below (and like the Plain button this row
+                     * replaced): a ground tapped before the render loop has
+                     * reached the card would be repainted over by the loop
+                     * from the picks it captured, leaving the caption and
+                     * the file saying different things (review, 2026-09-06). */
+                    disabled={!out || working !== null || (g.key === "photo" && !hasPhotos)}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
               <div className="pk-cap">
                 <span className="pk-name">
                   {i + 1}. {slide.label}
-                  {swappable ? (picks[i] >= 0 ? ` · photo ${picks[i] + 1}` : " · plain") : ""}
+                  {pick ? ` · ${groundCaption(pick, shown)}` : ""}
+                  {/* The one slide whose type carries no shadow: its sticker
+                   * is cream on nothing and wants a dark picture under it.
+                   * Marked, not restyled and not withheld (review,
+                   * 2026-09-06). */}
+                  {sticker && slide.needsDarkGround ? " (dark photo)" : ""}
                 </span>
                 <span style={{ display: "flex", gap: 14, flex: "none" }}>
-                  {/* One tap to the version with no picture (and back), so
-                   * the plain sticker is a button, not a hunt through the
-                   * photos (owner ask, 2026-09-05). */}
-                  {swappable && (
-                    <button
-                      type="button"
-                      className="pk-save"
-                      onClick={() => void swapPhoto(i, picks[i] >= 0 ? -1 : 0)}
-                      disabled={!out || working !== null}
-                    >
-                      {picks[i] >= 0 ? "Plain" : "Photo"}
-                    </button>
-                  )}
                   {canCopy && (
                     <button
                       type="button"

@@ -88,8 +88,24 @@ export function clubCrossings(
   );
 }
 
+/* THE ORDER THE SLIDE READS IN: biggest total first (owner, 2026-09-06:
+ * "also sort it in order of meters rowed"), not the order they crossed.
+ *
+ * The sort runs on `meters` AS THE PUBLIC BOARD HAS IT — a hidden rower
+ * carries their tier floor here, never their real total — which is the same
+ * number the slide prints. Inside one club every hidden member holds the same
+ * floor, so they tie with each other and fall back to the name: their order
+ * says nothing a reader could not already work out from the club they just
+ * joined, which is what the blackout is protecting. Never sort these on a
+ * real total. */
+function byMetersDesc(rowers: PostRow[]): PostRow[] {
+  return rowers
+    .slice()
+    .sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name) || a.num - b.num);
+}
+
 /* The slide's data: one entry per club somebody joined, highest club first,
- * each carrying its new members in the order they crossed.
+ * each carrying its new members biggest total first.
  *
  * `rowFor` hands back the rower's row AS THE PUBLIC BOARD HAS IT — masked,
  * during a blackout window, with a tier floor for meters and a digit count.
@@ -129,7 +145,7 @@ export function clubJoinsFor(
     .map((tier) => ({
       label: tier.label,
       meters: tier.meters,
-      rowers: byClub.get(tier.meters) ?? [],
+      rowers: byMetersDesc(byClub.get(tier.meters) ?? []),
     }))
     .filter((club) => club.rowers.length > 0);
 }

@@ -203,7 +203,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .count.small .n{font-size:clamp(22px,5vw,34px)}
 .row100k .count.small .l{font-size:9px;letter-spacing:.12em;margin-top:5px}
 .row100k .count-done.small{padding:14px 10px;font-size:12px}
-/* The top three men and women: two compact boards. */
+/* The top five men and women: two compact boards. */
 .row100k .front-top{display:grid;grid-template-columns:1fr;gap:22px}
 @media(min-width:640px){.row100k .front-top{grid-template-columns:1fr 1fr}}
 .row100k .front-three{min-width:0}

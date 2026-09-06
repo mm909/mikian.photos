@@ -171,13 +171,16 @@ export function liteRecords(boards: Boards, hidden: Set<string>): RecordsProp {
 /* The podium plus the viewer's neighbourhood: the top `top` rows and, when
  * the viewer sits deeper, the row above them, their own and the row below
  * — after a gap row when the two runs do not touch, and nothing after
- * (owner call, 2026-09-05: one, two, three, dot dot dot, where you are,
- * the person above and below you). A viewer inside the podium, or no
- * viewer at all, gets the podium alone. */
+ * (owner call, 2026-09-05: the leaders, dot dot dot, where you are, the
+ * person above and below you). A viewer inside the podium, or no viewer at
+ * all, gets the podium alone. The podium is five deep (owner, 2026-09-06 —
+ * it was three); the default and the Podium component's own default are the
+ * same number on purpose, so neither can quietly fall back to a shorter
+ * board. */
 export function podiumWindow<T>(
   rows: T[],
   meIdx: number,
-  top = 3,
+  top = 5,
 ): { top: T[]; gap: boolean; ctx: T[]; ctxStart: number } {
   const head = rows.slice(0, top);
   if (meIdx < top) return { top: head, gap: false, ctx: [], ctxStart: top };

@@ -233,7 +233,7 @@ function Podium({
   rows,
   def,
   meId,
-  top = 3,
+  top = 5,
   className,
 }: {
   label: string;

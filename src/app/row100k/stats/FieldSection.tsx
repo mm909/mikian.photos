@@ -11,7 +11,10 @@ import type { FieldModel, FieldYou } from "./field";
  * set at the bottom without a box around them). The only state is the
  * EVERYONE | YOU chip a joined rower with a session gets: YOU lays their
  * own rows over the same curves in blue and adds two tiles — their average
- * pace and their average row, each against every other rower's average.
+ * row and their average pace, each against every other rower's average.
+ * That pair is written length-first (owner call, 2026-09-06) so the two-up
+ * grid stacks like over like: length above length in column one, pace above
+ * pace in column two. One column on the phone reads the same way down.
  * Labels and numbers only, nothing explained (owner call, 2026-09-05: they
  * either know what an SD is or they do not). */
 
@@ -77,6 +80,16 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
         {on && you && (
           <>
             <Tile
+              k="Your average row"
+              n={M(you.avgLen)}
+              l={
+                you.lenPct === null
+                  ? `NOBODY ELSE TO COMPARE YET · ${sessions(you.sessions)}`
+                  : `LONGER THAN ${you.lenPct}% OF ROWERS · ${sessions(you.sessions)}`
+              }
+              you
+            />
+            <Tile
               k="Your average pace"
               n={you.avgPace !== null ? SPLIT(you.avgPace) : "—"}
               l={
@@ -85,16 +98,6 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
                   : you.pacePct === null
                     ? "NOBODY ELSE TO COMPARE YET"
                     : `FASTER THAN ${you.pacePct}% OF ROWERS`
-              }
-              you
-            />
-            <Tile
-              k="Your average row"
-              n={M(you.avgLen)}
-              l={
-                you.lenPct === null
-                  ? `NOBODY ELSE TO COMPARE YET · ${sessions(you.sessions)}`
-                  : `LONGER THAN ${you.lenPct}% OF ROWERS · ${sessions(you.sessions)}`
               }
               you
             />

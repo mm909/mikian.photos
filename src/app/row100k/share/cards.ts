@@ -1702,8 +1702,10 @@ function drawHourCell(ctx: CanvasRenderingContext2D, x: number, y: number, cell:
 }
 
 /* Like the page: one row per September day so far, 24 hour columns, the
- * quarter-day ticks along the top and the day labels down the left in the
- * page's own words ("SEP 1", then bare numbers). */
+ * quarter-day ticks along the top and the day numbers down the left. The
+ * month word is gone (owner call, 2026-09-06: the card never had to say
+ * September), so day 1 is a bare 1 like every other day and the gutter is
+ * measured off the widest number instead of off SEP 1. */
 const rowtemberCommunityHours: ShareCard = {
   id: "rowtember-community-hours",
   label: "The hours",
@@ -1719,7 +1721,11 @@ const rowtemberCommunityHours: ShareCard = {
 
     // Geometry: the day gutter on the left and the hour ticks above are part
     // of the block, so the block — not just the cells — is what sits centred.
-    const labelW = 96; // "SEP 1" at 24px mono, plus its 16px gap
+    // The gutter is measured rather than guessed: the type is monospaced, so
+    // the widest day label is just the last day, plus its 16px gap.
+    ctx.save();
+    ctx.font = `24px ${fonts.mono}`;
+    const labelW = Math.round(ctx.measureText(String(n)).width) + 16;
     const tickH = 40;
     const gap = HOURS_GAP;
     const cell = squareCell(
@@ -1734,8 +1740,6 @@ const rowtemberCommunityHours: ShareCard = {
     const left = Math.round((this.width - (labelW + gridW)) / 2) + labelW;
     const top = Math.round((this.height - (tickH + gridH)) / 2) + tickH;
 
-    ctx.save();
-    ctx.font = `24px ${fonts.mono}`;
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
@@ -1749,7 +1753,7 @@ const rowtemberCommunityHours: ShareCard = {
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (const d of thinTicks(n, step, 30)) {
-      ctx.fillText(d === 1 ? "SEP 1" : String(d), left - 16, top + (d - 1) * step + cell / 2 + 1);
+      ctx.fillText(String(d), left - 16, top + (d - 1) * step + cell / 2 + 1);
     }
 
     for (let di = 0; di < n; di++) {
@@ -1762,10 +1766,10 @@ const rowtemberCommunityHours: ShareCard = {
 };
 
 /* Turned tall: the 24 hours run top to bottom, midnight at the top, with
- * their ticks down the left; the days run left to right with their numbers
- * along the bottom. Square cells make every column narrower than "SEP 1",
- * so the bottom row borrows the page's own idiom instead: SEP once in the
- * corner of the gutter, bare numbers under the columns. */
+ * their ticks down the left; the days run left to right with bare numbers
+ * along the bottom. The month word that used to sit in the corner of the
+ * gutter is gone (owner call, 2026-09-06) — the gutter is the hour ticks
+ * column, so the corner simply stays empty and no geometry moves. */
 const rowtemberCommunityHoursTall: ShareCard = {
   id: "rowtember-community-hours-tall",
   label: "The hours · tall",
@@ -1779,7 +1783,12 @@ const rowtemberCommunityHoursTall: ShareCard = {
     const n = grid.length;
     const alphaFor = hourAlpha(grid);
 
-    const labelW = 72; // "12A" at 24px mono, plus its 16px gap
+    // The gutter is the hour ticks, measured the same way as the wide card:
+    // the widest of them plus its 16px gap. The old rounded-up 72 left 13px
+    // of slack inside the gutter, which pushed the whole block off centre.
+    ctx.save();
+    ctx.font = `24px ${fonts.mono}`;
+    const labelW = Math.round(ctx.measureText("12A").width) + 16;
     const tickH = 48;
     const gap = HOURS_GAP;
     const cell = squareCell(
@@ -1794,8 +1803,6 @@ const rowtemberCommunityHoursTall: ShareCard = {
     const left = Math.round((this.width - (labelW + gridW)) / 2) + labelW;
     const top = Math.round((this.height - (gridH + tickH)) / 2);
 
-    ctx.save();
-    ctx.font = `24px ${fonts.mono}`;
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textBaseline = "middle";
     ctx.textAlign = "right";
@@ -1809,13 +1816,10 @@ const rowtemberCommunityHoursTall: ShareCard = {
       }
     }
 
-    // The bottom row: SEP in the gutter corner, then the day numbers centred
-    // under their columns, thinned so a two-digit label never touches the
-    // next one.
+    // The bottom row: the day numbers centred under their columns, thinned
+    // so a two-digit label never touches the next one.
     ctx.textBaseline = "alphabetic";
     const baseline = top + gridH + 42;
-    ctx.textAlign = "right";
-    ctx.fillText("SEP", left - 16, baseline);
     ctx.textAlign = "center";
     for (const d of thinTicks(n, step, ctx.measureText("30").width + 8)) {
       ctx.fillText(String(d), left + (d - 1) * step + cell / 2, baseline);

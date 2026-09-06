@@ -30,7 +30,7 @@ import {
  *
  * THE RECORDS: the page prints the chosen record the way the front page
  * prints the board — the overall number one as a big blue headline with
- * the holder on a mono line, then the men's and women's top three side
+ * the holder on a mono line, then the men's and women's top five side
  * by side — and only THEN the control that picks the record: a submenu
  * of small mono links (.st-sub) — total meters, fastest 5k, fastest 10k,
  * longest row, biggest day — under the podiums, with FULL RANKING after
@@ -267,18 +267,20 @@ function Val({ r, def, unit }: { r: RecordRowLite; def: RecordDef; unit: "big" |
   );
 }
 
-/* One division's top three — the front page's compact board — and, for a
+/* One division's top five — the front page's compact board — and, for a
  * signed-in rower placed deeper, their neighbourhood under a gap row
- * (records/defs.ts podiumWindow). Places are within the rows given: the
- * division's for the two podiums, the whole ranking for the Overall block,
- * which takes top=0 and so draws the neighbourhood alone (nothing at all
- * when the viewer is not on the list). */
+ * (records/defs.ts podiumWindow). Five, not three, since 2026-09-06 (owner:
+ * "show top five for each of the categories"); a rower sitting sixth now
+ * lands in the board itself instead of under the gap. Places are within the
+ * rows given: the division's for the two podiums, the whole ranking for the
+ * Overall block, which takes top=0 and so draws the neighbourhood alone
+ * (nothing at all when the viewer is not on the list). */
 function Podium({
   label,
   rows,
   def,
   meId,
-  top = 3,
+  top = 5,
   className,
 }: {
   label: string;
