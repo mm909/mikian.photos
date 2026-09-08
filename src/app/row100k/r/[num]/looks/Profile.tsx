@@ -11,6 +11,7 @@ import {
   Nameplate,
   coreLedger,
 } from "./pieces";
+import { DogTagCard } from "./DogTag";
 import { PaceCurve } from "./PaceCurve";
 import { ProfileField } from "./ProfileField";
 import type { ProfileView } from "./view";
@@ -62,11 +63,28 @@ export function Profile({ view }: { view: ProfileView }) {
         </div>
       </section>
 
+      {/* WHAT EVERYONE ELSE SEES (owner ask, 2026-09-08): one of the
+          elite, on their own page while a window is open, gets the dog tag
+          a stranger is shown in place of this page — under the stats,
+          above THE PACE. The card alone: the nameplate above already
+          carries the rower search. page.tsx decides when (view.ownTag). */}
+      {view.ownTag && (
+        <section className="pf-sec">
+          <div className="wrap front">
+            <div className="pf-block pf-tag">
+              <Eyebrow left="What everyone else sees" />
+              <DogTagCard view={view} until={view.ownTag.until} heading="h2" />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* THE PACE and THE FIELD (owner ask, 2026-09-08), full width under
           the two columns and above the log: the average split settling
           meter by meter, then the rower against everyone. Both need at
           least a couple of timed rows to say anything, so an empty one
-          simply is not there. */}
+          simply is not there. THE FIELD wears no right-hand text (owner,
+          same day: no YOU AGAINST EVERYONE). */}
       {(view.paceCurve.length >= 2 || view.field) && (
         <section className="pf-sec">
           <div className="wrap front">
@@ -78,7 +96,7 @@ export function Profile({ view }: { view: ProfileView }) {
             )}
             {view.field && (
               <div className="pf-block">
-                <Eyebrow left="The field" right="YOU AGAINST EVERYONE" />
+                <Eyebrow left="The field" />
                 <ProfileField field={view.field.field} you={view.field.you} />
               </div>
             )}

@@ -23,9 +23,9 @@ export type ViewerParticipant = {
 };
 
 /* The admin's test blackout (owner, 2026-09-06). "elite": the site as it
- * looks during a window to one OF the fifteen — everyone else's numbers
+ * looks during a window to one OF the elite — everyone else's numbers
  * gone, their own kept, which is the self exemption. "public": the site as
- * it looks to everybody else — every one of the fifteen hidden, the
+ * it looks to everybody else — every one of the elite hidden, the
  * viewer's own row included. Set from /row100k/blackout, carried in a
  * cookie, and honoured ONLY for a challenge admin: it makes the page
  * stricter, never looser, but it is still a debugging lever and does not
@@ -98,7 +98,7 @@ export async function resolveViewer(): Promise<Viewer> {
  * Under the admin's test blackout the admin stops being an admin for the
  * purpose of the mask — that is the whole point of the switch — and under
  * "public" they stop being themself as well, so their own row is hidden
- * along with the rest of the fifteen. `forceBlackout` makes the window
+ * along with the rest of the elite. `forceBlackout` makes the window
  * open for this request only. */
 export function viewOpts(v: Viewer): {
   viewerParticipantId: string | null;
@@ -132,8 +132,8 @@ export function barProps(v: Viewer): { signedIn: boolean; rowerNumber: number | 
 
 /* THE masked set: the participant ids boardView hid for this viewer. The
  * stats boards, the feed, the records pages and the profile all mask off
- * this one set rather than each deciding who is elite — so the fifteen the
- * board hides are exactly the fifteen hidden everywhere else, and the
+ * this one set rather than each deciding who is elite — so the elite the
+ * board hides are exactly the elite hidden everywhere else, and the
  * self/admin exemptions come along for free (blackoutRules.ts owns the
  * rule; this only reads its result). Empty while no window is open. */
 export function maskedIds(boards: Boards): Set<string> {

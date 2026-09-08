@@ -62,11 +62,13 @@ export type ShareData = {
    * stops here instead of framing the whole month (owner call, 2026-09-05:
    * the curve looked dumb against thirty days). Absent = the full month. */
   days?: number;
-  /* Blackout (blackoutRules.ts): this rower is in the elite fifteen while a
-   * window is open, so none of their numbers is shareable. The total cards
-   * draw `digits` blocks where the number would go, the row and best cards
-   * draw blocks for their meters and times, the curve and month cards drop
-   * out of the menu, and the elite card comes in. Set by the pages. */
+  /* Blackout (blackoutRules.ts): this rower is one of THE ELITE — the top
+   * ten of their board — while a window is open, so none of their numbers
+   * is shareable. The total cards draw `digits` blocks where the number
+   * would go, the row and best cards draw blocks for their meters and
+   * times, the curve and month cards drop out of the menu, the elite card
+   * comes in, and every ROWTEMBER mark on their cards goes white on ink
+   * (drawMark). Set by the pages. */
   masked?: boolean;
   digits?: number;
   /* Everyone's September, set only where the caller loads community totals
@@ -95,10 +97,10 @@ export type ShareData = {
        * tier floor and `digits` says how many blocks to draw in its place. */
       masked?: boolean;
       digits?: number;
-      /* Blackout, the places half: one of the hidden fifteen. The row has
+      /* Blackout, the places half: one of the hidden elite. The row has
        * no place at all — the sticker leaves its place column blank and
        * never paints a medal on it (maskStandings reorders these rows by
-       * digit count then name, so their order carries no ranking either). */
+       * average split then name, so their order carries no ranking either). */
       unranked?: boolean;
     }[];
     /* "Sep 3" — the day the standings were read, for the sticker title. */
@@ -115,7 +117,7 @@ export type ShareCard = {
   /* A label that has to read the data before it can be true. The board
    * stickers use it: under a blackout their page has no places to name, and
    * a picker chip saying "1–10" over a sticker that refuses to print a place
-   * would hand the fifteen back the ranking the rule takes away. Falls back
+   * would hand the elite back the ranking the rule takes away. Falls back
    * to `label` (review, 2026-09-05). */
   labelFor?: (data: ShareData) => string;
   width: number;
@@ -143,14 +145,21 @@ const medalColor = (place: number): string | null =>
  * degree and a half and skewed, so it reads as something stamped on rather
  * than typeset. Returns the drawn width so callers can centre it. The box
  * paints water blue unless a medal color is handed in; silver is too light
- * for white caps, so text flips to ink on it. */
+ * for white caps, so text flips to ink on it.
+ *
+ * THE ELITE wear it white on ink (owner, 2026-09-08: "where someone is in
+ * the elite, make the Rowtember logo white on black"): `masked` is the
+ * payload's own flag, handed in by every card in the rower family, and it
+ * turns the box INK with the caps still white. An explicit `box` — the
+ * medal on a placed best — still wins, since it is the rarer claim. The
+ * rule lives here and nowhere else. */
 function drawMark(
   ctx: CanvasRenderingContext2D,
   segments: { text: string; strike?: boolean }[],
-  opts: { cx: number; cy: number; size: number; fontFamily: string; box?: string },
+  opts: { cx: number; cy: number; size: number; fontFamily: string; box?: string; masked?: boolean },
 ) {
   const { cx, cy, size, fontFamily } = opts;
-  const boxColor = opts.box ?? WATER;
+  const boxColor = opts.box ?? (opts.masked ? INK : WATER);
   const textColor = boxColor === SILVER ? INK : "#ffffff";
   ctx.save();
   ctx.font = `${size}px ${fontFamily}`;
@@ -253,30 +262,12 @@ function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): s
  * the drawn width so a name can yield to it the way it yields to digits. */
 /* Blocks are INK, everywhere (owner, 2026-09-05: "instead of those squares
  * being white on the blackout shareables — and anywhere — make them
- * black"), which is what the page already draws (.bo i is var(--ink)). A
- * card lands on somebody's photo, so ink alone would vanish on a night
- * shot: every block run is laid on a white halo first — two passes,
- * because one at 1080px barely registered when the Elite 15 card tried it
- * — then painted flat on top. A caller that hands in its own fill (ink
- * type on a light plate, say) gets no halo. */
-function haloed(
-  ctx: CanvasRenderingContext2D,
-  size: number,
-  fill: string,
-  run: () => void,
-): void {
-  if (fill === INK) {
-    ctx.save();
-    ctx.shadowColor = "rgba(255,255,255,0.95)";
-    ctx.shadowBlur = Math.max(12, size * 0.24);
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    run();
-    run();
-    ctx.restore();
-  }
-  run();
-}
+ * black"), which is what the page already draws (.bo i is var(--ink)) —
+ * and MATTE: flat ink with nothing behind it (owner, 2026-09-08: "instead
+ * of the white glowing background behind each of the black squares and
+ * fonts, I want it to be just matte black"). The white halo that used to
+ * sit under every run is gone; the commas and colons inside a run are the
+ * same flat ink. A caller that hands in its own fill keeps it. */
 
 export function drawBlockDigits(
   ctx: CanvasRenderingContext2D,
@@ -292,6 +283,12 @@ export function drawBlockDigits(
   const gap = size * 0.06;
   const block = cell - gap;
   ctx.save();
+  // Matte: a caller's drop shadow (the board sticker sets one before its
+  // rows) must not paint under the blocks.
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
   ctx.font = `${size}px ${fonts.mono}`;
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
@@ -299,19 +296,16 @@ export function drawBlockDigits(
   const commas = Math.floor((n - 1) / 3);
   const width = n * cell + commas * commaW;
   const start = opts.align === "right" ? x - width : x;
-  const fill = opts.fill ?? INK;
-  ctx.fillStyle = fill;
-  haloed(ctx, size, fill, () => {
-    let cx = start;
-    for (let i = 0; i < n; i++) {
-      ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
-      cx += cell;
-      if (i < n - 1 && (n - i - 1) % 3 === 0) {
-        ctx.fillText(",", cx, y);
-        cx += commaW;
-      }
+  ctx.fillStyle = opts.fill ?? INK;
+  let cx = start;
+  for (let i = 0; i < n; i++) {
+    ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
+    cx += cell;
+    if (i < n - 1 && (n - i - 1) % 3 === 0) {
+      ctx.fillText(",", cx, y);
+      cx += commaW;
     }
-  });
+  }
   ctx.restore();
   return width;
 }
@@ -359,20 +353,17 @@ function drawBlockShape(
   const width = chars.reduce((w, ch) => w + (ch === "#" ? cell : ctx.measureText(ch).width), 0);
   if (opts.paint !== false) {
     const start = opts.align === "right" ? x - width : opts.align === "center" ? x - width / 2 : x;
-    const fill = opts.fill ?? INK;
-    ctx.fillStyle = fill;
-    haloed(ctx, size, fill, () => {
-      let cx = start;
-      for (const ch of chars) {
-        if (ch === "#") {
-          ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
-          cx += cell;
-        } else {
-          ctx.fillText(ch, cx, y);
-          cx += ctx.measureText(ch).width;
-        }
+    ctx.fillStyle = opts.fill ?? INK;
+    let cx = start;
+    for (const ch of chars) {
+      if (ch === "#") {
+        ctx.fillRect(cx + gap / 2, y - size * 0.88, block, size * 0.92);
+        cx += cell;
+      } else {
+        ctx.fillText(ch, cx, y);
+        cx += ctx.measureText(ch).width;
       }
-    });
+    }
   }
   ctx.restore();
   return width;
@@ -635,6 +626,7 @@ const rowtemberTotal: ShareCard = {
       size: 112,
       fontFamily: fonts.black,
       box: (top10 && medalColor(top10.place)) || undefined,
+      masked: data.masked,
     });
   },
 };
@@ -703,6 +695,7 @@ const rowtemberToday: ShareCard = {
       cy: 470,
       size: 112,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
   },
 };
@@ -794,6 +787,7 @@ const rowtemberClub: ShareCard = {
       cy: clubBaseline + G2 + markH / 2,
       size: markSize,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
     ctx.restore();
   },
@@ -827,6 +821,7 @@ const rowtemberMonth: ShareCard = {
       cy: top + 50,
       size: 84,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
 
     const gridBottom = drawMonthGrid(ctx, fonts, {
@@ -902,6 +897,7 @@ const rowtemberRow: ShareCard = {
       cy: 490,
       size: 100,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
   },
 };
@@ -931,6 +927,7 @@ const rowtemberBib: ShareCard = {
       cy: 152,
       size: 62,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
 
     drawCenteredText(ctx, fmtRowerNumber(data.rowerNumber), {
@@ -1148,6 +1145,7 @@ const rowtemberRowFull: ShareCard = {
       cy: 645,
       size: 96,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
   },
 };
@@ -1236,6 +1234,7 @@ const rowtemberNamed: ShareCard = {
       size: 104,
       fontFamily: fonts.black,
       box: (top10 && medalColor(top10.place)) || undefined,
+      masked: data.masked,
     });
   },
 };
@@ -1342,24 +1341,27 @@ const rowtemberBest: ShareCard = {
     // The mark moves up and grows a little into the room the old "#N" line
     // left, so the value does not float between the label and the box. It is
     // drawn at the total card's 112px (review, 2026-09-05) so a best and a
-    // total posted in the same story wear the same mark.
+    // total posted in the same story wear the same mark. A placed best keeps
+    // its medal even for one of the elite; an unplaced one wears their ink.
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
       cy: 480,
       size: 112,
       fontFamily: fonts.black,
       box: (place && medalColor(place)) || undefined,
+      masked: data.masked,
     });
   },
 };
 
 /* The blackout flex: in the menu only while the rower is one of the hidden
- * fifteen. Their total as ink blocks — the board's own blocks, painted — over
- * THE ELITE FIFTEEN and the mark. The blocks wear a white halo instead of
- * the dark shadow the type gets, so ink still reads on a night photo. */
+ * elite. The mark, white on ink like every mark of theirs, their total as
+ * matte ink blocks — the board's own blocks, painted, no halo — and THE
+ * ELITE under it. The blocks carry no shadow at all; the label keeps the
+ * dark one the type gets. */
 const rowtemberElite: ShareCard = {
   id: "rowtember-elite",
-  label: "Elite 15",
+  label: "The elite",
   width: 1080,
   height: 700,
   light: true,
@@ -1373,13 +1375,13 @@ const rowtemberElite: ShareCard = {
       cy: 150,
       size: 84,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
 
     let size = 168;
     const maxW = this.width - 120;
     while (size > 80 && blockDigitsWidth(ctx, digits, size, fonts) > maxW) size -= 6;
     const w = blockDigitsWidth(ctx, digits, size, fonts);
-    // Ink on a white halo — drawBlockDigits does that for every card now.
     drawBlockDigits(ctx, cx - w / 2, 440, digits, size, fonts);
 
     ctx.save();
@@ -1397,14 +1399,15 @@ const rowtemberElite: ShareCard = {
   },
 };
 
-/* Just the mark. Big, centered, transparent — the sticker of stickers. */
+/* Just the mark. Big, centered, transparent — the sticker of stickers. In
+ * a hidden rower's own menu it is their ink one. */
 const rowtemberLogo: ShareCard = {
   id: "rowtember-logo",
   label: "The logo",
   width: 1080,
   height: 620,
   light: true,
-  draw(ctx, _data, fonts) {
+  draw(ctx, data, fonts) {
     // As big as fits with breathing room; measured the way drawMark measures.
     let size = 150;
     const maxW = this.width - 70;
@@ -1419,6 +1422,7 @@ const rowtemberLogo: ShareCard = {
       cy: this.height / 2,
       size,
       fontFamily: fonts.black,
+      masked: data.masked,
     });
   },
 };
@@ -1558,7 +1562,7 @@ const rowtemberCommunityTotal: ShareCard = {
  * TOGETHER). A day's number is meaningless without the day on it, and this
  * is the card that goes out at night.
  *
- * Nothing is masked here, ever: the hidden fifteen's meters are inside this
+ * Nothing is masked here, ever: the hidden elite's meters are inside this
  * number and nothing on the card says whose, so the aggregate stays the
  * public number it is on the board. Out of the menu until the day has
  * meters in it, and out of it again once the month is over — the day line
@@ -2028,10 +2032,11 @@ const rowtemberCommunityHoursTall: ShareCard = {
 const BOARD_PAGE = 10;
 const BOARD_PAGES = 12;
 
-/* THE ELITE FIFTEEN in the sticker's own voice: the section line under the
- * title is sentence case ("The board · 11–20"), so the group's name is set
- * the same way rather than shouted mid-sentence. Same words as ELITE_LABEL. */
-const ELITE_SECTION = "The Elite Fifteen";
+/* THE ELITE in the sticker's own voice: the section line under the title
+ * is sentence case ("The board · 11–20"), so the group's name is set the
+ * same way rather than shouted mid-sentence. Same words as ELITE_LABEL,
+ * and the same words as the elite card's chip. */
+const ELITE_SECTION = "The elite";
 
 /* Blackout, the places half (blackoutRules.ts): a hidden row carries no
  * place at all, so the sticker leaves the place column blank — the name and
@@ -2042,33 +2047,58 @@ export function boardPlaceText(row: { unranked?: boolean }, place: number): stri
   return row.unranked ? "" : String(place).padStart(2, "0");
 }
 
+/* How many rows of the whole board are hidden — the elite run to twenty
+ * (ten a board), which is two stickers of ten, so an all-hidden page has to
+ * say which of them it is. */
+function hiddenCount(rows: { unranked?: boolean }[]): number {
+  return rows.filter((r) => r.unranked).length;
+}
+
+/* The name of an all-hidden page: "The elite" when they fit one sticker,
+ * "The elite · 1/2" and "· 2/2" when they run past it — a PART number, the
+ * way the post pack counts a club welcome that spills over, never a place
+ * range: the rows are in pace order, and "1–10" over them would be the
+ * ranking the rule takes away. `hidden` is the whole board's count, so
+ * page one knows a page two exists. */
+function elitePageName(start: number, hidden: number): string {
+  const parts = Math.ceil(hidden / BOARD_PAGE);
+  if (parts <= 1) return ELITE_SECTION;
+  return `${ELITE_SECTION} · ${Math.floor((start - 1) / BOARD_PAGE) + 1}/${parts}`;
+}
+
 /* The dim line under the title. A page whose rows are ALL hidden is the
- * fifteen and says so. A page that mixes them with real places (11–20 with
- * fifteen hidden: five unranked, then 16 to 20) prints no range at all —
- * no range is true of all ten lines, and "11–20" over five blank places
- * would be the ranking the rule just took away. Everything else: the
- * places, as before. */
+ * elite and says so, with its part when they take two pages. A page that
+ * mixes them with real places (11–20 with twelve hidden: two unranked, then
+ * 13 to 20) prints no range at all — no range is true of all ten lines, and
+ * "11–20" over blank places would be the ranking the rule just took away.
+ * Everything else: the places, as before. `hidden` is how many rows the
+ * whole board hides; left out, the page counts its own. */
 export function boardSectionLabel(
   rows: { unranked?: boolean }[],
   start: number,
   end: number,
+  hidden: number = hiddenCount(rows),
 ): string {
-  if (rows.length > 0 && rows.every((r) => r.unranked)) return `The board · ${ELITE_SECTION}`;
+  if (rows.length > 0 && rows.every((r) => r.unranked)) {
+    return `The board · ${elitePageName(start, hidden)}`;
+  }
   if (rows.some((r) => r.unranked)) return "The board";
   return `The board · ${start}–${end}`;
 }
 
 /* The same decision at chip length, for the picker (review, 2026-09-05): a
  * chip reading "1–10" over a sticker that prints no place at all IS a place,
- * and a false one — after the reorder those ten are in digit-count-then-name
- * order, not places 1 to 10. "ELITE 15" is the chip the elite card already
- * uses, so the picker keeps one vocabulary. */
+ * and a false one — after the reorder those ten are in pace-then-name
+ * order, not places 1 to 10. "The elite" is the chip the elite card already
+ * uses, so the picker keeps one vocabulary; two elite pages count themselves
+ * so the picker never shows the same chip twice. */
 export function boardPageLabel(
   rows: { unranked?: boolean }[],
   start: number,
   end: number,
+  hidden: number = hiddenCount(rows),
 ): string {
-  if (rows.length > 0 && rows.every((r) => r.unranked)) return "Elite 15";
+  if (rows.length > 0 && rows.every((r) => r.unranked)) return elitePageName(start, hidden);
   if (rows.some((r) => r.unranked)) return "The board";
   return `${start}–${end}`;
 }
@@ -2079,10 +2109,11 @@ function boardCard(page: number): ShareCard {
   const pad = (n: number) => String(n).padStart(2, "0");
   const pageRows = (d: ShareData) =>
     d.community?.standings?.slice(page * BOARD_PAGE, (page + 1) * BOARD_PAGE) ?? [];
+  const hiddenRows = (d: ShareData) => hiddenCount(d.community?.standings ?? []);
   return {
     id: `rowtember-board-${pad(start)}-${pad(end)}`,
     label: `${start}–${end}`,
-    labelFor: (d) => boardPageLabel(pageRows(d), start, end),
+    labelFor: (d) => boardPageLabel(pageRows(d), start, end, hiddenRows(d)),
     width: 1080,
     height: 1080,
     light: true,
@@ -2106,11 +2137,11 @@ function boardCard(page: number): ShareCard {
       const asOf = data.community?.asOf;
       ctx.fillText(asOf ? `Rowtember · ${asOf}` : "Rowtember 2026", L, 118);
 
-      // Section label, dim: which ten places this is — or the fifteen's
+      // Section label, dim: which ten places this is — or the elite's
       // name when the page has no places to give.
       ctx.font = `30px ${fonts.mono}`;
       ctx.fillStyle = "rgba(255,255,255,0.62)";
-      ctx.fillText(boardSectionLabel(rows, start, end), L, 196);
+      ctx.fillText(boardSectionLabel(rows, start, end, hiddenRows(data)), L, 196);
 
       const top = 292;
       const step = 82;

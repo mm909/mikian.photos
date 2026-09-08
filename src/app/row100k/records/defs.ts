@@ -1,4 +1,4 @@
-import { clockShape, digitCount } from "@/lib/blackoutRules";
+import { digitCount } from "@/lib/blackoutRules";
 import type { Boards, RecordRow, TotalRow } from "@/lib/row100k";
 
 /* The five record boards, shared by the stats page's records section and
@@ -73,13 +73,13 @@ export type Ranked = {
   value: number;
   day?: string;
   sessions?: number;
-  /* Total board only: one of the hidden fifteen, who carry no place while a
+  /* Total board only: one of the elite, who carry no place while a
    * blackout window is open (blackoutRules.maskBoards). The other four
    * boards never set it — a fastest-5k place is not the meters ranking, and
    * the owner rule is about the meters (2026-09-05). */
   unranked?: boolean;
   /* With it: the hidden rower average split, "2:07" — printed where the
-   * club tag goes and the order the fifteen are listed in. */
+   * club tag goes and the order the elite are listed in. */
   paceTag?: string;
 };
 
@@ -113,11 +113,12 @@ export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
 /* What the stats page hands its client-side records section: one ranked
  * list per record, already blanked. Anything a client component receives
  * is in the page source, so a rower the blackout hides from this viewer
- * has their value zeroed HERE and only its shape travels — a digit count
- * for meters, the ##:##.# silhouette for a time (owner rule, 2026-09-05: a
- * time over a known distance is the meters by another route). Name,
- * number, place, day and session count stay. Nothing else from the board
- * row (no instagram, no pct, no piece length) goes along. */
+ * has their METERS records zeroed HERE and only a digit count travels.
+ * Their TIMES stay (owner, 2026-09-08: a fastest 5k or 10k is public on
+ * the stats page and the full-ranking pages regardless of the blackout),
+ * so a time record row is never masked. Name, number, place, day and
+ * session count stay. Nothing else from the board row (no instagram, no
+ * pct, no piece length) goes along. */
 export type RecordRowLite = {
   participantId: string;
   name: string;
@@ -129,8 +130,14 @@ export type RecordRowLite = {
   masked?: boolean;
   digits?: number;
   shape?: string;
-  /* Total meters only: one of the hidden fifteen. No place is drawn for the
-   * row anywhere it is listed, and the records section lists the fifteen by
+  /* Total meters only, the blackout run-up (blackoutRules.rampRow): how
+   * many low digits of this total are covered. `value` is already rounded
+   * down to the digits still showing, so it may print; `digits` is the real
+   * total's count, so the covered tail draws as blocks of the right length
+   * (partialShape), the way the board draws it. */
+  hideLow?: number;
+  /* Total meters only: one of the hidden elite. No place is drawn for the
+   * row anywhere it is listed, and the records section lists the elite by
    * average split instead of ranking them on meters (owner, 2026-09-05). */
   unranked?: boolean;
   /* With it: their average split, "2:07", the tag in front of the name and
@@ -155,40 +162,41 @@ export function liteRecords(boards: Boards, hidden: Set<string>): RecordsProp {
         ...(r.unranked ? { unranked: true } : {}),
         ...(r.paceTag ? { paceTag: r.paceTag } : {}),
       };
-      const src = r.row as { masked?: boolean; digits?: number };
+      const src = r.row as { masked?: boolean; digits?: number; hideLow?: number };
+      /* The run-up: the total is already rounded down (rampRow); the count
+       * of covered digits travels so the tail can be drawn as blocks. */
+      if (def.key === "total" && src.hideLow && !src.masked) {
+        return { ...lite, hideLow: src.hideLow, digits: src.digits ?? digitCount(r.value) };
+      }
       if (!src.masked && !hidden.has(r.row.participantId)) return lite;
+      /* A time is public even for a hidden rower (owner, 2026-09-08), so
+       * the row goes through with its seconds and no mask. */
+      if (def.kind === "time") return lite;
       /* A masked total row already carries its digit count from boardView
        * (its meters are the tier floor by then); a record row still holds
        * the truth here on the server, so count it and drop it. */
-      return def.kind === "time"
-        ? { ...lite, value: 0, masked: true, shape: clockShape(r.value, true) }
-        : { ...lite, value: 0, masked: true, digits: src.digits ?? digitCount(r.value) };
+      return { ...lite, value: 0, masked: true, digits: src.digits ?? digitCount(r.value) };
     });
   }
   return out;
 }
 
-/* The podium plus the viewer's neighbourhood: the top `top` rows and, when
- * the viewer sits deeper, the row above them, their own and the row below
- * — after a gap row when the two runs do not touch, and nothing after
- * (owner call, 2026-09-05: the leaders, dot dot dot, where you are, the
- * person above and below you). A viewer inside the podium, or no viewer at
- * all, gets the podium alone. The podium is five deep (owner, 2026-09-06 —
- * it was three); the default and the Podium component's own default are the
- * same number on purpose, so neither can quietly fall back to a shorter
- * board. */
+/* The podium plus the viewer's own line: the top `top` rows and, when the
+ * viewer sits deeper, ONE more row — theirs, at its real place — with no
+ * gap row and no neighbours (owner, 2026-09-08: "no dots, just your place
+ * and then your name"; the above-and-below neighbourhood of 2026-09-05 is
+ * gone). A viewer inside the podium, or no viewer at all, gets the podium
+ * alone. `gap` is always false now and stays in the shape so callers that
+ * still draw a gap row simply never do. The podium is five deep (owner,
+ * 2026-09-06 — it was three); the default and the Podium component's own
+ * default are the same number on purpose, so neither can quietly fall back
+ * to a shorter board. */
 export function podiumWindow<T>(
   rows: T[],
   meIdx: number,
   top = 5,
 ): { top: T[]; gap: boolean; ctx: T[]; ctxStart: number } {
   const head = rows.slice(0, top);
-  if (meIdx < top) return { top: head, gap: false, ctx: [], ctxStart: top };
-  const ctxStart = Math.max(top, meIdx - 1);
-  return {
-    top: head,
-    gap: ctxStart > top,
-    ctx: rows.slice(ctxStart, Math.min(rows.length, meIdx + 2)),
-    ctxStart,
-  };
+  if (meIdx < top || meIdx >= rows.length) return { top: head, gap: false, ctx: [], ctxStart: top };
+  return { top: head, gap: false, ctx: [rows[meIdx]], ctxStart: meIdx };
 }

@@ -4,16 +4,17 @@ import { sendPlainEmail } from "@/lib/email";
 import { resolveBaseUrl } from "@/lib/createOrder";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, END_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
-import { SHIRT_FREE_AT, SHIRT_PRICE_USD, settledEmail } from "@/app/row100k/shirt";
+import { SHIRT_FREE_AT, SHIRT_PRICE_USD } from "@/app/row100k/shirt";
+import { settledEmail } from "@/app/row100k/shirtEmail";
 
 export const runtime = "nodejs";
 
 /* SETTLING THE MONTH (owner, 2026-09-08: "build what I need to bill at the
- * end of the month if it applies"). Admin only. For every shirt still
- * "reserved": the rower's meters decide — at or past the 100K it becomes
- * "free"; short of it, "owed", with an email carrying a pay link to
- * /row100k/shirt/pay (PayPal or card, the photo shop's connection). Each
- * rower is told either way, with the pick-up reminder.
+ * end of the month if it applies"). Admin only, from /row100k/shop-admin.
+ * For every shirt still "reserved": the rower's meters decide — at or past
+ * the 100K it becomes "free"; short of it, "owed", with an email carrying
+ * a pay link to /row100k/shirt/pay (PayPal or card, the photo shop's
+ * connection). Each rower is told either way, with the pick-up reminder.
  *
  * Runs once the month has ended (END_MS). Before that it refuses, unless
  * the caller is testing outside production with { force: true }. Safe to
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
   try {
     const open = await db.rowShirtOrder.findMany({
       where: { challenge: CHALLENGE, status: "reserved" },
-      select: { id: true, participantId: true, rowerNumber: true, size: true },
+      select: { id: true, participantId: true, rowerNumber: true, size: true, payerEmail: true },
     });
     const results: { rowerNumber: number; size: string; meters: number; outcome: "free" | "owed"; emailed: boolean }[] = [];
 
@@ -55,7 +56,8 @@ export async function POST(req: Request) {
           select: { displayName: true, userId: true },
         }),
       ]);
-      // The rower's address is on their account, not the participant row.
+      // The rower's address is on their account, not the participant row;
+      // the order remembers the address it was bought under as a fallback.
       const account = p?.userId
         ? await db.photographer.findUnique({ where: { id: p.userId }, select: { email: true } })
         : null;
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
       }
 
       let emailed = false;
-      const to = account?.email;
+      const to = account?.email || o.payerEmail;
       if (!dryRun && to) {
         const mail = settledEmail({
           name: p?.displayName ?? `Rower ${o.rowerNumber}`,
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
           free,
           payUrl,
         });
-        const sent = await sendPlainEmail(to, mail.subject, mail.text);
+        const sent = await sendPlainEmail(to, mail.subject, mail.text, mail.html);
         emailed = sent.ok;
         if (!sent.ok) console.error(`row100k shirt: settle email failed for rower ${o.rowerNumber}`, sent.error);
       }

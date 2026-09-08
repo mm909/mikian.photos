@@ -746,7 +746,11 @@ export function GrindSvg({ c, you }: { c: GrindChart; you: GrindYou | null }) {
 }
 
 /* --------------------------------------------------------- 7 · hours */
-export function HoursSvg({ c, you }: { c: HourChart; you: HourYou | null }) {
+/* `fillSmall` draws the bars under SMALL filled and labelled like the rest
+ * — the stats page's field (owner, 2026-09-08: "fill in those bars that
+ * have less than five"); off by default, so the numbers page keeps its
+ * dashed ones. */
+export function HoursSvg({ c, you, fillSmall = false }: { c: HourChart; you: HourYou | null; fillSmall?: boolean }) {
   if (c.counts.length !== 24 || !(c.yMax > 0) || !c.counts.some((v) => v > 0)) return null;
   const slot = PW / 24;
   const pos = (h: number) => (((h - c.start) % 24) + 24) % 24;
@@ -760,7 +764,7 @@ export function HoursSvg({ c, you }: { c: HourChart; you: HourYou | null }) {
       ? c.kdeGrid.map((g, i) => `${i ? "L" : "M"}${r(L + ((g - c.start) / 24) * PW)},${r(y(c.kdeYs[i]))}`).join("")
       : null;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sessions logged per hour of the day, Pacific, with a wrapped density">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sessions logged per hour of the day, with a wrapped density">
       <GridY yMax={c.yMax} fmt={(v) => String(Math.round(v))} />
       {Array.from({ length: 24 }, (_, i) => {
         const h = (c.start + i) % 24;
@@ -769,7 +773,7 @@ export function HoursSvg({ c, you }: { c: HourChart; you: HourYou | null }) {
         const bx = L + i * slot + slot * 0.19;
         const bw = slot * 0.62;
         const bh = Math.max(y0 - y(v), 2);
-        return v < SMALL ? (
+        return v < SMALL && !fillSmall ? (
           <rect key={h} x={r(bx)} y={r(y0 - bh)} width={r(bw)} height={r(bh)} fill="none" stroke={FIELD_EDGE} strokeWidth="1" strokeDasharray="2 2" />
         ) : (
           <rect key={h} x={r(bx)} y={r(y0 - bh)} width={r(bw)} height={r(bh)} fill={FIELD}>
@@ -778,7 +782,7 @@ export function HoursSvg({ c, you }: { c: HourChart; you: HourYou | null }) {
         );
       })}
       {kdeLine && <path d={kdeLine} fill="none" stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />}
-      {c.counts[peak] >= SMALL && (
+      {(fillSmall || c.counts[peak] >= SMALL) && (
         <Lbl x={xh(peak) + slot / 2} y={Math.max(y(c.counts[peak]) - 5, 10)} size={11} bold fill={INK}>
           {c.counts[peak]}
         </Lbl>

@@ -8,9 +8,30 @@ import { fmtRowerNumber } from "@/lib/row100k";
 /* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
  * chip opening the account menu — profile, then settings (owner call,
  * 2026-09-05: settings live behind this menu, not on the page), then sign
- * out. Signed in but not joined: join link + sign out. Admins also get a
- * DEVELOPMENT block of owner-only / in-progress surfaces above Sign out.
- * Items are next/link so the bar pill (BarNav) can carry across the hop. */
+ * out. Signed in but not joined: join link + sign out. Admins also get
+ * three eyebrowed groups above Sign out — UTILITIES, ADMINISTRATION,
+ * DEVELOPMENT (owner call, 2026-09-08). Items are next/link so the bar
+ * pill (BarNav) can carry across the hop. */
+
+/* A group heading inside the panel: mono, grey, letterspaced. */
+function Eyebrow({ children }: { children: string }) {
+  return (
+    <div
+      className="mono"
+      aria-hidden="true"
+      style={{
+        fontSize: 10,
+        letterSpacing: ".15em",
+        textTransform: "uppercase",
+        color: "var(--gray)",
+        padding: "12px 2px 2px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function BarAccount({
   signedIn,
   rowerNumber,
@@ -19,7 +40,7 @@ export function BarAccount({
 }: {
   signedIn: boolean;
   rowerNumber: number | null;
-  /** Row100k admin — shows the DEVELOPMENT links in the menu. */
+  /** Row100k admin — shows the UTILITIES / ADMINISTRATION / DEVELOPMENT groups. */
   admin?: boolean;
   /** Dev preview only — render with the menu already open. */
   defaultOpen?: boolean;
@@ -70,53 +91,48 @@ export function BarAccount({
             )}
             {admin && (
               <>
-                {/* The item above already draws the dashed divider (border-bottom);
-                 * this eyebrow just heads the owner-only block. */}
-                <div
-                  className="mono"
-                  aria-hidden="true"
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: ".15em",
-                    textTransform: "uppercase",
-                    color: "var(--gray)",
-                    padding: "12px 2px 2px",
-                  }}
-                >
-                  Development
-                </div>
+                {/* Three eyebrowed groups (owner call, 2026-09-08): the
+                 * things an admin uses, the things an admin runs, and the
+                 * surfaces still in the shop. The item above each eyebrow
+                 * already draws the dashed divider (border-bottom). */}
+                <Eyebrow>Utilities</Eyebrow>
+                <Link className="acct-item" href="/row100k/post" onClick={close}>
+                  Post pack →
+                </Link>
+                <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
+                  The plan →
+                </Link>
+
+                <Eyebrow>Administration</Eyebrow>
                 <Link className="acct-item" href="/row100k/blackout" onClick={close}>
                   Blackout →
                 </Link>
-                <Link className="acct-item" href="/row100k/moderation" onClick={close}>
-                  Moderation →
+                <Link className="acct-item" href="/row100k/raffles" onClick={close}>
+                  Raffles →
                 </Link>
-                {/* The gallery and the numbers page live here rather than on
-                 * the bar for now (owner call, 2026-09-05): neither is ready
-                 * to be a public tab. */}
-                <Link className="acct-item" href="/row100k/gallery" onClick={close}>
-                  Gallery →
-                </Link>
-                <Link className="acct-item" href="/row100k/analysis" onClick={close}>
-                  The numbers →
-                </Link>
+                {/* Signups + moderation, one table (rowers/RowersTable.tsx). */}
                 <Link className="acct-item" href="/row100k/signups" onClick={close}>
-                  Signups →
+                  Rowers →
                 </Link>
+                <Link className="acct-item" href="/row100k/shop-admin" onClick={close}>
+                  Shop administration →
+                </Link>
+
+                <Eyebrow>Development</Eyebrow>
                 <Link className="acct-item" href="/row100k/dev/stats" onClick={close}>
                   Dev stats →
                 </Link>
-                <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
-                  The plan (dev) →
+                {/* The numbers and the gallery live here rather than on the
+                 * bar for now (owner call, 2026-09-05): neither is ready to
+                 * be a public tab. */}
+                <Link className="acct-item" href="/row100k/analysis" onClick={close}>
+                  The numbers →
                 </Link>
                 <Link className="acct-item" href="/row100k/dev/shirts" onClick={close}>
                   The shirt (dev) →
                 </Link>
-                <Link className="acct-item" href="/row100k/dev/records" onClick={close}>
-                  Records pick (mock) →
-                </Link>
-                <Link className="acct-item" href="/row100k/post" onClick={close}>
-                  Post pack →
+                <Link className="acct-item" href="/row100k/gallery" onClick={close}>
+                  Gallery →
                 </Link>
               </>
             )}

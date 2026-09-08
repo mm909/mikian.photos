@@ -9,9 +9,6 @@ import { RowFooter } from "../../RowFooter";
 import { listGallery } from "../../galleryList";
 import { photosServable, publicPhotoUrl, thumbKey } from "../../photoUrls";
 import { shirtCounts } from "../../shirt";
-import { listShirtOrders, type ShirtOrderRow } from "../../shirtOrders";
-import { OrdersPanel } from "./OrdersPanel";
-import { SettlePanel } from "./SettlePanel";
 import { ShirtShop, type MineLite } from "./ShirtShop";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +19,13 @@ export const metadata: Metadata = {
 };
 
 /* THE SHIRT, dev for now (owner, 2026-09-08): $20 or 100,000 meters, buy
- * now pay later, pick-up only, sizes side by side with the pre-order count
- * on the same box, settled at the end of the month and billed through the
- * photo shop's PayPal connection. Admin-only in production, open in local
- * dev — the same gate as the other dev pages. Product photos are the
- * newest gallery shots until the owner sends the real ones. */
+ * now pay later, pick-up only, sizes side by side with one line on each
+ * box — what is left, or how many are pre-ordered — settled at the end of
+ * the month and billed through the photo shop's PayPal connection. This
+ * page is only what a rower sees; the orders and the settlement live on
+ * /row100k/shop-admin (owner, 2026-09-08). Admin-only in production, open
+ * in local dev — the same gate as the other dev pages. Product photos are
+ * the newest gallery shots until the owner sends the real ones. */
 const PRODUCT_PHOTOS = 3;
 
 export default async function DevShirtsPage() {
@@ -68,16 +67,6 @@ export default async function DevShirtsPage() {
     console.error("row100k/dev/shirts: failed to load orders (table pushed?)", err);
   }
 
-  // The owner's list, admin only.
-  let allOrders: ShirtOrderRow[] = [];
-  if (viewer.isAdmin) {
-    try {
-      allOrders = await listShirtOrders();
-    } catch (err) {
-      console.error("row100k/dev/shirts: failed to load the orders list", err);
-    }
-  }
-
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
@@ -87,7 +76,7 @@ export default async function DevShirtsPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>The shirt</h2>
-            <span className="mono">DEV · BUY NOW, PAY LATER · PICK-UP ONLY</span>
+            <span className="mono">DEV · BUY NOW, PAY LATER</span>
           </div>
           <ShirtShop
             photos={photos}
@@ -97,8 +86,6 @@ export default async function DevShirtsPage() {
             joined={viewer.myParticipantId !== null}
             signedIn={viewer.actor !== null}
           />
-          {viewer.isAdmin && <OrdersPanel orders={allOrders} />}
-          {viewer.isAdmin && <SettlePanel inProduction={process.env.NODE_ENV === "production"} />}
         </div>
       </section>
 

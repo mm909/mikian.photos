@@ -13,7 +13,7 @@ export type AdminWindow = {
   id: string;
   startsAt: string;
   endsAt: string;
-  /* Days of run-up before the window: the fifteen lose one more digit of
+  /* Days of run-up before the window: the elite lose one more digit of
    * their total a day, from the ones up. 0 = none. */
   rampDays: number;
   reason: string;

@@ -19,7 +19,7 @@ export const runtime = "nodejs";
  * ping never looks like a failure client-side. The body arrives as text
  * (sendBeacon sends text/plain), so it is parsed by hand, not req.json(). */
 
-const LINKS = new Set(["partners", "grizzly", "grizzly-code"]);
+const LINKS = new Set(["partners", "grizzly", "grizzly-code", "raffle-event", "raffle-grizzly", "raffle-cta"]);
 const PATH_MAX = 200;
 const REFERRER_MAX = 500;
 

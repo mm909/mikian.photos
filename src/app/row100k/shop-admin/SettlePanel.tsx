@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SHIRT_FREE_AT, SHIRT_PRICE_USD } from "../shirt";
 
 /* SETTLE THE MONTH — the owner's button (owner, 2026-09-08: "build what I
  * need to bill at the end of the month if it applies"). DRY RUN shows who
  * would be free and who would owe, without touching a row or sending a
  * word. SETTLE does it: marks each shirt free or owed and emails everyone.
  * The route refuses before Sep 30 in production; here in dev, FORCE lets
- * the owner see the whole thing run. */
+ * the owner see the whole thing run. Lives on /row100k/shop-admin. */
 type Row = { rowerNumber: number; size: string; meters: number; outcome: "free" | "owed"; emailed: boolean };
 
 export function SettlePanel({ inProduction }: { inProduction: boolean }) {
@@ -41,7 +42,9 @@ export function SettlePanel({ inProduction }: { inProduction: boolean }) {
     <div className="sh-settle">
       <div className="sec-head">
         <h2>Settle the month</h2>
-        <span className="mono">ADMIN · FREE AT 100K, $20 OTHERWISE</span>
+        <span className="mono">
+          FREE AT {SHIRT_FREE_AT / 1000}K, ${SHIRT_PRICE_USD} OTHERWISE
+        </span>
       </div>
       <p className="sh-buy-note">
         DRY RUN LISTS WHO IS FREE AND WHO OWES. SETTLE MARKS THE SHIRTS AND EMAILS EVERYONE, WITH A PAY LINK FOR THOSE WHO OWE.
@@ -51,7 +54,7 @@ export function SettlePanel({ inProduction }: { inProduction: boolean }) {
         <button type="button" className="outline-btn" disabled={busy} onClick={() => void run(true)}>
           Dry run
         </button>
-        <button type="button" className="send" disabled={busy} onClick={() => void run(false)}>
+        <button type="button" className="send" style={{ marginTop: 0, width: "auto", padding: "10px 18px", fontSize: 14 }} disabled={busy} onClick={() => void run(false)}>
           {busy ? "…" : "Settle and email"}
         </button>
       </div>
@@ -60,7 +63,7 @@ export function SettlePanel({ inProduction }: { inProduction: boolean }) {
         <>
           <p className="sh-buy-note" style={{ marginTop: 16 }}>
             {out.dryRun ? "DRY RUN — " : "SETTLED — "}
-            {out.free} FREE · {out.owed} OWE ${20}
+            {out.free} FREE · {out.owed} OWE ${SHIRT_PRICE_USD}
           </p>
           {out.results.length > 0 && (
             <table className="board">

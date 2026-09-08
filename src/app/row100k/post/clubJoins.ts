@@ -111,7 +111,7 @@ function byMetersDesc(rowers: PostRow[]): PostRow[] {
  * during a blackout window, with a tier floor for meters and a digit count.
  * That is the only shape allowed to leave here: the crossing itself is
  * computed from real meters, but a hidden rower's total must not reach the
- * page (blackout rule, 2026-09-05 — a club welcome for one of the fifteen
+ * page (blackout rule, 2026-09-05 — a club welcome for one of the elite
  * names the club, not the number). A rower with no board row at all is
  * dropped rather than guessed at, the same fail-closed line the 100k claim
  * holds on this page. */

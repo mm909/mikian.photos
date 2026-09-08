@@ -71,10 +71,10 @@ export type PostRow = {
    * tier floor and `digits` says how many blocks the board slide draws. */
   masked?: boolean;
   digits?: number;
-  /** Blackout, the places half: one of the hidden fifteen, who carries no
+  /** Blackout, the places half: one of the hidden elite, who carries no
    * place at all — the board slide prints no number and no medal for the
-   * row (maskBoards has already reordered them by digit count, then name,
-   * so their order on the slide is not a ranking either). */
+   * row (maskBoards has already reordered them by average split, then
+   * name, so their order on the slide is not a ranking either). */
   unranked?: boolean;
 };
 export type PostRecord = {
@@ -82,7 +82,7 @@ export type PostRecord = {
   value: string;
   who: string;
   /** Blackout (lib/blackoutRules.ts): the holder is one of the hidden
-   * fifteen — `value` is "" and `shape` is its silhouette ("#:##.#" for a
+   * elite — `value` is "" and `shape` is its silhouette ("#:##.#" for a
    * split, "##,### m" for a distance), drawn as blocks on the stats slide. */
   masked?: boolean;
   shape?: string;
@@ -158,18 +158,18 @@ export type PostFonts = {
  *             that black background").
  *
  * Nothing is restyled for the sticker, because nothing needs to be: the type
- * is already white under a soft shadow and the blackout blocks are already
- * ink on a white halo — the two treatments this composition was given so it
- * would survive a picture nobody has seen.
+ * is already white under a soft shadow, the treatment this composition was
+ * given so it would survive a picture nobody has seen, and the blackout
+ * blocks are matte ink with nothing behind them (owner, 2026-09-08).
  *
  * What it survives is a DARK picture. White under a soft shadow is a
  * dark-ground treatment: composited over a bright photograph the type
- * measures about 1.6:1 and all but disappears, while the ink blocks (ink on
- * a white halo) hold up either way (review, 2026-09-06). So the sticker is
- * the composition as composed, and the CARD says the truth about it — the
- * preview is half a light checkerboard and half a dark one (post/page.tsx),
- * which is where a sticker that will not read on a bright picture looks as
- * faint as it will in the post. */
+ * measures about 1.6:1 and all but disappears (review, 2026-09-06); the
+ * matte blocks are the other way about and want the light. So the sticker
+ * is the composition as composed, and the CARD says the truth about it —
+ * the preview is half a light checkerboard and half a dark one
+ * (post/page.tsx), which is where a sticker that will not read on a bright
+ * picture looks as faint as it will in the post. */
 export type Ground = "photo" | "plain" | "sticker";
 
 export type SlideAssets = {
@@ -378,25 +378,13 @@ function ellipsize(ctx: Ctx, text: string, maxW: number, font: string): string {
  * rather than imported so this module keeps its own font helpers. Returns
  * the width so the name can yield to it. */
 /* Blocks are BLOCK_INK on these slides too (owner, 2026-09-05: black, not
- * white, anywhere a hidden number shows), on a white halo so ink still
- * reads over a night photo — the same treatment share/cards.ts gives them.
- * Two halo passes, because one barely registers at 1080px. A caller that
- * asks for another colour keeps it and gets no halo. */
+ * white, anywhere a hidden number shows), and MATTE — flat ink, nothing
+ * behind it (owner, 2026-09-08: the white glow that used to sit under the
+ * squares and their commas is gone), the same treatment share/cards.ts
+ * gives them. The blocks inherit whatever shadow the slide has set for its
+ * type, like every other mark on the line. A caller that asks for another
+ * colour keeps it. */
 const BLOCK_INK = "#15171A";
-
-function blockHalo(ctx: Ctx, size: number, color: string, run: () => void): void {
-  if (color === BLOCK_INK) {
-    ctx.save();
-    ctx.shadowColor = "rgba(255,255,255,0.95)";
-    ctx.shadowBlur = Math.max(12, size * 0.24);
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    run();
-    run();
-    ctx.restore();
-  }
-  run();
-}
 
 function drawBlocks(
   ctx: Ctx,
@@ -417,18 +405,15 @@ function drawBlocks(
   ctx.fillStyle = color;
   const commaW = ctx.measureText(",").width;
   const width = count * cell + Math.floor((count - 1) / 3) * commaW;
-  const startX = right - width;
-  blockHalo(ctx, size, color, () => {
-    let x = startX;
-    for (let i = 0; i < count; i++) {
-      ctx.fillRect(x + gap / 2, baseline - size * 0.88, block, size * 0.92);
-      x += cell;
-      if (i < count - 1 && (count - i - 1) % 3 === 0) {
-        ctx.fillText(",", x, baseline);
-        x += commaW;
-      }
+  let x = right - width;
+  for (let i = 0; i < count; i++) {
+    ctx.fillRect(x + gap / 2, baseline - size * 0.88, block, size * 0.92);
+    x += cell;
+    if (i < count - 1 && (count - i - 1) % 3 === 0) {
+      ctx.fillText(",", x, baseline);
+      x += commaW;
     }
-  });
+  }
   return width;
 }
 
@@ -453,21 +438,17 @@ function drawBlockShape(
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = color;
-  let end = x;
-  blockHalo(ctx, size, color, () => {
-    let cx = x;
-    for (const ch of shape || "#") {
-      if (ch === "#") {
-        ctx.fillRect(cx + gap / 2, baseline - size * 0.88, block, size * 0.92);
-        cx += cell;
-      } else {
-        ctx.fillText(ch, cx, baseline);
-        cx += ctx.measureText(ch).width;
-      }
+  let cx = x;
+  for (const ch of shape || "#") {
+    if (ch === "#") {
+      ctx.fillRect(cx + gap / 2, baseline - size * 0.88, block, size * 0.92);
+      cx += cell;
+    } else {
+      ctx.fillText(ch, cx, baseline);
+      cx += ctx.measureText(ch).width;
     }
-    end = cx;
-  });
-  return end - x;
+  }
+  return cx - x;
 }
 
 function shadow(ctx: Ctx, color: string, blur: number, offsetY: number): void {
@@ -673,24 +654,36 @@ function dottedRule(ctx: Ctx, y: number, left: number, right: number, color: str
 
 /* --------------------------------------------------------- 1-3: the board */
 
-/* THE ELITE FIFTEEN as the section line sets it — sentence case, like
- * "The board · 11–20" it stands in for (same words as ELITE_LABEL in
+/* THE ELITE as the section line sets it — sentence case, like "The board ·
+ * 11–20" it stands in for (same words as ELITE_LABEL in
  * lib/blackoutRules.ts, which shouts them where the page shouts). */
-const ELITE_SECTION = "The Elite Fifteen";
+const ELITE_SECTION = "The elite";
 
 /* The dim line under the title. Twin of boardSectionLabel in
  * share/cards.ts, kept here so the post pack does not pull the whole card
- * registry into its bundle: all-hidden pages say the fifteen, a page that
- * mixes hidden rows with real places says nothing about places (no range is
- * true of all ten lines, and "11–20" over five blank places would be the
- * ranking the rule just took away), everything else is the range. */
-export function boardSlideSection(rows: { unranked?: boolean }[], start: number): string {
-  if (rows.length > 0 && rows.every((r) => r.unranked)) return `The board · ${ELITE_SECTION}`;
+ * registry into its bundle: an all-hidden page says the elite — with a
+ * part number ("The elite · 1/2") when the hidden rows run past one slide
+ * of ten, which twenty of them do, so two slides never wear the same line;
+ * a page that mixes hidden rows with real places says nothing about places
+ * (no range is true of all ten lines, and "11–20" over blank places would
+ * be the ranking the rule just took away); everything else is the range.
+ * `hidden` is how many rows the whole board hides; left out, the page
+ * counts its own. */
+export function boardSlideSection(
+  rows: { unranked?: boolean }[],
+  start: number,
+  hidden: number = rows.filter((r) => r.unranked).length,
+): string {
+  if (rows.length > 0 && rows.every((r) => r.unranked)) {
+    const parts = Math.ceil(hidden / 10);
+    const part = Math.floor((start - 1) / 10) + 1;
+    return `The board · ${ELITE_SECTION}${parts > 1 ? ` · ${part}/${parts}` : ""}`;
+  }
   if (rows.some((r) => r.unranked)) return "The board";
   return `The board · ${start}–${start + 9}`;
 }
 
-/* The place column: blank for one of the hidden fifteen (they carry no
+/* The place column: blank for one of the hidden elite (they carry no
  * place), the padded number otherwise. */
 export function boardSlidePlace(row: { unranked?: boolean }, place: number): string {
   return row.unranked ? "" : pad2(place);
@@ -730,7 +723,7 @@ function drawBoardSlide(
   const secM = metricsOf(ctx, fonts, secFont, 29);
   drawText(
     ctx,
-    boardSlideSection(rows, start),
+    boardSlideSection(rows, start, data.standings.filter((r) => r.unranked).length),
     CONTENT_L,
     baselineOf(y, secM.lh, secM),
     secFont,
@@ -939,7 +932,7 @@ function drawClubSlide(
 
     const baseline = baselineOf(top + 4 + padY, whoLh, whoM);
     // The total goes down first, because the name yields to it: one of the
-    // hidden fifteen gets blocks where their number would be — a welcome names
+    // hidden elite gets blocks where their number would be — a welcome names
     // the club they just joined, never their number (blackout rule,
     // 2026-09-05). The board slide blocks the same figure out.
     let valueW: number;
@@ -1222,8 +1215,8 @@ function drawCongratsSlide(ctx: Ctx, data: PostData, fonts: PostFonts, assets: S
       0,
     );
     hy += whoLh + 14;
-    // The first to 100k is all but certainly one of the elite fifteen, so
-    // under a blackout the line says only that the prize is claimed — the
+    // The first to 100k is all but certainly one of the elite, so under a
+    // blackout the line says only that the prize is claimed — the
     // board slide just blocked this same number out.
     drawText(
       ctx,

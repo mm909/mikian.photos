@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /* The admin's test blackout, on and off (owner, 2026-09-06). Sets the one
  * cookie row100kViewer reads — "elite" to see the site as one OF the
- * fifteen, "public" to see it as everybody else, null to stop.
+ * elite, "public" to see it as everybody else, null to stop.
  *
  * Admin only, like every other verb on the blackout route. The cookie can
  * only make a page hide MORE than it would, so a stray value is harmless,

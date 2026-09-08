@@ -45,8 +45,10 @@ export function PlanTool({
   /* the challenge goal, as the default target */
   goal: number;
 }) {
-  const [target, setTarget] = useState(String(Math.max(goal, Math.ceil(meters / 50_000) * 50_000 + 50_000)));
-  const [pace, setPace] = useState("1:59");
+  /* Defaults (owner, 2026-09-08): one million meters at 1:59.9 — never
+   * under the challenge goal, which is what keeps `goal` honest. */
+  const [target, setTarget] = useState(String(Math.max(goal, 1_000_000)));
+  const [pace, setPace] = useState("1:59.9");
   const [have, setHave] = useState(String(meters));
   const [spent, setSpent] = useState(String(seconds));
   const [days, setDays] = useState(String(daysLeft));
@@ -84,8 +86,8 @@ export function PlanTool({
           <h3>The target</h3>
           <span className="mono">METERS · SPLIT</span>
         </div>
-        {field("pl-target", "Meters to reach", target, setTarget, "500000")}
-        {field("pl-pace", "Overall average split to hold, per 500 m", pace, setPace, "1:59")}
+        {field("pl-target", "Meters to reach", target, setTarget, "1000000")}
+        {field("pl-pace", "Overall average split to hold, per 500 m", pace, setPace, "1:59.9")}
 
         <div className="p-head" style={{ marginTop: 26 }}>
           <h3>Where you are</h3>
@@ -102,7 +104,7 @@ export function PlanTool({
       </div>
 
       {!out ? (
-        <p className="board-empty">A TARGET IN METERS, A SPLIT LIKE 1:59, AND THE DAYS LEFT.</p>
+        <p className="board-empty">A TARGET IN METERS, A SPLIT LIKE 1:59.9, AND THE DAYS LEFT.</p>
       ) : out.done ? (
         <p className="board-empty">
           {fmtMeters(out.M)} ROWED — THE {fmtMeters(out.T).toUpperCase()} TARGET IS BEHIND YOU.

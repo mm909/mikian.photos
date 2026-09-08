@@ -103,7 +103,7 @@ export type ResidYou = { rug: number[]; mean: number; tag: string };
 /* Chart 5 — ECDF of totals on a log axis. */
 export type EcdfChart = {
   /* [total m, percentile], already cut below the hidden top (three, or the
-   * elite fifteen while a blackout is on — Model.hideTop) */
+   * elite while a blackout is on — Model.hideTop) */
   steps: [number, number][];
   xMin: number;
   xMax: number;
@@ -189,7 +189,7 @@ export type Model = {
   /* the viewer's own headline, or null when signed out / not joined */
   you: { rowerNumber: number; sessions: number } | null;
   /* how many of the highest totals are kept off the per-rower charts: three
-   * normally, the elite fifteen while a blackout window is open */
+   * normally, the elite while a blackout window is open */
   hideTop: number;
 
   s1: Section;

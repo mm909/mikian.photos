@@ -682,6 +682,32 @@ model RowShirtOrder {
   @@index([challenge, createdAt])
 }
 
+/// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
+/// Grizzly Health). The raffle itself — prize, sponsor, the entry window,
+/// the copy — is defined in code (src/app/row100k/raffles.ts, by slug);
+/// this row holds what changes: the winner once drawn, with the meters and
+/// the rows they had at the draw, who drew and how big the hat was, and
+/// whether the partner's second-chance link is live on the partners page.
+/// One row per raffle per challenge; no FK, like the other Row* tables.
+model RowRaffle {
+  id                  String    @id @default(cuid())
+  challenge           String    @default("row100k-sep-2026")
+  slug                String
+  ctaLive             Boolean   @default(false)
+  winnerParticipantId String?
+  winnerRowerNumber   Int?
+  winnerName          String?
+  winnerMeters        Int?
+  winnerRows          Int?
+  entrants            Int?
+  drawnAt             DateTime?
+  drawnBy             String    @default("")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([challenge, slug])
+}
+
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the
 // photo product; `page` scopes rows so a future crew page can reuse the table.
 // Each submission also emails the owner the full applicant list — the table is

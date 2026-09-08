@@ -8,7 +8,7 @@ import type { FeedHeadline } from "./view";
  * todayMeters goes by the rowed `day`, so a row rowed last night and
  * logged this morning counts here today and there yesterday), with a mono
  * descriptor of the rows and rowers behind it. Every rower's meters are in
- * the figure, the hidden fifteen's included (FeedHeadline in view.ts).
+ * the figure, THE ELITE's included (FeedHeadline in view.ts).
  * Server component, no hooks. */
 export function FeedHead({ headline, dateline }: { headline: FeedHeadline | null; dateline: string }) {
   return (

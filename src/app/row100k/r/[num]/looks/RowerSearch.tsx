@@ -39,7 +39,7 @@ import type { RosterRower } from "./view";
  * the name; so does the click outside.
  *
  * BLACKOUT (blackoutRules.ts): the roster is numbers and names, which are
- * public for every rower including the hidden fifteen, and this list
+ * public for every rower including the hidden elite, and this list
  * prints nothing else. No meters, no time, no place, no tier — see
  * RosterRower, whose three fields are the entire contract. */
 

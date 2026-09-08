@@ -204,7 +204,7 @@ export default async function PostPackPage() {
   }
 
   // boardData() is the public, masked board: during a blackout the elite
-  // fifteen arrive with a tier floor and a digit count, and the board slide
+  // arrive with a tier floor and a digit count, and the board slide
   // draws blocks for them. They also arrive UNRANKED and reordered by digit
   // count then name (the places half of the rule), which the slide carries
   // through as a blank place column. A masked row under 10k carries a floor
@@ -242,7 +242,7 @@ export default async function PostPackPage() {
   // The record list. Fastest boards print the average 500m split, which is
   // what the approved slide shows. boardData() masks only the total rows,
   // so the record boards still hold every real value here — a holder in the
-  // masked set (the same fifteen the board hides) gets no value at all,
+  // masked set (the same elite the board hides) gets no value at all,
   // only its silhouette, and the slide draws blocks: the carousel leaves
   // the site, and an elite rower's split or best is their meters by another
   // route (owner rule, 2026-09-05).
@@ -278,7 +278,7 @@ export default async function PostPackPage() {
 
   // The claim's `total` is the rower's real running total (firstToGoal.ts
   // does not mask), and the first to 100k is all but certainly one of the
-  // elite fifteen — so the congrats slide reads its meters off the masked
+  // elite — so the congrats slide reads its meters off the masked
   // standings row when there is one, and hides what the board slide hides.
   // No standings row at all means the board could not be read (a rower
   // with 100k is on it by definition) — then the page cannot tell whether
@@ -297,7 +297,7 @@ export default async function PostPackPage() {
       }
     : // The fallback (firstToGoal returned nothing, or threw) used to mean
       // "the leader", because the board arrived in meters order. Under an
-      // open window the fifteen come back in digit-count-then-name order and
+      // open window the elite come back in digit-count-then-name order and
       // a hidden 100K row keeps a floor of exactly 100000, so the find would
       // name the alphabetically-first six-figure rower as first to 100k. A
       // masked board therefore skips the claim rather than guessing (review,

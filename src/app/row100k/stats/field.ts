@@ -1,7 +1,7 @@
 import { splitSeconds } from "@/lib/row100k";
-import { kde, linspace, mean, percentileRank, quantile, sd, silverman, sortAsc } from "@/lib/rowStats";
+import { kde, linspace, mean, percentileRank, quantile, sd, silverman, sortAsc, vonMisesKde } from "@/lib/rowStats";
 import { fmtClock, fmtM } from "../analysis/fmt";
-import type { KdeChart, KdeYou } from "../analysis/model";
+import type { HourChart, KdeChart, KdeYou } from "../analysis/model";
 
 /* THE FIELD on the stats page — every row's length and pace as a
  * distribution. Pure and server-side: rows in, plain JSON out (owner ask,
@@ -58,7 +58,43 @@ const GRID = 120;
 const RUG = 240;
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
+const r2 = (v: number) => Math.round(v * 100) / 100;
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
+
+/* Count axes want four integer gridlines, so the top is four times a
+ * friendly step (the numbers page's own helper, compute.ts niceCount). */
+function niceCount(max: number): number {
+  if (!(max > 0)) return 4;
+  const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+  for (const s of steps) if (4 * s >= max) return 4 * s;
+  return Math.ceil(max / 4) * 4;
+}
+
+/* HOUR OF THE DAY on the stats page (owner, 2026-09-08): the numbers
+ * page's hour chart, set under the split density. Sessions per hour of the
+ * day the row was LOGGED, on the challenge's fixed UTC-7 clock, one count
+ * per session, everyone — the rows the hour grid on the same page counts
+ * (a September log, timed or not; stats/page.tsx), so the two hour surfaces
+ * on this page agree on a bar. The numbers page counts timed rows only, so
+ * its chart may sit a session or two under this one; the wrapped density is
+ * the same maths (compute.ts). `hours` are fractional hours of the day,
+ * already shifted. Null under five sessions, the numbers page's own floor. */
+export function buildHours(hours: number[]): HourChart | null {
+  const n = hours.length;
+  if (n < 5) return null;
+  const counts = Array<number>(24).fill(0);
+  for (const h of hours) counts[((Math.floor(h) % 24) + 24) % 24]++;
+  const grid = linspace(3, 27, 145);
+  const kys = vonMisesKde(hours, grid).map((d) => d * n);
+  return {
+    counts,
+    kdeGrid: grid.map(r2),
+    kdeYs: kys.map(r2),
+    start: 3,
+    yMax: niceCount(Math.max(...counts, ...kys)),
+    take: "",
+  };
+}
 
 function toSess(e: FieldEntry): Sess | null {
   if (!(e.meters > 0)) return null;

@@ -135,15 +135,18 @@ export async function sendReceiptEmail(
  * month-end settlement notes. Same transport, same from/reply-to, the owner
  * BCC-ed like a receipt (skipped when the owner IS the recipient), and the
  * same no-key behaviour: log the payload, return ok, never 500 the caller.
+ * Pass `html` to send a formatted body alongside the text (the text stays
+ * as the plain-text part for clients that want it).
  */
 export async function sendPlainEmail(
   to: string,
   subject: string,
-  text: string
+  text: string,
+  html?: string
 ): Promise<SendResult> {
   const client = getClient();
   if (!client) {
-    console.info(`[email] (no RESEND_API_KEY) "${subject}" → ${to}\n${text}`);
+    console.info(`[email] (no RESEND_API_KEY) "${subject}" → ${to}${html ? " (+html)" : ""}\n${text}`);
     return { ok: true };
   }
   const owner = (process.env.OWNER_EMAIL || DEFAULT_REPLY_TO).toLowerCase().trim();
@@ -155,6 +158,7 @@ export async function sendPlainEmail(
       ...(bcc ? { bcc } : {}),
       replyTo: replyTo(),
       subject,
+      ...(html ? { html } : {}),
       text,
     });
     if (res.error) return { ok: false, error: String(res.error.message ?? res.error) };

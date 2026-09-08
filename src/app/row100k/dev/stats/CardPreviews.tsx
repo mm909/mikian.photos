@@ -61,10 +61,11 @@ function sampleData(masked = false): ShareData {
     );
   }
 
-  // A board with the elite fifteen hidden, so the sticker pages paint too.
-  // Hidden rows are UNRANKED as well (blackoutRules.ts, the places half):
-  // page 1 of the stickers is all fifteen and carries no place at all, page
-  // 2 mixes five of them with places 16–20.
+  // A board with the elite hidden, so the sticker pages paint too. Hidden
+  // rows are UNRANKED as well (blackoutRules.ts, the places half): with the
+  // full twenty hidden, pages 1 and 2 of the stickers are the elite (ten and
+  // ten, "The elite · 1/2" and "· 2/2") and carry no place at all; page 3 is
+  // places 21–25.
   const standings = Array.from({ length: 25 }, (_, i) => {
     const meters = 118_000 - i * 4_300;
     const hidden = i < ELITE_N;

@@ -4,7 +4,7 @@ import { CHALLENGE, CHALLENGE_DEMO, nowMs } from "@/lib/row100k";
 import { PACIFIC_SHIFT_MS } from "@/lib/blackoutRules";
 
 /* Blackout windows — the server half. Which window (if any) is open right
- * now decides whether boardView hides THE ELITE FIFTEEN (blackoutRules.ts).
+ * now decides whether boardView hides THE ELITE (blackoutRules.ts).
  *
  * The windows are read through their own cache tag, separate from the
  * board's: the board does not change when a blackout is set, and the
@@ -23,7 +23,7 @@ export type BlackoutWindow = {
   /* UTC instants as ISO strings — plain JSON, safe for client props. */
   startsAt: string;
   endsAt: string;
-  /* The run-up: for this many days before startsAt the fifteen lose one
+  /* The run-up: for this many days before startsAt the elite lose one
    * more digit of their total a day, from the ones up. 0 = no run-up. */
   rampDays: number;
   reason: string;
@@ -35,7 +35,7 @@ export type BlackoutState = {
   active: boolean;
   startsAt?: string;
   endsAt?: string;
-  /* The run-up (owner, 2026-09-06): how many low digits of the fifteen's
+  /* The run-up (owner, 2026-09-06): how many low digits of the elite's
    * totals are covered right now. Only ever set while `active` is false —
    * once the window opens the whole number goes. */
   hideLow?: number;

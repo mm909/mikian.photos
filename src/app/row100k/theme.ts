@@ -212,7 +212,7 @@ html:has(.row100k){scroll-behavior:smooth}
 /* While a blackout window is open the two podiums give way to one
  * EliteList across the whole measure: the podium density kept, and the
  * heading rule as heavy as a podium heading. */
-.row100k .front-elite{min-width:0}
+.row100k .front-elite{min-width:0;scroll-margin-top:64px}
 .row100k .front-elite .elite-eye{border-bottom-width:2px}
 .row100k .front-elite table.board td{padding:9px 6px}
 /* The latest row, one mono line; also the one line on the board page for
@@ -524,28 +524,6 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .st-sub button,.row100k .st-sub a{display:inline-block;background:none;border:0;border-bottom:2px solid transparent;margin:0;padding:6px 0 4px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--gray);text-decoration:none}
 .row100k .st-sub .on{color:var(--ink);border-bottom-color:var(--water)}
 .row100k .st-sub button:hover:not(.on),.row100k .st-sub a:hover:not(.on){color:var(--water)}
-/* Records pick MOCK (dev/records — owner ask 2026-09-05: a picture, not
- * live): the record submenu folded into ONE control. Look A: the record
- * name under the holder line, ink on a water underline (the .st-sub .on
- * idiom) with a water caret. Look B: the name as a small mono chip pushed
- * to the right end of the holder line (margin-left auto keeps it on the
- * right edge even when the line wraps on a phone). Both open the same
- * inline list, hung off the same edge as its control: mono, dashed
- * hairlines, the current record in ink, the rest grey. No box, no
- * shadow, no radius. */
-.row100k .st-pick-eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gray);padding-bottom:8px;border-bottom:1px dashed var(--line);margin-bottom:14px}
-.row100k .st-pick-name{display:inline-block;background:none;border:0;border-bottom:2px solid var(--water);margin:12px 0 0;padding:6px 0 4px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--ink)}
-.row100k .st-pick-name:hover{color:var(--water)}
-.row100k .st-pick-caret{color:var(--water);margin-left:2px;font-size:1.25em;line-height:1}
-.row100k .st-pick-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px}
-.row100k .st-pick-holder{min-width:0}
-.row100k .st-pick-chip{margin-left:auto;background:none;border:1px solid var(--ink);padding:4px 8px;cursor:pointer;font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--ink);white-space:nowrap}
-.row100k .st-pick-chip:hover{border-color:var(--water);color:var(--water)}
-.row100k .st-pick-list{margin:10px 0 0;max-width:340px;border-top:1px dashed var(--line)}
-.row100k .st-pick-list.right{margin-left:auto;text-align:right}
-.row100k .st-pick-list button{display:block;width:100%;text-align:inherit;background:none;border:0;border-bottom:1px dashed var(--line);margin:0;padding:9px 0;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:1.4;text-transform:uppercase;color:var(--gray)}
-.row100k .st-pick-list button.on{color:var(--ink)}
-.row100k .st-pick-list button:hover:not(.on){color:var(--water)}
 .row100k .rec .duo{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px}
 .row100k .rec .duo .side+.side{border-left:1px dashed var(--line);padding-left:16px}
 .row100k .rec .duo .dv{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
@@ -582,12 +560,70 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pace-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:12px;line-height:1.9;text-transform:uppercase}
 .row100k .pace-note b{color:var(--water);font-weight:700}
 
-/* Moderation page: the lede under a picked rower, and the remove control
- * under its own rule so it is never one stray tap from the edit menu. */
-.row100k .mod-lede{margin-top:14px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);line-height:1.8}
-.row100k .mod-danger{margin-top:40px;border-top:2px solid var(--ink);padding-top:18px}
-.row100k .mod-danger .k{display:block;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink)}
-.row100k .mod-danger .mod-lede{margin:6px 0 12px}
+/* The rowers page (/row100k/signups, admin only; rowers/RowersTable.tsx):
+ * one .board of every rower with a ... menu on the right end of each row
+ * (the ledger menu idiom, .mlg-menu), the row opening in place to show
+ * that log as a nested .board with EDIT / REMOVE on every row. Instagram
+ * and joined leave the table under 640px (the open panel prints them) and
+ * a title moves under its day. Sort chips are the .tabs group; the find
+ * box is the underline input the forms use. */
+.row100k .rw-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin-bottom:20px}
+.row100k .rw-tools .tabs{margin-bottom:0}
+.row100k .rw-find{flex:1;min-width:140px;background:transparent;border:0;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.06em;padding:8px 2px;border-radius:0;appearance:none;-webkit-appearance:none}
+.row100k .rw-find:focus{outline:none;border-bottom-color:var(--water)}
+.row100k .rw-find::placeholder{color:var(--gray);text-transform:uppercase;letter-spacing:.12em;font-size:11px}
+.row100k table.board.rw-t th.rw-c,.row100k table.board.rw-t td.rw-c{width:34px;padding-left:0;padding-right:0;text-align:right}
+.row100k .rw-r{cursor:pointer}
+.row100k .rw-r:hover td{background:rgba(227,238,245,.45)}
+.row100k .rw-r.on td{background:var(--water-pale)}
+.row100k .rw-name{appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;margin:0;color:var(--ink);font:inherit;font-weight:700;text-align:left;cursor:pointer}
+.row100k .rw-name:hover{color:var(--water)}
+.row100k .rw-caret{display:inline-block;width:14px;color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px}
+.row100k .rw-r.on .rw-caret{color:var(--water)}
+.row100k .rw-anchor{position:relative;display:inline-block}
+.row100k .rw-dots{background:none;border:0;color:var(--gray);font-family:var(--row-mono),monospace;font-size:16px;line-height:1;cursor:pointer;padding:4px 6px}
+.row100k .rw-dots:hover,.row100k .rw-dots.on{color:var(--ink)}
+.row100k .rw-overlay{position:fixed;inset:0;z-index:55}
+.row100k .rw-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:2px 14px;min-width:172px;z-index:60;text-align:left}
+.row100k .rw-menu a,.row100k .rw-menu button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px dashed var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:9px 0;cursor:pointer;text-decoration:none;white-space:nowrap}
+.row100k .rw-menu a:last-child,.row100k .rw-menu button:last-child{border-bottom:0}
+.row100k .rw-menu a:hover,.row100k .rw-menu button:hover{color:var(--water)}
+.row100k .rw-menu .danger{color:#b3400f}
+.row100k .rw-menu button:disabled{color:var(--gray);cursor:default}
+.row100k table.board td.rw-panel{padding:8px 0 20px 44px;cursor:default}
+.row100k .rw-head{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gray);line-height:1.8;margin-bottom:10px;overflow-wrap:anywhere}
+.row100k .rw-head b{color:var(--ink);font-weight:400}
+.row100k table.board.rw-rows{font-size:12px;background:transparent}
+.row100k table.board.rw-rows th{padding:6px}
+.row100k table.board.rw-rows td{padding:8px 6px}
+.row100k table.board.rw-rows th.rw-c,.row100k table.board.rw-rows td.rw-c{width:auto;white-space:nowrap;text-align:right;padding-left:16px;padding-right:0}
+.row100k .rw-ttl{color:var(--gray);overflow-wrap:anywhere}
+.row100k .rw-m{display:none}
+.row100k .rw-acts{display:inline-flex;gap:12px;justify-content:flex-end}
+.row100k .rw-act{appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;color:var(--gray);font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.row100k .rw-act:hover{color:var(--water)}
+.row100k .rw-act.danger:hover{color:#b3400f}
+.row100k .rw-act:disabled{color:var(--line);cursor:default}
+.row100k table.board tr.rw-edit td{padding:12px 6px 14px;cursor:default}
+.row100k .rw-edit-line{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.row100k .rw-edit input{background:transparent;border:0;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:13px;padding:3px 2px;border-radius:0;appearance:none;-webkit-appearance:none}
+.row100k .rw-edit input:focus{outline:none;border-bottom-color:var(--water)}
+.row100k .rw-edit-split{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);font-variant-numeric:tabular-nums}
+.row100k .rw-edit-title{display:block;width:100%;margin-top:12px}
+.row100k .rw-edit .tabs{margin:14px 0 0}
+.row100k .rw-edit .tabs button{padding:7px 14px;font-size:11px}
+.row100k .rw-edit .tabs button:disabled{opacity:.5;cursor:default}
+.row100k table.board tr.rw-err td{padding:0 0 10px;border-bottom:0;cursor:default}
+.row100k tr.rw-err .form-err{margin-top:8px}
+.row100k .rw-edit .form-err{margin-top:12px}
+.row100k table.board.rw-rows tr.rw-err td{padding:0 6px 10px}
+@media(max-width:640px){
+  .row100k .rw-x{display:none}
+  .row100k .rw-m{display:block}
+  .row100k table.board.rw-t td,.row100k table.board.rw-t th{padding-left:4px;padding-right:4px}
+  .row100k table.board td.rw-panel{padding:6px 0 16px}
+  .row100k .rw-acts{display:inline-grid;gap:4px;justify-items:end}
+}
 .row100k .back-link{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-decoration:none;color:var(--gray)}
 .row100k .back-link:hover{color:var(--water)}
 
@@ -645,7 +681,7 @@ html:has(.row100k){scroll-behavior:smooth}
   --tier-legend-ink:#8a6508;
 }
 /* Badge chip IN FRONT of the name — same voice as .donebadge, colored by
- * rarity. .elite is the black ELITE 15 tag a blacked-out row wears in its
+ * rarity. .elite is the black ELITE tag a blacked-out row wears in its
  * place. */
 .row100k .tierbadge{display:inline-block;font-size:10px;color:#fff;padding:1px 6px;margin-right:8px;vertical-align:1px;font-family:var(--row-mono),monospace;letter-spacing:.04em}
 .row100k .tierbadge.common{background:var(--tier-common-ink)}
@@ -654,31 +690,41 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge.legend{background:var(--tier-legend-ink)}
 .row100k .tierbadge.elite{background:var(--ink)}
 .row100k .tierbadge.pace{background:var(--ink);letter-spacing:.02em}
-/* THE DOG TAG (DogTag.tsx): one of the fifteen, seen by anybody else while
+/* THE DOG TAG (DogTag.tsx): one of the elite, seen by anybody else while
  * a window is open. White on black, and nothing on it but who they are and
  * the one figure that stays public — the average split (owner, 2026-09-06:
  * rower dog tag vibes, the pace as the identity). Ink is the ground, so no
- * new colour enters the palette; the inner rule is the stamped edge. */
+ * new colour enters the palette; the inner rule is the stamped edge.
+ * Every line names its own colour: the site stylesheet paints every p in
+ * ink (globals.css), and a line left to inherit the white went dark. The
+ * name and the pace are full white; the rest is deliberately dimmed. The
+ * number sits on the name line at the name size, grey, as it does on the
+ * profile nameplate (owner, 2026-09-08). */
 .row100k .dt{background:var(--ink);color:#fff;padding:10px;margin-top:26px}
 .row100k .dt-in{border:1px solid rgba(255,255,255,.28);padding:clamp(26px,7vw,54px) clamp(18px,5vw,44px)}
 .row100k .dt-eye{font-size:10px;letter-spacing:.22em;color:rgba(255,255,255,.55);text-transform:uppercase;margin:0}
-.row100k .dt-num{font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.55);margin:22px 0 0}
-.row100k .dt-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(28px,7vw,60px);line-height:1;letter-spacing:-.02em;text-transform:uppercase;margin:6px 0 0;overflow-wrap:anywhere}
-.row100k .dt-pace{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(64px,18vw,150px);line-height:.92;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:clamp(24px,5vw,44px) 0 0}
+.row100k .dt-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(28px,7vw,60px);line-height:1;letter-spacing:-.02em;text-transform:uppercase;color:#fff;margin:22px 0 0;overflow-wrap:anywhere}
+.row100k .dt-name .num{color:var(--gray)}
+.row100k .dt-pace{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(64px,18vw,150px);line-height:.92;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:#fff;margin:clamp(24px,5vw,44px) 0 0}
 .row100k .dt-unit{font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.62);text-transform:uppercase;margin:10px 0 0}
 .row100k .dt-foot{font-size:10px;letter-spacing:.18em;color:rgba(255,255,255,.45);text-transform:uppercase;margin:clamp(26px,6vw,46px) 0 0;border-top:1px solid rgba(255,255,255,.22);padding-top:14px}
 .row100k .dt-find{margin-top:26px}
-/* THE PACE and THE FIELD on the profile: two eyebrowed blocks, full width. */
+/* THE PACE and THE FIELD on the profile: two eyebrowed blocks, full width.
+ * .pf-tag is the elite rower s own dog tag under their stats (owner,
+ * 2026-09-08: what everyone else sees) — the eyebrow carries the gap. */
 .row100k .pf-block{margin-top:34px}
 .row100k .pf-block:first-child{margin-top:0}
+.row100k .pf-tag .dt{margin-top:0}
 .row100k .pf-pace{margin-top:0;padding-top:0;border-top:none;position:relative}
 .row100k .pf-pace .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--row-mono),monospace;font-size:11px;padding:5px 8px;white-space:nowrap;transform:translate(-50%,-130%);z-index:5}
 .row100k .pf-block .st-tiles{margin-top:0}
-/* THE SHIRT (dev/shirts): one product photo at a time with a stepper, the
- * price as a headline, and the sizes SIDE BY SIDE as black boxes with big
- * white letters (owner, 2026-09-08) — the boxes are the size picker, one
- * buy button under them. Pick-up only, no shipping, so no address. */
-.row100k .sh-photo{position:relative;aspect-ratio:4/5;max-width:520px;margin-top:6px;overflow:hidden;background:var(--paper);border:1px solid var(--line)}
+/* THE SHIRT (dev/shirts): one product photo at a time with a stepper,
+ * centred in the measure, the price as a headline, and the sizes SIDE BY
+ * SIDE as black boxes with big white letters (owner, 2026-09-08) — the
+ * boxes are the size picker, one line on each (left, or pre-ordered), one
+ * button under them that becomes a YES / KEEP pair on a size change.
+ * Pick-up only, so no address. */
+.row100k .sh-photo{position:relative;aspect-ratio:4/5;max-width:520px;margin:6px auto 0;overflow:hidden;background:var(--paper);border:1px solid var(--line)}
 .row100k .sh-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .row100k .sh-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:none;background:rgba(21,23,26,.72);color:#fff;font-family:var(--row-mono),monospace;font-size:18px;cursor:pointer}
 .row100k .sh-nav.prev{left:0}
@@ -697,48 +743,49 @@ html:has(.row100k){scroll-behavior:smooth}
  * wrapping, so the five stay side by side at every width. */
 .row100k .sh-sizes{display:flex;gap:8px;margin-top:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
 .row100k .sh-sizes::-webkit-scrollbar{display:none}
-.row100k .sh-size{flex:1 0 96px;min-width:96px;background:var(--ink);color:#fff;border:2px solid var(--ink);padding:14px 8px 12px;text-align:center;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
+.row100k .sh-size{flex:1 0 116px;min-width:116px;background:var(--ink);color:#fff;border:2px solid var(--ink);padding:14px 8px 12px;text-align:center;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
 .row100k .sh-size:hover:not(:disabled){border-color:var(--water)}
 .row100k .sh-size.on{background:var(--water);border-color:var(--water)}
 .row100k .sh-size:disabled{cursor:default}
 .row100k .sh-size.mine{outline:2px solid var(--water);outline-offset:2px}
 .row100k .sh-sz{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,7vw,44px);line-height:1;color:#fff}
-.row100k .sh-cnt{display:block;margin-top:8px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72);line-height:1.6}
+.row100k .sh-cnt{display:block;margin-top:8px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.72);line-height:1.6;white-space:nowrap}
 .row100k .sh-cnt .hot{color:#fff;font-weight:700}
 .row100k .sh-buy{margin-top:16px;width:100%;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,4.6vw,24px);text-transform:uppercase;letter-spacing:.02em;padding:16px 18px;border:2px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
 .row100k .sh-buy:hover:not(:disabled){background:var(--water);border-color:var(--water)}
 .row100k .sh-buy:disabled{opacity:.45;cursor:default}
+.row100k a.sh-buy{display:block;text-align:center;text-decoration:none}
+.row100k .sh-confirm{display:flex;gap:8px;margin-top:16px}
+.row100k .sh-confirm .sh-buy{margin-top:0;flex:1 1 0;min-width:0;padding-left:10px;padding-right:10px}
+.row100k .sh-buy.keep{background:transparent;color:var(--ink)}
+.row100k .sh-buy.keep:hover:not(:disabled){background:transparent;border-color:var(--water);color:var(--water)}
 .row100k .sh-buy-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin:10px 0 0;line-height:1.7}
 .row100k .sh-pay{margin-top:18px;max-width:420px}
 .row100k .sh-settle{margin-top:40px}
 .row100k .dt-find .pf-date{padding-top:0}
-/* THE ELITE FIFTEEN as a list (EliteList.tsx): the board idiom without a
- * place column; a one-letter division cell where the rank would sit, the
- * blocks on the right. The eyebrow is the profile one (.pf-eye). */
+/* THE ELITE as a list (EliteList.tsx): the board idiom without a place
+ * column; a one-letter division cell where the rank would sit, the blocks
+ * on the right. The eyebrow is the profile one (.pf-eye). */
 .row100k .elite{margin-top:4px}
 .row100k .elite-eye{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:10px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
 .row100k .elite-eye .r{color:var(--gray);font-weight:400}
 .row100k table.board.elite-t td.dv{width:22px;color:var(--gray);font-size:11px;letter-spacing:.08em;padding-right:8px}
 .row100k .elite-foot{font-size:10px;letter-spacing:.16em;color:var(--gray);text-transform:uppercase;margin-top:10px}
 /* The same block INSIDE the standings (Boards.tsx): while they are hidden
- * the fifteen leave the tier ladder and lead the table under one heading —
- * ink, not a tier color, and the solid rule the elite eyebrow wears. */
-/* White on black, from the heading down (owner, 2026-09-06: their own
- * category, their own colour of table, very distinct — and after trying a
- * neon and a sky blue against the matte palette, plain white on black).
- * Ink is the ground, so nothing new enters the palette; the blocks flip to
- * paper because an ink block on ink is nothing at all, and the pace tag
- * inverts with them. */
-.row100k tr.divrow.elite td{color:#fff;background:var(--ink);border-bottom:none;padding:12px 10px 10px}
-.row100k tr.divrow.elite .by{color:rgba(255,255,255,.55);letter-spacing:.14em;margin-left:10px}
-.row100k tr.elite-row td{background:var(--ink);color:#fff;border-bottom:1px dashed rgba(255,255,255,.22)}
-.row100k tr.elite-row:last-of-type td{border-bottom:none}
-.row100k tr.elite-row td .who span{color:rgba(255,255,255,.5)}
-.row100k tr.elite-row td a{color:#fff}
-.row100k tr.elite-row td a:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
-.row100k tr.elite-row .bo i{background:var(--paper)}
-.row100k tr.elite-row .tierbadge.pace{background:var(--paper);color:var(--ink)}
-.row100k tr.elite-row .tierbadge.elite{background:var(--paper);color:var(--ink)}
+ * the elite leave the tier ladder and lead the table under one heading —
+ * ink, not a tier color, on the solid rule the elite eyebrow wears. Cream
+ * and ink like the rest of the board (owner, 2026-09-08: the white-on-black
+ * of 09-06 came out — keep the paper and the black pace tags, and keep them
+ * apart from the rest). The rows are ordinary board rows; the block is
+ * bracketed by two solid rules, one under the heading and one under its
+ * last row, where every other section has a dashed hairline. The closing
+ * rule is two rules, not one list: a browser without :has() drops a whole
+ * list, and the :last-child half must survive on its own. */
+.row100k tr.divrow.elite{scroll-margin-top:64px}
+.row100k tr.divrow.elite td{color:var(--ink);border-bottom:1px solid var(--ink);padding-top:0}
+.row100k tr.divrow.elite .by{color:var(--gray);letter-spacing:.14em;margin-left:10px}
+.row100k tr.elite-row:last-child td{border-bottom:1px solid var(--ink)}
+.row100k tr.elite-row:has(+ tr:not(.elite-row)) td{border-bottom:1px solid var(--ink)}
 /* Blackout blocks: one fat cursor per hidden digit, sized off the inherited
  * font so a run of them is exactly as wide as the number it stands in for
  * (Space Mono advances .6em a glyph: a .54em block with .03em either side).
@@ -1014,6 +1061,20 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .fd-pic:hover img{opacity:.82}
 .row100k .fd-noph{display:flex;flex-shrink:0;align-items:center;justify-content:center;border:1px dashed var(--line);color:var(--gray);font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 .row100k .fd-pics{display:flex;gap:4px}
+/* THE ELITE mark (owner, 2026-09-08): a hidden rower keeps no photos on
+ * the feed — one ink block on the footprint of the two thumbs (196 by 96,
+ * 148 by 72 on a phone, whatever the row had), THE ELITE in white mono
+ * with the two squares of the brand after it, paper on ink the way the
+ * elite table flips its blocks, linking to the elite list on the board.
+ * Hover: the word underlines and the squares go water. */
+.row100k .fd-elite{display:flex;flex-shrink:0;align-items:center;justify-content:center;gap:0 .45em;width:196px;height:96px;background:var(--ink);color:#fff;text-decoration:none;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap;line-height:1}
+.row100k .fd-elite .sq{display:inline-flex;gap:.3em}
+.row100k .fd-elite .sq i{display:block;width:.7em;height:.7em;background:var(--paper)}
+.row100k .fd-elite:hover .w{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--water)}
+.row100k .fd-elite:hover .sq i{background:var(--water)}
+/* The same footprint bare: a row hidden by the fail-closed rule (the board
+ * could not be read during a window) — ink, no word, no link. */
+.row100k .fd-hid{display:block;flex-shrink:0;width:196px;height:96px;background:var(--ink)}
 /* The rower link everywhere: bold ink, blue underlined on hover. */
 .row100k .fd-who{color:var(--ink);text-decoration:none}
 .row100k .fd-who:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
@@ -1038,6 +1099,8 @@ html:has(.row100k){scroll-behavior:smooth}
 @media(max-width:479px){
   .row100k .fd-strip{gap:12px}
   .row100k .fd-strip .fd-pic,.row100k .fd-strip .fd-noph{width:72px;height:72px}
+  .row100k .fd-elite{width:148px;height:72px;font-size:11px}
+  .row100k .fd-hid{width:148px;height:72px}
 }
 /* The pager under the feed: NEWER / OLDER as underlined mono words, no
  * boxes. */

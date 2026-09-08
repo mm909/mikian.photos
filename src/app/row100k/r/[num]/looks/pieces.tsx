@@ -240,13 +240,13 @@ export function metersPerDay(view: ProfileView): number {
  * longest row keeps its blocks because it is a figure of its own.
  *
  * The rank is the PLACES half of the blackout rule (blackoutRules.ts): one
- * of the hidden fifteen has no place to show — divisionRank hands back null
+ * of the hidden elite has no place to show — divisionRank hands back null
  * for them exactly as it does for a rower who has never rowed — so the row
- * says ELITE 15 when `elite` and keeps the dash for the rower who genuinely
+ * says ELITE when `elite` and keeps the dash for the rower who genuinely
  * has no standing yet. An admin's board is ranked, so they see the place.
- * The key drops its division word in that state: the fifteen are cut off
+ * The key drops its division word in that state: the elite are cut off
  * the COMBINED board (blackoutRules.eliteIndexes walks boards.total), so
- * "Rank · women ... ELITE 15" would claim the top fifteen of the women,
+ * "Rank · women ... ELITE" would claim the elite of the women,
  * which is a different and stronger thing than the truth. */
 export function coreLedger(view: ProfileView): LedgerItem[] {
   const t = view.totals;

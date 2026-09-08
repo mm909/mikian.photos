@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { resolvePhotoMedia } from "../photoUrls";
 import {
   CHALLENGE,
@@ -26,6 +26,7 @@ import { FeedHead } from "./FeedHead";
 import { Strips } from "./Strips";
 import {
   DAY_MS,
+  eliteListHref,
   pacificDayStartMs,
   stampParts,
   type DayTotal,
@@ -125,14 +126,16 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     console.error("row100k/feed: failed to load feed data", err);
   }
 
-  // Blackout: a row by one of the hidden fifteen shows blocks for its
-  // meters AND its time, and no split (any two of the three give the
-  // third; the owner's rule, 2026-09-05, after the feed was found still
-  // printing elite times). The set is
-  // the board's own, as THIS viewer sees it — self and admins exempt
-  // (row100kViewer.maskedIds over boardView). A board failure while a
-  // window is open hides every row rather than guess: the feed cannot know
-  // which rowers are elite without it.
+  // Blackout: a row by one of THE ELITE shows blocks for its meters, NO
+  // time at all, and its real split (owner, 2026-09-08: "show the pace but
+  // not the time" — the pace is their identity while the meters are gone,
+  // and on its own it gives neither the meters nor the time away). The
+  // set is the board's own, as THIS viewer sees it — self and admins
+  // exempt (row100kViewer.maskedIds over boardView). A board failure
+  // while a window is open hides every row rather than guess: the feed
+  // cannot know which rowers are elite without it — and, not knowing,
+  // it must not call them elite either: those strips draw a bare ink
+  // block where THE ELITE mark would go (`elite` on the item says which).
   const viewer = await resolveViewer();
   let blackout: { active: boolean; endsAt?: string } = { active: false };
   let hidden = new Set<string>();
@@ -162,11 +165,18 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // full frame if it ever 404s). The Prisma query above is this page's
   // first network wait; the two day-total selects below are the others.
   // Rows whose photos can't resolve still show as text strips with the
-  // placeholder square holding the left edge.
-  const photoMedia = await Promise.all(entries.map((e) => resolvePhotoMedia(e.photos)));
+  // placeholder square holding the left edge. A hidden rower's photos are
+  // not resolved at all: their strip draws THE ELITE mark (or the bare
+  // block, when hidden by the fail-closed rule) on the thumbs' footprint
+  // (owner, 2026-09-08), and no URL of theirs may reach the browser — not
+  // even for a mark that never shows it.
+  const hiddenRow = entries.map((e) => isHidden(e.participantId));
+  const photoMedia = await Promise.all(
+    entries.map((e, i) => (hiddenRow[i] ? Promise.resolve([]) : resolvePhotoMedia(e.photos))),
+  );
 
   const items: FeedItem[] = entries.map((e, i) => {
-    const masked = isHidden(e.participantId);
+    const masked = hiddenRow[i];
     return {
       id: e.id,
       absIso: e.createdAt.toISOString(),
@@ -181,17 +191,22 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       rowerNumber: e.participant.rowerNumber,
       numStr: fmtRowerNumber(e.participant.rowerNumber),
       name: e.participant.displayName,
-      // A hidden row carries NO meters, time or split string — Strips is a
-      // client component, and none of the numbers may reach the browser.
-      // Only their shapes travel: the digit count and the time silhouette.
+      // A hidden row carries NO meters and NO time string — not even the
+      // time's shape — because Strips is a client component and nothing of
+      // theirs but the split may reach the browser. The split is real: the
+      // pace stays public (the same paceTag rule as the board). Only the
+      // meters' digit count travels beside it.
       metersStr: masked ? "" : fmtMeters(e.meters),
       durationStr: masked ? "" : fmtDuration(e.seconds),
-      splitStr: masked ? "" : fmtSplit(e.meters, e.seconds),
+      splitStr: fmtSplit(e.meters, e.seconds),
       title: e.title,
       photos: photoMedia[i],
       masked,
       digits: masked ? digitCount(e.meters) : undefined,
-      timeShape: masked ? clockShape(e.seconds) : undefined,
+      // THE ELITE mark only for a rower the BOARD hid; a row hidden by the
+      // fail-closed rule (hideAll: `hidden` is empty then) is masked but
+      // not elite and draws the bare block instead.
+      elite: masked && hidden.has(e.participantId),
     };
   });
   const anyHidden = items.some((it) => it.masked);
@@ -236,7 +251,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
   // the form during a demo fall on the real date.
   //
   // Everyone counts. The headline and every day head sum EVERY row that
-  // landed, the hidden fifteen's rows included — the owner's rule
+  // landed, THE ELITE's rows included — the owner's rule
   // (restated 2026-09-05): a blacked-out rower's meters still contribute
   // to the total meters in all the stats; only where THEIR number would
   // be displayed is it blocked out, and a day's total is nobody's own
@@ -305,7 +320,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
           {items.length === 0 ? (
             <p className="board-empty">NOTHING LOGGED YET — THE FEED STARTS WITH THE FIRST ROW.</p>
           ) : (
-            <Strips items={items} days={days} />
+            <Strips items={items} days={days} eliteHref={eliteListHref(viewer.actor !== null)} />
           )}
 
           {(before || olderHref) && (

@@ -4,8 +4,8 @@ import { CHALLENGE } from "@/lib/row100k";
 /* THE ORDERS as the owner reviews them (owner, 2026-09-08): every shirt on
  * the books with who, the size, where they stand on the meters, what the
  * month decided, whether it is paid and whether it was handed over. Server
- * only — read by the dev page and the admin route; a route file may export
- * nothing but its handlers, which is why this lives here. */
+ * only — read by /row100k/shop-admin and the admin route; a route file may
+ * export nothing but its handlers, which is why this lives here. */
 export type ShirtOrderRow = {
   id: string;
   rowerNumber: number;
@@ -49,7 +49,9 @@ export async function listShirtOrders(): Promise<ShirtOrderRow[]> {
       id: o.id,
       rowerNumber: o.rowerNumber,
       name: p?.displayName ?? `Rower ${o.rowerNumber}`,
-      email: (p && emailByUser.get(p.userId)) ?? "",
+      // The account behind the participant; the order remembers the
+      // address it was bought (or paid) under when that lookup is empty.
+      email: (p && emailByUser.get(p.userId)) || o.payerEmail || "",
       size: o.size,
       kind: o.kind,
       status: o.status,

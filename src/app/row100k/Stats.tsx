@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
-import { BlockClock, Blocks } from "./Blackout";
+import {
+  ELITE_LABEL,
+  ELITE_TAG,
+  clockShape,
+  digitCount,
+  eliteOrder,
+  fmtPacificDay,
+  partialShape,
+} from "@/lib/blackoutRules";
+import { BlockClock, BlockShape, Blocks } from "./Blackout";
 import { Who } from "./Boards";
-import { EliteList } from "./EliteList";
 import {
   WEEKS,
   fmtDay,
@@ -26,33 +33,42 @@ import {
 } from "./records/defs";
 
 /* The two client sections of the stats page (owner review, 2026-09-05,
- * and the second look the same night).
+ * the second look the same night, and the 2026-09-08 pass).
  *
- * THE RECORDS: the page prints the chosen record the way the front page
- * prints the board — the overall number one as a big blue headline with
- * the holder on a mono line, then the men's and women's top five side
- * by side — and only THEN the control that picks the record: a submenu
- * of small mono links (.st-sub) — total meters, fastest 5k, fastest 10k,
- * longest row, biggest day — under the podiums, with FULL RANKING after
- * it. The owner wanted the eye on who leads and by how much, not on five
- * boxed buttons that never fit a row. A signed-in rower outside a podium
- * sees where they stand under it — a gap row, the rower above,
- * themselves, the rower below, nothing after.
+ * THE RECORDS: TOTAL METERS is the front page's leader box — eyebrow, the
+ * leader's meters, their name — over one mono link to the board, and no
+ * podiums (owner, 2026-09-08: the podiums under it ran taller than the
+ * other records', so picking fastest 5k snapped the page up). While the
+ * elite are hidden nobody leads, and the box does what the front page's
+ * does: the longest hidden total in blocks, THE ELITE on the name line —
+ * the same three lines, the same height, with or without a window (the
+ * list of the elite is the board's, one link away). The other four
+ * records print the way the front page prints the board — the overall
+ * number one as a big blue headline with the holder on a mono line, then
+ * the men's and women's top five
+ * side by side — with FULL RANKING after. The control that picks the
+ * record is a submenu of small mono links (.st-sub) right under the
+ * headline. A signed-in rower outside a podium gets one more line under
+ * it: their place, number, name and value — no gap row, no neighbours
+ * (owner, 2026-09-08).
  *
  * METERS BY DAY / BY WEEK: the section head is the period, so it lives
  * here where the pick is known — the same .st-sub submenu swaps it — then
  * one table, the top ten plus the viewer's neighbourhood, for the day or
- * the week chosen.
+ * the week chosen. The elite lead it in their own block, by average split,
+ * and the ranked rows under them count from 1 (owner, 2026-09-08).
  *
- * Blackout: the page blanks every number a hidden rower owns before it
- * gets here (records/defs.ts liteRecords for the records, the weekly rows
- * in stats/page.tsx), since anything in these props is in the browser. A
- * hidden row keeps its place and its name and draws blocks of the shape
- * the number had — a digit count for meters, a ##:##.# silhouette for a
- * time. */
+ * Blackout: the page blanks every METERS number a hidden rower owns before
+ * it gets here (records/defs.ts liteRecords for the records, the weekly
+ * rows in stats/page.tsx), since anything in these props is in the
+ * browser; their times are public (owner, 2026-09-08). A hidden row keeps
+ * its name and draws blocks of the shape the number had — a digit count
+ * for meters. */
 
-/* What a board row carries when the page blanked its number. */
-type Hideable = { masked?: boolean; digits?: number; shape?: string };
+/* What a board row carries when the page blanked its number, and — on the
+ * period boards — when the rower is one of the elite: no place, and the
+ * average split that orders them. */
+type Hideable = { masked?: boolean; digits?: number; shape?: string; unranked?: boolean; paceTag?: string };
 
 const defOf = (key: RecordKey): RecordDef => RECORD_DEFS.find((d) => d.key === key)!;
 
@@ -90,42 +106,41 @@ export function StatsRecords({
   const rows = records[key] ?? [];
   const first = rows[0];
   const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
-  const untilDay = blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined;
 
-  /* TOTAL METERS while the fifteen are hidden: they carry no place, so
-   * there is no number one to headline (the row at the top of the list is
-   * the alphabetically first hidden rower, nobody's leader) and no podium
-   * to draw from a ranking that no longer exists. The list stands in — by
-   * digit count then name, exactly the order maskBoards handed over — and
-   * a signed-in rower from sixteen down still gets their own place under
-   * it. The other four records are untouched: a fastest 5k is a time, not
-   * the meters ranking (owner, 2026-09-05 evening). */
-  const eliteRows = key === "total" ? rows.filter((r) => r.unranked) : [];
+  /* TOTAL METERS is the leader, not a record (owner, 2026-09-08). While
+   * the elite are hidden they carry no place, so there is no leader to name
+   * (the row at the top of the list is the fastest hidden rower by average
+   * split, nobody's leader): the box draws the longest hidden total in
+   * blocks over THE ELITE, the way the front page's does. The other four
+   * records are untouched: a fastest 5k is a time, not the meters ranking
+   * (owner, 2026-09-05 evening). */
+  const isTotal = key === "total";
+  const eliteRows = isTotal ? rows.filter((r) => r.unranked) : [];
   const hiddenRanking = eliteRows.length > 0;
+  /* The one thing that stays visible of the elite's meters — "if I have
+   * another digit than everyone else, that is visible": the longest total
+   * among them, as a digit count. A masked row carries the real total's
+   * count; the viewer's own row, exempt from the mask, carries its meters. */
+  const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? digitCount(r.value)), 1);
+  /* The front page's leader: the first row with meters. A masked row
+   * carries 0 here (only its digit count travels), so the mask itself has
+   * to count as "has meters" or the box would name the wrong rower. */
+  const leader = isTotal && !hiddenRanking ? rows.find((r) => r.value > 0 || r.masked) : undefined;
 
   /* A rower in neither division (X, the schema default — overall boards
-   * only) has no podium to sit under, so their neighbourhood is drawn once
-   * more against the whole ranking: the owner said seeing where you stand
-   * on this page matters. */
+   * only) has no podium to sit under, so their own line is drawn once more
+   * against the whole ranking: the owner said seeing where you stand on
+   * this page matters. Never on TOTAL METERS, which has no podiums. */
   const meRow = meId ? rows.find((r) => r.participantId === meId) : undefined;
-  const overall =
-    !hiddenRanking && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
-
-  /* Where the viewer stands when the ranking is hidden: the places are the
-   * real ones (the fifteen still occupy the first fifteen indexes, so row
-   * sixteen is sixteenth), and a viewer inside the fifteen gets nothing —
-   * their tinted row is up in the list, and a neighbourhood would say which
-   * place they hold. */
-  const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
-  const near = hiddenRanking ? podiumWindow(rows, meIdx, eliteRows.length) : null;
+  const overall = !isTotal && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
 
   /* The holder line under the headline: number · NAME · day, plus the
-   * split for a pace record and the session count for total meters. A
-   * hidden holder's split is the time by another name, so it stays off. */
+   * split for a pace record. Times are public for everyone, the elite
+   * included (owner, 2026-09-08), so the split always prints. */
   const meta = first
     ? [
         first.day ? fmtDay(first.day) : null,
-        def.kind === "time" && def.dist && !first.masked ? `${fmtSplit(def.dist, first.value)} /500m` : null,
+        def.kind === "time" && def.dist ? `${fmtSplit(def.dist, first.value)} /500m` : null,
         first.sessions != null ? `${first.sessions} sessions` : null,
       ]
         .filter(Boolean)
@@ -140,39 +155,70 @@ export function StatsRecords({
           that are not hidden for them. */}
       {(blackout.active || anyHidden) && (
         <p className="bo-note">
-          {anyHidden ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}` : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
+          {anyHidden
+            ? /* Times are public for the elite (owner, 2026-09-08) — said on
+                 the two records that print one, the way the full-ranking
+                 page says it, and not under a meters record. */
+              `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.kind === "time" ? " · TIMES ARE SHOWN" : ""}`
+            : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
         </p>
       )}
 
-      {/* The newspaper head: the record's number one, big and blue, the
-          holder on the mono line (the board head, one size down). The line
-          opens with the record's name: the section head that used to say
-          it is gone, and a bare time does not say 5k from 10k — one
-          descriptor line, no extra title (owner call, 2026-09-05). */}
-      {hiddenRanking ? (
-        /* The list where the headline would be: no place column, no
-           number one. Only the viewer's own row may carry a real figure,
-           and a lite row already zeroed its value when masked. */
-        <EliteList
-          rows={eliteRows.map((r) => ({
-            name: r.name,
-            rowerNumber: r.rowerNumber,
-            division: r.division,
-            masked: r.masked,
-            digits: r.digits,
-            paceTag: r.paceTag,
-            meters: r.masked ? undefined : r.value,
-          }))}
-          until={untilDay}
-          meRowerNumber={meRow?.rowerNumber ?? null}
-          /* The bo-note above already names the fifteen and the day they
-             come back, so the list drops its own heading rather than say it
-             twice one line apart (review, 2026-09-05); the foot line under
-             the table still says NO PLACES WHILE HIDDEN. The eyebrow comes
-             back on the one board that gets no note — the viewer alone in
-             the fifteen, nothing masked from them. */
-          eyebrow={!anyHidden}
-        />
+      {/* TOTAL METERS: the front page's leader box, in the front page's two
+          states — the leader, or the elite in blocks while a window is open.
+          The other four: the newspaper head, the record's number one big and
+          blue, the holder on the mono line (the board head, one size down).
+          One descriptor line, no extra title (owner call, 2026-09-05). */}
+      {isTotal ? (
+        /* The simpler box (no IN THE LEAD FOR N DAYS line — that needs the
+           day-by-day leaders the front page loads — and no BLACKOUT head
+           line either: the bo-note one line up already says it, so the box
+           keeps the same three lines, eyebrow, meters, name, in both states
+           and picking another record never moves the submenu): the meters
+           (blocks if masked, the way the front page draws them), the name.
+           While the elite are hidden the meters are the longest hidden total
+           in blocks and the name line reads THE ELITE (front page). */
+        <div className="front-box st-lead">
+          <div className="eyebrow mono">The leader</div>
+          {hiddenRanking ? (
+            <>
+              <div className="v">
+                <Blocks digits={eliteDigits} /> m
+              </div>
+              <div className="nm">{ELITE_LABEL}</div>
+            </>
+          ) : leader ? (
+            <>
+              <div className="v">
+                {leader.masked ? (
+                  <>
+                    <Blocks digits={leader.digits ?? digitCount(leader.value)} /> m
+                  </>
+                ) : leader.hideLow ? (
+                  /* The run-up (blackoutRules.rampRow): the digits still
+                     showing are real, the tail is already out of the row
+                     — drawn the way the board draws it. */
+                  <>
+                    <BlockShape shape={partialShape(leader.value, leader.hideLow, leader.digits)} label="partly hidden" /> m
+                  </>
+                ) : (
+                  fmtMeters(leader.value)
+                )}
+              </div>
+              <div className="nm">
+                <Who row={{ name: leader.name, rowerNumber: leader.rowerNumber }} />
+              </div>
+            </>
+          ) : (
+            <div className="head mono">
+              {unavailable
+                ? "THE BOARD COULD NOT BE READ JUST NOW — RELOAD IN A MOMENT."
+                : started
+                  ? "NOBODY HAS LOGGED A METER YET"
+                  : "FIRST STROKE SEP 1"}
+            </div>
+          )}
+        </div>
       ) : first ? (
         <div className="bhead st-rec">
           <div className="bhead-n">
@@ -210,54 +256,51 @@ export function StatsRecords({
         ))}
       </div>
 
-      {!unavailable && !hiddenRanking && (
-        <div className="front-top st-podiums">
-          <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
-          <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
-        </div>
-      )}
-      {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
-      {near && near.ctx.length > 0 && (
-        /* The gap row always leads: everything above the viewer is either
-           hidden or simply not listed here. */
-        <div className="front-three st-overall">
-          <h3 className="mono">Where you stand</h3>
-          <table className="board">
-            <tbody>
-              <tr className="gaprow">
-                <td colSpan={3}>···</td>
-              </tr>
-              {near.ctx.map((r, i) => (
-                <RecTr
-                  key={r.participantId}
-                  r={r}
-                  rank={near.ctxStart + i + 1}
-                  def={def}
-                  me={r.participantId === meId}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {isTotal ? (
+        /* The whole ranking lives on the board, so the one link goes there
+           (the front page's line under the latest row) and FULL RANKING
+           stays off this record — two links to the same list is one too
+           many. */
+        <p className="front-more mono">
+          <a href="/row100k/board">See the whole board →</a>
+        </p>
+      ) : (
+        <>
+          {!unavailable && (
+            <div className="front-top st-podiums">
+              <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
+              <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
+            </div>
+          )}
+          {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
 
-      <div className="ms-actions">
-        <a className="quiet-btn" href={`/row100k/records/${key}?d=all`}>
-          FULL RANKING →
-        </a>
-      </div>
+          <div className="ms-actions">
+            <a className="quiet-btn" href={`/row100k/records/${key}?d=all`}>
+              FULL RANKING →
+            </a>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 /* A record value: a time with tenths, or meters with its unit — small and
  * grey inside the headline, plain in a table cell. A hidden row draws the
- * shape the page attached (the value itself is 0 by now). */
+ * shape the page attached (the value itself is 0 by now); a total in the
+ * run-up draws its covered tail as blocks (blackoutRules.partialShape, the
+ * board's own treatment). */
 function Val({ r, def, unit }: { r: RecordRowLite; def: RecordDef; unit: "big" | "table" }) {
   if (def.kind === "time") {
     return r.masked ? <BlockClock shape={r.shape ?? clockShape(r.value, true)} /> : <>{fmtRecordTime(r.value)}</>;
   }
-  const num = r.masked ? <Blocks digits={r.digits ?? digitCount(r.value)} /> : Math.round(r.value).toLocaleString("en-US");
+  const num = r.masked ? (
+    <Blocks digits={r.digits ?? digitCount(r.value)} />
+  ) : r.hideLow ? (
+    <BlockShape shape={partialShape(r.value, r.hideLow, r.digits)} label="partly hidden" />
+  ) : (
+    Math.round(r.value).toLocaleString("en-US")
+  );
   return unit === "big" ? (
     <>
       {num} <span className="u">m</span>
@@ -268,13 +311,14 @@ function Val({ r, def, unit }: { r: RecordRowLite; def: RecordDef; unit: "big" |
 }
 
 /* One division's top five — the front page's compact board — and, for a
- * signed-in rower placed deeper, their neighbourhood under a gap row
- * (records/defs.ts podiumWindow). Five, not three, since 2026-09-06 (owner:
- * "show top five for each of the categories"); a rower sitting sixth now
- * lands in the board itself instead of under the gap. Places are within the
- * rows given: the division's for the two podiums, the whole ranking for the
- * Overall block, which takes top=0 and so draws the neighbourhood alone
- * (nothing at all when the viewer is not on the list). */
+ * signed-in rower placed deeper, ONE more line: their place, number, name
+ * and value, tinted, with no gap row and no neighbours (records/defs.ts
+ * podiumWindow; owner, 2026-09-08). Five, not three, since 2026-09-06
+ * (owner: "show top five for each of the categories"); a rower sitting
+ * sixth is the first line under the five. Places are within the rows given:
+ * the division's for the two podiums, the whole ranking for the Overall
+ * block, which takes top=0 and so draws the viewer's line alone (nothing at
+ * all when the viewer is not on the list). */
 function Podium({
   label,
   rows,
@@ -304,11 +348,6 @@ function Podium({
             {w.top.map((r, i) => (
               <RecTr key={r.participantId} r={r} rank={i + 1} def={def} me={r.participantId === meId} />
             ))}
-            {w.gap && (
-              <tr className="gaprow">
-                <td colSpan={3}>···</td>
-              </tr>
-            )}
             {w.ctx.map((r, i) => (
               <RecTr key={r.participantId} r={r} rank={w.ctxStart + i + 1} def={def} me={r.participantId === meId} />
             ))}
@@ -513,9 +552,26 @@ export function StatsBoards({
 
 /* Top 10 by default; a signed-in rower deeper on the board gets their
  * neighborhood — three above, themselves, three below — after a gap row.
- * Ranks stay global (their place on the whole board), and WHOLE BOARD
- * expands to every rower (owner call, cycle 8). One table for the day and
- * the week. */
+ * Ranks are places among the VISIBLE rows, and WHOLE BOARD expands to every
+ * one of them (owner call, cycle 8). One table for the day and the week.
+ *
+ * The elite (owner, 2026-09-08): a hidden row left in the ranking says how
+ * its day compares to the row under it — "Ken is right underneath me but
+ * above someone with 25,000 today, so I know Ken has done more than
+ * 25,000". So the rows that are elite for this viewer — the ones hidden
+ * from them, and their own row when they are elite themself, which keeps
+ * its meters and loses its place, the way the board does — are lifted out
+ * into one block at the top, no place, the pace tag where the tier tag
+ * goes, ordered by average split (blackoutRules.eliteOrder), and the ranked
+ * list under them numbers only the visible rows, from 1. The total row
+ * still counts everyone.
+ *
+ * Who is elite is what the page said — `unranked`, stamped off the board's
+ * own elite set (stats/page.tsx). A row that is masked without it is the
+ * fail-closed path (the board could not be read while a window was open,
+ * so every row but the viewer's own is blanked and nobody is known to be
+ * elite): those rows stay where the period ranks them, blocks and an empty
+ * place cell, with no block over them claiming a pace nobody has. */
 function BoardWindow({
   rows,
   meId,
@@ -532,11 +588,15 @@ function BoardWindow({
   total?: PeriodTotal;
 }) {
   const [all, setAll] = useState(false);
-  const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
-  const top = all ? rows : rows.slice(0, 10);
+  const isElite = (r: WeeklyRow & Hideable) => !!r.unranked;
+  const isMasked = (r: WeeklyRow & Hideable) => !!r.masked || hidden.has(r.participantId);
+  const elite = rows.filter(isElite).sort(eliteOrder);
+  const ranked = rows.filter((r) => !isElite(r));
+  const meIdx = meId ? ranked.findIndex((r) => r.participantId === meId) : -1;
+  const top = all ? ranked : ranked.slice(0, 10);
   const showCtx = !all && meIdx >= 10;
   const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
-  const ctx = showCtx ? rows.slice(ctxStart, Math.min(rows.length, meIdx + 4)) : [];
+  const ctx = showCtx ? ranked.slice(ctxStart, Math.min(ranked.length, meIdx + 4)) : [];
 
   if (rows.length === 0) {
     return (
@@ -560,14 +620,27 @@ function BoardWindow({
             </tr>
           </thead>
           <tbody>
+            {elite.length > 0 && (
+              <>
+                {/* The board's own block (Boards.tsx): cream and ink like
+                    every other row, the heading on a solid rule and a second
+                    solid rule closing the block, the pace tag as the
+                    identity, the order by it. Its look is the theme's
+                    (tr.divrow.elite, tr.elite-row) — nothing is coloured
+                    here. */}
+                <tr className="divrow elite">
+                  <td colSpan={4}>
+                    {ELITE_LABEL}
+                    <span className="by">BY AVERAGE SPLIT</span>
+                  </td>
+                </tr>
+                {elite.map((r) => (
+                  <EliteTr key={r.participantId} r={r} masked={isMasked(r)} />
+                ))}
+              </>
+            )}
             {top.map((r, i) => (
-              <WeekTr
-                key={r.participantId}
-                r={r}
-                rank={i + 1}
-                me={r.participantId === meId}
-                hidden={r.masked || hidden.has(r.participantId)}
-              />
+              <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} masked={isMasked(r)} />
             ))}
             {showCtx && ctxStart > 10 && (
               <tr className="gaprow">
@@ -580,7 +653,7 @@ function BoardWindow({
                 r={r}
                 rank={ctxStart + i + 1}
                 me={r.participantId === meId}
-                hidden={r.masked || hidden.has(r.participantId)}
+                masked={isMasked(r)}
               />
             ))}
             {total && total.rowers > 0 && (
@@ -601,7 +674,7 @@ function BoardWindow({
           </tbody>
         </table>
       </div>
-      {rows.length > 10 && (
+      {ranked.length > 10 && (
         <button
           type="button"
           className="quiet-btn"
@@ -609,41 +682,67 @@ function BoardWindow({
           aria-expanded={all}
           onClick={() => setAll((a) => !a)}
         >
-          {all ? "TOP 10 ONLY" : `WHOLE BOARD — ALL ${rows.length}`}
+          {all ? "TOP 10 ONLY" : `WHOLE BOARD — ALL ${ranked.length}`}
         </button>
       )}
     </div>
   );
 }
 
-/* One row of the period board; the signed-in rower's row wears the
- * finisher tint (tr.fin) so they can spot themselves. A hidden row keeps its
- * name (the profile masks the same way, so the link is safe), draws blocks
- * for the meters and carries NO place: the owner's rule says the fifteen
- * hold no place wherever they are listed, and this is the one table on the
- * page that still printed one for them (review, 2026-09-05). The ORDER here
- * is still the period's — these boards rank by the day's or the week's
- * meters, not by the total — so the cell going empty is the whole change;
- * see the note to the owner about whether a day board is a ranking at all. */
-function WeekTr({
-  r,
-  rank,
-  me,
-  hidden,
-}: {
-  r: WeeklyRow & Hideable;
-  rank: number;
-  me: boolean;
-  hidden: boolean;
-}) {
+/* One ranked row of the period board; the signed-in rower's row wears the
+ * finisher tint (tr.fin) so they can spot themselves. The elite are up in
+ * their own block (EliteTr); a row still masked down here is the
+ * fail-closed path — blocks for the meters and no place, since a place is
+ * a standing among rows this page cannot read. */
+function WeekTr({ r, rank, me, masked }: { r: WeeklyRow & Hideable; rank: number; me: boolean; masked: boolean }) {
   return (
     <tr className={me ? "fin" : undefined}>
-      <td className="rk">{hidden ? "" : rank}</td>
+      <td className="rk">{masked ? "" : rank}</td>
       <td>
-        <Who row={r} />
+        <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} />
       </td>
       <td className="num">
-        {hidden ? (
+        {masked ? (
+          <>
+            <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+          </>
+        ) : (
+          fmtMeters(r.meters)
+        )}
+      </td>
+      <td className="num" style={{ color: "var(--gray)" }}>
+        {r.sessions}
+      </td>
+    </tr>
+  );
+}
+
+/* One of the elite on the period board: the board's elite row (Boards.tsx
+ * TotalRowTr while hidden) — no place, the average split where the tier
+ * tag goes (ELITE when there is no timed row to average), blocks for the
+ * meters, the session count in the open, in the same grey as every other
+ * row's (the block is cream and ink like the rest of the table — the theme
+ * draws it; no colour is set here). The name still links: the profile
+ * masks the same rowers the same way. Only the viewer's own row — exempt
+ * from the mask, in the block all the same — prints its real meters. */
+function EliteTr({ r, masked }: { r: WeeklyRow & Hideable; masked: boolean }) {
+  return (
+    <tr className="elite-row">
+      <td className="rk" />
+      <td>
+        <Who
+          row={{ name: r.name, rowerNumber: r.rowerNumber }}
+          badge={
+            r.paceTag ? (
+              <span className="tierbadge pace">{r.paceTag}</span>
+            ) : (
+              <span className="tierbadge elite">{ELITE_TAG}</span>
+            )
+          }
+        />
+      </td>
+      <td className="num">
+        {masked ? (
           <>
             <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
           </>

@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
-import { digitCount } from "@/lib/blackoutRules";
-import { fmtDay, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { ELITE_LABEL, digitCount, partialShape } from "@/lib/blackoutRules";
+import { fmtDay, fmtMeters, fmtRowerNumber, type TotalRow } from "@/lib/row100k";
+import { resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
-import { Blocks } from "../Blackout";
+import { BlockShape, Blocks } from "../Blackout";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { TrackedLink } from "../TrackedLink";
-import { boardData, EMPTY_BOARDS } from "../boardData";
+import { boardView, EMPTY_BOARDS } from "../boardData";
+import { eliteListHref } from "../feed/view";
 import { firstToGoal, type GoalClaim } from "../firstToGoal";
+import { RAFFLES, rafflePhase } from "../raffles";
+import { myRaffleRows, raffleHatSize, raffleState } from "../raffleData";
+import { Raffle, raffleCss } from "./Raffle";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +54,10 @@ const PHOTOS = {
 
 /* Partners-page styles — .ptn- prefix, theme.ts untouched. Rendered as the
  * text child of a style tag, so no double quotes, no angle brackets, and no
- * apostrophes anywhere in the string (see the note in theme.ts). */
+ * apostrophes anywhere in the string (see the note in theme.ts). The
+ * blackout blocks (.bo i, ink in the theme) go CREAM inside the green
+ * partner block — ink on Grizzly green is a 1.2:1 smudge, and the prize
+ * cards are where the leaders' meters are blocked out (owner, 2026-09-08). */
 const ptnCss = `
 .row100k .ptn-logos{background:#0c2015;border:2px solid #06130c;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:34px 22px 30px;text-align:center}
 .row100k .ptn-logos .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#a9bba6;margin-bottom:18px}
@@ -72,6 +80,7 @@ const ptnCss = `
 .row100k .ptn-brand .rec .meta{color:#a9bba6;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:8px;line-height:1.7}
 .row100k .ptn-brand .rec .meta a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
 .row100k .ptn-brand .rec .meta a:hover{color:#d3ab5d}
+.row100k .ptn-brand .bo i{background:#f2ead7}
 .row100k .ptn-brand .rec.claimed{border-color:#d3ab5d;background:#1a2f22;box-shadow:4px 4px 0 #d3ab5d}
 .row100k .ptn-brand .rec.claimed .v{color:#f2ead7}
 .row100k .ptn-stamp{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#06130c;background:#d3ab5d;padding:3px 9px 2px;margin-left:10px;vertical-align:middle;transform:rotate(-2deg)}
@@ -119,62 +128,157 @@ const ptnCss = `
 export default async function PartnersPage() {
   // Prize state: who is leading each board, and who got to 100k first.
   // Fail open — the block still renders with the prizes listed.
+  //
+  // The board is the PUBLIC one for everybody, the owner included: a prize
+  // card is a public statement of who is leading, nobody's own view (the
+  // same call the share cards make — they mask even for self). It is read
+  // through boardView rather than boardData() so the admin test blackout
+  // (row100kViewer: the preview cookie opens the window for this request)
+  // reaches this page too — boardData() knows nothing of the viewer, so
+  // the test blackout never got here and the owner saw the leaders' real
+  // meters under it (2026-09-08).
+  const viewer = await resolveViewer();
   let boards = EMPTY_BOARDS;
   let claim: GoalClaim | null = null;
   try {
-    [boards, claim] = await Promise.all([boardData(), firstToGoal()]);
+    const [view, first] = await Promise.all([
+      boardView({ viewerParticipantId: null, admin: false, forceBlackout: viewer.preview !== null }),
+      firstToGoal(),
+    ]);
+    boards = view.boards;
+    claim = first;
   } catch (err) {
     console.error("row100k partners: failed to load prize state", err);
   }
-  // boardData() is the PUBLIC board: during a blackout the leader arrives
-  // already masked (blackoutRules.ts) with a tier floor that can be 0, so a
-  // masked row counts as leading even at a 0 floor — it is first on the
-  // board by definition — and prints blocks instead of the floor.
-  const leader = (division: "M" | "F") =>
-    boards.total.find((r) => r.division === division && (r.meters > 0 || r.masked)) ?? null;
+
+  // Who leads a division, as far as the public may know. While a window is
+  // open THE ELITE come off the board unranked and sorted by pace
+  // (blackoutRules.maskBoards), so the leader by meters cannot be read off
+  // the public board — and naming them would hand out the one place the
+  // rule hides. So under a window a division with hidden rows names
+  // nobody: THE ELITE, and blocks as wide as the leader's true total — the
+  // widest digit count among the division's hidden rows is the leader's
+  // (the most meters is the most digits) without saying whose. Outside a
+  // window, and during the run-up (the rows keep their order and lose only
+  // the tail of their total), the first row of the division with any
+  // meters leads — or with a run-up tail (hideLow): on the last run-up
+  // day rampRow rounds a fully covered total down to ZERO meters, and a
+  // leader at 0 must not hand the card to the first non-elite row behind
+  // them (metersOf prints that row as ###,### — the shape, not a number).
+  type Lead = { kind: "elite"; digits: number } | { kind: "row"; row: TotalRow } | null;
+  const leader = (division: "M" | "F"): Lead => {
+    const hidden = boards.total.filter((r) => r.division === division && r.masked);
+    if (hidden.length > 0) {
+      return { kind: "elite", digits: Math.max(...hidden.map((r) => r.digits ?? digitCount(r.meters))) };
+    }
+    const row = boards.total.find((r) => r.division === division && (r.meters > 0 || r.hideLow));
+    return row ? { kind: "row", row } : null;
+  };
   const men = leader("M");
   const women = leader("F");
 
-  // The claimed card prints the claimant's running total, and firstToGoal()
-  // reads the raw rows — the truth, blackout or not. The first rower to
-  // 100k is in the elite fifteen by construction, so the card asks the same
-  // PUBLIC board whether that rower is masked right now and prints blocks
-  // when they are. Promise.all above loads the board and the claim together
-  // or not at all, and a rower with 100k is on the board, so a missing row
-  // cannot happen — but if it ever does the card hides rather than leaks.
-  const claimNum = claim?.rowerNumber;
-  const claimRow = claim ? boards.total.find((r) => r.rowerNumber === claimNum) : undefined;
-  const claimHidden = claim ? !claimRow || claimRow.masked === true : false;
-
-  const leading = (r: typeof men) =>
-    r ? (
+  // A total off the public board, printed the way the board prints it:
+  // blocks while masked, the run-up shape (142,### — BlockShape) while only
+  // the tail is covered, the number otherwise.
+  const metersOf = (r: TotalRow) =>
+    r.masked ? (
       <>
-        Leading —{" "}
-        <a href={`/row100k/r/${r.rowerNumber}`}>
-          {r.name} · {fmtRowerNumber(r.rowerNumber)}
-        </a>{" "}
-        ·{" "}
-        {r.masked ? (
-          <>
-            <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
-          </>
-        ) : (
-          fmtMeters(r.meters)
-        )}
+        <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+      </>
+    ) : r.hideLow ? (
+      <>
+        <BlockShape shape={partialShape(r.meters, r.hideLow, r.digits)} label="partly hidden" /> m
       </>
     ) : (
-      <>In play — decided Sep 30</>
+      fmtMeters(r.meters)
     );
+
+  // The claimed card prints the claimant's running total, and firstToGoal()
+  // reads the raw rows — the truth, blackout or not. The first rower to
+  // 100k is one of THE ELITE by construction, so the card asks the same
+  // PUBLIC board for that rower's row and prints it as the board would:
+  // blocks under a window, the run-up shape before one (the raw total must
+  // not print while the board shows 142,###), the truth otherwise.
+  // Promise.all above loads the board and the claim together or not at
+  // all, and a rower with 100k is on the board, so a missing row cannot
+  // happen — but if it ever does the card hides rather than leaks.
+  const claimNum = claim?.rowerNumber;
+  const claimRow = claim ? boards.total.find((r) => r.rowerNumber === claimNum) : undefined;
+  const claimTotal = (c: GoalClaim) =>
+    !claimRow ? (
+      <>
+        <Blocks digits={digitCount(c.total)} /> m
+      </>
+    ) : claimRow.masked || claimRow.hideLow ? (
+      metersOf(claimRow)
+    ) : (
+      fmtMeters(c.total)
+    );
+
+  // THE ELITE links to the elite list this viewer can actually see — the
+  // board's section for a signed-in rower, the front page's public list
+  // for a reader (feed/view.ts eliteListHref, the feed mark's own rule).
+  const eliteHref = eliteListHref(viewer.actor !== null);
+  const leading = (lead: Lead) =>
+    lead === null ? (
+      <>In play — decided Sep 30</>
+    ) : lead.kind === "elite" ? (
+      <>
+        Leading — <a href={eliteHref}>{ELITE_LABEL}</a> · <Blocks digits={lead.digits} /> m
+      </>
+    ) : (
+      <>
+        Leading —{" "}
+        <a href={`/row100k/r/${lead.row.rowerNumber}`}>
+          {lead.row.name} · {fmtRowerNumber(lead.row.rowerNumber)}
+        </a>{" "}
+        · {metersOf(lead.row)}
+      </>
+    );
+
+  // THE RAFFLE (owner, 2026-09-08): the ticket above the Grizzly block —
+  // where each raffle stands on the clock, how many are in the hat, whether
+  // the viewer is, and the winner once the owner has drawn. The winner's
+  // total goes through metersOf like every other total on this page: a
+  // winner who is one of THE ELITE shows blocks while a window is open,
+  // never the raw number.
+  const raffles = await Promise.all(
+    RAFFLES.map(async (r) => {
+      const [state, hat, myRows] = await Promise.all([
+        raffleState(r.slug),
+        raffleHatSize(r),
+        myRaffleRows(r, viewer.me?.rowerNumber ?? null),
+      ]);
+      const win = state.winner;
+      const wrow = win ? boards.total.find((x) => x.participantId === win.participantId) : undefined;
+      const winnerTotal = win ? (wrow ? metersOf(wrow) : fmtMeters(win.meters)) : null;
+      return { r, phase: rafflePhase(r), state, hat, myRows, winnerTotal };
+    }),
+  );
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{ptnCss}</style>
+      <style>{raffleCss}</style>
 
       <RowBar active="partners" />
 
       <section>
         <div className="wrap">
+          {raffles.map((v) => (
+            <Raffle
+              key={v.r.slug}
+              raffle={v.r}
+              phase={v.phase}
+              state={v.state}
+              hat={v.hat}
+              myRows={v.myRows}
+              joined={viewer.me !== null}
+              winnerTotal={v.winnerTotal}
+            />
+          ))}
+
           <div className="ptn-logos">
             <div className="eyebrow">Rowtember 2026 · Partners</div>
             <TrackedLink link="grizzly">
@@ -223,14 +327,7 @@ export default async function PartnersPage() {
                     </a>
                   </span>
                   <div className="meta">
-                    Crossed 100k on {fmtDay(claim.day)} · now{" "}
-                    {claimHidden ? (
-                      <>
-                        <Blocks digits={claimRow?.digits ?? digitCount(claim.total)} /> m
-                      </>
-                    ) : (
-                      fmtMeters(claim.total)
-                    )}
+                    Crossed 100k on {fmtDay(claim.day)} · now {claimTotal(claim)}
                     {claim.instagram ? (
                       <>
                         {" "}

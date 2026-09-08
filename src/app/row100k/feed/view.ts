@@ -45,20 +45,40 @@ export type FeedItem = {
   title: string;
   /* resolved photo media, rower photo first — stable public CDN URLs for
    * real keys, inline SVG data URIs for demo color squares; empty when the
-   * row has no photos or photos can't be served on this deploy */
+   * row has no photos, photos can't be served on this deploy, or the rower
+   * is hidden (a hidden rower's photos never leave the server — the strip
+   * draws THE ELITE mark on their footprint instead) */
   photos: FeedPhoto[];
-  /* Blackout (blackoutRules.ts): the rower is one of the hidden fifteen —
-   * metersStr, durationStr and splitStr are all "", `digits` says how many
-   * blocks to draw in the meters slot and `timeShape` ("#:##:##") is the
-   * silhouette of the time. No number of theirs is in this object. */
+  /* Blackout (blackoutRules.ts): the row is hidden — metersStr and
+   * durationStr are "", `digits` says how many blocks to draw in the
+   * meters slot, and splitStr is REAL: the pace is the one number of
+   * theirs that stays public (owner, 2026-09-08: "show the pace but not
+   * the time"). No time of theirs is in this object, not even its shape. */
   masked?: boolean;
   digits?: number;
-  timeShape?: string;
+  /* WHY it is hidden: true when the rower is one of THE ELITE while a
+   * window is open (the board said so) — the strip wears THE ELITE mark.
+   * A masked row WITHOUT it was hidden by the fail-closed rule (the board
+   * was unreadable while a window was open, so the feed could not tell who
+   * is elite and hid everyone): the strip draws a bare ink block on the
+   * same footprint, no word and no link, because calling those rowers
+   * elite would be a wrong public statement. */
+  elite?: boolean;
 };
 
+/* Where THE ELITE mark (and the partners card) sends a reader: the elite
+ * section of the board for a signed-in viewer — the board page renders
+ * only for an actor — and the front page's public elite list otherwise,
+ * so a signed-out reader never lands on the OPT IN prompt. Both fragments
+ * need an id=elite on their target (Boards.tsx, the front page's
+ * .front-elite); until they carry one the pages still load at the top. */
+export function eliteListHref(signedIn: boolean): string {
+  return signedIn ? "/row100k/board#elite" : "/row100k#elite";
+}
+
 /* A whole day's total — every row that landed that Pacific day, not just
- * the ones on this page, and EVERY rower's meters, the hidden fifteen's
- * included. The owner's rule (restated 2026-09-05): a blacked-out rower's
+ * the ones on this page, and EVERY rower's meters, THE ELITE's included.
+ * The owner's rule (restated 2026-09-05): a blacked-out rower's
  * meters still count inside every total and aggregate; only where THEIR
  * OWN number would be displayed is it blocked out, and a day's total is
  * nobody's own number — even on a day with a single elite row (the

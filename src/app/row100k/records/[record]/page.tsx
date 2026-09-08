@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { ELITE_LABEL, digitCount, fmtPacificDay, partialShape } from "@/lib/blackoutRules";
 import {
   START_MS,
   fmtDay,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/row100k";
 import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
-import { BlockClock, Blocks } from "../../Blackout";
+import { BlockShape, Blocks } from "../../Blackout";
 import { Who } from "../../Boards";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -26,11 +26,11 @@ export const dynamic = "force-dynamic";
  *
  * Blackout: the board is read as THIS viewer sees it (boardView), and a
  * rower in the masked set keeps their place and their name but draws
- * blocks for every record — meters (total, longest row, biggest day) as a
- * digit run, a pace time as its ▮▮:▮▮.▮ silhouette with no split beside it
- * (owner rule, 2026-09-05: a time over a known distance is the meters by
- * another route). Pure server markup, so the real value never leaves this
- * function for a hidden row. */
+ * blocks for every METERS record — total, longest row, biggest day — as a
+ * digit run. Their TIMES are public (owner, 2026-09-08: fastest 5k and
+ * 10k show regardless of the blackout), so the two pace boards print the
+ * time and the split for everyone. Pure server markup, so a hidden meters
+ * value never leaves this function. */
 
 type Params = { record: string };
 
@@ -113,11 +113,14 @@ export default async function RecordRankingPage({
           </nav>
 
           {/* Same line the board prints; an admin sees nothing hidden and is
-              told so. Every board hides the fifteen now, times included. */}
+              told so. The meters boards hide the elite; a time board says
+              its times are shown. */}
           {(blackout.active || hidden.size > 0) && (
             <p className="bo-note">
               {hidden.size > 0
-                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.key === "total" ? " · LISTED BY PACE" : ""}`
+                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${
+                    def.key === "total" ? " · LISTED BY PACE" : def.kind === "time" ? " · TIMES ARE SHOWN" : ""
+                  }`
                 : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
             </p>
           )}
@@ -149,11 +152,11 @@ export default async function RecordRankingPage({
                       className={r.row.participantId === viewer.myParticipantId ? "fin" : undefined}
                     >
                       {/* The places half of the rule: on TOTAL METERS one of
-                          the hidden fifteen carries no place at all, so the
+                          the hidden elite carries no place at all, so the
                           cell is empty (it keeps the column) and the rows
-                          from sixteen down still read their real place off
-                          the index. The other four boards are untouched —
-                          a fastest-5k place is not the meters ranking. */}
+                          under them still read their real place off the
+                          index. The other four boards are untouched — a
+                          fastest-5k place is not the meters ranking. */}
                       <td className="rk">{r.unranked ? "" : i + 1}</td>
                       <td>
                         {/* Who is a client component (Boards.tsx), so every
@@ -166,24 +169,27 @@ export default async function RecordRankingPage({
                       </td>
                       <td className="num">
                         {def.kind === "time" ? (
-                          hidden.has(r.row.participantId) ? (
-                            /* The seconds stay on the server: only the
-                               ▮▮:▮▮.▮ silhouette is rendered, no split. */
-                            <BlockClock seconds={r.value} tenths />
-                          ) : (
-                            <>
-                              {fmtRecordTime(r.value)}
-                              {def.dist ? (
-                                <span style={{ color: "var(--gray)" }}> · {fmtSplit(def.dist, r.value)} /500m</span>
-                              ) : null}
-                            </>
-                          )
+                          /* A time is public for everyone, the elite
+                             included (owner, 2026-09-08). */
+                          <>
+                            {fmtRecordTime(r.value)}
+                            {def.dist ? (
+                              <span style={{ color: "var(--gray)" }}> · {fmtSplit(def.dist, r.value)} /500m</span>
+                            ) : null}
+                          </>
                         ) : hidden.has(r.row.participantId) ? (
                           /* Total rows carry their digit count from boardView;
                              the record rows still hold the real value here on
                              the server, so count it and print nothing else. */
                           <>
                             <Blocks digits={("digits" in r.row ? r.row.digits : undefined) ?? digitCount(r.value)} /> m
+                          </>
+                        ) : "hideLow" in r.row && r.row.hideLow ? (
+                          /* The run-up (blackoutRules.rampRow): the total is
+                             already rounded down to the digits still showing;
+                             the covered tail draws as blocks, the board's way. */
+                          <>
+                            <BlockShape shape={partialShape(r.value, r.row.hideLow, r.row.digits)} label="partly hidden" /> m
                           </>
                         ) : (
                           fmtMeters(r.value)

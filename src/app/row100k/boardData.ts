@@ -49,7 +49,7 @@ const getBoardData = unstable_cache(loadBoardData, ["row100k-boards"], {
 export const boardDataRaw = () =>
   CHALLENGE === CHALLENGE_DEMO ? loadBoardData() : getBoardData();
 
-/* The board as the PUBLIC sees it: during a blackout the top fifteen are
+/* The board as the PUBLIC sees it: during a blackout the elite are
  * already masked (blackoutRules.ts). This is the default on purpose — a
  * page that forgets to think about the blackout gets the safe board, not
  * the leak (review, 2026-09-05: stats, records, partners and the profile

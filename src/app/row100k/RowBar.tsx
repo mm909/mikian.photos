@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, LOG_CLOSE_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
 import { BarNav, type NavKey } from "./BarNav";
+import { myRaffleRows } from "./raffleData";
+import { RaffleBanner } from "./RaffleBanner";
+import { openRaffle, raffleDismissCookie } from "./raffles";
 
 /* The one bar every /row100k page wears: the Mikian.Musser wordmark (kept,
  * blue dot and all — owner call, 2026-09-05), then the nav rail with its
@@ -62,28 +66,60 @@ export async function RowBar({
    * dead control on every page for all of October: it goes with the window. */
   const logOpen = nowMs() < LOG_CLOSE_MS;
 
+  /* THE RAFFLE BANNER (owner, 2026-09-08): while a raffle is taking
+   * entries, one strip under the bar on every page but the partners page,
+   * where the raffle itself is. Dismissed is a cookie the × sets
+   * (RaffleBanner), read here so a closed banner never renders again —
+   * not even for a frame. The viewer's own ticket is one indexed count. */
+  const raffle = active === "partners" ? null : openRaffle();
+  let banner: React.ReactNode = null;
+  if (raffle) {
+    let dismissed = false;
+    try {
+      dismissed = cookies().get(raffleDismissCookie(raffle.slug))?.value === "1";
+    } catch {
+      /* cookies() outside a request scope — show it, same as not dismissed */
+    }
+    if (!dismissed) {
+      const rows = await myRaffleRows(raffle, rower);
+      banner = (
+        <RaffleBanner
+          slug={raffle.slug}
+          title={raffle.title}
+          valueUsd={raffle.valueUsd}
+          when={raffle.when}
+          entered={rows > 0}
+          joined={rower !== null}
+        />
+      );
+    }
+  }
+
   /* Not sticky still has to be positioned: on a phone the pill inside the
    * dissolved rail is placed against the bar (BarNav measures from the
    * pill's offsetParent), so the bar must stay its containing block. */
   return (
-    <div className="bar" style={sticky ? undefined : { position: "relative" }}>
-      <span className="bar-lead">
-        {/* Mikian Musser, hosting Rowtember — the landing wordmark leads. */}
-        <Link className="bar-brand" href="/">
-          Mikian<span className="dot">.</span>Musser
-        </Link>
-      </span>
-      <BarNav active={active} />
-      {/* Joined rowers only (owner call, 2026-09-05): the account menu's
-       * "Log a row", made obvious. Signed out, not yet joined, or the log
-       * window closed: nothing — the join CTA is on the front page. A direct
-       * child of the bar so the phone media query can drop it onto the link
-       * row under the chip. */}
-      {rower !== null && logOpen && <BarLog />}
-      <span className="bar-right">
-        {children}
-        <BarAccount signedIn={isSignedIn} rowerNumber={rower} admin={isAdmin} />
-      </span>
-    </div>
+    <>
+      <div className="bar" style={sticky ? undefined : { position: "relative" }}>
+        <span className="bar-lead">
+          {/* Mikian Musser, hosting Rowtember — the landing wordmark leads. */}
+          <Link className="bar-brand" href="/">
+            Mikian<span className="dot">.</span>Musser
+          </Link>
+        </span>
+        <BarNav active={active} />
+        {/* Joined rowers only (owner call, 2026-09-05): the account menu's
+         * "Log a row", made obvious. Signed out, not yet joined, or the log
+         * window closed: nothing — the join CTA is on the front page. A direct
+         * child of the bar so the phone media query can drop it onto the link
+         * row under the chip. */}
+        {rower !== null && logOpen && <BarLog />}
+        <span className="bar-right">
+          {children}
+          <BarAccount signedIn={isSignedIn} rowerNumber={rower} admin={isAdmin} />
+        </span>
+      </div>
+      {banner}
+    </>
   );
 }

@@ -37,7 +37,7 @@ export function Dashboard(props: {
   defaultDay?: string;
   defaultTitle?: string;
   earlyAdmin?: boolean;
-  /* Blackout (blackoutRules.ts): this rower is in the elite fifteen right
+  /* Blackout (blackoutRules.ts): this rower is in the elite right
    * now, read off the PUBLIC board by the page. Their own number stays on
    * the page; the cards draw `digits` blocks instead (share/cards.ts). */
   masked?: boolean;

@@ -7,7 +7,10 @@ import { GOAL_METERS } from "@/lib/row100k";
  * month, never before ("buy now, pay later" — and no paying early, no
  * giving it up). Reserving never subtracts from a total. Pick-up only.
  * Sizes side by side; a size that is gone still sells, as a pre-order,
- * counted on the same box. Dev first. */
+ * counted on the same box. One shirt per rower; a rower with a shirt can
+ * change its size, never buy a second. Dev first.
+ *
+ * The emails live in ./shirtEmail (server only — HTML and text twins). */
 
 export const SHIRT_PRICE_USD = 20;
 export const SHIRT_FREE_AT = GOAL_METERS;
@@ -20,8 +23,12 @@ export function shopOpenFor(isAdmin: boolean): boolean {
   return process.env.NODE_ENV !== "production" || isAdmin;
 }
 
-/* Pick-up only — the owner's call. One line, used everywhere it comes up. */
-export const PICKUP_LINE = "Pick-up only — no shipping. Where and when comes by email once the month is settled.";
+/* Pick-up only — the owner's call, and the whole of it (owner, 2026-09-08:
+ * drop the where-and-when). One line, used everywhere it comes up. */
+export const PICKUP_LINE = "Pick-up only.";
+
+/* The sentence under the price (owner, 2026-09-08). */
+export const PRICE_LINE = `The shirt costs $${SHIRT_PRICE_USD} or ${SHIRT_FREE_AT.toLocaleString("en-US")} meters, paid at the end of the month.`;
 
 export const SIZES = ["S", "M", "L", "XL", "2XL"] as const;
 export type Size = (typeof SIZES)[number];
@@ -70,6 +77,13 @@ export function nextKind(size: Size, counts: SizeCount[]): "stock" | "preorder" 
   return c && c.left > 0 ? "stock" : "preorder";
 }
 
+/* The one line on a size box (owner, 2026-09-08: stock OR pre-order, not
+ * both): what is left while there is any, then how many are pre-ordered —
+ * "0 PRE-ORDERED" the moment it sells out. */
+export function boxLine(c: SizeCount): string {
+  return c.left > 0 ? `${c.left} IN STOCK` : `${c.preorders} PRE-ORDERED`;
+}
+
 /* The line under the price: what the rower will owe, as things stand. */
 export function shirtDue(meters: number): { free: boolean; line: string } {
   if (meters >= SHIRT_FREE_AT) {
@@ -80,89 +94,4 @@ export function shirtDue(meters: number): { free: boolean; line: string } {
     free: false,
     line: `${left.toLocaleString("en-US")} M FROM FREE — OTHERWISE $${SHIRT_PRICE_USD} AT THE END OF THE MONTH`,
   };
-}
-
-/* ------------------------------------------------------------- the emails */
-
-const M = (n: number) => `${Math.round(n).toLocaleString("en-US")} m`;
-
-/* The receipt, the moment they buy (owner, 2026-09-08): their total meters,
- * the reminder that $20 is charged at the end of the month without the
- * 100K, and the pick-up reminder. Plain text, the site's voice. */
-export function receiptEmail(o: {
-  name: string;
-  rowerNumber: number;
-  size: string;
-  kind: "stock" | "preorder";
-  meters: number;
-}): { subject: string; text: string } {
-  const num = String(o.rowerNumber).padStart(3, "0");
-  const left = Math.max(0, SHIRT_FREE_AT - o.meters);
-  const standing =
-    o.meters >= SHIRT_FREE_AT
-      ? `You are at ${M(o.meters)} — past the ${SHIRT_FREE_AT / 1000}K. As it stands, the shirt is free.`
-      : `You are at ${M(o.meters)} — ${M(left)} from the ${SHIRT_FREE_AT / 1000}K.`;
-  return {
-    subject: `Your Rowtember shirt — size ${o.size}, rower ${num}`,
-    text: [
-      `ROWTEMBER 2026 — THE SHIRT`,
-      ``,
-      `${o.name} · rower ${num}`,
-      `Size ${o.size}${o.kind === "preorder" ? " — pre-order, ships with the next run" : ""}`,
-      ``,
-      `BUY NOW, PAY LATER`,
-      `$${SHIRT_PRICE_USD} or ${M(SHIRT_FREE_AT)}. Nothing is charged today.`,
-      `At the end of the month the shirt is free if you have rowed ${M(SHIRT_FREE_AT)},`,
-      `and $${SHIRT_PRICE_USD} if you have not. The shirt never comes out of your total.`,
-      ``,
-      `WHERE YOU STAND`,
-      standing,
-      ``,
-      `PICK-UP`,
-      PICKUP_LINE,
-      ``,
-      `Row on.`,
-    ].join("\n"),
-  };
-}
-
-/* Month end, one of two. */
-export function settledEmail(o: {
-  name: string;
-  rowerNumber: number;
-  size: string;
-  meters: number;
-  free: boolean;
-  payUrl: string;
-}): { subject: string; text: string } {
-  const num = String(o.rowerNumber).padStart(3, "0");
-  return o.free
-    ? {
-        subject: `Your Rowtember shirt is free — ${M(o.meters)}`,
-        text: [
-          `ROWTEMBER 2026 — THE SHIRT`,
-          ``,
-          `${o.name} · rower ${num} · size ${o.size}`,
-          ``,
-          `${M(o.meters)}. You got the ${SHIRT_FREE_AT / 1000}K. The shirt is yours, nothing owed.`,
-          ``,
-          `PICK-UP`,
-          PICKUP_LINE,
-        ].join("\n"),
-      }
-    : {
-        subject: `Your Rowtember shirt — $${SHIRT_PRICE_USD} due`,
-        text: [
-          `ROWTEMBER 2026 — THE SHIRT`,
-          ``,
-          `${o.name} · rower ${num} · size ${o.size}`,
-          ``,
-          `${M(o.meters)} — short of the ${SHIRT_FREE_AT / 1000}K, so the shirt is $${SHIRT_PRICE_USD}, as agreed.`,
-          `Pay here (PayPal, or any card as a guest):`,
-          o.payUrl,
-          ``,
-          `PICK-UP`,
-          PICKUP_LINE,
-        ].join("\n"),
-      };
 }

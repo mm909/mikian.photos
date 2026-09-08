@@ -3,17 +3,17 @@ import { ELITE_LABEL, ELITE_TAG } from "@/lib/blackoutRules";
 import { Blocks } from "./Blackout";
 import { Who } from "./Boards";
 
-/* THE ELITE FIFTEEN as a list, for the surfaces that would otherwise rank
- * them: the front page's leader + top three and the stats page's TOTAL
- * METERS record while a window is open. Owner (2026-09-05, late): "whatever
- * we show the list for the Elite Fifteen, it'll just be based off of name
- * — alphabetically listed, no rankings — because even when I'm blacked out
- * I shouldn't be able to know that I'm number three or number four. I
- * should just know that I'm in the top fifteen. But if I have another digit
- * than everyone else, that is visible."
+/* THE ELITE as a list, for the surfaces that would otherwise rank them:
+ * the front page's leader + top three and the stats page's TOTAL METERS
+ * record while a window is open. Owner (2026-09-05, late): the list carries
+ * no ranking at all — even blacked out, a rower must not be able to tell
+ * whether they are third or fourth, only that they are in the elite; a
+ * total with one digit more than everyone else's is allowed to show as
+ * such. Same heading and foot as the elite block on the board (owner,
+ * 2026-09-08): THE ELITE, BY AVERAGE SPLIT, no places while hidden.
  *
  * So: no place column at all. The rows arrive already in the order
- * blackoutRules.eliteOrder gives them (digit count, then name) — this
+ * blackoutRules.eliteOrder gives them (average split, then name) — this
  * component never sorts, it prints. Blocks for a hidden number, the real
  * figure only on the viewer's own row (the page decides: a row is handed
  * `meters` only when it is not masked). Plain component, no hooks, so the
@@ -96,7 +96,7 @@ export function EliteList({
 }
 
 /* The one line other pages print about the list, so the wording lives in
- * one place: "ROWER 023 · ELITE 15". */
+ * one place: "ROWER 023 · ELITE" (ELITE_TAG does the word). */
 export function eliteLine(rowerNumber: number): string {
   return `ROWER ${fmtRowerNumber(rowerNumber)} · ${ELITE_TAG}`;
 }

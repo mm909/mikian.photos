@@ -4,7 +4,8 @@ import { sendPlainEmail } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
-import { SHIRT_PRICE_USD, nextKind, parseSize, receiptEmail, shirtCounts, shopOpenFor } from "@/app/row100k/shirt";
+import { SHIRT_PRICE_USD, nextKind, parseSize, shirtCounts, shopOpenFor } from "@/app/row100k/shirt";
+import { receiptEmail, sizeChangedEmail } from "@/app/row100k/shirtEmail";
 
 export const runtime = "nodejs";
 
@@ -12,9 +13,11 @@ export const runtime = "nodejs";
  *
  * GET   the per-size counts and the caller's own shirt, if any.
  * POST  { size } — buy one, pay later: a shelf spot while the size has one
- *       left, a pre-order once it does not. One shirt per rower; buying
- *       again moves the size. A receipt goes out by email with their total
- *       meters, the month-end reminder and the pick-up reminder.
+ *       left, a pre-order once it does not. One shirt per rower, on their
+ *       account: the row carries the participant and the account email it
+ *       was bought under. A rower with a shirt never buys a second —
+ *       posting another size CHANGES the size (the shelf is re-dealt) and
+ *       sends the size-change note instead of the receipt.
  *
  * There is no cancel and no paying early (owner call): the shirt is
  * settled against the rower's meters at the end of the month by
@@ -73,10 +76,20 @@ export async function POST(req: Request) {
   try {
     const existing = await db.rowShirtOrder.findUnique({
       where: { challenge_participantId: { challenge: CHALLENGE, participantId: g.p.id } },
-      select: { id: true, status: true, size: true },
+      select: { id: true, status: true, size: true, kind: true },
     });
     if (existing && existing.status !== "reserved") {
       return bad("Your shirt is already settled — email to change the size.", 409);
+    }
+    // The same size again is nothing to do: no re-deal, no second email.
+    if (existing && existing.size === size) {
+      return NextResponse.json({
+        ok: true,
+        mine: { size: existing.size, kind: existing.kind, status: existing.status },
+        changed: false,
+        emailed: false,
+        counts: shirtCounts(await listOrders()),
+      });
     }
 
     // The shelf without this rower's own row: moving sizes must not count
@@ -84,10 +97,13 @@ export async function POST(req: Request) {
     const others = (await listOrders()).filter((o) => o.participantId !== g.p.id);
     const kind = nextKind(size, shirtCounts(others));
 
+    // The account the shirt is on (owner, 2026-09-08: "orders are links to
+    // an account") — the address the receipt goes to. PayPal's payer
+    // address replaces it if the month bills them and they pay.
     const row = existing
       ? await db.rowShirtOrder.update({
           where: { id: existing.id },
-          data: { size, kind },
+          data: { size, kind, payerEmail: g.actor.email },
           select: { size: true, kind: true, status: true },
         })
       : await db.rowShirtOrder.create({
@@ -99,11 +115,13 @@ export async function POST(req: Request) {
             kind,
             status: "reserved",
             amountUsd: SHIRT_PRICE_USD,
+            payerEmail: g.actor.email,
           },
           select: { size: true, kind: true, status: true },
         });
 
-    // The receipt — best effort, never in the way of the order.
+    // The receipt, or the size-change note — best effort, never in the way
+    // of the order.
     let emailed = false;
     try {
       const rows = await db.rowEntry.findMany({
@@ -111,21 +129,16 @@ export async function POST(req: Request) {
         select: { meters: true },
       });
       const meters = rows.reduce((s, r) => s + r.meters, 0);
-      const mail = receiptEmail({
-        name: g.p.displayName,
-        rowerNumber: g.p.rowerNumber,
-        size,
-        kind: kind as "stock" | "preorder",
-        meters,
-      });
-      const sent = await sendPlainEmail(g.actor.email, mail.subject, mail.text);
+      const base = { name: g.p.displayName, rowerNumber: g.p.rowerNumber, size, kind: kind as "stock" | "preorder", meters };
+      const mail = existing ? sizeChangedEmail({ ...base, from: existing.size }) : receiptEmail(base);
+      const sent = await sendPlainEmail(g.actor.email, mail.subject, mail.text, mail.html);
       emailed = sent.ok;
       if (!sent.ok) console.error("row100k shirt: receipt email failed", sent.error);
     } catch (err) {
       console.error("row100k shirt: receipt email failed", err);
     }
 
-    return NextResponse.json({ ok: true, mine: row, emailed, counts: shirtCounts(await listOrders()) });
+    return NextResponse.json({ ok: true, mine: row, changed: !!existing, emailed, counts: shirtCounts(await listOrders()) });
   } catch (err) {
     console.error("row100k shirt: buy failed", err);
     return bad("Couldn't take that — has the table been pushed?", 503);

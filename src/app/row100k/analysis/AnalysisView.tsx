@@ -132,7 +132,7 @@ export function AnalysisView({ model: m, viewer, initialYou }: { model: Model; v
 
       <Sec s={m.s4} you={you}>
         {m.hour ? (
-          <ChartBox title="Hour of the day — sessions per hour logged, Pacific" take={m.hour.take} foot="TIME THE ROW WAS LOGGED, NOT NECESSARILY ROWED · BARS UNDER FIVE ARE DASHED">
+          <ChartBox title="Hour of the day — sessions per hour logged" foot="BARS UNDER FIVE ARE DASHED">
             <HoursSvg c={m.hour} you={you ? m.hourYou : null} />
           </ChartBox>
         ) : (

@@ -49,16 +49,17 @@ export const dynamic = "force-dynamic";
  * the view; looks/Profile.tsx lays it out (the owner's pick from three
  * looks, same day — the ?look= switch is gone with the other two).
  *
- * Blackout: while a window is open, THE ELITE FIFTEEN have their numbers
- * hidden from the public (blackoutRules.ts). This page hides exactly the
- * rowers the board hides — same masked set, same self/admin exemptions —
- * and draws blocks of the right shape wherever a number of theirs would
- * print — meters, times and the pace bests alike (owner rule, 2026-09-05:
- * a time over a known distance is the meters by another route); the
- * calendar, which is the numbers by another name, goes entirely. Names,
- * dates and the sessions count stay. Their PLACE does not (owner, same
- * evening): the fifteen carry none while hidden, themself included, so the
- * ledger says ELITE 15 where the rank would be and no card draws a #. */
+ * Blackout: while a window is open, THE ELITE — the top ten men and the
+ * top ten women (blackoutRules.ts) — have their numbers hidden from the
+ * public. This page hides exactly the rowers the board hides — same masked
+ * set, same self/admin exemptions — and draws blocks of the right shape
+ * wherever a number of theirs would print — meters, times and the pace
+ * bests alike (owner rule, 2026-09-05: a time over a known distance is the
+ * meters by another route); the calendar, which is the numbers by another
+ * name, goes entirely. Names, dates and the sessions count stay. Their
+ * PLACE does not (owner, same evening): the elite carry none while hidden,
+ * themself included, so the ledger says ELITE (ELITE_TAG) where the rank
+ * would be and no card draws a #. */
 
 const getRower = cache(async (num: number) => {
   const participant = await db.rowParticipant.findUnique({
@@ -90,7 +91,7 @@ const getRower = cache(async (num: number) => {
  * The select is the whole guard, so keep it exactly this wide: names,
  * numbers and boards are always public (blackoutRules.ts), and the list
  * goes to a client component, so one meters or seconds field added here
- * would publish a figure for all hundred rowers, the hidden fifteen
+ * would publish a figure for all hundred rowers, the hidden elite
  * included. It is NOT read off boardData: that cached object carries every
  * number on the board, and the roster must never be a reason to widen it.
  * cache() here is React's per-request dedupe and nothing more — a second
@@ -152,7 +153,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   const longestM = b.longest[0]?.value ?? 0;
 
   // Is THIS rower hidden from THIS viewer? Read off the board as the viewer
-  // sees it (boardView → maskedIds): the fifteen the board masks, minus
+  // sees it (boardView → maskedIds): the elite the board masks, minus
   // self and admins. If the board cannot be read while a window is open the
   // page fails CLOSED for a stranger — it cannot know whether the rower is
   // elite, so it assumes so rather than leak.
@@ -162,7 +163,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // just leaves them undefined. Placements go to #10: the profile share
   // card headlines the best one, and the bests below wear top-10 chips.
   // The admin's test blackout reaches here too (owner, 2026-09-08: under
-  // IN THE FIFTEEN another elite rower's profile still showed the total):
+  // IN THE ELITE another elite rower's profile still showed the total):
   // the window is open for this request, the admin exemption is off, and
   // under OUTSIDE IT the admin is not themself either.
   const blackout = previewBlackout(viewer, await activeBlackout());
@@ -175,12 +176,12 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   let rank: { place: number; of: number } | null | undefined;
   let records: RecordBadge[] | undefined;
   // The PLACES half of the rule (owner, 2026-09-05 evening): one of the
-  // hidden fifteen carries no place at all — not even to themself — so
+  // hidden elite carries no place at all — not even to themself — so
   // divisionRank hands back null though they do hold one. `elite` is how
   // the ledger tells that apart from a rower who genuinely has no rank
   // (nothing logged yet): it is the unranked flag off the board as THIS
-  // viewer sees it, which is set on all fifteen including the viewer's own
-  // row and on none of them for an admin, whose board is ranked.
+  // viewer sees it, which is set on all the elite including the viewer's
+  // own row and on none of them for an admin, whose board is ranked.
   let elite = false;
   try {
     const { boards: full } = await boardView(viewOpts(viewer));
@@ -196,9 +197,9 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     if (masked) {
       floor = 0;
       // `elite` stays FALSE here on purpose (review, 2026-09-05): the
-      // numbers fail closed because blocks disclose nothing, but ELITE 15 is
+      // numbers fail closed because blocks disclose nothing, but ELITE is
       // not a withheld value, it is a claim — and in this state the page
-      // cannot tell rank 3 from rank 40, so it would pin a top-fifteen badge
+      // cannot tell rank 3 from rank 40, so it would pin an elite badge
       // on rowers who are nowhere near it. With no rank read, the ledger
       // prints the dash, which claims nothing about anyone.
       //
@@ -240,7 +241,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     byDay,
     division: p.division,
     longest: longestM,
-    // No place on a card of one of the fifteen, ever: the page may show an
+    // No place on a card of one of the elite, ever: the page may show an
     // admin (or the rower) the ranked board, but a card leaves the site,
     // and "#3" is the number by another route (the PLACES half of the
     // rule). For everyone else this is the rank the page prints.
@@ -397,6 +398,23 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     }
   }
 
+  // THE OWN-PROFILE DOG TAG (owner, 2026-09-08): an elite rower's own page
+  // carries, under the stats and above THE PACE, the tag a stranger gets in
+  // place of the page — what everyone else sees. Only the rower themself
+  // (an admin on somebody else's page keeps the whole page), only while a
+  // window is open for this request (the admin's test blackout counts, via
+  // previewBlackout), and only when the board files them among the elite
+  // as this viewer sees it — or the admin is looking as one OF the elite
+  // (preview "elite"), which is how the owner checks it without having to
+  // be top ten. `elite` is off the viewer's board, so under the test
+  // blackout it is already the answer for the forced window. Never on a
+  // masked page (the admin under OUTSIDE IT on their own elite row): that
+  // page IS the tag, and the view should say so once.
+  const ownTag: ProfileView["ownTag"] =
+    !masked && isMe && blackout.active && (elite || viewer.preview === "elite")
+      ? { until: blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined }
+      : null;
+
   // One object for the layout (looks/view.ts): everything above, computed
   // once; Profile.tsx only lays it out.
   const view: ProfileView = {
@@ -422,6 +440,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     },
     rank,
     elite,
+    ownTag,
     bests,
     byDay,
     shareData,
@@ -437,9 +456,10 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           No ROWER-number tag in it — the nameplate just below says whose
           page this is. */}
       <RowBar {...barProps(viewer)} />
-      {/* One of the fifteen, seen by anybody else while a window is open:
+      {/* One of the elite, seen by anybody else while a window is open:
           the profile is a dog tag, not a wall of blocks (owner,
-          2026-09-06). Self and admins keep the whole page. */}
+          2026-09-06). Self and admins keep the whole page — an elite
+          rower's own page carries the tag under the stats (view.ownTag). */}
       {masked ? (
         <DogTag view={view} until={blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined} />
       ) : (

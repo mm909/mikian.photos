@@ -40,8 +40,8 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
   if (!gate || !isRow100kAdmin(gate.email, gate.roles)) notFound();
 
   /* The blackout rides along with the rows: while a window is open the
-   * board hides THE ELITE FIFTEEN (blackoutRules.ts), so the per-rower
-   * charts here keep the same fifteen off the page — for everyone, the
+   * board hides THE ELITE (blackoutRules.ts), so the per-rower
+   * charts here keep the same elite off the page — for everyone, the
    * admin included, since the field view is one page for all. The lookup
    * never throws (it fails open to no blackout on its own). */
   let raw: RawData = EMPTY_DATA;

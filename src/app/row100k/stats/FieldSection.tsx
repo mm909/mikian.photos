@@ -1,26 +1,25 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { fmtClock, fmtInt, fmtK, fmtM } from "../analysis/fmt";
+import { HoursSvg } from "../analysis/charts";
+import type { HourChart } from "../analysis/model";
 import { KdeScrub } from "./KdeScrub";
-import type { FieldModel, FieldYou } from "./field";
+import type { FieldModel } from "./field";
 
-/* THE FIELD: the stat tiles and the two densities, all precomputed on the
- * server (field.ts). The split-vs-distance scatter went back to the
- * numbers page (owner call, 2026-09-05, second look: just the two KDEs,
- * set at the bottom without a box around them). The only state is the
- * EVERYONE | YOU chip a joined rower with a session gets: YOU lays their
- * own rows over the same curves in blue and adds two tiles — their average
- * row and their average pace, each against every other rower's average.
- * That pair is written length-first (owner call, 2026-09-06) so the two-up
- * grid stacks like over like: length above length in column one, pace above
- * pace in column two. One column on the phone reads the same way down.
- * Labels and numbers only, nothing explained (owner call, 2026-09-05: they
- * either know what an SD is or they do not). */
+/* THE FIELD: the stat tiles, the two densities and the hour of the day,
+ * all precomputed on the server (field.ts). The split-vs-distance scatter
+ * went back to the numbers page (owner call, 2026-09-05, second look: just
+ * the two KDEs, set at the bottom without a box around them). Everyone,
+ * only: the EVERYONE | YOU chip and the two YOU tiles went on 2026-09-08
+ * (owner: "remove the YOU option on the field on the stats page") — the
+ * profile carries a rower's own overlay now. No state left in here. Labels
+ * and numbers only, nothing explained (owner call, 2026-09-05: they either
+ * know what an SD is or they do not). */
 
-function Tile({ k, n, l, you }: { k: string; n: ReactNode; l: string; you?: boolean }) {
+function Tile({ k, n, l }: { k: string; n: ReactNode; l: string }) {
   return (
-    <div className={you ? "st-tile you" : "st-tile"}>
+    <div className="st-tile">
       <div className="k mono">{k}</div>
       <div className="n">{n}</div>
       <div className="l mono">{l}</div>
@@ -38,12 +37,7 @@ const SPLIT = (v: number) => (
     {fmtClock(v)} <span className="u">/500m</span>
   </>
 );
-const sessions = (n: number) => `${n} ${n === 1 ? "SESSION" : "SESSIONS"}`;
-
-export function FieldSection({ field, you }: { field: FieldModel | null; you: FieldYou | null }) {
-  const [mine, setMine] = useState(false);
-  const on = mine && you !== null;
-
+export function FieldSection({ field, hours = null }: { field: FieldModel | null; hours?: HourChart | null }) {
   if (!field || field.sessions === 0) {
     return <p className="board-empty">NOTHING LOGGED YET — THE FIELD DRAWS ITSELF AS ROWS LAND.</p>;
   }
@@ -51,17 +45,6 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
 
   return (
     <div>
-      {you && (
-        <div className="tabs" role="group" aria-label="Whose rows">
-          <button type="button" className={on ? undefined : "on"} aria-pressed={!on} onClick={() => setMine(false)}>
-            Everyone
-          </button>
-          <button type="button" className={on ? "on" : undefined} aria-pressed={on} onClick={() => setMine(true)}>
-            You
-          </button>
-        </div>
-      )}
-
       <div className="st-tiles">
         {length && (
           <Tile
@@ -77,32 +60,6 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
             l={`MEAN ${fmtClock(pace.mean)} · SD ${fmtClock(pace.sd)} · P10–P90 ${fmtClock(pace.p10)}–${fmtClock(pace.p90)}`}
           />
         )}
-        {on && you && (
-          <>
-            <Tile
-              k="Your average row"
-              n={M(you.avgLen)}
-              l={
-                you.lenPct === null
-                  ? `NOBODY ELSE TO COMPARE YET · ${sessions(you.sessions)}`
-                  : `LONGER THAN ${you.lenPct}% OF ROWERS · ${sessions(you.sessions)}`
-              }
-              you
-            />
-            <Tile
-              k="Your average pace"
-              n={you.avgPace !== null ? SPLIT(you.avgPace) : "—"}
-              l={
-                you.avgPace === null
-                  ? "NO TIMED ROW YET"
-                  : you.pacePct === null
-                    ? "NOBODY ELSE TO COMPARE YET"
-                    : `FASTER THAN ${you.pacePct}% OF ROWERS`
-              }
-              you
-            />
-          </>
-        )}
       </div>
 
       {/* The two densities sit under the tiles with a small mono title and
@@ -114,7 +71,7 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
           <div className="t">Length of every row</div>
           <KdeScrub
             c={field.lengthKde}
-            you={on && you ? you.lengthYou : null}
+            you={null}
             kind="length"
             fmt={fmtK}
             ends={["← SHORTER", "LONGER →"]}
@@ -126,7 +83,18 @@ export function FieldSection({ field, you }: { field: FieldModel | null; you: Fi
       {field.paceKde && (
         <div className="st-kde">
           <div className="t">Split per 500 m</div>
-          <KdeScrub c={field.paceKde} you={on && you ? you.paceYou : null} kind="split" />
+          <KdeScrub c={field.paceKde} you={null} kind="split" />
+        </div>
+      )}
+
+      {/* The hour of the day, right under the split (owner, 2026-09-08):
+          the numbers page's chart in the same quiet frame, every bar filled
+          — the under-five dashing is the numbers page's — and no foot line,
+          no takeaway, no time zone said. */}
+      {hours && (
+        <div className="st-kde">
+          <div className="t">Hour of the day</div>
+          <HoursSvg c={hours} you={null} fillSmall />
         </div>
       )}
     </div>

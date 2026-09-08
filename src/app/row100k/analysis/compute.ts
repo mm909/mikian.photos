@@ -69,8 +69,8 @@ import type {
  * need ≥3 sessions, trends ≥4; a division figure is suppressed under 8
  * rowers or 30 sessions; residual charts clip at ±30 s so an outlier is not
  * identifiable; the highest totals are never drawn as individual dots
- * outside the leaderboard — the top three normally, THE ELITE FIFTEEN while
- * a blackout window is open (blackoutRules.ts, owner's call 2026-09-05: the
+ * outside the leaderboard — the top three normally, THE ELITE while a
+ * blackout window is open (blackoutRules.ts, owner's call 2026-09-05: the
  * board still lists them by name with a session count, so a dot at that
  * session count would hand a reader the masked total). */
 
@@ -778,7 +778,7 @@ export function buildModel(
 
   const s4: Section = {
     title: "When Rowtember rows",
-    eyebrow: "RHYTHM · LOGGED-AT TIMES, NOT ROW TIMES · PACIFIC",
+    eyebrow: "RHYTHM · WHEN ROWS GET LOGGED",
     tiles: [
       {
         n: has ? `${fmtHour(peakHour)}–${fmtHour(peakHour + 1)}` : DASH,
@@ -825,10 +825,8 @@ export function buildModel(
       kdeYs: kys.map(r2),
       start: 3,
       yMax: niceCount(Math.max(...hourCounts, ...kys)),
-      take:
-        peaks(kys).length >= 2
-          ? "A DAWN CLUB AND AN AFTER-WORK CLUB — TWO LOBES, NOT ONE"
-          : `ONE LOBE — THE FIELD LOGS AROUND ${fmtHour(peakHour)}`,
+      // No takeaway under this one (owner, 2026-09-08: the lobe line went).
+      take: "",
     };
   }
   const hourYou: HourYou | null =

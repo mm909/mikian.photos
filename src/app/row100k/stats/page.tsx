@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { digitCount } from "@/lib/blackoutRules";
+import { PACIFIC_SHIFT_MS, digitCount } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
   END_MS,
@@ -28,7 +28,7 @@ import { RowFooter } from "../RowFooter";
 import { StatsBoards, StatsRecords, type PeriodTotal } from "../Stats";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { liteRecords, type RecordsProp } from "../records/defs";
-import { buildField, type FieldEntry, type FieldModel, type FieldYou } from "./field";
+import { buildField, buildHours, type FieldEntry, type FieldModel } from "./field";
 import { FieldSection } from "./FieldSection";
 
 export const metadata: Metadata = {
@@ -52,9 +52,9 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 export default async function StatsPage() {
   /* Who is looking decides what the boards may print: the period boards
    * pull the signed-in rower into view below the top 10, and during a
-   * blackout the elite fifteen are hidden from everyone but admins and the
-   * rower themself (boardView, blackoutRules.ts). Cosmetic on failure —
-   * the anonymous view renders. */
+   * blackout the elite are hidden from everyone but admins and the rower
+   * themself (boardView, blackoutRules.ts). Cosmetic on failure — the
+   * anonymous view renders. */
   const viewer = await resolveViewer();
 
   let boards = EMPTY_BOARDS;
@@ -83,18 +83,26 @@ export default async function StatsPage() {
     }
   }
 
-  /* THE masked set for this viewer — the fifteen the board hid, read off
+  /* THE masked set for this viewer — the elite the board hid, read off
    * boardView (row100kViewer.maskedIds) so this page never decides who is
    * elite on its own. The records section and the period boards are client
    * components, so every row shape that reaches them is blanked HERE, not
-   * there: liteRecords zeroes a hidden rower's record and keeps only its
-   * shape (owner rule, 2026-09-05 — a time over a known distance is the
-   * meters by another route), and the period rows below lose their meters
-   * and keep a digit count. Total rows arrive masked from boardView already. */
+   * there: liteRecords zeroes a hidden rower's METERS records and keeps
+   * only a digit count (their times are public — owner, 2026-09-08), and
+   * the period rows below lose their meters and keep a digit count. Total
+   * rows arrive masked from boardView already. */
   const hidden = maskedIds(boards);
   const isHidden = (participantId: string) =>
     hidden.has(participantId) || (hideAll && participantId !== viewer.myParticipantId);
   const records: RecordsProp = liteRecords(boards, hidden);
+
+  /* Everyone the board lists without a place — the hidden set plus the
+   * viewer's own row when they are elite themself (exempt from the mask,
+   * not from the block) — with the average split each wears there, so the
+   * period boards can lift the same rowers into the same block in the same
+   * order (owner, 2026-09-08). Empty while no window is open. */
+  const eliteTag = new Map<string, string | undefined>();
+  for (const r of boards.total) if (r.unranked) eliteTag.set(r.participantId, r.paceTag);
 
   /* The period boards, the hour grid and the field need per-entry data
    * that boardData() doesn't carry, so this page pulls the raw rows itself
@@ -103,9 +111,14 @@ export default async function StatsPage() {
   let daily: WeeklyRow[][] = Array.from({ length: 30 }, () => []);
   let gridEntries: { meters: number; createdAt: Date }[] = [];
   let fieldEntries: FieldEntry[] = [];
+  /* Hour of the day each known rower's row was logged, on the challenge's
+   * fixed UTC-7 clock, fractional — the field's hour chart (field.ts
+   * buildHours). One per session, everyone, and the same rows the hour
+   * grid two sections up counts: logged on a September day, timed or not. */
+  let loggedHours: number[] = [];
   /* The ledger total under each period board (owner ask, 2026-09-05: show a
    * total somewhere on the meters-by-day board). Summed HERE off the raw
-   * entries so the hidden fifteen are counted — their meters belong to every
+   * entries so the hidden elite are counted — their meters belong to every
    * aggregate, and the rows handed to the client carry 0 for them. */
   const emptyTotals = (n: number): PeriodTotal[] =>
     Array.from({ length: n }, () => ({ meters: 0, sessions: 0, rowers: 0 }));
@@ -133,6 +146,14 @@ export default async function StatsPage() {
     fieldEntries = entries
       .filter((e) => known.has(e.participantId))
       .map((e) => ({ participantId: e.participantId, meters: e.meters, seconds: e.seconds }));
+    for (const e of entries) {
+      if (!known.has(e.participantId)) continue;
+      const west = new Date(e.createdAt.getTime() - PACIFIC_SHIFT_MS);
+      // A late log landing outside September is skipped, as on the grid.
+      const westDay = west.toISOString().slice(0, 10);
+      if (westDay < FIRST_DAY || westDay > LAST_DAY) continue;
+      loggedHours.push(west.getUTCHours() + west.getUTCMinutes() / 60);
+    }
 
     /* Same two buckets computeDaily / computeWeekly file a row into, so a
      * total always matches the board under it: September days only, weeks
@@ -167,9 +188,24 @@ export default async function StatsPage() {
   } catch (err) {
     console.error("row100k/stats: failed to load weekly data", err);
   }
-  if (hidden.size > 0 || hideAll) {
-    const blankWeek = (r: WeeklyRow): WeeklyRow & { masked?: boolean; digits?: number } =>
-      isHidden(r.participantId) ? { ...r, meters: 0, masked: true, digits: digitCount(r.meters) } : r;
+  if (hidden.size > 0 || hideAll || eliteTag.size > 0) {
+    /* A hidden row loses its meters and keeps a digit count; every elite
+     * row — hidden or the viewer's own — carries `unranked` and the pace
+     * tag, so StatsBoards can draw the block (Stats.tsx BoardWindow).
+     * `unranked` only rides on a rower the BOARD listed as elite: with the
+     * board unreadable (hideAll) nobody is known to be, so the blanked rows
+     * carry blocks and no place but no block is drawn over them — a block
+     * headed THE ELITE · BY AVERAGE SPLIT over the whole field, with no
+     * split to order it by, would say something untrue. */
+    type PeriodRow = WeeklyRow & { masked?: boolean; digits?: number; unranked?: boolean; paceTag?: string };
+    const blankWeek = (r: WeeklyRow): PeriodRow => {
+      const elite = eliteTag.has(r.participantId);
+      const paceTag = eliteTag.get(r.participantId);
+      const tag = !elite ? {} : paceTag ? { unranked: true as const, paceTag } : { unranked: true as const };
+      if (isHidden(r.participantId)) return { ...r, meters: 0, masked: true, digits: digitCount(r.meters), ...tag };
+      if (elite) return { ...r, ...tag };
+      return r;
+    };
     weekly = weekly.map((rows) => rows.map(blankWeek));
     daily = daily.map((rows) => rows.map(blankWeek));
   }
@@ -177,15 +213,17 @@ export default async function StatsPage() {
   const meId = viewer.myParticipantId;
 
   /* The field: aggregates over everyone, individual marks without the
-   * hidden rowers, the viewer's own overlay from their own rows (field.ts).
-   * The maths is the one step that could throw on a shape of data nobody
-   * foresaw; the section then says nothing rather than the page failing. */
+   * hidden rowers (field.ts). No viewer overlay on this page since
+   * 2026-09-08 (owner: no YOU on the field here — the profile has its
+   * own), so meId goes in as null. The hour chart under it counts every
+   * logged session by the hour it landed. The maths is the one step that
+   * could throw on a shape of data nobody foresaw; the section then says
+   * nothing rather than the page failing. */
   let field: FieldModel | null = null;
-  let fieldYou: FieldYou | null = null;
+  let hours: ReturnType<typeof buildHours> = null;
   try {
-    const f = buildField(fieldEntries, { isHidden, meId });
-    field = f.field;
-    fieldYou = f.you;
+    field = buildField(fieldEntries, { isHidden, meId: null }).field;
+    hours = buildHours(loggedHours);
   } catch (err) {
     console.error("row100k/stats: field maths failed", err);
   }
@@ -369,7 +407,7 @@ export default async function StatsPage() {
               EVERY ROW · LENGTH AND PACE{field && field.rowers > 0 ? ` · ${field.rowers} ROWERS` : ""}
             </span>
           </div>
-          <FieldSection field={field} you={fieldYou} />
+          <FieldSection field={field} hours={hours} />
         </div>
       </section>
 

@@ -82,7 +82,7 @@ function ago(thenMs: number, now: number): string {
 }
 
 /* A rower's meters, or blocks when the blackout hides them. Every number
- * printed for someone who might be in the elite fifteen goes through here. */
+ * printed for someone who might be in the elite goes through here. */
 function Meters({ r }: { r: Pick<TotalRow, "meters" | "masked" | "digits"> }) {
   return r.masked ? (
     <>
@@ -166,10 +166,10 @@ export default async function Row100kPage() {
 
   // Fail open: if the tables aren't reachable the page still renders.
   // The board comes through boardView, which needs to know who is looking:
-  // during a blackout the top fifteen are hidden from everyone but admins
+  // during a blackout the elite are hidden from everyone but admins
   // and the rower themself (blackoutRules.ts), so this waits for `me`. The
   // window's end comes back with it, for the one date this page prints
-  // ("HIDDEN UNTIL SEP 27"); whether the fifteen are hidden at all is read
+  // ("HIDDEN UNTIL SEP 27"); whether the elite are hidden at all is read
   // off the board's own rows (`unranked`), never off the window, so an
   // admin — whose board is never masked — sees the ordinary page.
   // The admin's test blackout (row100kViewer): while it is on, the admin
@@ -194,7 +194,7 @@ export default async function Row100kPage() {
     console.error("row100k: failed to load board data", err);
   }
 
-  // Whether the signed-in rower is one of the hidden fifteen right now, off
+  // Whether the signed-in rower is one of the hidden elite right now, off
   // the PUBLIC board — the viewer board above exempts self, so it cannot
   // say. Their own share cards must draw blocks even though the page shows
   // them their number (blackoutRules.ts: the total is not shareable). Fails
@@ -249,9 +249,9 @@ export default async function Row100kPage() {
           : `${stamp} · DAY ${today} OF 30`;
 
   // The PLACES half of the blackout rule (blackoutRules.ts): while a window
-  // is open the top fifteen come back unranked, and a page may not order
+  // is open the elite come back unranked, and a page may not order
   // them at all. So this page stops naming a leader and stops printing two
-  // podiums — it prints THE ELITE FIFTEEN as a list, in the order the board
+  // podiums — it prints THE ELITE as a list, in the order the board
   // already put them (digit count, then name). Rows sixteen and down keep
   // their real places, on the board page. Admins and any board with no
   // window open carry no `unranked` row, so nothing below changes for them.
@@ -277,13 +277,13 @@ export default async function Row100kPage() {
     : [];
   // The one thing the owner keeps visible: "if I have another digit than
   // everyone else, that is visible". The headline draws the longest total in
-  // the fifteen, so the list below it can never be the only place it shows.
+  // the elite, so the list below it can never be the only place it shows.
   const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? 1), 1);
   const eliteUntil = blackoutEndsAt ? fmtPacificDay(blackoutEndsAt) : "";
 
   // A masked leader carries a tier floor (0 under 10k), so the mask itself
   // has to count as "has meters" or the headline would name the wrong rower.
-  // Nobody leads while the fifteen are hidden: no leader is looked up and the
+  // Nobody leads while the elite are hidden: no leader is looked up and the
   // streak is not even computed — how many days a rower has led is a place.
   const leader = hidden ? undefined : boards.total.find((r) => r.meters > 0 || r.masked);
   const streak = leader ? leaderStreak(extras, leader.participantId, today) : 0;
@@ -296,7 +296,7 @@ export default async function Row100kPage() {
     maximumFractionDigits: 1,
   });
 
-  // Empty while the fifteen are hidden — the podiums are not rendered then,
+  // Empty while the elite are hidden — the podiums are not rendered then,
   // and an empty list is one less way for an order to leak.
   const onBoard = hidden ? [] : boards.total.filter((r) => r.meters > 0 || r.masked);
   const topMen = onBoard.filter((r) => r.division === "M").slice(0, FRONT_TOP);
@@ -314,10 +314,10 @@ export default async function Row100kPage() {
   //
   // The dashboard prints no place of its own: `rank` below rides straight
   // into the share payload, and it is handed over as `elite ? null : myRank`
-  // so a card of one of the hidden fifteen carries no "#N" (the PLACES half
+  // so a card of one of the hidden elite carries no "#N" (the PLACES half
   // of the rule, review 2026-09-05). It has to be blanked at the prop and
   // not here, because `myRank` is read off the VIEWER board, which is ranked
-  // for an admin — without it an admin in the fifteen would repost blocks
+  // for an admin — without it an admin in the elite would repost blocks
   // with a real "#1" beside them.
   let myRank: { place: number; of: number } | null | undefined;
   let myRecords: RecordBadge[] | undefined;
@@ -403,7 +403,7 @@ export default async function Row100kPage() {
             <div className="front-box">
               <div className="eyebrow mono">The leader</div>
               {hidden ? (
-                /* No name, no streak, no place: the box says the fifteen are
+                /* No name, no streak, no place: the box says the elite are
                  * hidden and draws the longest total among them in blocks. */
                 <>
                   <div className="head mono">
@@ -445,7 +445,7 @@ export default async function Row100kPage() {
           {hidden ? (
             /* One list across the measure instead of two podiums: no places,
              * no divisions split, no order but digits-then-name. */
-            <div className="front-elite">
+            <div className="front-elite" id="elite">
               <EliteList
                 rows={eliteRows}
                 until={eliteUntil || undefined}

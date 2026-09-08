@@ -45,7 +45,7 @@ export type ProfilePhase = "before" | "open" | "closed";
  * This type is the guard: it has no meters, seconds, place, split or tier
  * field and must never grow one. The whole roster is handed to a CLIENT
  * component, so anything added here is published for all hundred rowers,
- * the blacked-out fifteen included — and a hidden rower publishes no
+ * the blacked-out elite included — and a hidden rower publishes no
  * number of their own. Number, name and board are not numbers of theirs. */
 export type RosterRower = {
   rowerNumber: number;
@@ -111,17 +111,27 @@ export type ProfileView = {
   };
   /* Standing on total meters within the division — cosmetic, off the
    * cached board; undefined when the board could not be read. Null for one
-   * of the hidden fifteen (see `elite`), who does hold a place. */
+   * of the hidden elite (see `elite`), who does hold a place. */
   rank: { place: number; of: number } | null | undefined;
   /* Blackout, the PLACES half (blackoutRules.ts): this rower is one of the
-   * hidden fifteen on the board as THIS viewer sees it — the rower themself
+   * hidden elite on the board as THIS viewer sees it — the rower themself
    * included, admins excepted, whose board is ranked — so `rank` is null
-   * though they hold a place, and the ledger says ELITE 15 in its stead
-   * rather than a dash (with the division dropped from the label: the
-   * fifteen are cut off the combined board). False when the board cannot be
-   * read at all: the page still masks the numbers, but it will not badge a
-   * rower it cannot place, so the ledger dashes instead. */
+   * though they hold a place, and the ledger says ELITE (ELITE_TAG) in its
+   * stead rather than a dash (with the division dropped from the label,
+   * which the elite already carry on their own section). False when the
+   * board cannot be read at all: the page still masks the numbers, but it
+   * will not badge a rower it cannot place, so the ledger dashes instead. */
   elite: boolean;
+  /* THE OWN-PROFILE DOG TAG (owner, 2026-09-08): an elite rower on their
+   * own page while a window is open gets the tag everyone else sees, under
+   * their stats and above THE PACE. Set only when the viewer is the rower,
+   * a window is open for this request (the admin's test blackout counts),
+   * and the rower is elite as the board sees it — or the admin is looking
+   * as one OF the elite (preview "elite"), which is how the owner checks it.
+   * `until` is the window's last day, for the tag's foot. Null otherwise —
+   * a stranger's masked page IS the tag, and an admin viewing somebody else
+   * keeps the whole page. */
+  ownTag: { until?: string } | null;
   bests: ProfileBest[];
   byDay: Record<string, number>;
   shareData: ShareData;

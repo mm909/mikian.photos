@@ -4,28 +4,27 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BlackoutPreview } from "@/lib/row100kViewer";
 
-/* THE TEST BLACKOUT (owner, 2026-09-06): "I need an admin test blackout
- * where only I am seeing it as if it's blackout, and I'm in the Elite
- * fifteen — and then a switch to be able to see it as if it's blackout and
- * I'm NOT in the elite fifteen."
+/* THE TEST BLACKOUT (owner, 2026-09-06): an admin-only way to see the site
+ * as if a window were open — once as one of the elite, once as everybody
+ * else — without opening one.
  *
  * Two modes, one cookie, nobody else affected:
  *
- *   IN THE FIFTEEN  — the window is open, the admin exemption is off, and
- *                     the viewer is still themself, so their own numbers
- *                     show and everybody else's are blocks. This is the
- *                     page one of the fifteen gets.
- *   OUTSIDE IT      — the same, minus being themself: every one of the
- *                     fifteen is hidden, the admin's own row included.
- *                     This is the page the rest of the challenge gets.
+ *   IN THE ELITE  — the window is open, the admin exemption is off, and
+ *                   the viewer is still themself, so their own numbers
+ *                   show and everybody else's are blocks. This is the
+ *                   page one of the elite gets.
+ *   OUTSIDE IT    — the same, minus being themself: every one of the
+ *                   elite is hidden, the admin's own row included. This
+ *                   is the page the rest of the challenge gets.
  *
  * The cookie only ever makes a page STRICTER, and row100kViewer refuses to
  * read it for anyone who is not a challenge admin — but it is still a
  * debugging lever, so it is set from here and nowhere else. It is a session
  * cookie: closing the browser ends the test. */
 const MODES: { key: BlackoutPreview; label: string; note: string }[] = [
-  { key: "elite", label: "In the fifteen", note: "Your numbers show, everyone else's are blocks." },
-  { key: "public", label: "Outside it", note: "Every one of the fifteen is hidden, yours too." },
+  { key: "elite", label: "In the elite", note: "Your numbers show, everyone else's are blocks." },
+  { key: "public", label: "Outside it", note: "Every one of the elite is hidden, yours too." },
 ];
 
 export function PreviewSwitch({ active }: { active: BlackoutPreview | null }) {

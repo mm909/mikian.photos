@@ -10,7 +10,13 @@ import { Children, cloneElement, isValidElement, type MouseEvent, type ReactElem
  * error is swallowed and nothing here ever preventDefaults — the navigation
  * is never delayed, and a dead endpoint is invisible to the clicker. */
 
-export type TrackedLinkName = "partners" | "grizzly" | "grizzly-code";
+export type TrackedLinkName =
+  | "partners"
+  | "grizzly"
+  | "grizzly-code"
+  | "raffle-event"
+  | "raffle-grizzly"
+  | "raffle-cta";
 
 const ENDPOINT = "/api/row100k/click";
 

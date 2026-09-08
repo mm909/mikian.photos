@@ -36,7 +36,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
  * front page of the newspaper; the standings moved to a tab). It is for
  * rowers: signed out you get the nameplate, one line and OPT IN — signed in,
  * joined or not, you get the board. Same boardView masking as before: an
- * open blackout hides the elite fifteen from everyone but admins and the
+ * open blackout hides the elite from everyone but admins and the
  * rower themself, and the sticker that leaves the site is masked for all. */
 export default async function BoardPage() {
   const actor = await getEffectiveActor();
@@ -119,11 +119,13 @@ export default async function BoardPage() {
         name: r.name,
         rowerNumber: r.rowerNumber,
         meters: r.meters,
+        // The board the row is on: the elite are the top ten of each.
+        division: r.division,
         masked: r.masked,
         digits: r.digits,
         // The places half of the rule travels with the row: a hidden rower
         // has no place on the sticker either. maskStandings sets this on
-        // the fifteen itself, so this only carries an already-masked
+        // the elite itself, so this only carries an already-masked
         // board's intent forward — the map is not the reason it works.
         unranked: r.unranked,
       })),

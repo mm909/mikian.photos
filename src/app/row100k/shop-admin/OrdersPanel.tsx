@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { ShirtOrderRow } from "../../shirtOrders";
+import Link from "next/link";
+import type { ShirtOrderRow } from "../shirtOrders";
 
 /* THE ORDERS — the owner's review list (owner, 2026-09-08): every shirt
- * on the books with who, what size, where they stand on the meters, what
- * the month decided, whether it is paid, and a DELIVERED mark for the
- * pick-up. Newest first. */
+ * on the books with who (linked to their rower page — each order sits on
+ * an account), what size, where they stand on the meters, what the month
+ * decided, whether it is paid, and a DELIVERED mark for the pick-up.
+ * Newest first. Lives on /row100k/shop-admin. */
 const fmtDay = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—");
 
 export function OrdersPanel({ orders: initial }: { orders: ShirtOrderRow[] }) {
@@ -70,13 +72,13 @@ export function OrdersPanel({ orders: initial }: { orders: ShirtOrderRow[] }) {
             <tbody>
               {live.map((o) => (
                 <tr key={o.id} className={o.deliveredAt ? "fin" : undefined}>
-                  <td>
-                    <span className="mono" style={{ color: "var(--gray)" }}>
+                  <td className="who">
+                    <span className="mono" style={{ color: "var(--gray)", fontWeight: 400 }}>
                       {String(o.rowerNumber).padStart(3, "0")} ·{" "}
                     </span>
-                    <b>{o.name}</b>
+                    <Link href={`/row100k/r/${o.rowerNumber}`}>{o.name}</Link>
                     {o.email && (
-                      <div className="mono" style={{ fontSize: 10, color: "var(--gray)" }}>
+                      <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
                         {o.email}
                       </div>
                     )}
@@ -109,7 +111,7 @@ export function OrdersPanel({ orders: initial }: { orders: ShirtOrderRow[] }) {
                     <button
                       type="button"
                       className={o.deliveredAt ? "outline-btn" : "send"}
-                      style={{ padding: "6px 10px", fontSize: 11 }}
+                      style={{ padding: "6px 10px", fontSize: 11, marginTop: 0, width: "auto", display: "inline-block" }}
                       disabled={busy === o.id}
                       onClick={() => void mark(o)}
                     >

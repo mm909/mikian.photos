@@ -89,8 +89,11 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
 /* Fix a mistake: day, meters, time, the title, and the photo pair are all
  * replaceable; the same validation as logging applies, so an edit can't
  * sneak in what a log couldn't. A blank title leaves the stored one alone
- * (rows always carry one — POST defaults it), and an absent `photos` keeps
- * the current pair; a present one must be a full pair, same as logging. */
+ * (rows always carry one — POST defaults it) — except for a challenge
+ * admin sending an explicit string: that sets the title verbatim, so the
+ * rowers table (/row100k/signups) can clear one (2026-09-08). An absent
+ * `photos` keeps the current pair; a present one must be a full pair, same
+ * as logging. */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const guarded = await guard(params.id, "edit");
   if (!guarded.ok) return guarded.res;
@@ -161,7 +164,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       meters: check.value.meters,
       seconds: check.value.seconds,
       note: guarded.note,
-      ...(check.value.title ? { title: check.value.title } : {}),
+      ...(check.value.title || (guarded.isOwner && typeof body.title === "string")
+        ? { title: check.value.title }
+        : {}),
       ...(photos ? { photos } : {}),
     },
   });

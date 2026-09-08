@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BlockClock, Blocks } from "../Blackout";
+import { ELITE_LABEL } from "@/lib/blackoutRules";
+import { Blocks } from "../Blackout";
 import { Lightbox, type LightboxPhoto } from "../Lightbox";
 import { groupByDay, type DayTotal, type FeedDayGroup, type FeedItem, type FeedPhoto } from "./view";
 
@@ -10,11 +11,18 @@ import { groupByDay, type DayTotal, type FeedDayGroup, type FeedItem, type FeedP
  * thumbs on the left, then the session title on its own gray line, the
  * number · NAME line under it, the meters in Archivo Black at 26px, and
  * the time, the split and the clock it landed in mono under that. Nothing
- * boxed. A masked row draws blocks for the meters and the time and no
- * split — the item carries no number of theirs anyway (page.tsx blanks the
- * strings before they reach this client component), only the shapes.
- * Client module: the thumbs carry the onError swap and the page-wide
- * lightbox index lives here. */
+ * boxed. A masked row — one of THE ELITE while a window is open — draws
+ * blocks for the meters, no time at all, and the real split (owner,
+ * 2026-09-08: the pace, not the time), and THE ELITE mark stands on the
+ * thumbs' footprint in place of their photos. A row hidden by the
+ * fail-closed rule (item.masked without item.elite: the board could not
+ * be read while a window was open) is masked the same way but wears a
+ * bare ink block, no word and no link — the feed does not know those
+ * rowers are elite and must not say so. The item carries no number of
+ * theirs but the split anyway (page.tsx blanks the strings and drops the
+ * photos before they reach this client component). Client module: the
+ * thumbs carry the onError swap and the page-wide lightbox index lives
+ * here. */
 
 function photoAlt(item: FeedItem, i: number): string {
   return i === 0 ? `${item.name} after the row` : "Erg screen";
@@ -67,6 +75,34 @@ function NoPhoto() {
   return <span className="fd-noph">—</span>;
 }
 
+/* THE ELITE mark (owner, 2026-09-08: "black out your images — two black
+ * squares, or with the same real estate, ELITE spelled out, and clicking
+ * it takes you to the elite leaderboard"). One ink block on the footprint
+ * of the two thumbs — the same size at every width, whether the row had
+ * two photos, one or none — carrying THE ELITE in white mono with the two
+ * squares of the brand after it (paper on ink, the way the elite table
+ * flips its blocks), as a link to the elite list — the page picks the
+ * target for the viewer (view.ts eliteListHref: the board for a rower,
+ * the front page's public list for a reader). */
+function EliteMark({ href }: { href: string }) {
+  return (
+    <a className="fd-elite" href={href}>
+      <span className="w">{ELITE_LABEL}</span>
+      <span className="sq" aria-hidden="true">
+        <i />
+        <i />
+      </span>
+    </a>
+  );
+}
+
+/* The same footprint, bare: the ink block a row hidden by the fail-closed
+ * rule keeps — its photos are gone like an elite rower's, but nothing on
+ * it says ELITE and nothing links, because the feed does not know. */
+function HiddenBlock() {
+  return <span className="fd-hid" role="img" aria-label="hidden" />;
+}
+
 /* "SEP 5 — 43,210 M · 12 ROWS": ONE small mono line as the owner spelled
  * it — the day, a dash, the WHOLE day's total in blue (every row that
  * landed that day, not only this page's, every rower's meters included —
@@ -101,25 +137,36 @@ function MetersOf({ item }: { item: FeedItem }) {
   );
 }
 
-/* A row's time: the clock's silhouette while masked. */
-function ClockOf({ item }: { item: FeedItem }) {
-  return item.masked ? <BlockClock shape={item.timeShape} /> : <>{item.durationStr}</>;
-}
-
-function Strip({ item, onOpen }: { item: FeedItem; onOpen: (photoIndex: number) => void }) {
+function Strip({
+  item,
+  eliteHref,
+  onOpen,
+}: {
+  item: FeedItem;
+  eliteHref: string;
+  onOpen: (photoIndex: number) => void;
+}) {
   return (
     <article className="fd-strip">
-      <span className="fd-pics">
-        {item.photos.length > 0 ? (
-          item.photos.map((p, i) => (
-            // Index key: two demo squares in one row can share a colour, so
-            // the URL alone is not unique.
-            <Thumb key={i} photo={p} alt={photoAlt(item, i)} onOpen={() => onOpen(i)} />
-          ))
+      {item.masked ? (
+        item.elite ? (
+          <EliteMark href={eliteHref} />
         ) : (
-          <NoPhoto />
-        )}
-      </span>
+          <HiddenBlock />
+        )
+      ) : (
+        <span className="fd-pics">
+          {item.photos.length > 0 ? (
+            item.photos.map((p, i) => (
+              // Index key: two demo squares in one row can share a colour, so
+              // the URL alone is not unique.
+              <Thumb key={i} photo={p} alt={photoAlt(item, i)} onOpen={() => onOpen(i)} />
+            ))
+          ) : (
+            <NoPhoto />
+          )}
+        </span>
+      )}
       <span className="fd-mid">
         {/* The lead: the session title on its own line ABOVE the number and
          * the name (owner, 2026-09-05), in the gray title style; a row
@@ -137,10 +184,12 @@ function Strip({ item, onOpen }: { item: FeedItem; onOpen: (photoIndex: number) 
           <MetersOf item={item} />
         </span>
         <span className="fd-sub">
-          <span className="fd-d">
-            <ClockOf item={item} />
-          </span>
-          {!item.masked && <span className="fd-s">{item.splitStr} /500m</span>}
+          {/* The time, then the split, then the clock it landed in — a
+           * masked row has no time (not even a silhouette) and the line
+           * starts at the split; the gaps are flex gaps, so nothing empty
+           * is left behind. */}
+          {item.durationStr ? <span className="fd-d">{item.durationStr}</span> : null}
+          <span className="fd-s">{item.splitStr} /500m</span>
           <span className="fd-t" title={item.absIso}>
             {item.clockStr}
           </span>
@@ -150,7 +199,16 @@ function Strip({ item, onOpen }: { item: FeedItem; onOpen: (photoIndex: number) 
   );
 }
 
-export function Strips({ items, days }: { items: FeedItem[]; days: Record<string, DayTotal> }) {
+export function Strips({
+  items,
+  days,
+  eliteHref,
+}: {
+  items: FeedItem[];
+  days: Record<string, DayTotal>;
+  /* Where THE ELITE mark links (view.ts eliteListHref, per viewer). */
+  eliteHref: string;
+}) {
   const [idx, setIdx] = useState<number | null>(null);
   const { reel, offsetOf } = useReel(items);
 
@@ -160,7 +218,7 @@ export function Strips({ items, days }: { items: FeedItem[]; days: Record<string
         <section key={g.dayKey} className="fd-day">
           <DayHead group={g} total={days[g.dayKey]} />
           {g.items.map((it) => (
-            <Strip key={it.id} item={it} onOpen={(i) => setIdx(offsetOf[it.id] + i)} />
+            <Strip key={it.id} item={it} eliteHref={eliteHref} onOpen={(i) => setIdx(offsetOf[it.id] + i)} />
           ))}
         </section>
       ))}

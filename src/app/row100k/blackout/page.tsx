@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { listBlackouts, type BlackoutWindow } from "@/lib/blackout";
-import { ELITE_LABEL, ELITE_N, fmtPacificStamp } from "@/lib/blackoutRules";
+import { ELITE_LABEL, ELITE_PER_DIVISION, fmtPacificStamp } from "@/lib/blackoutRules";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -37,9 +37,10 @@ const boCss = `
 .row100k .bo-ramp{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 `;
 
-/* Admin-only: set blackout windows. While one is open, the top fifteen on
- * the board show digit blocks instead of meters (blackoutRules.ts). The
- * rest of the world gets a 404, same gate as /row100k/signups. */
+/* Admin-only: set blackout windows. While one is open, THE ELITE — the top
+ * ten men and the top ten women on the board — show digit blocks instead
+ * of meters (blackoutRules.ts). The rest of the world gets a 404, same gate
+ * as /row100k/signups. */
 export default async function BlackoutPage() {
   const actor = await getEffectiveActor();
   if (!actor || !isRow100kAdmin(actor.email, actor.roles)) notFound();
@@ -88,10 +89,12 @@ export default async function BlackoutPage() {
           </div>
 
           <p className="bo-lede">
-            While a window is open, the top {ELITE_N} on the board — {ELITE_LABEL} — have their
-            meters hidden from the public: <Blocks digits={6} /> m instead of the number, on the
-            board and on the share stickers. Sixteenth down stays visible. Admins and each rower
-            looking at their own row still see the real total.
+            While a window is open, the top {ELITE_PER_DIVISION} men and the top{" "}
+            {ELITE_PER_DIVISION} women on the board — {ELITE_LABEL} — have their meters hidden
+            from the public: <Blocks digits={6} /> m instead of the number, on the board, in
+            the feed and on the share stickers, with no place and their average split for a
+            tag. Everyone else stays visible. Admins and each rower looking at their own row
+            still see the real total.
           </p>
           <p className="bo-lede">
             Times are Pacific. A window takes effect on the next page load — no deploy, no
@@ -99,7 +102,7 @@ export default async function BlackoutPage() {
           </p>
           <p className="bo-lede">
             A run-up dims them toward the day instead of snapping shut on it: set it to four
-            and, four days out, the fifteen lose the ones digit, then the tens, then the
+            and, four days out, the elite lose the ones digit, then the tens, then the
             hundreds, then the thousands — and the window covers the rest.
           </p>
 

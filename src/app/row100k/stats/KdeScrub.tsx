@@ -14,7 +14,7 @@ import type { KdeChart, KdeYou } from "../analysis/model";
  * PERCENTILE SOURCE — blackout-safe, nothing new reaches the browser: the
  * share is read off the density curve the page already ships (KdeChart.xs
  * and ys), as the cumulative trapezoid over xs normalised to 1. The KDE is
- * a public aggregate that counts everyone, elite fifteen included, and is
+ * a public aggregate that counts everyone, elite included, and is
  * the only thing this component knows; no raw sessions, quantile arrays or
  * anything per-row are sent for it. The figure is therefore the share of
  * the smoothed field, not a count of rows — which is what a density chart

@@ -378,7 +378,7 @@ export type TotalRow = {
    * board can rebuild its own before/after movement from just this. */
   prevRank: number;
   /* Blackout (see blackoutRules.ts): set only on a public view while a
-   * window is open and this rower sits in THE ELITE FIFTEEN. Then `meters`
+   * window is open and this rower sits in THE ELITE. Then `meters`
    * and `pct` are the FLOOR of the tier reached, not the real total, and
    * `digits` is how many digits the real total has — enough for the board
    * to draw blocks of the right length, nothing more. Optional so the raw
@@ -394,15 +394,15 @@ export type TotalRow = {
   hideLow?: number;
   /* Blackout: the rower's average split, "2:07", to the second — the one
    * number of theirs that stays public while they are hidden (owner,
-   * 2026-09-05 late: rank the fifteen by average pace and print it where
+   * 2026-09-05 late: rank the elite by average pace and print it where
    * the club tag goes). A ratio of two hidden numbers gives neither away.
    * Computed in blackoutRules.maskBoards, from values that never ship. */
   paceTag?: string;
   /* Blackout, the ranking half (owner, 2026-09-05 evening): one of the
-   * hidden fifteen has NO place anywhere — not on the board, not on a
+   * hidden elite has NO place anywhere — not on the board, not on a
    * sticker, not on their own profile — because knowing you are third and
    * not fourth is the number by another route. maskBoards sets this on all
-   * fifteen (the viewer's own row included, which keeps its real meters)
+   * of the elite (the viewer's own row included, which keeps its real meters)
    * and lists them by digit count, then name. */
   unranked?: true;
 };
@@ -646,7 +646,9 @@ export const PACE_TAG_FROM = 500_000;
 
 /* "2:07" — the average split over everything rowed, rounded to the second. */
 export function fmtPaceTag(meters: number, seconds: number): string {
-  const split = Math.round(seconds / (meters / 500));
+  // FLOORED, never rounded (owner, 2026-09-08): 2:07.6 wears 2:07 on the
+  // board and the tag — a split is a time, and a time is not rounded up.
+  const split = Math.floor(seconds / (meters / 500));
   const m = Math.floor(split / 60);
   const s = split % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
@@ -834,7 +836,7 @@ export function recordPlacements(boards: Boards, participantId: string, topN = 3
 
   // A masked row (blackout) may carry a floor of 0 while its real total is
   // well above it; it stays on the board so nobody below shifts up. One of
-  // the hidden fifteen has no total-meters placement at all (unranked): the
+  // the hidden elite has no total-meters placement at all (unranked): the
   // other records keep theirs, a fastest-5k place is not the total rank.
   if (!me.unranked) {
     check("total", inDivision(boards.total.filter((r) => r.meters > 0 || r.masked)), (r: TotalRow) =>
@@ -858,7 +860,7 @@ export function divisionRank(
 ): { place: number; of: number } | null {
   const me = boards.total.find((r) => r.participantId === participantId);
   if (!me || (me.meters <= 0 && !me.masked)) return null;
-  // One of the hidden fifteen has no rank, to anyone (blackoutRules.ts):
+  // One of the hidden elite has no rank, to anyone (blackoutRules.ts):
   // the profile prints a dash and the share cards draw no place.
   if (me.unranked) return null;
   // Masked (blackout) rows keep their place even when their floor is 0.

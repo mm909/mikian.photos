@@ -12,7 +12,7 @@ import {
 /* Blackout rules — pure, no db, safe in client components.
  *
  * The owner's call (2026-09-05): while a blackout window is open, the top
- * fifteen on the board — THE ELITE FIFTEEN — do not have their numbers
+ * ten men and ten women on the board — THE ELITE — do not have their numbers
  * shown to the public. Not a black bar: one fat block per digit, commas in
  * the right places, so you can see it is a six-figure number and where the
  * 100k starts, just not which six figures. Sixteenth and everyone else are
@@ -25,30 +25,35 @@ import {
  * counts, dates and titles stay. Share cards leave the site, so they draw
  * blocks even in the rower's own dialog.
  *
- * The ranking half (owner, same evening): the fifteen carry no place at
+ * The ranking half (owner, same evening): the elite carry no place at
  * all while hidden — not even to themself ("I shouldn't be able to know
  * that I'm number three or number four, I should just know that I'm in the
  * top fifteen"). They are listed by AVERAGE PACE, fastest first (owner,
  * 2026-09-06: "I want that average pace to be there like identity — and in
- * the elite fifteen they're sorted by that pace"), which is a ratio of two
+ * the elite they're sorted by that pace"), which is a ratio of two
  * numbers that both stay hidden, so the order gives no total away. Rows
  * sixteen and down keep their places, which the reorder never moves.
  *
- * The RUN-UP (owner, 2026-09-06): for the days before a window the fifteen
+ * The RUN-UP (owner, 2026-09-06): for the days before a window the elite
  * do not go dark at once — they lose one digit a day from the ones up, so
  * 142,500 reads 142,50▮, then 142,5▮▮, then 142,▮▮▮, until the designated
  * day covers all of it. During the run-up the board is otherwise itself:
- * the fifteen keep their places, their movement and their sections, and
+ * the elite keep their places, their movement and their sections, and
  * only the tail of each number is gone (rampRow).
  *
  * Masking happens on the way OUT of the cached board (boardView), never in
  * computeBoards, so the cached object stays the one source of truth and the
  * admin/self views need no second query. */
 
-export const ELITE_N = 15;
-export const ELITE_LABEL = "THE ELITE FIFTEEN";
+/* THE ELITE (owner, 2026-09-08, rebranded from THE ELITE FIFTEEN): the top
+ * TEN MEN and the top TEN WOMEN on the board, by meters within each
+ * division — up to ELITE_N rowers in all. A rower on neither board is
+ * never elite. */
+export const ELITE_PER_DIVISION = 10;
+export const ELITE_N = ELITE_PER_DIVISION * 2;
+export const ELITE_LABEL = "THE ELITE";
 /* The tag in front of a hidden row's name — where the tier tag would go. */
-export const ELITE_TAG = "ELITE 15";
+export const ELITE_TAG = "ELITE";
 
 /* How many digits a total has, commas not counted: 123,456 -> 6. Zero is
  * one digit, so a block always draws. */
@@ -75,7 +80,7 @@ export function clockShape(seconds: number, tenths = false): string {
 export type MaskOpts = {
   active: boolean;
   /* The run-up, when no window is open yet: cover this many low digits of
-   * the fifteen's totals (blackout.ts works it out from the window's
+   * the elite's totals (blackout.ts works it out from the window's
    * rampDays). Ignored once `active` is true — the window covers all. */
   hideLow?: number;
   /* The signed-in viewer's own participant id — their row stays real. */
@@ -84,14 +89,32 @@ export type MaskOpts = {
   admin?: boolean;
 };
 
-/* The rows that are hidden: the first ELITE_N of a standings-ordered list
+/* The rows that are hidden: walking a standings-ordered list, the first
+ * ELITE_PER_DIVISION rows of the men's board and the first of the women's
  * that have any meters at all. Rows already masked count as elite too, so
- * re-masking an already-masked list never slides the cut-off down onto
- * row sixteen (a masked row under 10k carries a floor of 0). */
-function eliteIndexes<T extends { meters: number; masked?: boolean }>(rows: T[]): Set<number> {
+ * re-masking an already-masked list never slides a cut-off down onto the
+ * eleventh (a masked row under 10k carries a floor of 0). A list whose
+ * rows carry no division at all (a sticker payload from before the
+ * rebrand) falls back to the first ELITE_N overall — never fewer hidden
+ * than the rule asks for. */
+function eliteIndexes<T extends { meters: number; masked?: boolean; division?: string }>(rows: T[]): Set<number> {
   const out = new Set<number>();
-  for (let i = 0; i < rows.length && out.size < ELITE_N; i++) {
-    if (rows[i].meters > 0 || rows[i].masked) out.add(i);
+  const hasDivision = rows.some((r) => r.division === "M" || r.division === "F");
+  if (!hasDivision) {
+    for (let i = 0; i < rows.length && out.size < ELITE_N; i++) {
+      if (rows[i].meters > 0 || rows[i].masked) out.add(i);
+    }
+    return out;
+  }
+  const taken: Record<string, number> = { M: 0, F: 0 };
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const d = r.division === "M" || r.division === "F" ? r.division : null;
+    if (!d || taken[d] >= ELITE_PER_DIVISION) continue;
+    if (r.meters > 0 || r.masked) {
+      out.add(i);
+      taken[d] += 1;
+    }
   }
   return out;
 }
@@ -149,7 +172,7 @@ export function roundToShown(meters: number, hide: number): number {
   return Math.floor(Math.max(0, Math.round(meters)) / step) * step;
 }
 
-/* One of the fifteen during the run-up: the low digits leave the row, the
+/* One of the elite during the run-up: the low digits leave the row, the
  * rest of it is untouched — place, movement, section, sessions, seconds.
  * `pct` follows the rounded total so the bar cannot give the tail away. */
 function rampRow<T extends { meters: number; pct?: number }>(
@@ -179,13 +202,13 @@ function paceSeconds(tag?: string): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : Number.POSITIVE_INFINITY;
 }
 
-/* The order of the hidden fifteen: FASTEST AVERAGE SPLIT first (owner,
+/* The order of the hidden elite: FASTEST AVERAGE SPLIT first (owner,
  * 2026-09-06 — the pace is their identity while the meters are gone, and
  * it is what the section is sorted by), then the name A to Z (case and
  * accents ignored), then the rower number so the order is total. It is not
  * the meters ranking: a split is a ratio of two hidden numbers, so nobody
  * learns from it whether they are third or fourth. Exported for any
- * surface that lists the fifteen on its own. */
+ * surface that lists the elite on its own. */
 export function eliteOrder<T extends { meters: number; name: string; rowerNumber: number; masked?: boolean; digits?: number; paceTag?: string }>(
   a: T,
   b: T,
@@ -200,16 +223,16 @@ export function eliteOrder<T extends { meters: number; name: string; rowerNumber
 /* prevRank — where a rower stood before the latest logged day landed — is a
  * field of the row, and the board is a client component: it travels into the
  * page source of every board page. On a field that moves as little as this
- * one, yesterday's places ARE today's ranking, so leaving the fifteen's own
+ * one, yesterday's places ARE today's ranking, so leaving the elite's own
  * prevRanks attached hands the hidden order to anyone who reads the source
  * (review, 2026-09-05).
  *
- * So: keep the multiset, destroy the mapping. Within a division the fifteen's
+ * So: keep the multiset, destroy the mapping. Within a division the elite's
  * prevRanks are collected, sorted and dealt back out in eliteOrder. Every row
  * that is NOT hidden keeps exactly the neighbours it had when a board sorts on
  * prevRank — which is how Boards.tsx rebuilds each tab's movement — so no
  * visible arrow changes; and the only order the field now carries for the
- * fifteen is the one already on the screen, digit count then name. */
+ * elite is the one already on the screen, digit count then name. */
 function dealPrevRanks(fifteen: TotalRow[]): TotalRow[] {
   const pool = new Map<string, number[]>();
   fifteen.forEach((r) => {
@@ -226,18 +249,18 @@ function dealPrevRanks(fifteen: TotalRow[]): TotalRow[] {
   });
 }
 
-/* The public board. The hidden fifteen lose their numbers (the viewer's own
- * row keeps its meters) AND their places: all fifteen come back unranked
+/* The public board. The hidden elite lose their numbers (the viewer's own
+ * row keeps its meters) AND their places: all of them come back unranked
  * and reordered by eliteOrder, with their movement zeroed (a place moved is
  * a place known). Rows from sixteen down are untouched and still occupy the
  * same indexes, so their places are unchanged. Idempotent: a second pass
- * finds the same fifteen (masked rows count as elite) in the same order.
+ * finds the same elite (masked rows count as elite) in the same order.
  * Returns the same object when nothing needs hiding so the cached board is
  * not copied for nothing. */
 export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
   if (opts.admin) return boards;
   // The run-up: no window is open yet, so the board keeps its order, its
-  // places and its movement — the fifteen simply lose the tail of their
+  // places and its movement — the elite simply lose the tail of their
   // totals. Self is exempt here too: a rower always sees their own number.
   if (!opts.active) {
     const hide = Math.floor(opts.hideLow ?? 0);
@@ -280,15 +303,18 @@ export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
 /* The share-sticker rows (cards.ts boardCard) carry no participant id, so
  * a viewer, when one is given, is matched by rower number. Same rules
  * otherwise. The board sticker on /row100k passes neither viewer nor admin:
- * it leaves the site, so it hides the fifteen for everybody, the owner and
+ * it leaves the site, so it hides the elite for everybody, the owner and
  * the elite rower included (review, 2026-09-05). */
 export type StandingRow = {
   name: string;
   rowerNumber: number;
   meters: number;
+  /* "M" | "F" — which board, so the top ten of each can be found. A
+   * payload without it falls back to the first ELITE_N overall. */
+  division?: string;
   masked?: boolean;
   digits?: number;
-  /* One of the hidden fifteen: no place is drawn for the row. */
+  /* One of the elite: no place is drawn for the row. */
   unranked?: boolean;
   /* Their average split, "2:07" — printed where the club tag goes. */
   paceTag?: string;
