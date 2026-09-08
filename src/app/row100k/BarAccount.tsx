@@ -109,6 +109,9 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
                   The plan (dev) →
                 </Link>
+                <Link className="acct-item" href="/row100k/dev/shirts" onClick={close}>
+                  The shirt (dev) →
+                </Link>
                 <Link className="acct-item" href="/row100k/dev/records" onClick={close}>
                   Records pick (mock) →
                 </Link>

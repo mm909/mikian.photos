@@ -20,6 +20,7 @@ import { StatsShare } from "../StatsShare";
 import { JoinPanel } from "../JoinPanel";
 import { BOARD_CARD_IDS } from "../share/cards";
 import { EMPTY_BOARDS, boardView } from "../boardData";
+import { readBlackoutPreview } from "@/lib/row100kViewer";
 
 export const metadata: Metadata = {
   title: "The board — Rowtember 2026",
@@ -53,11 +54,23 @@ export default async function BoardPage() {
     console.error("row100k/board: failed to load viewer data", err);
   }
 
+  // The admin's test blackout (row100kViewer): the window is open for this
+  // request, the admin is no admin for the mask, and under OUTSIDE IT not
+  // themself either — so THE BOARD is the one everybody else gets.
+  const preview = readBlackoutPreview(isAdmin);
   let boards = EMPTY_BOARDS;
   let blackout: { active: boolean; endsAt?: string } = { active: false };
   if (actor) {
     try {
-      const view = await boardView({ viewerParticipantId: me?.id, admin: isAdmin });
+      const view = await boardView(
+        preview
+          ? {
+              viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
+              admin: false,
+              forceBlackout: true,
+            }
+          : { viewerParticipantId: me?.id, admin: isAdmin },
+      );
       boards = view.boards;
       blackout = view.blackout;
     } catch (err) {

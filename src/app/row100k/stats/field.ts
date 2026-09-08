@@ -168,13 +168,24 @@ export function buildField(
   }
 
   /* ------------------------------------------------------- per rower */
-  const perPid = new Map<string, { lens: number[]; splits: number[] }>();
+  /* A rower's average pace is WEIGHTED BY METERS (owner, 2026-09-08): the
+   * seconds of every timed row over the meters of every timed row, the
+   * same split the ledger prints as AVERAGE SPLIT — not a mean of the
+   * per-row splits, which would let a 500 m sprint count as much as a 10k.
+   * `splits` stays for the rug and the best. */
+  const perPid = new Map<string, { lens: number[]; splits: number[]; pm: number; ps: number }>();
   for (const s of sess) {
-    const r = perPid.get(s.pid) ?? { lens: [], splits: [] };
+    const r = perPid.get(s.pid) ?? { lens: [], splits: [], pm: 0, ps: 0 };
     r.lens.push(s.meters);
-    if (s.split !== null) r.splits.push(s.split);
+    if (s.split !== null) {
+      r.splits.push(s.split);
+      r.pm += s.meters;
+      r.ps += s.seconds;
+    }
     perPid.set(s.pid, r);
   }
+  const weightedPace = (r: { pm: number; ps: number }): number | null =>
+    r.pm > 0 && r.ps > 0 ? r.ps / (r.pm / 500) : null;
 
   const field: FieldModel = {
     sessions: n,
@@ -192,7 +203,7 @@ export function buildField(
   const mine = sess.filter((s) => s.pid === meId);
   const minePaced = paced.filter((s) => s.pid === meId);
   const avgLen = mean(mineAll.lens);
-  const avgPace = mineAll.splits.length ? mean(mineAll.splits) : null;
+  const avgPace = weightedPace(mineAll);
 
   /* Ranked against every OTHER rower's average (everyone, no club filter),
    * ties counted half, so nobody is ranked against themselves. */
@@ -201,7 +212,8 @@ export function buildField(
   for (const [pid, r] of perPid) {
     if (pid === meId) continue;
     otherLens.push(mean(r.lens));
-    if (r.splits.length) otherPaces.push(mean(r.splits));
+    const wp = weightedPace(r);
+    if (wp !== null) otherPaces.push(wp);
   }
   const lenPct = otherLens.length ? Math.round(percentileRank(sortAsc(otherLens), avgLen)) : null;
   const pacePct =

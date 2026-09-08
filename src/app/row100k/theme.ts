@@ -674,6 +674,43 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pf-pace{margin-top:0;padding-top:0;border-top:none;position:relative}
 .row100k .pf-pace .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--row-mono),monospace;font-size:11px;padding:5px 8px;white-space:nowrap;transform:translate(-50%,-130%);z-index:5}
 .row100k .pf-block .st-tiles{margin-top:0}
+/* THE SHIRT (dev/shirts): one product photo at a time with a stepper, the
+ * price as a headline, and the sizes SIDE BY SIDE as black boxes with big
+ * white letters (owner, 2026-09-08) — the boxes are the size picker, one
+ * buy button under them. Pick-up only, no shipping, so no address. */
+.row100k .sh-photo{position:relative;aspect-ratio:4/5;max-width:520px;margin-top:6px;overflow:hidden;background:var(--paper);border:1px solid var(--line)}
+.row100k .sh-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.row100k .sh-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border:none;background:rgba(21,23,26,.72);color:#fff;font-family:var(--row-mono),monospace;font-size:18px;cursor:pointer}
+.row100k .sh-nav.prev{left:0}
+.row100k .sh-nav.next{right:0}
+.row100k .sh-nav:hover{background:var(--ink)}
+.row100k .sh-dots{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.row100k .sh-pitch{border-top:2px solid var(--ink);margin-top:26px;padding-top:18px}
+.row100k .sh-kick{font-size:10px;letter-spacing:.2em;color:var(--gray);text-transform:uppercase;margin:0}
+.row100k .sh-price{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(34px,9vw,72px);line-height:1;letter-spacing:-.02em;margin:10px 0 0;color:var(--water)}
+.row100k .sh-price .or{font-size:.42em;color:var(--gray);font-family:var(--row-archivo),sans-serif;font-weight:700;letter-spacing:0;margin:0 .1em}
+.row100k .sh-line{font-size:12px;letter-spacing:.18em;color:var(--ink);text-transform:uppercase;font-weight:700;margin:12px 0 0}
+.row100k .sh-copy{font-size:16px;line-height:1.55;color:var(--ink-soft);max-width:56ch;margin:12px 0 0}
+.row100k .sh-due{font-size:11px;letter-spacing:.12em;color:var(--water);text-transform:uppercase;margin:14px 0 0}
+.row100k .sh-pick{font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin:10px 0 0;line-height:1.7}
+/* The size boxes: a row that scrolls sideways on a phone rather than
+ * wrapping, so the five stay side by side at every width. */
+.row100k .sh-sizes{display:flex;gap:8px;margin-top:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.row100k .sh-sizes::-webkit-scrollbar{display:none}
+.row100k .sh-size{flex:1 0 96px;min-width:96px;background:var(--ink);color:#fff;border:2px solid var(--ink);padding:14px 8px 12px;text-align:center;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
+.row100k .sh-size:hover:not(:disabled){border-color:var(--water)}
+.row100k .sh-size.on{background:var(--water);border-color:var(--water)}
+.row100k .sh-size:disabled{cursor:default}
+.row100k .sh-size.mine{outline:2px solid var(--water);outline-offset:2px}
+.row100k .sh-sz{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,7vw,44px);line-height:1;color:#fff}
+.row100k .sh-cnt{display:block;margin-top:8px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72);line-height:1.6}
+.row100k .sh-cnt .hot{color:#fff;font-weight:700}
+.row100k .sh-buy{margin-top:16px;width:100%;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,4.6vw,24px);text-transform:uppercase;letter-spacing:.02em;padding:16px 18px;border:2px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
+.row100k .sh-buy:hover:not(:disabled){background:var(--water);border-color:var(--water)}
+.row100k .sh-buy:disabled{opacity:.45;cursor:default}
+.row100k .sh-buy-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;margin:10px 0 0;line-height:1.7}
+.row100k .sh-pay{margin-top:18px;max-width:420px}
+.row100k .sh-settle{margin-top:40px}
 .row100k .dt-find .pf-date{padding-top:0}
 /* THE ELITE FIFTEEN as a list (EliteList.tsx): the board idiom without a
  * place column; a one-letter division cell where the rank would sit, the

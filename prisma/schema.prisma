@@ -652,6 +652,36 @@ model RowLinkClick {
   @@index([challenge, createdAt])
 }
 
+/// A Rowtember shirt, reserved now and settled at the end of the month
+/// (owner, 2026-09-08: "buy now, pay later" — $20, or free if the rower got
+/// the 100K; the shirt never subtracts from their total). `kind` is what
+/// the rower was told when they reserved: "stock" while their size had one
+/// left, "preorder" once it did not. `status` moves reserved → paid (a
+/// PayPal capture through the same lib/paypal.ts the photo shop uses) or
+/// → free (settled at the goal) or → cancelled. One row per rower per
+/// challenge, enforced by the unique below. No FK, like the other Row*
+/// tables; `rowerNumber` rides along for the admin list.
+model RowShirtOrder {
+  id              String    @id @default(cuid())
+  challenge       String    @default("row100k-sep-2026")
+  participantId   String
+  rowerNumber     Int
+  size            String
+  kind            String    @default("stock")
+  status          String    @default("reserved")
+  amountUsd       Float     @default(20)
+  paypalCaptureId String?   @unique
+  payerEmail      String    @default("")
+  paidAt          DateTime?
+  /// Pick-up only: set when the owner hands the shirt over (dev/shirts).
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@unique([challenge, participantId])
+  @@index([challenge, size])
+  @@index([challenge, createdAt])
+}
+
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the
 // photo product; `page` scopes rows so a future crew page can reuse the table.
 // Each submission also emails the owner the full applicant list — the table is

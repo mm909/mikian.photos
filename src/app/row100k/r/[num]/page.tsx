@@ -25,7 +25,7 @@ import {
   recordPlacements,
   type RecordBadge,
 } from "@/lib/row100k";
-import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { boardView } from "../../boardData";
 import { sanityBandForForm } from "../../sanity";
@@ -161,8 +161,14 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // the share cards and the rank chips on the bests, so a board failure
   // just leaves them undefined. Placements go to #10: the profile share
   // card headlines the best one, and the bests below wear top-10 chips.
-  const blackout = await activeBlackout();
-  let masked = blackout.active && !isMe && !isAdmin;
+  // The admin's test blackout reaches here too (owner, 2026-09-08: under
+  // IN THE FIFTEEN another elite rower's profile still showed the total):
+  // the window is open for this request, the admin exemption is off, and
+  // under OUTSIDE IT the admin is not themself either.
+  const blackout = previewBlackout(viewer, await activeBlackout());
+  const maskAdmin = isAdmin && !viewer.preview;
+  const maskMe = isMe && viewer.preview !== "public";
+  let masked = blackout.active && !maskMe && !maskAdmin;
   // The tier floor the board prints for a masked row: the 100K CLUB tag
   // follows it, since the board already files the row under its tier.
   let floor = me.meters;
@@ -212,7 +218,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   let shareElite = false;
   if (blackout.active) {
     try {
-      const { boards: pub } = await boardView({});
+      const { boards: pub } = await boardView({ forceBlackout: !!viewer.preview });
       shareElite = maskedIds(pub).has(p.id);
     } catch {
       shareElite = true;

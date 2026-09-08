@@ -129,3 +129,37 @@ export async function sendReceiptEmail(
     return { ok: false, error: msg };
   }
 }
+
+/**
+ * A plain-text email to one person — the Rowtember shirt receipt and the
+ * month-end settlement notes. Same transport, same from/reply-to, the owner
+ * BCC-ed like a receipt (skipped when the owner IS the recipient), and the
+ * same no-key behaviour: log the payload, return ok, never 500 the caller.
+ */
+export async function sendPlainEmail(
+  to: string,
+  subject: string,
+  text: string
+): Promise<SendResult> {
+  const client = getClient();
+  if (!client) {
+    console.info(`[email] (no RESEND_API_KEY) "${subject}" → ${to}\n${text}`);
+    return { ok: true };
+  }
+  const owner = (process.env.OWNER_EMAIL || DEFAULT_REPLY_TO).toLowerCase().trim();
+  const bcc = owner && owner !== to.toLowerCase().trim() ? [owner] : undefined;
+  try {
+    const res = await client.emails.send({
+      from: fromAddr(),
+      to,
+      ...(bcc ? { bcc } : {}),
+      replyTo: replyTo(),
+      subject,
+      text,
+    });
+    if (res.error) return { ok: false, error: String(res.error.message ?? res.error) };
+    return { ok: true, id: res.data?.id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
