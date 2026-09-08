@@ -56,21 +56,6 @@ export function BarAccount({
           <div className="acct-panel" role="menu">
             {rowerNumber !== null ? (
               <>
-                {/* The one thing a rower comes back for — first in the menu
-                 * (owner call, 2026-09-05). #log opens the in-place form on
-                 * the front page. */}
-                <Link
-                  className="acct-item"
-                  href="/row100k#log"
-                  onClick={() => {
-                    close();
-                    // Already on the front page: a hash-only push fires no
-                    // hashchange, so tell the form directly (LogInPlace).
-                    window.dispatchEvent(new Event("row100k:log"));
-                  }}
-                >
-                  Log a row →
-                </Link>
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>
@@ -120,6 +105,9 @@ export function BarAccount({
                 </Link>
                 <Link className="acct-item" href="/row100k/dev/stats" onClick={close}>
                   Dev stats →
+                </Link>
+                <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
+                  The plan (dev) →
                 </Link>
                 <Link className="acct-item" href="/row100k/dev/records" onClick={close}>
                   Records pick (mock) →

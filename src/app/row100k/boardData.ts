@@ -58,7 +58,11 @@ export const boardDataRaw = () =>
  * needs them. Identical to boardDataRaw while no window is open. */
 export async function boardData(): Promise<BoardData> {
   const [boards, blackout] = await Promise.all([boardDataRaw(), activeBlackout()]);
-  return maskBoards(boards, { active: blackout.active, admin: false });
+  return maskBoards(boards, {
+    active: blackout.active,
+    hideLow: blackout.hideLow,
+    admin: false,
+  });
 }
 
 /* The board as ONE viewer should see it: the cached board with the blackout
@@ -70,11 +74,19 @@ export async function boardData(): Promise<BoardData> {
 export async function boardView(opts: {
   viewerParticipantId?: string | null;
   admin?: boolean;
+  /* The admin's test blackout (row100kViewer.viewOpts): treat the window as
+   * open for this request only. */
+  forceBlackout?: boolean;
 }): Promise<{ boards: BoardData; blackout: BlackoutState }> {
-  const [boards, blackout] = await Promise.all([boardDataRaw(), activeBlackout()]);
+  const [boards, real] = await Promise.all([boardDataRaw(), activeBlackout()]);
+  const blackout: BlackoutState =
+    opts.forceBlackout && !real.active
+      ? { ...real, active: true, hideLow: undefined, rampDaysLeft: undefined }
+      : real;
   return {
     boards: maskBoards(boards, {
       active: blackout.active,
+      hideLow: blackout.hideLow,
       viewerParticipantId: opts.viewerParticipantId,
       admin: opts.admin,
     }),

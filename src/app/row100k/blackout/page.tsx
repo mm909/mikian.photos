@@ -8,7 +8,9 @@ import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { Blocks } from "../Blackout";
+import { readBlackoutPreview } from "@/lib/row100kViewer";
 import { BlackoutAdmin, type AdminWindow } from "./BlackoutAdmin";
+import { PreviewSwitch } from "./PreviewSwitch";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,9 @@ const boCss = `
 .row100k .bo-state{display:inline-block;font-size:10px;padding:1px 6px;font-family:var(--row-mono),monospace;letter-spacing:.08em;border:1px solid var(--gray);color:var(--gray);white-space:nowrap}
 .row100k .bo-state.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .row100k .bo-state.next{border-color:var(--water);color:var(--water)}
+.row100k .bo-prev-note{font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;line-height:1.7;margin:0 0 12px}
+.row100k .bo-prev .tabs{margin:0 0 12px}
+.row100k .bo-ramp{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 `;
 
 /* Admin-only: set blackout windows. While one is open, the top fifteen on
@@ -59,6 +64,7 @@ export default async function BlackoutPage() {
       startsAt: w.startsAt,
       endsAt: w.endsAt,
       reason: w.reason,
+      rampDays: w.rampDays,
       state: at < s ? "upcoming" : at >= e ? "past" : "active",
     };
   });
@@ -91,6 +97,13 @@ export default async function BlackoutPage() {
             Times are Pacific. A window takes effect on the next page load — no deploy, no
             cache to wait out.
           </p>
+          <p className="bo-lede">
+            A run-up dims them toward the day instead of snapping shut on it: set it to four
+            and, four days out, the fifteen lose the ones digit, then the tens, then the
+            hundreds, then the thousands — and the window covers the rest.
+          </p>
+
+          <PreviewSwitch active={readBlackoutPreview(true)} />
 
           {tableMissing && (
             <p className="form-err">

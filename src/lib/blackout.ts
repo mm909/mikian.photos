@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { CHALLENGE, CHALLENGE_DEMO, nowMs } from "@/lib/row100k";
+import { PACIFIC_SHIFT_MS } from "@/lib/blackoutRules";
 
 /* Blackout windows — the server half. Which window (if any) is open right
  * now decides whether boardView hides THE ELITE FIFTEEN (blackoutRules.ts).
@@ -22,6 +23,9 @@ export type BlackoutWindow = {
   /* UTC instants as ISO strings — plain JSON, safe for client props. */
   startsAt: string;
   endsAt: string;
+  /* The run-up: for this many days before startsAt the fifteen lose one
+   * more digit of their total a day, from the ones up. 0 = no run-up. */
+  rampDays: number;
   reason: string;
   createdBy: string;
   createdAt: string;
@@ -31,12 +35,20 @@ export type BlackoutState = {
   active: boolean;
   startsAt?: string;
   endsAt?: string;
+  /* The run-up (owner, 2026-09-06): how many low digits of the fifteen's
+   * totals are covered right now. Only ever set while `active` is false —
+   * once the window opens the whole number goes. */
+  hideLow?: number;
+  /* How many days of run-up are left, for the copy ("1 DIGIT A DAY UNTIL
+   * SEP 12"). Set alongside hideLow. */
+  rampDaysLeft?: number;
 };
 
 const toWindow = (w: {
   id: string;
   startsAt: Date;
   endsAt: Date;
+  rampDays?: number | null;
   reason: string;
   createdBy: string;
   createdAt: Date;
@@ -44,10 +56,30 @@ const toWindow = (w: {
   id: w.id,
   startsAt: w.startsAt.toISOString(),
   endsAt: w.endsAt.toISOString(),
+  rampDays: Math.max(0, Math.floor(w.rampDays ?? 0)),
   reason: w.reason,
   createdBy: w.createdBy,
   createdAt: w.createdAt.toISOString(),
 });
+
+/* Which Pacific day an instant falls on, as a plain counter — the same
+ * fixed UTC-7 the rest of the challenge uses (daysElapsed, fmtPacificDay),
+ * never a real time zone. Only differences of these are used. */
+const DAY_MS = 86_400_000;
+function pacificDayIndex(ms: number): number {
+  return Math.floor((ms - PACIFIC_SHIFT_MS) / DAY_MS);
+}
+
+/* The run-up, in digits, for one window at one instant. With rampDays = 4
+ * and the window opening Sep 12: Sep 8 covers the ones, Sep 9 the tens,
+ * Sep 10 the hundreds, Sep 11 the thousands, and Sep 12 opens the window
+ * and covers the rest. Returns 0 when the day is outside the run-up. */
+export function rampDigitsAt(startsAtMs: number, rampDays: number, atMs: number): number {
+  if (!(rampDays > 0) || !Number.isFinite(startsAtMs) || atMs >= startsAtMs) return 0;
+  const daysUntil = pacificDayIndex(startsAtMs) - pacificDayIndex(atMs);
+  if (daysUntil <= 0 || daysUntil > rampDays) return 0;
+  return rampDays - daysUntil + 1;
+}
 
 /* Every window for the namespace, newest start first. The admin page reads
  * this uncached (it is force-dynamic and wants the truth right after a
@@ -89,7 +121,31 @@ export async function activeBlackout(atMs = nowMs()): Promise<BlackoutState> {
       const e = Date.parse(w.endsAt);
       return Number.isFinite(s) && Number.isFinite(e) && s <= atMs && atMs < e;
     });
-    return open ? { active: true, startsAt: open.startsAt, endsAt: open.endsAt } : { active: false };
+    if (open) return { active: true, startsAt: open.startsAt, endsAt: open.endsAt };
+    // No window open: the deepest run-up any coming window asks for wins,
+    // so two overlapping run-ups can only ever cover more, never less.
+    let best: { hideLow: number; startsAt: string; endsAt: string; daysLeft: number } | null = null;
+    for (const w of windows) {
+      const s = Date.parse(w.startsAt);
+      const hide = rampDigitsAt(s, w.rampDays, atMs);
+      if (hide > 0 && (!best || hide > best.hideLow)) {
+        best = {
+          hideLow: hide,
+          startsAt: w.startsAt,
+          endsAt: w.endsAt,
+          daysLeft: pacificDayIndex(s) - pacificDayIndex(atMs),
+        };
+      }
+    }
+    return best
+      ? {
+          active: false,
+          startsAt: best.startsAt,
+          endsAt: best.endsAt,
+          hideLow: best.hideLow,
+          rampDaysLeft: best.daysLeft,
+        }
+      : { active: false };
   } catch (err) {
     quietUntil = atMs + QUIET_MS;
     console.error("row100k: blackout lookup failed, treating as none", err);

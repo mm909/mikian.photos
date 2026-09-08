@@ -13,6 +13,9 @@ export type AdminWindow = {
   id: string;
   startsAt: string;
   endsAt: string;
+  /* Days of run-up before the window: the fifteen lose one more digit of
+   * their total a day, from the ones up. 0 = none. */
+  rampDays: number;
   reason: string;
   state: "active" | "upcoming" | "past";
 };
@@ -31,6 +34,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [reason, setReason] = useState("");
+  const [rampDays, setRampDays] = useState("0");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -64,7 +68,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
       const res = await fetch("/api/row100k/blackout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startsAt: s, endsAt: en, reason }),
+        body: JSON.stringify({ startsAt: s, endsAt: en, reason, rampDays: Number(rampDays) || 0 }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
@@ -72,6 +76,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
         setStartsAt("");
         setEndsAt("");
         setReason("");
+        setRampDays("0");
         router.refresh();
       } else {
         setError(data.error ?? "Couldn't save that — try again.");
@@ -136,6 +141,18 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
           required
         />
 
+        <label className="fl" htmlFor="bo-ramp">
+          Run-up — days of one-digit-a-day before the window, 0 for none
+        </label>
+        <input
+          id="bo-ramp"
+          type="number"
+          min={0}
+          max={14}
+          value={rampDays}
+          onChange={(e) => setRampDays(e.target.value)}
+        />
+
         <label className="fl" htmlFor="bo-reason">
           Reason — optional, admin eyes only
         </label>
@@ -174,6 +191,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
               <tr>
                 <th>From</th>
                 <th>To</th>
+                <th>Run-up</th>
                 <th>Reason</th>
                 <th>State</th>
                 <th aria-label="Remove" />
@@ -184,6 +202,9 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
                 <tr key={w.id}>
                   <td style={{ whiteSpace: "nowrap" }}>{fmtPacificStamp(w.startsAt)}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{fmtPacificStamp(w.endsAt)}</td>
+                  <td className="bo-ramp">
+                    {w.rampDays > 0 ? `${w.rampDays}D` : <span style={{ color: "var(--gray)" }}>—</span>}
+                  </td>
                   <td>{w.reason || <span style={{ color: "var(--gray)" }}>—</span>}</td>
                   <td>
                     <span

@@ -2,6 +2,8 @@ import type { SanityBand } from "@/lib/row100k";
 import type { MyRow } from "../../../MyRows";
 import type { ProfileLogRow } from "../../../ProfileLog";
 import type { ShareData } from "../../../share/cards";
+import type { FieldModel, FieldYou } from "../../../stats/field";
+import type { PacePoint } from "./PaceCurve";
 
 /* Everything the profile (Profile.tsx) renders, computed once by page.tsx.
  * The layout only lays it out — it runs no query and never decides who is
@@ -71,6 +73,12 @@ export type ProfileView = {
   roster: RosterRower[];
   isMe: boolean;
   isAdmin: boolean;
+  /* The rower's average split, "2:07", worked out on the server from
+   * numbers that never ship. While a window hides them it is the ONE
+   * figure of theirs still published — a ratio of two hidden numbers gives
+   * neither away — and it is what the dog tag is built around (owner,
+   * 2026-09-06). Absent before they have a timed row. */
+  paceTag?: string;
   /* Blackout (blackoutRules.ts): this viewer sees blocks wherever one of
    * this rower's numbers would print. Never true for the rower or an admin. */
   masked: boolean;
@@ -83,6 +91,16 @@ export type ProfileView = {
   /* September days elapsed (never below 1) — the calendar stops here, and
    * METERS A DAY in the ledger divides the total by it. */
   days: number;
+  /* THE PACE (owner ask, 2026-09-08): the running average split after each
+   * timed session, over the meters rowed so far — the line on the profile.
+   * Empty for a rower with fewer than two timed rows. Never built for a
+   * masked view (the dog tag replaces the page). */
+  paceCurve: PacePoint[];
+  /* THE FIELD on the profile (same ask): everyone's two densities and this
+   * rower's overlay with percentiles, off stats/field.ts. Null when the
+   * field could not be read, when the rower has no session yet, or on a
+   * masked view. */
+  field: { field: FieldModel; you: FieldYou } | null;
   totals: {
     meters: number;
     sessions: number;

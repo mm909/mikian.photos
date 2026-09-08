@@ -11,6 +11,8 @@ import {
   Nameplate,
   coreLedger,
 } from "./pieces";
+import { PaceCurve } from "./PaceCurve";
+import { ProfileField } from "./ProfileField";
 import type { ProfileView } from "./view";
 
 /* THE profile — the owner's pick from the three looks (2026-09-05, off a
@@ -59,6 +61,30 @@ export function Profile({ view }: { view: ProfileView }) {
           </div>
         </div>
       </section>
+
+      {/* THE PACE and THE FIELD (owner ask, 2026-09-08), full width under
+          the two columns and above the log: the average split settling
+          meter by meter, then the rower against everyone. Both need at
+          least a couple of timed rows to say anything, so an empty one
+          simply is not there. */}
+      {(view.paceCurve.length >= 2 || view.field) && (
+        <section className="pf-sec">
+          <div className="wrap front">
+            {view.paceCurve.length >= 2 && (
+              <div className="pf-block">
+                <Eyebrow left="The pace" right="AVERAGE SPLIT · METER BY METER" />
+                <PaceCurve pts={view.paceCurve} />
+              </div>
+            )}
+            {view.field && (
+              <div className="pf-block">
+                <Eyebrow left="The field" right="YOU AGAINST EVERYONE" />
+                <ProfileField field={view.field.field} you={view.field.you} />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="pf-sec">
         <div className="wrap front">

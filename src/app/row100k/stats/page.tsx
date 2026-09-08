@@ -18,7 +18,7 @@ import {
   weekIndexOf,
   type WeeklyRow,
 } from "@/lib/row100k";
-import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
@@ -76,8 +76,8 @@ export default async function StatsPage() {
   } catch (err) {
     console.error("row100k/stats: failed to load board data", err);
     boardUnreadable = true;
-    blackout = await activeBlackout();
-    hideAll = blackout.active && !viewer.isAdmin;
+    blackout = previewBlackout(viewer, await activeBlackout());
+    hideAll = blackout.active && !(viewer.isAdmin && !viewer.preview);
     if (hideAll) {
       console.warn("row100k/stats: board unreadable during a blackout window — blanking every row but the viewer's own");
     }

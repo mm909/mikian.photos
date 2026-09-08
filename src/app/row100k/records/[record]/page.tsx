@@ -117,7 +117,7 @@ export default async function RecordRankingPage({
           {(blackout.active || hidden.size > 0) && (
             <p className="bo-note">
               {hidden.size > 0
-                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.key === "total" ? " · LISTED BY DIGITS" : ""}`
+                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.key === "total" ? " · LISTED BY PACE" : ""}`
                 : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
             </p>
           )}

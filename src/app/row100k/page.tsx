@@ -22,6 +22,7 @@ import {
 } from "@/lib/row100k";
 import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
+import { readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
@@ -171,10 +172,22 @@ export default async function Row100kPage() {
   // ("HIDDEN UNTIL SEP 27"); whether the fifteen are hidden at all is read
   // off the board's own rows (`unranked`), never off the window, so an
   // admin — whose board is never masked — sees the ordinary page.
+  // The admin's test blackout (row100kViewer): while it is on, the admin
+   // stops being an admin for the mask, and under "public" stops being
+   // themself as well, so the page is the one everybody else is getting.
+  const preview = readBlackoutPreview(isAdmin);
   let boards = EMPTY_BOARDS;
   let blackoutEndsAt: string | undefined;
   try {
-    const view = await boardView({ viewerParticipantId: me?.id, admin: isAdmin });
+    const view = await boardView(
+      preview
+        ? {
+            viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
+            admin: false,
+            forceBlackout: true,
+          }
+        : { viewerParticipantId: me?.id, admin: isAdmin },
+    );
     boards = view.boards;
     blackoutEndsAt = view.blackout.endsAt;
   } catch (err) {
@@ -190,8 +203,8 @@ export default async function Row100kPage() {
   if (me) {
     try {
       const blackout = await activeBlackout();
-      if (blackout.active) {
-        const pub = (await boardView({})).boards;
+      if (blackout.active || preview) {
+        const pub = (await boardView(preview ? { forceBlackout: true } : {})).boards;
         elite = pub.total.find((r) => r.participantId === me.id)?.masked === true;
       }
     } catch (err) {

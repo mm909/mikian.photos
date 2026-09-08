@@ -43,10 +43,18 @@ export function BlockClock({
   tenths?: boolean;
   shape?: string;
 }) {
-  const s = shape ?? clockShape(seconds ?? 0, tenths);
+  return <BlockShape shape={shape ?? clockShape(seconds ?? 0, tenths)} />;
+}
+
+/* Any shape at all: `#` draws a block, every other character draws itself.
+ * The run-up to a blackout uses it for a half-covered total — 142,### —
+ * where the digits still showing are real and the tail is gone
+ * (blackoutRules.partialShape). `label` says what a reader is looking at
+ * when only part of the number is hidden. */
+export function BlockShape({ shape, label = "hidden" }: { shape: string; label?: string }) {
   return (
-    <span className="bo" role="img" aria-label="hidden">
-      {[...s].map((ch, i) => (ch === "#" ? <i key={i} /> : <b key={i}>{ch}</b>))}
+    <span className="bo" role="img" aria-label={label}>
+      {[...shape].map((ch, i) => (ch === "#" ? <i key={i} /> : <b key={i}>{ch}</b>))}
     </span>
   );
 }

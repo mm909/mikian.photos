@@ -55,7 +55,7 @@ export function EliteList({
       {eyebrow && (
         <div className="elite-eye">
           <span>{ELITE_LABEL}</span>
-          <span className="r">{until ? `HIDDEN UNTIL ${until.toUpperCase()} · BY DIGITS, THEN NAME` : "HIDDEN · BY DIGITS, THEN NAME"}</span>
+          <span className="r">{until ? `HIDDEN UNTIL ${until.toUpperCase()} · BY AVERAGE SPLIT` : "HIDDEN · BY AVERAGE SPLIT"}</span>
         </div>
       )}
       <table className="board elite-t">
@@ -89,7 +89,7 @@ export function EliteList({
         </tbody>
       </table>
       <p className="elite-foot mono">
-        {rows.length === 1 ? "ONE ROWER" : `${rows.length} ROWERS`} · NO PLACES WHILE HIDDEN
+        {rows.length === 1 ? "ONE ROWER" : `${rows.length} ROWERS`} · BY AVERAGE SPLIT · NO PLACES WHILE HIDDEN
       </p>
     </div>
   );

@@ -614,11 +614,17 @@ model ShareEvent {
 /// Admin-set from /row100k/blackout; UTC instants, entered and shown in the
 /// challenge's fixed UTC-7 Pacific convention. `createdBy` is the admin's
 /// email, for the audit trail only — no FK, same as the other Row* tables.
+/// `rampDays` is the run-up (owner, 2026-09-06): for that many days before
+/// `startsAt` the fifteen lose their meters one digit at a time from the
+/// ones up, so the board dims toward the window instead of snapping shut on
+/// the day. 0 (the default, and every window written before the column
+/// existed) means no run-up at all.
 model RowBlackout {
   id        String   @id @default(cuid())
   challenge String   @default("row100k-sep-2026")
   startsAt  DateTime
   endsAt    DateTime
+  rampDays  Int      @default(0)
   reason    String   @default("")
   createdBy String   @default("")
   createdAt DateTime @default(now())

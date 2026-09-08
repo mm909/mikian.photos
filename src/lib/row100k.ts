@@ -385,6 +385,13 @@ export type TotalRow = {
    * board, EMPTY_BOARDS and the preview mocks are unchanged. */
   masked?: boolean;
   digits?: number;
+  /* Blackout run-up (blackoutRules.rampRow): how many of the low digits
+   * of this total are covered right now, 1 = the ones, 2 = the tens as
+   * well, and so on. While it is set, `meters` has been rounded DOWN to
+   * the digits still showing, so the number in the row IS what the page
+   * may print — the hidden ones are gone, not merely undrawn. The window
+   * itself replaces all of them (`masked`). */
+  hideLow?: number;
   /* Blackout: the rower's average split, "2:07", to the second — the one
    * number of theirs that stays public while they are hidden (owner,
    * 2026-09-05 late: rank the fifteen by average pace and print it where

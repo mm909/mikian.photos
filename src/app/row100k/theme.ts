@@ -654,6 +654,27 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge.legend{background:var(--tier-legend-ink)}
 .row100k .tierbadge.elite{background:var(--ink)}
 .row100k .tierbadge.pace{background:var(--ink);letter-spacing:.02em}
+/* THE DOG TAG (DogTag.tsx): one of the fifteen, seen by anybody else while
+ * a window is open. White on black, and nothing on it but who they are and
+ * the one figure that stays public — the average split (owner, 2026-09-06:
+ * rower dog tag vibes, the pace as the identity). Ink is the ground, so no
+ * new colour enters the palette; the inner rule is the stamped edge. */
+.row100k .dt{background:var(--ink);color:#fff;padding:10px;margin-top:26px}
+.row100k .dt-in{border:1px solid rgba(255,255,255,.28);padding:clamp(26px,7vw,54px) clamp(18px,5vw,44px)}
+.row100k .dt-eye{font-size:10px;letter-spacing:.22em;color:rgba(255,255,255,.55);text-transform:uppercase;margin:0}
+.row100k .dt-num{font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.55);margin:22px 0 0}
+.row100k .dt-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(28px,7vw,60px);line-height:1;letter-spacing:-.02em;text-transform:uppercase;margin:6px 0 0;overflow-wrap:anywhere}
+.row100k .dt-pace{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(64px,18vw,150px);line-height:.92;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:clamp(24px,5vw,44px) 0 0}
+.row100k .dt-unit{font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.62);text-transform:uppercase;margin:10px 0 0}
+.row100k .dt-foot{font-size:10px;letter-spacing:.18em;color:rgba(255,255,255,.45);text-transform:uppercase;margin:clamp(26px,6vw,46px) 0 0;border-top:1px solid rgba(255,255,255,.22);padding-top:14px}
+.row100k .dt-find{margin-top:26px}
+/* THE PACE and THE FIELD on the profile: two eyebrowed blocks, full width. */
+.row100k .pf-block{margin-top:34px}
+.row100k .pf-block:first-child{margin-top:0}
+.row100k .pf-pace{margin-top:0;padding-top:0;border-top:none;position:relative}
+.row100k .pf-pace .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--row-mono),monospace;font-size:11px;padding:5px 8px;white-space:nowrap;transform:translate(-50%,-130%);z-index:5}
+.row100k .pf-block .st-tiles{margin-top:0}
+.row100k .dt-find .pf-date{padding-top:0}
 /* THE ELITE FIFTEEN as a list (EliteList.tsx): the board idiom without a
  * place column; a one-letter division cell where the rank would sit, the
  * blocks on the right. The eyebrow is the profile one (.pf-eye). */
@@ -665,7 +686,22 @@ html:has(.row100k){scroll-behavior:smooth}
 /* The same block INSIDE the standings (Boards.tsx): while they are hidden
  * the fifteen leave the tier ladder and lead the table under one heading —
  * ink, not a tier color, and the solid rule the elite eyebrow wears. */
-.row100k tr.divrow.elite td{color:var(--ink);border-bottom:1px solid var(--ink);padding-top:0}
+/* White on black, from the heading down (owner, 2026-09-06: their own
+ * category, their own colour of table, very distinct — and after trying a
+ * neon and a sky blue against the matte palette, plain white on black).
+ * Ink is the ground, so nothing new enters the palette; the blocks flip to
+ * paper because an ink block on ink is nothing at all, and the pace tag
+ * inverts with them. */
+.row100k tr.divrow.elite td{color:#fff;background:var(--ink);border-bottom:none;padding:12px 10px 10px}
+.row100k tr.divrow.elite .by{color:rgba(255,255,255,.55);letter-spacing:.14em;margin-left:10px}
+.row100k tr.elite-row td{background:var(--ink);color:#fff;border-bottom:1px dashed rgba(255,255,255,.22)}
+.row100k tr.elite-row:last-of-type td{border-bottom:none}
+.row100k tr.elite-row td .who span{color:rgba(255,255,255,.5)}
+.row100k tr.elite-row td a{color:#fff}
+.row100k tr.elite-row td a:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.row100k tr.elite-row .bo i{background:var(--paper)}
+.row100k tr.elite-row .tierbadge.pace{background:var(--paper);color:var(--ink)}
+.row100k tr.elite-row .tierbadge.elite{background:var(--paper);color:var(--ink)}
 /* Blackout blocks: one fat cursor per hidden digit, sized off the inherited
  * font so a run of them is exactly as wide as the number it stands in for
  * (Space Mono advances .6em a glyph: a .54em block with .03em either side).

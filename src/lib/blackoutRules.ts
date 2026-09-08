@@ -28,10 +28,18 @@ import {
  * The ranking half (owner, same evening): the fifteen carry no place at
  * all while hidden — not even to themself ("I shouldn't be able to know
  * that I'm number three or number four, I should just know that I'm in the
- * top fifteen") — and are listed by how many digits their total has, then
- * by name. A rower with one digit more than the rest is visible as such;
- * that is the one thing the blocks say. Rows sixteen and down keep their
- * places, which the reorder never moves.
+ * top fifteen"). They are listed by AVERAGE PACE, fastest first (owner,
+ * 2026-09-06: "I want that average pace to be there like identity — and in
+ * the elite fifteen they're sorted by that pace"), which is a ratio of two
+ * numbers that both stay hidden, so the order gives no total away. Rows
+ * sixteen and down keep their places, which the reorder never moves.
+ *
+ * The RUN-UP (owner, 2026-09-06): for the days before a window the fifteen
+ * do not go dark at once — they lose one digit a day from the ones up, so
+ * 142,500 reads 142,50▮, then 142,5▮▮, then 142,▮▮▮, until the designated
+ * day covers all of it. During the run-up the board is otherwise itself:
+ * the fifteen keep their places, their movement and their sections, and
+ * only the tail of each number is gone (rampRow).
  *
  * Masking happens on the way OUT of the cached board (boardView), never in
  * computeBoards, so the cached object stays the one source of truth and the
@@ -66,6 +74,10 @@ export function clockShape(seconds: number, tenths = false): string {
 
 export type MaskOpts = {
   active: boolean;
+  /* The run-up, when no window is open yet: cover this many low digits of
+   * the fifteen's totals (blackout.ts works it out from the window's
+   * rampDays). Ignored once `active` is true — the window covers all. */
+  hideLow?: number;
   /* The signed-in viewer's own participant id — their row stays real. */
   viewerParticipantId?: string | null;
   /* Challenge admins see everything. */
@@ -105,26 +117,81 @@ function maskRow<T extends { meters: number; pct?: number; seconds?: number }>(
   };
 }
 
+/* The run-up shape of a total: the digits still showing, then a block for
+ * each one covered, with the commas where the number would have them —
+ * 142500 with three covered is "142,###", with four "14#,###". Rendered by
+ * Blackout.tsx (# is a block, anything else the real glyph) and by
+ * share/cards.ts drawBlockShape, so page and sticker agree.
+ *
+ * `hide` at or above the digit count covers everything, which is what the
+ * last day of the run-up does to the shortest total on the board. */
+export function partialShape(shown: number, hide: number, digits?: number): string {
+  const n = Math.max(1, Math.floor(digits ?? digitCount(shown)));
+  const covered = Math.min(Math.max(0, Math.floor(hide)), n);
+  const text = String(Math.max(0, Math.round(shown))).padStart(n, "0");
+  const cells = text.slice(-n).split("").map((d, i) => (i < n - covered ? d : "#"));
+  const out: string[] = [];
+  cells.forEach((c, i) => {
+    out.push(c);
+    const fromRight = n - i - 1;
+    if (fromRight > 0 && fromRight % 3 === 0) out.push(",");
+  });
+  return out.join("");
+}
+
+/* Round a total DOWN to the digits still showing, so the covered ones are
+ * not in the row at all: 142,500 with three covered becomes 142,000. */
+export function roundToShown(meters: number, hide: number): number {
+  const n = digitCount(meters);
+  const covered = Math.min(Math.max(0, Math.floor(hide)), n);
+  if (covered === 0) return Math.max(0, Math.round(meters));
+  const step = Math.pow(10, covered);
+  return Math.floor(Math.max(0, Math.round(meters)) / step) * step;
+}
+
+/* One of the fifteen during the run-up: the low digits leave the row, the
+ * rest of it is untouched — place, movement, section, sessions, seconds.
+ * `pct` follows the rounded total so the bar cannot give the tail away. */
+function rampRow<T extends { meters: number; pct?: number }>(
+  r: T,
+  hide: number,
+): T & { hideLow: number; digits: number } {
+  const shown = roundToShown(r.meters, hide);
+  const digits = digitCount(r.meters);
+  return {
+    ...r,
+    meters: shown,
+    ...("pct" in r ? { pct: Math.round((shown / GOAL_METERS) * 100) } : {}),
+    hideLow: Math.min(Math.max(1, Math.floor(hide)), digits),
+    digits,
+  };
+}
+
 /* How many digits a row shows: the real total's count on a masked row
  * (that is what its blocks draw), the total itself otherwise. */
 function shownDigits(r: { meters: number; masked?: boolean; digits?: number }): number {
   return r.masked && r.digits != null ? r.digits : digitCount(r.meters);
 }
 
-/* The order of the hidden fifteen: more digits first, then the name A to Z
- * (case and accents ignored), then the rower number so it is total (owner,
- * 2026-09-05: keep the blackout board sorted by digit first, then
- * alphabetically, and still show the average pace). It is not a ranking —
- * the digit count is already on the screen as the length of the blocks, and
- * within a digit group the alphabet says nothing about who is ahead. The
- * pace tag rides along on every row but does not order them. Exported for
- * any surface that lists the fifteen on its own. */
+/* "2:07" as seconds, for sorting; a row with no pace sorts last. */
+function paceSeconds(tag?: string): number {
+  const m = /^(\d+):(\d{2})$/.exec(tag ?? "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : Number.POSITIVE_INFINITY;
+}
+
+/* The order of the hidden fifteen: FASTEST AVERAGE SPLIT first (owner,
+ * 2026-09-06 — the pace is their identity while the meters are gone, and
+ * it is what the section is sorted by), then the name A to Z (case and
+ * accents ignored), then the rower number so the order is total. It is not
+ * the meters ranking: a split is a ratio of two hidden numbers, so nobody
+ * learns from it whether they are third or fourth. Exported for any
+ * surface that lists the fifteen on its own. */
 export function eliteOrder<T extends { meters: number; name: string; rowerNumber: number; masked?: boolean; digits?: number; paceTag?: string }>(
   a: T,
   b: T,
 ): number {
   return (
-    shownDigits(b) - shownDigits(a) ||
+    paceSeconds(a.paceTag) - paceSeconds(b.paceTag) ||
     a.name.localeCompare(b.name, "en", { sensitivity: "base" }) ||
     a.rowerNumber - b.rowerNumber
   );
@@ -168,7 +235,24 @@ function dealPrevRanks(fifteen: TotalRow[]): TotalRow[] {
  * Returns the same object when nothing needs hiding so the cached board is
  * not copied for nothing. */
 export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
-  if (!opts.active || opts.admin) return boards;
+  if (opts.admin) return boards;
+  // The run-up: no window is open yet, so the board keeps its order, its
+  // places and its movement — the fifteen simply lose the tail of their
+  // totals. Self is exempt here too: a rower always sees their own number.
+  if (!opts.active) {
+    const hide = Math.floor(opts.hideLow ?? 0);
+    if (hide <= 0) return boards;
+    const eliteNow = eliteIndexes(boards.total);
+    if (eliteNow.size === 0) return boards;
+    return {
+      ...boards,
+      total: boards.total.map((r, i) => {
+        if (!eliteNow.has(i) || r.masked || r.hideLow) return r;
+        if (opts.viewerParticipantId && r.participantId === opts.viewerParticipantId) return r;
+        return rampRow(r, hide);
+      }),
+    };
+  }
   const elite = eliteIndexes(boards.total);
   if (elite.size === 0) return boards;
   const fifteen: TotalRow[] = [];

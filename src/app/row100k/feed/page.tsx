@@ -17,7 +17,7 @@ import {
   nowMs,
   pacificDay,
 } from "@/lib/row100k";
-import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { RowBar } from "../RowBar";
@@ -146,8 +146,8 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     // The window state lives in its own table and activeBlackout() never
     // throws, so the fail-closed hide fires only while a window is actually
     // open — a plain board hiccup outside one must not black out the feed.
-    blackout = await activeBlackout();
-    hideAll = blackout.active && !viewer.isAdmin;
+    blackout = previewBlackout(viewer, await activeBlackout());
+    hideAll = blackout.active && !(viewer.isAdmin && !viewer.preview);
     if (hideAll) {
       console.warn("row100k/feed: board unreadable during a blackout window — hiding every row but the viewer's own");
     }

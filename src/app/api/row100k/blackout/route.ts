@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   const g = await guard();
   if ("res" in g) return g.res;
 
-  let body: { startsAt?: unknown; endsAt?: unknown; reason?: unknown };
+  let body: { startsAt?: unknown; endsAt?: unknown; reason?: unknown; rampDays?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -76,12 +76,15 @@ export async function POST(req: Request) {
   if (!startsAt || !endsAt) return bad("Both times are needed, as ISO strings.");
   if (endsAt.getTime() <= startsAt.getTime()) return bad("The end has to come after the start.");
   const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 200) : "";
+  // The run-up, in days. Capped at a fortnight: it is a tease before the
+  // window, not a second challenge.
+  const rampDays = Math.min(14, Math.max(0, Math.floor(Number(body.rampDays) || 0)));
 
   try {
     // Namespace-scoped like every other Row* write, so a demo-mode admin
     // cannot black out the live board (and vice versa).
     const row = await db.rowBlackout.create({
-      data: { challenge: CHALLENGE, startsAt, endsAt, reason, createdBy: g.actor.email },
+      data: { challenge: CHALLENGE, startsAt, endsAt, rampDays, reason, createdBy: g.actor.email },
       select: { id: true },
     });
     revalidateTag(BLACKOUT_TAG);

@@ -14,8 +14,8 @@ import {
   type Tier,
   type TotalRow,
 } from "@/lib/row100k";
-import { ELITE_LABEL, ELITE_TAG, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
-import { BlockText, Blocks } from "./Blackout";
+import { ELITE_LABEL, ELITE_TAG, digitCount, fmtPacificDay, partialShape } from "@/lib/blackoutRules";
+import { BlockShape, BlockText, Blocks } from "./Blackout";
 
 export type Tab = "ALL" | "M" | "F";
 
@@ -216,7 +216,7 @@ export function Boards({
       {blackedOut && (
         <p className="bo-note">
           {anyHidden
-            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until} · LISTED BY DIGITS`
+            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until} · LISTED BY PACE`
             : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
         </p>
       )}
@@ -243,9 +243,15 @@ export function Boards({
                 <>
                   {/* One block, no tier, no places — the list the note above
                       promises. It leads the table: they are the top of the
-                      board, that much is public. */}
+                      board, that much is public. White on black from the
+                      heading down (owner, 2026-09-06), so the section reads
+                      as its own thing without a new colour in the palette;
+                      the pace tag is the identity, and the order is by it. */}
                   <tr className="divrow elite">
-                    <td colSpan={4}>{ELITE_LABEL}</td>
+                    <td colSpan={4}>
+                      {ELITE_LABEL}
+                      <span className="by">BY AVERAGE SPLIT</span>
+                    </td>
                   </tr>
                   {eliteRows.map((r) => (
                     <TotalRowTr key={r.participantId} r={r} rank={0} />
@@ -306,8 +312,8 @@ export function Boards({
                   </tr>
                   <tr className="lockrow">
                     <td colSpan={4}>
-                      {warming.length} {warming.length === 1 ? "ROWER" : "ROWERS"} WARMING UP ·{" "}
-                      {warmingMeters.toLocaleString("en-US")} M BETWEEN THEM
+                      {warming.length} {warming.length === 1 ? "ROWER" : "ROWERS"} WARMING UP FOR{" "}
+                      {warmingMeters.toLocaleString("en-US")} M
                     </td>
                   </tr>
                 </>
@@ -356,7 +362,7 @@ function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier 
     tier && <span className={`tierbadge ${tier.rarity}`}>{tier.label}</span>
   );
   return (
-    <tr>
+    <tr className={r.unranked ? "elite-row" : undefined}>
       <td className="rk">{r.unranked ? "" : rank}</td>
       <td>
         <Who row={r} badge={badge} />
@@ -366,6 +372,17 @@ function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier 
         {r.masked ? (
           <>
             <Blocks digits={r.digits ?? digitCount(r.meters)} /> m
+          </>
+        ) : r.hideLow ? (
+          <>
+            {/* The run-up: the digits still showing are real, the tail is
+                already out of the row (blackoutRules.rampRow). No bar —
+                its width would give the covered digits back. */}
+            <BlockShape
+              shape={partialShape(r.meters, r.hideLow, r.digits)}
+              label="partly hidden"
+            />{" "}
+            m
           </>
         ) : (
           <>

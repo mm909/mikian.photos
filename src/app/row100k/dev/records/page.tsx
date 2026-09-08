@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { activeBlackout } from "@/lib/blackout";
 import { START_MS, nowMs as clockNow } from "@/lib/row100k";
-import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -46,7 +46,7 @@ export default async function DevRecordsPage() {
   } catch (err) {
     console.error("row100k/dev/records: failed to load board data", err);
     boardUnreadable = true;
-    blackout = await activeBlackout();
+    blackout = previewBlackout(viewer, await activeBlackout());
     hideAll = blackout.active && !viewer.isAdmin;
   }
 

@@ -18,6 +18,7 @@ import {
   fmtMeters,
   fmtRecordTime,
   fmtRowerNumber,
+  fmtPaceTag,
   fmtSplit,
   nowMs as clockNow,
   pacificDay,
@@ -31,6 +32,10 @@ import { sanityBandForForm } from "../../sanity";
 import { resolvePhotoMedia } from "../../photoUrls";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import { DogTag } from "./looks/DogTag";
+import { fieldEntries } from "../../fieldData";
+import { buildField } from "../../stats/field";
+import type { PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
 import type { ProfileBest, ProfileView, RosterRower } from "./looks/view";
 
@@ -348,6 +353,44 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // they have spent rowing is the figure the profile was missing).
   const totalSeconds = entries.reduce((s, e) => s + e.seconds, 0);
 
+  // THE PACE (owner ask, 2026-09-08): the running average split after each
+  // timed session, against the meters rowed so far. Untimed rows add no
+  // point — a split needs both numbers. Not built for a masked view: the
+  // dog tag replaces the page, and the points would be the truth.
+  const paceCurve: PacePoint[] = [];
+  if (!masked) {
+    let cm = 0;
+    let cs = 0;
+    for (const e of entries) {
+      if (!(e.meters > 0) || !(e.seconds > 0)) continue;
+      cm += e.meters;
+      cs += e.seconds;
+      paceCurve.push({ m: cm, s: cs / (cm / 500), dayStr: fmtDay(e.day) });
+    }
+  }
+
+  // THE FIELD on the profile (same ask): everyone's densities with this
+  // rower over them. The hidden set is the board's, as THIS viewer sees it,
+  // so the grey ground counts everyone and the overlay is the rower's own.
+  // A failed read just leaves the block off the page.
+  let field: ProfileView["field"] = null;
+  if (!masked && entries.length > 0) {
+    try {
+      const all = await fieldEntries();
+      const hidden = new Set<string>();
+      try {
+        const { boards: pub } = await boardView(viewOpts(viewer));
+        for (const id of maskedIds(pub)) hidden.add(id);
+      } catch {
+        /* no board, no hidden set — the densities are aggregates anyway */
+      }
+      const f = buildField(all, { isHidden: (id) => hidden.has(id), meId: p.id });
+      if (f.field.sessions > 0 && f.you) field = { field: f.field, you: f.you };
+    } catch (err) {
+      console.error(`row100k: failed to build the field for rower ${num}`, err);
+    }
+  }
+
   // One object for the layout (looks/view.ts): everything above, computed
   // once; Profile.tsx only lays it out.
   const view: ProfileView = {
@@ -360,6 +403,11 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     club: (masked ? floor : me.meters) >= GOAL_METERS,
     phase,
     days: daysElapsed(),
+    // The average split: computed here, from the real total and the real
+    // seconds, and shipped as a string. It survives the mask on purpose.
+    paceTag: me.meters > 0 && totalSeconds > 0 ? fmtPaceTag(me.meters, totalSeconds) : undefined,
+    paceCurve,
+    field,
     totals: {
       meters: me.meters,
       sessions: me.sessions,
@@ -383,7 +431,14 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
           No ROWER-number tag in it — the nameplate just below says whose
           page this is. */}
       <RowBar {...barProps(viewer)} />
-      <Profile view={view} />
+      {/* One of the fifteen, seen by anybody else while a window is open:
+          the profile is a dog tag, not a wall of blocks (owner,
+          2026-09-06). Self and admins keep the whole page. */}
+      {masked ? (
+        <DogTag view={view} until={blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined} />
+      ) : (
+        <Profile view={view} />
+      )}
       <RowFooter />
     </div>
   );
