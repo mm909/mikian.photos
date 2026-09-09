@@ -36,13 +36,12 @@ import {
  * the second look the same night, and the 2026-09-08 pass).
  *
  * THE RECORDS: TOTAL METERS is the front page's leader box — eyebrow, the
- * leader's meters, their name — over one mono link to the board, and no
- * podiums (owner, 2026-09-08: the podiums under it ran taller than the
- * other records', so picking fastest 5k snapped the page up). While the
- * elite are hidden nobody leads, and the box does what the front page's
- * does: the longest hidden total in blocks, THE ELITE on the name line —
- * the same three lines, the same height, with or without a window (the
- * list of the elite is the board's, one link away). The other four
+ * leader's meters, their name — then the men's and women's top five (back
+ * by owner call, 2026-09-08 late, after a night without them) and one mono
+ * link to the board. While the elite are hidden nobody leads, and the box
+ * does what the front page's does: the longest hidden total in blocks,
+ * THE ELITE on the name line, no podiums under it (the list of the elite
+ * is the board's, one link away). The other four
  * records print the way the front page prints the board — the overall
  * number one as a big blue headline with the holder on a mono line, then
  * the men's and women's top five
@@ -130,9 +129,11 @@ export function StatsRecords({
   /* A rower in neither division (X, the schema default — overall boards
    * only) has no podium to sit under, so their own line is drawn once more
    * against the whole ranking: the owner said seeing where you stand on
-   * this page matters. Never on TOTAL METERS, which has no podiums. */
+   * this page matters. Not while the elite are hidden on TOTAL METERS —
+   * there are no podiums then. */
   const meRow = meId ? rows.find((r) => r.participantId === meId) : undefined;
-  const overall = !isTotal && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
+  const overall =
+    !(isTotal && hiddenRanking) && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
 
   /* The holder line under the headline: number · NAME · day, plus the
    * split for a pace record. Times are public for everyone, the elite
@@ -257,13 +258,25 @@ export function StatsRecords({
       </div>
 
       {isTotal ? (
-        /* The whole ranking lives on the board, so the one link goes there
-           (the front page's line under the latest row) and FULL RANKING
-           stays off this record — two links to the same list is one too
-           many. */
-        <p className="front-more mono">
-          <a href="/row100k/board">See the whole board →</a>
-        </p>
+        /* The men's and women's top five under the leader box (owner,
+           2026-09-08 late, on the live page: "bring this table back"). While
+           the elite are hidden there is no ranking to draw them from — the
+           box says THE ELITE and the list is the board's. The whole ranking
+           lives on the board, so the one link goes there (the front page's
+           line under the latest row) and FULL RANKING stays off this record
+           — two links to the same list is one too many. */
+        <>
+          {!unavailable && !hiddenRanking && (
+            <div className="front-top st-podiums">
+              <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
+              <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
+            </div>
+          )}
+          {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
+          <p className="front-more mono">
+            <a href="/row100k/board">See the whole board →</a>
+          </p>
+        </>
       ) : (
         <>
           {!unavailable && (
