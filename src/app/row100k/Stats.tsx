@@ -35,13 +35,14 @@ import {
 /* The two client sections of the stats page (owner review, 2026-09-05,
  * the second look the same night, and the 2026-09-08 pass).
  *
- * THE RECORDS: TOTAL METERS is the front page's leader box — eyebrow, the
- * leader's meters, their name — then the men's and women's top five (back
- * by owner call, 2026-09-08 late, after a night without them) and one mono
- * link to the board. While the elite are hidden nobody leads, and the box
- * does what the front page's does: the longest hidden total in blocks,
- * THE ELITE on the name line, no podiums under it (the list of the elite
- * is the board's, one link away). The other four
+ * THE RECORDS: TOTAL METERS prints the way the other four do (owner,
+ * 2026-09-09: "like the other leaderboards — the blue text"): the leader's
+ * meters big and blue with the holder on the mono line, then the men's
+ * and women's top five (back by owner call, 2026-09-08 late) and one mono
+ * link to the board. While the elite are hidden nobody leads: the same
+ * head holds the longest hidden total in blocks with THE ELITE on the
+ * holder line, and no podiums under it (the list of the elite is the
+ * board's, one link away). The other four
  * records print the way the front page prints the board — the overall
  * number one as a big blue headline with the holder on a mono line, then
  * the men's and women's top five
@@ -121,10 +122,6 @@ export function StatsRecords({
    * among them, as a digit count. A masked row carries the real total's
    * count; the viewer's own row, exempt from the mask, carries its meters. */
   const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? digitCount(r.value)), 1);
-  /* The front page's leader: the first row with meters. A masked row
-   * carries 0 here (only its digit count travels), so the mask itself has
-   * to count as "has meters" or the box would name the wrong rower. */
-  const leader = isTotal && !hiddenRanking ? rows.find((r) => r.value > 0 || r.masked) : undefined;
 
   /* A rower in neither division (X, the schema default — overall boards
    * only) has no podium to sit under, so their own line is drawn once more
@@ -170,55 +167,20 @@ export function StatsRecords({
           The other four: the newspaper head, the record's number one big and
           blue, the holder on the mono line (the board head, one size down).
           One descriptor line, no extra title (owner call, 2026-09-05). */}
-      {isTotal ? (
-        /* The simpler box (no IN THE LEAD FOR N DAYS line — that needs the
-           day-by-day leaders the front page loads — and no BLACKOUT head
-           line either: the bo-note one line up already says it, so the box
-           keeps the same three lines, eyebrow, meters, name, in both states
-           and picking another record never moves the submenu): the meters
-           (blocks if masked, the way the front page draws them), the name.
-           While the elite are hidden the meters are the longest hidden total
-           in blocks and the name line reads THE ELITE (front page). */
-        <div className="front-box st-lead">
-          <div className="eyebrow mono">The leader</div>
-          {hiddenRanking ? (
-            <>
-              <div className="v">
-                <Blocks digits={eliteDigits} /> m
-              </div>
-              <div className="nm">{ELITE_LABEL}</div>
-            </>
-          ) : leader ? (
-            <>
-              <div className="v">
-                {leader.masked ? (
-                  <>
-                    <Blocks digits={leader.digits ?? digitCount(leader.value)} /> m
-                  </>
-                ) : leader.hideLow ? (
-                  /* The run-up (blackoutRules.rampRow): the digits still
-                     showing are real, the tail is already out of the row
-                     — drawn the way the board draws it. */
-                  <>
-                    <BlockShape shape={partialShape(leader.value, leader.hideLow, leader.digits)} label="partly hidden" /> m
-                  </>
-                ) : (
-                  fmtMeters(leader.value)
-                )}
-              </div>
-              <div className="nm">
-                <Who row={{ name: leader.name, rowerNumber: leader.rowerNumber }} />
-              </div>
-            </>
-          ) : (
-            <div className="head mono">
-              {unavailable
-                ? "THE BOARD COULD NOT BE READ JUST NOW — RELOAD IN A MOMENT."
-                : started
-                  ? "NOBODY HAS LOGGED A METER YET"
-                  : "FIRST STROKE SEP 1"}
-            </div>
-          )}
+      {isTotal && hiddenRanking ? (
+        /* The elite are hidden: nobody leads, and the row at the top of the
+           list is the fastest hidden rower by split, nobody's number one.
+           The same head as every other record, so picking one never moves
+           the submenu: the longest hidden total in blocks, big and blue,
+           THE ELITE on the holder line (the list of the elite is the
+           board's, one link away). */
+        <div className="bhead st-rec">
+          <div className="bhead-n">
+            <Blocks digits={eliteDigits} /> <span className="u">m</span>
+          </div>
+          <p className="bhead-l mono">
+            <b>{ELITE_LABEL}</b>
+          </p>
         </div>
       ) : first ? (
         <div className="bhead st-rec">
