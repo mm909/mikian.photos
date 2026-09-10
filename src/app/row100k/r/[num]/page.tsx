@@ -326,8 +326,13 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // been and nothing of theirs reaches the browser.
   const logRows = rows.map((r) => ({
     id: r.id,
+    day: r.day,
     dayStr: fmtDay(r.day),
     title: r.title,
+    // The numbers behind the strings, for the sort and the distance chips
+    // (logSort.ts) — never for a masked row.
+    meters: masked ? undefined : r.meters,
+    seconds: masked ? undefined : r.seconds,
     metersStr: masked ? "" : fmtMeters(r.meters),
     durationStr: masked ? "" : fmtDuration(r.seconds),
     splitStr: masked ? "" : fmtSplit(r.meters, r.seconds),

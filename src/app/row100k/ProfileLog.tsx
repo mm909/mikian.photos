@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { BlockClock, Blocks } from "./Blackout";
 import { Lightbox, type LightboxPhoto } from "./Lightbox";
+import { LogControls, SortHeader } from "./LogControls";
+import { DEFAULT_LOG_VIEW, applyLogView, type LogView } from "./logSort";
 
 /* The public log on a rower's profile, two ways: TABLE — the clean numbers
  * table (owner call, cycle 6: this view stays exactly as it was) — and
@@ -25,8 +27,15 @@ export type ProfileLogPhoto = { full: string; thumb: string | null };
 
 export type ProfileLogRow = {
   id: string;
+  /* "2026-09-04" — for the sort (logSort.ts). Dates are public. */
+  day: string;
   dayStr: string;
   title: string;
+  /* The numbers, for sorting and the distance chips (logSort.ts) — absent
+   * while masked, so a hidden rower's rows sort last and match no
+   * distance; nothing hidden reaches the browser through these either. */
+  meters?: number;
+  seconds?: number;
   /* "" while masked. */
   metersStr: string;
   /* "" while masked. */
@@ -49,18 +58,22 @@ function photoAlt(r: ProfileLogRow, i: number): string {
 export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
   const [view, setView] = useState<"table" | "photos">("table");
   const [lightbox, setLightbox] = useState<number | null>(null);
+  // The sort and the distance sift (owner, 2026-09-10) — the same controls
+  // the rower's own log has; both shapes below draw the sifted rows.
+  const [logView, setLogView] = useState<LogView>(DEFAULT_LOG_VIEW);
+  const shown = useMemo(() => applyLogView(rows, logView), [rows, logView]);
 
-  // One reel for the whole log (rows in the order given, rower before erg
+  // One reel for the whole log (rows in the order SHOWN, rower before erg
   // within a row); offsets[i] is row i's first photo in it.
   const { reel, offsets } = useMemo(() => {
     const reel: LightboxPhoto[] = [];
     const offsets: number[] = [];
-    for (const r of rows) {
+    for (const r of shown) {
       offsets.push(reel.length);
       r.photos.forEach((p, i) => reel.push({ full: p.full, alt: photoAlt(r, i) }));
     }
     return { reel, offsets };
-  }, [rows]);
+  }, [shown]);
 
   return (
     <>
@@ -78,19 +91,29 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
         ))}
       </div>
 
+      <LogControls rows={rows} shown={shown} view={logView} onView={setLogView} sortChips={view === "photos"} />
+
       {view === "table" ? (
         <div style={{ overflowX: "auto" }}>
           <table className="board">
             <thead>
               <tr>
-                <th>Day</th>
-                <th style={{ textAlign: "right" }}>Meters</th>
-                <th style={{ textAlign: "right" }}>Time</th>
-                <th style={{ textAlign: "right" }}>/500m</th>
+                <SortHeader k="day" view={logView} onView={setLogView}>
+                  Day
+                </SortHeader>
+                <SortHeader k="meters" view={logView} onView={setLogView} right>
+                  Meters
+                </SortHeader>
+                <SortHeader k="seconds" view={logView} onView={setLogView} right>
+                  Time
+                </SortHeader>
+                <SortHeader k="split" view={logView} onView={setLogView} right>
+                  /500m
+                </SortHeader>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id}>
                   <td>
                     {r.dayStr}
@@ -125,7 +148,7 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
         </div>
       ) : (
         <div>
-          {rows.map((r, ri) => (
+          {shown.map((r, ri) => (
             <article className="plog-card" key={r.id}>
               <div className="plog-top">
                 <span>{r.dayStr.toUpperCase()}</span>
