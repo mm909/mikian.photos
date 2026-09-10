@@ -80,6 +80,10 @@ export function BarAccount({
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>
+                {/* The rower's own poster (/row100k/r/N/poster) is admin-only
+                 * for now — owner, 2026-09-10: "give me the poster in the dev
+                 * menu, not live". The MY POSTER item comes back here when
+                 * he opens it to rowers. */}
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
                 </Link>
@@ -121,6 +125,12 @@ export function BarAccount({
                 <Eyebrow>Development</Eyebrow>
                 <Link className="acct-item" href="/row100k/dev/stats" onClick={close}>
                   Dev stats →
+                </Link>
+                {/* The poster studio (owner, 2026-09-10: "in the dev menu, not
+                 * live") — Rowtember and any rower, print and Instagram
+                 * formats, PNG / PDF / share. Admin-only page. */}
+                <Link className="acct-item" href="/row100k/posters" onClick={close}>
+                  Posters (dev) →
                 </Link>
                 {/* The numbers and the gallery live here rather than on the
                  * bar for now (owner call, 2026-09-05): neither is ready to
