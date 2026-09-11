@@ -3,8 +3,9 @@
  *
  * engine.ts render() paints cream over the whole canvas before it composes
  * ("the PDF's JPEG has no alpha — an unpainted canvas encodes as black"),
- * which is right for the two paper subjects and wrong for both of race
- * day's: the ad is ink and the overlay is nothing at all. engine.ts belongs
+ * which is right for the two paper subjects and wrong for all three of race
+ * day's: the ad is ink, the overlay is nothing at all, and the third is ink
+ * with the owner's own photograph drawn into it. engine.ts belongs
  * to another stream, so race day brings its own six lines of pipeline
  * instead and calls the same compose() — the flow engine, the drop list,
  * the shrink order and the cascade are all still the engine's.
@@ -35,10 +36,12 @@ import type {
 
 export const RACE_GROUNDS: { key: PosterGround; label: string }[] = [
   { key: "ink", label: "Solid ad" },
+  { key: "photo", label: "On the photo" },
   { key: "overlay", label: "Overlay" },
 ];
 
-export const isGround = (v: unknown): v is PosterGround => v === "ink" || v === "overlay";
+export const isGround = (v: unknown): v is PosterGround =>
+  v === "ink" || v === "overlay" || v === "photo";
 
 const FULL_BLEED: PosterMargins = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -58,14 +61,23 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("poster: no 2d context");
 
-  // THE GROUND. Ink over everything, for BOTH grounds: the overlay's plans
-  // carry a `window` row that cuts its own box back out with
-  // destination-out, so the transparency is one clean hole rather than a
+  // THE GROUND. Ink over everything, for ALL THREE grounds: the window row
+  // the other two carry either cuts its own box back out with
+  // destination-out (overlay) or draws the photograph over it (photo), so
+  // the transparency — or the picture — is one clean box rather than a
   // mosaic of bands with antialiased seams between them. (A transparent PDF
   // is refused upstream: the JPEG a PDF carries would encode that alpha as
-  // black.)
+  // black. The photo ground is opaque, so it keeps its PDF.)
   ctx.fillStyle = RACE_INK;
   ctx.fillRect(0, 0, target.pxW, target.pxH);
+
+  // A PHOTO GROUND WITH NO PHOTOGRAPH IS A BLACK BAND, never a frame worth
+  // downloading: the picture that did not load (a bucket that refused the
+  // CORS fetch, a key that has been deleted) drops the frame back to the
+  // solid ad rather than printing a hole. The studio only offers the chip
+  // when the race HAS a photograph, and says so when the load fails, so
+  // this is the belt and not the braces.
+  const drawn: PosterGround = ground === "photo" && !assets.photo ? "ink" : ground;
 
   // Full bleed, no gaps: the modules tile the frame. The format's REAL
   // margins are still what the type is inset by — poster/raceday.ts reads
@@ -88,7 +100,7 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
     // a type-level widening only, and it is contained here on purpose.
     log = compose({
       ctx,
-      layout: raceLayoutFor(ground) as unknown as PosterLayout<CommunityPoster>,
+      layout: raceLayoutFor(drawn) as unknown as PosterLayout<CommunityPoster>,
       format,
       data: data as unknown as CommunityPoster,
       paint,
@@ -101,15 +113,17 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
 }
 
 /* raceday-2026-09-27-story.png · raceday-2026-09-27-story-overlay.png ·
- * raceday-2026-09-27-poster-11x17.pdf — the race's own slug is the subject,
- * the way engine.ts fileName() stems the other two. */
+ * raceday-2026-09-27-story-photo.png · raceday-2026-09-27-poster-11x17.pdf —
+ * the race's own slug is the subject, the way engine.ts fileName() stems the
+ * other two. The ground is in the name because all three are the same ad and
+ * only the name says which one is on the desktop. */
 export function raceFileName(
   data: RaceDayPoster,
   format: { stem: string; kind: "print" | "instagram"; ppi?: { default: PosterPpi } },
   ext: "png" | "pdf",
   opts: { ground: PosterGround; ppi?: PosterPpi | null; bleed?: boolean },
 ): string {
-  let suffix = opts.ground === "overlay" ? "-overlay" : "";
+  let suffix = opts.ground === "overlay" ? "-overlay" : opts.ground === "photo" ? "-photo" : "";
   if (format.kind === "print" && opts.ppi && format.ppi && opts.ppi !== format.ppi.default)
     suffix += `-${opts.ppi}ppi`;
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";

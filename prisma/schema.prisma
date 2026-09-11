@@ -726,6 +726,40 @@ model RowRaceSignup {
   @@index([challenge, race])
 }
 
+/// What the owner can change about a race without a deploy (owner,
+/// 2026-09-11: "let us make the start time and end time and first wave time
+/// all changeable in the settings menu"). The race itself still lives in
+/// code (src/app/row100k/raceday.ts) — this row holds only the overrides,
+/// and a null means the code default stands, so a race with no row here
+/// behaves exactly as it always did. `waveSize` and `waveMinutes` are here
+/// too because the wave grid is the same question (how many ergs, how far
+/// apart), and `photoKey` / `photoBw` are the picture the ads carry.
+/// One row per race per challenge; no FK, like the other Row* tables.
+model RowRaceSettings {
+  id          String    @id @default(cuid())
+  challenge   String    @default("row100k-sep-2026")
+  race        String
+  /// The doors: when the room opens and when it shuts. Named `endsAt` and
+  /// not `closesAt` because the race already has a closesAt that means the
+  /// moment registration shuts, which is a different thing.
+  opensAt     DateTime?
+  endsAt      DateTime?
+  /// When the first wave goes off. The rest follow at waveMinutes.
+  firstWaveAt DateTime?
+  waveMinutes Int?
+  /// Ergs on the floor — how many race in one wave.
+  waveSize    Int?
+  /// The gallery photo the ads carry, as its R2 key, and whether it is
+  /// drawn in black and white (owner: "most likely" black and white).
+  photoKey    String?
+  photoBw     Boolean   @default(true)
+  updatedBy   String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([challenge, race])
+}
+
 /// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
 /// Grizzly Health). The raffle itself — prize, sponsor, the entry window,
 /// the copy — is defined in code (src/app/row100k/raffles.ts, by slug);

@@ -5,6 +5,7 @@ import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 import { currentRace, raceBySlug, waveTime, type RaceDef } from "@/app/row100k/raceday";
+import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { listRacers, type Racer } from "@/app/row100k/racedayData";
 import { waveEmail } from "@/app/row100k/raceEmail";
 
@@ -155,8 +156,13 @@ export async function POST(req: Request) {
   const body = await readBody(req);
   if (!body) return bad("Send JSON.");
   const action = body.action;
-  const race = typeof body.race === "string" ? raceBySlug(body.race) : currentRace();
-  if (!race) return bad("No such race.", 404);
+  /* The slug is checked against the code first, so a race nobody has heard
+   * of is still a 404 — and only then resolved, so every wave time this
+   * route prints or mails is the one the console last set
+   * (racedaySettings.ts), not the one that shipped in the deploy. */
+  const base = typeof body.race === "string" ? raceBySlug(body.race) : currentRace();
+  if (!base) return bad("No such race.", 404);
+  const race = await resolvedRace(base.slug);
   const dryRun = body.dryRun === true;
 
   /* ------------------------------------------------------------ one row */

@@ -4,11 +4,9 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyEve
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
-import { currentRace } from "../raceday";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout } from "../poster/layouts";
-import { raceDayPoster } from "../poster/raceAssemble";
 import { RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
   CommunityPoster,
@@ -54,22 +52,52 @@ const BLEED_IN = 0.125;
  * capitals; every name in the payload is appended at load time. */
 const GLYPHS = "0123456789 ,.:/%#·—…→←‘’ AÁÉÍÓÚÑÖØÜ ÆŒ ROWTEMBER";
 
-/* The race the studio advertises, read once. Its mark is the only image
- * race day draws, and its own words are what the face loader has to have
- * ready before the first frame is drawn. */
-const RACE = currentRace();
-const VENUE_MARK = RACE.venueMark?.src ?? null;
-const RACE_WORDS = [RACE.title, RACE.sub, RACE.venue, RACE.room, RACE.roomNote, "Sign up", "Racer", "Spectator"]
-  .join(" ")
-  .toUpperCase();
+/* The race's own words, for the face loader: every glyph a race day frame
+ * can set has to be loaded before the first one is drawn.
+ *
+ * THEY COME OFF THE PAYLOAD, not off currentRace(). This file used to hold a
+ * module-level `const RACE = currentRace()` and build its own race day
+ * payload from it — which in a "use client" file can never see the settings
+ * row, so the studio drew the deploy-time doors and no photograph however
+ * the console was set (review, 2026-09-11). The server builds the payload
+ * now (poster/raceData.ts) and the studio only draws what it is handed. */
+const raceWords = (d: RaceDayPoster | null | undefined): string =>
+  d
+    ? [
+        ...d.race.head,
+        d.race.piece,
+        d.race.venue,
+        d.race.room,
+        d.race.city,
+        "SIGN UP",
+        ...d.race.roles.map((r) => r.label),
+      ].join(" ")
+    : "";
 
 /* The overlay preview sits on a chequer, not on the studio's cream: a
  * transparent PNG has to LOOK transparent while it is being judged. Inline
- * so no style tag carries it (theme.ts's quoting rule). */
+ * so no style tag carries it (theme.ts's quoting rule). It is what shows
+ * when the race has no photograph to sit on, and what the backdrop chip
+ * switches back to. */
 const CHEQUER = {
   backgroundImage:
     "repeating-conic-gradient(#e6e5df 0% 25%, #fbfbf8 0% 50%)",
   backgroundSize: "20px 20px",
+} as const;
+
+/* THE PHOTOGRAPH BEHIND AN OVERLAY (owner, 2026-09-11: he picks the shot,
+ * and "have it be black and white most likely"). The overlay export is a
+ * transparent PNG and stays one — the picture belongs to the wall, not to
+ * the file — so the chosen shot is laid UNDER the preview here, cropped
+ * like Instagram would crop it and desaturated when he asked for black and
+ * white. What he judges is what he will post; what he downloads is still a
+ * hole. Inline, like the chequer, so no style tag carries it. */
+const BEHIND = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
 } as const;
 
 const PROBE_SIZE = 100;
@@ -102,13 +130,20 @@ function saveBlob(blob: Blob, name: string): void {
 }
 
 /* PostPack.loadImage: once per URL, never rejects. The marks are
- * same-origin, so no crossOrigin. */
+ * same-origin; the race photograph is not — it comes off R2 — so CORS is
+ * armed BEFORE src exactly the way the post pack does it, or the canvas it
+ * is drawn into is tainted and toPng throws a SecurityError. A bucket that
+ * refuses the CORS fetch fails the load, which resolves null and costs the
+ * picture rather than the studio. */
 const imgCache = new Map<string, Promise<HTMLImageElement | null>>();
 function loadImage(url: string): Promise<HTMLImageElement | null> {
   const cached = imgCache.get(url);
   if (cached) return cached;
   const pending = new Promise<HTMLImageElement | null>((resolve) => {
     const img = new Image();
+    if (/^https?:\/\//i.test(url) && !url.startsWith(window.location.origin)) {
+      img.crossOrigin = "anonymous";
+    }
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = url;
@@ -163,9 +198,10 @@ type Subject = "community" | "rower" | "raceday";
 export type PosterStudioProps = {
   community: CommunityPoster | null;
   rower: RowerPoster | null;
-  /* RACE DAY needs no server read — the race is code (raceday.ts) — so the
-   * studio builds its own payload when a page hands it none. A page that
-   * also wants the field count passes poster/raceData.ts's payload here. */
+  /* RACE DAY is a server read: the race as the console has it, the field
+   * count and the photograph (poster/raceData.ts). Without it there is no
+   * race day chip — the studio never assembles this payload itself, because
+   * a client cannot see the settings row and would draw the wrong race. */
   raceday?: RaceDayPoster | null;
   /* Which subject to open on; race day is client state, not a route. */
   initialSubject?: Subject;
@@ -200,12 +236,20 @@ export function PosterStudio({
 }: PosterStudioProps) {
   const router = useRouter();
   /* Rowtember and a rower are ROUTES (the payload is a server read); race
-   * day is a chip, because its payload is the race definition itself. */
-  const [raceOn, setRaceOn] = useState(initialSubject === "raceday");
+   * day is a CHIP, because its payload does not depend on which rower is
+   * picked — but it is still a server read, so a page that hands the studio
+   * none offers no race day at all rather than drawing one out of the code
+   * defaults (review, 2026-09-11). */
+  const [raceOn, setRaceOn] = useState(initialSubject === "raceday" && raceday != null);
   const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
-  const race = useMemo(() => (raceOn ? (raceday ?? raceDayPoster(RACE, null)) : null), [raceOn, raceday]);
-  const subject: Subject = raceOn ? "raceday" : rower ? "rower" : "community";
-  const data: PosterData | null = raceOn ? null : rower ? rower : community;
+  /* The overlay is judged over the real photograph by default; the chequer
+   * is one chip away, because the transparency has to be judged too. */
+  const [onPhoto, setOnPhoto] = useState(true);
+  const race = raceOn ? (raceday ?? null) : null;
+  /* The PAYLOAD decides, not the chip: without a race day payload there is
+   * nothing to draw as an ad, so the studio stays on the sheet it has. */
+  const subject: Subject = race ? "raceday" : rower ? "rower" : "community";
+  const data: PosterData | null = race ? null : rower ? rower : community;
   /* Whatever is being drawn — the null check every effect below wants. */
   const drawing: PosterData | RaceDayPoster | null = race ?? data;
 
@@ -294,7 +338,7 @@ export function PosterStudio({
       }
       // Race day's own words are drawn from the same three faces; its
       // mark is an image, but SIGN UP, the venue and the room are type.
-      const sample = `${GLYPHS} ${RACE_WORDS} ${names.join(" ")}`;
+      const sample = `${GLYPHS} ${raceWords(raceday)} ${names.join(" ")}`;
       const loads = [
         `400 100px ${f.black}`,
         `400 100px ${f.mono}`,
@@ -304,18 +348,23 @@ export function PosterStudio({
         `700 100px ${f.archivo}`,
       ].map((spec) => document.fonts.load(spec, sample).catch(() => []));
       await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 8000))]);
-      const [bear, wordmark, venue] = await Promise.all([
+      const venueMark = raceday?.race.venueMark?.src ?? null;
+      const photoUrl = raceday?.photo.url ?? null;
+      const [bear, wordmark, venue, photo] = await Promise.all([
         loadImage(data?.partner?.bear ?? BEAR),
         loadImage(data?.partner?.wordmark ?? WORDMARK),
         // The host's mark, keyed white on transparent, same-origin like the
         // rest. A null here is not fatal: the host module keeps its block
         // and sets the gym's name in type instead.
-        VENUE_MARK ? loadImage(VENUE_MARK) : Promise.resolve(null),
+        venueMark ? loadImage(venueMark) : Promise.resolve(null),
+        // The owner's picture, off R2 and through CORS. A null is what the
+        // photo ground falls back to the solid ad on, and the notes say so.
+        photoUrl ? loadImage(photoUrl) : Promise.resolve(null),
       ]);
       if (cancelled) return;
       // Re-read after the loads: the line boxes belong to the real faces.
       setFonts(read());
-      setAssets({ bear, wordmark, venue });
+      setAssets({ bear, wordmark, venue, photo });
     })();
     return () => {
       cancelled = true;
@@ -548,6 +597,15 @@ export function PosterStudio({
   /* ---- what the sheet says about itself ---- */
   const masked = data ? (data.kind === "community" ? data.blackout.active : data.masked) : false;
   const overlay = subject === "raceday" && ground === "overlay";
+  const flattened = subject === "raceday" && ground === "photo";
+  // Null when the bucket cannot be read or the race has no gallery behind
+  // it; the photo ground is not offered at all then.
+  const photo = race?.photo.url ? race.photo : null;
+  const onPicture = overlay && onPhoto && photo !== null;
+  // The picture is in the payload but the browser could not fetch it (a
+  // bucket that refuses CORS, a key that has been deleted): raceGround.ts
+  // has drawn the solid ad instead, and that has to be said out loud.
+  const photoFailed = flattened && photo !== null && assets !== null && !assets.photo;
   const now = nowMs();
   const lateLogs = now >= END_MS && now < LOG_CLOSE_MS;
   const fellBack = files?.target.fellBack ?? false;
@@ -603,12 +661,16 @@ export function PosterStudio({
               >
                 {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} · ${rower.rower.name} ▾` : "A rower ▾"}
               </button>
-              {/* The ad, not a summary: no route, no server read — the race
-                  is code, so the chip is all it takes. */}
+              {/* The ad, not a summary. It is a chip and not a route — the
+                  payload does not depend on which rower is picked — but it
+                  IS a server read (the settings row and the photograph), so
+                  a page that handed the studio none offers no ad. */}
               <button
                 type="button"
                 className={subject === "raceday" ? "on" : undefined}
                 aria-pressed={subject === "raceday"}
+                disabled={!raceday}
+                title={raceday ? undefined : "The race day payload could not be read"}
                 onClick={() => {
                   setOpen(false);
                   setRaceOn(true);
@@ -694,7 +756,10 @@ export function PosterStudio({
 
       {subject === "raceday" ? (
         <div className="st-sub po-opts" role="group" aria-label="Ground">
-          {RACE_GROUNDS.map((g) => (
+          {/* ON THE PHOTO is only a ground when there IS a photograph: with
+              no picture to draw it would be the solid ad under another
+              name. */}
+          {RACE_GROUNDS.filter((g) => g.key !== "photo" || photo).map((g) => (
             <button
               key={g.key}
               type="button"
@@ -705,6 +770,24 @@ export function PosterStudio({
               {g.label}
             </button>
           ))}
+          {/* The bleed chip's idiom: the same row, past a dot. Only an
+              overlay has anything behind it, and only when the race has a
+              photograph to put there. */}
+          {overlay && photo ? (
+            <>
+              <span className="po-sep" aria-hidden="true">
+                ·
+              </span>
+              <button
+                type="button"
+                className={onPhoto ? "on" : undefined}
+                aria-pressed={onPhoto}
+                onClick={() => setOnPhoto((v) => !v)}
+              >
+                Behind {onPhoto ? "the photo" : "the chequer"}
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -743,14 +826,34 @@ export function PosterStudio({
         style={{
           aspectRatio: `${format.w} / ${format.h}`,
           width: tallFrame ? `min(100%, calc(60vh * ${(format.w / format.h).toFixed(4)}))` : "100%",
-          ...(overlay ? CHEQUER : null),
+          ...(overlay && !onPicture ? CHEQUER : null),
         }}
       >
+        {onPicture && photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="po-behind"
+            src={photo.url ?? ""}
+            alt=""
+            aria-hidden="true"
+            /* THE SAME CORS MODE AS THE CANVAS LOAD, and it is not
+               decoration: this tag and loadImage() fetch the same URL, and a
+               plain <img> caches a response with no CORS headers on it. The
+               crossOrigin load then reuses that entry and FAILS — which is
+               exactly what happened flipping Overlay → On the photo in one
+               session: the picture vanished out of the drawn ad and the
+               frame fell back to the solid one. Both requests ask the same
+               way, so there is one cache entry and it works for both. */
+            crossOrigin="anonymous"
+            style={{ ...BEHIND, ...(photo.bw ? { filter: "grayscale(1)" } : null) }}
+          />
+        ) : null}
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview}
             alt={`${subject === "rower" ? "Rower" : subject === "raceday" ? "Race day" : "Rowtember"} poster preview, ${format.label}`}
+            style={onPicture ? { position: "relative" } : undefined}
           />
         ) : (
           <span className="po-wait">{fonts ? "Drawing" : "Waiting for fonts"}</span>
@@ -769,6 +872,24 @@ export function PosterStudio({
         {race ? <li>Show {race.race.venue} these frames before anything is posted</li> : null}
         {overlay ? <li>Overlay — PNG only, a PDF has no alpha</li> : null}
         {overlay ? <li>Put the subject in the open band and keep other brands out of it</li> : null}
+        {/* THE PICTURE IS A PREVIEW ON AN OVERLAY. The file that downloads
+            is a hole, so neither the pick nor the black and white switch is
+            in it — saying so here is what stops a grey preview being
+            approved and a colour post going out (review, 2026-09-11). */}
+        {onPicture ? (
+          <li>
+            Behind — the race photo{photo?.bw ? ", black and white" : ""}; a preview of what you lay
+            this over. The file is transparent, so the pick and the switch are not in it — On the
+            photo is
+          </li>
+        ) : null}
+        {flattened && photo ? (
+          <li>On the photo — the picture is IN this file{photo.bw ? ", black and white" : ""}</li>
+        ) : null}
+        {photoFailed ? (
+          <li>The race photo could not be loaded — the solid ad was drawn instead</li>
+        ) : null}
+        {overlay && !photo ? <li>No race photo yet — the gallery is empty or unreachable</li> : null}
       </ul>
       {race ? (
         <div className="po-log">

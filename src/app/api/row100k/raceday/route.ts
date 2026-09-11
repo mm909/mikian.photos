@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
-import { currentRace, parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
+import { parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
+import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { listRacers, type Racer } from "@/app/row100k/racedayData";
 
 export const runtime = "nodejs";
@@ -78,7 +79,11 @@ export async function POST(req: Request) {
   if (!action) return bad("Say enter or withdraw.");
   const role = parseRole(body.role) ?? "racer";
 
-  const race = currentRace();
+  // The race AS IT STANDS, the same read the page makes: the gate below is
+  // racePhase, and the closed/raced edge is firstWaveAt + 6h — a first wave
+  // moved in the console has to move this too, or the button and the page
+  // it sits on would disagree about whether the race has been run.
+  const race = await resolvedRace();
   // Shut is shut, both ways: after the close nobody can slip a name in, and
   // nobody can quietly disappear off a list the owner has already called
   // waves from. That is an email, not a button.

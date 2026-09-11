@@ -2,26 +2,39 @@
  *
  * THE RULE THE JUDGES SET, and the reason this file exists: "STRINGS COME
  * FROM raceday.ts, NOT FROM THE ARTWORK. Any real build reads title,
- * meters, when, hours, venueLine, room, roomNote, venueMark, waveTime(r,1)
- * and RACE_ROLES from the definition so the ad can never drift from the
- * page." So poster/raceday.ts — the modules and the plans — holds no copy
- * at all: every word on every frame is built HERE, out of the RaceDef, and
- * moving the race moves the artwork.
+ * meters, when, the hours, venueLine, room, venueMark, waveTime(r,1) and
+ * RACE_ROLES from the definition so the ad can never drift from the page."
+ * So poster/raceday.ts — the modules and the plans — holds no copy at all:
+ * every word on every frame is built HERE, out of the RaceDef, and moving
+ * the race moves the artwork.
  *
  * Pure: no db, no next, no Dates in the output. The studio calls it on the
  * client (the race is code, not a table) and poster/raceData.ts calls it on
- * the server when it also wants the field count.
+ * the server when it also wants the field count and the photograph.
  *
  * Everything comes back UPPERCASE because an ad sets nothing in sentence
  * case, and this is the one place where a race's words become an ad's
  * words — a module that lower-cased or re-worded anything here would be the
- * drift the rule is against. */
+ * drift the rule is against.
+ *
+ * WHAT THE OWNER TOOK OFF THE BILL, 2026-09-11, reading the story ad:
+ * "rowed in waves of eight", "new this September", "men and women scored
+ * apart" and "sign up by Sat Sep 26". Four of those five lines were built
+ * in this file, and they are not built any more — the assembler is the
+ * place a line dies, because a module that still asked for one would be a
+ * hole on every frame. */
 
-import { RACE_ROLES, waveTime, type RaceDef } from "../raceday";
+import { RACE_ROLES, hoursLine, waveTime, type RaceDef } from "../raceday";
 import type { RaceDayPoster } from "./types";
 
 /* The field so far, as the ad may print it. */
 export type RaceField = { racers: number; spectators: number };
+
+/* The photograph the ad is judged over: the owner's pick resolved to a URL
+ * (poster/racePhoto.ts, server only) and how he wants it shown. The studio
+ * has no way to resolve a key itself, so a client-built payload passes
+ * nothing and the preview falls back to the chequer. */
+export type RacePhoto = { url: string | null; bw: boolean };
 
 /* Under this many racers the ad says nothing about the field: "3 RACERS IN"
  * sells against you, and an empty start list is the one thing a launch ad
@@ -33,36 +46,11 @@ export const RACE_URL = "MIKIANMUSSER.COM/ROW100K/RACEDAY";
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const DAY_WORD = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
-const WORDS = [
-  "ZERO",
-  "ONE",
-  "TWO",
-  "THREE",
-  "FOUR",
-  "FIVE",
-  "SIX",
-  "SEVEN",
-  "EIGHT",
-  "NINE",
-  "TEN",
-  "ELEVEN",
-  "TWELVE",
-];
-
-/* The fixed UTC-7 the whole challenge runs on (row100k.ts), so a Pacific
- * wall clock is one subtraction and the artwork never depends on where the
- * browser is standing. */
-const PT = 7 * 3_600_000;
-const pacific = (ms: number): Date => new Date(ms - PT);
-
-const clock = (p: Date): string => {
-  const h24 = p.getUTCHours();
-  const h = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h}:${String(p.getUTCMinutes()).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
-};
 
 /* "6:00 – 9:00 PM" → "6 – 9 PM". A window in an ad is read, not set by a
- * timer; the minutes are noise at headline size. */
+ * timer; the minutes are noise at headline size. The sentence itself is
+ * never typed — hoursLine(race) derives it from the two instants the
+ * settings console moves. */
 const shortHours = (hours: string): string => hours.replace(/:00/g, "").toUpperCase();
 
 /* "app.wodify.com" → "WODIFY". The gym's own system is named because the
@@ -82,40 +70,46 @@ const cityOf = (race: RaceDef): string => {
  * one line, which the same module draws without a special case. */
 const headOf = (title: string): string[] => title.trim().toUpperCase().split(/\s+/).filter(Boolean);
 
-export function raceDayPoster(race: RaceDef, field: RaceField | null): RaceDayPoster {
+export function raceDayPoster(
+  race: RaceDef,
+  field: RaceField | null,
+  photo: RacePhoto | null = null,
+): RaceDayPoster {
   // Noon on the race day, read in UTC: the day never slides a square
   // either way, whatever zone the browser is standing in.
   const day = new Date(`${race.day}T12:00:00Z`);
-  const close = pacific(race.closesAt - 60_000);
   const first = waveTime(race, 1).toUpperCase();
   const size = race.waveSize;
-  const word = WORDS[size] ?? String(size);
   const waiver = race.waiver ? `ON ${hostWord(race.waiver.host)}` : null;
-  const scoring = `${race.brackets.map((b) => b.label).join(" AND ")} SCORED APART`.toUpperCase();
-  const hours = shortHours(race.hours);
-  const closeDay = `${DOW[close.getUTCDay()]} ${MON[close.getUTCMonth()]} ${close.getUTCDate()}`;
-  const closes = `${closeDay} · ${clock(close)}`;
+  const hours = shortHours(hoursLine(race));
   const racers = field && field.racers >= FIELD_FLOOR ? field : null;
 
-  /* The caption the artwork ships with. The waiver and the closing time are
-   * on no frame — a bill has no room for either and both change nothing
-   * about what the ad is selling — so they live here, and the studio prints
-   * this under the preview to be copied with the file (the judges: "write
-   * the caption at the same time as the art"). Sentence case: this one is
-   * typed by a person into Instagram, not drawn on ink. */
+  /* The caption the artwork ships with, and the home of everything a bill
+   * has no room for — the waiver, the wave cadence, the scoring — so the
+   * frame can be five lines and the post still say the rest. The studio
+   * prints it under the preview to be copied with the file (the judges:
+   * "write the caption at the same time as the art"). Sentence case: this
+   * one is typed by a person into Instagram, not drawn on ink.
+   *
+   * The DEADLINE is not here either. closesAt still refuses a late entry,
+   * but it no longer announces itself anywhere (owner: "remove
+   * registration closes Saturday, September twenty sixth").
+   *
+   * MEN AND WOMEN ARE SCORED APART is gone from here too. A stream kept it
+   * on the theory that the caption is where a bill's overflow goes, and
+   * that whether a woman is racing her own field is what decides whether
+   * she enters — a fair argument, but the owner struck the line and the
+   * caption is the ad he pastes. It took FREE with it: FREE is on the
+   * bracket of every frame already, so the post still says it. The RULE is
+   * untouched — the two brackets are scored apart on the day, the field
+   * block and the results board both say so. */
   const caption = [
     `${race.title.toUpperCase()} — ${race.sub.toLowerCase()}.`,
-    `${race.when}, ${race.hours}, at ${race.venue}, ${cityOf(race)}.`,
-    `First wave ${waveTime(race, 1)}, waves every ${race.waveMinutes} minutes, ${size} ergs a wave.`,
-    `${race.room} is new this September.`,
-    `Free, and ${race.brackets.map((b) => b.label.toLowerCase()).join(" and ")} are scored apart.`,
+    `${race.when}, ${hoursLine(race)}, at ${race.venue}, ${cityOf(race)}.`,
+    `${race.room}. First wave ${waveTime(race, 1)}, waves every ${race.waveMinutes} minutes.`,
     `Sign up as a racer or as a spectator: ${RACE_URL.toLowerCase()}`,
-    "",
-    `${race.closesLine}.`,
-    race.waiver ? `The gym waiver is signed at ${race.waiver.host} before you row.` : "",
-  ]
-    .filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== ""))
-    .join("\n");
+    ...(race.waiver ? ["", `The gym waiver is signed at ${race.waiver.host} before you row.`] : []),
+  ].join("\n");
 
   return {
     kind: "raceday",
@@ -124,7 +118,6 @@ export function raceDayPoster(race: RaceDef, field: RaceField | null): RaceDayPo
       slug: race.slug,
       head: headOf(race.title),
       piece: race.sub.toUpperCase(),
-      waves: `ROWED IN WAVES OF ${word}`,
       firstWave: `FIRST WAVE ${first}`,
       date: `${MON[day.getUTCMonth()]} ${day.getUTCDate()}`,
       dayWord: DAY_WORD[day.getUTCDay()],
@@ -135,22 +128,17 @@ export function raceDayPoster(race: RaceDef, field: RaceField | null): RaceDayPo
       stamp: `${DOW[day.getUTCDay()]} ${MON[day.getUTCMonth()]} ${day.getUTCDate()}`,
       waveSize: size,
       waveLabel: `${size} ERGS A WAVE · EVERY ${race.waveMinutes} MIN`,
-      scoring,
-      /* The foot of every frame: the one line that changes whether a woman
-       * enters, and the deadline the judges would not let live in a caption
-       * alone. The print plans use the scoring half on its own, because
-       * their fact table carries the closing MINUTE two rows above. */
-      smallPrint: `${scoring} · SIGN UP BY ${closeDay}`,
-      closes,
       waiver,
       venueMark: race.venueMark,
       venue: race.venue.toUpperCase(),
       city: cityOf(race).toUpperCase(),
       room: race.room.toUpperCase(),
-      roomNote: race.roomNote.toUpperCase(),
       roles: RACE_ROLES.map((r) => ({ label: r.label.toUpperCase(), line: r.line.toUpperCase() })),
     },
     field: racers,
+    /* The owner's own switch travels even when nobody could resolve the
+     * key: bw is his call, the URL is the server's job. */
+    photo: { url: photo?.url ?? null, bw: photo ? photo.bw : race.photo.bw },
     url: RACE_URL,
     caption,
   };

@@ -24,17 +24,25 @@ export type RaceDef = {
   meters: number;
   /* The day, as the challenge writes days. */
   day: string;
-  /* "Sunday, Sep 27" and "6:00 – 9:00 AM" — the stub lines. */
+  /* "Sunday, Sep 27" — the day, as a stub line. */
   when: string;
-  hours: string;
+  /* THE DOORS, as instants (owner, 2026-09-11: "let us make the start time
+   * and end time and first wave time all changeable in the settings
+   * menu"). They are instants and not a typed string so that changing one
+   * in the console moves every surface at once — the page, the ads and the
+   * wave note all read hoursLine(race) rather than a sentence somebody
+   * wrote. RowRaceSettings overrides them; see racedaySettings.ts. */
+  opensAt: number;
+  endsAt: number;
   /* Where, and how to say it in one line. */
   venue: string;
   venueLine: string;
-  /* THE ROOM (owner, 2026-09-11): the ergs live in a room of its own, new
-   * this September. Named because a room that just opened is a reason to
-   * come and look at it. */
+  /* THE ROOM (owner, 2026-09-11): the ergs live in a room of its own.
+   * Named because the room is where the race is. (It carried a NEW THIS
+   * SEPTEMBER note for a few hours the same day; the owner took it off
+   * every surface — "remove the phrase new this September" — so the field
+   * is gone rather than emptied.) */
   room: string;
-  roomNote: string;
   /* The venue's own mark, keyed WHITE ON TRANSPARENT out of their logo
    * (scratchpad/tsb-logo.js) so it composites on ink and over a photo
    * alike. Their site is white-on-black, which is where race day's
@@ -44,17 +52,21 @@ export type RaceDef = {
   venueUrl: string;
   venueInstagram: string;
   /* Registration closes — the last moment a rower can put their name in
-   * (Pacific). Signing up after this is refused. */
+   * (Pacific). Signing up after this is refused. The SENTENCE that used to
+   * ride with it is gone (owner, 2026-09-11: "remove registration closes
+   * Saturday, September twenty sixth"); the rule stays, it just no longer
+   * announces itself on the page. */
   closesAt: number;
-  closesLine: string;
   /* The first wave goes off here; each one after it is WAVE_MINUTES later.
    * The rowers are not told the grid, only their own wave (owner: "they do
    * not need to know when the wave starts"), but the console prints it. */
   firstWaveAt: number;
   waveMinutes: number;
-  /* Ergs on the floor — how many racers a wave holds. The one number to
-   * change when the owner counts the machines. */
+  /* Ergs on the floor — how many racers a wave holds. */
   waveSize: number;
+  /* The picture the ads carry: a gallery R2 key, or null for the newest
+   * shot, and whether it is drawn in black and white. */
+  photo: { key: string | null; bw: boolean };
   /* Two brackets (owner): the men's and the women's. */
   brackets: { key: "M" | "F"; label: string }[];
   /* The gym's waiver. It is signed on the gym's own system (Wodify), so
@@ -74,12 +86,14 @@ export const RACES: RaceDef[] = [
     when: "Sunday, Sep 27",
     /* EVENING (owner, 2026-09-11: "6-9pm on the 27th"). The first telling
      * of it was "six to nine, first wave six thirty" with no half named,
-     * and it was built as a morning; this is the correction. */
-    hours: "6:00 – 9:00 PM",
+     * and it was built as a morning; this is the correction. 6 PM and 9 PM
+     * Pacific on the 27th are 01:00Z and 04:00Z on the 28th. Defaults only:
+     * the console can move all three (racedaySettings.ts). */
+    opensAt: Date.UTC(2026, 8, 28, 1, 0, 0),
+    endsAt: Date.UTC(2026, 8, 28, 4, 0, 0),
     venue: "The Strip Barbell",
     venueLine: "The Strip Barbell · Las Vegas",
     room: "The Engine Room",
-    roomNote: "New this September",
     venueMark: {
       src: "/row100k/raceday/strip-barbell.png",
       alt: "The Strip Barbell",
@@ -90,11 +104,17 @@ export const RACES: RaceDef[] = [
     /* Midnight Pacific on race morning: the list has to be final before the
      * first wave is called. */
     closesAt: Date.UTC(2026, 8, 27, 7, 0, 0),
-    closesLine: "Registration closes Saturday, Sep 26 at 11:59 PM Pacific",
-    /* 6:30 PM Pacific on the 27th — which is 01:30Z on the 28th. */
-    firstWaveAt: Date.UTC(2026, 8, 28, 1, 30, 0),
+    /* 6:15 PM Pacific on the 27th — 01:15Z on the 28th (owner, 2026-09-11:
+     * "let us keep the first wave there, but let us change the time to six
+     * fifteen"). A default: the console can move it. */
+    firstWaveAt: Date.UTC(2026, 8, 28, 1, 15, 0),
     waveMinutes: 30,
     waveSize: 8,
+    /* The picture the ads carry. Null means the newest gallery shot; the
+     * console picks one and says whether it is drawn in black and white
+     * (owner, 2026-09-11: "allow me to change that photo and have it be
+     * black and white most likely"). */
+    photo: { key: null, bw: true },
     brackets: [
       { key: "M", label: "Men" },
       { key: "F", label: "Women" },
@@ -150,13 +170,64 @@ export function raceOpenFor(isAdmin: boolean): boolean {
   return process.env.NODE_ENV !== "production" || isAdmin;
 }
 
-/* "6:30 AM" — when wave n goes off, Pacific. Wave numbers are 1-based. */
-export function waveTime(r: RaceDef, wave: number): string {
-  const ms = r.firstWaveAt + (Math.max(1, wave) - 1) * r.waveMinutes * 60_000;
+/* "6:15 PM" — an instant on the Pacific wall clock the race runs on. */
+export function fmtRaceClock(ms: number): string {
   const p = new Date(ms - 7 * 3_600_000);
   const h24 = p.getUTCHours();
   const h = h24 % 12 === 0 ? 12 : h24 % 12;
   return `${h}:${String(p.getUTCMinutes()).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
+}
+
+/* "6:00 – 9:00 PM" — the doors, derived rather than typed, so moving a
+ * time in the console moves every surface that prints it. The half is said
+ * once when both ends share it, the way a person says it. */
+export function hoursLine(r: RaceDef): string {
+  const a = fmtRaceClock(r.opensAt);
+  const b = fmtRaceClock(r.endsAt);
+  const half = (s: string) => s.slice(-2);
+  return half(a) === half(b) ? `${a.slice(0, -3)} – ${b}` : `${a} – ${b}`;
+}
+
+/* "6:15 PM" — when wave n goes off, Pacific. Wave numbers are 1-based. */
+export function waveTime(r: RaceDef, wave: number): string {
+  return fmtRaceClock(r.firstWaveAt + (Math.max(1, wave) - 1) * r.waveMinutes * 60_000);
+}
+
+/* WHAT THE CONSOLE MAY MOVE (owner, 2026-09-11: "let us make the start
+ * time and end time and first wave time all changeable in the settings
+ * menu"), plus the two numbers that shape the grid and the ad's picture.
+ * A null or an absent field means the code default stands, so a race with
+ * no settings row behaves exactly as it always did. Kept pure and here,
+ * beside the definition it patches; the DB read is racedaySettings.ts. */
+export type RaceOverrides = {
+  opensAt?: number | null;
+  endsAt?: number | null;
+  firstWaveAt?: number | null;
+  waveMinutes?: number | null;
+  waveSize?: number | null;
+  photoKey?: string | null;
+  photoBw?: boolean | null;
+};
+
+const num = (v: number | null | undefined, fallback: number): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
+export function withOverrides(r: RaceDef, o: RaceOverrides | null | undefined): RaceDef {
+  if (!o) return r;
+  return {
+    ...r,
+    opensAt: num(o.opensAt, r.opensAt),
+    endsAt: num(o.endsAt, r.endsAt),
+    firstWaveAt: num(o.firstWaveAt, r.firstWaveAt),
+    /* Floored at one minute and one erg: a zero of either would divide the
+     * wave grid by nothing. */
+    waveMinutes: Math.max(1, Math.round(num(o.waveMinutes, r.waveMinutes))),
+    waveSize: Math.max(1, Math.round(num(o.waveSize, r.waveSize))),
+    photo: {
+      key: o.photoKey === undefined ? r.photo.key : o.photoKey,
+      bw: typeof o.photoBw === "boolean" ? o.photoBw : r.photo.bw,
+    },
+  };
 }
 
 /* How many waves a field of `n` racers needs. */

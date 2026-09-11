@@ -1,4 +1,4 @@
-import { waveTime, type RaceDef } from "./raceday";
+import { fmtRaceClock, hoursLine, waveTime, type RaceDef } from "./raceday";
 
 /* THE WAVE NOTE (owner, 2026-09-10: "we should email them what wave they
  * are whenever we assign them"). One email, sent from the wave console:
@@ -98,20 +98,14 @@ function shell(kicker: string, blocks: string[], signoff: string): string {
  * "arrive fifteen minutes before your wave — say it plainly"). */
 export const ARRIVE_EARLY_MIN = 15;
 
-/* raceday.ts formats WHOLE waves (waveTime) and is not this stream's file
- * to widen, so the arrival clock gets its own six lines here. Pacific, the
- * fixed UTC-7 the whole challenge runs on. */
-function clockPT(ms: number): string {
-  const p = new Date(ms - 7 * 3_600_000);
-  const h24 = p.getUTCHours();
-  const h = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h}:${String(p.getUTCMinutes()).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
-}
-
-/* When to be in the door for wave n. */
+/* When to be in the door for wave n. The clock itself is raceday.ts's
+ * fmtRaceClock — this file used to carry its own six-line copy of it, back
+ * when raceday.ts only formatted WHOLE waves; the moment the doors became
+ * instants that every surface has to print, one Pacific clock became the
+ * only sane arrangement. */
 export function arriveTime(r: RaceDef, wave: number): string {
   const off = r.firstWaveAt + (Math.max(1, wave) - 1) * r.waveMinutes * 60_000;
-  return clockPT(off - ARRIVE_EARLY_MIN * 60_000);
+  return fmtRaceClock(off - ARRIVE_EARLY_MIN * 60_000);
 }
 
 /* -------------------------------------------------------------- the mail */
@@ -134,13 +128,19 @@ export function waveEmail(o: {
   const who = `${o.name} · rower ${NUM(o.rowerNumber)}`;
   const brackets = r.brackets.map((b) => b.label.toLowerCase()).join(" and ");
   const piece = `${M(r.meters)} meters for time. One piece, one clock — ${brackets} scored apart.`;
-  /* THE ROOM (owner, 2026-09-11: the ergs are in the Engine Room, new this
-   * September). Said here because a rower walking into a gym they have
-   * never been in needs to know which door — and because a room that just
-   * opened is worth naming. The venue MARK is not in this mail on purpose:
-   * it is keyed white on transparent and this paper is cream, so it would
-   * arrive as a white rectangle. */
-  const morning = `${r.venueLine} — the ergs are in ${r.room}. The floor is open ${r.hours}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
+  /* THE ROOM (owner, 2026-09-11): the ergs are in the Engine Room. Said here
+   * because a rower walking into a gym they have never been in needs to know
+   * which door. Named flatly — the NEW THIS SEPTEMBER line that first rode
+   * with it is gone from every surface at the owner's word.
+   *
+   * The hours are DERIVED (hoursLine), never typed: the owner can move the
+   * doors from the console an hour before he sends these, and a wave note is
+   * the one thing a rower reads on the day itself.
+   *
+   * The venue MARK is not in this mail on purpose: it is keyed white on
+   * transparent and this paper is cream, so it would arrive as a white
+   * rectangle. */
+  const morning = `${r.venueLine} — the ergs are in ${r.room}. The floor is open ${hoursLine(r)}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
   const bring = "Water, a towel and whatever you pull in. The ergs are here. Race day is free — there is nothing to pay when you walk in.";
   const arriveLine = `Be here by ${arrive} — fifteen minutes before your wave — so you can warm up, find your erg and set your monitor.`;
   /* The waiver: the gym's, signed on the gym's own system. Only in the note

@@ -26,29 +26,46 @@
  *     in it, the one element that survives any photograph at any brightness
  *     (module `cta`, and it is the pinned footer of every plan).
  *   · the fact table from the monitor design — label grey left, value white
- *     right, hairline under (module `facts`) — which carries the closing
- *     time and the waiver on paper.
+ *     right, hairline under (module `facts`) — which carries the waiver on
+ *     paper, and the field once enough names are in.
  *   · the date in the masthead (module `mast`, right-flush), so the WHEN
  *     sits where a crop never eats it and the city moves to the foot.
  *   · ONE row of the wave grid, never five: "five rows of eight is a
  *     40-place field stated as a picture, and a reader can count it."
- *   · MEN AND WOMEN SCORED APART on every frame (the `cta` small print).
  *   · FREE is printed ONCE — the bracket's third cell — and nowhere else.
+ *
+ * WHAT THE OWNER TOOK BACK OFF IT, 2026-09-11, reading the story ad and its
+ * overlay: "rowed in waves of eight", "new this September", "men and women
+ * scored apart", and the sign-up deadline. Four lines off every frame. The
+ * modules did not keep holes where they were — the piece is two lines now
+ * instead of three, the call to action is the slab alone, the house block
+ * sets the town where the note was, and every unit that came free went into
+ * the grow row, which is the headline on an ad and the PICTURE on an
+ * overlay. Nothing moved sideways to fill a gap.
  *
  * AND THE HOLE THE JUDGES WOULD NOT HAVE: the gig poster left 62 units of
  * nothing between its bracket and its foot rule, which "reads as a loading
  * failure on a phone". There is no dead band on any frame here — the head
  * is the grow row and takes back whatever nothing else needs, so every plan
- * closes on the footer with slack 0.
+ * closes on the footer with slack 0. Taking the room is not the same as
+ * PLACING it: a 2:3 head is already flush at the measure and cannot spend a
+ * surplus on type, so the head splits what it cannot use evenly above and
+ * below the block and draws its hairline at the foot of its row (headMod).
+ * The first cut dumped all of it under that hairline and the 24x36 came back
+ * with the same hole in a new place, 10.85 % of the sheet (review).
  *
- * THE GROUND SWITCH (types.ts PosterGround). Both grounds paint the same
- * solid ink; the OVERLAY plans then put a `window` row in the stack, and
- * that row cuts its own box back out of the canvas (destination-out). What
- * comes out is a transparent PNG whose alpha IS the bill — a hard-edged
- * slab of ink over the owner's own photograph of the room, every glyph on
- * solid black, no scrim anywhere. That is the winning design's answer to
- * white type over an unknown photograph: a scrim would dissolve the bill
- * into the wall and kill the picture, and a drop shadow is not this voice.
+ * THE GROUND SWITCH (types.ts PosterGround). All three grounds paint the
+ * same solid ink; the OVERLAY and PHOTO plans then put a `window` row in the
+ * stack. On an overlay that row cuts its own box back out of the canvas
+ * (destination-out) and what comes out is a transparent PNG whose alpha IS
+ * the bill — a hard-edged slab of ink over the owner's own photograph of the
+ * room, every glyph on solid black, no scrim anywhere. That is the winning
+ * design's answer to white type over an unknown photograph: a scrim would
+ * dissolve the bill into the wall and kill the picture, and a drop shadow is
+ * not this voice. On the PHOTO ground the same row DRAWS his picture into
+ * the same box instead, so the identical artwork comes off the studio as one
+ * finished PNG — which is what makes his black-and-white switch true of a
+ * file rather than of a preview (review, 2026-09-11).
  *
  * The composition runs FULL BLEED — poster/raceGround.ts hands the engine
  * zero margins and gap 0 — so a module's box is a slice of the frame and
@@ -124,6 +141,21 @@ const MARK_SHARE = 0.34;
  * on type instead of leaving a band of nothing under the hairline. */
 const HEAD_SHARE: Record<string, number> = { phone: 0.24, printS: 0.22, printL: 0.22 };
 const headShare = (paint: PosterPaint): number => HEAD_SHARE[paint.format.family] ?? 0.24;
+
+/* THE AIR AROUND THE PICTURE (owner, 2026-09-11: "put a little bit of blank
+ * space between the photo and A TIMED 5,000 M TRIAL — the same amount of
+ * space that is above the photo"). The window had air above it, left under
+ * the head's own hairline, and none at all below: the piece began 0.3 of a
+ * small under the cut, so the photograph read as if it had been pasted on
+ * top of the line.
+ *
+ * ONE number, read by three modules, so the two gaps cannot drift: the head
+ * leaves WINDOW_AIR under its hairline, and the window gives WINDOW_AIR back
+ * below itself — less the lead the piece already carries, which is part of
+ * the same blank. The air comes out of the PICTURE, never out of the bill,
+ * because the window is the grow row. */
+const WINDOW_AIR = (tk: PosterPaint["tk"]): number => tk.small * 1.5;
+const PIECE_LEAD = (tk: PosterPaint["tk"]): number => tk.small * 0.3;
 
 /* --------------------------------------------------------- the mechanics */
 
@@ -236,7 +268,9 @@ function headMod(id: string, split: boolean): Mod {
     const blockAt = (cs: number[]) => cs.reduce((a, b) => a + b, 0) + leadAt(cs) * (lines.length - 1);
     const wanted = blockAt(capsAt(flush));
     const under = tk.small * 1.1;
-    const below = tk.small * 1.5;
+    // The blank under the hairline. On an overlay it is the gap ABOVE the
+    // window, which is why it is a shared number and not a local one.
+    const below = WINDOW_AIR(tk);
     const air = under + tk.hair + below;
     // MEASURE asks for HEAD_SHARE of the frame; DRAW takes the room the
     // grow row actually handed it, up to the flush fit and never under what
@@ -252,50 +286,67 @@ function headMod(id: string, split: boolean): Mod {
     const lead = leadAt(caps);
     const blockH = blockAt(caps);
     const natural = blockH + air;
-    // The grow row: a third of the extra above the block, the leading takes
-    // a little, the rest falls under the hairline.
+    // THE GROW ROW, and where its surplus goes. The leading takes a little,
+    // and what is left is split EVENLY above and below the block.
+    //
+    // It used to be a third above and two thirds below, with the hairline
+    // drawn tight under the block — which put every spare unit in one band
+    // BELOW A RULE, and a rule with nothing after it is the loading failure
+    // this file's header says was designed out. Measured on the 24x36: 233
+    // px, 10.85 % of the sheet, against 2 to 4 % on every other frame
+    // (review, 2026-09-11). A 2:3 head is already at its flush fit and
+    // cannot eat the surplus as type, so the fix is where the air LANDS, not
+    // how much of it there is: half over the headline, half under it, and
+    // the hairline moved to the foot of the row so the whole band reads as
+    // the head's own air and the rule still closes it against the piece.
     const extra = Number.isFinite(box.h) ? Math.max(0, box.h - natural) : 0;
     const spread = lines.length > 1 ? Math.min(extra * 0.5, blockH * 0.12) : 0;
-    let y = box.y + (extra - spread) * 0.34;
+    let y = box.y + (extra - spread) * 0.5;
     lines.forEach((t, i) => {
       paint.drawText(ctx, t, x, y + caps[i], fonts[i], WHITE, -0.02 * sizes[i]);
       y += caps[i] + (i < lines.length - 1 ? lead + spread / (lines.length - 1) : 0);
     });
-    y += under;
-    paint.rule(ctx, x, y, w, tk.hair, HAIR);
+    // At the foot of the row, less the blank the next module is owed — which
+    // on an overlay is the gap above the window. With no surplus (every
+    // phone overlay, where the head does not grow) that is the same unit the
+    // rule has always been drawn on, so nothing moves on those frames.
+    const ruleY = Number.isFinite(box.h)
+      ? Math.max(y + under, box.y + box.h - below - tk.hair)
+      : y + under;
+    paint.rule(ctx, x, ruleY, w, tk.hair, HAIR);
     return Number.isFinite(box.h) ? box.h : natural;
   });
 }
 
-/* THE PIECE. What it is, in three falling weights: the trial fitted to the
+/* THE PIECE. What it is, in two falling weights: the trial fitted to the
  * same measure as the head (which is what makes the stack read as a bill),
- * the wave sentence under it in Archivo 700, and the one time the owner
- * asked for out loud — "maybe we could just say first wave starts at six
- * thirty" — in mono. `piece.short` drops the middle line on a 1:1, where
- * the bracket's own sub already says the waves run every half hour. */
-function pieceMod(id: string, short: boolean): Mod {
-  return mod(id, 40, (ctx, box, d, paint) => {
-    const tk = paint.tk;
-    const { x, w } = colOf(box, paint);
-      const size = paint.fitSize(ctx, d.race.piece, "black", 400, 12, w, -0.02);
-    const f = paint.font("black", size);
-    let y = box.y + tk.small * 0.3;
-    y += capOf(ctx, f, size);
-    paint.drawText(ctx, d.race.piece, x, y, f, WHITE, -0.02 * size);
-    if (!short) {
-      const s2 = size * 0.72;
-      const f2 = paint.font("archivoBold", s2);
-      y += s2 * 0.34 + capOf(ctx, f2, s2);
-      paint.drawText(ctx, d.race.waves, x, y, f2, BONE, -0.005 * s2);
-    }
-    const s3 = tk.datel * 1.25;
-    const f3 = paint.font("monoBold", s3);
-    const met3 = paint.metricsOf(ctx, f3, s3);
-    const top3 = y + s3 * 0.55;
-    paint.drawText(ctx, d.race.firstWave, x, paint.baselineOf(top3, met3.lh, met3), f3, WHITE, s3 * 0.12);
-    return top3 + met3.lh + tk.small * 1.3 - box.y;
-  });
-}
+ * and the one time the owner asked for out loud — "maybe we could just say
+ * first wave starts at six thirty", six fifteen now and read off
+ * waveTime(race, 1) rather than typed — in mono under it.
+ *
+ * There were THREE weights until 2026-09-11: an Archivo 700 line between
+ * these two that said ROWED IN WAVES OF EIGHT. The owner took it off
+ * ("remove rowed in waves of eight" — entirely), and the `piece.short`
+ * variant went with it: it existed only to drop that line on a 1:1. One
+ * module now, on every frame, so the two lines a story carries are the two
+ * lines a 24x36 carries. */
+const piece = mod("piece", 40, (ctx, box, d, paint) => {
+  const tk = paint.tk;
+  const { x, w } = colOf(box, paint);
+  const size = paint.fitSize(ctx, d.race.piece, "black", 400, 12, w, -0.02);
+  const f = paint.font("black", size);
+  // The same lead the window hands back below itself: the blank over the
+  // trial is one number wherever the trial sits.
+  let y = box.y + PIECE_LEAD(tk);
+  y += capOf(ctx, f, size);
+  paint.drawText(ctx, d.race.piece, x, y, f, WHITE, -0.02 * size);
+  const s3 = tk.datel * 1.25;
+  const f3 = paint.font("monoBold", s3);
+  const met3 = paint.metricsOf(ctx, f3, s3);
+  const top3 = y + s3 * 0.55;
+  paint.drawText(ctx, d.race.firstWave, x, paint.baselineOf(top3, met3.lh, met3), f3, WHITE, s3 * 0.12);
+  return top3 + met3.lh + tk.small * 1.3 - box.y;
+});
 
 /* THE BRACKET — the landing page's chip row inverted onto ink, and the one
  * block that carries the WHEN at display weight so it survives a grid
@@ -345,8 +396,13 @@ const bracket = mod("bracket", 60, (ctx, box, d, paint) => {
 
 /* THE WAVES — a picture of the format for somebody who has never rowed one.
  * ONE row of ergs, never a grid of them: the first cell is solid (the wave
- * that goes off at 6:30) and the rest are outlines, so the frame says "you
- * go in a heat of eight" without promising a field size nobody has sold. */
+ * that goes off first — waveTime is the only thing that says when, and a
+ * time is never typed in this file) and the rest are outlines, so the frame
+ * says "you go in a heat of eight" without promising a field size nobody has
+ * sold.
+ *
+ * NO PLAN DRAWS IT since 2026-09-11 — see `blocks` below. It says the wave
+ * size the owner struck, in a picture instead of a sentence. */
 const waves = mod("waves", 40, (ctx, box, d, paint) => {
   const tk = paint.tk;
   const { x, w } = colOf(box, paint);
@@ -381,25 +437,28 @@ const waves = mod("waves", 40, (ctx, box, d, paint) => {
 });
 
 /* THE FACTS — the monitor design's split rows: key mono grey flush left,
- * value mono white flush right, a hairline under each. This is where the
- * two facts every stream left off its artwork live — when registration
- * closes, and that the waiver is signed at the gym — and it is what fills
- * the empty paste field the winning design left above its foot rule. A
- * fit:"lines" slot: it draws the rows that fit, two at least, or nothing. */
+ * value mono white flush right, a hairline under each. It carried the
+ * closing minute until the owner took the deadline off the artwork
+ * (2026-09-11); closesAt still refuses a late entry, it just no longer
+ * announces itself. What is left is the fact no other module carries — the
+ * waiver is signed at the gym, before you row — and the field, once enough
+ * names are in to be worth printing. A fit:"lines" slot: it draws the rows
+ * that fit, one at least, or nothing at all when the race has neither. */
 const factRows = (d: RaceDayPoster): { k: string; v: string }[] => {
-  const rows = [{ k: "ENTER BY", v: d.race.closes }];
+  const rows: { k: string; v: string }[] = [];
   if (d.race.waiver) rows.push({ k: "WAIVER", v: d.race.waiver });
   if (d.field) rows.push({ k: "IN SO FAR", v: `${d.field.racers} RACERS` });
   return rows;
 };
 
-const FACT_MIN = 2;
+/* One row is a whole table now that the deadline is off it. */
+const FACT_MIN = 1;
 
 const facts: Mod = {
   id: "facts",
-  /* Two rows and their air, in the widest family metric — the floor a
-   * lines slot is cut to. */
-  minH: 2 * 30 * 0.86 + 12,
+  /* One row and its air, in the widest family metric — the floor a lines
+   * slot is cut to. */
+  minH: 30 * 0.86 + 12,
   measure: (ctx, box, d, _fonts, paint) => silently(ctx, () => drawFacts(ctx, box, d, paint)),
   draw: (ctx, box, d, _fonts, paint) => drawFacts(ctx, box, d, paint),
 };
@@ -408,10 +467,19 @@ function drawFacts(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPain
   const tk = paint.tk;
   const { x, w } = colOf(box, paint);
   const rows = factRows(d);
+  // A race with no waiver and no field draws no hairline and takes no air.
+  if (rows.length === 0) return 0;
   const pitch = tk.rowPitch * 0.86;
   const air = tk.small * 0.6;
   const room = Number.isFinite(box.h) ? box.h - air : Number.POSITIVE_INFINITY;
-  const n = Math.max(FACT_MIN, Math.min(rows.length, Math.floor(room / pitch)));
+  // THE EPSILON, and it is not decoration. measure() returns exactly
+  // `air + n × pitch`, the engine hands that same number back as box.h, and
+  // room / pitch then comes out at 1.9999999999999998 on a printS sheet
+  // (51.6 / 25.8) — so the floor cut the last row off the table it had just
+  // asked room for, and the sheet drew a 26-unit hole under the waiver.
+  // That was masked while the floor was two rows; it showed the moment the
+  // deadline came off and a two-row table became the common case.
+  const n = Math.max(FACT_MIN, Math.min(rows.length, Math.floor(room / pitch + 1e-6)));
   const ks = tk.row * 0.82;
   const vs = tk.row * 0.92;
   const fk = paint.font("mono", ks);
@@ -458,8 +526,10 @@ const ways = mod("ways", 50, (ctx, box, d, paint) => {
 
 /* THE HOUSE. The venue mark placed exactly once, flush left at the foot,
  * under a quiet label, with the room and the town right-aligned opposite it
- * — a promoter credit, never a co-brand. This is also where THE ENGINE ROOM
- * and "new this September" land without spending a sentence on them. The
+ * — a promoter credit, never a co-brand. This is where THE ENGINE ROOM
+ * lands without spending a sentence on it; the note that used to ride under
+ * it is gone (owner, 2026-09-11: "remove the phrase new this September"),
+ * so the second line is the town on its own. The
  * mark is white on transparent, so it needs no treatment on ink and none
  * over a photograph; when the image has not loaded the block keeps its
  * height and the gym's name is set in type instead. It is on every frame
@@ -506,10 +576,9 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
     rs * 0.14,
   );
   if (two) {
-    const note = `${d.race.roomNote} · ${d.race.city}`;
     paint.drawRight(
       ctx,
-      paint.ellipsize(ctx, note, room, fq, rs * 0.13),
+      paint.ellipsize(ctx, d.race.city, room, fq, rs * 0.13),
       x + w,
       paint.baselineOf(rTop + metR.lh, metR.lh, metR),
       fq,
@@ -525,46 +594,45 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
  * any brightness, it is the only place any frame says a verb, and it is the
  * difference between a bill and an ad. The URL is set as large as the block
  * will take rather than at a mono footnote's size, because a reposted,
- * re-compressed frame has to keep it. The small print above it is on every
- * frame: a short line that materially changes whether a woman enters. */
-function ctaMod(id: string, deadline: boolean): Mod {
-  return mod(id, 60, (ctx, box, d, paint) => {
-    const tk = paint.tk;
-    const m = inset(paint);
-    const { x, w } = colOf(box, paint);
-    const ss = tk.small;
-    const fs = paint.font("mono", ss);
-    const metS = paint.metricsOf(ctx, fs, ss);
-    const small = deadline ? d.race.smallPrint : d.race.scoring;
-    let y = box.y;
-    paint.drawText(ctx, small, x, paint.baselineOf(y, metS.lh, metS), fs, QUIET, ss * 0.14);
-    y += metS.lh + tk.small * 0.9;
-    const blockH = tk.footer * 3.4;
-    paint.rule(ctx, x, y, w, blockH, WHITE);
-    const pad = tk.small * 1.2;
-    const gs = blockH * 0.4;
-    const fg = paint.font("black", gs);
-    const cap = capOf(ctx, fg, gs);
-    const base = y + (blockH + cap) / 2;
-    const gw = paint.drawText(ctx, "SIGN UP", x + pad, base, fg, RACE_INK, -0.01 * gs);
-    const us = Math.min(
-      tk.footer * 1.2,
-      paint.fitSize(ctx, d.url, "monoBold", 40, 7, w - gw - pad * 3, 0.04),
-    );
-    const fu = paint.font("monoBold", us);
-    const metU = paint.metricsOf(ctx, fu, us);
-    paint.drawRight(
-      ctx,
-      d.url,
-      x + w - pad,
-      paint.baselineOf(y + (blockH - metU.lh) / 2, metU.lh, metU),
-      fu,
-      RACE_INK,
-      us * 0.04,
-    );
-    return y + blockH + m.bottom - box.y;
-  });
-}
+ * re-compressed frame has to keep it.
+ *
+ * IT IS THE SLAB ALONE NOW. A line of grey small print sat above it on
+ * every frame — MEN AND WOMEN SCORED APART, and the deadline behind a
+ * middle dot on the phone frames — and the owner took both off (2026-09-11).
+ * Nothing was moved up to take the line's place: the slab is pinned to the
+ * bottom margin either way, so the room it freed went to the grow row, and
+ * the two variants of this module (`cta` and `cta.print`, which differed
+ * only in whether that line carried the deadline) collapsed into one. */
+const cta = mod("cta", 60, (ctx, box, d, paint) => {
+  const tk = paint.tk;
+  const m = inset(paint);
+  const { x, w } = colOf(box, paint);
+  const y = box.y;
+  const blockH = tk.footer * 3.4;
+  paint.rule(ctx, x, y, w, blockH, WHITE);
+  const pad = tk.small * 1.2;
+  const gs = blockH * 0.4;
+  const fg = paint.font("black", gs);
+  const cap = capOf(ctx, fg, gs);
+  const base = y + (blockH + cap) / 2;
+  const gw = paint.drawText(ctx, "SIGN UP", x + pad, base, fg, RACE_INK, -0.01 * gs);
+  const us = Math.min(
+    tk.footer * 1.2,
+    paint.fitSize(ctx, d.url, "monoBold", 40, 7, w - gw - pad * 3, 0.04),
+  );
+  const fu = paint.font("monoBold", us);
+  const metU = paint.metricsOf(ctx, fu, us);
+  paint.drawRight(
+    ctx,
+    d.url,
+    x + w - pad,
+    paint.baselineOf(y + (blockH - metU.lh) / 2, metU.lh, metU),
+    fu,
+    RACE_INK,
+    us * 0.04,
+  );
+  return y + blockH + m.bottom - box.y;
+});
 
 /* THE WINDOW — the overlay hole, and the only module that CUTS instead of
  * drawing. Both grounds paint the same solid ink (raceGround.ts); on an
@@ -587,20 +655,117 @@ function ctaMod(id: string, deadline: boolean): Mod {
  * bill. */
 const WINDOW_SHARE = 0.22;
 
-const windowMod: Mod = {
-  id: "window",
-  minH: 40,
-  measure: (_ctx, _box, _d, _fonts, paint) => paint.format.h * WINDOW_SHARE,
-  draw: (ctx, box) => {
-    if (!Number.isFinite(box.h) || box.h <= 0) return 0;
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "#000";
-    ctx.fillRect(box.x, box.y, box.w, box.h);
-    ctx.restore();
-    return box.h;
-  },
-};
+/* THE PHOTOGRAPH IN BLACK AND WHITE, done as pixels rather than as
+ * ctx.filter — slides.ts's reasoning, and the same Rec.709 matrix CSS
+ * grayscale() uses: the pixel math is identical in every browser where
+ * ctx.filter is missing on older Safari, and a switch the owner set to BLACK
+ * AND WHITE must never silently export colour. No contrast or brightness
+ * curve: unlike the post pack's beds, nothing is set over this picture — it
+ * sits in a window beside the bill, so it is the photograph as shot.
+ *
+ * Reading the pixels back is only safe because the studio arms crossOrigin
+ * on the gallery URL (PosterStudio loadImage); a tainted image never gets
+ * this far, because it never loads at all. One grey copy per image, kept on
+ * a WeakMap so the preview and the full-res render share it and it goes when
+ * the image does. */
+const GREY = new WeakMap<HTMLImageElement, HTMLCanvasElement | null>();
+
+function greyOf(img: HTMLImageElement): HTMLCanvasElement | null {
+  const had = GREY.get(img);
+  if (had !== undefined) return had;
+  let out: HTMLCanvasElement | null = null;
+  try {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const x = c.getContext("2d");
+    if (x) {
+      x.drawImage(img, 0, 0);
+      const image = x.getImageData(0, 0, c.width, c.height);
+      const px = image.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const lum = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+        px[i] = lum;
+        px[i + 1] = lum;
+        px[i + 2] = lum;
+      }
+      x.putImageData(image, 0, 0);
+      out = c;
+    }
+  } catch (err) {
+    // Impossible on a CORS-loaded image, and loud if it ever happens: the
+    // frame then draws no picture at all rather than a colour one.
+    console.error("row100k/poster: the race photo could not be made black and white", err);
+    out = null;
+  }
+  GREY.set(img, out);
+  return out;
+}
+
+/* `air` is the blank the window keeps BELOW itself, inside its own row, so
+ * the picture does not sit on the line under it (owner, 2026-09-11). It is
+ * WINDOW_AIR less the lead the next module already carries, which makes the
+ * gap under the window the same blank as the gap over it — the head leaves
+ * exactly WINDOW_AIR under its hairline.
+ *
+ * The PASTED plans pass false: there the window is the first row and bleeds
+ * off the top of the frame, so it has no gap above to match, and what
+ * follows is `mast.tight`, which carries its own air over its rule by
+ * design. Adding this one on top would stack two blanks and push the bill
+ * down the sheet.
+ *
+ * `fill` is which of the two things this row does with its box. FALSE cuts
+ * it out (destination-out) and the export is a transparent PNG to lay over a
+ * photograph at post time. TRUE draws the owner's picture into it, and that
+ * export is the finished ad — the review's point, 2026-09-11: the black and
+ * white switch was a CSS filter on a preview backdrop, so a grey frame could
+ * be approved and a colour one posted. The picture is cover-cropped to the
+ * WHOLE FRAME and then clipped to this box, not cover-cropped to the box, so
+ * the crop is the same one the studio shows behind the overlay preview —
+ * what he judges is what the file is. */
+function windowMod(id: string, air: boolean, fill: boolean): Mod {
+  return {
+    id,
+    minH: 40,
+    measure: (_ctx, _box, _d, _fonts, paint) => paint.format.h * WINDOW_SHARE,
+    draw: (ctx, box, d, _fonts, paint) => {
+      if (!Number.isFinite(box.h) || box.h <= 0) return 0;
+      const pad = air ? Math.max(0, WINDOW_AIR(paint.tk) - PIECE_LEAD(paint.tk)) : 0;
+      const h = box.h - pad;
+      if (h <= 0) return box.h;
+      if (!fill) {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = "#000";
+        ctx.fillRect(box.x, box.y, box.w, h);
+        ctx.restore();
+        // The row keeps its whole height: the pad is ink, and the module
+        // that follows starts where the engine put it.
+        return box.h;
+      }
+      const img = paint.assets.photo;
+      // No picture is not this module's call to make — raceGround.ts has
+      // already dropped the frame back to the solid ad — so this is only
+      // ever the belt: draw nothing rather than a stretched nothing.
+      if (!img || !img.naturalWidth || !img.naturalHeight) return box.h;
+      const src = d.photo.bw ? greyOf(img) : img;
+      if (!src) return box.h;
+      // object-fit: cover over the frame, the way the preview lays it.
+      const fw = paint.format.w;
+      const fh = paint.format.h;
+      const s = Math.max(fw / img.naturalWidth, fh / img.naturalHeight);
+      const w = img.naturalWidth * s;
+      const ph = img.naturalHeight * s;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(box.x, box.y, box.w, h);
+      ctx.clip();
+      ctx.drawImage(src, (fw - w) / 2, (fh - ph) / 2, w, ph);
+      ctx.restore();
+      return box.h;
+    },
+  };
+}
 
 /* --------------------------------------------------------------- the plans */
 
@@ -623,11 +788,11 @@ const lines = (id: string, module: string, extra: Partial<PosterRow> = {}): Post
  *
  * WHAT FITS WHERE, measured rather than argued. A 9:16 has 700 live units
  * and the bill — masthead, RACE over DAY flush, the piece, the bracket, the
- * house and the SIGN UP block — spends every one of them. So the wave grid,
- * the fact table and the two ways in are PRINT: a flyer on the gym wall is
- * read standing still and has the room for them. The phone frames carry the
- * deadline on the CTA small print instead, which is the same fact in one
- * line rather than four. */
+ * house and the SIGN UP block — spends every one of them. So the fact table
+ * and the two ways in are PRINT: a flyer on the gym wall is read standing
+ * still and has the room for them. The phone frames carry NEITHER, and no
+ * deadline either — the CTA is the slab alone since the owner took that line
+ * off (2026-09-11), and what comes off the frames is in the caption. */
 const inkPlan = (key: PosterPlanKey, rows: PosterRow[], footer: string, drop: string[]): PosterPlan => ({
   key,
   cols: 1,
@@ -639,31 +804,35 @@ const inkPlan = (key: PosterPlanKey, rows: PosterRow[], footer: string, drop: st
 
 /* The phone bill: nothing between the bracket and the house, because the
  * head takes that room. */
-const adRows = (head: string, piece: string): PosterRow[] => [
+const adRows = (head: string): PosterRow[] => [
   one("A", "mast"),
   one("B", head, { grow: 1 }),
-  one("C", piece),
+  one("C", "piece"),
   one("D", "bracket"),
   one("H", "host"),
 ];
 
-/* The printed bill: the same stack with the wave row, the two ways in and
- * the fact table between the bracket and the house. `ways` goes first when
- * a sheet cannot hold it, then the wave row; the facts yield lines before
- * either (the engine trims a lines slot first) and two rows is their
- * floor. */
+/* The printed bill: the same stack with the two ways in and the fact table
+ * between the bracket and the house. `ways` goes first when a sheet cannot
+ * hold it; the facts yield lines before it (the engine trims a lines slot
+ * first) and one row is their floor.
+ *
+ * THE WAVE ROW CAME OFF, 2026-09-11 (review). The owner struck ROWED IN
+ * WAVES OF EIGHT off the bill and the sentence went, but this row drew the
+ * same claim as a picture — `8 ERGS A WAVE · EVERY 30 MIN` over eight
+ * numbered cells — on the three print sheets he never reviewed. The head is
+ * the grow row and takes the units back, so nothing opened where it was. */
 const printRows = (): PosterRow[] => [
   one("A", "mast"),
   one("B", "head", { grow: 1 }),
   one("C", "piece"),
   one("D", "bracket"),
-  one("E", "waves"),
   one("F", "ways"),
   lines("G", "facts"),
   one("H", "host"),
 ];
 
-const inkStory = inkPlan("story", adRows("head", "piece"), "cta", []);
+const inkStory = inkPlan("story", adRows("head"), "cta", []);
 /* The 4:5 takes the STACKED head, not the one-liner. A one-line head is
  * already flush at 60 units of cap and cannot grow into what the grow row
  * hands it, so the 4:5's 105 units of surplus fell under the hairline as a
@@ -671,14 +840,14 @@ const inkStory = inkPlan("story", adRows("head", "piece"), "cta", []);
  * was designed out. RACE over DAY eats that surplus as TYPE (a 173-unit
  * block where the one-liner drew 60), which is what the 9:16 already does.
  * The 1:1 keeps the one-liner: it has six units of slack, not a hundred. */
-const inkPost = inkPlan("post", adRows("head", "piece"), "cta", []);
-const inkSquare = inkPlan("square", adRows("head.one", "piece.short"), "cta", []);
-/* The drop order on paper: the wave row first (the bracket already says the
- * waves run every half hour), then the two ways in, then the facts yield to
- * their two-line floor. TWO WAYS IN outranks the picture because signing up
- * as a spectator is an owner decision, not a nicety. */
+const inkPost = inkPlan("post", adRows("head"), "cta", []);
+const inkSquare = inkPlan("square", adRows("head.one"), "cta", []);
+/* The drop order on paper: the two ways in, then the facts. TWO WAYS IN is
+ * last to go of the two because signing up as a spectator is an owner
+ * decision, not a nicety — and the wave row that used to head this list is
+ * not drawn at all any more (printRows). */
 const inkPrint = (key: PosterPlanKey): PosterPlan =>
-  inkPlan(key, printRows(), "cta.print", ["waves", "ways", "facts"]);
+  inkPlan(key, printRows(), "cta", ["ways", "facts"]);
 
 /* THE OVERLAY. The same bill with the ground taken out and a window put in.
  * On 9:16 the window sits under the headline — the torn bill, two bands —
@@ -689,12 +858,14 @@ const inkPrint = (key: PosterPlanKey): PosterPlan =>
  * THE WINDOW IS THE GROW ROW AND THE YIELDING ROW AT ONCE: fit "cap" so a
  * frame that cannot hold the bill takes the picture back rather than
  * overflowing, `grow` so every unit the bill does not need is picture. The
- * bill itself is LEANER than the ad — one-line head, the short piece — for
- * the same reason. Measured, on the visible frame:
- *   story  36 % window (the band between the two bills)
- *   post   23 %
- *   square 28 %, and it buys that by dropping THE VENUE — a 1:1 cannot hold
- *          the whole bill AND a photograph, which is what every stream
+ * bill itself is LEANER than the ad — it takes the ONE-LINE head on the
+ * phone frames, and there is no short piece to take any more (that variant
+ * died with the wave sentence, 2026-09-11) — for the same reason. Measured
+ * off the exported alpha, as a share of the whole frame:
+ *   story  25.9 % window (the band between the two bills)
+ *   post   27.5 %
+ *   square 32.4 %, and it buys that by dropping THE VENUE — a 1:1 cannot
+ *          hold the whole bill AND a photograph, which is what every stream
  *          found; the caption carries what comes off.
  *
  * WHAT COMES OFF THE 1:1 IS THE HOST BLOCK, AND ONLY THE HOST BLOCK. The
@@ -717,26 +888,30 @@ const overlayPlan = (key: PosterPlanKey, rows: PosterRow[], drop: string[] = [])
   shrink: ["cap"],
 });
 
-const windowSlot = { id: "W", slots: [{ module: "window", span: 1 as const, fit: "cap" as const }], grow: 1 };
+const windowSlot = (module: string) => ({
+  id: "W",
+  slots: [{ module, span: 1 as const, fit: "cap" as const }],
+  grow: 1,
+});
 
-const overTorn = (key: PosterPlanKey, head: string, piece: string): PosterPlan =>
+const overTorn = (key: PosterPlanKey, head: string): PosterPlan =>
   overlayPlan(key, [
     one("A", "mast"),
     one("B", head),
-    windowSlot,
-    one("C", piece),
+    windowSlot("window"),
+    one("C", "piece"),
     one("D", "bracket"),
     one("H", "host"),
   ]);
 
-const overPasted = (key: PosterPlanKey, head: string, piece: string, drop: string[]): PosterPlan =>
+const overPasted = (key: PosterPlanKey, head: string, drop: string[]): PosterPlan =>
   overlayPlan(
     key,
     [
-      windowSlot,
+      windowSlot("window.top"),
       one("A", "mast.tight"),
       one("B", head),
-      one("C", piece),
+      one("C", "piece"),
       one("D", "bracket"),
       one("H", "host"),
     ],
@@ -745,24 +920,39 @@ const overPasted = (key: PosterPlanKey, head: string, piece: string, drop: strin
 
 /* ------------------------------------------------------------- the layouts */
 
-const modules: Record<string, Mod> = {
+const blocks: Record<string, Mod> = {
   mast: mastMod("mast", true),
   "mast.tight": mastMod("mast.tight", false),
-  cta: ctaMod("cta", true),
-  /* The print plans carry a fact table with the closing MINUTE in it, so
-   * their foot line is the scoring alone rather than the deadline twice. */
-  "cta.print": ctaMod("cta.print", false),
+  cta,
   head: headMod("head", true),
   "head.one": headMod("head.one", false),
-  piece: pieceMod("piece", false),
-  "piece.short": pieceMod("piece.short", true),
+  piece,
   bracket,
+  /* PARKED, not drawn: no plan carries the wave grid since 2026-09-11. The
+   * owner struck ROWED IN WAVES OF EIGHT as a sentence, and the grid is the
+   * same claim drawn as a picture (review) — eight numbered cells and
+   * `waveLabel` over them — so it came off the print sheets he had not
+   * reviewed. It is kept here because putting it back is one row in
+   * printRows(), and because the question to ask him is whether a reader who
+   * has never rowed a 5k wants the picture, not whether the code can. */
   waves,
   facts,
   ways,
   host,
-  window: windowMod,
 };
+
+/* The two window modules, per ground. The torn window keeps a blank under
+ * itself; the pasted one bleeds off the top of the frame and the masthead
+ * under it carries its own. `fill` is the whole difference between the
+ * overlay and the photo ground — same plans, same bill, one cuts and one
+ * draws. */
+const windows = (fill: boolean): Record<string, Mod> => ({
+  window: windowMod("window", true, fill),
+  "window.top": windowMod("window.top", false, fill),
+});
+
+const modules: Record<string, Mod> = { ...blocks, ...windows(false) };
+const photoModules: Record<string, Mod> = { ...blocks, ...windows(true) };
 
 export const raceDayLayout: PosterLayout<RaceDayPoster> = {
   subject: "raceday",
@@ -779,22 +969,33 @@ export const raceDayLayout: PosterLayout<RaceDayPoster> = {
   },
 };
 
+/* Paper has room for the head on two lines around its window; the phone
+ * frames set it on one. ONE set of plans, two layouts: the photo ground is
+ * the overlay's composition with the picture drawn into the hole instead of
+ * cut out of it, so a frame the owner judged as an overlay and a frame he
+ * downloads finished are the same artwork. */
+const overlayPlans = {
+  tall: overTorn("tall", "head"),
+  short: overTorn("short", "head"),
+  squat: overTorn("squat", "head"),
+  core: overTorn("core", "head"),
+  hand: overTorn("hand", "head"),
+  story: overTorn("story", "head.one"),
+  post: overPasted("post", "head.one", ["mast.tight"]),
+  square: overPasted("square", "head.one", ["host"]),
+};
+
 export const raceDayOverlayLayout: PosterLayout<RaceDayPoster> = {
   subject: "raceday",
   modules,
-  plans: {
-    /* Paper has room for the whole head and the whole piece around its
-     * window; the phone frames do not. */
-    tall: overTorn("tall", "head", "piece"),
-    short: overTorn("short", "head", "piece"),
-    squat: overTorn("squat", "head", "piece"),
-    core: overTorn("core", "head", "piece"),
-    hand: overTorn("hand", "head", "piece"),
-    story: overTorn("story", "head.one", "piece.short"),
-    post: overPasted("post", "head.one", "piece.short", ["mast.tight"]),
-    square: overPasted("square", "head.one", "piece.short", ["host"]),
-  },
+  plans: overlayPlans,
+};
+
+export const raceDayPhotoLayout: PosterLayout<RaceDayPoster> = {
+  subject: "raceday",
+  modules: photoModules,
+  plans: overlayPlans,
 };
 
 export const raceLayoutFor = (ground: PosterGround): PosterLayout<RaceDayPoster> =>
-  ground === "overlay" ? raceDayOverlayLayout : raceDayLayout;
+  ground === "overlay" ? raceDayOverlayLayout : ground === "photo" ? raceDayPhotoLayout : raceDayLayout;

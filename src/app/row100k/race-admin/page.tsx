@@ -4,8 +4,12 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { currentRace, racePhase } from "../raceday";
+import { hoursLine, racePhase } from "../raceday";
+import { raceWithSettings } from "../racedaySettings";
 import { EMPTY_RACERS, listRacers, type Racer } from "../racedayData";
+import { listGallery } from "../galleryList";
+import { photoUrl, photosServable, thumbKey } from "../photoUrls";
+import { RaceSettings, type GalleryPick } from "./RaceSettings";
 import { RaceWaves } from "./RaceWaves";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +61,35 @@ const raWavCss = `
 .row100k table.board td.ra-tell{font-size:10px;letter-spacing:.12em;white-space:nowrap}
 .row100k table.board td.ra-move{font-size:11px;letter-spacing:.1em;white-space:nowrap}
 .row100k table.board tr.ra-moved td.ra-move{color:var(--water);font-weight:700}
+/* THE EVENING panel. datetime-local is not in the theme input rule (it
+ * lists text, date and number), so it is given the same underline here —
+ * the blackout console does the same for its own two. */
+/* A native date widget has a wide intrinsic minimum and will push straight
+ * through the panel border in a fixed grid column, so it is set a size down
+ * from the theme input and allowed to shrink (min-width:0 on it AND on its
+ * grid cell — a grid item defaults to min-width:auto). */
+.row100k .panel input[type=datetime-local]{width:100%;min-width:0;background:transparent;border:none;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-archivo),sans-serif;font-size:15px;padding:9px 2px;border-radius:0;appearance:none}
+.row100k .ra-block{border-top:1px dashed var(--line);margin-top:26px;padding-top:16px}
+.row100k .ra-block:first-of-type{border-top:none;margin-top:6px;padding-top:0}
+.row100k .ra-eye{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+/* Three across on a desk, two on a tablet, one on a phone — the columns
+ * decide for themselves rather than by breakpoint. */
+.row100k .ra-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:0 22px}
+.row100k .ra-3 div{min-width:0}
+.row100k .ra-def{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin-top:7px;line-height:1.9}
+.row100k .ra-def b{color:var(--water);font-weight:700}
+.row100k .ra-read{font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin-top:22px;line-height:2}
+.row100k .ra-read b{color:var(--water);font-weight:700;font-variant-numeric:tabular-nums}
+.row100k .ra-warn{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#b3400f;margin-top:8px;line-height:1.8}
+.row100k .ra-cur{display:flex;align-items:flex-start;gap:16px;margin-top:14px;flex-wrap:wrap}
+.row100k .ra-cur img{display:block;width:96px;height:120px;object-fit:cover;border:2px solid var(--ink);background:var(--line)}
+.row100k .ra-cur .none{width:96px;height:120px;border:2px dashed var(--line)}
+.row100k .ra-pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:16px;max-height:340px;overflow-y:auto}
+.row100k .ra-pic{display:block;margin:0;padding:0;border:2px solid var(--line);background:none;cursor:pointer;aspect-ratio:4/5;overflow:hidden}
+.row100k .ra-pic.on{border-color:var(--water)}
+.row100k .ra-pic img{display:block;width:100%;height:100%;object-fit:cover}
+.row100k .ra-chg{list-style:none;margin:22px 0 0;padding:0;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);line-height:1.9}
+.row100k .ra-chg li{border-top:1px dashed var(--line);padding:5px 0}
 `;
 
 /* RACE WAVES — admin only (owner, 2026-09-10: "we need a way to assign
@@ -74,7 +107,9 @@ export default async function RaceAdminPage() {
   const viewer = await resolveViewer();
   if (!viewer.actor || !viewer.isAdmin) notFound();
 
-  const race = currentRace();
+  /* The race AS IT STANDS, not as it shipped: the settings row the panel
+   * below writes moves every time on this page (racedaySettings.ts). */
+  const { race, view } = await raceWithSettings();
   let racers: Racer[] = EMPTY_RACERS;
   let unreadable = false;
   try {
@@ -84,8 +119,31 @@ export default async function RaceAdminPage() {
     unreadable = true;
   }
 
+  /* THE PICTURE PICKER's thumbnails — the same cached gallery listing the
+   * gallery page reads, capped because this is a picker and not the album.
+   * Fails soft: a listing hiccup costs the thumbnails, not the console. */
+  let gallery: GalleryPick[] = [];
+  try {
+    if (photosServable()) {
+      gallery = await Promise.all(
+        (await listGallery()).slice(0, 60).map(async (o) => ({
+          key: o.key,
+          thumb: await photoUrl(o.hasThumb ? thumbKey(o.key) : o.key),
+        })),
+      );
+    }
+  } catch (err) {
+    console.error("row100k/race-admin: gallery listing failed", err);
+    gallery = [];
+  }
+
+  /* What the read-out starts from: people actually pulling, right now. */
+  const starters = racers.filter((r) => !r.withdrewAt && r.role === "racer").length;
+
   const phase = racePhase(race);
-  const phaseWord = phase === "open" ? "TAKING NAMES" : phase === "closed" ? "NAMES SHUT — RACE MORNING" : "RACED";
+  /* RACE EVENING — the race is 6–9 PM (owner, 2026-09-11: "6-9pm on the
+   * 27th"); the word was left over from when it was built as a morning. */
+  const phaseWord = phase === "open" ? "TAKING NAMES" : phase === "closed" ? "NAMES SHUT — RACE EVENING" : "RACED";
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -100,9 +158,11 @@ export default async function RaceAdminPage() {
             <span className="mono">ADMIN ONLY — {phaseWord}</span>
           </div>
           <p className="ra-note">
-            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {race.hours} · {race.venueLine} · waves of{" "}
-            {race.waveSize} every {race.waveMinutes} minutes · {race.closesLine.toLowerCase()}
+            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venueLine} · {race.room} ·
+            waves of {race.waveSize} every {race.waveMinutes} minutes
           </p>
+
+          <RaceSettings view={view} gallery={gallery} field={starters} />
 
           <RaceWaves race={race} racers={racers} unreadable={unreadable} />
         </div>

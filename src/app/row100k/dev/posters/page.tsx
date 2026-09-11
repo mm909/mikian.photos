@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
-import { currentRace } from "../../raceday";
+import { resolvedRace } from "../../racedaySettings";
 import { makeFixture, type FixtureOpts } from "../../poster/fixture";
 import { isFormatKey } from "../../poster/formats";
 import { raceDayPoster } from "../../poster/raceAssemble";
 import { isGround } from "../../poster/raceGround";
+import { racePhoto } from "../../poster/racePhoto";
 import { poCss } from "../../poster/studioCss";
 import type { PosterFormatKey, PosterPpi } from "../../poster/types";
 import { PosterStudio } from "../../posters/PosterStudio";
@@ -27,10 +28,16 @@ export const metadata: Metadata = {
  * database. Query switches:
  *
  *   ?subject=community|rower|raceday   which payload (default community)
- *   &ground=ink|overlay        race day only: the solid ad, or the
- *                              transparent overlay for a photograph
+ *   &ground=ink|photo|overlay  race day only: the solid ad, the same ad with
+ *                              his photograph drawn into it, or the
+ *                              transparent overlay to lay over one
  *   &field=N                   race day only: N racers are in, so the ad
  *                              prints its one line of social proof
+ *
+ * Race day's PHOTOGRAPH is not a switch: it is whatever the owner picked in
+ * the settings console, or the newest gallery shot when he has picked none
+ * (poster/racePhoto.ts), because the point of looking at the overlay here
+ * is to see it over the picture it will really be posted on.
  *   &r=N / &rower=N            the subject rower (default 23, one of the top men)
  *   &format=<key>              the format chip to start on
  *   &masked=1                  a window is open; the rower is one of the elite
@@ -40,7 +47,7 @@ export const metadata: Metadata = {
  *   &runup=1                   the run-up: low digits covered, places kept
  *   &noprobe=300               the ppi ladder must refuse 300 (the fallback path)
  */
-export default function DevPostersPage({
+export default async function DevPostersPage({
   searchParams,
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -94,12 +101,21 @@ export default function DevPostersPage({
   const rower = subject === "rower" ? fixture.rower : null;
   const asOf = (community ?? rower ?? fixture.community).asOf;
   // RACE DAY needs no fixture: the race IS the payload (raceday.ts), so the
-  // dev page draws the real one. `?field=N` is the only invented number —
-  // the one line of social proof the ad prints once enough names are in.
+  // dev page draws the real one — AS IT STANDS, settings row folded in, so
+  // the bench previews what the console set and not what the deploy shipped
+  // (review, 2026-09-11). `?field=N` is the only invented number — the one
+  // line of social proof the ad prints once enough names are in.
   const field = num("field");
+  const race = await resolvedRace();
   const raceday =
     subject === "raceday"
-      ? raceDayPoster(currentRace(), field ? { racers: field, spectators: Math.round(field / 4) } : null)
+      ? raceDayPoster(
+          race,
+          field ? { racers: field, spectators: Math.round(field / 4) } : null,
+          // The one server read on this page, and it touches R2 rather than
+          // the database: the owner's chosen shot, resolved to a URL.
+          await racePhoto(race),
+        )
       : null;
 
   return (

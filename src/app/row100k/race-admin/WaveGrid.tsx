@@ -15,10 +15,13 @@ export function bySeed(a: Racer, b: Racer): number {
   return a.rowerNumber - b.rowerNumber;
 }
 
-/* THE GRID — wave 1 at 6:30, wave 2 at 7:00, who is in each and how full it
- * is against the ergs on the floor (race.waveSize). The rowers never see
- * this (owner, 2026-09-10: "they do not need to know when the wave starts")
- * — it is the sheet the owner works off on the morning. Inside a wave the
+/* THE GRID — wave 1 when the first wave goes off, wave 2 race.waveMinutes
+ * after it, who is in each and how full it is against the ergs on the floor
+ * (race.waveSize). No clock time is typed here: the console can move the
+ * first wave, so every time comes off the race this is handed (waveTime).
+ * The rowers never see this (owner, 2026-09-10: "they do not need to know
+ * when the wave starts") — it is the sheet the owner works off on the night
+ * (the race is 6–9 PM: "6-9pm on the 27th"). Inside a wave the
  * order is the seed, so a card reads like a start list; a wave everybody in
  * it shares a bracket with says so in its head. */
 export function WaveGrid({ race, field }: { race: RaceDef; field: Racer[] }) {

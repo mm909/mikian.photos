@@ -6,8 +6,9 @@ import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { communityPosterData, posterRoster, rowerPosterData } from "../poster/data";
+import { raceDayPosterData } from "../poster/raceData";
 import { poCss } from "../poster/studioCss";
-import type { CommunityPoster, PosterRosterRower, RowerPoster } from "../poster/types";
+import type { CommunityPoster, PosterRosterRower, RaceDayPoster, RowerPoster } from "../poster/types";
 import { PosterStudio } from "./PosterStudio";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +44,16 @@ export default async function PostersPage({ searchParams }: { searchParams?: { r
   let community: CommunityPoster | null = null;
   let rower: RowerPoster | null = null;
   let roster: PosterRosterRower[] = [];
+  /* RACE DAY is a chip, not a route, but everything on the ad is a server
+   * read: the race AS THE CONSOLE HAS IT (the settings row over the code
+   * default), how many names are in, and the photograph the owner picked
+   * (poster/raceData.ts). It is read whatever the subject, because the chip
+   * flips without a navigation. A failure here costs the race day chip —
+   * there is no client-built payload to fall back to any more, because a
+   * browser cannot see the settings row (review, 2026-09-11). */
+  let raceday: RaceDayPoster | null = null;
   if (!before) {
-    const [c, r, ro] = await Promise.all([
+    const [c, r, ro, rd] = await Promise.all([
       communityPosterData(opts).catch((err: unknown) => {
         console.error("row100k/posters: community payload failed", err);
         return null;
@@ -56,10 +65,15 @@ export default async function PostersPage({ searchParams }: { searchParams?: { r
           })
         : Promise.resolve(null),
       posterRoster(),
+      raceDayPosterData().catch((err: unknown) => {
+        console.error("row100k/posters: race day payload failed", err);
+        return null;
+      }),
     ]);
     community = c;
     rower = r;
     roster = ro;
+    raceday = rd;
     if (rNum && !rower) notFound();
   }
 
@@ -79,7 +93,7 @@ export default async function PostersPage({ searchParams }: { searchParams?: { r
           {before ? (
             <p className="po-first">FIRST STROKE SEP 1</p>
           ) : (
-            <PosterStudio community={community} rower={rower} roster={roster} />
+            <PosterStudio community={community} rower={rower} raceday={raceday} roster={roster} />
           )}
         </div>
       </section>

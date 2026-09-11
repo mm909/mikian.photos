@@ -13,6 +13,17 @@ import type { Racer } from "../racedayData";
  * are in. Everything it can do is one POST to /api/row100k/raceday, which
  * re-authenticates and re-checks the gate; nothing here is trusted.
  *
+ * IT SITS WHERE THE AD PRINTS ITS SIGN UP SLAB (owner, 2026-09-11: the page
+ * should be the flyer). So it is the foot of the bill rather than a box of
+ * its own: rdCss.ts opens it on the same thick rule the bracket and the
+ * house open on, and the filled button IS the slab — white paper, ink type,
+ * a verb flush left. Nothing here says the hours or the first wave in typed
+ * words; the bill above says both, off the race.
+ *
+ * WHAT CAME OFF (owner, same message): the registration-closes line, which
+ * this block printed in three of its states. closesAt still refuses a late
+ * entry — the rule stays, it just no longer announces itself.
+ *
  * TWO WAYS IN (owner, 2026-09-11: "we need there to be a way to sign up as
  * a spectator versus as just a racer"). They are the same act with a role
  * on it, so they are the same block: the RACER is the filled button, the
@@ -116,7 +127,6 @@ export function SignupPanel({
           Sign in to opt in
         </button>
         <p className="rd-small mono">RACE OR WATCH — SIGN IN FIRST</p>
-        <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       </div>
     );
   }
@@ -129,7 +139,6 @@ export function SignupPanel({
         <Link className="send" href="/row100k#join">
           Opt in to Rowtember
         </Link>
-        <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       </div>
     );
   }
@@ -147,20 +156,26 @@ export function SignupPanel({
       <div className="rd-act in">
         {/* Before a wave exists the block says the one thing there is to
          * say; after it, the wave IS the headline. The day is already the
-         * headline of the stub above, so it is not repeated here. */}
+         * biggest thing on the bill above, so it is not repeated here. */}
         <p className="rd-eye">{racing ? (mine.wave === null ? "Your entry" : "You are in") : "Your spot"}</p>
         <p className="rd-you">{racing && mine.wave !== null ? `Wave ${mine.wave}` : "You are in"}</p>
         <p className="rd-wave mono">
           {who}
           {emailed && mine.wave !== null ? ` · ${waveTime(race, mine.wave).toUpperCase()}` : ""}
         </p>
+        {/* And once the wave time is up there, the line under it says the
+         * one thing the bill has not already shouted at the rower: the room
+         * to walk into. It used to print the venue and the day again — four
+         * facts the sheet above carries, stacked on top of the only new one
+         * — and the day half was the last typed date on the surface, free to
+         * drift from the one page.tsx derives off race.day. */}
         <p className="rd-small mono">
           {!racing
             ? SPECTATOR.line.toUpperCase()
             : mine.wave === null
               ? "WAVE NOT ASSIGNED"
               : emailed
-                ? `${race.venueLine.toUpperCase()} · ${race.when.toUpperCase()}`
+                ? race.room.toUpperCase()
                 : "START TIME TO COME"}
         </p>
 
@@ -331,7 +346,6 @@ export function SignupPanel({
         </button>
       </div>
       <p className="rd-roleline">{SPECTATOR.line.toUpperCase()}</p>
-      <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       {error && <p className="form-err">{error}</p>}
     </div>
   );

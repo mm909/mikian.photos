@@ -448,9 +448,9 @@ export type RaceDayPoster = {
     head: string[];
     /* "A TIMED 5,000 M TRIAL" (RaceDef.sub) */
     piece: string;
-    /* "ROWED IN WAVES OF EIGHT" */
-    waves: string;
-    /* "FIRST WAVE 6:30 PM" — waveTime(race, 1), never typed out */
+    /* "FIRST WAVE 6:15 PM" — waveTime(race, 1), never typed out. The wave
+     * SIZE sentence that used to sit above it is gone (owner, 2026-09-11:
+     * "remove rowed in waves of eight" — entirely). */
     firstWave: string;
     /* The bracket strip: three values with a mono sub each. */
     date: string;
@@ -462,15 +462,9 @@ export type RaceDayPoster = {
     /* "SUN SEP 27" — the masthead's clock, which a crop never eats */
     stamp: string;
     waveSize: number;
-    /* "8 ERGS A WAVE · EVERY 30 MIN" */
+    /* "8 ERGS A WAVE · EVERY 30 MIN" — the print sheets' wave picture, the
+     * one place the grid is still described. */
     waveLabel: string;
-    /* "MEN AND WOMEN SCORED APART" */
-    scoring: string;
-    /* The same plus the deadline — the foot line of a frame that has no
-     * fact table under it. */
-    smallPrint: string;
-    /* "SAT SEP 26 · 11:59 PM" — off closesAt, Pacific */
-    closes: string;
     /* "ON WODIFY" — null when the race has no waiver */
     waiver: string | null;
     /* RaceDef.venueMark: white on transparent, so it needs no treatment on
@@ -479,14 +473,30 @@ export type RaceDayPoster = {
     venueMark: { src: string; alt: string; ratio: number } | null;
     venue: string;
     city: string;
+    /* "THE ENGINE ROOM". The note that rode with it is gone (owner,
+     * 2026-09-11: "remove the phrase new this September"). */
     room: string;
-    roomNote: string;
     roles: RaceDayRole[];
   };
   /* The field so far, for the one line of social proof the ad may print —
    * null when nobody has entered, when the count is under the floor, or
    * when the read failed (poster/raceData.ts). */
   field: { racers: number; spectators: number } | null;
+  /* THE PICTURE THE AD IS FOR (RaceDef.photo, resolved to a URL by
+   * poster/racePhoto.ts): the owner's chosen gallery shot, or the newest
+   * one when he has chosen none, and whether it is shown black and white
+   * (owner, 2026-09-11: "allow me to change that photo and have it be
+   * black and white most likely").
+   *
+   * TWO GROUNDS READ IT. On "overlay" no frame draws it: that design is a
+   * transparent PNG whose alpha IS the bill, so the picture belongs to the
+   * wall and the studio only lays it BEHIND the preview — which is why the
+   * overlay's own note says the switch and the pick are a preview of a
+   * photograph supplied at post time. On "photo" the window DRAWS it, black
+   * and white when he asked for that, and the PNG that downloads is the
+   * finished ad. Null when R2 cannot serve (the preview falls back to the
+   * chequer and the photo ground is not offered). */
+  photo: { url: string | null; bw: boolean };
   /* "MIKIANMUSSER.COM/ROW100K/RACEDAY" */
   url: string;
   /* The caption that ships WITH the artwork: the waiver and the closing
@@ -500,12 +510,18 @@ export type RaceDayPoster = {
 export type PosterSubject = PosterData | RaceDayPoster;
 
 /* THE GROUND a sheet is painted on. Every other subject is cream paper and
- * says nothing; race day is monochrome and ships twice — "ink" is the solid
- * ad and "overlay" is the same bill with a window cut through it, a
- * transparent PNG to lay over a photograph of the room. Which plans a
- * ground uses is poster/raceday.ts; who paints and who cuts is
- * poster/raceGround.ts and the `window` module. */
-export type PosterGround = "ink" | "overlay";
+ * says nothing; race day is monochrome and ships three ways — "ink" is the
+ * solid ad, "overlay" is the same bill with a window cut through it (a
+ * transparent PNG to lay over a photograph at post time), and "photo" is
+ * that same bill with the owner's own picture DRAWN into the window, which
+ * is the one file that is finished when it downloads. Which plans a ground
+ * uses is poster/raceday.ts; who paints, who cuts and who fills is
+ * poster/raceGround.ts and the `window` module.
+ *
+ * The third ground exists because the black-and-white switch has to be TRUE
+ * OF A FILE (review, 2026-09-11): on an overlay the picture is a preview and
+ * the owner could approve a grey frame and post a colour one. */
+export type PosterGround = "ink" | "overlay" | "photo";
 
 /* The roster handed to the studio's subject picker — the looks/view.ts
  * RosterRower guard: the two things that are ALWAYS public plus the board
@@ -515,12 +531,17 @@ export type PosterRosterRower = { rowerNumber: number; displayName: string; divi
 /* ================================================================ drawing */
 
 /* `venue` is race day's host mark (RaceDef.venueMark, white on
- * transparent). Optional so the two paper subjects build their assets
- * exactly as they did. */
+ * transparent). `photo` is the picture the owner picked, loaded with
+ * crossOrigin so the canvas it is drawn into can still be encoded — it is
+ * what the "photo" ground draws into the window, and it is null on every
+ * other ground and whenever the bucket refused the CORS fetch. Both
+ * optional so the two paper subjects build their assets exactly as they
+ * did. */
 export type PosterAssets = {
   bear: HTMLImageElement | null;
   wordmark: HTMLImageElement | null;
   venue?: HTMLImageElement | null;
+  photo?: HTMLImageElement | null;
 };
 
 /* A module's box in logical units. `h` is the BUDGET on the way in (the
