@@ -659,6 +659,22 @@ export const TIERS = [
   { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },
   { meters: 100_000, key: "t100", label: "100K", rarity: "epic", title: "The 100K Club" },
   { meters: 250_000, key: "t250", label: ".25M", rarity: "legend", title: ".25M" },
+  /* ELITE, the top rung (owner, 2026-09-11). It lands exactly on
+   * PACE_TAG_FROM, which is the point: past 500,000 m the board has always
+   * swapped the club tag for the average split, and now the section says
+   * what that makes you. NOT censored — the owner was explicit on the
+   * second telling: "if you just have five hundred k or above, it is not
+   * necessarily censored ... but your title, your little tag should be your
+   * average pace". Only a blackout hides numbers, and only the top ten of
+   * each board. The name is shared with the blackout's THE ELITE on
+   * purpose (owner, same message: "the sharing of the name is
+   * intentional") — both are the rowers you know by their pace.
+   *
+   * `label` and `rarity` are nearly dead weight here: a rower at this rung
+   * is past PACE_TAG_FROM, so Boards.tsx draws their split instead of the
+   * tier label. They are the fallback for the one rower who reaches 500k
+   * without a single timed row to average. */
+  { meters: 500_000, key: "t500", label: "ELITE", rarity: "elite", title: "Elite" },
 ] as const;
 export type Tier = (typeof TIERS)[number];
 

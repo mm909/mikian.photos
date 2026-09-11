@@ -70,15 +70,30 @@ function pacificDayIndex(ms: number): number {
   return Math.floor((ms - PACIFIC_SHIFT_MS) / DAY_MS);
 }
 
-/* The run-up, in digits, for one window at one instant. With rampDays = 4
- * and the window opening Sep 12: Sep 8 covers the ones, Sep 9 the tens,
- * Sep 10 the hundreds, Sep 11 the thousands, and Sep 12 opens the window
- * and covers the rest. Returns 0 when the day is outside the run-up. */
+/* How much of a total the run-up has covered by its last day: six figures,
+ * the shape the board's own numbers take. The window itself covers whatever
+ * is left above it. */
+export const RAMP_FULL_DIGITS = 6;
+
+/* The run-up, in digits, for one window at one instant.
+ *
+ * rampDays is HOW LONG THE RUN-UP TAKES, and the digits are spread across
+ * it — not one digit a day (owner, 2026-09-11: "if we announce it halfway
+ * through the week then that number of days needs to be shortened to, like,
+ * three. So we would block out two digits, two digits, two digits, and then
+ * the rest of them"). Six days is still one digit a day, which is what it
+ * always did; three days is two digits a step; two days is three.
+ *
+ * With rampDays = 6 and the window opening Sep 12: Sep 6 covers the ones,
+ * Sep 7 the tens, and so on to Sep 11, and Sep 12 opens the window and
+ * covers the rest. With rampDays = 3: Sep 9 covers two digits, Sep 10 four,
+ * Sep 11 six. Returns 0 when the day is outside the run-up. */
 export function rampDigitsAt(startsAtMs: number, rampDays: number, atMs: number): number {
   if (!(rampDays > 0) || !Number.isFinite(startsAtMs) || atMs >= startsAtMs) return 0;
   const daysUntil = pacificDayIndex(startsAtMs) - pacificDayIndex(atMs);
   if (daysUntil <= 0 || daysUntil > rampDays) return 0;
-  return rampDays - daysUntil + 1;
+  const step = rampDays - daysUntil + 1; // 1 on the first day of the run-up
+  return Math.min(RAMP_FULL_DIGITS, Math.ceil((step * RAMP_FULL_DIGITS) / rampDays));
 }
 
 /* Every window for the namespace, newest start first. The admin page reads

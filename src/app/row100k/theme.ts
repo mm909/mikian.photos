@@ -139,7 +139,14 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .acct-chip{border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;cursor:pointer}
 .row100k .acct-chip:hover{border-color:var(--water);color:var(--water)}
 .row100k .acct-overlay{position:fixed;inset:0;z-index:55}
-.row100k .acct-panel{position:absolute;top:calc(100% + 12px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:4px 16px;min-width:220px;z-index:60}
+/* The admin menu has grown a group at a time and is now longer than a
+   phone (owner, 2026-09-11: the options menu is getting pretty long, and on
+   mobile he needs to be able to scroll through it). So it is capped at what
+   fits under the bar and scrolls inside itself rather than running off the
+   bottom of the screen: the cap is the viewport minus the bar and a margin,
+   momentum scrolling on iOS, and the panel keeps its own overscroll so the
+   page behind it does not move with it. */
+.row100k .acct-panel{position:absolute;top:calc(100% + 12px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:4px 16px;min-width:220px;z-index:60;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .row100k .acct-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:11px 2px;cursor:pointer;color:var(--ink);text-decoration:none}
 .row100k .acct-item:last-child{border-bottom:none}
 .row100k .acct-item:hover{color:var(--water)}

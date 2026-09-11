@@ -101,7 +101,10 @@ export default async function BlackoutPage() {
             cache to wait out.
           </p>
           <p className="bo-lede">
-            A run-up dims them toward the day instead of snapping shut on it: set it to four
+            A run-up dims them toward the day instead of snapping shut on it. The number is HOW
+            MANY DAYS it takes, and the digits are spread over them (owner, 2026-09-11): six days
+            is one digit a day, three days is two digits a step, two days is three. Announce late
+            and shorten it rather than starting it in the past. Set it to four
             and, four days out, the elite lose the ones digit, then the tens, then the
             hundreds, then the thousands — and the window covers the rest.
           </p>
