@@ -63,8 +63,8 @@ export type DistanceKde = {
   fieldRowers: number;
   youN: number;
   /* the one honest line under the chart: what counted as an attempt. The
-   * surface adds what the height means, since that depends on whether a
-   * second curve is drawn (DistanceKdes.tsx). */
+   * surface may add one more clause, when a rower has too few attempts for
+   * a curve of their own (DistanceKdes.tsx). */
   take: string;
 };
 
@@ -184,9 +184,10 @@ function buildOne(
    * that does the work: a quantile excludes nothing in a small field — under
    * fifty attempts the 98th percentile IS the slowest or second-slowest row
    * — so one legal 90-minute 5k would stretch the frame until the field was
-   * a spike two samples wide. What the fence cuts is counted and named in
-   * the take rather than dropped quietly (the `beyond` idiom the numbers
-   * page uses on its histograms, model.ts).
+   * a spike two samples wide. What the fence cuts is still inside every
+   * figure — the curve, the median, the mean, the SD and the counts — it
+   * simply has no tick on the rug. (The take used to say how many; the
+   * owner took that clause off, 2026-09-11.)
    *
    * Then widened, when it has to be, to hold the viewer's own attempts: a
    * rower off the end of the axis would see no marks at all, and their
@@ -219,11 +220,6 @@ function buildOne(
   lo = Math.max(0, Math.floor(lo / step) * step);
   hi = Math.ceil(hi / step) * step;
   if (!(hi > lo)) return null;
-  /* Attempts the fence left off the frame. They are still in every figure —
-   * the curve, the median, the mean, the SD and the counts — so the take
-   * says how many rows the reader cannot see a tick for. */
-  const beyond = times.filter((t) => t < lo || t > hi).length;
-
   const grid = linspace(lo, hi, GRID);
   /* The rug is the one thing on this chart that is not everybody: field.ts's
    * rule, applied where the distance is the title (see the blackout note at
@@ -278,10 +274,13 @@ function buildOne(
      * a distribution of times. Saying "rows" would put this count at odds
      * with the log tab next to it the first time somebody logs a 5k without
      * a time. */
+    /* Trimmed to the two facts a reader needs to know what they are
+     * looking at (owner, 2026-09-11: NOTHING SCALED DOWN FROM A LONGER
+     * PIECE and the BEYOND THE FRAME count both came off). The rule itself
+     * has not changed — a pro-rated long row is still not an attempt. */
     take:
       `${attempts.length} TIMED ROWS WITHIN ${DISTANCE_TOL} M OF ${fmtInt(target)} M · ` +
-      `${rowers.size} ROWERS · NOTHING SCALED DOWN FROM A LONGER PIECE` +
-      (beyond > 0 ? ` · ${beyond} BEYOND THE FRAME` : ""),
+      `${rowers.size} ROWERS`,
   };
 }
 

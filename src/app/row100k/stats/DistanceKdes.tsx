@@ -65,9 +65,11 @@ export function DistanceKdes({ charts, mine = false }: { charts: DistanceKde[]; 
          * point is that each peaks at its own 1, and with one it is still a
          * density and not a tally of rows. Either way the y axis is never a
          * count, and the chart should not let anyone think it is. */
-        const height = you?.ys
-          ? " · EACH CURVE TO ITS OWN PEAK, SO HEIGHT IS SHAPE, NOT COUNT"
-          : " · THE CURVE IS A DENSITY, NOT A COUNT OF ROWS";
+        /* The height clause came off the foot (owner, 2026-09-11: "we can
+         * remove the this curve is a density, not a count of rows"). Each
+         * curve is still scaled to its own peak — that is what lets a
+         * rower with four attempts show up against a field of a hundred —
+         * the chart simply no longer explains itself in a sentence. */
         /* Under three attempts there is no second curve — say so, rather
          * than let a reader hunt for a blue hill that was never drawn. */
         const marksOnly =
@@ -90,7 +92,6 @@ export function DistanceKdes({ charts, mine = false }: { charts: DistanceKde[]; 
             />
             <div style={FOOT}>
               {d.take}
-              {height}
               {marksOnly}
             </div>
           </div>
