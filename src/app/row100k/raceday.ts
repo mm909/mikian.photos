@@ -30,8 +30,6 @@ export type RaceDef = {
   /* Where, and how to say it in one line. */
   venue: string;
   venueLine: string;
-  /* A sentence about the thing, for the page. */
-  blurb: string;
   /* Registration closes — the last moment a rower can put their name in
    * (Pacific). Signing up after this is refused. */
   closesAt: number;
@@ -67,8 +65,6 @@ export const RACES: RaceDef[] = [
     hours: "6:00 – 9:00 PM",
     venue: "The Strip Barbell",
     venueLine: "The Strip Barbell · Las Vegas",
-    blurb:
-      "One piece, one clock, everybody watching: 5,000 meters against the field on the last Sunday of Rowtember. Free to enter — put your name in and we will tell you your wave.",
     /* Midnight Pacific on race morning: the list has to be final before the
      * first wave is called. */
     closesAt: Date.UTC(2026, 8, 27, 7, 0, 0),

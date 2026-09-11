@@ -80,10 +80,9 @@ export function SignupPanel({
   if (!signedIn) {
     return (
       <div className="rd-act">
-        <p className="rd-eye">Free to enter</p>
-        <p className="rd-lede">Sign in and put your name in. That is the whole entry.</p>
+        <p className="rd-eye">Opt in</p>
         <button type="button" className="send" onClick={() => signIn("google", { callbackUrl: RACE_PATH })}>
-          Sign in to enter
+          Sign in to opt in
         </button>
         <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       </div>
@@ -119,18 +118,17 @@ export function SignupPanel({
         </p>
         <p className="rd-small mono">
           {mine.wave === null
-            ? "WAVE NOT ASSIGNED YET — IT COMES BY EMAIL"
+            ? "WAVE NOT ASSIGNED"
             : emailed
               ? `${race.venueLine.toUpperCase()} · ${race.when.toUpperCase()}`
-              : "YOUR START TIME COMES BY EMAIL"}
+              : "START TIME TO COME"}
         </p>
 
         {/* The one thing still owed, if it is owed: the gym needs a signed
-         * waiver before anybody rows. Quiet once it is done. */}
+         * waiver before anybody rows. Once it is done the block says
+         * nothing at all (owner, 2026-09-11) — a done thing is not news. */}
         {race.waiver &&
-          (signed ? (
-            <p className="rd-small mono">WAIVER SIGNED · SEE YOU THERE</p>
-          ) : (
+          (signed ? null : (
             <div className="rd-waiver">
               <p className="rd-small mono" style={{ margin: 0 }}>
                 ONE THING LEFT — THE GYM NEEDS A SIGNED WAIVER
@@ -152,9 +150,9 @@ export function SignupPanel({
         {open ? (
           confirm ? (
             <div className="rd-two">
-              <span className="mono">Take your name out of Sunday?</span>
+              <span className="mono">Opt out of Sunday?</span>
               <button type="button" className="outline-btn" disabled={busy} onClick={() => void act("withdraw")}>
-                {busy ? "…" : "Take it out"}
+                {busy ? "…" : "Opt out"}
               </button>
               <button type="button" className="quiet-btn" disabled={busy} onClick={() => setConfirm(false)}>
                 Never mind
@@ -163,7 +161,7 @@ export function SignupPanel({
           ) : (
             <div className="rd-two">
               <button type="button" className="quiet-btn" onClick={() => setConfirm(true)}>
-                Take my name out
+                Opt out
               </button>
             </div>
           )
@@ -193,12 +191,7 @@ export function SignupPanel({
 
   return (
     <div className="rd-act">
-      <p className="rd-eye">{wasIn ? "Your name is out" : "Free to enter"}</p>
-      <p className="rd-lede">
-        {wasIn
-          ? "Put it back any time before the list closes — same line, same number."
-          : "Put your name in and we will email you your wave. Nothing to pay, nothing to print."}
-      </p>
+      <p className="rd-eye">{wasIn ? "Your name is out" : "Opt in"}</p>
       {/* The waiver asked for BEFORE the button, so it is part of entering
        * rather than an afterthought — but never a gate: an unticked box
        * still puts the name in, and the page asks again afterwards. */}
@@ -214,7 +207,7 @@ export function SignupPanel({
         </label>
       )}
       <button type="button" className="send" disabled={busy} onClick={() => void act("enter", waiver)}>
-        {busy ? "…" : wasIn ? "Put my name back in" : "Put my name in"}
+        {busy ? "…" : wasIn ? "Opt back in" : "Opt in"}
       </button>
       <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       {error && <p className="form-err">{error}</p>}
