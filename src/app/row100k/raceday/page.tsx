@@ -4,7 +4,7 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { currentRace, raceOpenFor, racePhase } from "../raceday";
+import { currentRace, raceOpenFor, racePhase, waveTime } from "../raceday";
 import { listRacers } from "../racedayData";
 import { FIELD_SHOWS_AT, Field } from "./Field";
 import { rdCss } from "./rdCss";
@@ -26,11 +26,25 @@ export const metadata: Metadata = {
  * code), THE ACT (sign in / opt in / you are in), and THE RACERS — one
  * board table, and only once FIELD_SHOWS_AT names are in it.
  *
- * WHITE ON BLACK (owner, 2026-09-11): everything between the bar and the
- * footer sits on the ink ground of .rd-dark. The stub was also cut back
- * that day to the facts that are not obvious — the piece, the entry and the
- * paragraph of copy all came off — so what is left is where, when, the
- * hours and the waiver.
+ * MONOCHROME (owner, 2026-09-11: "on the race day sign up, let us stick
+ * with monochromatic — just black and whites, whites on black"). Everything
+ * between the bar and the footer sits on the ink ground of .rd-dark, and
+ * the water blue is off this surface entirely; rdCss.ts carries the grey
+ * ladder and the contrast it was chosen on.
+ *
+ * WHAT THE STUB SAYS, and no more (owner, same day: "I do not want a ton of
+ * copy on the page ... mostly RACE DAY, TIMED 5,000 METER TRIAL. Maybe we
+ * could just say first wave starts at six thirty"). The paragraph of sell
+ * came off that day and is not coming back. What is left is the day, then
+ * four facts: where, the hours, that it runs in WAVES and when the first
+ * one goes off, and the waiver. The wave time is read from the race
+ * (waveTime) and never typed out, so moving the race moves the page.
+ *
+ * THE HOST sits at the foot of the stub: The Strip Barbell mark, placed
+ * once, under a hairline, with THE ENGINE ROOM named beside it (owner: the
+ * room is new this September). It is smaller than the day above it and it
+ * is not lined up against a Rowtember mark as an equal — Rowtember is
+ * hosting something at their gym, and the page should read that way.
  *
  * HIDDEN FOR NOW (owner: "this should be hidden in development for now").
  * raceOpenFor is the one switch: open in local dev so the page can be
@@ -52,7 +66,12 @@ export default async function RaceDayPage() {
   const racers = await listRacers(race);
   // A withdrawal keeps its row so the wave console can see the hole it
   // leaves; the FIELD is only the names still in.
-  const field = racers.filter((r) => r.withdrewAt === null);
+  const live = racers.filter((r) => r.withdrewAt === null);
+  // THE FIELD IS THE START LIST, so it is RACERS (owner, 2026-09-11: a
+  // spectator gets no wave and no erg). The people coming to watch are a
+  // number beside it — they are in the room, they are not in the race.
+  const field = live.filter((r) => r.role === "racer");
+  const watching = live.length - field.length;
   const mine = viewer.myParticipantId
     ? (racers.find((r) => r.participantId === viewer.myParticipantId) ?? null)
     : null;
@@ -90,6 +109,15 @@ export default async function RaceDayPage() {
                   <span className="k">Hours</span>
                   <span className="v">{race.hours}</span>
                 </li>
+                {/* The one thing about the format a rower has to know
+                 * before they put a name in: it runs in waves, and the
+                 * first one goes off at this time. */}
+                <li>
+                  <span className="k">Waves</span>
+                  <span className="v">
+                    First wave {waveTime(race, 1)}, then every {race.waveMinutes} min
+                  </span>
+                </li>
                 {/* The gym's waiver, said out loud among the facts rather
                  * than sprung at the end (owner sent the link 2026-09-11). */}
                 {race.waiver && (
@@ -103,6 +131,25 @@ export default async function RaceDayPage() {
                   </li>
                 )}
               </ul>
+
+              {/* THE HOST, quietly: their mark, their room, their site. */}
+              {race.venueMark && (
+                <div className="rd-host">
+                  <a href={race.venueUrl} target="_blank" rel="noopener noreferrer">
+                    <img
+                      className="rd-mark"
+                      src={race.venueMark.src}
+                      alt={race.venueMark.alt}
+                      width={1000}
+                      height={Math.round(1000 / race.venueMark.ratio)}
+                    />
+                  </a>
+                  <p className="rd-room">
+                    <b>{race.room}</b>
+                    {race.roomNote}
+                  </p>
+                </div>
+              )}
             </div>
 
             <SignupPanel
@@ -121,7 +168,10 @@ export default async function RaceDayPage() {
             <div className="wrap">
               <div className="sec-head">
                 <h2>The racers</h2>
-                <span className="mono">{field.length} IN THE FIELD</span>
+                <span className="mono">
+                  {field.length} IN THE FIELD
+                  {watching > 0 ? ` · ${watching} WATCHING` : ""}
+                </span>
               </div>
 
               <Field race={race} field={field} />

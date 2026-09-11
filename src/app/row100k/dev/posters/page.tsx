@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import { currentRace } from "../../raceday";
 import { makeFixture, type FixtureOpts } from "../../poster/fixture";
 import { isFormatKey } from "../../poster/formats";
+import { raceDayPoster } from "../../poster/raceAssemble";
+import { isGround } from "../../poster/raceGround";
 import { poCss } from "../../poster/studioCss";
 import type { PosterFormatKey, PosterPpi } from "../../poster/types";
 import { PosterStudio } from "../../posters/PosterStudio";
@@ -23,7 +26,11 @@ export const metadata: Metadata = {
  * and screenshotted. DEV ONLY — a 404 in production, no session, no
  * database. Query switches:
  *
- *   ?subject=community|rower   which payload (default community)
+ *   ?subject=community|rower|raceday   which payload (default community)
+ *   &ground=ink|overlay        race day only: the solid ad, or the
+ *                              transparent overlay for a photograph
+ *   &field=N                   race day only: N racers are in, so the ad
+ *                              prints its one line of social proof
  *   &r=N / &rower=N            the subject rower (default 23, one of the top men)
  *   &format=<key>              the format chip to start on
  *   &masked=1                  a window is open; the rower is one of the elite
@@ -50,7 +57,8 @@ export default function DevPostersPage({
     return one(k) !== undefined && Number.isFinite(n) ? Math.round(n) : undefined;
   };
 
-  const subject = one("subject") === "rower" ? "rower" : "community";
+  const subject =
+    one("subject") === "rower" ? "rower" : one("subject") === "raceday" ? "raceday" : "community";
   const opts: FixtureOpts = {
     masked: flag("masked"),
     final: flag("final"),
@@ -64,13 +72,15 @@ export default function DevPostersPage({
   const format: PosterFormatKey | undefined = isFormatKey(one("format"))
     ? (one("format") as PosterFormatKey)
     : undefined;
+  const groundQ = one("ground");
+  const ground = isGround(groundQ) ? groundQ : undefined;
   const noprobe = one("noprobe");
   const refusePpi: PosterPpi | null = noprobe === "300" ? 300 : noprobe === "150" ? 150 : null;
 
   // The chips keep every switch but the subject, so a masked FINAL stays
   // masked and final when the subject flips.
   const keep = new URLSearchParams();
-  for (const k of ["masked", "final", "day", "names", "log", "runup", "noprobe", "format"]) {
+  for (const k of ["masked", "final", "day", "names", "log", "runup", "noprobe", "format", "ground", "field"]) {
     const v = one(k);
     if (v !== undefined) keep.set(k, v);
   }
@@ -83,6 +93,14 @@ export default function DevPostersPage({
   const community = subject === "community" ? fixture.community : null;
   const rower = subject === "rower" ? fixture.rower : null;
   const asOf = (community ?? rower ?? fixture.community).asOf;
+  // RACE DAY needs no fixture: the race IS the payload (raceday.ts), so the
+  // dev page draws the real one. `?field=N` is the only invented number —
+  // the one line of social proof the ad prints once enough names are in.
+  const field = num("field");
+  const raceday =
+    subject === "raceday"
+      ? raceDayPoster(currentRace(), field ? { racers: field, spectators: Math.round(field / 4) } : null)
+      : null;
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -100,7 +118,10 @@ export default function DevPostersPage({
           <div className="sec-head">
             <h2>The posters (dev)</h2>
             <span className="mono">
-              FAKE DATA · {subject.toUpperCase()} · DAY {asOf.dayNumber}
+              {/* Race day is not a fixture: the race lives in raceday.ts, so
+                  what the ad draws here is the real thing. */}
+              {subject === "raceday" ? "THE REAL RACE" : "FAKE DATA"} · {subject.toUpperCase()} · DAY{" "}
+              {asOf.dayNumber}
               {asOf.final ? " · FINAL" : ""}
               {opts.masked ? " · MASKED" : ""}
               {opts.runup ? " · RUN-UP" : ""}
@@ -109,6 +130,9 @@ export default function DevPostersPage({
           <PosterStudio
             community={community}
             rower={rower}
+            raceday={raceday}
+            initialSubject={subject}
+            initialGround={ground}
             roster={fixture.roster}
             hrefs={hrefs}
             initialFormat={format}

@@ -1,0 +1,157 @@
+/* poster/raceAssemble.ts — the race becomes an ad.
+ *
+ * THE RULE THE JUDGES SET, and the reason this file exists: "STRINGS COME
+ * FROM raceday.ts, NOT FROM THE ARTWORK. Any real build reads title,
+ * meters, when, hours, venueLine, room, roomNote, venueMark, waveTime(r,1)
+ * and RACE_ROLES from the definition so the ad can never drift from the
+ * page." So poster/raceday.ts — the modules and the plans — holds no copy
+ * at all: every word on every frame is built HERE, out of the RaceDef, and
+ * moving the race moves the artwork.
+ *
+ * Pure: no db, no next, no Dates in the output. The studio calls it on the
+ * client (the race is code, not a table) and poster/raceData.ts calls it on
+ * the server when it also wants the field count.
+ *
+ * Everything comes back UPPERCASE because an ad sets nothing in sentence
+ * case, and this is the one place where a race's words become an ad's
+ * words — a module that lower-cased or re-worded anything here would be the
+ * drift the rule is against. */
+
+import { RACE_ROLES, waveTime, type RaceDef } from "../raceday";
+import type { RaceDayPoster } from "./types";
+
+/* The field so far, as the ad may print it. */
+export type RaceField = { racers: number; spectators: number };
+
+/* Under this many racers the ad says nothing about the field: "3 RACERS IN"
+ * sells against you, and an empty start list is the one thing a launch ad
+ * must not show (the judges, on the five-row wave grid). */
+export const FIELD_FLOOR = 6;
+
+export const RACE_URL = "MIKIANMUSSER.COM/ROW100K/RACEDAY";
+
+const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const DAY_WORD = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+const WORDS = [
+  "ZERO",
+  "ONE",
+  "TWO",
+  "THREE",
+  "FOUR",
+  "FIVE",
+  "SIX",
+  "SEVEN",
+  "EIGHT",
+  "NINE",
+  "TEN",
+  "ELEVEN",
+  "TWELVE",
+];
+
+/* The fixed UTC-7 the whole challenge runs on (row100k.ts), so a Pacific
+ * wall clock is one subtraction and the artwork never depends on where the
+ * browser is standing. */
+const PT = 7 * 3_600_000;
+const pacific = (ms: number): Date => new Date(ms - PT);
+
+const clock = (p: Date): string => {
+  const h24 = p.getUTCHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(p.getUTCMinutes()).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
+};
+
+/* "6:00 – 9:00 PM" → "6 – 9 PM". A window in an ad is read, not set by a
+ * timer; the minutes are noise at headline size. */
+const shortHours = (hours: string): string => hours.replace(/:00/g, "").toUpperCase();
+
+/* "app.wodify.com" → "WODIFY". The gym's own system is named because the
+ * waiver is signed there and nowhere else. */
+const hostWord = (host: string): string =>
+  (host.split(".").filter((p) => p && p !== "app" && p !== "www" && p !== "com")[0] ?? host).toUpperCase();
+
+/* "The Strip Barbell · Las Vegas" → "Las Vegas". The venue's own name is
+ * the MARK, so the line beside it carries the town and nothing else. */
+const cityOf = (race: RaceDef): string => {
+  const tail = race.venueLine.split("·").slice(1).join("·").trim();
+  return tail || race.venueLine;
+};
+
+/* "Race day" → ["RACE", "DAY"]: two words, one a line on a tall frame,
+ * joined by the head module on a short one. A one-word title comes back as
+ * one line, which the same module draws without a special case. */
+const headOf = (title: string): string[] => title.trim().toUpperCase().split(/\s+/).filter(Boolean);
+
+export function raceDayPoster(race: RaceDef, field: RaceField | null): RaceDayPoster {
+  // Noon on the race day, read in UTC: the day never slides a square
+  // either way, whatever zone the browser is standing in.
+  const day = new Date(`${race.day}T12:00:00Z`);
+  const close = pacific(race.closesAt - 60_000);
+  const first = waveTime(race, 1).toUpperCase();
+  const size = race.waveSize;
+  const word = WORDS[size] ?? String(size);
+  const waiver = race.waiver ? `ON ${hostWord(race.waiver.host)}` : null;
+  const scoring = `${race.brackets.map((b) => b.label).join(" AND ")} SCORED APART`.toUpperCase();
+  const hours = shortHours(race.hours);
+  const closeDay = `${DOW[close.getUTCDay()]} ${MON[close.getUTCMonth()]} ${close.getUTCDate()}`;
+  const closes = `${closeDay} · ${clock(close)}`;
+  const racers = field && field.racers >= FIELD_FLOOR ? field : null;
+
+  /* The caption the artwork ships with. The waiver and the closing time are
+   * on no frame — a bill has no room for either and both change nothing
+   * about what the ad is selling — so they live here, and the studio prints
+   * this under the preview to be copied with the file (the judges: "write
+   * the caption at the same time as the art"). Sentence case: this one is
+   * typed by a person into Instagram, not drawn on ink. */
+  const caption = [
+    `${race.title.toUpperCase()} — ${race.sub.toLowerCase()}.`,
+    `${race.when}, ${race.hours}, at ${race.venue}, ${cityOf(race)}.`,
+    `First wave ${waveTime(race, 1)}, waves every ${race.waveMinutes} minutes, ${size} ergs a wave.`,
+    `${race.room} is new this September.`,
+    `Free, and ${race.brackets.map((b) => b.label.toLowerCase()).join(" and ")} are scored apart.`,
+    `Sign up as a racer or as a spectator: ${RACE_URL.toLowerCase()}`,
+    "",
+    `${race.closesLine}.`,
+    race.waiver ? `The gym waiver is signed at ${race.waiver.host} before you row.` : "",
+  ]
+    .filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== ""))
+    .join("\n");
+
+  return {
+    kind: "raceday",
+    year: day.getUTCFullYear(),
+    race: {
+      slug: race.slug,
+      head: headOf(race.title),
+      piece: race.sub.toUpperCase(),
+      waves: `ROWED IN WAVES OF ${word}`,
+      firstWave: `FIRST WAVE ${first}`,
+      date: `${MON[day.getUTCMonth()]} ${day.getUTCDate()}`,
+      dayWord: DAY_WORD[day.getUTCDay()],
+      hours,
+      every: `WAVES EVERY ${race.waveMinutes} MIN`,
+      entry: "FREE",
+      entrySub: RACE_ROLES.map((r) => r.label).join(" OR ").toUpperCase(),
+      stamp: `${DOW[day.getUTCDay()]} ${MON[day.getUTCMonth()]} ${day.getUTCDate()}`,
+      waveSize: size,
+      waveLabel: `${size} ERGS A WAVE · EVERY ${race.waveMinutes} MIN`,
+      scoring,
+      /* The foot of every frame: the one line that changes whether a woman
+       * enters, and the deadline the judges would not let live in a caption
+       * alone. The print plans use the scoring half on its own, because
+       * their fact table carries the closing MINUTE two rows above. */
+      smallPrint: `${scoring} · SIGN UP BY ${closeDay}`,
+      closes,
+      waiver,
+      venueMark: race.venueMark,
+      venue: race.venue.toUpperCase(),
+      city: cityOf(race).toUpperCase(),
+      room: race.room.toUpperCase(),
+      roomNote: race.roomNote.toUpperCase(),
+      roles: RACE_ROLES.map((r) => ({ label: r.label.toUpperCase(), line: r.line.toUpperCase() })),
+    },
+    field: racers,
+    url: RACE_URL,
+    caption,
+  };
+}

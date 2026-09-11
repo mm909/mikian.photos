@@ -409,6 +409,104 @@ export type RowerPoster = {
 
 export type PosterData = CommunityPoster | RowerPoster;
 
+/* ================================================================ race day */
+
+/* RACE DAY — the third subject (owner, 2026-09-11: "I also need some race
+ * day branding — overlays to put on an insta post, basically ads for the
+ * event"). It is not a summary of anything: it is an AD, so its payload is
+ * the race itself, flattened out of raceday.ts (RaceDef + RACE_ROLES +
+ * waveTime) by poster/raceAssemble.ts and never retyped into a layout —
+ * "the ad and the sign-up say the same words" (the judges' rule, and the
+ * reason poster/raceday.ts holds no copy of its own).
+ *
+ * Every string arrives UPPERCASE and print-ready, because the ad sets
+ * nothing in sentence case; the assembler is the one place a race's words
+ * become an ad's words.
+ *
+ * It sits OUTSIDE PosterData on purpose. PosterData is what the engine's
+ * generics are written against and engine.ts belongs to another stream —
+ * its fileName() reaches for data.rower on any payload whose kind is not
+ * "community", so a third member of that union would not compile there.
+ * PosterSubject is the widened union the layout types take; race day
+ * reaches compose() through one documented cast in poster/raceGround.ts,
+ * which is also where the ground is painted. */
+export type RaceDayRole = {
+  /* "RACER" */
+  label: string;
+  /* "PULL THE 5,000 M. YOU GET A WAVE." — RACE_ROLES verbatim, uppercased */
+  line: string;
+};
+
+export type RaceDayPoster = {
+  kind: "raceday";
+  year: number;
+  race: {
+    /* "raceday-2026-09-27" — the file stem's subject */
+    slug: string;
+    /* ["RACE", "DAY"] — the headline, one word a line on a tall frame and
+     * joined with a space on a short one. */
+    head: string[];
+    /* "A TIMED 5,000 M TRIAL" (RaceDef.sub) */
+    piece: string;
+    /* "ROWED IN WAVES OF EIGHT" */
+    waves: string;
+    /* "FIRST WAVE 6:30 PM" — waveTime(race, 1), never typed out */
+    firstWave: string;
+    /* The bracket strip: three values with a mono sub each. */
+    date: string;
+    dayWord: string;
+    hours: string;
+    every: string;
+    entry: string;
+    entrySub: string;
+    /* "SUN SEP 27" — the masthead's clock, which a crop never eats */
+    stamp: string;
+    waveSize: number;
+    /* "8 ERGS A WAVE · EVERY 30 MIN" */
+    waveLabel: string;
+    /* "MEN AND WOMEN SCORED APART" */
+    scoring: string;
+    /* The same plus the deadline — the foot line of a frame that has no
+     * fact table under it. */
+    smallPrint: string;
+    /* "SAT SEP 26 · 11:59 PM" — off closesAt, Pacific */
+    closes: string;
+    /* "ON WODIFY" — null when the race has no waiver */
+    waiver: string | null;
+    /* RaceDef.venueMark: white on transparent, so it needs no treatment on
+     * ink or over a photograph. `ratio` is width over height, which is what
+     * lets the module measure the host block before the image loads. */
+    venueMark: { src: string; alt: string; ratio: number } | null;
+    venue: string;
+    city: string;
+    room: string;
+    roomNote: string;
+    roles: RaceDayRole[];
+  };
+  /* The field so far, for the one line of social proof the ad may print —
+   * null when nobody has entered, when the count is under the floor, or
+   * when the read failed (poster/raceData.ts). */
+  field: { racers: number; spectators: number } | null;
+  /* "MIKIANMUSSER.COM/ROW100K/RACEDAY" */
+  url: string;
+  /* The caption that ships WITH the artwork: the waiver and the closing
+   * time live here rather than on a frame, and the studio prints it under
+   * the preview so the art and its words are written together. */
+  caption: string;
+};
+
+/* Every payload a layout may be written against. The engine still only
+ * knows PosterData (above); see the RaceDayPoster note. */
+export type PosterSubject = PosterData | RaceDayPoster;
+
+/* THE GROUND a sheet is painted on. Every other subject is cream paper and
+ * says nothing; race day is monochrome and ships twice — "ink" is the solid
+ * ad and "overlay" is the same bill with a window cut through it, a
+ * transparent PNG to lay over a photograph of the room. Which plans a
+ * ground uses is poster/raceday.ts; who paints and who cuts is
+ * poster/raceGround.ts and the `window` module. */
+export type PosterGround = "ink" | "overlay";
+
 /* The roster handed to the studio's subject picker — the looks/view.ts
  * RosterRower guard: the two things that are ALWAYS public plus the board
  * a rower is on. It must never grow a number field. */
@@ -416,7 +514,14 @@ export type PosterRosterRower = { rowerNumber: number; displayName: string; divi
 
 /* ================================================================ drawing */
 
-export type PosterAssets = { bear: HTMLImageElement | null; wordmark: HTMLImageElement | null };
+/* `venue` is race day's host mark (RaceDef.venueMark, white on
+ * transparent). Optional so the two paper subjects build their assets
+ * exactly as they did. */
+export type PosterAssets = {
+  bear: HTMLImageElement | null;
+  wordmark: HTMLImageElement | null;
+  venue?: HTMLImageElement | null;
+};
 
 /* A module's box in logical units. `h` is the BUDGET on the way in (the
  * row's height once the engine has composed the plan); a module draws
@@ -581,7 +686,7 @@ export type PosterPaint = {
  * WANTS at box.w (box.h is the budget it may be asked to live within);
  * absent, the engine uses minH. Modules with a cap ("+ N MORE") or a line
  * count fit whatever height the engine hands them and return exactly it. */
-export type PosterModule<D extends PosterData = PosterData> = {
+export type PosterModule<D extends PosterSubject = PosterData> = {
   id: string;
   minH: number;
   measure?(
@@ -642,7 +747,7 @@ export type PosterPlan = {
 
 /* What community.ts and rower.ts export. The engine knows modules by id
  * and plans by key — it never knows what a module draws. */
-export type PosterLayout<D extends PosterData = PosterData> = {
+export type PosterLayout<D extends PosterSubject = PosterData> = {
   subject: D["kind"];
   modules: Record<string, PosterModule<D>>;
   plans: Partial<Record<PosterPlanKey, PosterPlan>>;

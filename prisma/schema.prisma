@@ -698,6 +698,11 @@ model RowRaceSignup {
   race          String    @default("raceday-2026-09-27")
   participantId String
   rowerNumber   Int
+  /// "racer" | "spectator" (owner, 2026-09-11: "we need there to be a way
+  /// to sign up as a spectator versus as just a racer"). A spectator holds
+  /// a place in the room and nothing else — no wave, no wave note, and no
+  /// line on the start list.
+  role          String    @default("racer")
   /// "M" | "F" | "X" — the bracket.
   division      String    @default("X")
   /// The address the wave note goes to, as it was at signup.

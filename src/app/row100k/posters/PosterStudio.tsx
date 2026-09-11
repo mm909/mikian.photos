@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyEve
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
+import { currentRace } from "../raceday";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout } from "../poster/layouts";
+import { raceDayPoster } from "../poster/raceAssemble";
+import { RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
   CommunityPoster,
   FontBox,
@@ -14,10 +17,12 @@ import type {
   PosterData,
   PosterFonts,
   PosterFormatKey,
+  PosterGround,
   PosterLayoutLog,
   PosterPpi,
   PosterRenderTarget,
   PosterRosterRower,
+  RaceDayPoster,
   RowerPoster,
 } from "../poster/types";
 
@@ -48,6 +53,24 @@ const BLEED_IN = 0.125;
  * loaded yet: digits and punctuation, the arrows, a run of accented
  * capitals; every name in the payload is appended at load time. */
 const GLYPHS = "0123456789 ,.:/%#·—…→←‘’ AÁÉÍÓÚÑÖØÜ ÆŒ ROWTEMBER";
+
+/* The race the studio advertises, read once. Its mark is the only image
+ * race day draws, and its own words are what the face loader has to have
+ * ready before the first frame is drawn. */
+const RACE = currentRace();
+const VENUE_MARK = RACE.venueMark?.src ?? null;
+const RACE_WORDS = [RACE.title, RACE.sub, RACE.venue, RACE.room, RACE.roomNote, "Sign up", "Racer", "Spectator"]
+  .join(" ")
+  .toUpperCase();
+
+/* The overlay preview sits on a chequer, not on the studio's cream: a
+ * transparent PNG has to LOOK transparent while it is being judged. Inline
+ * so no style tag carries it (theme.ts's quoting rule). */
+const CHEQUER = {
+  backgroundImage:
+    "repeating-conic-gradient(#e6e5df 0% 25%, #fbfbf8 0% 50%)",
+  backgroundSize: "20px 20px",
+} as const;
 
 const PROBE_SIZE = 100;
 
@@ -135,11 +158,21 @@ function search(roster: PosterRosterRower[], query: string): Hit[] {
 
 type Files = { png: Blob; pdf: Blob | null; target: PosterRenderTarget };
 
+type Subject = "community" | "rower" | "raceday";
+
 export type PosterStudioProps = {
   community: CommunityPoster | null;
   rower: RowerPoster | null;
+  /* RACE DAY needs no server read — the race is code (raceday.ts) — so the
+   * studio builds its own payload when a page hands it none. A page that
+   * also wants the field count passes poster/raceData.ts's payload here. */
+  raceday?: RaceDayPoster | null;
+  /* Which subject to open on; race day is client state, not a route. */
+  initialSubject?: Subject;
   /* The picker's roster; null on the rower's own page (no picker). */
   roster: PosterRosterRower[] | null;
+  /* Race day only: which ground to open on (the dev fixture's ?ground=). */
+  initialGround?: PosterGround;
   /* The subject is fixed (the rower's own page): no SUBJECT chips. */
   fixed?: boolean;
   /* The dev fixture: the layout log and the payload under the preview. */
@@ -155,6 +188,9 @@ export type PosterStudioProps = {
 export function PosterStudio({
   community,
   rower,
+  raceday,
+  initialSubject,
+  initialGround,
   roster,
   fixed,
   dev,
@@ -163,8 +199,15 @@ export function PosterStudio({
   initialFormat,
 }: PosterStudioProps) {
   const router = useRouter();
-  const subject: "community" | "rower" = rower ? "rower" : "community";
-  const data: PosterData | null = subject === "rower" ? rower : community;
+  /* Rowtember and a rower are ROUTES (the payload is a server read); race
+   * day is a chip, because its payload is the race definition itself. */
+  const [raceOn, setRaceOn] = useState(initialSubject === "raceday");
+  const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
+  const race = useMemo(() => (raceOn ? (raceday ?? raceDayPoster(RACE, null)) : null), [raceOn, raceday]);
+  const subject: Subject = raceOn ? "raceday" : rower ? "rower" : "community";
+  const data: PosterData | null = raceOn ? null : rower ? rower : community;
+  /* Whatever is being drawn — the null check every effect below wants. */
+  const drawing: PosterData | RaceDayPoster | null = race ?? data;
 
   const blackProbe = useRef<HTMLDivElement | null>(null);
   const monoProbe = useRef<HTMLDivElement | null>(null);
@@ -249,7 +292,9 @@ export function PosterStudio({
           for (const l of d.log) names.push(l.title);
         }
       }
-      const sample = `${GLYPHS} ${names.join(" ")}`;
+      // Race day's own words are drawn from the same three faces; its
+      // mark is an image, but SIGN UP, the venue and the room are type.
+      const sample = `${GLYPHS} ${RACE_WORDS} ${names.join(" ")}`;
       const loads = [
         `400 100px ${f.black}`,
         `400 100px ${f.mono}`,
@@ -259,14 +304,18 @@ export function PosterStudio({
         `700 100px ${f.archivo}`,
       ].map((spec) => document.fonts.load(spec, sample).catch(() => []));
       await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 8000))]);
-      const [bear, wordmark] = await Promise.all([
+      const [bear, wordmark, venue] = await Promise.all([
         loadImage(data?.partner?.bear ?? BEAR),
         loadImage(data?.partner?.wordmark ?? WORDMARK),
+        // The host's mark, keyed white on transparent, same-origin like the
+        // rest. A null here is not fatal: the host module keeps its block
+        // and sets the gym's name in type instead.
+        VENUE_MARK ? loadImage(VENUE_MARK) : Promise.resolve(null),
       ]);
       if (cancelled) return;
       // Re-read after the loads: the line boxes belong to the real faces.
       setFonts(read());
-      setAssets({ bear, wordmark });
+      setAssets({ bear, wordmark, venue });
     })();
     return () => {
       cancelled = true;
@@ -277,18 +326,23 @@ export function PosterStudio({
 
   /* THE RENDER: the preview at once, the full-res after a debounce. */
   useEffect(() => {
-    if (!fonts || !assets || !data) return;
+    if (!fonts || !assets || !drawing) return;
     const my = ++seq.current;
     const stale = () => seq.current !== my;
+    // One draw for both passes. Race day brings its own pipeline because
+    // its ground is ink or nothing at all, never the engine's cream.
+    const drawOn = (t: PosterRenderTarget) =>
+      race
+        ? renderRaceDay({ target: t, data: race, fonts, assets, ground })
+        : subject === "rower"
+          ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets })
+          : render({ target: t, layout: communityLayout, data: data as CommunityPoster, fonts, assets });
 
     // The preview, drawn immediately.
     try {
       const css = frameRef.current?.clientWidth || 720;
       const pt = previewTarget(format, Math.min(1000, Math.max(320, css)), window.devicePixelRatio || 1);
-      const drawn =
-        subject === "rower"
-          ? render({ target: pt, layout: rowerLayout, data: data as RowerPoster, fonts, assets })
-          : render({ target: pt, layout: communityLayout, data: data as CommunityPoster, fonts, assets });
+      const drawn = drawOn(pt);
       setLog(drawn.log);
       void toPng(drawn.canvas)
         .then((blob) => {
@@ -339,15 +393,16 @@ export function PosterStudio({
             setTimeout(go, 120);
           });
           if (stale()) return;
-          const drawn =
-            subject === "rower"
-              ? render({ target, layout: rowerLayout, data: data as RowerPoster, fonts, assets })
-              : render({ target, layout: communityLayout, data: data as CommunityPoster, fonts, assets });
+          const drawn = drawOn(target);
           let png: Blob;
           let pdf: Blob | null = null;
           try {
             png = await toPng(drawn.canvas);
-            if (format.kind === "print") pdf = await toPdf(drawn.canvas, target);
+            // No PDF for a transparent overlay: a PDF carries the canvas as
+            // a JPEG and a JPEG has no alpha, so the window would print
+            // solid black. The overlay is a PNG and says so.
+            if (format.kind === "print" && !(race && ground === "overlay"))
+              pdf = await toPdf(drawn.canvas, target);
           } finally {
             freeCanvas(drawn.canvas);
           }
@@ -361,6 +416,8 @@ export function PosterStudio({
           if (dev) {
             (window as unknown as { __rowtemberPoster?: unknown }).__rowtemberPoster = {
               format: format.key,
+              subject,
+              ground: race ? ground : null,
               target,
               png,
               pdf,
@@ -381,7 +438,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, subject, format, ppi, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, subject, format, ppi, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -401,18 +458,27 @@ export function PosterStudio({
     }
   };
 
+  /* Race day stems its files off the race itself — raceday-2026-09-27-story
+   * -overlay.png — the way the other two stem off the year and the rower. */
+  const nameFor = (ext: "png" | "pdf", target: PosterRenderTarget): string => {
+    const opts = { ppi: target.ppi, bleed: target.bleedIn > 0 };
+    if (race) return raceFileName(race, format, ext, { ground, ...opts });
+    return data ? fileName(data, format, ext, opts) : `rowtember.${ext}`;
+  };
+
   /* SHARE hands over the PNG only — Instagram's sheet takes images; the
    * PDF is DOWNLOAD. The File is built synchronously from a blob that
    * already exists, inside the tap. */
   const share = async () => {
     const out = filesRef.current;
-    if (!out || !data) return;
-    const name = fileName(data, format, "png", { ppi: out.target.ppi, bleed: out.target.bleedIn > 0 });
+    if (!out || !drawing) return;
+    const name = nameFor("png", out.target);
     const file = new File([out.png], name, { type: "image/png" });
-    const title =
-      data.kind === "rower"
+    const title = race
+      ? `${race.race.head.join(" ")} · ${race.race.date}`
+      : data?.kind === "rower"
         ? `Rower ${fmtRowerNumber(data.rower.rowerNumber)} · poster`
-        : `Rowtember ${data.year} · poster`;
+        : `Rowtember ${data?.year ?? ""} · poster`;
     const payload = { files: [file], title };
     if (typeof navigator.canShare === "function" && navigator.canShare(payload)) {
       try {
@@ -430,16 +496,16 @@ export function PosterStudio({
 
   const downloadPng = () => {
     const out = filesRef.current;
-    if (!out || !data) return;
-    const name = fileName(data, format, "png", { ppi: out.target.ppi, bleed: out.target.bleedIn > 0 });
+    if (!out || !drawing) return;
+    const name = nameFor("png", out.target);
     saveBlob(out.png, name);
     setStatus(`SAVED ${name.toUpperCase()}`);
   };
 
   const downloadPdf = () => {
     const out = filesRef.current;
-    if (!out?.pdf || !data) return;
-    const name = fileName(data, format, "pdf", { ppi: out.target.ppi, bleed: out.target.bleedIn > 0 });
+    if (!out?.pdf || !drawing) return;
+    const name = nameFor("pdf", out.target);
     saveBlob(out.pdf, name);
     setStatus(`SAVED ${name.toUpperCase()}`);
   };
@@ -481,6 +547,7 @@ export function PosterStudio({
 
   /* ---- what the sheet says about itself ---- */
   const masked = data ? (data.kind === "community" ? data.blackout.active : data.masked) : false;
+  const overlay = subject === "raceday" && ground === "overlay";
   const now = nowMs();
   const lateLogs = now >= END_MS && now < LOG_CLOSE_MS;
   const fellBack = files?.target.fellBack ?? false;
@@ -488,7 +555,7 @@ export function PosterStudio({
   const tallFrame = format.h / format.w > 1.3;
   const untilNote = data?.blackout.until ? ` UNTIL ${data.blackout.until.toUpperCase()}` : "";
 
-  if (!data) {
+  if (!drawing) {
     return <p className="po-first">NOTHING TO DRAW — THE PAYLOAD IS EMPTY</p>;
   }
 
@@ -512,7 +579,11 @@ export function PosterStudio({
           <p className="po-eye">Subject</p>
           <div className="po-subject">
             <div className="tabs" role="group" aria-label="Subject" style={{ marginBottom: 0 }}>
-              <Link className={subject === "community" ? "on" : undefined} href={hrefs.community}>
+              <Link
+                className={subject === "community" ? "on" : undefined}
+                href={hrefs.community}
+                onClick={() => setRaceOn(false)}
+              >
                 Rowtember
               </Link>
               <button
@@ -522,6 +593,7 @@ export function PosterStudio({
                 aria-pressed={subject === "rower"}
                 aria-expanded={open}
                 onClick={() => {
+                  setRaceOn(false);
                   if (open) close();
                   else {
                     setQ("");
@@ -530,6 +602,19 @@ export function PosterStudio({
                 }}
               >
                 {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} · ${rower.rower.name} ▾` : "A rower ▾"}
+              </button>
+              {/* The ad, not a summary: no route, no server read — the race
+                  is code, so the chip is all it takes. */}
+              <button
+                type="button"
+                className={subject === "raceday" ? "on" : undefined}
+                aria-pressed={subject === "raceday"}
+                onClick={() => {
+                  setOpen(false);
+                  setRaceOn(true);
+                }}
+              >
+                Race day
               </button>
             </div>
             {open ? <div className="pf-find-overlay" onClick={close} aria-hidden="true" /> : null}
@@ -607,6 +692,22 @@ export function PosterStudio({
         </div>
       </div>
 
+      {subject === "raceday" ? (
+        <div className="st-sub po-opts" role="group" aria-label="Ground">
+          {RACE_GROUNDS.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              className={ground === g.key ? "on" : undefined}
+              aria-pressed={ground === g.key}
+              onClick={() => setGround(g.key)}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {format.kind === "print" && format.ppi ? (
         <div className="st-sub po-opts" role="group" aria-label="Print options">
           {format.ppi.options.map((p) => (
@@ -642,13 +743,14 @@ export function PosterStudio({
         style={{
           aspectRatio: `${format.w} / ${format.h}`,
           width: tallFrame ? `min(100%, calc(60vh * ${(format.w / format.h).toFixed(4)}))` : "100%",
+          ...(overlay ? CHEQUER : null),
         }}
       >
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview}
-            alt={`${subject === "rower" ? "Rower" : "Rowtember"} poster preview, ${format.label}`}
+            alt={`${subject === "rower" ? "Rower" : subject === "raceday" ? "Race day" : "Rowtember"} poster preview, ${format.label}`}
           />
         ) : (
           <span className="po-wait">{fonts ? "Drawing" : "Waiting for fonts"}</span>
@@ -662,7 +764,20 @@ export function PosterStudio({
         {fellBack && files ? <li>Rendered at {files.target.ppi} ppi — this device cannot make 300</li> : null}
         {masked ? <li>Blackout — this poster prints with blocks{untilNote}</li> : null}
         {lateLogs ? <li>Late logs through Oct 3 — the poster reads final</li> : null}
+        {/* The one thing that blocks posting rather than building: the mark
+            is OUR key of the gym logo, not a file they gave us. */}
+        {race ? <li>Show {race.race.venue} these frames before anything is posted</li> : null}
+        {overlay ? <li>Overlay — PNG only, a PDF has no alpha</li> : null}
+        {overlay ? <li>Put the subject in the open band and keep other brands out of it</li> : null}
       </ul>
+      {race ? (
+        <div className="po-log">
+          <div>
+            <span className="k">The caption — post it with the file</span>
+          </div>
+          <pre>{race.caption}</pre>
+        </div>
+      ) : null}
 
       <div className="po-acts">
         {canShareFiles ? (
@@ -683,7 +798,7 @@ export function PosterStudio({
         >
           Download PNG
         </button>
-        {format.kind === "print" ? (
+        {format.kind === "print" && !overlay ? (
           <button type="button" className="po-btn" onClick={downloadPdf} disabled={rendering || !files?.pdf}>
             Download PDF
           </button>
@@ -720,7 +835,7 @@ export function PosterStudio({
           ))}
           <details>
             <summary>The payload</summary>
-            <pre>{JSON.stringify(data, null, 1)}</pre>
+            <pre>{JSON.stringify(drawing, null, 1)}</pre>
           </details>
         </div>
       ) : null}

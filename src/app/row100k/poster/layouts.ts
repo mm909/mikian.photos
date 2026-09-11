@@ -8,3 +8,9 @@
 
 export { communityLayout } from "./community";
 export { rowerLayout } from "./rower";
+
+/* RACE DAY registers TWICE — the solid ad and the transparent overlay are
+ * the same modules under two sets of plans (the overlay's carry a `window`
+ * row and drop what a photograph is worth more than). `raceLayoutFor`
+ * picks; poster/raceGround.ts is what paints either ground. */
+export { raceDayLayout, raceDayOverlayLayout, raceLayoutFor } from "./raceday";

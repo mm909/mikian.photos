@@ -17,7 +17,14 @@ import { bySeed, WaveGrid } from "./WaveGrid";
  * Every write goes through /api/row100k/raceday/waves and the answer is
  * folded back into this list, so what is on the screen is what was saved.
  * No meters anywhere: a blackout-masked total reads 0 (racedayData), and a
- * zero in the owner's own console is worse than no column at all. */
+ * zero in the owner's own console is worse than no column at all.
+ *
+ * RACERS AND SPECTATORS ARE TWO LISTS (owner, 2026-09-11). Every verb that
+ * touches a WAVE — the count, the auto-assign, the grid, the picker, the
+ * mail — runs off the RACERS and cannot see anybody else, so a spectator
+ * can never be swept into a wave or a wave note. They get a list of their
+ * own at the foot, because the owner still needs to know how many bodies
+ * are going to be in the room. */
 
 /* What the route answers with — declared here rather than imported from a
  * route file (the settle panel's idiom). */
@@ -58,25 +65,35 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
   const [confirm, setConfirm] = useState<"auto" | "email" | null>(null);
 
   const live = field.filter((r) => !r.withdrewAt);
-  const gone = field.filter((r) => r.withdrewAt);
-  const assigned = live.filter((r) => r.wave !== null);
+  /* THE ONLY POPULATION THE WAVES KNOW ABOUT: the people actually pulling. */
+  const starters = live.filter((r) => r.role === "racer");
+  const watchers = field
+    .filter((r) => r.role === "spectator")
+    .sort((a, b) => (a.withdrewAt ? 1 : 0) - (b.withdrewAt ? 1 : 0));
+  const liveWatchers = watchers.filter((r) => !r.withdrewAt);
+  const gone = field.filter((r) => r.withdrewAt && r.role === "racer");
+  const assigned = starters.filter((r) => r.wave !== null);
   const told = assigned.filter((r) => r.waveEmailedAt);
   const due = assigned.length - told.length;
-  const lastWave = live.reduce((n, r) => Math.max(n, r.wave ?? 0), 0);
+  const lastWave = starters.reduce((n, r) => Math.max(n, r.wave ?? 0), 0);
   /* One spare wave past whatever the field needs, so a rower can always be
    * pushed somewhere new by hand. */
-  const pickMax = Math.min(20, Math.max(1, lastWave, waveCount(race, Math.max(1, live.length))) + 1);
+  const pickMax = Math.min(20, Math.max(1, lastWave, waveCount(race, Math.max(1, starters.length))) + 1);
   const picks = Array.from({ length: pickMax }, (_, i) => i + 1);
 
-  const rows = [...field].sort((a, b) => {
-    const aw = a.withdrewAt ? 1 : 0;
-    const bw = b.withdrewAt ? 1 : 0;
-    if (aw !== bw) return aw - bw;
-    const an = a.wave ?? 9_999;
-    const bn = b.wave ?? 9_999;
-    if (an !== bn) return an - bn;
-    return bySeed(a, b);
-  });
+  /* The field table is the racers, withdrawals and all — a hole in a wave
+   * is something the owner has to be able to see. */
+  const rows = field
+    .filter((r) => r.role === "racer")
+    .sort((a, b) => {
+      const aw = a.withdrewAt ? 1 : 0;
+      const bw = b.withdrewAt ? 1 : 0;
+      if (aw !== bw) return aw - bw;
+      const an = a.wave ?? 9_999;
+      const bn = b.wave ?? 9_999;
+      if (an !== bn) return an - bn;
+      return bySeed(a, b);
+    });
   const prorated = rows.some((r) => r.best5k?.prorated);
 
   const post = async (body: Record<string, unknown>): Promise<Record<string, unknown> | null> => {
@@ -172,13 +189,15 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
       <div className="sec-head ra-sec">
         <h2>Auto-assign</h2>
         <span className="mono">
-          {live.length} IN THE FIELD · {assigned.length} WITH A WAVE · {told.length} TOLD
+          {starters.length} IN THE FIELD · {assigned.length} WITH A WAVE · {told.length} TOLD
+          {liveWatchers.length > 0 ? ` · ${liveWatchers.length} WATCHING` : ""}
         </span>
       </div>
       <p className="ra-note">
         The brackets race each other: men with men, women with women, seeded by fastest 5k — quickest first, no time
-        last — <b>{race.waveSize} to a wave</b>. Dry run writes nothing. Assigning overwrites any wave you set by hand
-        and forgets who was told, so everybody moved is told again.
+        last — <b>{race.waveSize} to a wave</b>. Racers only: anybody who signed up to watch is not in the plan and
+        never gets a wave. Dry run writes nothing. Assigning overwrites any wave you set by hand and forgets who was
+        told, so everybody moved is told again.
       </p>
       <div className="tabs ra-tabs" role="group" aria-label="Bracket rule">
         <button type="button" className={!mix ? "on" : undefined} aria-pressed={!mix} onClick={() => setMix(false)}>
@@ -192,7 +211,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
         <button
           type="button"
           className="outline-btn"
-          disabled={busy !== null || live.length === 0}
+          disabled={busy !== null || starters.length === 0}
           onClick={() => void runAuto(true)}
         >
           {busy === "auto-dry" ? "…" : "Dry run"}
@@ -200,7 +219,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
         {confirm === "auto" ? (
           <>
             <button type="button" className="send" disabled={busy !== null} onClick={() => void runAuto(false)}>
-              {busy === "auto" ? "…" : `Yes, lay out ${live.length}`}
+              {busy === "auto" ? "…" : `Yes, lay out ${starters.length}`}
             </button>
             <button type="button" className="outline-btn" disabled={busy !== null} onClick={() => setConfirm(null)}>
               Leave it alone
@@ -210,7 +229,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
           <button
             type="button"
             className="send"
-            disabled={busy !== null || live.length === 0}
+            disabled={busy !== null || starters.length === 0}
             onClick={() => setConfirm("auto")}
           >
             Assign the waves
@@ -269,13 +288,13 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
           FIRST WAVE {waveTime(race, 1)} · EVERY {race.waveMinutes} MINUTES · {race.waveSize} ERGS
         </span>
       </div>
-      <WaveGrid race={race} field={live} />
+      <WaveGrid race={race} field={starters} />
 
       {/* ---------------------------------------------------------- field */}
       <div className="sec-head ra-sec">
         <h2>The field</h2>
         <span className="mono">
-          {field.length} {field.length === 1 ? "NAME" : "NAMES"}
+          {rows.length} {rows.length === 1 ? "RACER" : "RACERS"}
           {gone.length > 0 ? ` · ${gone.length} WITHDREW` : ""}
         </span>
       </div>
@@ -360,6 +379,54 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
       )}
       {prorated && <p className="ra-foot">* PRORATED FROM A LONGER PIECE — THE SAME RULE THE RECORDS PAGE USES.</p>}
 
+      {/* ----------------------------------------------------- spectators */}
+      <div className="sec-head ra-sec">
+        <h2>The spectators</h2>
+        <span className="mono">{liveWatchers.length} COMING TO WATCH</span>
+      </div>
+      <p className="ra-note">
+        No wave, no erg, no wave note — they are not in the plan above and cannot be put in one. Here so you know how
+        many bodies are going to be in the room.
+      </p>
+      {watchers.length === 0 ? (
+        <p className="board-empty">NOBODY HAS SIGNED UP TO WATCH.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="board ra-t">
+            <thead>
+              <tr>
+                <th>Rower</th>
+                <th>Bracket</th>
+                <th>Signed up</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {watchers.map((r) => (
+                <tr key={r.id} className={r.withdrewAt ? "ra-out" : undefined}>
+                  <td className="who">
+                    <span className="mono" style={{ color: "var(--gray)", fontWeight: 400 }}>
+                      {fmtRowerNumber(r.rowerNumber)} ·{" "}
+                    </span>
+                    <Link href={`/row100k/r/${r.rowerNumber}`}>{r.name}</Link>
+                    {r.note && (
+                      <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
+                        {r.note}
+                      </div>
+                    )}
+                  </td>
+                  <td className="mono">{r.division}</td>
+                  <td className="mono">{stampDay(r.createdAt)}</td>
+                  <td className="ra-tell mono">
+                    <span style={{ color: "var(--gray)" }}>{r.withdrewAt ? "WITHDREW" : "WATCHING"}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* ---------------------------------------------------------- email */}
       <div className="sec-head ra-sec">
         <h2>Email the waves</h2>
@@ -368,7 +435,8 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
         </span>
       </div>
       <p className="ra-note">
-        Goes to every racer who has a wave and has not been told <b>that</b> wave. The note carries their wave and when
+        Goes to every <b>racer</b> who has a wave and has not been told <b>that</b> wave — never a spectator. The note
+        carries their wave and when
         it goes off, the day, the place, the hours, the {race.meters.toLocaleString("en-US")} m, that it is free, and to
         arrive fifteen minutes early. Dry run lists them and sends nothing.
       </p>

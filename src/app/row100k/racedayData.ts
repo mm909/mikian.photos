@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { CHALLENGE, fmtRecordTime, fmtRowerNumber } from "@/lib/row100k";
 import { boardData } from "./boardData";
-import type { RaceDef } from "./raceday";
+import { parseRole, type RaceDef, type RaceRole } from "./raceday";
 
 /* THE FIELD, read from the database (server only). raceday.ts says what the
  * race IS — day, place, hours, wave size; this says who is in it: every
@@ -32,6 +32,14 @@ export type Racer = {
   rowerNumber: number;
   name: string;
   instagram: string;
+  /* WHAT THEY SIGNED UP AS (owner, 2026-09-11: "we need there to be a way to
+   * sign up as a spectator versus as just a racer"). A racer pulls and gets
+   * a wave; a spectator is a body in the room and nothing else. EVERY
+   * consumer that hands out a wave, prints the start list or sends the wave
+   * note filters on this — a spectator must never be swept into a wave. An
+   * unreadable column reads as "racer", which is what every row written
+   * before the column existed is. */
+  role: RaceRole;
   /* The BRACKET: "M" | "F" (or whatever the rower carries when neither). */
   division: string;
   /* The address the wave note goes to, as it was at signup. */
@@ -64,6 +72,7 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
     id: string;
     participantId: string;
     rowerNumber: number;
+    role: string;
     division: string;
     email: string;
     wave: number | null;
@@ -80,6 +89,7 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
         id: true,
         participantId: true,
         rowerNumber: true,
+        role: true,
         division: true,
         email: true,
         wave: true,
@@ -138,6 +148,7 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
       rowerNumber: p?.rowerNumber ?? s.rowerNumber,
       name: p?.displayName ?? `Rower ${fmtRowerNumber(s.rowerNumber)}`,
       instagram: p?.instagram ?? "",
+      role: parseRole(s.role) ?? "racer",
       // The bracket recorded at signup wins; it is what a wave was drawn
       // against. Only when the row carries neither M nor F (an "X" rower)
       // does the participant's current division get a say.

@@ -14,6 +14,12 @@ import type { Racer } from "../racedayData";
  * a blackout, their total is not, so the field prints the clock and never
  * the number that would have to be masked.
  *
+ * RACERS ONLY (owner, 2026-09-11): a spectator has no wave and no erg, so
+ * they have no line on a start list. The page filters them off before it
+ * calls this and counts them beside the head instead; the filter is here
+ * too, because a start list that could ever print somebody who is not
+ * racing is worse than a redundant line of code.
+ *
  * Its own file so the markup can be rendered against a made-up field
  * without a database (scratchpad/raceday-render.tsx) — the page itself is
  * an async server component and cannot be. */
@@ -21,7 +27,8 @@ import type { Racer } from "../racedayData";
 /* THE FIELD STAYS PRIVATE UNTIL IT IS A FIELD (owner, 2026-09-11: "let us
  * not show the racers until ten people have signed up"). Three names on a
  * start list reads as nobody came; the page simply does not carry the
- * section until there are enough to look like a race. */
+ * section until there are enough to look like a race. Ten RACERS: people
+ * who signed up to watch do not pad the start list into existence. */
 export const FIELD_SHOWS_AT = 10;
 
 /* The field ranks on the one number it cares about: the fastest 5k on the
@@ -43,10 +50,11 @@ function bracketMark(race: RaceDef, division: string): string {
 }
 
 export function Field({ race, field }: { race: RaceDef; field: Racer[] }) {
-  const rows = rankField(field);
+  const racers = field.filter((r) => r.role === "racer");
+  const rows = rankField(racers);
   // The wave column only appears once waves exist; before that it would be
   // a column of dashes.
-  const showWave = field.some((r) => r.wave !== null);
+  const showWave = racers.some((r) => r.wave !== null);
 
   if (rows.length === 0) {
     return <p className="board-empty">Nobody here yet.</p>;

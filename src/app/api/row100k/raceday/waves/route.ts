@@ -27,6 +27,12 @@ export const runtime = "nodejs";
  * Writes touch RowRaceSignup and nothing else, and only its `wave` and
  * `waveEmailedAt` columns.
  *
+ * SPECTATORS ARE NOT IN ANY OF IT (owner, 2026-09-11). A spectator has no
+ * wave, so every verb here filters role === "racer" first: the plan never
+ * sees them, a hand-set wave is refused on them, and the mail run skips
+ * them. Belt: the signup route also strips the wave off anybody who turns
+ * spectator, so there is nothing to sweep up even if a filter were missed.
+ *
  * WHY A CHANGED WAVE RE-SENDS: the table remembers WHEN a rower was told,
  * not WHICH wave they were told — so every write that moves a rower forgets
  * the telling (waveEmailedAt = null) and the next EMAIL THE WAVES picks
@@ -88,7 +94,9 @@ type PlanRow = {
  * Withdrawals are not in the plan at all and keep whatever wave they had;
  * nothing is emailed to them (the mail step skips a withdrawal too). */
 function planWaves(race: RaceDef, racers: Racer[], mix: boolean): PlanRow[] {
-  const live = racers.filter((r) => !r.withdrewAt);
+  /* Only people who are actually pulling: a withdrawal is out, and so is
+   * anybody who signed up to watch. */
+  const live = racers.filter((r) => !r.withdrewAt && r.role === "racer");
 
   /* Fastest first, no time last, rower number to break a tie — so a dry run
    * and the write that follows it lay out the same morning. */
@@ -163,9 +171,14 @@ export async function POST(req: Request) {
     try {
       const row = await db.rowRaceSignup.findFirst({
         where: { id, challenge: CHALLENGE, race: race.slug },
-        select: { id: true, wave: true },
+        select: { id: true, wave: true, role: true },
       });
       if (!row) return bad("No such racer.", 404);
+      /* By hand or by machine, a spectator never lands in a wave. Clearing
+       * one is still allowed, in case a row was left holding one. */
+      if (row.role === "spectator" && wave !== null) {
+        return bad("That one signed up as a spectator — they do not get a wave.", 409);
+      }
       const moved = (row.wave ?? null) !== wave;
       await db.rowRaceSignup.update({
         where: { id: row.id },
@@ -215,7 +228,12 @@ export async function POST(req: Request) {
   if (action === "email") {
     try {
       const racers = await listRacers(race);
-      const due = racers.filter((r) => !r.withdrewAt && r.wave !== null && !r.waveEmailedAt);
+      /* A wave note goes to racers only. A spectator with a stale wave (a
+       * row written before the column existed, say) is skipped rather than
+       * mailed a start time they are not racing. */
+      const due = racers.filter(
+        (r) => !r.withdrewAt && r.role === "racer" && r.wave !== null && !r.waveEmailedAt,
+      );
       const results: {
         id: string;
         rowerNumber: number;

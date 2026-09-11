@@ -5,8 +5,22 @@ import { waveTime, type RaceDef } from "./raceday";
  * which wave a rower is in and when it goes off, the day, the place, the
  * hours, what the piece is, that it costs nothing, and when to show up.
  * Plain text with a Rowtember-styled HTML twin, built the way the shirt
- * mails are (shirtEmail.ts) — cream paper, ink type, water-blue figures,
- * mono uppercase eyebrows, the ROWTEMBER mark as white in a blue box.
+ * mails are (shirtEmail.ts) — cream paper, ink type, mono uppercase
+ * eyebrows, the ROWTEMBER mark white in an ink box.
+ *
+ * MONOCHROME, like the rest of race day (owner, 2026-09-11: "on the race
+ * day sign up, let us stick with monochromatic — just black and whites,
+ * whites on black"). He said it of the page, and this note is the only
+ * other thing a rower reads with race day on it — the one they read on
+ * their phone ON THE 27TH — so it wears the same palette rather than
+ * arriving in the site's water blue. The shirt mails keep the blue; only
+ * this one gives it up. TO PUT IT BACK is one line: restore
+ * const WATER = "#0077B6" and swap it in at the four INK uses marked
+ * below (the mark, the clock, the venue line, the waiver link).
+ *
+ * What carries the emphasis instead is the ink ladder the mail already
+ * had: INK is the loud one, INK_SOFT a step under it, GRAY the quiet
+ * furniture — the same trick the page plays with greys of white.
  *
  * The furniture is copied from shirtEmail rather than shared: that file
  * keeps its pieces to itself, and one template two features edit at once
@@ -22,7 +36,6 @@ const INK = "#15171A";
 const INK_SOFT = "#3B3E42";
 const GRAY = "#8A8A85";
 const LINE = "#C9C8C0";
-const WATER = "#0077B6";
 
 const MONO = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace";
 const BLACK = "'Arial Black',Arial,Helvetica,sans-serif";
@@ -59,14 +72,14 @@ const big = (inner: string, color = INK, size = 40) =>
 const block = (inner: string, first = false) =>
   `<tr><td style="padding:18px 0 20px;border-top:${first ? `2px solid ${INK}` : `1px dashed ${LINE}`};">${inner}</td></tr>`;
 
-/* The page: the mark in a blue box, a mono kicker, the blocks, the
- * sign-off on a solid rule. */
+/* The page: the mark in an ink box (was blue — see the monochrome note at
+ * the top), a mono kicker, the blocks, the sign-off on a solid rule. */
 function shell(kicker: string, blocks: string[], signoff: string): string {
   return [
     `<div style="background:${PAPER};padding:28px 16px;">`,
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:collapse;">`,
     `<tr><td style="padding:0 0 16px;">`,
-    `<span style="display:inline-block;background:${WATER};color:#ffffff;font-family:${BLACK};font-weight:900;font-size:13px;letter-spacing:.14em;padding:7px 10px 6px;vertical-align:middle;">ROWTEMBER</span>`,
+    `<span style="display:inline-block;background:${INK};color:#ffffff;font-family:${BLACK};font-weight:900;font-size:13px;letter-spacing:.14em;padding:7px 10px 6px;vertical-align:middle;">ROWTEMBER</span>`,
     `<span style="display:inline-block;font-family:${MONO};font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${GRAY};padding-left:12px;vertical-align:middle;">${escape(kicker)}</span>`,
     `</td></tr>`,
     ...blocks,
@@ -121,7 +134,13 @@ export function waveEmail(o: {
   const who = `${o.name} · rower ${NUM(o.rowerNumber)}`;
   const brackets = r.brackets.map((b) => b.label.toLowerCase()).join(" and ");
   const piece = `${M(r.meters)} meters for time. One piece, one clock — ${brackets} scored apart.`;
-  const morning = `${r.venueLine}. The floor is open ${r.hours}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
+  /* THE ROOM (owner, 2026-09-11: the ergs are in the Engine Room, new this
+   * September). Said here because a rower walking into a gym they have
+   * never been in needs to know which door — and because a room that just
+   * opened is worth naming. The venue MARK is not in this mail on purpose:
+   * it is keyed white on transparent and this paper is cream, so it would
+   * arrive as a white rectangle. */
+  const morning = `${r.venueLine} — the ergs are in ${r.room}. The floor is open ${r.hours}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
   const bring = "Water, a towel and whatever you pull in. The ergs are here. Race day is free — there is nothing to pay when you walk in.";
   const arriveLine = `Be here by ${arrive} — fifteen minutes before your wave — so you can warm up, find your erg and set your monitor.`;
   /* The waiver: the gym's, signed on the gym's own system. Only in the note
@@ -141,9 +160,11 @@ export function waveEmail(o: {
         block(
           eyebrow("Your wave") +
             /* A hard space inside the clock so a narrow phone never leaves
-             * the AM stranded on a line of its own. */
-            big(`Wave ${o.wave}<span style="color:${WATER};"> · ${escape(go.replace(" ", " "))}</span>`, INK, 34) +
-            small(`${r.when} · ${r.venue}`.toUpperCase(), WATER) +
+             * the AM stranded on a line of its own. The clock was blue;
+             * monochrome, it is one step down the ink ladder, so the WAVE
+             * is still the thing and the time still rides with it. */
+            big(`Wave ${o.wave}<span style="color:${INK_SOFT};"> · ${escape(go.replace(" ", " "))}</span>`, INK, 34) +
+            small(`${r.when} · ${r.venue}`.toUpperCase(), INK) +
             small(who) +
             body(arriveLine),
           true,
@@ -155,7 +176,7 @@ export function waveEmail(o: {
               block(
                 eyebrow("One thing first") +
                   body("The gym needs a signed waiver before you pull. It takes a minute.") +
-                  `<p style="margin:14px 0 0;"><a href="${escape(waiver.url)}" style="color:${WATER};font-weight:700;text-decoration:underline;">Sign the waiver</a></p>`,
+                  `<p style="margin:14px 0 0;"><a href="${escape(waiver.url)}" style="color:${INK};font-weight:700;text-decoration:underline;">Sign the waiver</a></p>`,
               ),
             ]
           : []),

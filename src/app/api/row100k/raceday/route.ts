@@ -3,18 +3,27 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
-import { currentRace, raceOpenFor, racePhase } from "@/app/row100k/raceday";
+import { currentRace, parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
 import { listRacers, type Racer } from "@/app/row100k/racedayData";
 
 export const runtime = "nodejs";
 
 /* RACE DAY — put my name in, take my name out.
  *
- * POST { action: "enter" | "withdraw" }. Signed in, opted in, and only
- * while the race is still taking names (raceday.racePhase). Entering
- * writes the RowRaceSignup row, copying the BRACKET off the rower and the
- * ADDRESS off the account that pressed the button — the two things the
- * wave note needs, frozen as they were at signup.
+ * POST { action: "enter", role?, waiver? } | { action: "withdraw" }. Signed
+ * in, opted in, and only while the race is still taking names
+ * (raceday.racePhase). Entering writes the RowRaceSignup row, copying the
+ * BRACKET off the rower and the ADDRESS off the account that pressed the
+ * button — the two things the wave note needs, frozen as they were at
+ * signup.
+ *
+ * RACER OR SPECTATOR (owner, 2026-09-11: "we need there to be a way to sign
+ * up as a spectator versus as just a racer"). The role rides on the SAME
+ * enter action rather than getting a verb of its own, so switching is just
+ * entering again: a spectator who decides to pull keeps their row, their
+ * place in the order and their waiver stamp, and a racer who would rather
+ * watch does not have to withdraw first. An unreadable or absent role means
+ * RACER — the default the column carries and the thing most people are.
  *
  * A withdrawal STAMPS the row, it never deletes it: coming back clears the
  * stamp and keeps the same row, so a wave already assigned and already
@@ -31,13 +40,16 @@ type Action = "enter" | "withdraw";
 
 const parseAction = (v: unknown): Action | null => (v === "enter" || v === "withdraw" ? v : null);
 
-/* What the caller gets back beside their own row: how big the field is and
- * how it splits across the brackets. Withdrawals are not in the field. */
-function counts(racers: Racer[]) {
-  const field = racers.filter((r) => !r.withdrewAt);
+/* What the caller gets back beside their own row: how big the field is, how
+ * it splits across the brackets, and how many are only coming to watch.
+ * Withdrawals are in neither number, and a SPECTATOR IS NOT IN THE FIELD —
+ * the field is the start list. */
+function counts(rows: Racer[]) {
+  const live = rows.filter((r) => !r.withdrewAt);
+  const field = live.filter((r) => r.role === "racer");
   const brackets: Record<string, number> = {};
   for (const r of field) brackets[r.division] = (brackets[r.division] ?? 0) + 1;
-  return { total: field.length, brackets };
+  return { total: field.length, brackets, spectators: live.length - field.length };
 }
 
 export async function POST(req: Request) {
@@ -56,7 +68,7 @@ export async function POST(req: Request) {
   const limit = await rateLimit({ key: `row100k-raceday:${p.id}`, limit: 20, windowSec: 3600 });
   if (!limit.ok) return bad("Too many changes at once — try again in a bit.", 429);
 
-  let body: { action?: unknown; waiver?: unknown };
+  let body: { action?: unknown; role?: unknown; waiver?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -64,6 +76,7 @@ export async function POST(req: Request) {
   }
   const action = parseAction(body.action);
   if (!action) return bad("Say enter or withdraw.");
+  const role = parseRole(body.role) ?? "racer";
 
   const race = currentRace();
   // Shut is shut, both ways: after the close nobody can slip a name in, and
@@ -79,21 +92,31 @@ export async function POST(req: Request) {
       // signed does not come unsigned because somebody re-entered without
       // ticking the box again.
       const said = body.waiver === true;
+      /* A SPECTATOR HAS NO WAVE. Turning racer into spectator drops the wave
+       * and forgets the telling in the same write, so no ghost can sit in
+       * the grid or catch the next run of wave notes. Every reader filters
+       * on role too — this is the belt, that is the braces. Turning
+       * spectator into racer clears nothing: they simply have no wave yet,
+       * and the owner lays the field out again. */
+      const asSpectator = role === "spectator" ? { wave: null, waveEmailedAt: null } : {};
       await db.rowRaceSignup.upsert({
         where: { race_participantId: { race: race.slug, participantId: p.id } },
         // Coming back: the row and its wave stay, the stamp comes off, and
-        // the bracket and address are refreshed to what they are now.
+        // the role, bracket and address are refreshed to what they are now.
         update: {
           withdrewAt: null,
+          role,
           rowerNumber: p.rowerNumber,
           division: p.division,
           email: actor.email,
+          ...asSpectator,
           ...(said ? { waiverAt: new Date() } : {}),
         },
         create: {
           challenge: CHALLENGE,
           race: race.slug,
           participantId: p.id,
+          role,
           rowerNumber: p.rowerNumber,
           division: p.division,
           email: actor.email,

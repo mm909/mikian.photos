@@ -5,13 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
-import { waveTime, type RaceDef } from "../raceday";
+import { RACE_ROLES, waveTime, type RaceDef, type RaceRole } from "../raceday";
 import type { Racer } from "../racedayData";
 
 /* THE ACT on the race day page: one block that is whatever the viewer needs
  * it to be — sign in, opt in, put my name in, or the confirmation that they
  * are in. Everything it can do is one POST to /api/row100k/raceday, which
  * re-authenticates and re-checks the gate; nothing here is trusted.
+ *
+ * TWO WAYS IN (owner, 2026-09-11: "we need there to be a way to sign up as
+ * a spectator versus as just a racer"). They are the same act with a role
+ * on it, so they are the same block: the RACER is the filled button, the
+ * obvious thing to press; the SPECTATOR is an outline button on the rail
+ * one line under it, in plain sight and not hunted for. Pressing either
+ * when already in SWITCHES — the row, the place in the order and the waiver
+ * stamp all stay — so a spectator who decides to pull loses nothing.
  *
  * THE WAVE, and what we tell a rower about it (owner, 2026-09-10: "they do
  * not need to know when the wave starts"): the number shows as soon as one
@@ -21,9 +29,25 @@ import type { Racer } from "../racedayData";
  *
  * TAKING A NAME OUT is two presses and no lecture (owner: a cancel that
  * scolds is not a cancel). The row is kept, not deleted, so a name can go
- * back in on the same line it left. */
+ * back in on the same line it left.
+ *
+ * WHAT GETS A SECOND PRESS is whatever costs something. Opting out always
+ * does. Switching to spectator normally does not — the row survives it —
+ * EXCEPT once a wave has been assigned: the route drops wave and
+ * waveEmailedAt in the same write, so one mis-tap on a rail of identical
+ * grey buttons would throw away a wave the rower has already been emailed
+ * about, and the note in their inbox would then point at a wave they are
+ * not in. So the press is instant while there is no wave to lose and asks
+ * once, naming the wave, as soon as there is. */
 
 const RACE_PATH = "/row100k/raceday";
+
+/* The two roles, and the one line each of them gets, come out of raceday.ts
+ * (RACE_ROLES) rather than being typed again here: the owner wrote those
+ * words, and a page that paraphrases them will drift from the console and
+ * the mail the first time one of them is edited. */
+const roleOf = (key: RaceRole) => RACE_ROLES.find((r) => r.key === key) ?? RACE_ROLES[0];
+const SPECTATOR = roleOf("spectator");
 
 export function SignupPanel({
   race,
@@ -41,38 +65,45 @@ export function SignupPanel({
 }) {
   const router = useRouter();
   const [mine, setMine] = useState<Racer | null>(initialMine);
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
+  /* Which question the rail is asking, if it is asking one: OUT is taking
+   * the name off the list, WATCH is giving up an assigned wave. */
+  const [confirm, setConfirm] = useState<null | "out" | "watch">(null);
+  const [busy, setBusy] = useState<null | "racer" | "spectator" | "withdraw" | "waiver">(null);
   const [error, setError] = useState<string | null>(null);
   /* THE WAIVER (owner sent the link, 2026-09-11). It is signed on the gym's
    * own system, so this site can only ask — and asking is not a gate: a
    * rower who has not got to it yet still gets their name in, and the
-   * console keeps the chase list. Ticked here, stamped by the route. */
+   * console keeps the chase list. Ticked here, stamped by the route. Only a
+   * racer is ever asked: a spectator does not pull. */
   const [waiver, setWaiver] = useState(initialMine?.waiverAt !== null && initialMine !== null);
 
   const inField = mine !== null && mine.withdrewAt === null;
+  const racing = inField && mine?.role === "racer";
   const signed = mine?.waiverAt != null;
 
-  const act = async (action: "enter" | "withdraw", saidWaiver = false) => {
-    setBusy(true);
+  const act = async (
+    action: "enter" | "withdraw",
+    o: { role?: RaceRole; waiver?: boolean; busy: "racer" | "spectator" | "withdraw" | "waiver" },
+  ) => {
+    setBusy(o.busy);
     setError(null);
     try {
       const res = await fetch("/api/row100k/raceday", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, waiver: saidWaiver }),
+        body: JSON.stringify({ action, role: o.role, waiver: o.waiver === true }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; mine?: Racer | null };
       if (res.ok && data.ok) {
         setMine(data.mine ?? null);
-        setConfirm(false);
+        setConfirm(null);
         // The racer list is rendered on the server below this block.
         router.refresh();
       } else setError(data.error ?? "Couldn't take that — try again.");
     } catch {
       setError("Couldn't take that — try again.");
     }
-    setBusy(false);
+    setBusy(null);
   };
 
   /* Signed out and not opted in are live buttons that do the thing, the way
@@ -84,6 +115,7 @@ export function SignupPanel({
         <button type="button" className="send" onClick={() => signIn("google", { callbackUrl: RACE_PATH })}>
           Sign in to opt in
         </button>
+        <p className="rd-small mono">RACE OR WATCH — SIGN IN FIRST</p>
         <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       </div>
     );
@@ -104,30 +136,40 @@ export function SignupPanel({
 
   if (inField && mine) {
     const bracket = race.brackets.find((b) => b.key === mine.division);
-    const emailed = mine.wave !== null && mine.waveEmailedAt !== null;
+    const emailed = racing && mine.wave !== null && mine.waveEmailedAt !== null;
+    /* WHICH THEY ARE, said on the row that carries their number — the one
+     * line a rower reads back to check they signed up as the thing they
+     * meant to. */
+    const who = `ROWER ${fmtRowerNumber(mine.rowerNumber)} · ${
+      racing ? (bracket?.label ?? "No bracket").toUpperCase() : SPECTATOR.label.toUpperCase()
+    }`;
     return (
       <div className="rd-act in">
         {/* Before a wave exists the block says the one thing there is to
          * say; after it, the wave IS the headline. The day is already the
          * headline of the stub above, so it is not repeated here. */}
-        <p className="rd-eye">{mine.wave === null ? "Your entry" : "You are in"}</p>
-        <p className="rd-you">{mine.wave === null ? "You are in" : `Wave ${mine.wave}`}</p>
+        <p className="rd-eye">{racing ? (mine.wave === null ? "Your entry" : "You are in") : "Your spot"}</p>
+        <p className="rd-you">{racing && mine.wave !== null ? `Wave ${mine.wave}` : "You are in"}</p>
         <p className="rd-wave mono">
-          ROWER {fmtRowerNumber(mine.rowerNumber)} · {(bracket?.label ?? "No bracket").toUpperCase()}
+          {who}
           {emailed && mine.wave !== null ? ` · ${waveTime(race, mine.wave).toUpperCase()}` : ""}
         </p>
         <p className="rd-small mono">
-          {mine.wave === null
-            ? "WAVE NOT ASSIGNED"
-            : emailed
-              ? `${race.venueLine.toUpperCase()} · ${race.when.toUpperCase()}`
-              : "START TIME TO COME"}
+          {!racing
+            ? SPECTATOR.line.toUpperCase()
+            : mine.wave === null
+              ? "WAVE NOT ASSIGNED"
+              : emailed
+                ? `${race.venueLine.toUpperCase()} · ${race.when.toUpperCase()}`
+                : "START TIME TO COME"}
         </p>
 
         {/* The one thing still owed, if it is owed: the gym needs a signed
          * waiver before anybody rows. Once it is done the block says
-         * nothing at all (owner, 2026-09-11) — a done thing is not news. */}
+         * nothing at all (owner, 2026-09-11) — a done thing is not news.
+         * A spectator is never asked; they are not pulling. */}
         {race.waiver &&
+          racing &&
           (signed ? null : (
             <div className="rd-waiver">
               <p className="rd-small mono" style={{ margin: 0 }}>
@@ -139,30 +181,91 @@ export function SignupPanel({
               <button
                 type="button"
                 className="quiet-btn"
-                disabled={busy}
-                onClick={() => void act("enter", true)}
+                disabled={busy !== null}
+                onClick={() => void act("enter", { role: mine.role, waiver: true, busy: "waiver" })}
               >
-                {busy ? "…" : "I have signed it"}
+                {busy === "waiver" ? "…" : "I have signed it"}
               </button>
             </div>
           ))}
 
         {open ? (
-          confirm ? (
+          confirm === "out" ? (
             <div className="rd-two">
               <span className="mono">Opt out of Sunday?</span>
-              <button type="button" className="outline-btn" disabled={busy} onClick={() => void act("withdraw")}>
-                {busy ? "…" : "Opt out"}
+              <button
+                type="button"
+                className="outline-btn"
+                disabled={busy !== null}
+                onClick={() => void act("withdraw", { busy: "withdraw" })}
+              >
+                {busy === "withdraw" ? "…" : "Opt out"}
               </button>
-              <button type="button" className="quiet-btn" disabled={busy} onClick={() => setConfirm(false)}>
+              <button type="button" className="quiet-btn" disabled={busy !== null} onClick={() => setConfirm(null)}>
+                Never mind
+              </button>
+            </div>
+          ) : confirm === "watch" ? (
+            /* The cost is named before the act, because it is a cost the
+             * rower cannot undo: opting back in as a racer works, but it
+             * comes back with no wave and the owner has to lay the grid
+             * out again. */
+            <div className="rd-two">
+              <span className="mono">Give up wave {mine.wave} and come and watch?</span>
+              <button
+                type="button"
+                className="outline-btn"
+                disabled={busy !== null}
+                onClick={() => void act("enter", { role: "spectator", busy: "spectator" })}
+              >
+                {busy === "spectator" ? "…" : "Come and watch"}
+              </button>
+              <button type="button" className="quiet-btn" disabled={busy !== null} onClick={() => setConfirm(null)}>
                 Never mind
               </button>
             </div>
           ) : (
+            /* THE SWITCH. A spectator changing their mind is an UP move, so
+             * it gets the outline button; a racer stepping back is quiet,
+             * beside the opt out. Either way it is one press and the row
+             * survives it. */
             <div className="rd-two">
-              <button type="button" className="quiet-btn" onClick={() => setConfirm(true)}>
-                Opt out
-              </button>
+              {racing ? (
+                <>
+                  <button type="button" className="quiet-btn" onClick={() => setConfirm("out")}>
+                    Opt out
+                  </button>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      /* No wave yet, nothing to lose: go. A wave assigned,
+                       * ask first — see the note at the top of the file. */
+                      mine.wave === null
+                        ? void act("enter", { role: "spectator", busy: "spectator" })
+                        : setConfirm("watch")
+                    }
+                  >
+                    {busy === "spectator" ? "…" : "Come and watch instead"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="mono">Decided to pull?</span>
+                  <button
+                    type="button"
+                    className="outline-btn"
+                    disabled={busy !== null}
+                    onClick={() => void act("enter", { role: "racer", waiver, busy: "racer" })}
+                  >
+                    {busy === "racer" ? "…" : "Opt in as a racer"}
+                  </button>
+                  <button type="button" className="quiet-btn" onClick={() => setConfirm("out")}>
+                    Opt out
+                  </button>
+                </>
+              )}
             </div>
           )
         ) : (
@@ -206,9 +309,28 @@ export function SignupPanel({
           </span>
         </label>
       )}
-      <button type="button" className="send" disabled={busy} onClick={() => void act("enter", waiver)}>
-        {busy ? "…" : wasIn ? "Opt back in" : "Opt in"}
+      <button
+        type="button"
+        className="send"
+        disabled={busy !== null}
+        onClick={() => void act("enter", { role: "racer", waiver, busy: "racer" })}
+      >
+        {busy === "racer" ? "…" : wasIn ? "Opt back in to race" : "Opt in to race"}
       </button>
+      {/* THE SECOND WAY IN. Same rail the opt out uses, so it reads as the
+       * other half of the same decision rather than a footnote. */}
+      <div className="rd-two">
+        <span className="mono">Not pulling?</span>
+        <button
+          type="button"
+          className="outline-btn"
+          disabled={busy !== null}
+          onClick={() => void act("enter", { role: "spectator", busy: "spectator" })}
+        >
+          {busy === "spectator" ? "…" : `Sign up as a ${SPECTATOR.label.toLowerCase()}`}
+        </button>
+      </div>
+      <p className="rd-roleline">{SPECTATOR.line.toUpperCase()}</p>
       <p className="rd-small mono">{race.closesLine.toUpperCase()}</p>
       {error && <p className="form-err">{error}</p>}
     </div>

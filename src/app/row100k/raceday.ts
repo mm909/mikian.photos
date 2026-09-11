@@ -30,6 +30,19 @@ export type RaceDef = {
   /* Where, and how to say it in one line. */
   venue: string;
   venueLine: string;
+  /* THE ROOM (owner, 2026-09-11): the ergs live in a room of its own, new
+   * this September. Named because a room that just opened is a reason to
+   * come and look at it. */
+  room: string;
+  roomNote: string;
+  /* The venue's own mark, keyed WHITE ON TRANSPARENT out of their logo
+   * (scratchpad/tsb-logo.js) so it composites on ink and over a photo
+   * alike. Their site is white-on-black, which is where race day's
+   * monochrome comes from. `ratio` is width over height, for a canvas that
+   * has to place it without loading it first. */
+  venueMark: { src: string; alt: string; ratio: number } | null;
+  venueUrl: string;
+  venueInstagram: string;
   /* Registration closes — the last moment a rower can put their name in
    * (Pacific). Signing up after this is refused. */
   closesAt: number;
@@ -65,6 +78,15 @@ export const RACES: RaceDef[] = [
     hours: "6:00 – 9:00 PM",
     venue: "The Strip Barbell",
     venueLine: "The Strip Barbell · Las Vegas",
+    room: "The Engine Room",
+    roomNote: "New this September",
+    venueMark: {
+      src: "/row100k/raceday/strip-barbell.png",
+      alt: "The Strip Barbell",
+      ratio: 1170 / 466,
+    },
+    venueUrl: "https://thestripbarbell.com",
+    venueInstagram: "thestripbarbell",
     /* Midnight Pacific on race morning: the list has to be final before the
      * first wave is called. */
     closesAt: Date.UTC(2026, 8, 27, 7, 0, 0),
@@ -83,6 +105,21 @@ export const RACES: RaceDef[] = [
     },
   },
 ];
+
+/* WHAT SOMEBODY SIGNS UP AS (owner, 2026-09-11: "we need there to be a way
+ * to sign up as a spectator versus as just a racer"). A racer pulls and
+ * gets a wave; a spectator holds a place in the room and gets neither a
+ * wave nor a wave note. The column is RowRaceSignup.role. */
+export type RaceRole = "racer" | "spectator";
+
+export const RACE_ROLES: { key: RaceRole; label: string; line: string }[] = [
+  { key: "racer", label: "Racer", line: "Pull the 5,000 m. You get a wave." },
+  { key: "spectator", label: "Spectator", line: "Come watch. No wave, no erg." },
+];
+
+export function parseRole(v: unknown): RaceRole | null {
+  return v === "racer" || v === "spectator" ? v : null;
+}
 
 export function raceBySlug(slug: string): RaceDef | null {
   return RACES.find((r) => r.slug === slug) ?? null;
