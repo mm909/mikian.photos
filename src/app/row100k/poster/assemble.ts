@@ -122,7 +122,11 @@ export function posterAsOf(atMs = nowMs()): PosterAsOf & { stamp: string } {
   const raw = pacificDay(atMs);
   const iso = final || raw > LAST_DAY ? LAST_DAY : raw < FIRST_DAY ? FIRST_DAY : raw;
   const day = fmtDay(iso);
-  const stamp = final ? `${day.toUpperCase()} · FINAL` : `${day.toUpperCase()} · DAY ${dayNumber} OF 30`;
+  // The day count is gone (owner, 2026-09-10: "day ten of thirty can just
+  // get removed on both of them — if it is September tenth, then we know it
+  // is day ten"), and at FINAL the date goes with it: a finished month is
+  // the whole month, and the nameplate already says ROWTEMBER 2026.
+  const stamp = final ? "FINAL" : day.toUpperCase();
   return { day, iso, dayNumber, final, year: YEAR, dateline: stamp, stamp };
 }
 

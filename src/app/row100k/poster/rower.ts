@@ -2,12 +2,19 @@
  *
  * One rower's September on paper, the profile page as a broadsheet: the
  * nameplate (number gray, name ink), the meters as the headline number in
- * water, the bracketed strip, then two flows — the month, the bests, the
- * ledger and the partner plate down the side; the pace curve and EVERY
+ * water, the bracketed strip, THE PACE across the full measure, and under
+ * it two flows — the month, the bests and the ledger down the side; EVERY
  * logged row down the wide column, the log closing on the footer. The
  * phone formats are the month made big (story, post) or the bests alone
  * (square). SPEC.md §6 R4–R8 and §7 "Rower" are the contract; types.ts
  * wins where the prose disagrees.
+ *
+ * The owner reviewed the first build (2026-09-10) and the sheet changed
+ * with him: the partner plate came off every plan, the log lost its title
+ * column, the ledger lost SHARE OF EVERYTHING, the dateline lost the
+ * board and the 100K CLUB tag, the pace axis closed down on the rower's
+ * own range, and the whole print plan was re-cut around the room all that
+ * freed (see the plans at the foot of this file).
  *
  * Masking is the share-card rule (SPEC §1.4): a poster leaves the site, so
  * a rower among the elite draws blocks for meters, block clocks for times,
@@ -34,6 +41,7 @@ import type {
   RowerBest,
   RowerPoster,
 } from "./types";
+import { drawFooter } from "./charts";
 import {
   LOG_STRETCH,
   PAL,
@@ -149,16 +157,35 @@ function rankCell(d: RowerPoster): StripCell {
 const untilText = (d: RowerPoster): string =>
   d.blackout.until ? `HIDDEN UNTIL ${d.blackout.until.toUpperCase()}` : "HIDDEN";
 
+/* The rower dateline, the two tags the owner took off it removed (2026-
+ * 09-10: "for a specific rower, let us remove men's board, men's or
+ * women's board. We can also remove the hundred K club, like the club
+ * there"). What is left is ROWTEMBER 2026 · SEP 12 — and ROWTEMBER 2026 ·
+ * FINAL from October.
+ *
+ * The tags are trimmed HERE rather than at the source because assemble.ts
+ * is the DATA stream's file; the request to drop them there is filed, and
+ * a tag that has already gone simply does not match. Split on the same
+ * " · " the DATA stream joins with, so nothing else in the line moves. */
+const BOARD_TAG = /^(MEN|WOMEN)[’']S BOARD$/i;
+
+const datelineOf = (d: RowerPoster): string =>
+  d.asOf.dateline
+    .split(" · ")
+    .filter((part) => !BOARD_TAG.test(part.trim()) && part.trim().toUpperCase() !== "100K CLUB")
+    .join(" · ");
+
 const isPhone = (paint: PosterPaint) => paint.format.family === "phone";
 
 /* ---------------------------------------------------------- nameplate */
 
 /* S1. "023 AVERY STONE" across the measure at 0.8 × nameCap (the number
  * gray, the name ink, one line, never wrapped), a hairline, then the
- * dateline the DATA stream built ("ROWTEMBER 2026 · MEN’S BOARD · 100K
- * CLUB · SEP 10 · DAY 10 OF 30"). The phone post and square append the
- * rank to it; a masked rower's sheet prints the blackout note as a second
- * line so it explains its own blocks. */
+ * dateline — "ROWTEMBER 2026 · SEP 12", the board and the club tag
+ * trimmed off (datelineOf) and the day count already gone from the stamp
+ * itself. The phone post and square append the rank to it; a masked
+ * rower's sheet prints the blackout note as a second line so it explains
+ * its own blocks. */
 const nameplate: Mod = {
   id: "nameplate",
   minH: 60,
@@ -194,7 +221,7 @@ const nameplate: Mod = {
     y += tk.hair + tk.datel * 0.9;
     const dfont = paint.font("monoBold", tk.datel);
     const dm = paint.metricsOf(ctx, dfont, tk.datel);
-    let dateline = d.asOf.dateline;
+    let dateline = datelineOf(d);
     const key = paint.format.key;
     if ((key === "post" || key === "square") && d.rank && d.rank !== "ELITE") {
       dateline += ` · #${d.rank.place} OF ${d.rank.of}`;
@@ -284,18 +311,28 @@ const headline: Mod = {
     const gray = (text: string): Run => ({ text, color: PAL.gray, font: lf });
     const bold = (text: string): Run => ({ text, color: PAL.ink, font: lb });
     const community = ` · OF ${n(d.community.meters)} M BY ${d.community.rowers} ROWERS`;
-    const post = paint.format.key === "post";
+    // The post and the square carry no strip, so the label's ONE bold run
+    // is where the average split gets its callout there (owner, 2026-09-10:
+    // "I want a little more callout on the average pace whenever
+    // possible"); the hours and the sessions follow it in gray, and the
+    // community line is the run that falls off the end if anything must.
+    const key = paint.format.key;
+    const card = key === "post" || key === "square";
     // A rower who never times a row has "0.0 h" of erg time in the payload;
     // the sessions are the honest bold run then.
     const hours = d.totals.seconds !== null && d.totals.seconds > 0 ? d.totals.hours : null;
+    const split = d.totals.paceTag ? `${d.totals.paceTag} /500` : null;
     const lead = d.masked
       ? bold("THE ELITE")
-      : hours
-        ? bold(`${hours.toUpperCase()} ON THE ERG`)
-        : bold(`${d.totals.sessions} SESSION${d.totals.sessions === 1 ? "" : "S"}`);
+      : card && split
+        ? bold(`${split} AVERAGE`)
+        : hours
+          ? bold(`${hours.toUpperCase()} ON THE ERG`)
+          : bold(`${d.totals.sessions} SESSION${d.totals.sessions === 1 ? "" : "S"}`);
     // Required runs first, the ones that may fall off the end last.
     const runs: Run[] = [gray("METERS · "), lead];
-    if (post) {
+    if (card) {
+      if (!d.masked && split && hours) runs.push(gray(` · ${hours.toUpperCase()}`));
       runs.push(gray(` · ${d.totals.sessions} SESSIONS`));
       if (d.masked) runs.push(gray(` · ${untilText(d)}`));
     } else if (d.masked) {
@@ -324,17 +361,25 @@ headline.measure = measureByDraw(headline.draw);
 /* S3. The .front-stats idiom: a thick rule top and bottom, cells parted
  * by hairlines, each a black number (shrink-to-fit, floor 0.7 ×) over a
  * gray mono label. Print: SESSIONS · LONGEST ROW · AVERAGE SPLIT · RANK.
- * Story: SESSIONS (with the split in its label) · RANK. Masked: the
- * longest row as blocks, the pace tag, ELITE. */
+ * Story: SESSIONS · AVERAGE SPLIT · RANK. Masked: the longest row as
+ * blocks, the pace tag, ELITE.
+ *
+ * The story used to carry the split inside the SESSIONS label, in gray
+ * mono at nine units; it is a CELL now — the same bold figure the wall
+ * sheet gives it (owner, 2026-09-10: "I like how average split is called
+ * out in bold on 24x36 ... I want a little more callout on the average
+ * pace whenever possible"). The unit rides in the label so the figure
+ * stays the four glyphs a 156-unit cell can hold at full size. */
 function stripCells(d: RowerPoster, paint: PosterPaint): StripCell[] {
   const sessions: Figure = { text: String(d.totals.sessions) };
   const rank = rankCell(d);
   if (isPhone(paint)) {
     return [
+      { v: sessions, l: "SESSIONS" },
       {
-        v: sessions,
-        l: d.totals.paceTag ? `SESSIONS · ${d.totals.paceTag} /500 AVERAGE` : "SESSIONS",
-        short: d.totals.paceTag ? `SESSIONS · ${d.totals.paceTag} /500` : undefined,
+        v: { text: d.totals.paceTag ?? "—" },
+        l: "AVERAGE SPLIT · /500 M",
+        short: "AVERAGE SPLIT",
       },
       rank,
     ];
@@ -408,7 +453,13 @@ function monthOpts(paint: PosterPaint) {
   const key = paint.format.key;
   return {
     full: paint.format.family === "printL",
-    cellCap: key === "story" ? 44 : key === "post" ? 56 : undefined,
+    // The post asks for 50, not the 56 it used to: six units of cell buys
+    // the FOURTH best line back mid-month (owner, 2026-09-10: "on the
+    // bests, we can include things like longest row, biggest day"), and
+    // the month still grows past the cap on any day the bests are gone —
+    // at FINAL the post is the month alone, made as big as the sheet
+    // allows (monthLayout's maxH branch).
+    cellCap: key === "story" ? 44 : key === "post" ? 50 : undefined,
   };
 }
 
@@ -463,6 +514,12 @@ const month: Mod = {
  * time are a real case). */
 const PACE_H = { printL: 250, printS: 200, phone: 160 } as const;
 
+/* What the pace asks for once the plan has spent its `chart` step
+ * (tk.chart, SPEC §8.4): the wall sheet's own cascade lives here — the
+ * 16x20 is 300 units shorter than the 18x24 and the chart is what yields
+ * so the month, the bests, the ledger and the whole log stay on it. */
+const PACE_MIN_H = { printL: 185, printS: 160, phone: 120 } as const;
+
 const PACE_EYEBROW = ["THE PACE", "AVERAGE SPLIT · METER BY METER", "METER BY METER"] as const;
 
 /* No curve and no dog tag: fewer than two timed rows on an open sheet. */
@@ -473,7 +530,8 @@ const pace: Mod = {
   minH: 160,
   measure(ctx, box, d, _fonts, paint) {
     if (paceUntimed(d)) return eyebrowHeight(ctx, paint, box.w, ...PACE_EYEBROW) + paint.tk.small * 2.4;
-    return PACE_H[paint.format.family];
+    const fam = paint.format.family;
+    return paint.tk.chart ? PACE_MIN_H[fam] : PACE_H[fam];
   },
   draw(ctx, box, d, _fonts, paint) {
     const tk = paint.tk;
@@ -497,10 +555,16 @@ const pace: Mod = {
     );
     const chart: PosterBox = { x: box.x, y, w: box.w, h: chartH };
     if (d.masked || d.pace === null) {
-      // The dog tag: the pace in Archivo Black, its unit, and why it is alone.
+      // The dog tag: the pace in Archivo Black, its unit, and why it is
+      // alone. It grows with the slot it is handed — a masked wall sheet
+      // gives the pace a full-width row, and a 3.4 × recV tag sat in the
+      // middle of it like a postage stamp — but never past 0.8 × the
+      // headline cap, because on a masked sheet this IS the one figure
+      // the reader gets and it still must not out-shout the blocks.
       const tag = d.totals.paceTag;
+      const tagCap = Math.min(tk.headCap * 0.8, Math.max(tk.recV * 3.4, chartH * 0.42));
       const tagSize = tag
-        ? Math.min(tk.recV * 3.4, fitBlack(ctx, paint, tag, tk.recV * 3.4, box.w * 0.9, -0.01))
+        ? Math.min(tagCap, fitBlack(ctx, paint, tag, tagCap, box.w * 0.8, -0.01))
         : tk.recV * 1.4;
       const line3 = paint.wrap(
         ctx,
@@ -617,27 +681,37 @@ bestsCompact.measure = measureByDraw(bestsCompact.draw);
 
 /* ------------------------------------------------------------- ledger */
 
-/* R7. The .bl ledger — a thick rule, then KEY ······ VALUE lines: TIME
- * ROWED · METERS A DAY · SHARE OF EVERYTHING · EVERYONE. Masked: SESSIONS
- * · DAYS ROWED · AVERAGE SPLIT · EVERYONE — no time (with the split
- * public, time is the total by another route), no per-day, no share. */
-function ledgerItems(d: RowerPoster): { k: string; v: string }[] {
+/* R7. The .bl ledger — a thick rule, then KEY ······ VALUE lines. SHARE
+ * OF EVERYTHING is gone (owner, 2026-09-10: "we can remove the share of
+ * everything, I think that can go away") and DAYS ROWED takes its line:
+ * the month above it counts the days in cells, and the ledger is where a
+ * reader looks for the figure.
+ *
+ * The second line depends on the family, because it is the ONE place the
+ * average split can be called out on a hand-out: the wall sheets carry a
+ * bracketed strip with AVERAGE SPLIT in Archivo Black, the hand-outs have
+ * no strip at all, so there the split rides in the ledger and the wall
+ * ledger carries the days instead. The same number never prints twice on
+ * one sheet.
+ *
+ * Masked: SESSIONS · DAYS ROWED · AVERAGE SPLIT · EVERYONE — no time
+ * (with the split public, time is the total by another route), no
+ * per-day, no share. */
+function ledgerItems(d: RowerPoster, paint: PosterPaint): { k: string; v: string }[] {
   const everyone = { k: "EVERYONE", v: `${abbr(d.community.meters)} · ${d.community.rowers} ROWERS` };
+  const split = { k: "AVERAGE SPLIT", v: d.totals.paceTag ? `${d.totals.paceTag} /500M` : "—" };
+  const days = { k: "DAYS ROWED", v: `${d.totals.daysRowed} OF ${d.asOf.dayNumber}` };
   if (d.masked) {
-    return [
-      { k: "SESSIONS", v: String(d.totals.sessions) },
-      { k: "DAYS ROWED", v: String(d.totals.daysRowed) },
-      { k: "AVERAGE SPLIT", v: d.totals.paceTag ? `${d.totals.paceTag} /500M` : "—" },
-      everyone,
-    ];
+    // No TIME ROWED, no per-day, no share while a window is open (§0), and
+    // no AVERAGE SPLIT either now: the masked sheet already calls the
+    // split out as the dog tag in the pace slot, and on the wall in the
+    // strip beside it — three times would be a sheet about one number.
+    return [{ k: "SESSIONS", v: String(d.totals.sessions) }, days, everyone];
   }
   return [
     { k: "TIME ROWED", v: d.totals.seconds ? fmtDuration(d.totals.seconds) : "—" },
+    paint.format.family === "printS" ? split : days,
     { k: "METERS A DAY", v: d.totals.metersADay !== null ? `${n(d.totals.metersADay)} M` : "—" },
-    {
-      k: "SHARE OF EVERYTHING",
-      v: d.community.share !== null ? `${(d.community.share * 100).toFixed(1)} %` : "—",
-    },
     everyone,
   ];
 }
@@ -647,7 +721,7 @@ const ledger: Mod = {
   minH: 40,
   draw(ctx, box, d, _fonts, paint) {
     const tk = paint.tk;
-    const items = ledgerItems(d);
+    const items = ledgerItems(d, paint);
     paint.rule(ctx, box.x, box.y, box.w, tk.thick, PAL.ink);
     const y = box.y + tk.thick + tk.ledger * 0.8;
     const kf = paint.font("mono", tk.ledger);
@@ -739,50 +813,15 @@ const log: Mod = {
 };
 log.measure = measureByDraw(log.draw);
 
-/* The wide column of the print plan, folded: THE PACE over THE LOG in one
- * cap slot, so the pace takes what the log cannot use. A stack gave the
- * log everything under a fixed pace, and the log drew only what its rows
- * needed — on the 24x36 at day 12 its last row sat 7.2 inches above the
- * footer rule. Here the log is planned first at the room the pace's
- * minimum leaves (the rung that fits, or the cap); the pace then grows
- * into what is left, up to PACE_CAP_W of its width (0.6 × 706 on the
- * wall = a 14 × 8 in chart, the graphic of the sheet — past that a
- * mid-month curve is a thin band in a big frame); and the log opens its
- * pitch toward whatever is still over (LOG_STRETCH), which at day 12 on
- * the 24x36 leaves ~40 units, inside the 1.5 × gap the SPEC allows. A dog
- * tag grows the same way (it is centred); the untimed line does not.
- * measure() is pace + gap + the log's compact height, so the engine's
- * drop and shrink arithmetic is the stack's; the `cap` step lands on this
- * slot and the log inside it caps. */
-const PACE_CAP_W = 0.6;
-
-const paceLog: Mod = {
-  id: "paceLog",
-  minH: 300,
-  measure(ctx, box, d, fonts, paint, scale) {
-    const p = pace.measure ? pace.measure(ctx, box, d, fonts, paint, scale) : pace.minH;
-    const l = log.measure ? log.measure(ctx, box, d, fonts, paint, scale) : log.minH;
-    return p + paint.tk.gap + l;
-  },
-  draw(ctx, box, d, fonts, paint, scale) {
-    const gap = paint.tk.gap;
-    const paceMin = pace.measure ? pace.measure(ctx, box, d, fonts, paint, scale) : pace.minH;
-    // The log at its natural height in the room the pace's minimum leaves.
-    const logRoom = box.h - gap - paceMin;
-    const logH =
-      logRoom > 0 ? hidden(ctx, () => drawLogModule(ctx, { ...box, y: 0, h: logRoom }, d, paint, 1)) : 0;
-    const paceCap = paceUntimed(d) ? paceMin : Math.max(paceMin, box.w * PACE_CAP_W);
-    const paceH = Math.min(box.h, Math.min(paceCap, Math.max(paceMin, box.h - gap - logH)));
-    const usedPace = pace.draw(ctx, { ...box, h: paceH }, d, fonts, paint, scale);
-    if (logH <= 0) return usedPace;
-    // The log again in the room the grown pace leaves — the same rung (the
-    // room is between its natural height and the room it was planned
-    // in), the pitch opened toward the box.
-    const ly = box.y + paceH + gap;
-    const usedLog = drawLogModule(ctx, { x: box.x, y: ly, w: box.w, h: box.y + box.h - ly }, d, paint);
-    return usedLog > 0 ? ly + usedLog - box.y : usedPace;
-  },
-};
+/* THE PACE and THE LOG are two separate rows on the print plan now (the
+ * `paceLog` fold is gone with the partner plate it was composed around).
+ * The fold existed because the wide column had to close on the footer
+ * while a short mid-month log sat under a fixed chart; with the plate off
+ * the side stack the sheet re-composes instead: the pace is a full-width
+ * row that grows first, and the body row under it hands the log the whole
+ * wide column, where a 14-row log runs as ONE stretched column and a
+ * FINAL 40-row log runs as two at the row step. Both columns of the body
+ * close on the footer within a gap of each other (see the plans below). */
 
 /* -------------------------------------------------------------- plate */
 
@@ -927,11 +966,13 @@ const plate: Mod = {
 
 /* ------------------------------------------------------------- footer */
 
-/* S15. A thick rule, MIKIAN MUSSER, the URL and the handle, then "for
- * yourself and others" on print or the partner line on a phone. Pinned to
- * the bottom margin by the engine; everything left, nothing on the right. */
+/* S15. A thick rule and ONE line — FOR YOURSELF AND OTHERS, the site
+ * footer's last line in the site footer's treatment (owner, 2026-09-10:
+ * the bold name, the URL, the handle and the partner line all come off).
+ * Pinned to the bottom margin by the engine; left, nothing on the right.
+ * The drawing is charts.ts drawFooter, so both sheets sign off the same. */
 function footerH(paint: PosterPaint): number {
-  return paint.tk.thick + paint.tk.footer * 6.4;
+  return paint.tk.thick + paint.tk.footer * 2.95;
 }
 
 const footer: Mod = {
@@ -940,42 +981,45 @@ const footer: Mod = {
   measure(_ctx, _box, _d, _fonts, paint) {
     return footerH(paint);
   },
-  draw(ctx, box, d, _fonts, paint) {
-    const tk = paint.tk;
-    const f = tk.footer;
-    paint.rule(ctx, box.x, box.y, box.w, tk.thick, PAL.ink);
-    let y = box.y + tk.thick + f * 1.6;
-    paint.drawText(ctx, "MIKIAN MUSSER", box.x, y + f * 0.85, paint.font("black", f), PAL.ink, 0.1 * f);
-    y += f * 1.9;
-    const mf = paint.font("mono", f * 0.92);
-    const line2 = paint.ellipsize(ctx, `${d.url.toUpperCase()}  ·  @MIKIAN_`, box.w, mf, 0.06 * f);
-    paint.drawText(ctx, line2, box.x, y + f * 0.85, mf, PAL.gray, 0.06 * f);
-    y += f * 1.8;
-    const third =
-      isPhone(paint) && d.partner ? d.partner.footerLine.toUpperCase() : "for yourself and others";
-    const track = isPhone(paint) && d.partner ? 0.06 * f : 0.02 * f;
-    paint.drawText(
-      ctx,
-      paint.ellipsize(ctx, third, box.w, mf, track),
-      box.x,
-      y + f * 0.85,
-      mf,
-      PAL.gray,
-      track,
-    );
+  draw(ctx, box, _d, _fonts, paint) {
+    drawFooter(ctx, paint, box);
     return footerH(paint);
   },
 };
 
 /* ================================================================ plans */
 
-/* SPEC §7 "Rower". One print plan under every printL key: two FLOWS, not
- * rows — the side stack stacks down from the row's top with the plate
- * pinned to its foot (grow: "plate"), and the wide column is the pace +
- * log fold, which hands the pace what the log cannot use, so a short
- * month never leaves a hole and BOTH columns close on the footer. The
- * plate is the first thing to yield; then gaps, pitch, the log's type
- * step, its cap (the fold is the cap slot; the log inside it caps). */
+/* SPEC §7 "Rower", RE-COMPOSED for the plate's removal (owner, 2026-09-10:
+ * "we need to remove partner Grizzly Health ... on all of them").
+ *
+ * The old wall plan was two flows — month / bests / ledger / PLATE down a
+ * narrow side column, the pace-and-log fold down the wide one — and the
+ * plate was doing structural work: it was pinned to the foot of the side
+ * column, so the ~430 units the side column could not fill at day twelve
+ * sat as air ABOVE an ad instead of under the ledger. Take the ad away and
+ * that air is naked, and nothing else in a rower's payload fills a
+ * 333-unit column on a 36-inch sheet: the month is bound by its width, the
+ * bests are four rows, the ledger four lines.
+ *
+ * So the sheet is re-cut. THE PACE leaves the wide column and becomes a
+ * full-width row of its own under the strip — the graphic of the sheet,
+ * 1200 units across, which is what the tightened axis (rowerCharts
+ * paceScale) deserves and what the owner asked for when he said he wanted
+ * to see more detail in the line. The body row under it is then the side
+ * stack beside THE LOG ALONE across the wide column, and the log is the
+ * one module that can fill any height it is handed: one stretched column
+ * of fourteen rows mid-month, two columns of twenty at FINAL. Both
+ * columns close within a gap of the footer at every day of the month,
+ * with no ad to cover for them.
+ *
+ * Grow order: the pace takes the slack FIRST, up to PACE_ROW_MAX (a
+ * 24 × 6.3 in chart on the wall sheet — past that a chart is not a
+ * newspaper's), then the body row takes the rest, and the log opens its
+ * pitch into it. Shrink order: gaps, the board pitch, then the CHART
+ * (the pace to PACE_MIN_H — this is how the 16x20 keeps its whole
+ * profile), then the log's type step and its cap. */
+const PACE_ROW_MAX = 380;
+
 const printPlan = (key: PosterPlan["key"]): PosterPlan => ({
   key,
   cols: 3,
@@ -983,18 +1027,18 @@ const printPlan = (key: PosterPlan["key"]): PosterPlan => ({
     { id: "nameplate", slots: [{ module: "nameplate", span: 3 }] },
     { id: "headline", slots: [{ module: "headline", span: 3 }] },
     { id: "strip", slots: [{ module: "strip", span: 3 }] },
+    { id: "pace", grow: 1, maxH: PACE_ROW_MAX, slots: [{ module: "pace", span: 3 }] },
     {
       id: "body",
-      grow: 1,
+      grow: 2,
       slots: [
-        { stack: ["month", "bests", "ledger", "plate"], span: 1, grow: "plate" },
-        { module: "paceLog", span: 2, fit: "cap" },
+        { stack: ["month", "bests", "ledger"], span: 1 },
+        { module: "log", span: 2, fit: "cap" },
       ],
     },
   ],
   footer: "footer",
-  drop: ["plate"],
-  shrink: ["gap", "pitch", "step", "cap"],
+  shrink: ["gap", "pitch", "chart", "step", "cap"],
 });
 
 /* The hand-out (11x17, A3, letter, A4): the whole profile above the log,
@@ -1094,7 +1138,9 @@ export const rowerLayout: PosterLayout<RowerPoster> = {
     "bests.compact": bestsCompact,
     ledger,
     log,
-    paceLog,
+    // Registered, drawn by no plan: the partner plate comes off every
+    // rower sheet (owner, 2026-09-10) but the module and the payload
+    // field stay for the day a partner wants the corner back.
     plate,
     footer,
   },

@@ -176,7 +176,13 @@ export function drawMonth(
   const tk = paint.tk;
   const L = monthLayout(tk, w, dayNumber, opts);
   const { cell, gap } = L;
-  const x0 = x + Math.max(0, (w - L.gridW) / 2);
+  // A grid narrower than its measure is CENTRED on the phone, where the
+  // month is the sheet and sits under a centred stack of its own, and
+  // LEFT-aligned on paper, where it is one column under a left-aligned
+  // eyebrow — a shrunken 16x20 grid floating in the middle of its column
+  // read as a mistake (verify, 2026-09-10).
+  const x0 =
+    paint.format.family === "phone" ? x + Math.max(0, (w - L.gridW) / 2) : x;
   const axisFont = paint.font("mono", tk.small);
   DOW_LETTERS.forEach((d, i) =>
     paint.drawCentered(
@@ -250,11 +256,55 @@ export function drawMonth(
 
 /* ================================================================== pace */
 
+/* THE FRAME IS THE DATA (owner, 2026-09-10: "the pace chart is cool, but
+ * I want the axes to be a little more close — I want to see more detail
+ * in the line chart. Mikian never goes below 2:15 average pace, but we
+ * are showing all the way down to 2:20").
+ *
+ * The window is the rower's own range plus a proportional margin, and it
+ * is NOT rounded out to the next round five seconds — that rounding was
+ * the whole problem: a rower who lived between 2:04 and 2:10 was drawn on
+ * a 2:00 → 2:15 axis and read as a flat wire. What keeps it honest is the
+ * floor: never a window narrower than MIN_SPAN, so a metronome still
+ * reads as a metronome instead of being blown up into a cliff, and every
+ * gridline is labelled with the split it stands for.
+ *
+ * The steps are the ones a clock has (a 2.5 s step labels with tenths;
+ * everything coarser labels m:ss), chosen to give three or four lines
+ * inside the window. */
+const PACE_MIN_SPAN = 6;
+const PACE_STEPS = [1, 2, 2.5, 5, 10, 15, 30, 60];
+
+export type PaceScale = { yMin: number; yMax: number; step: number };
+
+export function paceScale(splits: number[]): PaceScale {
+  const lo = Math.min(...splits);
+  const hi = Math.max(...splits);
+  const span = hi - lo;
+  // A fifth of the range as air top and bottom, never less than a second:
+  // the line has to breathe under the end readout.
+  const pad = Math.max(span * 0.2, 1);
+  let yMin = lo - pad;
+  let yMax = hi + pad;
+  if (yMax - yMin < PACE_MIN_SPAN) {
+    const mid = (lo + hi) / 2;
+    yMin = mid - PACE_MIN_SPAN / 2;
+    yMax = mid + PACE_MIN_SPAN / 2;
+  }
+  const want = (yMax - yMin) / 3.5;
+  const step = PACE_STEPS.find((s) => s >= want) ?? PACE_STEPS[PACE_STEPS.length - 1];
+  return { yMin, yMax, step };
+}
+
+/* "2:05" on whole-second steps, "2:07.5" when the step carries a half. */
+const paceTick = (s: number, step: number): string =>
+  step % 1 === 0 ? clockTenths(s).slice(0, -2) : clockTenths(s);
+
 /* PaceCurve.tsx on paper: one point per timed session, x the meters so
- * far, y the running average split, faster UP. The y range is rounded to
- * 5 s with at least 3 s of air; tick step 15 / 10 / 5 s; x ticks at 0 · 25
- * · 50 · 75 · 100 % of the total. Draws inside `box` (the chart area under
- * the eyebrow); the caller has already checked there are two points. */
+ * far, y the running average split, faster UP. The window is paceScale's
+ * (the data, not a round number); x ticks at 0 · 25 · 50 · 75 · 100 % of
+ * the total. Draws inside `box` (the chart area under the eyebrow); the
+ * caller has already checked there are two points. */
 export function drawPaceCurve(
   ctx: Ctx,
   paint: PosterPaint,
@@ -263,33 +313,23 @@ export function drawPaceCurve(
 ): void {
   const tk = paint.tk;
   const axisFont = paint.font("mono", tk.axis);
-  const L = box.x + tk.axis * 4.2;
+  const L = box.x + tk.axis * 4.6;
   const R = box.x + box.w - tk.axis * 0.6;
   const T = box.y + tk.axis * 0.8;
   const B = box.y + box.h - tk.axis * 2.4;
   const maxM = pts[pts.length - 1].m;
-  const splits = pts.map((p) => p.s);
-  const lo = Math.min(...splits);
-  const hi = Math.max(...splits);
-  const pad = Math.max(3, (hi - lo) * 0.25);
-  const yMin = Math.floor((lo - pad) / 5) * 5;
-  const yMax = Math.ceil((hi + pad) / 5) * 5;
+  const { yMin, yMax, step } = paceScale(pts.map((p) => p.s));
   const X = (m: number) => L + (m / Math.max(1, maxM)) * (R - L);
   const Y = (s: number) => T + ((s - yMin) / (yMax - yMin)) * (B - T);
-  const step = yMax - yMin > 40 ? 15 : yMax - yMin > 20 ? 10 : 5;
-  for (let s = yMin; s <= yMax; s += step) {
+  // The ticks live INSIDE the window now, so the topmost one (the fastest
+  // split on the sheet) is the solid rule the top of the frame used to be.
+  let top = true;
+  for (let s = Math.ceil(yMin / step) * step; s <= yMax + 1e-9; s += step) {
     const gy = Y(s);
-    // The top gridline is solid, the rest dashed grid (SPEC §4).
-    if (s === yMin) paint.rule(ctx, L, gy - 0.5, R - L, 1, PAL.grid);
+    if (top) paint.rule(ctx, L, gy - 0.5, R - L, 1, PAL.grid);
     else paint.dashedRule(ctx, L, gy - 0.5, R - L, PAL.grid, 1);
-    paint.drawRight(
-      ctx,
-      clockTenths(s).slice(0, -2),
-      L - tk.axis * 0.8,
-      gy + tk.axis * 0.35,
-      axisFont,
-      PAL.gray,
-    );
+    top = false;
+    paint.drawRight(ctx, paceTick(s, step), L - tk.axis * 0.8, gy + tk.axis * 0.35, axisFont, PAL.gray);
   }
   paint.rule(ctx, L, B, R - L, tk.hair * 1.4, PAL.ink);
   const tickY = B + tk.axis * 1.7;
@@ -320,13 +360,37 @@ export function drawPaceCurve(
     ctx.fill();
   });
   ctx.restore();
+  // The end readout clears the LINE, not just its last dot: with the
+  // window closed down on the rower's own range the curve swings across
+  // the frame, and a readout pinned above the end point printed straight
+  // through the segment behind it (verify, 2026-09-10, the 11x17). So
+  // take the band the curve occupies under the label's own measure, and
+  // put the label on whichever side of that band has room.
   const last = pts[pts.length - 1];
+  const text = `${clockTenths(last.s)} /500M`;
+  const font = paint.font("monoBold", tk.small);
+  const right = Math.min(X(last.m), R - 2);
+  const labelW = paint.measure(ctx, text, font);
+  const air = tk.axis * 0.9;
+  const labelH = tk.small * 1.1;
+  const from = right - labelW - air;
+  let yTop = Y(last.s);
+  let yBot = yTop;
+  pts.forEach((p, i) => {
+    // A point counts when it is under the label OR its segment runs in
+    // there: a line between two points never leaves their own band.
+    const next = i + 1 < pts.length ? X(pts[i + 1].m) : X(p.m);
+    if (X(p.m) < from && next < from) return;
+    yTop = Math.min(yTop, Y(p.s));
+    yBot = Math.max(yBot, Y(p.s));
+  });
+  const above = yTop - T >= labelH + air;
   paint.drawRight(
     ctx,
-    `${clockTenths(last.s)} /500M`,
-    Math.min(X(last.m), R - 2),
-    Math.max(Y(last.s) - tk.axis * 1.1, T + tk.axis),
-    paint.font("monoBold", tk.small),
+    text,
+    right,
+    above ? yTop - air : Math.min(yBot + air + labelH, B - tk.axis * 0.3),
+    font,
     PAL.ink,
   );
 }
@@ -346,10 +410,10 @@ export type LogPlan = {
   shown: number;
   more: number;
   headH: number;
+  /* The four figure columns. DAY is set from the left of the log-column;
+   * METERS, TIME and SPLIT are right-aligned off its right edge, so each
+   * width is really "this column plus the gutter before it". */
   w: { day: number; meters: number; time: number; split: number };
-  /* Room for the title in a log-column; under ~four glyphs the column
-   * drops titles rather than print a single letter and an ellipsis. */
-  titleW: number;
 };
 
 /* The width of a Figure at this font / size — text measured, a shape
@@ -391,14 +455,19 @@ export function figureRight(
  * already at its cap). 1.4 × keeps the table a table — the board on the
  * community sheet runs at 1.9 × its type, this tops out at 2.7 ×, the
  * pitch of the rower's two-line bests. */
-export const LOG_STRETCH = 1.4;
+export const LOG_STRETCH = 1.55;
 
 /* How the log lays its rows in `w` × `room` (room may be Infinity when
  * the engine is measuring). The progression is the infographic graft
  * (SPEC §0): ONE column while every row fits at row / rowPitch → as many
- * log-columns as the box holds (≥ 330 units each on printL, ≥ 300 on
- * printS) → every row at small / rowPitch × .82 → "+ N MORE" as the last
- * cell. `forMeasure` measures at the SMALL step only: the height a module
+ * log-columns as the box holds → every row at small / rowPitch × .82 →
+ * "+ N MORE" as the last cell. The title column is GONE (owner,
+ * 2026-09-10: "we can remove the title on the posters — it is just going
+ * to get cut off when there are too many of them"), so a log-column is
+ * four figures wide and the minimum column is narrower than it was: the
+ * 250 / 230 below is the four columns plus a glyph of air, which is why
+ * a FINAL log fits two columns of a wall sheet at the ROW step now.
+ * `forMeasure` measures at the SMALL step only: the height a module
  * REPORTS is the compact multi-column one, so a forty-row log never talks
  * the engine into dropping the plate for room it would not have used
  * (measured at the row step the 18x24 FINAL came to one unit over its
@@ -409,7 +478,7 @@ export const LOG_STRETCH = 1.4;
  * row (1 = the natural pitch). Column widths are the SPEC's shares of
  * `small` (a touch narrower on the hand-outs, whose `small` is a bigger
  * share of a narrower column), widened to the widest figure actually in
- * the column so a six-digit row never runs into its title. */
+ * the column so a six-digit row never runs into its neighbour. */
 export function planLog(
   ctx: Ctx,
   paint: PosterPaint,
@@ -422,7 +491,7 @@ export function planLog(
 ): LogPlan {
   const tk = paint.tk;
   const printS = paint.format.family === "printS";
-  const minColW = paint.format.family === "printL" ? 330 : 300;
+  const minColW = paint.format.family === "printL" ? 250 : 230;
   const colGap = tk.gutter;
   const maxCols = Math.max(1, Math.floor((w + colGap) / (minColW + colGap)));
   const headH = tk.small * 1.8 + tk.hair;
@@ -496,7 +565,17 @@ export function planLog(
         tk.small * 5.4 * share,
         widest((r) => ({ text: r.split ?? "—" }), paint.font("mono", size)) + airW,
       );
-  const titleW = colW - wDay - wMeters - wTime - wSplit - tk.small * 0.6;
+  // The title used to hold the day apart from the figures; with it gone a
+  // log-column is wider than its four numbers need, so the slack is
+  // SPREAD evenly over the three gutters instead of bunching every figure
+  // on the right edge with a canyon after the date. Adding it to `split`
+  // walks TIME and METERS left, adding it to `time` walks METERS left
+  // again, and what is left over is the gutter after the day — three
+  // equal gutters, one line of numbers.
+  // A masked log has no SPLIT column at all, so it spreads over two
+  // gutters and TIME keeps the right edge.
+  const air = Math.max(0, colW - (wDay + wMeters + wTime + wSplit));
+  const pad = air / (masked ? 2 : 3);
   return {
     cols,
     colW,
@@ -507,8 +586,7 @@ export function planLog(
     shown,
     more,
     headH,
-    w: { day: wDay, meters: wMeters, time: wTime, split: wSplit },
-    titleW: titleW >= size * 3.5 ? titleW : 0,
+    w: { day: wDay, meters: wMeters, time: wTime + pad, split: masked ? 0 : wSplit + pad },
   };
 }
 
@@ -519,9 +597,9 @@ export function logHeight(plan: LogPlan): number {
   return plan.headH + rowsDrawn * plan.pitch;
 }
 
-/* DAY · ROW · METERS · TIME · SPLIT on a hairline, then the rows newest
- * first down each log-column: day gray, title ink (ellipsized first),
- * meters mono bold, time ink-soft, split gray, dashed hairlines between.
+/* DAY · METERS · TIME · SPLIT on a hairline, then the rows newest first
+ * down each log-column: day gray, meters mono bold, time ink-soft, split
+ * gray, dashed hairlines between. No title column (owner, 2026-09-10).
  * Masked rows draw blocks, a block clock, and no split column at all.
  * Returns the height used. */
 export function drawLog(
@@ -546,7 +624,6 @@ export function drawLog(
     const xTime = right - plan.w.split;
     const xMeters = xTime - plan.w.time;
     paint.drawText(ctx, "DAY", cx, hb, headFont, PAL.gray, headTrack);
-    if (plan.titleW > 0) paint.drawText(ctx, "ROW", cx + plan.w.day, hb, headFont, PAL.gray, headTrack);
     paint.drawRight(ctx, "METERS", xMeters, hb, headFont, PAL.gray, headTrack);
     paint.drawRight(ctx, "TIME", xTime, hb, headFont, PAL.gray, headTrack);
     if (!masked) paint.drawRight(ctx, "SPLIT", xSplit, hb, headFont, PAL.gray, headTrack);
@@ -556,7 +633,6 @@ export function drawLog(
   const top = ruleY + tk.hair;
   const rm = paint.metricsOf(ctx, paint.font("mono", size), size);
   const dayFont = paint.font("mono", size * 0.86);
-  const titleFont = paint.font("archivo", size);
   const metersFont = paint.font("monoBold", size);
   const timeFont = paint.font("mono", size);
   const cells = plan.shown + (plan.more > 0 ? 1 : 0);
@@ -577,10 +653,6 @@ export function drawLog(
     const xTime = right - plan.w.split;
     const xMeters = xTime - plan.w.time;
     paint.drawText(ctx, row.day.toUpperCase(), cx, base, dayFont, PAL.gray);
-    if (row.title && plan.titleW > 0) {
-      const title = paint.ellipsize(ctx, row.title, plan.titleW, titleFont);
-      paint.drawText(ctx, title, cx + plan.w.day, base, titleFont, PAL.ink);
-    }
     figureRight(ctx, paint, row.meters, xMeters, base, metersFont, size, PAL.ink);
     figureRight(ctx, paint, row.time, xTime, base, timeFont, size, PAL.inkSoft);
     if (!masked) paint.drawRight(ctx, row.split ?? "—", xSplit, base, timeFont, PAL.gray);

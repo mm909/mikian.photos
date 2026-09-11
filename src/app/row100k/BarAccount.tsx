@@ -132,6 +132,18 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/posters" onClick={close}>
                   Posters (dev) →
                 </Link>
+                {/* Race day — the timed 5,000 m on Sep 27 (owner, 2026-09-10:
+                 * "this should be hidden in development for now, in
+                 * development tabs"). The sign-up page and the racer list
+                 * first, then the console that puts people in waves and
+                 * tells them. Both gates live on the pages themselves;
+                 * these are only the doors. */}
+                <Link className="acct-item" href="/row100k/raceday" onClick={close}>
+                  Race day (dev) →
+                </Link>
+                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
+                  Race waves (dev) →
+                </Link>
                 {/* The numbers and the gallery live here rather than on the
                  * bar for now (owner call, 2026-09-05): neither is ready to
                  * be a public tab. */}

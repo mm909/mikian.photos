@@ -682,6 +682,45 @@ model RowShirtOrder {
   @@index([challenge, createdAt])
 }
 
+/// A signup for RACE DAY — the timed 5,000 m trial on Sunday Sep 27 2026 at
+/// The Strip Barbell, Las Vegas (owner, 2026-09-10). Free: a rower registers
+/// and the owner puts them in a wave, then tells them by email. The race
+/// itself — day, place, hours, wave size, the copy — is defined in code
+/// (src/app/row100k/raceday.ts, by slug), the way a raffle is; this row is
+/// what changes. `wave` is null until assigned and `waveEmailedAt` marks the
+/// note that told them, so re-assigning re-sends only who moved. `division`
+/// is copied at signup (the bracket runs off the board the rower was on that
+/// day). A withdrawal is kept, not deleted, so the waves around it hold.
+/// One row per rower per race; no FK, like the other Row* tables.
+model RowRaceSignup {
+  id            String    @id @default(cuid())
+  challenge     String    @default("row100k-sep-2026")
+  race          String    @default("raceday-2026-09-27")
+  participantId String
+  rowerNumber   Int
+  /// "M" | "F" | "X" — the bracket.
+  division      String    @default("X")
+  /// The address the wave note goes to, as it was at signup.
+  email         String    @default("")
+  /// 1-based wave number; null until the owner assigns one.
+  wave          Int?
+  waveEmailedAt DateTime?
+  /// The gym's waiver (Wodify) is signed away from this site, so nothing
+  /// here can verify it: this is the rower SAYING they signed it, stamped
+  /// when they ticked the box. Its worth is the chase list — who still owes
+  /// one on race morning (owner sent the waiver link 2026-09-11).
+  waiverAt      DateTime?
+  withdrewAt    DateTime?
+  /// Anything the rower said at signup (an injury, a late arrival).
+  note          String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([race, participantId])
+  @@index([race, wave])
+  @@index([challenge, race])
+}
+
 /// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
 /// Grizzly Health). The raffle itself — prize, sponsor, the entry window,
 /// the copy — is defined in code (src/app/row100k/raffles.ts, by slug);

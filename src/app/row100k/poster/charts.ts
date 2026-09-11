@@ -24,7 +24,16 @@
  * Measuring: a module's measure() must report exactly what draw() uses.
  * Rather than keep two copies of every formula, `silently` runs the SAME
  * draw under an empty clip — nothing is painted, the height comes back
- * exact by construction. */
+ * exact by construction.
+ *
+ * THREE DRAWINGS HERE ARE OFF EVERY PLAN since the owner's review of
+ * 2026-09-10 — drawCurve ("I do not really like the whole curve there with
+ * the cumulative meters"), drawClub ("we do not need to list the hundred K
+ * club because there is going to be a ton of members eventually") and
+ * drawPlate ("we can remove any reference to Grizzly Health on these").
+ * They are kept, whole and tested, because they are good drawings and the
+ * data they read still ships; community.ts registers them as modules and
+ * names them in no plan, so putting one back is one line there. */
 
 import { dayTicks, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 import {
@@ -477,6 +486,12 @@ export type MonthOpts = {
   /* Community: quartiles of the elapsed days (SPEC.md §14.1); rower: the
    * site's fixed 2,500 / 5,000 / 10,000 (Heatmap.tsx). */
   buckets: "quartile" | [number, number, number];
+  /* A cap on the cell's HEIGHT. A cell is square whenever the box is deep
+   * enough for that (every print sheet, and a phone frame mid-month); when
+   * the plan can only give the grid a short box — a FINAL five-row month on
+   * a 4:5 post — the cell keeps its full column width and loses height
+   * instead, because a 7 × 5 grid of squares in a 40 %-empty box reads as a
+   * mistake and a wall-calendar rectangle does not. */
   cellCap?: number;
 };
 
@@ -487,10 +502,15 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const { tk } = paint;
   let y = paint.eyebrow(ctx, box.x, box.y, box.w, o.eyebrow.left, o.eyebrow.right, o.eyebrow.short);
   const gap = tk.small * 0.7;
-  const cell = Math.min(o.cellCap ?? Number.POSITIVE_INFINITY, (box.w - gap * 6) / 7);
+  // The cell is as wide as its share of the box, always — the grid fills
+  // its column. Its HEIGHT is the same number unless the caller capped it
+  // (see MonthOpts.cellCap).
+  const cellW = (box.w - gap * 6) / 7;
+  const cellH = Math.min(o.cellCap ?? Number.POSITIVE_INFINITY, cellW);
+  const cell = Math.min(cellW, cellH);
   const dow = paint.font("mono", tk.axis);
   DOW_LETTERS.forEach((d, i) =>
-    paint.drawCentered(ctx, d, box.x + i * (cell + gap) + cell / 2, y + tk.small, dow, GRAY, 0.1 * tk.small),
+    paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, GRAY, 0.1 * tk.small),
   );
   y += tk.small * 1.9;
   const dayN = Math.max(1, Math.min(30, o.dayNumber));
@@ -510,11 +530,34 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const numFont = paint.font("mono", tk.axis);
   const labelSize = cell * 0.28;
   const labelFont = paint.font("monoBold", labelSize);
+  // A squeezed grid (a FINAL five-row month on a 4:5 post) drops the
+  // k-label before it prints one too small to read, and the day number
+  // before the cell is all ink: the shape of the month is the point, and
+  // an 8-px label is noise on a phone and mud in print.
+  const showLabel = labelSize >= tk.small * 0.8;
+  const showNum = cell >= tk.axis * 1.8;
   for (let i = 0; i < shown; i++) {
     const idx = i + SEP_FIRST_DOW;
-    const x = box.x + (idx % 7) * (cell + gap);
-    const cy = y + Math.floor(idx / 7) * (cell + gap);
-    if (i >= dayN) continue;
+    const x = box.x + (idx % 7) * (cellW + gap);
+    const cy = y + Math.floor(idx / 7) * (cellH + gap);
+    if (i >= dayN) {
+      // The days still to come. On the small grid the design left them as
+      // bare paper; now that the calendar is the picture of the upper
+      // sheet (two columns on a 24x36), three blank rows in September read
+      // as a hole rather than as a month in progress — so a future day is
+      // drawn as an empty box in the faintest rule on the sheet, one step
+      // lighter than a rest day's dashed outline, with its date in `line`.
+      // A sheet printed on Sep 12 then shows the month it is halfway
+      // through, and the FINAL sheet is the same grid with every cell full.
+      if (!o.full) continue;
+      ctx.save();
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
+      ctx.restore();
+      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, LINE);
+      continue;
+    }
     const m = o.meters ? Math.max(0, o.meters[i] ?? 0) : 0;
     const rowed = o.meters ? m > 0 : !!o.rowed?.[i];
     if (!rowed) {
@@ -522,7 +565,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
       ctx.strokeStyle = LINE;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
-      ctx.strokeRect(x + 0.5, cy + 0.5, cell - 1, cell - 1);
+      ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
       ctx.restore();
       continue;
     }
@@ -531,29 +574,29 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
       ctx.save();
       ctx.strokeStyle = INK;
       ctx.lineWidth = tk.hair;
-      ctx.strokeRect(x + tk.hair / 2, cy + tk.hair / 2, cell - tk.hair, cell - tk.hair);
+      ctx.strokeRect(x + tk.hair / 2, cy + tk.hair / 2, cellW - tk.hair, cellH - tk.hair);
       ctx.fillStyle = INK;
       ctx.beginPath();
-      ctx.arc(x + cell / 2, cy + cell / 2 + cell * 0.06, cell * 0.12, 0, Math.PI * 2);
+      ctx.arc(x + cellW / 2, cy + cellH / 2 + cellH * 0.06, cell * 0.12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      paint.drawText(ctx, String(i + 1), x + cell * 0.1, cy + tk.axis * 1.15, numFont, INK);
+      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, INK);
       continue;
     }
     const b = m < th[0] ? 0 : m < th[1] ? 1 : m < th[2] ? 2 : 3;
     ctx.fillStyle = HEAT[b];
-    ctx.fillRect(x, cy, cell, cell);
+    ctx.fillRect(x, cy, cellW, cellH);
     // A 1-unit line outline so the first bucket survives matte stock.
     ctx.save();
     ctx.strokeStyle = LINE;
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, cy + 0.5, cell - 1, cell - 1);
+    ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
     ctx.restore();
     const ink = b === 3 ? WHITE : INK;
-    paint.drawText(ctx, String(i + 1), x + cell * 0.1, cy + tk.axis * 1.15, numFont, ink);
-    paint.drawCentered(ctx, kLabel(m), x + cell / 2, cy + cell - cell * 0.16, labelFont, ink);
+    if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, ink);
+    if (showLabel) paint.drawCentered(ctx, kLabel(m), x + cellW / 2, cy + cellH - cellH * 0.16, labelFont, ink);
   }
-  return y + rows * cell + (rows - 1) * gap - box.y;
+  return y + rows * cellH + (rows - 1) * gap - box.y;
 }
 
 /* ======================================================== C7 boards */
@@ -693,10 +736,18 @@ export function drawRecords(
   const labelH = tk.small * 1.5;
   const divH = tk.small * 1.5;
   const lineCount = records.reduce((n, r) => n + Math.max(1, r.lines.length), 0);
-  const linePitch = Math.max(
-    tk.recV * 1.12,
-    (10 * tk.rowPitch - records.length * labelH - Math.max(0, records.length - 1) * divH) / Math.max(1, lineCount),
-  );
+  const air = records.length * labelH + Math.max(0, records.length - 1) * divH;
+  let linePitch = Math.max(tk.recV * 1.12, (10 * tk.rowPitch - air) / Math.max(1, lineCount));
+  // The list levels with the ten board rows beside it — and, when the plan
+  // hands it a TALLER box (the room the curve used to take; the owner kept
+  // the records and killed the curve, 2026-09-10), the lines spread to fill
+  // it instead of leaving the column ragged. Half again the value's cap is
+  // as airy as a record line is allowed to get. measure() runs unbounded,
+  // so the natural pitch is what the engine budgets.
+  if (Number.isFinite(box.h) && box.h > 0) {
+    const fill = (box.y + box.h - y - air) / Math.max(1, lineCount);
+    if (fill > linePitch) linePitch = Math.min(fill, tk.recV * 1.5);
+  }
   const labelFont = paint.font("mono", tk.small);
   const tagFont = paint.font("mono", tk.small * 1.1);
   const valueFont = paint.font("black", tk.recV);
@@ -1104,20 +1155,22 @@ export function drawPlate(
 /* Thick rule; MIKIAN MUSSER; the URL and the handle in gray mono; a third
  * line ("for yourself and others" on print, the partner line on the
  * phone). Everything on the left — nothing parked on the right of a bar. */
-export function drawFooter(ctx: Ctx, paint: PosterPaint, box: PosterBox, url: string, third: string | null): number {
+export function drawFooter(ctx: Ctx, paint: PosterPaint, box: PosterBox): number {
   const { tk } = paint;
   paint.rule(ctx, box.x, box.y, box.w, tk.thick);
-  const line = tk.footer * 1.55;
-  let y = box.y + tk.thick + tk.footer * 1.4;
-  paint.drawText(ctx, "MIKIAN MUSSER", box.x, y + tk.footer * 0.85, paint.font("black", tk.footer), INK, 0.1 * tk.footer);
-  y += line * 1.15;
-  const mFont = paint.font("mono", tk.footer * 0.92);
-  paint.drawText(ctx, `${url.toUpperCase()}  ·  @MIKIAN_`, box.x, y + tk.footer * 0.85, mFont, GRAY, 0.06 * tk.footer);
-  y += line;
-  if (third) {
-    const t = paint.ellipsize(ctx, third, box.w, mFont, 0.04 * tk.footer);
-    paint.drawText(ctx, t, box.x, y + tk.footer * 0.85, mFont, GRAY, 0.04 * tk.footer);
-    y += line;
-  }
-  return y - box.y;
+  const y = box.y + tk.thick + tk.footer * 1.4;
+  // ONE line, the site footer's last line and nothing else (owner,
+  // 2026-09-10: the bold name, the URL and the handle come off, "and we
+  // just replace it with for yourself and others" — in the treatment the
+  // footer gives it: mono, gray, upper, letterspaced).
+  paint.drawText(
+    ctx,
+    "FOR YOURSELF AND OTHERS",
+    box.x,
+    y + tk.footer * 0.85,
+    paint.font("mono", tk.footer * 0.92),
+    GRAY,
+    0.14 * tk.footer,
+  );
+  return y + tk.footer * 1.55 - box.y;
 }
