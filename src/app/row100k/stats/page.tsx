@@ -29,6 +29,7 @@ import { StatsBoards, StatsRecords, type PeriodTotal } from "../Stats";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { liteRecords, type RecordsProp } from "../records/defs";
 import { buildField, buildHours, type FieldEntry, type FieldModel } from "./field";
+import { buildDistanceKdes, type DistanceKde } from "./distances";
 import { FieldSection } from "./FieldSection";
 
 export const metadata: Metadata = {
@@ -221,9 +222,18 @@ export default async function StatsPage() {
    * nothing rather than the page failing. */
   let field: FieldModel | null = null;
   let hours: ReturnType<typeof buildHours> = null;
+  /* The 5k and the 10k as distributions of TIME (owner ask, 2026-09-11).
+   * The field's only here — meId is null, the same call this page makes for
+   * the other densities. The figures need no masking (a 5k time is public
+   * even for one of the elite while a window is open, records/defs.ts
+   * liteRecords) but the rug ticks do, so `isHidden` goes along exactly as
+   * it does to buildField: a tick on a chart titled 5K is a rower's meters
+   * by another route (distances.ts). */
+  let distances: DistanceKde[] = [];
   try {
     field = buildField(fieldEntries, { isHidden, meId: null }).field;
     hours = buildHours(loggedHours);
+    distances = buildDistanceKdes(fieldEntries, null, isHidden);
   } catch (err) {
     console.error("row100k/stats: field maths failed", err);
   }
@@ -407,7 +417,7 @@ export default async function StatsPage() {
               EVERY ROW · LENGTH AND PACE{field && field.rowers > 0 ? ` · ${field.rowers} ROWERS` : ""}
             </span>
           </div>
-          <FieldSection field={field} hours={hours} />
+          <FieldSection field={field} hours={hours} distances={distances} />
         </div>
       </section>
 

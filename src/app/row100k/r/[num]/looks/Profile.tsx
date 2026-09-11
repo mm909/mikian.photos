@@ -97,7 +97,7 @@ export function Profile({ view }: { view: ProfileView }) {
             {view.field && (
               <div className="pf-block">
                 <Eyebrow left="The field" />
-                <ProfileField field={view.field.field} you={view.field.you} />
+                <ProfileField field={view.field.field} you={view.field.you} distances={view.field.distances} />
               </div>
             )}
           </div>

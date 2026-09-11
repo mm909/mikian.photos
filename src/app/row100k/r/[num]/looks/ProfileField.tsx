@@ -2,6 +2,8 @@
 
 import { fmtClock, fmtInt, fmtK } from "../../../analysis/fmt";
 import { KdeScrub } from "../../../stats/KdeScrub";
+import { DistanceKdes } from "../../../stats/DistanceKdes";
+import type { DistanceKde } from "../../../stats/distances";
 import type { FieldModel, FieldYou } from "../../../stats/field";
 
 /* THE FIELD on the profile (owner ask, 2026-09-08): the two densities the
@@ -31,7 +33,19 @@ function Tile({ k, n, l }: { k: string; n: React.ReactNode; l: string }) {
   );
 }
 
-export function ProfileField({ field, you }: { field: FieldModel; you: FieldYou }) {
+export function ProfileField({
+  field,
+  you,
+  distances = [],
+}: {
+  field: FieldModel;
+  you: FieldYou;
+  /* The 5k and the 10k as distributions of TIME (owner ask, 2026-09-11) —
+   * the field's curve with this rower's attempts over it, for the distances
+   * they have actually rowed. This is the "where am I" surface, so it is
+   * where the two-curve version belongs. */
+  distances?: DistanceKde[];
+}) {
   const sessions = `${you.sessions} ${you.sessions === 1 ? "SESSION" : "SESSIONS"}`;
   return (
     <div>
@@ -74,6 +88,10 @@ export function ProfileField({ field, you }: { field: FieldModel; you: FieldYou 
           <KdeScrub c={field.paceKde} you={you.paceYou} kind="split" />
         </div>
       )}
+
+      {/* The 5k and the 10k under the two densities: the room's times in
+          ink, this rower's over them in blue. */}
+      <DistanceKdes charts={distances} mine />
     </div>
   );
 }

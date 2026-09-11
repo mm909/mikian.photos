@@ -34,6 +34,7 @@ import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import { DogTag } from "./looks/DogTag";
 import { fieldEntries } from "../../fieldData";
+import { buildDistanceKdes } from "../../stats/distances";
 import { buildField } from "../../stats/field";
 import type { PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
@@ -397,7 +398,25 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
         /* no board, no hidden set — the densities are aggregates anyway */
       }
       const f = buildField(all, { isHidden: (id) => hidden.has(id), meId: p.id });
-      if (f.field.sessions > 0 && f.you) field = { field: f.field, you: f.you };
+      // The 5k and the 10k as distributions of TIME, this rower's attempts
+      // over the field's (owner ask, 2026-09-11, stats/distances.ts). Same
+      // rows, same meId: the overlay belongs to the rower whose page this
+      // is, not to whoever is looking. The same hidden set goes along as
+      // buildField gets — the figures are public (a 5k time is, even for one
+      // of the elite: records/defs.ts) but a rug tick on a chart titled 5K
+      // is that rower's meters by another route.
+      //
+      // Filtered to the distances this rower has actually rowed HERE, on the
+      // server. ProfileField is a client component, so anything handed to it
+      // is serialised into the page whether it draws or not — an untouched
+      // 10k chart is 120 xs, 120 ys and a 60-tick rug of dead weight on
+      // every profile of a rower who has never rowed one.
+      if (f.field.sessions > 0 && f.you)
+        field = {
+          field: f.field,
+          you: f.you,
+          distances: buildDistanceKdes(all, p.id, (id) => hidden.has(id)).filter((d) => d.youN > 0),
+        };
     } catch (err) {
       console.error(`row100k: failed to build the field for rower ${num}`, err);
     }

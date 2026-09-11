@@ -120,29 +120,47 @@ export function statsOf(xs: number[]): FieldStats | null {
   };
 }
 
-function tickStep(range: number, steps: number[], maxTicks: number): number {
+/* The four axis/curve helpers are exported for the distance densities next
+ * door (distances.ts, the 5k and 10k time KDEs — owner ask, 2026-09-11):
+ * same frame, same maths, so the four densities on a page agree on a tick
+ * and on how a curve is scaled. Nothing about them changed. */
+export function tickStep(range: number, steps: number[], maxTicks: number): number {
   for (const s of steps) if (range / s <= maxTicks) return s;
   return steps[steps.length - 1];
 }
 
-function ticksBetween(lo: number, hi: number, step: number): number[] {
+export function ticksBetween(lo: number, hi: number, step: number): number[] {
   const out: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
   return out;
 }
 
-function thin(sorted: number[], k: number): number[] {
+export function thin(sorted: number[], k: number): number[] {
   if (sorted.length <= k) return sorted;
   return Array.from({ length: k }, (_, i) => sorted[Math.round((i * (sorted.length - 1)) / (k - 1))]);
 }
 
-/* A density on [lo, hi], its peak scaled to 1 (KdeSvg scales to the peak
- * anyway, and a per-meter density rounded to five places would be zero). */
+/* A density sampled on a GIVEN grid, its peak scaled to 1 (KdeSvg scales to
+ * the peak anyway, and a per-meter density rounded to five places would be
+ * zero). Taking the grid rather than making one is what lets a second curve
+ * be drawn over the first on the same axis.
+ *
+ * The bandwidth is Silverman's unless the caller brings its own: the rule of
+ * thumb wants a sample big enough to have a shape, and a handful of points
+ * needs a wider kernel than it picks (distances.ts, where the second curve
+ * is one rower's three or six attempts). Everything else about the curve —
+ * the grid, the kernel, the scaling — stays the same, so the two curves on
+ * one axis are still the same maths. */
+export function densityOn(xs: number[], grid: number[], h: number = silverman(xs)): number[] {
+  const raw = kde(xs, h, grid);
+  const top = Math.max(...raw);
+  return raw.map((v) => (top > 0 ? r3(v / top) : 0));
+}
+
+/* A density on [lo, hi]. */
 function curve(xs: number[], lo: number, hi: number): { xs: number[]; ys: number[] } {
   const grid = linspace(lo, hi, GRID);
-  const raw = kde(xs, silverman(xs), grid);
-  const top = Math.max(...raw);
-  return { xs: grid.map(r1), ys: raw.map((v) => (top > 0 ? r3(v / top) : 0)) };
+  return { xs: grid.map(r1), ys: densityOn(xs, grid) };
 }
 
 export function buildField(

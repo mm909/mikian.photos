@@ -48,7 +48,15 @@ export type KdeChart = {
   rug: number[];
   take: string;
 };
-export type KdeYou = { rug: number[]; median: number; best: number; tag: string; bestTag: string };
+/* `ys` is the viewer's OWN density, sampled on the field chart's own xs
+ * grid and scaled to its own peak — the second curve on the 5k and 10k time
+ * charts (owner ask, 2026-09-11: one KDE of the field's attempts and one of
+ * mine, over the same axis). Optional on purpose: every caller that was
+ * here before leaves it out and KdeSvg draws exactly what it always drew —
+ * a rug and two marks. Its own peak, not the field's, is what makes it
+ * readable: four attempts against two hundred would otherwise be a flat
+ * line on the floor (the y axis is density, never a count). */
+export type KdeYou = { rug: number[]; median: number; best: number; tag: string; bestTag: string; ys?: number[] };
 
 export type FitLine = { a: number; b: number };
 

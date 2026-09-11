@@ -2,6 +2,7 @@ import type { SanityBand } from "@/lib/row100k";
 import type { MyRow } from "../../../MyRows";
 import type { ProfileLogRow } from "../../../ProfileLog";
 import type { ShareData } from "../../../share/cards";
+import type { DistanceKde } from "../../../stats/distances";
 import type { FieldModel, FieldYou } from "../../../stats/field";
 import type { PacePoint } from "./PaceCurve";
 
@@ -99,8 +100,14 @@ export type ProfileView = {
   /* THE FIELD on the profile (same ask): everyone's two densities and this
    * rower's overlay with percentiles, off stats/field.ts. Null when the
    * field could not be read, when the rower has no session yet, or on a
-   * masked view. */
-  field: { field: FieldModel; you: FieldYou } | null;
+   * masked view.
+   *
+   * `distances` (owner ask, 2026-09-11) rides along: the 5k and the 10k as
+   * distributions of TIME, the field's curve and this rower's own over it
+   * (stats/distances.ts). Only the distances they have actually rowed are
+   * drawn here, so the array may be empty while the two densities are not.
+   * Times, counts and nothing else — no meters of anybody's are in it. */
+  field: { field: FieldModel; you: FieldYou; distances: DistanceKde[] } | null;
   totals: {
     meters: number;
     sessions: number;

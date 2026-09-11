@@ -5,6 +5,8 @@ import { fmtClock, fmtInt, fmtK, fmtM } from "../analysis/fmt";
 import { HoursSvg } from "../analysis/charts";
 import type { HourChart } from "../analysis/model";
 import { KdeScrub } from "./KdeScrub";
+import { DistanceKdes } from "./DistanceKdes";
+import type { DistanceKde } from "./distances";
 import type { FieldModel } from "./field";
 
 /* THE FIELD: the stat tiles, the two densities and the hour of the day,
@@ -37,7 +39,17 @@ const SPLIT = (v: number) => (
     {fmtClock(v)} <span className="u">/500m</span>
   </>
 );
-export function FieldSection({ field, hours = null }: { field: FieldModel | null; hours?: HourChart | null }) {
+export function FieldSection({
+  field,
+  hours = null,
+  distances = [],
+}: {
+  field: FieldModel | null;
+  hours?: HourChart | null;
+  /* The 5k and 10k time densities (owner ask, 2026-09-11) — the field's
+   * only here; a rower's own attempts go over them on the profile. */
+  distances?: DistanceKde[];
+}) {
   if (!field || field.sessions === 0) {
     return <p className="board-empty">NOTHING LOGGED YET — THE FIELD DRAWS ITSELF AS ROWS LAND.</p>;
   }
@@ -86,6 +98,13 @@ export function FieldSection({ field, hours = null }: { field: FieldModel | null
           <KdeScrub c={field.paceKde} you={null} kind="split" />
         </div>
       )}
+
+      {/* The two distances the rowers actually test over, under the two
+          densities and before the hours: same frame, one distribution of
+          TIME each (stats/distances.ts). They sit with the densities rather
+          than after the hour chart because they ARE densities — the hours
+          are a different question. */}
+      <DistanceKdes charts={distances} />
 
       {/* The hour of the day, right under the split (owner, 2026-09-08):
           the numbers page's chart in the same quiet frame, every bar filled

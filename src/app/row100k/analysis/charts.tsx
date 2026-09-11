@@ -375,6 +375,32 @@ export function KdeSvg({
   const cur = cursor && Number.isFinite(cursor.x) && cursor.x >= c.xMin && cursor.x <= c.xMax ? cursor : null;
   const line = c.xs.map((v, i) => `${i ? "L" : "M"}${r(x(v))},${r(y(c.ys[i]))}`).join("");
   const area = `${line}L${r(x(c.xs[c.xs.length - 1]))},${r(y0)}L${r(x(c.xs[0]))},${r(y0)}Z`;
+  /* THE SECOND CURVE (owner ask, 2026-09-11): when the viewer brings a
+   * density of their own — the 5k and 10k time charts, where YOU is a
+   * handful of attempts inside the room's — it is drawn over the field on
+   * the same grid, in the viewer's blue and with no fill, so the ink hill
+   * underneath still reads. Left out, as every earlier caller leaves it
+   * out, nothing about this chart changes. Both curves are scaled to their
+   * own peak, so the two heights compare shapes and not counts. */
+  const youYs = you?.ys;
+  /* Trimmed to where it has any height: a normalised density rounds to a
+   * flat zero well before the ends of a shared axis, and the leftover would
+   * draw as a long blue rule lying on the baseline — which reads as a rule,
+   * not a tail. One zero point is kept either side so the curve still lands
+   * on the floor. */
+  const youLine = (() => {
+    if (!youYs || youYs.length !== c.xs.length) return null;
+    let a = youYs.findIndex((v) => v > 0);
+    if (a < 0) return null;
+    let b = youYs.length - 1;
+    while (b > a && !(youYs[b] > 0)) b--;
+    a = Math.max(0, a - 1);
+    b = Math.min(youYs.length - 1, b + 1);
+    return c.xs
+      .slice(a, b + 1)
+      .map((v, i) => `${i ? "L" : "M"}${r(x(v))},${r(y(youYs[a + i]))}`)
+      .join("");
+  })();
   const inBand = c.xs.map((v, i) => [v, c.ys[i]] as const).filter(([v]) => v >= c.mean - c.sd && v <= c.mean + c.sd);
   const band =
     inBand.length >= 2
@@ -413,6 +439,7 @@ export function KdeSvg({
       <Base />
       {you && (
         <g className="you">
+          {youLine && <path d={youLine} fill="none" stroke={WATER} strokeWidth="1.8" strokeLinejoin="round" />}
           <Rug xs={you.rug} x={x} blue />
           {you.best >= c.xMin && you.best <= c.xMax && <VLine x={x(you.best)} dash="2 3" blue faint />}
           {you.median >= c.xMin && you.median <= c.xMax && <VLine x={x(you.median)} dash="5 4" blue />}
