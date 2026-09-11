@@ -144,6 +144,13 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
                   Race waves (dev) →
                 </Link>
+                {/* The results board on sample data (owner, 2026-09-11:
+                 * "push the sample race day board with sample data so I can
+                 * take a look at it"). Mid-race, finished, and the frame a
+                 * TV in the gym would show. */}
+                <Link className="acct-item" href="/row100k/dev/raceday-results" onClick={close}>
+                  Race results (sample) →
+                </Link>
                 {/* The numbers and the gallery live here rather than on the
                  * bar for now (owner call, 2026-09-05): neither is ready to
                  * be a public tab. */}
