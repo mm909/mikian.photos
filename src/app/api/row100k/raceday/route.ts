@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sendOwnerNotification, type SendResult } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 import { parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { listRacers, type Racer } from "@/app/row100k/racedayData";
+import { signupNote, type SignupArrival, type SignupEvent } from "@/app/row100k/raceSignupMail";
 
 export const runtime = "nodejs";
 
@@ -31,6 +33,12 @@ export const runtime = "nodejs";
  * emailed survives a rower changing their mind (owner: no cancel that
  * scolds, and nobody should get two different wave emails).
  *
+ * THE OWNER GETS A NOTE when a name ARRIVES (2026-09-12: "send me an email
+ * whenever someone signs up for race day") — a new entry, or somebody
+ * coming back after withdrawing. Not a role switch, not a re-press. The
+ * words are raceSignupMail.ts and the sending is tellTheOwner below; both
+ * are downstream of the write, so the mail can never cost a signup.
+ *
  * Nothing here is money and nothing here is public: the same dev gate the
  * shirt shop wears (raceOpenFor) answers 403 to everyone but an admin in
  * production until the owner opens race day. */
@@ -51,6 +59,68 @@ function counts(rows: Racer[]) {
   const brackets: Record<string, number> = {};
   for (const r of field) brackets[r.division] = (brackets[r.division] ?? 0) + 1;
   return { total: field.length, brackets, spectators: live.length - field.length };
+}
+
+/* ------------------------------------------------------- telling the owner */
+
+/* HOW LONG A ROWER WAITS FOR THE OWNER'S MAIL, at the very worst. The send
+ * IS awaited — see below for why it has to be — so this is the ceiling it
+ * is awaited under, and the only latency this feature can ever add to the
+ * button. Four seconds is long enough that a healthy Resend (a couple of
+ * hundred ms) never sees it and short enough that a hung one is a blink,
+ * not a spinner somebody gives up on. */
+const MAIL_WAIT_MS = 4000;
+
+/* THE NOTE GOES OUT AND IT CANNOT COST A SIGNUP (owner, 2026-09-12: "send
+ * me an email whenever someone signs up for race day"). Three things make
+ * that true, and all three are needed:
+ *
+ * 1. IT RUNS AFTER THE WRITE. By the time this is called the RowRaceSignup
+ *    row is committed and the field has already been re-read — so there is
+ *    no outcome where the mail happens and the row does not. The tally the
+ *    note carries is the field AFTERWARDS for the same reason.
+ * 2. NOTHING IN HERE CAN THROW UPWARDS. sendOwnerNotification already
+ *    returns a SendResult rather than throwing (lib/email), and with no
+ *    RESEND_API_KEY it logs and returns ok — but the try/catch is here
+ *    anyway, because "the mailer never throws" is a promise made in another
+ *    file and a rower's entry must not depend on it staying true. THE NOTE
+ *    IS BUILT INSIDE THE TRY for the same reason: signupNote is pure and
+ *    has no business throwing, and if it ever did while sitting outside
+ *    this net it would 500 a rower whose row is already written — the one
+ *    shape of this feature that would be worse than no mail at all.
+ * 3. IT IS AWAITED, UNDER A CLOCK. Awaited because this is a serverless
+ *    function: return the response with a promise still floating and Vercel
+ *    may freeze the instance the moment the body is flushed, which turns
+ *    the mail into a coin flip that also fires late on the NEXT rower's
+ *    request when the instance thaws. Next 14 gives a route handler no
+ *    after()/waitUntil, so there is no honest way to do work past the
+ *    response. Under a clock because awaiting an unbounded fetch would hand
+ *    a stuck Resend the power to hold the button open until the platform's
+ *    own timeout. Promise.race subscribes to both sides, so the send losing
+ *    the race is still a handled promise, never an unhandled rejection.
+ *
+ * Failure is a console.error and nothing else. The rower is in the field
+ * either way, and the door list at /row100k/race-admin is the source of
+ * truth the owner actually runs the evening off — this mail is a nudge
+ * towards it, not a record of anything. */
+async function tellTheOwner(a: SignupArrival): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const note = signupNote(a);
+    const capped = new Promise<SendResult>((resolve) => {
+      timer = setTimeout(() => resolve({ ok: false, error: `no answer in ${MAIL_WAIT_MS}ms` }), MAIL_WAIT_MS);
+    });
+    /* Reply-to the signer: the natural answer to this mail is to answer the
+     * person who caused it. */
+    const sent = await Promise.race([sendOwnerNotification(note.subject, note.text, a.email), capped]);
+    if (!sent.ok) console.error(`row100k raceday: signup note not sent — ${sent.error}`);
+  } catch (err) {
+    console.error("row100k raceday: signup note blew up (the signup stands)", err);
+  } finally {
+    /* So a send that answers in 200ms does not leave the runtime holding a
+     * four-second timer open behind it. */
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function POST(req: Request) {
@@ -89,8 +159,26 @@ export async function POST(req: Request) {
   // waves from. That is an email, not a button.
   if (racePhase(race) !== "open") return bad("Registration for race day is closed.", 409);
 
+  /* WHAT THE OWNER GETS TOLD ABOUT, set below and acted on at the foot of
+   * the handler — null for everything that is not news. A ROLE SWITCH IS
+   * NOT NEWS (see raceSignupMail): same body, same room. Neither is
+   * pressing PUT MY NAME IN twice, which is what a page that re-posts on
+   * render would do, and which is the real reason this is decided by
+   * reading the row rather than by the action word. */
+  let arrival: SignupEvent | null = null;
+
   try {
     if (action === "enter") {
+      /* THE ROW AS IT WAS, one extra read, because an upsert will not say
+       * which half of itself it ran. No row is somebody new; a row with a
+       * withdrawal stamp on it is somebody coming back — both are a name
+       * arriving in the field. A live row is a switch or a re-press. */
+      const before = await db.rowRaceSignup.findUnique({
+        where: { race_participantId: { race: race.slug, participantId: p.id } },
+        select: { withdrewAt: true },
+      });
+      arrival = !before ? "new" : before.withdrewAt ? "returning" : null;
+
       // The waiver is signed on the gym's own system, so all this can do is
       // remember the rower SAYING it is done (owner sent the link
       // 2026-09-11). Ticking stamps it; never un-stamps — a waiver already
@@ -137,6 +225,12 @@ export async function POST(req: Request) {
       if (!existing) return bad("Your name is not on the list.", 409);
       if (!existing.withdrewAt) {
         await db.rowRaceSignup.update({ where: { id: existing.id }, data: { withdrewAt: new Date() } });
+        /* TO BE TOLD ABOUT WITHDRAWALS TOO, this is the line — `arrival =
+         * "withdrew";` right here, inside the if, so a rower withdrawing
+         * twice is still one note. The wording already exists
+         * (raceSignupMail NEWS.withdrew) and the tally below is read after
+         * the write, so it would be correct on the way down. He asked for
+         * sign-ups; a shrinking field is his call to make, not mine. */
       }
     }
   } catch (err) {
@@ -145,9 +239,38 @@ export async function POST(req: Request) {
   }
 
   const racers = await listRacers(race);
-  return NextResponse.json({
-    ok: true,
-    mine: racers.find((r) => r.participantId === p.id) ?? null,
-    counts: counts(racers),
-  });
+  const mine = racers.find((r) => r.participantId === p.id) ?? null;
+  const tally = counts(racers);
+
+  /* THE NOTE, at the one place a new arrival is known and the field has
+   * already been counted. `mine` rather than the request body: it is the
+   * row as the door list reads it, so the name, number and bracket in the
+   * mail are the ones the owner will see when he follows the link.
+   *
+   * AND IT SENDS EVEN WHEN THAT READ FAILED. listRacers fails OPEN — a
+   * database hiccup on the re-read returns an empty field, not an error —
+   * so gating the note on `mine` meant a real signup could be written,
+   * confirmed to the rower, and never mentioned to the owner. That is the
+   * one failure of this feature he could not detect: a silent miss on the
+   * single event he asked to be told about. The row is already committed
+   * by here, so we fall back to what the request itself knows — the
+   * participant and the role they pressed — and say plainly that the
+   * tallies could not be read rather than printing two zeros he would
+   * believe. A note with a number and no name beats no note. */
+  if (arrival) {
+    const known = mine !== null;
+    await tellTheOwner({
+      race,
+      event: arrival,
+      name: mine?.name ?? "",
+      rowerNumber: mine?.rowerNumber ?? p.rowerNumber,
+      role: mine?.role ?? role,
+      division: mine?.division ?? p.division,
+      email: mine?.email ?? actor.email,
+      racing: known ? tally.total : -1,
+      watching: known ? tally.spectators : -1,
+    });
+  }
+
+  return NextResponse.json({ ok: true, mine, counts: tally });
 }
