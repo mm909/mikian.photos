@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -19,10 +20,20 @@ export const metadata: Metadata = {
 /* THE SAMPLE RACE DAY BOARD (owner, 2026-09-11: push the sample race day
  * board with sample data so I can take a look at it).
  *
- * DEV ONLY — a 404 in production, the same gate the poster studio wears. No
- * session, no database, no writes: the board is drawn from
- * raceresults/sample.ts, which is forty invented racers in the ResultBoard
- * shape the real page will produce off RowRaceSignup later.
+ * ADMIN ONLY in production, open to anyone in local dev — the gate the
+ * other dev pages wear (dev/plan, dev/shirts, dev/stats). It used to be a
+ * bare NODE_ENV 404 with no escape, so the one man the menu item exists for
+ * was the one man it shut out; owner, 2026-09-11: "Race day results 404s.
+ * Fix and deploy." A stranger still gets nothing, which is the point — the
+ * forty racers are invented and must never be mistaken for a result.
+ *
+ * Deliberately NOT raceOpenFor. That switch is one lever every real race
+ * surface reads, and the day it opens race day to the public a sample board
+ * — castable to a television — would open with it.
+ *
+ * The BOARD reads nothing: it is drawn from raceresults/sample.ts, forty
+ * invented racers in the ResultBoard shape the real page will produce off
+ * RowRaceSignup later. Only the gate reads the session.
  *
  *   ?at=midrace   7:38 PM. Waves 1 and 2 rowed, wave 3 on the ergs with one
  *                 empty erg where a man did not start, waves 4 and 5 to
@@ -32,12 +43,13 @@ export const metadata: Metadata = {
  *   ?cast=1       the wall. A 1280 by 720 frame with no site bar and no
  *                 footer, forced signed out. Works with either state.
  *   ?you=0        drop the signed-in rower, to see what a stranger sees. */
-export default function DevRaceDayResultsPage({
+export default async function DevRaceDayResultsPage({
   searchParams,
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  if (process.env.NODE_ENV === "production") notFound();
+  const viewer = await resolveViewer();
+  if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
   const q = searchParams ?? {};
   const one = (k: string): string | undefined => {
     const v = q[k];
@@ -75,8 +87,8 @@ export default function DevRaceDayResultsPage({
   const note = (
     <p className="rr-dev">
       <b>Sample data</b> — nothing on this page is real. Forty invented racers, {board.waves.length}{" "}
-      waves of {board.ergs}, times made up and splits derived. Nothing was read from or written to
-      the database.
+      waves of {board.ergs}, times made up and splits derived. Not one row of this board came out of
+      the database, and nothing here writes to it.
       <br />
       State{" "}
       <a href={`/row100k/dev/raceday-results?at=${at}`}>
@@ -99,6 +111,11 @@ export default function DevRaceDayResultsPage({
       <style>{css}</style>
       <style>{rrCss}</style>
 
+      {/* Hardcoded signed out even though the gate has a viewer in scope —
+        * do NOT spread barProps(viewer) in here the way dev/plan does. The
+        * owner's rower chip and LOG A ROW two inches from a chip reading
+        * PREVIEW would make the page look half real. The viewer is read to
+        * decide whether this page may be drawn, never what it draws. */}
       <RowBar signedIn={false} rowerNumber={null} admin={false}>
         <span className="mono" style={{ fontSize: 11, letterSpacing: ".12em" }}>
           PREVIEW — NOT REAL DATA
