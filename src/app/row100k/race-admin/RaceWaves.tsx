@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { fmtPacificStamp } from "@/lib/blackoutRules";
 import { waveCount, waveTime, type RaceDef } from "../raceday";
@@ -53,6 +54,7 @@ type MailOut = { dryRun: boolean; due: number; sent: number; failed: number; res
 const stampDay = (iso: string) => fmtPacificStamp(iso).split(" · ")[0].toUpperCase();
 
 export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers: Racer[]; unreadable: boolean }) {
+  const router = useRouter();
   const [field, setField] = useState<Racer[]>(racers);
   /* THE ONE OVERRIDE on the auto rule: brackets apart, or one field. */
   const [mix, setMix] = useState(false);
@@ -106,7 +108,17 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
         body: JSON.stringify({ race: race.slug, ...body }),
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { ok?: boolean; error?: string };
-      if (res.ok && data.ok) return data;
+      if (res.ok && data.ok) {
+        /* THE DOOR LIST IS ABOVE THIS, and it is a server block reading the
+         * same field off the same request. This console shows its writes
+         * optimistically, so without a refresh the list forty lines up goes
+         * on printing a dash for a rower this console has just put in wave
+         * 2 — on race week that reads as a save that failed. Fire and
+         * forget: the optimistic state is what the operator is watching,
+         * and the refresh only has to catch the block that cannot know. */
+        router.refresh();
+        return data;
+      }
       setError(data.error ?? "Couldn't do that — try again.");
     } catch {
       setError("Couldn't do that — try again.");

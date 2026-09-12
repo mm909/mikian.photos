@@ -11,6 +11,7 @@ import { listGallery } from "../galleryList";
 import { photoUrl, photosServable, thumbKey } from "../photoUrls";
 import { RaceSettings, type GalleryPick } from "./RaceSettings";
 import { RaceWaves } from "./RaceWaves";
+import { DoorList } from "./DoorList";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,32 @@ const raWavCss = `
 .row100k .ra-pic img{display:block;width:100%;height:100%;object-fit:cover}
 .row100k .ra-chg{list-style:none;margin:22px 0 0;padding:0;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);line-height:1.9}
 .row100k .ra-chg li{border-top:1px dashed var(--line);padding:5px 0}
+/* THE DOOR LIST — a reading object, not a console. Four short columns that
+ * fit a phone, so it never needs the sideways scroll the .ra-t tables take,
+ * and the only colour on it marks the one thing somebody has to act on. */
+.row100k .ra-door .st-tiles{margin-top:4px}
+.row100k .ra-door .st-tile.owe .n,.row100k .ra-door .st-tile.owe .l{color:#b3400f}
+/* The stat tiles stack one to a phone everywhere else on the site, where
+ * they carry six-figure meters. These are headcounts of one or two digits,
+ * and stacked they push the list itself a whole screen down — which on the
+ * one page whose point is the list is the wrong trade. Two up, the way the
+ * theme already lays them out on a wider screen. */
+@media (max-width:639px){
+.row100k .ra-door .st-tiles{grid-template-columns:repeat(2,1fr)}
+.row100k .ra-door .st-tile{border-bottom:none;border-right:1px solid var(--ink);padding-right:12px}
+.row100k .ra-door .st-tile+.st-tile{padding-left:12px}
+.row100k .ra-door .st-tile:nth-child(2n+1){padding-left:0}
+.row100k .ra-door .st-tile:nth-child(2n),.row100k .ra-door .st-tile:last-child{border-right:none}
+.row100k .ra-door .st-tile:nth-child(n+3){border-top:1px solid var(--ink)}
+}
+.row100k table.board.ra-d{margin-top:24px}
+.row100k table.board.ra-d td{padding:9px 6px}
+.row100k table.board.ra-d .ra-dn{color:var(--gray);font-weight:400}
+.row100k table.board.ra-d .ra-yes{color:var(--water);font-weight:700;letter-spacing:.08em}
+.row100k table.board.ra-d .ra-no{color:var(--gray);letter-spacing:.08em}
+.row100k table.board.ra-d .ra-owe{color:#b3400f;font-weight:700;letter-spacing:.08em}
+.row100k table.board.ra-d th.ra-dw,.row100k table.board.ra-d td.ra-dw{width:56px;font-variant-numeric:tabular-nums}
+.row100k table.board.ra-d th.ra-dv,.row100k table.board.ra-d td.ra-dv{width:74px}
 `;
 
 /* RACE WAVES — admin only (owner, 2026-09-10: "we need a way to assign
@@ -166,6 +193,15 @@ export default async function RaceAdminPage() {
             <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venue} · {race.room} ·
             waves of {race.waveSize} every {race.waveMinutes} minutes
           </p>
+
+          {/* WHO IS COMING, before anything he can press. The console below
+            * is all verbs — set the evening, auto-assign, email — and this
+            * is the read he opens the page for. It cannot go stale against
+            * the panel underneath it either: it prints a stored wave NUMBER
+            * and no clock time at all, so moving the evening cannot make it
+            * wrong. Second use: the real field number now sits right over
+            * the PLAN FOR box that defaults to it. */}
+          <DoorList race={race} racers={racers} unreadable={unreadable} />
 
           <RaceSettings view={view} gallery={gallery} field={starters} />
 
