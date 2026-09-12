@@ -73,21 +73,6 @@ const M = (n: number) => Math.round(n).toLocaleString("en-US");
  * not 600. */
 const COL = 560;
 
-/* THE HOUSE MARK, at the size the flyer shows it (rdCss .rd-mark clamps it
- * to 112–200px). 1170 source pixels into 172 is 6.8x, so retina is not a
- * question here and there is no second cut to make. */
-const MARK_W = 172;
-const MARK_PAD = 14;
-
-/* THE FOOT PICTURE: the race day card itself, 1200x630 — the same file the
- * page hands a link preview (raceday/page.tsx metadata), so the picture in
- * the letter and the picture Facebook draws are one file with nothing to
- * keep in step. That coupling is the point, but it cuts both ways: re-cut
- * the OG card and the foot of this mail is re-cut with it. If the two ever
- * have to differ, copy it to raceday/mail-foot.jpg and point this there
- * rather than forking the page's meta. */
-const FOOT = { src: "/row100k/raceday/og.jpg", w: 1200, h: 630 };
-
 function escape(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -116,132 +101,13 @@ const big = (inner: string, color = INK, size = 40) =>
 const block = (inner: string, first = false) =>
   `<tr><td style="padding:18px 0 20px;border-top:${first ? `2px solid ${INK}` : `1px dashed ${LINE}`};">${inner}</td></tr>`;
 
-/* ------------------------------------------------------------- the srcs */
-
-/* WHERE THE PICTURES LIVE. A mail has no site under it, so a site-relative
- * path resolves to nothing (or worse, to the mail client's own host): every
- * src here is absolute. An origin handed in by the caller wins — the
- * preview passes its own, which is what lets a picture be looked at on
- * localhost before it is deployed — else the env, else the domain we
- * actually live on. That is the ladder resolveBaseUrl walks for emailed
- * order links, so the sender does not have to pass anything for this to be
- * right in production.
- *
- * NO BASE, NO IMG TAG. A base that is not http(s) returns null and the
- * caller then writes no picture at all: a letter missing a picture reads as
- * a letter, a broken image box reads as a mistake. With the default chain a
- * base always exists, so that path is reachable only when somebody sets the
- * var to nonsense — precisely when you want it to fail quietly.
- *
- * The trim is not theoretical: .env.local ends its base URL with a space.
- * dotenv strips it today, so this is a belt — but a src with a space in it
- * is a dead image, and the belt costs six characters. */
-function assetUrl(base: string | undefined, path: string): string | null {
-  const b = (base ?? process.env.NEXT_PUBLIC_BASE_URL ?? "https://mikianmusser.com")
-    .trim()
-    .replace(/\/+$/, "");
-  return /^https?:\/\//i.test(b) ? `${b}${path}` : null;
-}
-
-/* THE HOUSE: the gym's mark and the room, set the way the race day page
- * sets them — mark left, room right, and NO EYEBROW over either (owner,
- * 2026-09-11: "Remove the house on race day ads"). The page and the ads
- * both dropped the label that day, so a label here would split them.
- *
- * WHY THE MARK RIDES AN INK PANEL, which is the whole problem of this
- * change. The file is keyed WHITE ON TRANSPARENT — 130,204 opaque pixels
- * and every one of them pure white, counted rather than guessed — and this
- * paper is cream, so dropped straight on the sheet it is not a faint mark,
- * it is a 172px hole. The panel gives it back the ground it was keyed for,
- * and that ground is INK: the same black the ROWTEMBER slab at the top of
- * this mail already is, and the same black the gym sets its own mark on.
- * bgcolor AND the inline background, because Outlook and some Android
- * clients read only the attribute and nothing reads only the style.
- *
- * WE DO NOT RECOLOUR THEIR LOGO. An ink-on-transparent second key is
- * producible the same way the white one was (scratchpad/tsb-logo.js) and it
- * would sit on cream with no panel — but a sponsor's mark is not ours to
- * restyle, and it would be a second file to keep in step with whatever the
- * gym does to theirs next. The panel presents their asset untouched.
- *
- * BLOCKED, THE PANEL IS STILL THE CREDIT, and that is the argument for it
- * over every other treatment: the alt is styled ON THE IMG, which is what
- * Gmail and Apple Mail draw when they refuse to fetch, so a suppressed mark
- * comes out as THE STRIP BARBELL in white on the same black — their
- * wordmark, near enough. One construction serves both states. The same type
- * is what renders when there is no base URL at all.
- *
- * `venue`, never `venueLine`: the town came off every race surface (owner,
- * 2026-09-11: "we just keep it at the strip barbell engine room"). That
- * rule used to live on the evening paragraph, which is gone; it binds this
- * line now.
- *
- * THE ROOM HERE IS SALVAGE, not restored copy. It was inside the block he
- * cut this morning and it was the one thing in there a rower who has never
- * been to this gym cannot do without. Three words of mono, in the same
- * breath as the branding he asked for. */
-function houseBlock(r: RaceDef, base?: string): string {
-  const mark = r.venueMark;
-  const src = mark ? assetUrl(base, mark.src) : null;
-  const h = mark ? Math.round(MARK_W / mark.ratio) : 0;
-  /* The wordmark styling is set on the img as well as on the fallback div,
-   * so the two states are one design rather than two. text-transform is in
-   * there for the IMG: alt text inherits it, and without it a blocked mark
-   * reads "The Strip Barbell" in mixed case while the no-base-URL fallback
-   * reads THE STRIP BARBELL — two different wordmarks for the same hole. */
-  const type = `font-family:${BLACK};font-weight:900;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#ffffff;text-decoration:none;`;
-  const inner =
-    src && mark
-      ? `<a href="${escape(r.venueUrl)}" style="text-decoration:none;"><img src="${escape(src)}" alt="${escape(mark.alt)}" width="${MARK_W}" height="${h}" style="display:block;border:0;width:${MARK_W}px;height:${h}px;${type}"></a>`
-      : `<div style="${type}">${escape(r.venue.toUpperCase())}</div>`;
-  return [
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">`,
-    `<tr>`,
-    `<td bgcolor="${INK}" width="${MARK_W + MARK_PAD * 2}" style="background:${INK};padding:${MARK_PAD}px;">${inner}</td>`,
-    `<td align="right" style="font-family:${MONO};font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:${INK_SOFT};padding-left:14px;">${escape(r.room.toUpperCase())}</td>`,
-    `</tr>`,
-    `</table>`,
-  ].join("");
-}
-
-/* THE PICTURE, last of everything — pinned under the sign-off the way a
- * photograph is pasted under a letter.
- *
- * IT IS AT THE BOTTOM FOR A REASON WORTH WRITING DOWN, and not only because
- * he asked for it there. A blocked picture still reserves the box it
- * declares — 560 by 294 of empty cream with a line of alt in it — and
- * anywhere above the wave number that box is a wall between a rower on a
- * gym floor and the two facts they opened the mail for. Below the sign-off
- * it costs nothing: the letter has already ended.
- *
- * WIDTH AND HEIGHT AS ATTRIBUTES, not only as style: Outlook on Windows
- * ignores max-width on an img outright and would print 1200px of picture
- * through the side of a 560px letter. The style is what brings it down on a
- * phone, where the column is narrower than 560 and height:auto has to undo
- * the height attribute.
- *
- * The alt is written off the race rather than typed. The card bakes SUN SEP
- * 27 into its pixels, so if the day ever moves the file has to be recut —
- * and the words under a blocked picture should not be the last thing still
- * telling the truth. NOT LINKED, deliberately: a rower has their wave in
- * the mail, and the plain twin would then owe a third URL. */
-function raceGraphic(r: RaceDef, base?: string): string {
-  const src = assetUrl(base, FOOT.src);
-  if (!src) return "";
-  const h = Math.round((COL * FOOT.h) / FOOT.w);
-  return [
-    `<tr><td style="padding:22px 0 0;">`,
-    `<img src="${escape(src)}" alt="${escape(`${r.title} · ${r.when}`)}" width="${COL}" height="${h}" style="display:block;border:0;width:100%;max-width:${COL}px;height:auto;-ms-interpolation-mode:bicubic;font-family:${MONO};font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:${INK_SOFT};">`,
-    `</td></tr>`,
-  ].join("");
-}
 
 /* The page: the mark in an ink box (was blue — see the monochrome note at
- * the top), a mono kicker, the blocks, the sign-off on a solid rule, and
- * whatever `foot` carries under all of it. The foot is a row rather than
- * part of the sign-off so that a picture which never loads leaves the
- * letter ending on "See you Sunday." and nothing else. */
-function shell(kicker: string, blocks: string[], signoff: string, foot = ""): string {
+ * the top), a mono kicker, the blocks, and the sign-off on a solid rule.
+ * There is no foot any more: it existed to carry a picture under the
+ * sign-off, and the owner took every picture back off this letter on
+ * 2026-09-12, so the letter ends on "See you Sunday." and nothing else. */
+function shell(kicker: string, blocks: string[], signoff: string): string {
   return [
     `<div style="background:${PAPER};padding:28px 16px;">`,
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;border-collapse:collapse;">`,
@@ -254,7 +120,6 @@ function shell(kicker: string, blocks: string[], signoff: string, foot = ""): st
     `<div style="font-family:${BLACK};font-weight:900;font-size:18px;color:${INK};">${escape(signoff)}</div>`,
     small("Rowtember 2026 · Mikian Musser"),
     `</td></tr>`,
-    foot,
     `</table>`,
     `</div>`,
   ].join("\n");
@@ -289,10 +154,10 @@ export function waveEmail(o: {
   /* They have already told us the gym's waiver is signed, so the note does
    * not ask again (owner sent the link 2026-09-11). */
   waiverSigned?: boolean;
-  /* Where the two pictures are served from. Nobody has to pass it: left
-   * off, assetUrl falls through to the env and then to the live domain.
-   * The preview passes its own origin so that localhost shows localhost's
-   * copies rather than whatever is deployed. */
+  /* Kept, though nothing in the letter reads it today: it was where the
+   * two pictures were served from, and the owner took both off on
+   * 2026-09-12. The preview route still passes its own origin, and the
+   * next thing that needs an absolute address will want exactly this. */
   baseUrl?: string;
 }): RaceMail {
   const r = o.race;
@@ -325,7 +190,7 @@ export function waveEmail(o: {
              * monochrome, it is one step down the ink ladder, so the WAVE
              * is still the thing and the time still rides with it. */
             big(`Wave ${o.wave}<span style="color:${INK_SOFT};"> · ${escape(go.replace(" ", " "))}</span>`, INK, 34) +
-            small(`${r.when} · ${r.venue}`.toUpperCase(), INK) +
+            small(`${r.when} · ${r.venue} · ${r.room}`.toUpperCase(), INK) +
             small(who) +
             body(arriveLine),
           true,
@@ -343,10 +208,8 @@ export function waveEmail(o: {
               ),
             ]
           : []),
-        block(houseBlock(r, o.baseUrl)),
       ],
       "See you Sunday.",
-      raceGraphic(r, o.baseUrl),
     ),
     text: [
       `ROWTEMBER 2026 — ${r.title.toUpperCase()}`,
@@ -360,13 +223,10 @@ export function waveEmail(o: {
       `${M(r.meters)} m`,
       ``,
       ...(waiverLine ? [`ONE THING FIRST`, waiverLine, ``] : []),
-      /* The house, unlabelled, the way the HTML twin carries it — the mark
-       * is a picture and this is the same credit in words. The picture at
-       * the foot of the HTML has no line here on purpose: its alt says the
-       * day, and the day is already two lines up. */
-      `${r.venue} · ${r.room}`,
-      r.venueUrl,
-      ``,
+      /* No house credit and no picture line. Both twins carried the gym
+       * and the room for about an hour; the owner took the graphics off
+       * and the room went up into the venue line with the day, which is
+       * the lockup he asked to keep. Nothing here is missing a fact. */
       `See you Sunday.`,
     ].join("\n"),
   };
