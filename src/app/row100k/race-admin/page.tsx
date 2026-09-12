@@ -158,7 +158,12 @@ export default async function RaceAdminPage() {
             <span className="mono">ADMIN ONLY — {phaseWord}</span>
           </div>
           <p className="ra-note">
-            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venueLine} · {race.room} ·
+            {/* The gym and the room, no town between them: venueLine was
+              * "The Strip Barbell · Las Vegas" and read here as the exact
+              * lockup the owner struck (2026-09-11, "we just keep it at the
+              * strip barbell engine room"). His own console is the last
+              * place that should go on saying it. */}
+            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venue} · {race.room} ·
             waves of {race.waveSize} every {race.waveMinutes} minutes
           </p>
 

@@ -163,7 +163,10 @@ export const rdCss = `
 .row100k .rd-houseRow a.rd-marklink:hover{opacity:.8}
 .row100k .rd-mark{display:block;width:clamp(112px,30cqw,200px);height:auto}
 .row100k .rd-room{font-family:var(--row-mono),monospace;font-size:clamp(10px,2cqw,13px);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:right;line-height:1.7;min-width:0}
-.row100k .rd-room b,.row100k .rd-room span{display:block}
+/* One block, not two: the span held LAS VEGAS under the room and the town
+ * came off race day on 2026-09-11 (the owner: we just keep it at the strip
+ * barbell engine room). The rule is b alone now. */
+.row100k .rd-room b{display:block}
 .row100k .rd-room b{color:#fff;font-weight:700;font-size:clamp(11px,2.3cqw,15px);letter-spacing:.13em}
 .row100k .rd-room a{display:block;margin-top:6px;color:rgba(255,255,255,.62);text-decoration:underline;text-underline-offset:3px}
 .row100k .rd-room a:hover{color:#fff;text-decoration-thickness:2px}
@@ -186,10 +189,12 @@ export const rdCss = `
 .row100k .rd-two .outline-btn{margin:0}
 
 /* THE SECOND WAY IN (owner, 2026-09-11: a way to sign up as a spectator
- * versus as just a racer). The racer is the slab above; this is the same
- * .rd-two rail, so the spectator sits in plain sight one line under it
- * without ever competing with it. */
-.row100k .rd-roleline{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:11px 0 0;line-height:1.8}
+ * versus as just a racer) is the .rd-two rail above, and it is now the
+ * whole of it. There was an .rd-roleline under that rail carrying the
+ * spectator s one line of copy; the owner struck the line the same evening
+ * (remove the phrase come watch, no wave, no erg) and the word Spectator on
+ * the button says the same thing, so the rule went with the element rather
+ * than being left to style nothing. */
 
 /* THE WAIVER: the tick that rides with the entry, and the strip that asks
  * again afterwards for anyone who has not got to it (owner sent the link

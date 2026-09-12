@@ -433,8 +433,11 @@ export type PosterData = CommunityPoster | RowerPoster;
 export type RaceDayRole = {
   /* "RACER" */
   label: string;
-  /* "PULL THE 5,000 M. YOU GET A WAVE." — RACE_ROLES verbatim, uppercased */
-  line: string;
+  /* "PULL THE 5,000 M. YOU GET A WAVE." — RACE_ROLES verbatim, uppercased.
+   * OPTIONAL since 2026-09-11: the spectator's line came off the race
+   * ("remove the phrase come watch, no wave, no erg") and the word carries
+   * itself, so the ad's TWO WAYS IN table sets a bare label on that row. */
+  line?: string;
 };
 
 export type RaceDayPoster = {
@@ -472,9 +475,14 @@ export type RaceDayPoster = {
      * lets the module measure the host block before the image loads. */
     venueMark: { src: string; alt: string; ratio: number } | null;
     venue: string;
-    city: string;
-    /* "THE ENGINE ROOM". The note that rode with it is gone (owner,
-     * 2026-09-11: "remove the phrase new this September"). */
+    /* "THE ENGINE ROOM", and it is the WHOLE address line now. There was a
+     * `city` beside it, drawn under the room in the house block, and it is
+     * gone with the town itself (owner, 2026-09-11: "remove Las Vegas
+     * whenever we are saying the strip barbell engine room"). The note that
+     * used to ride here went earlier the same day ("remove the phrase new
+     * this September"), so this block has lost its second line twice; the
+     * height it draws is the venue MARK's, not the type's, so neither loss
+     * opened a hole under it. */
     room: string;
     roles: RaceDayRole[];
   };

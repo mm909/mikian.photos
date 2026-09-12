@@ -5,13 +5,11 @@ import {
   fmtAgo,
   fmtClock,
   fmtTime,
-  liveWave,
-  nextWave,
   ranked,
   roomCounts,
   type ResultBoard,
 } from "./types";
-import { Counters, LaneStrip, LeaderBox, Podium, WaveGrid } from "./RaceResults";
+import { LeaderBox, Podium, WavePicker } from "./RaceResults";
 
 /* THE WALL. A frame built for a television in the gym, not the page scaled
  * up: exactly 1280 by 720, no site bar, no footer, nothing that scrolls,
@@ -20,19 +18,28 @@ import { Counters, LaneStrip, LeaderBox, Podium, WaveGrid } from "./RaceResults"
  * one rower on the wall all evening.
  *
  * It has to answer all three questions at once, from across a room:
- *   WHO LEADS      two clocks at 104px, one per bracket, each with the line
- *                  that makes them honest.
- *   WHO IS PULLING the wave on the ergs, lane by lane, with the empty erg
- *                  drawn rather than skipped.
+ *   WHO LEADS      two clocks at 104px, one per bracket.
  *   WHAT IS LEFT   the wave grid, so a rower standing in front of the TV
- *                  learns when their own wave goes, and the three-cell
- *                  counter with the middle cell filled.
+ *                  learns when their own wave goes. It runs the full width
+ *                  of the frame now.
+ *   WHO IS PULLING the lane panel under the grid — but on the wall there is
+ *                  nothing to press, so the panel FOLLOWS THE ROOM: the wave
+ *                  on the ergs, and between waves the start list of the wave
+ *                  that is next. See pickedWave() in types.ts.
  *
- * TERSE, AND CORRECT. On the wall the threats are COUNTED and only the
- * fastest is named, since nobody standing in front of a television can ask
- * a question. The wording says A FASTER 5K ON RECORD, never HAVE GONE
- * FASTER, which read as though somebody had already beaten the leader
- * tonight.
+ * THE LANE STRIP AND THE GRID ARE ONE BLOCK NOW, WavePicker. The strip used
+ * to be welded to the wave on the ergs and rendered NOTHING between waves, so
+ * every half hour a 131px band vanished out of a frame clipped at exactly 720
+ * and the television carried a hole for twenty minutes at a stretch. Nothing
+ * on the wall is a control — no inputs, no focus, one pane — because nobody
+ * standing in front of a television is holding a keyboard.
+ *
+ * THE ROOM COLUMN WENT (owner, 2026-09-11). It was the three-cell counter —
+ * rowed, on the ergs, still to come — sitting in 424px beside the grid, and
+ * the grid was already showing every one of those facts a wave at a time,
+ * wave by wave, with the finished ones filled. The leader boxes lost their
+ * foot in the same pass (the still-to-row count, the threats and the fastest
+ * to come), so the top half of the frame breathes where it used to crowd.
  *
  * THE GREY FLOOR IS HIGHER HERE. Nothing under .62 white inside the frame
  * (rrCss.ts) because .5 and .45 crush on a cheap TV in a bright gym.
@@ -43,31 +50,41 @@ import { Counters, LaneStrip, LeaderBox, Podium, WaveGrid } from "./RaceResults"
  * exactly why the WALL prints the age too, and shouts it. The wall is the one
  * screen in the building nobody can interrogate.
  *
- * THE GRID COUNTS COME IN AS CUSTOM PROPERTIES. The frame is clipped at 720,
- * so a lane strip or a wave grid whose column count is typed into the
- * stylesheet wraps to a second row and falls off the bottom of the television
- * with no error the moment the floor runs anything but eight ergs and five
- * waves. The components map over the model; now so does the stylesheet.
+ * THE ERG COUNT COMES IN AS A CUSTOM PROPERTY. The frame is clipped at 720,
+ * so a lane strip whose column count is typed into the stylesheet wraps to a
+ * second row and falls off the bottom of the television with no error the
+ * moment the floor runs anything but eight ergs. The wave count travels the
+ * same way, but it is set by WavePicker on the picker itself now rather than
+ * here on the frame, so the one component that draws the cells is the one
+ * that says how many there are.
  *
  * THE STAGE. A transform scales what you see and not the box it sits in, so
  * a phone looking at the wall was looking at a thumbnail adrift in a 1280 by
  * 720 hole. The frame is pinned to the top left of a stage that is resized to
  * the scaled size, and on a phone it gets a caption — outside the scaled box,
  * so it is never on the television. */
-export function CastFrame({ board, note }: { board: ResultBoard; note?: ReactNode }) {
+export function CastFrame({
+  board,
+  note,
+  pick,
+}: {
+  board: ResultBoard;
+  note?: ReactNode;
+  /* ?wave=N — how a gym pins ONE wave to the wall for a night. Without it the
+   * panel follows the room on its own. */
+  pick?: number | null;
+}) {
   /* Forced signed out. */
   const b: ResultBoard = { ...board, youId: null };
   const final = b.state === "finished";
   const men = bracketView(b, "M");
   const women = bracketView(b, "F");
   const c = roomCounts(b.racers);
-  const live = liveWave(b);
-  const next = nextWave(b);
   const fastest = ranked(b.racers)[0] ?? null;
   const stale = !final && b.nowMs - b.updatedAtMs > 5 * 60_000;
   /* Inline style objects carry no hydration-character risk, which is why the
-   * counts travel this way rather than through the style template. */
-  const frame = { "--rr-ergs": b.ergs, "--rr-waves": b.waves.length } as CSSProperties;
+   * count travels this way rather than through the style template. */
+  const frame = { "--rr-ergs": b.ergs } as CSSProperties;
 
   return (
     <div className="rr-fit">
@@ -103,13 +120,13 @@ export function CastFrame({ board, note }: { board: ResultBoard; note?: ReactNod
                 <p className="rr-castk">
                   The men · {men.all.length} racers · {men.rowed} times · scored apart
                 </p>
-                <Podium board={b} view={men} cast />
+                <Podium board={b} view={men} />
               </div>
               <div>
                 <p className="rr-castk">
                   The women · {women.all.length} racers · {women.rowed} times · scored apart
                 </p>
-                <Podium board={b} view={women} cast />
+                <Podium board={b} view={women} />
               </div>
               <div className="rr-count">
                 <div className="rr-cell fill">
@@ -131,24 +148,14 @@ export function CastFrame({ board, note }: { board: ResultBoard; note?: ReactNod
           ) : (
             <>
               <div className="rr-two">
-                <LeaderBox board={b} view={men} cast />
-                <LeaderBox board={b} view={women} cast />
+                <LeaderBox board={b} view={men} />
+                <LeaderBox board={b} view={women} />
               </div>
-              <LaneStrip board={b} cast />
-              <div className="rr-strip">
-                <div className="rr-col">
-                  <p className="rr-castk">
-                    The grid · {b.waves.length} waves · {b.ergs} ergs
-                    {next ? ` · next off at ${fmtClock(next.scheduledAtMs)}` : ""}
-                    {live ? ` · wave ${live.wave} on the ergs` : ""}
-                  </p>
-                  <WaveGrid board={b} cast />
-                </div>
-                <div className="rr-col">
-                  <p className="rr-castk">The room</p>
-                  <Counters board={b} />
-                </div>
-              </div>
+              {/* ONE CALL WHERE THERE WERE TWO BLOCKS AND A DEAD COLUMN: the
+                * lane strip, the caption and the grid. The picker draws its
+                * own caption, five plain cells with no inputs and exactly one
+                * open pane, which is the wave the room is on. */}
+              <WavePicker board={b} cast pick={pick} />
             </>
           )}
         </div>

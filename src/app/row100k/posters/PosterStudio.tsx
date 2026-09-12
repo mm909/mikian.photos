@@ -67,8 +67,9 @@ const raceWords = (d: RaceDayPoster | null | undefined): string =>
         ...d.race.head,
         d.race.piece,
         d.race.venue,
+        /* No town in the list any more: the house block says the room and
+         * stops (owner, 2026-09-11, taking Las Vegas off race day). */
         d.race.room,
-        d.race.city,
         "SIGN UP",
         ...d.race.roles.map((r) => r.label),
       ].join(" ")

@@ -179,9 +179,12 @@ export default async function RaceDayPage() {
   const day = new Date(`${race.day}T12:00:00Z`);
   const date = `${MON[day.getUTCMonth()]} ${day.getUTCDate()}`;
   const stamp = `${DOW[day.getUTCDay()]} ${date}`;
-  // "The Strip Barbell · Las Vegas" → "Las Vegas": the name of the venue is
-  // the MARK, so the line beside it carries the town and nothing else.
-  const city = race.venueLine.split("·").slice(1).join("·").trim() || race.venueLine;
+  // THE TOWN IS OFF THE FLYER (owner, 2026-09-11: "remove Las Vegas
+  // whenever we are saying the strip barbell engine room — we just keep it
+  // at the strip barbell engine room"). A `city` was split out of
+  // race.venueLine here and set under the room in the house block, and
+  // ridden into the share card's where line; both are gone, so nothing on
+  // this page derives a town any more.
   // "6:00 – 9:00 PM" → "6 – 9 PM". Derived, never typed: a window at
   // display weight is read, not set by a timer, and the minutes are noise
   // at that size — but moving the doors in the console still moves this.
@@ -210,10 +213,17 @@ export default async function RaceDayPage() {
   const raceFacts: RaceFacts = {
     title: race.title.toUpperCase(),
     sub: race.sub.toUpperCase(),
-    piece: `${race.meters.toLocaleString("en-US")} M`,
-    stamp,
-    when: `${stamp} · ${hours} · ${price}`,
-    where: `${race.room} · ${city}`.toUpperCase(),
+    /* TWO CELLS, NOT THREE. This line ended in `price` until the owner read
+     * the sticker on his phone: "on the share race day, let us remove free."
+     * The bracket above still says it — a bill on a wall is sold on it — but
+     * the sticker is an invitation somebody lays over their own photograph,
+     * and it leads with the day. `price` is still written once, above, for
+     * the cell that keeps it. */
+    when: `${stamp} · ${hours}`,
+    /* The room alone: the town came off every surface that names the room
+     * the same day, and `piece` and `stamp` came off this block with the
+     * I'M RACING card that was the only thing printing them. */
+    where: race.room.toUpperCase(),
     mark: race.venueMark,
   };
 
@@ -287,11 +297,18 @@ export default async function RaceDayPage() {
                 ))}
               </ul>
 
-              {/* THE HOUSE, quietly: their mark, their room, their town, and
-               * the waiver that is signed on their system — and no label over
+              {/* THE HOUSE, quietly: their mark, their room and the waiver
+               * that is signed on their system — and no label over
                * it (owner, 2026-09-11: "Remove the house on race day ads").
                * The ads dropped the eyebrow the same day, and the page is the
-               * flyer now, so a label here and none there would split them. */}
+               * flyer now, so a label here and none there would split them.
+               *
+               * NO TOWN either, by the same rule and the same evening: LAS
+               * VEGAS sat under THE ENGINE ROOM here and in the ad's house
+               * block, and "we just keep it at the strip barbell engine
+               * room". This side of the block is a right-aligned stack of
+               * blocks, so the waiver simply moves up under the room —
+               * nothing reserved the line, so there is no hole to close. */}
               <div className="rd-house">
                 <div className="rd-houseRow">
                   {race.venueMark ? (
@@ -316,7 +333,6 @@ export default async function RaceDayPage() {
                   )}
                   <p className="rd-room">
                     <b>{race.room}</b>
-                    <span>{city}</span>
                     {race.waiver && (
                       <a href={race.waiver.url} target="_blank" rel="noopener noreferrer">
                         Waiver · {race.waiver.host}

@@ -17,10 +17,11 @@
  *           means ONE thing everywhere: a SETTLED FACT. A wave that is in.
  *           First place on a final sheet. The fastest piece of the night.
  *           It is never spent on something still happening.
- *   RULE    9px white bar = LIVE, or yours — the wave on the ergs, the cell
- *           counting it, the box a rower is in. 2px outline = a real
- *           result. 1px hairline = a quieter one. 4px bar down a side =
- *           somebody still to row who can take the lead.
+ *   RULE    9px white bar = LIVE, or yours — the wave on the ergs, the box a
+ *           rower is in. 2px outline = a real result, and it is what the PR
+ *           tag wears. 1px hairline = a quieter one. The 4px bar down the
+ *           side of a row (somebody still to row who could take the lead)
+ *           came off with the one sentence that ever explained it.
  *   SIZE    the podium clock steps 86 / 52 / 38 (50 / 36 / 31 on a phone).
  *   GREY    #fff / .74 / .62 / .5, measured on the ink ground in rdCss.ts.
  *           Nothing under .5 ever carries a letter; .2 to .28 are rules.
@@ -97,23 +98,29 @@ export const rrCss = `
 .row100k .rr-you b{color:#fff;font-weight:700}
 .row100k .rr-you .nm{font-family:var(--row-archivo-black),sans-serif;font-size:17px;letter-spacing:0;color:#fff}
 
-/* ---- boxes ---- */
-.row100k .rr-three{display:grid;gap:14px;margin-top:20px}
+/* ---- boxes ----
+ * THE LEADER PAIR. It was .rr-three, and the third cell was ON THE ERGS NOW:
+ * the wave panel a few inches below it prints the same wave, the same start
+ * stamp and the same elapsed clock with eight names attached, so the box was
+ * the duplicate and it went. One name for the pair now, on the page and on
+ * the wall both, and the wall keeps its own override underneath. */
+.row100k .rr-two{display:grid;gap:14px;margin-top:20px}
 .row100k .rr-box{border:2px solid #fff;padding:16px 18px 18px;min-width:0}
 .row100k .rr-box.lead{border-top-width:9px}
 .row100k .rr-eye{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:0}
 .row100k .rr-eye .rt{margin-left:auto;letter-spacing:.14em}
-.row100k .rr-chip{font-family:var(--row-mono),monospace;font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;border:1px solid rgba(255,255,255,.62);color:rgba(255,255,255,.8);padding:2px 6px 1px}
-.row100k .rr-chip.fill{background:#fff;border-color:#fff;color:var(--ink)}
+/* .rr-chip and .rr-chip.fill stood here, the PROVISIONAL / FINAL pill on the
+ * leader boxes. The word came off the board and no other surface wore the
+ * class, so both rules went with it. */
 .row100k .rr-big{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(46px,7.4vw,64px);line-height:.94;letter-spacing:-.03em;text-transform:uppercase;color:#fff;font-variant-numeric:tabular-nums;margin:12px 0 0}
 .row100k .rr-who{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(19px,2.4vw,24px);line-height:1.1;text-transform:uppercase;letter-spacing:-.01em;color:#fff;margin:8px 0 0}
 .row100k .rr-who span{color:rgba(255,255,255,.5)}
 .row100k .rr-meta{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:9px 0 0;line-height:1.9}
 .row100k .rr-meta b{color:#fff;font-weight:700}
-.row100k .rr-foot{margin:14px 0 0;padding-top:12px;border-top:1px dashed rgba(255,255,255,.3);font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);line-height:2}
-.row100k .rr-foot b{color:#fff;font-weight:700}
-.row100k .rr-foot .thr{display:block;color:rgba(255,255,255,.74)}
-.row100k .rr-foot .thr b{letter-spacing:.1em}
+/* .rr-foot and its three children are gone: the dashed-off block under each
+ * leader box that carried N STILL TO ROW, the count with a faster 5k on
+ * record, and the FASTEST TO COME lines. Nothing else in the repo used them,
+ * and the cast override further down went the same way. */
 
 /* ---- the lane strip ---- */
 .row100k .rr-lanes{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:14px;background:rgba(255,255,255,.24)}
@@ -121,26 +128,35 @@ export const rrCss = `
 .row100k .rr-ln{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0}
 .row100k .rr-lname{font-family:var(--row-archivo-black),sans-serif;font-size:15px;line-height:1.15;text-transform:uppercase;color:#fff;margin:5px 0 0;overflow-wrap:anywhere}
 .row100k .rr-lsub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:4px 0 0}
-/* .5, not .4 — the grey floor this file sets, and the open lane is where the
- * no-show is NAMED. The lane still reads quieter than a rowing one because
- * the typeface and the size change on the line below. */
+/* .5, not .4 — the grey floor this file sets. The open lane used to be where
+ * the no-show was NAMED; the board stopped modelling one, so it now reads
+ * ERG OPEN / NO ENTRY, a machine nobody was assigned to. It still reads
+ * quieter than a rowing lane because the typeface and the size change. */
 .row100k .rr-lane.open .rr-lname,.row100k .rr-lane.open .rr-lsub{color:rgba(255,255,255,.5)}
 .row100k .rr-lane.open .rr-lname{font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px}
 
-/* ---- the counter strip ---- */
+/* ---- the counter strip ----
+ * THE THREE-UP COUNTER COMPONENT IS GONE, but this markup is NOT dead: the
+ * finished wall hand-rolls its own counter out of it in CastFrame, with the
+ * fastest piece filled, the finishers and the metres. Only .rr-cell.live
+ * died — a 9px bar meaning something is happening right now, and the mid-race
+ * strip was the only place a cell ever counted a live thing. */
 .row100k .rr-count{display:flex;border:2px solid #fff;margin-top:16px}
 .row100k .rr-cell{flex:1 1 0;padding:12px 16px 14px;min-width:0;border-left:1px solid rgba(255,255,255,.3)}
 .row100k .rr-cell:first-child{border-left:0}
 .row100k .rr-cell.fill{background:#fff;color:var(--ink)}
-.row100k .rr-cell.live{border-top:9px solid #fff;padding-top:8px}
 .row100k .rr-n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,4.4vw,40px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .row100k .rr-k{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:5px 0 0}
 .row100k .rr-cell.fill .rr-k{color:rgba(21,23,26,.7)}
 .row100k .rr-next{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:14px 0 0;line-height:2;border-top:2px solid #fff;padding-top:13px}
 .row100k .rr-next b{color:#fff;font-weight:700}
 
-/* ---- the wave grid ---- */
-.row100k .rr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* ---- the wave cells ----
+ * .rr-grid is gone, and so is its three-across default, its five-across rule
+ * at 620 and its cast override. The cells are a picker now and .rr-sel lays
+ * them out, one row of them with the open pane on the row underneath. The
+ * CELL itself is unchanged: the fill, the live bar and the yours bar all mean
+ * on this block what they mean everywhere else on the board. */
 .row100k .rr-cw{border:1px solid rgba(255,255,255,.4);padding:12px 12px 14px;min-width:0}
 .row100k .rr-cw.done{background:#fff;border-color:#fff;color:var(--ink)}
 .row100k .rr-cw.live{border:2px solid #fff;border-top-width:9px}
@@ -154,9 +170,121 @@ export const rrCss = `
 .row100k .rr-cws b{color:#fff;font-weight:700}
 .row100k .rr-cw.done .rr-cws,.row100k .rr-cw.done .rr-cws b{color:rgba(21,23,26,.72)}
 
-/* ---- the note over the field ---- */
-.row100k .rr-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.62);line-height:2.1;max-width:96ch;margin:0 0 18px}
-.row100k .rr-note b{color:#fff;font-weight:700}
+/* ---- THE WAVE PICKER: the grid he already likes, made the control ----
+ *
+ * WHAT WENT: the lane strip and the wave grid as two separate blocks. The
+ * strip was welded to the wave on the ergs and returned NOTHING the moment
+ * nobody was pulling, so for the twenty-odd minutes between an eight minute
+ * piece and the next wave going off the top of the board reflowed and the
+ * television was left with a hole. The five cells are the tab strip now and
+ * the lane strip is the panel they open.
+ *
+ * NO JAVASCRIPT. It is a radio group and a sibling selector, so the board
+ * stays a plain server-rendered document and the wall keeps working on
+ * whatever browser is bolted to the television.
+ *
+ * THE PANEL SITS UNDER THE CELLS, not above them as the owner described it.
+ * A tap that changes something scrolled off the top of a phone reads as
+ * broken, so the thing that changes has to be next to the thumb that changed
+ * it. The pane is 562px tall on a 320px screen, which is the measurement.
+ *
+ * A BOTTOM BAR MEANS OPEN. Every other mark in this file is spoken for by the
+ * race itself: fill is a settled fact, a 9px top bar is live, a 9px left bar
+ * is yours, an outline is a real result. The grammar is carried by POSITION,
+ * so the bottom edge is the one still free, and it points at the panel it
+ * opened. A rowed cell is filled white and takes its bar in ink, or it would
+ * be white on white. The tongue that bridges the gap is a real span and not a
+ * pseudo element: content needs a quoted value and this file cannot hold a
+ * quote.
+ *
+ * THE ENHANCEMENT RULES ARE SPLIT OUT and never folded into a selector list
+ * with the plain ones, the same note the elite row carries in theme.ts: a
+ * browser with no :has() drops a whole list. Without :has() the server
+ * default keeps its bar and its panel and the board is simply static. Only
+ * the picking is lost, and the wall never had it. */
+/* The caption and the cells are ONE block. On the wall the frame is a flex
+ * column with space-between, and a caption left loose beside the grid had the
+ * frame slack dealt out between the two, so the line floated well above the
+ * thing it was naming. */
+.row100k .rr-pick{min-width:0}
+.row100k .rr-pickk{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:18px 0 8px}
+.row100k .rr-pickk .rt{margin-left:auto;color:#fff}
+.row100k .rr-sel{display:grid;grid-template-columns:repeat(var(--rr-waves,5),1fr);gap:10px}
+.row100k .rr-sel .rr-cw{grid-row:1;position:relative}
+.row100k .rr-sel .rr-pane{grid-row:2;grid-column:1/-1;display:none;border:2px solid #fff;padding:13px 16px 15px;min-width:0}
+.row100k .rr-sel .rr-pane .rr-lanes{margin-top:11px}
+/* THE HIT AREA IS THE WHOLE TILE, so a keyboard ring lands on the thing it is
+ * choosing rather than on an invisible 13px dot, and a thumb cannot miss.
+ * Measured at 320px: 51 by 73. */
+.row100k .rr-hit{position:absolute;top:0;right:0;bottom:0;left:0;width:auto;height:auto;margin:0;padding:0;border:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer;z-index:2}
+.row100k .rr-hit:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.row100k .rr-nub{display:none;position:absolute;left:50%;bottom:-10px;width:18px;height:11px;margin-left:-9px;background:#fff}
+
+/* THE SERVER DEFAULT, and the whole of the wall, which has no inputs. */
+.row100k .rr-sel .rr-cw.pick{box-shadow:inset 0 -9px 0 #fff}
+.row100k .rr-sel .rr-cw.pick.done{box-shadow:inset 0 -9px 0 var(--ink)}
+.row100k .rr-sel .rr-cw.pick .rr-nub{display:block}
+.row100k .rr-sel .rr-pane.pick{display:block}
+
+/* THE PICK, which overrides that default in place with no round trip. Two
+ * :has() each, so these always outrank the one-:has() unmark rules above,
+ * including when the reader taps the cell that was already open. */
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw.pick{box-shadow:none}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw.pick .rr-nub{display:none}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-pane.pick{display:none}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw:has(.rr-hit:checked){box-shadow:inset 0 -9px 0 #fff}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw:has(.rr-hit:checked).done{box-shadow:inset 0 -9px 0 var(--ink)}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw:has(.rr-hit:checked) .rr-nub{display:block}
+.row100k .rr-sel:has(.rr-hit:checked) .rr-cw:has(.rr-hit:checked) + .rr-pane{display:block}
+
+/* THE FOURTH LINE IN A LANE. A TIME IS A FACT and a SEED IS A PROMISE, so
+ * they are not drawn alike: the time is white, bold and tabular, and the seed
+ * a wave still to come is bringing sits at the grey floor in the eye size.
+ * That difference is what replaced the paragraph the owner deleted — where a
+ * legend was load-bearing, the mark had to become self-evident. The line is
+ * left OFF a wave on the ergs: they all started together, so there is one
+ * clock, and it is in the panel head rather than eight copies of it down the
+ * lanes. */
+.row100k .rr-lval{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:#fff;margin:5px 0 0}
+.row100k .rr-lval.seed,.row100k .rr-lval.out{font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.row100k .rr-cast .rr-lval{font-size:12px;margin-top:4px}
+.row100k .rr-cast .rr-lval.seed,.row100k .rr-cast .rr-lval.out{font-size:11px;color:rgba(255,255,255,.62)}
+/* The tag already carries margin-left; inside a flex line with its own gap
+ * that reads as one wide space, so it is zeroed here only. */
+.row100k .rr-lval .rr-tag{margin-left:0}
+
+/* ON THE WALL the cell keeps its detail lines: rr-hx is a PHONE rule and the
+ * cast frame is 1280 no matter what is holding it, so a phone looking at the
+ * television must not strip the television. */
+.row100k .rr-cast .rr-sel{gap:8px}
+.row100k .rr-cast .rr-sel .rr-hx{display:block}
+.row100k .rr-cast .rr-sel .rr-pane{padding:8px 12px 10px}
+.row100k .rr-cast .rr-sel .rr-pane .rr-lanes{margin-top:7px}
+.row100k .rr-cast .rr-nub{bottom:-8px;height:9px;width:16px;margin-left:-8px}
+
+/* THE PHONE. Five cells across a 335px screen is a segmented control, so the
+ * cell drops to the word and the numeral and the detail it used to carry is
+ * in the panel it opens, which is the whole point of having a panel. The
+ * clock for every wave is not lost with it: the field table below prints a
+ * head per wave with the time on it. */
+@media(max-width:619px){
+  .row100k .rr-sel{gap:6px}
+  .row100k .rr-sel .rr-cw{padding:9px 4px 12px}
+  .row100k .rr-sel .rr-wn{font-size:30px}
+  .row100k .rr-sel .rr-cwk{font-size:8px;letter-spacing:.1em}
+  .row100k .rr-nub{bottom:-6px;height:7px;width:14px;margin-left:-7px}
+  .row100k .rr-sel .rr-pane{padding:11px 12px 13px}
+}
+
+/* On the finished sheet the ledger table follows the picker inside one
+ * section: the panel is how ONE wave ran, the table is how the five compare. */
+.row100k .rr-pick + table.rr-t{margin-top:26px}
+
+/* ---- the note over the field ----
+ * .rr-note and .rr-note b are gone. Two paragraphs wore them, one over each
+ * table, and both were the kind of prose the owner cut the board back from:
+ * one explained M1 and W1 where the caption says it in a line, the other
+ * explained that empty rows fill in, which sixteen empty rows do alone. */
 
 /* ---- the table ---- */
 .row100k table.rr-t{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:13px;color:rgba(255,255,255,.82)}
@@ -174,12 +302,12 @@ export const rrCss = `
 .row100k table.rr-t tr.live td:first-child{box-shadow:inset 3px 0 0 #fff}
 .row100k table.rr-t tr.mine td{background:rgba(255,255,255,.1)}
 .row100k table.rr-t tr.mine td:first-child{box-shadow:inset 6px 0 0 #fff}
-/* THE SEED BAR, from the ledger: anybody still to row whose fastest 5k on
- * record is under the leading time gets a bar down their side and their
- * name lifted to full white. It is what turns the table from a list into an
- * answer for the rower sitting fourth, not just for the leader. */
-.row100k table.rr-t tr.thr td:first-child{box-shadow:inset 4px 0 0 #fff}
-.row100k table.rr-t tr.thr td.seed{color:#fff;font-weight:700}
+/* THE SEED BAR IS GONE, both rules: tr.thr put a 4px bar down the side of
+ * anybody still to row whose fastest 5k on record was under the leading
+ * time, and lifted their seed cell to full white. It said the same thing as
+ * the leader-box foot that was cut, and the only sentence on the page that
+ * ever taught it was cut with the prose. An unreadable mark is worse than
+ * the paragraph explaining it, so the mark went too. */
 .row100k table.rr-t td.st{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:right;white-space:nowrap}
 .row100k table.rr-t td.st.now{color:#fff;font-weight:700}
 /* THE GROUP ROWS ARE TH, NOT TD. A wave head is a heading for the rows under
@@ -191,15 +319,25 @@ export const rrCss = `
 .row100k table.rr-t tr.wh th span{float:right;color:rgba(255,255,255,.62);font-weight:400}
 .row100k table.rr-t tr.wh th span.now{color:#fff;font-weight:700}
 /* THE RULE, from the ledger: the heavy line drawn under the last finisher,
- * which says the honest thing louder than a column of dashes. */
+ * which says the honest thing louder than a column of dashes. One rule is
+ * left wearing it, mid-race. The em inside it is gone, and so is the rule
+ * that styled it: both glosses it ever carried were counts of what was
+ * still to come and who had no 5k on record. */
 .row100k table.rr-t tr.rule th{text-align:left;border-top:3px solid #fff;border-bottom:0;padding:14px 6px 4px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#fff;font-weight:700;line-height:2;white-space:normal}
-.row100k table.rr-t tr.rule th em{font-style:normal;color:rgba(255,255,255,.62);font-weight:400}
 /* THE CAPTION names the table for anybody arriving by keyboard or by ear,
  * and it reads as the same quiet mono line the rest of the page uses. */
 .row100k table.rr-t caption{caption-side:top;text-align:left;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);padding:0 0 11px;line-height:1.9}
 .row100k .rr-sub{display:none}
 .row100k .rr-tag{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;border:1px solid rgba(255,255,255,.5);color:rgba(255,255,255,.62);padding:1px 5px;margin-left:8px;white-space:nowrap}
 .row100k .rr-tag.you{background:#fff;border-color:#fff;color:var(--ink);font-weight:700}
+/* THE PR TAG — the one mark that replaced every signed plus and minus on
+ * this board. It takes the 2px OUTLINE, which this file spends on a real
+ * result, and not the fill: fill is a settled fact and it is already spoken
+ * for by YOU, who wears it two millimetres to the left on the same row. Two
+ * filled tags side by side and neither one reads. On the white first-place
+ * podium block the whole thing inverts to ink, like the text around it. */
+.row100k .rr-tag.pr{border:2px solid #fff;color:#fff;font-weight:700;padding:0 5px}
+.row100k .rr-step.s1 .rr-tag.pr{border-color:var(--ink);color:var(--ink)}
 
 /* THE PLACE MARK — the medal with the colour taken out, and the same three
  * marks as the podium so the two teach each other. Mid-race the fill is
@@ -245,8 +383,11 @@ export const rrCss = `
  * it by nine tenths of a second. */
 .row100k .rr-fourth{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:12px 0 0;padding-top:12px;border-top:1px dashed rgba(255,255,255,.3);line-height:2}
 .row100k .rr-fourth b{color:#fff;font-weight:700}
-.row100k .rr-legend{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:16px 0 0;line-height:2.1}
-.row100k .rr-legend b{color:rgba(255,255,255,.74);font-weight:700}
+/* .rr-legend and .rr-legend b are gone with the paragraph under the womens
+ * podium that taught the filled block, the heavy outline and the hairline.
+ * The cards already spell 1ST, 2ND and 3RD across the top, and the place
+ * marks down the sheet carry the numeral, so the blocks were the redundant
+ * signal being explained rather than the other way round. */
 
 /* ---- worth saying: dotted leaders, the way the rest of the site lists ---- */
 .row100k .rr-say{list-style:none;margin:0;padding:0;display:grid;gap:13px}
@@ -266,7 +407,9 @@ export const rrCss = `
 .row100k .rr-cast .rr-date b{font-size:14px}
 .row100k .rr-cast .rr-now{font-size:40px}
 .row100k .rr-cast .rr-line{padding-bottom:9px}
-.row100k .rr-cast .rr-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:none}
+/* margin-top:0 because the base .rr-two now carries 20px for the page, and
+ * the frame is a flex column that lays its blocks out with gap. */
+.row100k .rr-cast .rr-two{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:none;margin-top:0}
 .row100k .rr-cast .rr-box{padding:11px 16px 12px}
 .row100k .rr-cast .rr-eye{font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.7)}
 .row100k .rr-cast .rr-big{font-size:104px;margin-top:1px}
@@ -275,7 +418,9 @@ export const rrCss = `
  * sitting at .5, under the floor this frame claims for a bright gym. */
 .row100k .rr-cast .rr-who span{color:rgba(255,255,255,.66)}
 .row100k .rr-cast .rr-meta{font-size:12px;color:rgba(255,255,255,.66);margin-top:5px}
-.row100k .rr-cast .rr-foot{font-size:13px;color:rgba(255,255,255,.66);margin-top:7px;padding-top:7px;letter-spacing:.09em;line-height:1.85}
+/* The wall override for .rr-foot went with the block it sized. */
+/* The tag is 9px on a page and unreadable on a television across a gym. */
+.row100k .rr-cast .rr-tag{font-size:12px;letter-spacing:.16em;padding:1px 7px;margin-left:10px}
 /* THE FRAME IS CLIPPED AT 720, so a grid that does not match the model wraps
  * to a second row and falls off the television with no error. Both counts
  * come in from the component as custom properties rather than being typed
@@ -287,10 +432,10 @@ export const rrCss = `
 .row100k .rr-cast .rr-lname{font-size:15px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .row100k .rr-cast .rr-lsub{font-size:11px;color:rgba(255,255,255,.62);margin-top:3px}
 .row100k .rr-cast .rr-lane.open .rr-lname,.row100k .rr-cast .rr-lane.open .rr-lsub{color:rgba(255,255,255,.62)}
-.row100k .rr-cast .rr-strip{display:grid;grid-template-columns:1fr 424px;gap:12px;align-items:stretch}
-.row100k .rr-cast .rr-col{display:flex;flex-direction:column;min-width:0}
-.row100k .rr-cast .rr-col .rr-count,.row100k .rr-cast .rr-col .rr-grid{flex:1 1 auto}
-.row100k .rr-cast .rr-grid{grid-template-columns:repeat(var(--rr-waves,5),1fr);gap:8px}
+/* .rr-strip and .rr-col are gone with the two-column row they laid out. THE
+ * ROOM counter was the 424px half of it and came off in the subtraction pass;
+ * the grid was the other half, and the grid is inside the picker now, which
+ * lays itself out and needs no wrapper. */
 .row100k .rr-cast .rr-cw{padding:7px 10px 8px}
 .row100k .rr-cast .rr-cwk{font-size:11px;color:rgba(255,255,255,.66)}
 .row100k .rr-cast .rr-wn{font-size:40px}
@@ -345,10 +490,9 @@ export const rrCss = `
 /* ---- widths ---- */
 @media(min-width:620px){
   .row100k .rr-lanes{grid-template-columns:repeat(4,1fr)}
-  .row100k .rr-grid{grid-template-columns:repeat(5,1fr)}
 }
 @media(min-width:880px){
-  .row100k .rr-three{grid-template-columns:1fr 1fr 1.06fr}
+  .row100k .rr-two{grid-template-columns:1fr 1fr}
   .row100k .rr-pod{grid-template-columns:1.44fr 1fr 1fr}
   .row100k .rr-say{grid-template-columns:1fr 1fr;gap:11px 40px}
   .row100k .rr-step.s1 .rr-pt{font-size:86px}

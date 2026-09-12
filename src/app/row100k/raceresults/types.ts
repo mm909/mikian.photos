@@ -13,9 +13,12 @@ import { fmtRecordTime, fmtSplit } from "@/lib/row100k";
  * the shape below is drawn so the gaps are obvious):
  *   - the 5,000 m itself, to a tenth. Nothing on RowRaceSignup holds a
  *     race-day time today; `seconds` is that column.
- *   - `status`. Without it a no-show sits in STILL TO ROW all night and
- *     every denominator on the page is wrong from wave one onward, which is
- *     why dns and dnf are in the enum before anything is built.
+ *   - `status`. DNS CAME OUT of it (owner, 2026-09-11: I can just mark them
+ *     as a no show when I am assigning waves). A racer who never started is
+ *     a ROSTER fact, settled upstream before a board exists, so they are
+ *     simply not in the field and no denominator has to duck them. DNF is a
+ *     FLOOR fact — a name already printed in a lane, sat down and stopped —
+ *     and there is no earlier place to record it, so it stays.
  *   - `ResultWave.startedAtMs` — the instant the wave was ACTUALLY sent, not
  *     the planned grid. Waves slip. When it is null NO elapsed clock is
  *     drawn at all, rather than counting from a schedule (the mid-race
@@ -36,9 +39,14 @@ import { fmtRecordTime, fmtSplit } from "@/lib/row100k";
 export type Bracket = "M" | "F";
 
 /* WHERE A RACER IS. `to_come` is assigned to a wave and has not sat down;
- * `rowing` is on an erg right now; `dns` was in the wave and never started;
- * `dnf` sat down and stopped. A missing time cannot tell those apart. */
-export type RacerStatus = "to_come" | "rowing" | "finished" | "dns" | "dnf";
+ * `rowing` is on an erg right now; `dnf` sat down and stopped. A missing
+ * time cannot tell those apart, which is why the column exists.
+ *
+ * THERE IS NO `dns`. It was here, and it came out: a no-show is marked when
+ * the waves are assigned, so they never reach the board at all. The one
+ * thing that cost is the named empty erg in the lane strip — an empty lane
+ * now means an erg nobody was assigned to, which is the honest reason. */
+export type RacerStatus = "to_come" | "rowing" | "finished" | "dnf";
 
 export type ResultRacer = {
   id: string;
@@ -85,8 +93,12 @@ export type ResultBoard = {
    * moment the owner shortens the gap a typed number starts lying. Same
    * one-number-one-source rule the splits already follow. */
   waveMinutes: number;
-  /* Mid-race the board is provisional and says so in four places; finished
-   * it is the sheet. One word changes in the chip (the ledger idea). */
+  /* Mid-race the board is provisional; finished it is the sheet. The word
+   * PROVISIONAL itself came off the leader boxes (owner, 2026-09-11: we can
+   * remove the provisional thing there) — the blinking square, the freshness
+   * line, the withheld podium fill and sixteen visibly empty rows were
+   * already saying it, and a chip saying it a fifth time is a label on a
+   * thing that shows. */
   state: "midrace" | "finished";
   /* Server now, and the instant the last time was typed in. The gap between
    * them is the freshness line: a board is only as live as the person
@@ -161,27 +173,34 @@ export function ranked(racers: ResultRacer[]): ResultRacer[] {
     .sort((a, b) => (a.seconds ?? 0) - (b.seconds ?? 0) || a.wave - b.wave || a.lane - b.lane);
 }
 
-/* Everybody who could still change the leaderboard: on an erg now, or not
- * sat down yet. A DNS is NOT in here, which is the whole point of status. */
-export function stillToRow(racers: ResultRacer[]): ResultRacer[] {
-  return racers.filter((r) => r.status === "rowing" || r.status === "to_come");
+/* A PERSONAL RECORD: tonight is faster than the fastest 5k they came in
+ * with. It is the one mark that replaced every signed plus and minus on this
+ * board (owner, 2026-09-11: we do not need to mark plus or minus on their
+ * best, but we should mark a PR).
+ *
+ * NO 5K ON RECORD MEANS NO MARK. A first 5,000 m is not a record broken, and
+ * the BEST COMING IN cell on the same row already reads FIRST 5K — so the
+ * absence of the tag is never a mystery, it is answered two columns over.
+ *
+ * A PRO-RATED SEED STILL COUNTS. The seed printed beside the mark is the one
+ * the mark is measured against, whatever it was normalised off, or the tag
+ * and the number a reader can see would disagree.
+ *
+ * ONE QUESTION, ONE PLACE: the podium, the field table, the result sheet and
+ * the YOU strip all call this, and so does the PERSONAL RECORDS SET count in
+ * WORTH SAYING, so the tally always equals the tags. */
+export function isPr(r: ResultRacer): boolean {
+  if (r.status !== "finished" || r.seconds === null || !r.best5k) return false;
+  return r.seconds < r.best5k.seconds;
 }
 
-/* The racers still to row who are ALREADY faster on record than the time
- * leading their bracket — the one line that makes a partial leaderboard
- * honest, and it needs no column the site does not already have. */
-export function threats(racers: ResultRacer[], leadSeconds: number | null): ResultRacer[] {
-  if (leadSeconds === null) return [];
-  return stillToRow(racers)
-    .filter((r) => r.best5k !== null && r.best5k.seconds < leadSeconds)
-    .sort((a, b) => (a.best5k?.seconds ?? 0) - (b.best5k?.seconds ?? 0));
-}
-
-/* The unknowns: still to row with no 5k on record at all. They are the ones
- * who actually take a win, so the caveat counts them separately. */
-export function unseeded(racers: ResultRacer[]): ResultRacer[] {
-  return stillToRow(racers).filter((r) => r.best5k === null);
-}
+/* STILL TO ROW, THE THREATS AND THE UNSEEDED ARE GONE, and so is the seed
+ * bar they drew down the side of the field table (owner, 2026-09-11: remove
+ * the callouts to two of them having a faster five k on record, one with
+ * zero five k s ... same thing with fastest to come). Nothing computed them
+ * once the leader-box foot came off, and the bar had to go with them: it was
+ * explained by exactly one sentence of the prose that was also cut, and a
+ * mark nobody can read is worse than the paragraph that explained it. */
 
 export type BracketView = {
   bracket: Bracket;
@@ -189,30 +208,22 @@ export type BracketView = {
   all: ResultRacer[];
   ranked: ResultRacer[];
   leader: ResultRacer | null;
-  stillToRow: ResultRacer[];
-  threats: ResultRacer[];
-  unseeded: ResultRacer[];
+  /* Times in. The denominator printed beside it is all.length — there used
+   * to be a separate `field` count that dropped the no-shows, and with DNS
+   * gone it was the same number wearing a second name. */
   rowed: number;
-  field: number;
 };
 
 export function bracketView(b: ResultBoard, bracket: Bracket): BracketView {
   const all = inBracket(b, bracket);
   const rk = ranked(all);
-  const leader = rk[0] ?? null;
   return {
     bracket,
     label: bracket === "M" ? "Men" : "Women",
     all,
     ranked: rk,
-    leader,
-    stillToRow: stillToRow(all),
-    threats: threats(all, leader?.seconds ?? null),
-    unseeded: unseeded(all),
+    leader: rk[0] ?? null,
     rowed: rk.length,
-    /* The denominator drops the no-shows: a field of 24 with one DNS is 23
-     * possible times, and every count on the page leans on this. */
-    field: all.filter((r) => r.status !== "dns").length,
   };
 }
 
@@ -245,33 +256,21 @@ export function podium(v: BracketView): Podium {
 
 /* ---- the room ------------------------------------------------------ */
 
+/* TWO COUNTS, WHERE THERE WERE SEVEN. On the ergs, still to come, did not
+ * start and the two rival denominators all went with the three-up counter
+ * strip and the room line under it (owner, 2026-09-11: I probably do not
+ * need the number that is already rowed, number still to come, stuff like
+ * that. Like, that is not needed). What is left is what the finished sheet
+ * and the wall still print: times in, and the size of the field. */
 export type RoomCounts = {
   rowed: number;
-  onErgs: number;
-  toCome: number;
-  dns: number;
-  dnf: number;
-  /* EVERYBODY ENTERED, no-shows included — the size of the field. */
   field: number;
-  /* EVERYBODY WHO CAN STILL PUT A TIME ON THE BOARD: the field less the
-   * no-shows. Two different denominators exist on this page and they must be
-   * named apart, or one screen prints 16 OF 40 in the room line while the
-   * leader boxes above it print 10 of 23 and 6 of 16 and read as a
-   * contradiction. BracketView.field is this same count, per bracket. */
-  possible: number;
 };
 
 export function roomCounts(racers: ResultRacer[]): RoomCounts {
-  const n = (s: RacerStatus) => racers.filter((r) => r.status === s).length;
-  const dns = n("dns");
   return {
-    rowed: n("finished"),
-    onErgs: n("rowing"),
-    toCome: n("to_come"),
-    dns,
-    dnf: n("dnf"),
+    rowed: racers.filter((r) => r.status === "finished").length,
     field: racers.length,
-    possible: racers.length - dns,
   };
 }
 
@@ -297,10 +296,56 @@ export function racerById(b: ResultBoard, id: string | null): ResultRacer | null
   return b.racers.find((r) => r.id === id) ?? null;
 }
 
+/* WHICH WAVE THE PANEL IS SHOWING before anybody touches it — and on a
+ * television nobody ever touches it, so this is the whole interaction on the
+ * wall.
+ *
+ * THE WAVE ON THE ERGS ALWAYS WINS. It is the one question the room is
+ * asking. BETWEEN WAVES there is no live wave and the lane strip used to
+ * vanish outright — liveWave() returns null for the twenty-odd minutes
+ * between an eight minute piece and the next wave going off, so the top of
+ * the board reflowed every half hour and a frame clipped at 720 was left with
+ * a hole. The panel shows the wave that is NEXT instead: who sits down, on
+ * which erg, and what they came in with, which is what the room is physically
+ * doing in that gap. FINISHED there is nothing live to follow, so a rower
+ * gets their own wave and anybody else gets wave 1, the night from the start.
+ * A pinned wave beats all of it.
+ *
+ * NOTHING ROTATES ON A TIMER. The wall moves when the ROOM moves, which needs
+ * no clock of its own and starts working the day the poll the cast frame
+ * already wants lands: every re-render runs this again. */
+export function pickedWave(b: ResultBoard, pick?: number | null): number {
+  const first = b.waves[0]?.wave ?? 1;
+  if (typeof pick === "number" && b.waves.some((w) => w.wave === pick)) return pick;
+  const live = liveWave(b);
+  if (live) return live.wave;
+  if (b.state === "finished") {
+    const you = racerById(b, b.youId);
+    return you ? you.wave : first;
+  }
+  const next = nextWave(b);
+  if (next) return next.wave;
+  return [...b.waves].filter((w) => w.state === "rowed").pop()?.wave ?? first;
+}
+
+/* THE BRACKET, IN ONE LETTER. The model stores F for the women, because
+ * that is the key the race definition uses; the screen says W, because W1
+ * is what a place mark reads as. Everywhere a bracket is PRINTED it comes
+ * through here, so the Br column and the place mark beside it can never
+ * again show two different letters for the same rower. */
+export function brLetter(bracket: Bracket): string {
+  return bracket === "M" ? "M" : "W";
+}
+
 /* Their place within their own bracket, 1-based. Null unless they finished.
  * Places are WITHIN BRACKET — men and women are scored apart — so anywhere
  * the two are printed in one table the mark is qualified (M1 / W1) rather
- * than a bare numeral, or the sheet shows two 1s seven rows apart. */
+ * than a bare numeral, or the sheet shows two 1s seven rows apart.
+ *
+ * THE LETTER IS THE BRACKET COLUMN'S LETTER. The paragraph that used to
+ * teach M1 and W1 is gone, so the mark has to teach itself: the Br cell on
+ * the same row prints the same M or W the place mark wears. It used to print
+ * F while the mark said W, and only the legend reconciled them. */
 export function placeOf(b: ResultBoard, racer: ResultRacer): number | null {
   if (racer.status !== "finished") return null;
   const i = ranked(inBracket(b, racer.bracket)).findIndex((r) => r.id === racer.id);
@@ -337,4 +382,12 @@ export function waveLines(b: ResultBoard): WaveLine[] {
       averageSeconds: avg,
     };
   });
+}
+
+/* ONE wave off the same ledger the night table prints, so a fastest or an
+ * average in a panel head can never disagree with the table underneath it.
+ * The two are two readings of one night: the panel is how ONE wave ran, with
+ * the names attached; the table is how the five compare, side by side. */
+export function waveLineOf(b: ResultBoard, wave: number): WaveLine | null {
+  return waveLines(b).find((l) => l.wave === wave) ?? null;
 }

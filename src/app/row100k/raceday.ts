@@ -34,7 +34,21 @@ export type RaceDef = {
    * wrote. RowRaceSettings overrides them; see racedaySettings.ts. */
   opensAt: number;
   endsAt: number;
-  /* Where, and how to say it in one line. */
+  /* Where. `venue` is the gym's own name and it is what every race surface
+   * says now.
+   *
+   * `venueLine` is the same place WITH ITS TOWN, and it has one reader left
+   * (owner, 2026-09-11: "remove Las Vegas whenever we are saying the strip
+   * barbell engine room — we just keep it at the strip barbell engine
+   * room"). It used to feed all of them: the ads' house block and the
+   * flyer's both split the town out of it and set it under THE ENGINE ROOM,
+   * the share card printed THE ENGINE ROOM · LAS VEGAS, the wave note opened
+   * its evening paragraph on it and the wave console dumped it. All six of
+   * those say `venue` now, or the room alone. What still reads this is the
+   * results board's stub line, which belongs to another stream this week —
+   * so the field stays rather than being pulled out from under it. If that
+   * board ever drops the town too, this is a dead field and should go with
+   * it. */
   venue: string;
   venueLine: string;
   /* THE ROOM (owner, 2026-09-11): the ergs live in a room of its own.
@@ -132,9 +146,22 @@ export const RACES: RaceDef[] = [
  * wave nor a wave note. The column is RowRaceSignup.role. */
 export type RaceRole = "racer" | "spectator";
 
-export const RACE_ROLES: { key: RaceRole; label: string; line: string }[] = [
+/* `line` is OPTIONAL, and the spectator has none (owner, 2026-09-11:
+ * "remove the phrase come watch, no wave, no erg"). The word is the whole
+ * explanation — a spectator is a spectator — and a sentence spent saying so
+ * was the bill explaining itself. The RACER keeps his, because the owner
+ * struck one line and not the other and because that one says a thing the
+ * word does not: the distance, and that you are given a wave.
+ *
+ * Absent rather than empty. A "" would be a hole pretending to be a value,
+ * and every surface that prints a line would go on reserving a row, a dot
+ * or a column for it; a missing field makes each of them decide out loud
+ * what a role with nothing to add looks like. There are three:
+ * SignupPanel's rail, the ads' TWO WAYS IN table, and the confirmation
+ * block a spectator reads after opting in. */
+export const RACE_ROLES: { key: RaceRole; label: string; line?: string }[] = [
   { key: "racer", label: "Racer", line: "Pull the 5,000 m. You get a wave." },
-  { key: "spectator", label: "Spectator", line: "Come watch. No wave, no erg." },
+  { key: "spectator", label: "Spectator" },
 ];
 
 export function parseRole(v: unknown): RaceRole | null {

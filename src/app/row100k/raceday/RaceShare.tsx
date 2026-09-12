@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ShareDialog } from "../ShareMenu";
-import { CARDS, RACE_CARD_IDS, availableCards, type ShareData } from "../share/cards";
-import type { RaceRole } from "../raceday";
+import { CARDS, RACE_CARD_IDS, type ShareData } from "../share/cards";
 
 /* THE SHARE LINK ON RACE DAY (owner, 2026-09-11: "There should be a
  * shareable for whenever you sign up for race day. showing that you've
@@ -12,77 +11,75 @@ import type { RaceRole } from "../raceday";
  * should be a share link on this race day page").
  *
  * One button and one dialog, and the only thing on this page that knows how
- * the race cards are fed. Both entry points go through it — the rower's own
+ * the race card is fed. Both entry points go through it — the rower's own
  * block in SignupPanel and the tear-off under the bill — so the two can
  * never drift on what a card is allowed to say.
+ *
+ * IT HANDS OVER THE EVENT AND NOTHING ELSE, since the owner kept one of the
+ * two cards: "I do not like the I am racing sticker. I just like the race
+ * day sticker." The card that claimed something about the VIEWER is gone,
+ * so this component stopped asking who the viewer is — there was a `role`
+ * and a `wave` here, threaded down from SignupPanel under a careful rule
+ * about only ever passing a wave the rower had already been TOLD about, and
+ * with no card left to print either of them the rule and the props went
+ * together. A prop nobody prints is a promise nobody keeps.
+ *
+ * AND THE DIALOG NO LONGER POPS ITSELF. It used to open on its own the
+ * second somebody opted in, the way the profile pops one the second a row
+ * is logged — earned, because the card being made at that moment was that
+ * person's own claim, made at the moment they made it. The bill is not
+ * about them: it is the same picture before they opt in and after, it is
+ * already on the page as the tear-off strip under the act, and throwing it
+ * up unasked would be a jack-in-the-box holding a poster. The button stays
+ * in their block; pressing it is now the whole act.
  *
  * THE PICKER IS RESTRICTED, and that is not a style choice. The payload a
  * race day page can honestly build comes off a RowRaceSignup row: it knows
  * who is in the field and nothing whatever about their September. So meters,
  * sessions and the day map are zeroed here, and `only={RACE_CARD_IDS}` is
  * what keeps that from becoming a TOTAL card reading 0 METERS. The two ship
- * together; neither is safe without the other.
+ * together; neither is safe without the other — and that stays true with one
+ * card in the list, because it is the LIST and not the count that guards it.
+ * ShareDialog draws no chip row under two cards, so what opens here is the
+ * bill and the buttons, with nothing to choose between.
  *
  * AND A ROWER'S OTHER CARDS ARE NOT OFFERED HERE — deliberately. Reaching
  * them would mean this page also read the log, the record boards and the
  * blackout rules, which is the profile's whole job and a second copy of it;
  * the bar carries their number two taps away, and the deck is honest there.
- * What belongs here is the race.
- *
- * WHICH CARD YOU LAND ON is the first one this viewer can actually make.
- * CARDS orders the pool and puts the rower's own card ahead of the bill, so
- * somebody in the field opens on I'M RACING and a stranger opens on the
- * event. Read off the pool rather than named, so the rule lives in the
- * registry once. */
+ * What belongs here is the race. */
 
 /* The race block as the page hands it over: display-ready, upper-cased, and
- * derived off the race AS IT STANDS the way the bill above is. `mine` is not
- * in it — that is the viewer's own half, and it is the one thing the server
- * render can be stale about the second somebody presses a button. */
-export type RaceFacts = Omit<NonNullable<ShareData["race"]>, "mine">;
+ * derived off the race AS IT STANDS the way the bill above is. It used to
+ * be this type MINUS `mine`, the viewer's own half; there is no `mine` on a
+ * race payload any more, so the two are the same thing again. */
+export type RaceFacts = NonNullable<ShareData["race"]>;
 
-/* The cards this surface may open, taken off the registry rather than by
- * name. They both carry the house's PNG and both declare the same `prepare`,
- * so warming one warms the other. */
+/* The card this surface may open, taken off the registry rather than by
+ * name, so warming it here and drawing it there cannot drift. */
 const RACE_CARDS = CARDS.filter((c) => RACE_CARD_IDS.includes(c.id));
 
 export function RaceShare({
   facts,
-  role = null,
-  wave = null,
   rowerNumber = 0,
   label,
   btn = "outline-btn",
-  openSignal = 0,
 }: {
   facts: RaceFacts;
-  /* What the viewer signed up as, or null for anybody not in the field —
-   * which is what keeps the I'M RACING card out of a stranger's picker while
-   * the event card stays in everybody's. */
-  role?: RaceRole | null;
-  /* A wave the rower has ALREADY BEEN TOLD ABOUT, or null. The caller owes
-   * that distinction: see the note at the call site in SignupPanel. */
-  wave?: number | null;
-  /* Only ever the download filename and the usage ping — no race card prints
-   * a number. 0 where there is no rower, the way the community cards ride. */
+  /* Only ever the download filename and the usage ping — the card prints no
+   * number. 0 where there is no rower, the way the community cards ride. */
   rowerNumber?: number;
   label: string;
   btn?: string;
-  /* A counter the parent bumps to pop the dialog open by itself (the profile
-   * does this the moment a row is logged; here it is the moment somebody
-   * opts in). Anything non-zero and unseen opens it — including on the first
-   * render, because the block that holds this button does not exist until
-   * the act that pops it has already succeeded. */
-  openSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
-  /* The house mark has landed. Nothing on a card reads this; see the memo. */
+  /* The house mark has landed. Nothing on the card reads this; see the memo. */
   const [markReady, setMarkReady] = useState(false);
 
   const payload = useMemo<ShareData>(
     () => ({
       /* THE ZEROES. Every one of these is a field no card in RACE_CARD_IDS
-       * so much as looks at — the race cards carry no name, no number and no
+       * so much as looks at — the bill carries no name, no number and no
        * meters — and `only` is what guarantees nothing else can be reached
        * to print them. */
       displayName: "",
@@ -91,18 +88,18 @@ export function RaceShare({
       meters: 0,
       sessions: 0,
       byDay: {},
-      race: { ...facts, mine: role ? { role, wave } : null },
+      race: facts,
     }),
-    [facts, role, wave, rowerNumber],
+    [facts, rowerNumber],
   );
 
   /* WARM THE HOUSE MARK ON MOUNT, not on the press. The PNG is the same
    * same-origin file the bill above has already rendered, so this is a cache
-   * hit that costs nothing — and it means the FIRST paint a rower sees,
-   * thirty seconds after opting in, has the gym's logo on it rather than the
-   * card's type fallback. card.prepare is the uncapped wait (cards.ts keeps
-   * the deadline in prepareCard, for callers that paint on a clock); it
-   * always settles, a 404 included, so nothing here can hang. */
+   * hit that costs nothing — and it means the FIRST paint a rower sees has
+   * the gym's logo on it rather than the card's type fallback. card.prepare
+   * is the uncapped wait (cards.ts keeps the deadline in prepareCard, for
+   * callers that paint on a clock); it always settles, a 404 included, so
+   * nothing here can hang. */
   useEffect(() => {
     if (!payload.race?.mark) return;
     let live = true;
@@ -125,19 +122,6 @@ export function RaceShare({
     [payload, markReady],
   );
 
-  /* The pool this viewer's picker will actually hold, in CARDS order. */
-  const pool = useMemo(
-    () => availableCards(data).filter((c) => RACE_CARD_IDS.includes(c.id)),
-    [data],
-  );
-
-  const seen = useRef(0);
-  useEffect(() => {
-    if (openSignal === 0 || openSignal === seen.current) return;
-    seen.current = openSignal;
-    setOpen(true);
-  }, [openSignal]);
-
   return (
     <>
       <button
@@ -149,13 +133,9 @@ export function RaceShare({
       >
         {label}
       </button>
-      <ShareDialog
-        data={data}
-        open={open}
-        onClose={() => setOpen(false)}
-        preferredCardId={pool[0]?.id}
-        only={RACE_CARD_IDS}
-      />
+      {/* No preferredCardId: the pool holds one card, so ShareDialog's own
+        * first-in-pool default IS the bill. */}
+      <ShareDialog data={data} open={open} onClose={() => setOpen(false)} only={RACE_CARD_IDS} />
     </>
   );
 }

@@ -52,23 +52,36 @@ import { RaceShare, type RaceFacts } from "./RaceShare";
  * not in. So the press is instant while there is no wave to lose and asks
  * once, naming the wave, as soon as there is.
  *
- * THE SHAREABLE (owner, 2026-09-11: "There should be a shareable for
- * whenever you sign up for race day. showing that you've signed up to
- * race"). It rides in the block a rower is already reading — their own — on
- * its own rail above the change-your-mind rail, because posting it is the
- * happy act and opting out is not, and it stays there after registration
- * closes: I'M RACING is never truer than on the morning itself. It also
- * opens by ITSELF the one time it is most likely to be posted, the way the
- * profile pops the dialog the second a row is logged — but only on JOINING,
- * never on a role switch or a waiver tick. A card celebrates putting a name
- * in; a dialog that jumped out on every press would be a jack-in-the-box. */
+ * THE SHAREABLE (owner, 2026-09-11: "just a shareable with the event name
+ * and logo"). It rides in the block a rower is already reading — their own
+ * — on its own rail above the change-your-mind rail, because posting it is
+ * the happy act and opting out is not, and it stays there after
+ * registration closes: the invitation is never truer than on the morning
+ * itself.
+ *
+ * IT NO LONGER OPENS BY ITSELF. There was a `popped` counter here, bumped
+ * on JOINING and only on joining — never a role switch, never a waiver tick
+ * — that threw the dialog up the second a name went in, the way the profile
+ * pops one the second a row is logged. That earned its place while the card
+ * was I'M RACING: the claim was made at the moment it became true, and
+ * showing somebody their own claim is a celebration. The owner kept the
+ * event card and dropped the claim one the same evening ("I just like the
+ * race day sticker"), and the bill says nothing about the person who just
+ * pressed the button — it is the same picture a stranger gets off the
+ * tear-off strip. A modal holding a poster nobody asked for is the
+ * jack-in-the-box the old rule was written against, so the counter, the
+ * waiver exception it carried and RaceShare.openSignal all went with the
+ * card. The button is still there and it still says what it does. */
 
 const RACE_PATH = "/row100k/raceday";
 
-/* The two roles, and the one line each of them gets, come out of raceday.ts
- * (RACE_ROLES) rather than being typed again here: the owner wrote those
- * words, and a page that paraphrases them will drift from the console and
- * the mail the first time one of them is edited. */
+/* The two roles come out of raceday.ts (RACE_ROLES) rather than being typed
+ * again here: the owner wrote those words, and a page that paraphrases them
+ * will drift from the console and the mail the first time one of them is
+ * edited. THE SPECTATOR HAS NO LINE any more — only a label (owner,
+ * 2026-09-11: "remove the phrase come watch, no wave, no erg") — so the two
+ * places this file used to print SPECTATOR.line say something else or say
+ * nothing; see each of them. */
 const roleOf = (key: RaceRole) => RACE_ROLES.find((r) => r.key === key) ?? RACE_ROLES[0];
 const SPECTATOR = roleOf("spectator");
 
@@ -103,11 +116,6 @@ export function SignupPanel({
    * console keeps the chase list. Ticked here, stamped by the route. Only a
    * racer is ever asked: a spectator does not pull. */
   const [waiver, setWaiver] = useState(initialMine?.waiverAt !== null && initialMine !== null);
-  /* Bumped when a name goes IN, which is what pops the share dialog open by
-   * itself. A counter rather than a flag: the block that holds the button
-   * does not exist until the act that pops it has succeeded, so the signal
-   * has to survive that mount (RaceShare.openSignal). */
-  const [popped, setPopped] = useState(0);
 
   const inField = mine !== null && mine.withdrewAt === null;
   const racing = inField && mine?.role === "racer";
@@ -119,11 +127,6 @@ export function SignupPanel({
   ) => {
     setBusy(o.busy);
     setError(null);
-    /* Read BEFORE the round trip: whether this press is somebody JOINING —
-     * a first name in, or one going back in after a withdrawal — as opposed
-     * to a rower already in the field switching roles or ticking the waiver.
-     * Only the first of those earns the dialog. */
-    const joining = action === "enter" && !inField;
     try {
       const res = await fetch("/api/row100k/raceday", {
         method: "POST",
@@ -134,14 +137,10 @@ export function SignupPanel({
       if (res.ok && data.ok) {
         setMine(data.mine ?? null);
         setConfirm(null);
-        /* The card pops itself on the way in — but NOT over the waiver ask.
-         * The waiver is deliberately not a gate, so a rower can enter with
-         * it unticked, and the ONE THING LEFT strip appears in the same
-         * commit; a modal landing on top of the one instruction the gym
-         * actually needs followed would be the site celebrating over its own
-         * request. They still get the card from the link in the block. */
-        if (joining && data.mine && data.mine.withdrewAt === null && (!race.waiver || data.mine.waiverAt != null))
-          setPopped((n) => n + 1);
+        /* NOTHING POPS HERE any more. A join used to raise the share dialog
+         * on its own, everywhere except over the waiver ask — see the note
+         * at the top of the file for why it earned that and why the card it
+         * celebrated is gone. */
         // The racer list is rendered on the server below this block.
         router.refresh();
       } else setError(data.error ?? "Couldn't take that — try again.");
@@ -203,9 +202,16 @@ export function SignupPanel({
          * facts the sheet above carries, stacked on top of the only new one
          * — and the day half was the last typed date on the surface, free to
          * drift from the one page.tsx derives off race.day. */}
+        {/* A SPECTATOR GETS THE ROOM, which is what a racer gets once their
+         * wave has been mailed. This line used to be SPECTATOR.line — COME
+         * WATCH. NO WAVE, NO ERG — until the owner struck it, and the block
+         * above already says YOUR SPOT and YOU ARE IN, so restating that
+         * they are not rowing was the sentence he was reading. What is
+         * actually left to tell somebody who is coming to watch is the same
+         * thing it is for a racer: which door. */}
         <p className="rd-small mono">
           {!racing
-            ? SPECTATOR.line.toUpperCase()
+            ? race.room.toUpperCase()
             : mine.wave === null
               ? "WAVE NOT ASSIGNED"
               : emailed
@@ -239,22 +245,19 @@ export function SignupPanel({
           ))}
 
         {/* THE SHAREABLE, on a rail of its own above the one that takes a
-         * name back off the list — see the note at the top of the file. The
-         * WAVE handed over is the one the rower has already been TOLD about
-         * and never the one merely assigned: that is `emailed`, the same
-         * rule the start time above takes, and it is one notch tighter than
-         * the number on screen on purpose. A page corrects itself on the
-         * next load; a PNG in somebody's camera roll never can. */}
+         * name back off the list — see the note at the top of the file.
+         *
+         * IT HANDS OVER THE RACE AND NOT THE ROWER. This call used to pass
+         * `role` and `wave` — the wave only ever one the rower had already
+         * been TOLD about, a notch tighter than the number on screen,
+         * because a page corrects itself on the next load and a PNG in a
+         * camera roll never can. The card that printed them is retired
+         * (owner, 2026-09-11: "I just like the race day sticker"), so the
+         * props are gone and that rule with them; what is left is the event
+         * card, which is the same for everybody and never goes stale. */}
         <div className="rd-two">
           <span className="mono">Post it?</span>
-          <RaceShare
-            facts={share}
-            role={mine.role}
-            wave={emailed ? mine.wave : null}
-            rowerNumber={mine.rowerNumber}
-            label="Share a card"
-            openSignal={popped}
-          />
+          <RaceShare facts={share} rowerNumber={mine.rowerNumber} label="Share race day" />
         </div>
 
         {open ? (
@@ -355,7 +358,10 @@ export function SignupPanel({
             ? "Your name is not on the list for this one. Come watch — the next race will open again."
             : "Names are shut for this one. The next race will open again."}
         </p>
-        <p className="rd-small mono">{race.venueLine.toUpperCase()}</p>
+        {/* The gym, without its town: this read race.venueLine, which is
+         * "The Strip Barbell · Las Vegas", and LAS VEGAS came off every race
+         * surface on 2026-09-11. */}
+        <p className="rd-small mono">{race.venue.toUpperCase()}</p>
       </div>
     );
   }
@@ -398,7 +404,11 @@ export function SignupPanel({
           {busy === "spectator" ? "…" : `Sign up as a ${SPECTATOR.label.toLowerCase()}`}
         </button>
       </div>
-      <p className="rd-roleline">{SPECTATOR.line.toUpperCase()}</p>
+      {/* Nothing under the rail. A mono line here read COME WATCH. NO WAVE,
+       * NO ERG and the owner took it off (2026-09-11) — the button beside
+       * NOT PULLING? already says spectator, and a gloss under a button
+       * that needs none is the page explaining itself. The element went
+       * with the sentence rather than being left to render empty. */}
       {error && <p className="form-err">{error}</p>}
     </div>
   );

@@ -139,8 +139,14 @@ export function waveEmail(o: {
    *
    * The venue MARK is not in this mail on purpose: it is keyed white on
    * transparent and this paper is cream, so it would arrive as a white
-   * rectangle. */
-  const morning = `${r.venueLine} — the ergs are in ${r.room}. The floor is open ${hoursLine(r)}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
+   * rectangle.
+   *
+   * THE TOWN CAME OFF THIS SENTENCE, 2026-09-11: it opened on venueLine,
+   * which was "The Strip Barbell · Las Vegas", so the note read "The Strip
+   * Barbell · Las Vegas — the ergs are in The Engine Room" — the exact
+   * construction the owner struck ("we just keep it at the strip barbell
+   * engine room"). The gym alone now. */
+  const morning = `${r.venue} — the ergs are in ${r.room}. The floor is open ${hoursLine(r)}; waves go off every ${r.waveMinutes} minutes. Yours is wave ${o.wave} at ${go}.`;
   const bring = "Water, a towel and whatever you pull in. The ergs are here. Race day is free — there is nothing to pay when you walk in.";
   const arriveLine = `Be here by ${arrive} — fifteen minutes before your wave — so you can warm up, find your erg and set your monitor.`;
   /* The waiver: the gym's, signed on the gym's own system. Only in the note

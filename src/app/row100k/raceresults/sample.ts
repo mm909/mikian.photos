@@ -1,17 +1,18 @@
 import { currentRace, type RaceDef } from "../raceday";
 import type { Bracket, ResultBoard, ResultRacer, ResultWave } from "./types";
 
-/* THE SAMPLE FIELD — forty invented racers, so the board can be looked at
- * before a single time exists in the database. Nothing here is read from or
- * written to anything: it is one implementation of the ResultBoard shape in
- * types.ts, and the real page will produce the same shape off RowRaceSignup.
+/* THE SAMPLE FIELD — thirty-nine invented racers, so the board can be looked
+ * at before a single time exists in the database. Nothing here is read from
+ * or written to anything: it is one implementation of the ResultBoard shape
+ * in types.ts, and the real page will produce the same shape off
+ * RowRaceSignup.
  *
- * FIVE WAVES, NOT SIX. Forty racers on eight ergs is five full waves; all
- * three design mocks drew six and every judge caught it, and six waves
- * thirty minutes apart from 6:30 PM puts the last pull past the posted 9 PM.
- * Five waves go off at 6:30 / 7:00 / 7:30 / 8:00 / 8:30 and the last rower
- * is off the erg just before 9. The grid comes from raceday.ts, so if the
- * owner moves the first wave the sample moves with it.
+ * FIVE WAVES, NOT SIX. Eight ergs and forty entries is five waves; all three
+ * design mocks drew six and every judge caught it, and six waves thirty
+ * minutes apart from 6:30 PM puts the last pull past the posted 9 PM. Five
+ * waves go off at 6:30 / 7:00 / 7:30 / 8:00 / 8:30 and the last rower is off
+ * the erg just before 9. The grid comes from raceday.ts, so if the owner
+ * moves the first wave the sample moves with it.
  *
  * THE MID-RACE MOMENT IS 7:38 PM, not 7:00. With a 6:30 first wave, at
  * 7:00 PM exactly one wave is down and wave 2 has just sat — the state the
@@ -24,9 +25,19 @@ import type { Bracket, ResultBoard, ResultRacer, ResultWave } from "./types";
  * tells a true story: the fastest man of the night (16:31.4) is in WAVE 5
  * and the fastest woman (18:29.8) is ON THE ERGS at 7:38, so the mid-race
  * leaderboard is genuinely provisional, and one man loses second place by
- * four tenths to somebody who rowed ninety minutes later. One racer does not
- * start, which is what makes the status column earn its place: his erg
- * shows empty in the lane strip and he drops out of every denominator. */
+ * four tenths to somebody who rowed ninety minutes later.
+ *
+ * ERG 3 IN WAVE 3 IS UNASSIGNED, and nobody is named in it. A no-show used
+ * to stand there — thirty-nine racers, not forty, is what his row leaving
+ * cost — but a no-show is marked when the waves are assigned now and never
+ * reaches a board, so the empty erg the lane strip exists to draw is the
+ * honest kind: a machine with nobody on it. Wave 3 runs seven lanes.
+ *
+ * ONE MAN STILL SITS DOWN AND STOPS (wave 5, lane 7). A DNF cannot be
+ * marked upstream — it happens on the floor to a name already in a lane —
+ * so it is the only reason a name on this sheet has no time, and that is
+ * why DID NOT FINISH in the time column needs no sentence under the table
+ * explaining that nobody was dropped. */
 
 type Row = {
   n: number;
@@ -34,9 +45,10 @@ type Row = {
   bracket: Bracket;
   wave: number;
   lane: number;
-  /* The 5,000 m on the night, seconds to a tenth. "dns" and "dnf" instead
-   * of a number where there is no time to record. */
-  result: number | "dns" | "dnf";
+  /* The 5,000 m on the night, seconds to a tenth. "dnf" instead of a number
+   * for the one man who sits down and stops. There is no "dns" arm any
+   * more: a no-show is taken off the wave sheet, not printed on the board. */
+  result: number | "dnf";
   /* Their fastest 5k coming in. Null: they came in without one. */
   best: number | null;
   prorated?: boolean;
@@ -79,8 +91,10 @@ const FIELD: Row[] = [
    * screen belongs to this row. */
   { n: 5, name: "Priya Raghavan", bracket: "F", wave: 3, lane: 1, result: 1109.8, best: 1121.0 },
   { n: 22, name: "Sam Ortega", bracket: "M", wave: 3, lane: 2, result: 1131.8, best: 1140.5 },
-  /* THE NO-SHOW. Erg 3 stays empty and he leaves every denominator. */
-  { n: 37, name: "Gabe Huerta", bracket: "M", wave: 3, lane: 3, result: "dns", best: 1305.6 },
+  /* LANE 3 IS NOT HERE. A no-show stood in it — no. 037, Gabe Huerta — and
+   * he came off the sheet with the DNS status itself. Erg 3 still draws
+   * empty in the lane strip, now reading ERG OPEN / NO ENTRY, which is the
+   * path an unassigned machine takes and the one the strip is for. */
   { n: 88, name: "Eve Sandberg", bracket: "F", wave: 3, lane: 4, result: 1268.3, best: 1277.0 },
   { n: 49, name: "Cal Mackey", bracket: "M", wave: 3, lane: 5, result: 1214.0, best: null },
   { n: 17, name: "Renata Cruz", bracket: "F", wave: 3, lane: 6, result: 1332.9, best: 1420.2 },
@@ -176,8 +190,7 @@ export function sampleBoard(state: SampleState, opts?: { you?: boolean }): Resul
     const waveState = waves[row.wave - 1].state;
     let status: ResultRacer["status"];
     let seconds: number | null = null;
-    if (row.result === "dns") status = "dns";
-    else if (row.result === "dnf") status = mid && waveState !== "rowed" ? "to_come" : "dnf";
+    if (row.result === "dnf") status = mid && waveState !== "rowed" ? "to_come" : "dnf";
     else if (waveState === "rowed") {
       status = "finished";
       seconds = row.result;
@@ -203,7 +216,13 @@ export function sampleBoard(state: SampleState, opts?: { you?: boolean }): Resul
   return {
     raceSlug: race.slug,
     dateLine: `Race day · ${race.when} · ${race.meters.toLocaleString()} m`,
-    placeLine: `${race.venueLine} · ${race.room}`,
+    /* THE GYM AND THE ROOM, no town (owner, 2026-09-11: we can also remove
+     * Las Vegas whenever we are saying the strip barbell engine room). Built
+     * off race.venue, the bare name, and NOT off race.venueLine with the
+     * town stripped out of it: two other surfaces derive the town by
+     * splitting venueLine on the middot, so editing that string would make
+     * the race-day bill and the poster both print the gym as the city. */
+    placeLine: `${race.venue} · ${race.room}`,
     meters: race.meters,
     ergs: race.waveSize,
     /* Straight off the race definition, so the copy that says how far apart

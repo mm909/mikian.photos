@@ -2,7 +2,7 @@
  *
  * THE RULE THE JUDGES SET, and the reason this file exists: "STRINGS COME
  * FROM raceday.ts, NOT FROM THE ARTWORK. Any real build reads title,
- * meters, when, the hours, venueLine, room, venueMark, waveTime(r,1) and
+ * meters, when, the hours, venue, room, venueMark, waveTime(r,1) and
  * RACE_ROLES from the definition so the ad can never drift from the page."
  * So poster/raceday.ts — the modules and the plans — holds no copy at all:
  * every word on every frame is built HERE, out of the RaceDef, and moving
@@ -66,14 +66,15 @@ const shortHours = (hours: string): string => hours.replace(/:00/g, "").toUpperC
 const hostWord = (host: string): string =>
   (host.split(".").filter((p) => p && p !== "app" && p !== "www" && p !== "com")[0] ?? host).toUpperCase();
 
-/* "The Strip Barbell · Las Vegas" → "Las Vegas". The venue's own name is
- * the MARK, so the line beside it carries the town and nothing else. */
-const cityOf = (race: RaceDef): string => {
-  const tail = race.venueLine.split("·").slice(1).join("·").trim();
-  return tail || race.venueLine;
-};
-
-/* "Race day" → ["RACE", "DAY"]: two words, one a line on a tall frame,
+/* THE TOWN IS GONE FROM THE AD, and so is the cityOf() that dug it out of
+ * venueLine (owner, 2026-09-11: "remove Las Vegas whenever we are saying
+ * the strip barbell engine room"). The house block used to set THE ENGINE
+ * ROOM over LAS VEGAS and the caption used to say "at The Strip Barbell,
+ * Las Vegas" a line above "The Engine Room" — the same construction, split
+ * over two lines, which is the one he was reading. The mark, the room and
+ * the gym's Instagram are the address now.
+ *
+ * "Race day" → ["RACE", "DAY"]: two words, one a line on a tall frame,
  * joined by the head module on a short one. A one-word title comes back as
  * one line, which the same module draws without a special case. */
 const headOf = (title: string): string[] => title.trim().toUpperCase().split(/\s+/).filter(Boolean);
@@ -113,7 +114,7 @@ export function raceDayPoster(
    * block and the results board both say so. */
   const caption = [
     `${race.title.toUpperCase()} — ${race.sub.toLowerCase()}.`,
-    `${race.when}, ${hoursLine(race)}, at ${race.venue}, ${cityOf(race)}.`,
+    `${race.when}, ${hoursLine(race)}, at ${race.venue}.`,
     `${race.room}. First wave ${waveTime(race, 1)}, waves every ${race.waveMinutes} minutes.`,
     /* OPT IN, not sign up — the challenge has one verb for this and it is
      * his (owner, 2026-09-11: "instead of put my name in, the phrase
@@ -142,9 +143,14 @@ export function raceDayPoster(
       waiver,
       venueMark: race.venueMark,
       venue: race.venue.toUpperCase(),
-      city: cityOf(race).toUpperCase(),
       room: race.room.toUpperCase(),
-      roles: RACE_ROLES.map((r) => ({ label: r.label.toUpperCase(), line: r.line.toUpperCase() })),
+      /* A role with no line comes through with none — the spectator's went
+       * (owner, 2026-09-11) — and the TWO WAYS IN table sets that label on
+       * its own rather than drawing a blank second column. */
+      roles: RACE_ROLES.map((r) => ({
+        label: r.label.toUpperCase(),
+        ...(r.line ? { line: r.line.toUpperCase() } : {}),
+      })),
     },
     field: racers,
     /* The owner's own switch travels even when nobody could resolve the

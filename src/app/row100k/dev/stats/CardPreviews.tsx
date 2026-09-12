@@ -109,24 +109,28 @@ function sampleData(masked = false): ShareData {
     best: masked
       ? { label: "Fastest 5k", value: "", place: 1, shape: "##:##.#" }
       : { label: "Fastest 5k", value: "18:51.6", place: 1 },
-    /* RACE DAY, in the state it will actually be posted in: a racer who
-     * has just opted in and has NO wave yet. That is the card made thirty
-     * seconds after the button, so it is the one the catalogue holds up.
-     * The spectator's card and the one carrying a wave are looked at on
-     * the real race day page, which is open to everyone in dev. */
+    /* RACE DAY \u2014 the bill, and there is only the bill. The catalogue used
+     * to carry a `mine` block here (a racer who had just opted in and had
+     * NO wave yet, which was the I'M RACING card in the state it was most
+     * likely to be posted); the owner retired that sticker on 2026-09-11
+     * and the block went with it, along with the `piece` and `stamp` it was
+     * the only reader of.
+     *
+     * The two lines under it are the subtractions of the same evening: no
+     * FREE on the when ("on the share race day, let us remove free") and no
+     * town on the where ("we just keep it at the strip barbell engine
+     * room"). They are typed here because this is a fixture; the page
+     * builds the real ones off the RaceDef. */
     race: {
       title: "RACE DAY",
       sub: "A TIMED 5,000 M TRIAL",
-      piece: "5,000 M",
-      stamp: "SUN SEP 27",
-      when: "SUN SEP 27 \u00b7 6 \u2013 9 PM \u00b7 FREE",
-      where: "THE ENGINE ROOM \u00b7 LAS VEGAS",
+      when: "SUN SEP 27 \u00b7 6 \u2013 9 PM",
+      where: "THE ENGINE ROOM",
       mark: {
         src: "/row100k/raceday/strip-barbell.png",
         ratio: 1170 / 466,
         alt: "The Strip Barbell",
       },
-      mine: { role: "racer", wave: null },
     },
     community: {
       meters: cum,

@@ -506,9 +506,17 @@ function drawFacts(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPain
 }
 
 /* THE TWO WAYS IN (owner, 2026-09-11: "we need there to be a way to sign up
- * as a spectator versus as just a racer"). Both sentences are RACE_ROLES
- * verbatim through the assembler, so the ad and the sign-up say the same
- * words. */
+ * as a spectator versus as just a racer"). What sentences there are come
+ * through the assembler as RACE_ROLES verbatim, so the ad and the sign-up
+ * say the same words.
+ *
+ * IT IS ONE SENTENCE NOW, not two. The spectator's went the same day
+ * ("remove the phrase come watch, no wave, no erg") and the row sets its
+ * LABEL ALONE: SPECTATOR is the whole sentence, and the right-hand column
+ * is simply not drawn on that row rather than drawn empty. The row keeps
+ * its height either way — the height is the label's cap and its air, never
+ * the sentence's — so nothing opens under the table and nothing above it
+ * moves. A reader gets one word that needs no gloss and one that does. */
 const ways = mod("ways", 50, (ctx, box, d, paint) => {
   const tk = paint.tk;
   const { x, w } = colOf(box, paint);
@@ -526,7 +534,9 @@ const ways = mod("ways", 50, (ctx, box, d, paint) => {
   for (const r of d.race.roles) {
     y += tk.small * 0.75;
     paint.drawText(ctx, r.label, x, y + cap, fk, WHITE, -0.01 * ks);
-    paint.drawText(ctx, paint.ellipsize(ctx, r.line, w - keyW, fs, 0), x + keyW, y + cap, fs, BONE, 0);
+    if (r.line) {
+      paint.drawText(ctx, paint.ellipsize(ctx, r.line, w - keyW, fs, 0), x + keyW, y + cap, fs, BONE, 0);
+    }
     y += cap + tk.small * 0.75;
     paint.rule(ctx, x, y, w, tk.hair, FAINT);
   }
@@ -534,11 +544,9 @@ const ways = mod("ways", 50, (ctx, box, d, paint) => {
 });
 
 /* THE HOUSE. The venue mark placed exactly once, flush left at the foot,
- * with the room and the town right-aligned opposite it — a promoter credit,
- * never a co-brand. This is where THE ENGINE ROOM lands without spending a
- * sentence on it; the note that used to ride under it is gone (owner,
- * 2026-09-11: "remove the phrase new this September"), so the second line
- * is the town on its own. The mark is white on transparent, so it needs no
+ * with the room right-aligned opposite it — a promoter credit, never a
+ * co-brand. This is where THE ENGINE ROOM lands without spending a sentence
+ * on it. The mark is white on transparent, so it needs no
  * treatment on ink and none over a photograph; when the image has not
  * loaded the block keeps its height and the gym's name is set in type
  * instead. It is on every frame but one — the 1:1 OVERLAY drops it, because
@@ -555,7 +563,19 @@ const ways = mod("ways", 50, (ctx, box, d, paint) => {
  * headline on an ad, the picture on an overlay) takes the units. The mark
  * hangs off the rule on the same 1.2 smalls the eyebrow sat on, answered by
  * the 1.1 under the mark, so the foot is a block with its own air rather
- * than a line that lost its caption. */
+ * than a line that lost its caption.
+ *
+ * AND THE TOWN CAME OFF IT, 2026-09-11: "remove Las Vegas whenever we are
+ * saying the strip barbell engine room — we just keep it at the strip
+ * barbell engine room". THE ENGINE ROOM used to sit over LAS VEGAS as a
+ * two-line block, centred on the mark whenever the mark was tall enough to
+ * hold two lines (`two`, a test on markH that has gone with it). One line
+ * now, on every frame. NOTHING WAS RECLAIMED HERE and nothing needed to be:
+ * this module's height is the MARK's height plus its air, and the lines
+ * opposite were centred INSIDE that — the block measured the same with two
+ * lines in it as with one, so dropping a line moves no rule and opens no
+ * band. (Contrast the eyebrow above, which owned its own line and whose
+ * units did have to go somewhere.) */
 const host = mod("host", 60, (ctx, box, d, paint) => {
   const tk = paint.tk;
   const { x, w } = colOf(box, paint);
@@ -577,11 +597,13 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
   }
   const rs = tk.small * 1.02;
   const fr = paint.font("monoBold", rs);
-  const fq = paint.font("mono", rs * 0.94);
   const metR = paint.metricsOf(ctx, fr, rs);
   const room = w - markW - tk.small * 1.6;
-  const two = markH > metR.lh * 2.4;
-  const rTop = y + (markH - metR.lh * (two ? 2 : 1)) / 2;
+  // ONE line, centred on the mark — the town that used to sit under it is
+  // off race day (see the note above). It is centred on the mark's whole
+  // height, which is what the two-line block was centred on too, so the
+  // room sits where the pair's optical middle already was.
+  const rTop = y + (markH - metR.lh) / 2;
   paint.drawRight(
     ctx,
     paint.ellipsize(ctx, d.race.room, room, fr, rs * 0.14),
@@ -591,17 +613,6 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
     WHITE,
     rs * 0.14,
   );
-  if (two) {
-    paint.drawRight(
-      ctx,
-      paint.ellipsize(ctx, d.race.city, room, fq, rs * 0.13),
-      x + w,
-      paint.baselineOf(rTop + metR.lh, metR.lh, metR),
-      fq,
-      QUIET,
-      rs * 0.13,
-    );
-  }
   return y + markH + tk.small * 1.1 - box.y;
 });
 

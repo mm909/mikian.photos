@@ -106,11 +106,18 @@ export type ShareData = {
     /* "Sep 3" — the day the standings were read, for the sticker title. */
     asOf?: string;
   };
-  /* RACE DAY (owner, 2026-09-11: "There should be a shareable for whenever
-   * you sign up for race day. showing that you've signed up to race. And
-   * just a shareable with the event name and logo"). Set only by the race
-   * day page — which is what keeps these two cards on race day and nowhere
-   * else, and hands them raceOpenFor's gate for free.
+  /* RACE DAY (owner, 2026-09-11: "just a shareable with the event name and
+   * logo"). Set only by the race day page — which is what keeps this card
+   * on race day and nowhere else, and hands it raceOpenFor's gate for free.
+   *
+   * THERE WERE TWO CARDS AND THERE IS ONE. The other half of that ask — "a
+   * shareable for whenever you sign up for race day, showing that you have
+   * signed up to race" — was built as I'M RACING and the owner took it back
+   * the same evening: "I do not like the I am racing sticker. I just like
+   * the race day sticker. So let us just keep it Rowtember race day." The
+   * card is gone and so is the `mine` block that fed it — who the viewer is
+   * and what wave they drew — because the bill is about the EVENT and says
+   * nothing about whoever posts it.
    *
    * EVERY STRING ARRIVES DISPLAY-READY AND UPPER-CASED, derived off the race
    * AS IT STANDS (resolvedRace(), overrides and all) the way the page derives
@@ -118,45 +125,33 @@ export type ShareData = {
    * wave grid is: two surfaces that formatted the same evening their own way
    * would disagree the first time a door moved in the console. */
   race?: {
-    /* "RACE DAY" — the event's name. The bill card stacks it one word to a
-     * line, each word fitted to the measure; the spectator's caption names
-     * it whole. */
+    /* "RACE DAY" — the event's name, stacked one word to a line, each word
+     * fitted to the measure. */
     title: string;
     /* "A TIMED 5,000 M TRIAL" — RaceDef.sub. */
     sub: string;
-    /* "5,000 M" — the piece a racer pulls, for their caption line. */
-    piece: string;
-    /* "SUN SEP 27" — the day, as page.tsx stamps it. */
-    stamp: string;
-    /* "SUN SEP 27 · 6 – 9 PM · FREE" — the bill card's one acting line,
-     * built off hoursLine(race) and never typed, so moving the doors in the
-     * console moves the sticker. */
+    /* "SUN SEP 27 · 6 – 9 PM" — the card's one acting line, built off
+     * hoursLine(race) and never typed, so moving the doors in the console
+     * moves the sticker.
+     *
+     * IT USED TO END IN FREE and does not (owner, 2026-09-11: "on the share
+     * race day, let us remove free"). The race IS free and the ads still say
+     * so once, in the bracket cell the whole frame is built around; a
+     * sticker that a rower lays over their own photograph is an invitation,
+     * and an invitation that leads with a price is answering a question
+     * nobody asked it. */
     when: string;
-    /* "THE ENGINE ROOM · LAS VEGAS" — the room and the town under the house's
-     * mark. The gym's NAME is not in it: the mark is the credit (owner,
-     * 2026-09-11, taking the house eyebrow off every surface). */
+    /* "THE ENGINE ROOM" — the room under the house's mark, and the whole
+     * address line. The gym's NAME is not in it: the mark is the credit
+     * (owner, 2026-09-11, taking the house eyebrow off every surface). Nor
+     * is the TOWN, which used to follow it behind a middle dot — "remove Las
+     * Vegas whenever we are saying the strip barbell engine room". */
     where: string;
     /* RaceDef.venueMark: white on transparent, so it needs no treatment over
      * a photograph. `ratio` is width over height, which reserves the box
      * before the file exists; `alt` is the gym's name, which the card sets in
      * type if the PNG never arrives. */
     mark: { src: string; ratio: number; alt: string } | null;
-    /* THE VIEWER'S OWN ENTRY, absent for anybody not in the field — which is
-     * what keeps the I'M RACING card out of a stranger's picker while the
-     * bill stays in everybody's. */
-    mine?: {
-      role: "racer" | "spectator";
-      /* THE WAVE, and only ever one the rower has already been TOLD about:
-       * the page hands this over ONLY when waveEmailedAt is set. The page
-       * itself shows a number as soon as one is assigned and holds the start
-       * time back until the note goes out, because until then the grid can
-       * still be re-drawn (SignupPanel). A page corrects itself on the next
-       * load and a PNG in a camera roll never can, so the card takes that
-       * same rule one notch earlier. Null at signup — which is when this card
-       * is most likely to be posted — and the card is laid out for null. It
-       * never prints a wave TIME at all. */
-      wave: number | null;
-    } | null;
   };
 };
 
@@ -1488,14 +1483,24 @@ const rowtemberLogo: ShareCard = {
 
 /* ------------------------------------------------------------- race day */
 
-/* RACE DAY's two stickers (owner, 2026-09-11: "There should be a shareable
- * for whenever you sign up for race day. showing that you've signed up to
- * race. And just a shareable with the event name and logo" / "There should
- * be a share link on this race day page").
+/* RACE DAY's sticker (owner, 2026-09-11: "just a shareable with the event
+ * name and logo" / "There should be a share link on this race day page").
+ *
+ * ONE CARD, AND IT USED TO BE TWO. The first half of that ask — a card
+ * "showing that you've signed up to race" — shipped as I'M RACING / I'M
+ * WATCHING: the claim in the biggest type on the sheet, the piece and the
+ * day under it, the wave once the rower had been told one. The owner read
+ * it on his phone the same evening and took it off: "I do not like the I am
+ * racing sticker. I just like the race day sticker. So let us just keep it
+ * Rowtember race day, not the I am racing sticker." So the CLAIM card is
+ * gone and the BILL is the whole of race day's share deck — which is why
+ * everything it needed and the bill does not went with it: ShareData's
+ * `mine` block, its `piece` and `stamp`, the `role` and `wave` RaceShare
+ * took, and the dialog that popped itself the second somebody opted in.
  *
  * Race day is the site's one MONOCHROME surface — white on black, no water
  * blue anywhere — and every other card in this file is the blue mark on
- * transparent. These two belong to race day WITHOUT breaking the sticker
+ * transparent. This one belongs to race day WITHOUT breaking the sticker
  * convention: the ink arrives in exactly one element, the ROWTEMBER mark's
  * box (`box: INK`, the look THE ELITE already wear), and the blue is simply
  * absent everywhere else. No slab. An opaque ground would be the one card in
@@ -1672,141 +1677,18 @@ function drawRaceFoot(
   return top + boxH;
 }
 
-/* CARD A — the claim, and the one the owner asked for. Five elements: the
- * mark, the claim, its caption, a rule, the house. I'M RACING is the biggest
- * thing on it because the PERSON is the news and the event is the caption —
- * a sticker is looked at alone for under a second.
+/* THE RACE DAY CARD — the bill, and the one the owner kept. An INVITATION
+ * rather than a signature: it names the event, the day, the hours and the
+ * room, which is what separates it from the logo card, one mark that says
+ * only WHO. The logo card is in everyone's picker everywhere; this one is
+ * only in the picker on the race day page, and it is the only card there.
  *
- * No name and no number. The bib card carries a name because a bib has one;
- * this is first person, so it is already about whoever's story it is sitting
- * in, and a name under it would be the card explaining itself. The download
- * filename still carries the number.
- *
- * NO WAVE AT SIGNUP. Waves are not assigned when somebody opts in, and the
- * page deliberately says WAVE NOT ASSIGNED rather than promise one; a card
- * that printed a wave at the moment it is most likely to be posted would be
- * lying. So the stack is CENTRED between the mark and the rule rather than
- * pinned under the mark: the no-wave card — the one actually made thirty
- * seconds after the button — is the designed card, and nothing on it looks
- * missing. It does not say WAVE NOT ASSIGNED either. A page answers
- * questions; a sticker makes a claim, and a line spent on a thing it does not
- * have is a worse sticker. Nothing here can go stale: the card is as true in
- * October as it is today. */
-const rowtemberRaceDay: ShareCard = {
-  id: "rowtember-raceday",
-  label: "I’m racing",
-  /* A spectator opted in to WATCH, and the chip has to say so before they
-   * press it — they are never offered one that says racing. */
-  labelFor: (d) => (d.race?.mine?.role === "spectator" ? "I’m watching" : "I’m racing"),
-  width: 1080,
-  height: 940,
-  light: true,
-  available: (d) => !!d.race?.mine,
-  prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
-  draw(ctx, data, fonts) {
-    const race = data.race;
-    if (!race || !race.mine) return;
-    const cx = this.width / 2;
-    const M = 60;
-    const measure = this.width - M * 2;
-    const racing = race.mine.role === "racer";
-
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 3;
-
-    /* box: INK, never `masked` — these two paint the same picture for
-     * everybody, elite or not, because neither prints a meter or a clock. */
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
-      cx,
-      cy: 120,
-      size: 64,
-      fontFamily: fonts.black,
-      box: INK,
-    });
-
-    /* Both claims are fitted to the same column, so the SHORTER one is the
-     * bigger one — which is what makes the spectator's card a sibling rather
-     * than a shrunken copy. */
-    const claim = racing ? "I’M RACING" : "I’M WATCHING";
-    const claimSize = fitToWidth(ctx, claim, fonts.black, measure, 170);
-
-    /* The racer's caption names the PIECE, because the piece is the claim.
-     * The spectator's names the EVENT: they are not pulling the 5,000 m, so
-     * it is off their card entirely rather than described above them. */
-    const caption = fitTrackedLine(
-      ctx,
-      racing ? `${race.piece} · ${race.stamp}` : `${race.title} · ${race.stamp}`,
-      fonts.mono,
-      38,
-      9,
-      measure,
-    );
-
-    /* Only a racer has a wave, and only ever one they have already been TOLD
-     * about — the page hands it over only once the note has gone out. Its own
-     * line, never the headline: a page can make the wave the headline because
-     * a page is a status board you reload, but a sticker is a claim you post
-     * and the claim is the verb. Never a start time, on any path, however
-     * late the card is made. */
-    const wave = racing && race.mine.wave !== null ? `WAVE ${race.mine.wave}` : null;
-    const waveSize = 54;
-
-    const cap = (s: number) => s * 0.72;
-    const blockH = cap(claimSize) + 44 + cap(caption.size) + (wave ? 40 + cap(waveSize) : 0);
-    const claimBase = 200 + (420 - blockH) / 2 + cap(claimSize);
-    const captionBase = claimBase + 44 + cap(caption.size);
-    const waveBase = captionBase + 40 + cap(waveSize);
-
-    drawCenteredText(ctx, claim, {
-      cx,
-      baseline: claimBase,
-      font: `${claimSize}px ${fonts.black}`,
-      color: "#ffffff",
-      maxWidth: measure,
-    });
-    drawCenteredText(ctx, caption.text, {
-      cx,
-      baseline: captionBase,
-      font: `${caption.size}px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.86)",
-      tracking: 9,
-    });
-    if (wave) {
-      drawCenteredText(ctx, wave, {
-        cx,
-        baseline: waveBase,
-        font: `bold ${waveSize}px ${fonts.mono}`,
-        color: "#ffffff",
-        tracking: 6,
-      });
-    }
-
-    // The bill opens its house block on a thick rule and so does this one:
-    // without it the two marks stack up and read as two logos instead of a
-    // claim and its credit.
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    ctx.fillRect(M, 628, measure, 8);
-
-    const footBottom = drawRaceFoot(ctx, fonts, { cx, top: 672, width: 400, race });
-    const where = fitTrackedLine(ctx, race.where, fonts.mono, 30, 7, measure);
-    drawCenteredText(ctx, where.text, {
-      cx,
-      baseline: footBottom + 47,
-      font: `${where.size}px ${fonts.mono}`,
-      color: "rgba(255,255,255,0.86)",
-      tracking: 7,
-    });
-    ctx.restore();
-  },
-};
-
-/* CARD B — the bill, and the owner's second ask: the event name and the logo.
- * An INVITATION rather than a signature. It names the event, the day, the
- * hours, the price and the room — which is what separates it from the logo
- * card, one mark that says only WHO. The logo card is in everyone's picker
- * everywhere; this one is only in the picker on the race day page.
+ * IT NO LONGER NAMES THE PRICE. The acting line ran SUN SEP 27 · 6 – 9 PM ·
+ * FREE and the owner struck the last cell (2026-09-11: "on the share race
+ * day, let us remove free"). The line is built by the page, so it is short
+ * by one cell rather than short by a gap — the mono fitter simply sets two
+ * things bigger than it set three. FREE still rides the ads, once, in the
+ * bracket; see poster/raceday.ts.
  *
  * WHAT IT CANNOT DO YET, said plainly so nobody reads a promise into it: a
  * stranger holding this picture has the day and the address and no route
@@ -1893,9 +1775,10 @@ const rowtemberRaceDayBill: ShareCard = {
       tracking: 8,
     });
 
-    /* THE LINE A STRANGER ACTS ON: when, how long the doors are open, and
-     * what it costs. It is the whole reason this card is a bill and not a
-     * bare RACE DAY stamp. */
+    /* THE LINE A STRANGER ACTS ON: when, and how long the doors are open.
+     * It is the whole reason this card is a bill and not a bare RACE DAY
+     * stamp. It carried the price as a third cell until the owner took it
+     * off (2026-09-11). */
     const when = fitTrackedLine(ctx, race.when, fonts.mono, 46, 4, measure, true);
     drawCenteredText(ctx, when.text, {
       cx,
@@ -1921,15 +1804,15 @@ const rowtemberRaceDayBill: ShareCard = {
   },
 };
 
-/* The two of them, for the race day page's `only`. The dialog there opens on
- * a payload built from a RowRaceSignup row, which carries no meters, so the
- * picker must never be free to offer a total card reading 0 METERS — the
- * `only` list and the zeroed rower fields ship together. Exported from here
- * rather than typed at the call site so the list and the two ids cannot
- * drift. Order inside it does not matter: `only` preserves CARDS order, so a
- * rower in the field lands on their own card and everybody else lands on the
- * bill. */
-export const RACE_CARD_IDS = [rowtemberRaceDay.id, rowtemberRaceDayBill.id];
+/* The race day page's `only`, and it is a list of ONE since the owner kept
+ * the bill and dropped the claim card (2026-09-11). It is still a LIST and
+ * still exported: the dialog there opens on a payload built from a
+ * RowRaceSignup row, which carries no meters, so the picker must never be
+ * free to offer a total card reading 0 METERS — the `only` list and the
+ * zeroed rower fields ship together, and that guarantee is the reason this
+ * exists, not the count. ShareDialog hides the picker strip below two cards,
+ * so the dialog there is now the card and the buttons, with no chip row. */
+export const RACE_CARD_IDS = [rowtemberRaceDayBill.id];
 
 /* ------------------------------------------------------- community cards */
 
@@ -2723,7 +2606,8 @@ export const CARDS: ShareCard[] = [
   rowtemberMonth,
   rowtemberElite,
   rowtemberLogo,
-  rowtemberRaceDay,
+  // I'M RACING is retired (owner, 2026-09-11: "I just like the race day
+  // sticker"). Race day ships the bill and nothing else.
   rowtemberRaceDayBill,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
