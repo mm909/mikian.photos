@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { CARDS, type ShareCard, type ShareData, type ShareFonts } from "../../share/cards";
+import {
+  CARDS,
+  prepareCard,
+  type ShareCard,
+  type ShareData,
+  type ShareFonts,
+} from "../../share/cards";
 import { ELITE_N } from "@/lib/blackoutRules";
 
 /* The card catalogue: every shareable in the registry, painted at quarter
@@ -103,6 +109,25 @@ function sampleData(masked = false): ShareData {
     best: masked
       ? { label: "Fastest 5k", value: "", place: 1, shape: "##:##.#" }
       : { label: "Fastest 5k", value: "18:51.6", place: 1 },
+    /* RACE DAY, in the state it will actually be posted in: a racer who
+     * has just opted in and has NO wave yet. That is the card made thirty
+     * seconds after the button, so it is the one the catalogue holds up.
+     * The spectator's card and the one carrying a wave are looked at on
+     * the real race day page, which is open to everyone in dev. */
+    race: {
+      title: "RACE DAY",
+      sub: "A TIMED 5,000 M TRIAL",
+      piece: "5,000 M",
+      stamp: "SUN SEP 27",
+      when: "SUN SEP 27 \u00b7 6 \u2013 9 PM \u00b7 FREE",
+      where: "THE ENGINE ROOM \u00b7 LAS VEGAS",
+      mark: {
+        src: "/row100k/raceday/strip-barbell.png",
+        ratio: 1170 / 466,
+        alt: "The Strip Barbell",
+      },
+      mine: { role: "racer", wave: null },
+    },
     community: {
       meters: cum,
       rowers: 91,
@@ -155,11 +180,21 @@ function Preview({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    // Built once and handed to both the wait and the paint: prepare()
+    // reads the payload to find the asset, so a second sample would be a
+    // second object describing the same card.
+    const sample = sampleData(masked);
     try {
       await document.fonts.ready;
     } catch {
       /* older browsers just paint in the fallback */
     }
+    // A card may need an ASSET the way every card needs the webfonts —
+    // race day's house mark is an image. Same place, same rule as the
+    // share dialog: nothing is painted until what it paints with is here,
+    // and the wait is capped so a dead network costs the mark, not the
+    // catalogue.
+    await prepareCard(card, sample);
     canvas.width = Math.round(card.width * SCALE);
     canvas.height = Math.round(card.height * SCALE);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -168,7 +203,7 @@ function Preview({
     // context is what shrinks it without touching a single card's code.
     ctx.scale(SCALE, SCALE);
     try {
-      card.draw(ctx, sampleData(masked), fonts.current ?? { black: "sans-serif", mono: "monospace" });
+      card.draw(ctx, sample, fonts.current ?? { black: "sans-serif", mono: "monospace" });
     } catch (err) {
       console.error(`dev/stats: ${card.id} failed to paint`, err);
     }

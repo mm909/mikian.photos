@@ -106,6 +106,58 @@ export type ShareData = {
     /* "Sep 3" — the day the standings were read, for the sticker title. */
     asOf?: string;
   };
+  /* RACE DAY (owner, 2026-09-11: "There should be a shareable for whenever
+   * you sign up for race day. showing that you've signed up to race. And
+   * just a shareable with the event name and logo"). Set only by the race
+   * day page — which is what keeps these two cards on race day and nowhere
+   * else, and hands them raceOpenFor's gate for free.
+   *
+   * EVERY STRING ARRIVES DISPLAY-READY AND UPPER-CASED, derived off the race
+   * AS IT STANDS (resolvedRace(), overrides and all) the way the page derives
+   * its own bill. cards.ts does not read a clock, format a day or know what a
+   * wave grid is: two surfaces that formatted the same evening their own way
+   * would disagree the first time a door moved in the console. */
+  race?: {
+    /* "RACE DAY" — the event's name. The bill card stacks it one word to a
+     * line, each word fitted to the measure; the spectator's caption names
+     * it whole. */
+    title: string;
+    /* "A TIMED 5,000 M TRIAL" — RaceDef.sub. */
+    sub: string;
+    /* "5,000 M" — the piece a racer pulls, for their caption line. */
+    piece: string;
+    /* "SUN SEP 27" — the day, as page.tsx stamps it. */
+    stamp: string;
+    /* "SUN SEP 27 · 6 – 9 PM · FREE" — the bill card's one acting line,
+     * built off hoursLine(race) and never typed, so moving the doors in the
+     * console moves the sticker. */
+    when: string;
+    /* "THE ENGINE ROOM · LAS VEGAS" — the room and the town under the house's
+     * mark. The gym's NAME is not in it: the mark is the credit (owner,
+     * 2026-09-11, taking the house eyebrow off every surface). */
+    where: string;
+    /* RaceDef.venueMark: white on transparent, so it needs no treatment over
+     * a photograph. `ratio` is width over height, which reserves the box
+     * before the file exists; `alt` is the gym's name, which the card sets in
+     * type if the PNG never arrives. */
+    mark: { src: string; ratio: number; alt: string } | null;
+    /* THE VIEWER'S OWN ENTRY, absent for anybody not in the field — which is
+     * what keeps the I'M RACING card out of a stranger's picker while the
+     * bill stays in everybody's. */
+    mine?: {
+      role: "racer" | "spectator";
+      /* THE WAVE, and only ever one the rower has already been TOLD about:
+       * the page hands this over ONLY when waveEmailedAt is set. The page
+       * itself shows a number as soon as one is assigned and holds the start
+       * time back until the note goes out, because until then the grid can
+       * still be re-drawn (SignupPanel). A page corrects itself on the next
+       * load and a PNG in a camera roll never can, so the card takes that
+       * same rule one notch earlier. Null at signup — which is when this card
+       * is most likely to be posted — and the card is laid out for null. It
+       * never prints a wave TIME at all. */
+      wave: number | null;
+    } | null;
+  };
 };
 
 export type ShareFonts = { black: string; mono: string };
@@ -127,6 +179,13 @@ export type ShareCard = {
   light: boolean;
   /* Absent = always in the menu. The club card earns its slot at 50k. */
   available?: (data: ShareData) => boolean;
+  /* Anything the card must have LOADED before it can be painted. Every other
+   * card in this file is type, and type is synchronous once the webfonts have
+   * settled; the race cards carry the house's own PNG, so it is waited for
+   * where the fonts already are. UNCAPPED, and it must always settle and
+   * never reject — the cap belongs to the caller (prepareCard), so a caller
+   * that wants to repaint on a late arrival can await this one directly. */
+  prepare?: (data: ShareData) => Promise<void>;
   draw: (ctx: CanvasRenderingContext2D, data: ShareData, fonts: ShareFonts) => void;
 };
 
@@ -1427,6 +1486,451 @@ const rowtemberLogo: ShareCard = {
   },
 };
 
+/* ------------------------------------------------------------- race day */
+
+/* RACE DAY's two stickers (owner, 2026-09-11: "There should be a shareable
+ * for whenever you sign up for race day. showing that you've signed up to
+ * race. And just a shareable with the event name and logo" / "There should
+ * be a share link on this race day page").
+ *
+ * Race day is the site's one MONOCHROME surface — white on black, no water
+ * blue anywhere — and every other card in this file is the blue mark on
+ * transparent. These two belong to race day WITHOUT breaking the sticker
+ * convention: the ink arrives in exactly one element, the ROWTEMBER mark's
+ * box (`box: INK`, the look THE ELITE already wear), and the blue is simply
+ * absent everywhere else. No slab. An opaque ground would be the one card in
+ * the registry you could not lay over your own photograph, and race day is
+ * the most photographable thing the challenge has. */
+
+/* The size at which `text` spans exactly `w`. Canvas advances scale linearly
+ * with the font size, so one measurement at 100px answers it — which is why
+ * these two need none of the advance-and-kern table raceday/page.tsx carries
+ * to reach the same answer server-side. A page has no measuring context; a
+ * canvas has one. */
+function fitToWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  family: string,
+  w: number,
+  max: number,
+): number {
+  ctx.save();
+  ctx.font = `100px ${family}`;
+  const em = ctx.measureText(text).width / 100;
+  ctx.restore();
+  if (!(em > 0)) return max;
+  return Math.max(12, Math.min(max, Math.floor(w / em)));
+}
+
+/* Shrink a TRACKED mono line by 2 until it fits, floor 18, then trim it.
+ * drawCenteredText honours maxWidth only on its untracked path — the tracked
+ * path lays the glyphs out by hand, where the canvas cannot condense them —
+ * and every mono line on these two cards is tracked, so the fitting happens
+ * out here. The ellipsis is the bib card's own belt-and-braces: a floor is a
+ * floor, so a venue line nobody foresaw cannot run off the edge at 18px. */
+function fitTrackedLine(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  family: string,
+  size: number,
+  tracking: number,
+  maxW: number,
+  bold = false,
+): { size: number; text: string } {
+  const weight = bold ? "bold " : "";
+  const chars = [...text];
+  const span = () =>
+    chars.reduce((w, c) => w + ctx.measureText(c).width, 0) + tracking * (chars.length - 1);
+  ctx.save();
+  let s = size;
+  ctx.font = `${weight}${s}px ${family}`;
+  while (s > 18 && span() > maxW) {
+    s -= 2;
+    ctx.font = `${weight}${s}px ${family}`;
+  }
+  const fitted = ellipsize(ctx, text, maxW - tracking * (chars.length - 1));
+  ctx.restore();
+  return { size: s, text: fitted };
+}
+
+/* The house's mark is an IMAGE, and every other card here paints in one
+ * synchronous pass off fonts that are already loaded. So it is loaded the way
+ * the fonts are — before the paint, by the caller — and draw only ever reaches
+ * for one already decoded.
+ *
+ * `typeof Image` is checked because this module is imported on the SERVER
+ * too: api/row100k/share-event reads CARDS and board/page.tsx reads
+ * BOARD_CARD_IDS, and a bare new Image() would take both down.
+ *
+ * THE ELEMENT IS CACHED, NOT THE OUTCOME, and there is no deadline in here. A
+ * deadline living inside the cached promise would be resolved forever once it
+ * had won once, so every later paint would resolve instantly and draw the
+ * fallback again — a mark that arrived late could never repaint. The wait
+ * belongs to the caller (prepareCard): a mark that lands after a paint has
+ * gone ahead is picked up by the next one, and the caller that let that paint
+ * through is the one that repaints. */
+const raceMarkEls = new Map<string, HTMLImageElement>();
+const raceMarkWaits = new Map<string, Promise<void>>();
+
+function loadRaceMark(src: string): Promise<void> {
+  const waiting = raceMarkWaits.get(src);
+  if (waiting) return waiting;
+  if (typeof Image === "undefined") {
+    const none = Promise.resolve();
+    raceMarkWaits.set(src, none);
+    return none;
+  }
+  const img = new Image();
+  raceMarkEls.set(src, img);
+  const settled = new Promise<void>((resolve) => {
+    img.onload = () => resolve();
+    // A 404 settles like a finish: the card has a fallback, and nothing in
+    // the dialog may hang on a file that is never coming.
+    img.onerror = () => resolve();
+  });
+  img.src = src;
+  raceMarkWaits.set(src, settled);
+  return settled;
+}
+
+/* The mark, but only if it is actually paintable — a half-decoded element
+ * must never take the fallback's place and paint nothing. A src nobody has
+ * asked for starts loading here too, so a caller that skipped prepare gets
+ * the real mark on its NEXT paint instead of the fallback forever. */
+function readyRaceMark(mark: { src: string } | null | undefined): HTMLImageElement | null {
+  if (!mark) return null;
+  const img = raceMarkEls.get(mark.src);
+  if (!img) {
+    if (typeof Image !== "undefined") void loadRaceMark(mark.src);
+    return null;
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/* How long a paint waits on a card's assets before going ahead without them.
+ * The mark is a same-origin 27 KB PNG that the race day page has already
+ * rendered in its own house block by the time anybody can press SHARE, so in
+ * practice this never elapses; it is here so a pathological network costs the
+ * picture and never the dialog. */
+export const ASSET_WAIT_MS = 2500;
+
+/* Wait for a card's assets, capped — call it immediately before draw, where
+ * document.fonts.ready is already awaited. A caller that also wants the late
+ * arrival awaits card.prepare directly and repaints when it resolves. */
+export function prepareCard(card: ShareCard, data: ShareData, ms = ASSET_WAIT_MS): Promise<void> {
+  const pending = card.prepare?.(data);
+  if (!pending) return Promise.resolve();
+  return Promise.race([pending, new Promise<void>((r) => setTimeout(r, ms))]);
+}
+
+const RACE_MARK_RATIO = 1170 / 466;
+
+/* THE HOUSE — the block both cards close on: the venue's own mark, centred,
+ * carrying NO label (owner, 2026-09-11: "Remove the house on race day ads" —
+ * a credit that has to caption itself is not a credit).
+ *
+ * The box is reserved off `ratio` and never off naturalHeight, so the card
+ * lays out identically whether the PNG has arrived or not and nothing reflows
+ * when it does. With no mark ready the gym's NAME goes in the same box on the
+ * same baseline, which is what poster/raceday.ts's `host` module does with
+ * this same asset — the two surfaces fail the same way. A card that loses the
+ * PNG is a complete, correct sticker that has lost a logo; it is never a
+ * blank rectangle. Returns the bottom of the block, so the caller can hang
+ * the room line off it. */
+function drawRaceFoot(
+  ctx: CanvasRenderingContext2D,
+  fonts: ShareFonts,
+  opts: { cx: number; top: number; width: number; race: NonNullable<ShareData["race"]> },
+): number {
+  const { cx, top, width, race } = opts;
+  // No house at all: no block. The room line rides straight under the rule
+  // rather than under a hole reserved for nothing.
+  if (!race.mark) return top;
+  const boxH = width / (race.mark.ratio > 0 ? race.mark.ratio : RACE_MARK_RATIO);
+  const img = readyRaceMark(race.mark);
+  ctx.save();
+  // Its own scope: the PNG is keyed white on transparent, so its alpha throws
+  // the same halo the type does, and the block stays right called from
+  // anywhere.
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 3;
+  if (img) {
+    ctx.drawImage(img, cx - width / 2, top, width, boxH);
+  } else {
+    const name = race.mark.alt.toUpperCase();
+    const size = Math.min(boxH * 0.62, fitToWidth(ctx, name, fonts.black, width, 200));
+    drawCenteredText(ctx, name, {
+      cx,
+      baseline: top + (boxH + size * 0.72) / 2,
+      font: `${size}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: width,
+    });
+  }
+  ctx.restore();
+  return top + boxH;
+}
+
+/* CARD A — the claim, and the one the owner asked for. Five elements: the
+ * mark, the claim, its caption, a rule, the house. I'M RACING is the biggest
+ * thing on it because the PERSON is the news and the event is the caption —
+ * a sticker is looked at alone for under a second.
+ *
+ * No name and no number. The bib card carries a name because a bib has one;
+ * this is first person, so it is already about whoever's story it is sitting
+ * in, and a name under it would be the card explaining itself. The download
+ * filename still carries the number.
+ *
+ * NO WAVE AT SIGNUP. Waves are not assigned when somebody opts in, and the
+ * page deliberately says WAVE NOT ASSIGNED rather than promise one; a card
+ * that printed a wave at the moment it is most likely to be posted would be
+ * lying. So the stack is CENTRED between the mark and the rule rather than
+ * pinned under the mark: the no-wave card — the one actually made thirty
+ * seconds after the button — is the designed card, and nothing on it looks
+ * missing. It does not say WAVE NOT ASSIGNED either. A page answers
+ * questions; a sticker makes a claim, and a line spent on a thing it does not
+ * have is a worse sticker. Nothing here can go stale: the card is as true in
+ * October as it is today. */
+const rowtemberRaceDay: ShareCard = {
+  id: "rowtember-raceday",
+  label: "I’m racing",
+  /* A spectator opted in to WATCH, and the chip has to say so before they
+   * press it — they are never offered one that says racing. */
+  labelFor: (d) => (d.race?.mine?.role === "spectator" ? "I’m watching" : "I’m racing"),
+  width: 1080,
+  height: 940,
+  light: true,
+  available: (d) => !!d.race?.mine,
+  prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
+  draw(ctx, data, fonts) {
+    const race = data.race;
+    if (!race || !race.mine) return;
+    const cx = this.width / 2;
+    const M = 60;
+    const measure = this.width - M * 2;
+    const racing = race.mine.role === "racer";
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+
+    /* box: INK, never `masked` — these two paint the same picture for
+     * everybody, elite or not, because neither prints a meter or a clock. */
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 120,
+      size: 64,
+      fontFamily: fonts.black,
+      box: INK,
+    });
+
+    /* Both claims are fitted to the same column, so the SHORTER one is the
+     * bigger one — which is what makes the spectator's card a sibling rather
+     * than a shrunken copy. */
+    const claim = racing ? "I’M RACING" : "I’M WATCHING";
+    const claimSize = fitToWidth(ctx, claim, fonts.black, measure, 170);
+
+    /* The racer's caption names the PIECE, because the piece is the claim.
+     * The spectator's names the EVENT: they are not pulling the 5,000 m, so
+     * it is off their card entirely rather than described above them. */
+    const caption = fitTrackedLine(
+      ctx,
+      racing ? `${race.piece} · ${race.stamp}` : `${race.title} · ${race.stamp}`,
+      fonts.mono,
+      38,
+      9,
+      measure,
+    );
+
+    /* Only a racer has a wave, and only ever one they have already been TOLD
+     * about — the page hands it over only once the note has gone out. Its own
+     * line, never the headline: a page can make the wave the headline because
+     * a page is a status board you reload, but a sticker is a claim you post
+     * and the claim is the verb. Never a start time, on any path, however
+     * late the card is made. */
+    const wave = racing && race.mine.wave !== null ? `WAVE ${race.mine.wave}` : null;
+    const waveSize = 54;
+
+    const cap = (s: number) => s * 0.72;
+    const blockH = cap(claimSize) + 44 + cap(caption.size) + (wave ? 40 + cap(waveSize) : 0);
+    const claimBase = 200 + (420 - blockH) / 2 + cap(claimSize);
+    const captionBase = claimBase + 44 + cap(caption.size);
+    const waveBase = captionBase + 40 + cap(waveSize);
+
+    drawCenteredText(ctx, claim, {
+      cx,
+      baseline: claimBase,
+      font: `${claimSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: measure,
+    });
+    drawCenteredText(ctx, caption.text, {
+      cx,
+      baseline: captionBase,
+      font: `${caption.size}px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.86)",
+      tracking: 9,
+    });
+    if (wave) {
+      drawCenteredText(ctx, wave, {
+        cx,
+        baseline: waveBase,
+        font: `bold ${waveSize}px ${fonts.mono}`,
+        color: "#ffffff",
+        tracking: 6,
+      });
+    }
+
+    // The bill opens its house block on a thick rule and so does this one:
+    // without it the two marks stack up and read as two logos instead of a
+    // claim and its credit.
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillRect(M, 628, measure, 8);
+
+    const footBottom = drawRaceFoot(ctx, fonts, { cx, top: 672, width: 400, race });
+    const where = fitTrackedLine(ctx, race.where, fonts.mono, 30, 7, measure);
+    drawCenteredText(ctx, where.text, {
+      cx,
+      baseline: footBottom + 47,
+      font: `${where.size}px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.86)",
+      tracking: 7,
+    });
+    ctx.restore();
+  },
+};
+
+/* CARD B — the bill, and the owner's second ask: the event name and the logo.
+ * An INVITATION rather than a signature. It names the event, the day, the
+ * hours, the price and the room — which is what separates it from the logo
+ * card, one mark that says only WHO. The logo card is in everyone's picker
+ * everywhere; this one is only in the picker on the race day page.
+ *
+ * WHAT IT CANNOT DO YET, said plainly so nobody reads a promise into it: a
+ * stranger holding this picture has the day and the address and no route
+ * back to the site. There is no URL on it by design, /raceday is noindex and
+ * still 404s for everyone but the owner (raceOpenFor), and the page has no
+ * openGraph block, so even the link pasted beside it previews as nothing.
+ * None of that is this card's to fix, and all of it has to be true before
+ * race week or the sticker is a poster for a room nobody can find.
+ *
+ * No opt-in slab and no URL: the poster studio already makes that ad in nine
+ * formats, a sticker over a rower's own photo is not a worse copy of one, and
+ * the slab would be the only opaque element in this vocabulary. */
+const rowtemberRaceDayBill: ShareCard = {
+  id: "rowtember-raceday-bill",
+  label: "Race day",
+  width: 1080,
+  height: 1350,
+  light: true,
+  available: (d) => !!d.race,
+  prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
+  draw(ctx, data, fonts) {
+    const race = data.race;
+    if (!race) return;
+    const cx = this.width / 2;
+    const M = 60;
+    const measure = this.width - M * 2;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 130,
+      size: 68,
+      fontFamily: fonts.black,
+      box: INK,
+    });
+
+    /* RACE over DAY, each word fitted to the column on its own — the ad's own
+     * masthead, and the step the owner picked out.
+     *
+     * ONE FACTOR FOR THE WHOLE STACK: fit every word to the measure first,
+     * then, only if the stack overruns its zone, multiply ALL the sizes by
+     * the same k, so the step between a four-letter word and a three-letter
+     * one survives the shrink. Capping each word at its share of the zone
+     * instead would hold DAY to about 421px against a flush fit of 435, and
+     * the block would stop being flush. */
+    const words = race.title.toUpperCase().split(/\s+/).filter(Boolean);
+    const lead = 24;
+    const zone = 630;
+    const stackOf = (ss: number[]) =>
+      ss.reduce((h, s) => h + s * 0.72, 0) + lead * Math.max(0, ss.length - 1);
+    let sizes = words.map((w) => fitToWidth(ctx, w, fonts.black, measure, 460));
+    const stackH = stackOf(sizes);
+    if (stackH > zone) {
+      const k = zone / stackH;
+      sizes = sizes.map((s) => Math.max(12, Math.floor(s * k)));
+    }
+    // Centred in the zone; a word fitted to the measure is flush either way.
+    let baseline = 200 + (zone - stackOf(sizes)) / 2;
+    words.forEach((w, i) => {
+      baseline += sizes[i] * 0.72;
+      drawCenteredText(ctx, w, {
+        cx,
+        baseline,
+        font: `${sizes[i]}px ${fonts.black}`,
+        color: "#ffffff",
+        maxWidth: measure,
+      });
+      baseline += lead;
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.fillRect(M, 846, measure, 3);
+
+    const sub = fitTrackedLine(ctx, race.sub, fonts.mono, 40, 8, measure);
+    drawCenteredText(ctx, sub.text, {
+      cx,
+      baseline: 916,
+      font: `${sub.size}px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.82)",
+      tracking: 8,
+    });
+
+    /* THE LINE A STRANGER ACTS ON: when, how long the doors are open, and
+     * what it costs. It is the whole reason this card is a bill and not a
+     * bare RACE DAY stamp. */
+    const when = fitTrackedLine(ctx, race.when, fonts.mono, 46, 4, measure, true);
+    drawCenteredText(ctx, when.text, {
+      cx,
+      baseline: 994,
+      font: `bold ${when.size}px ${fonts.mono}`,
+      color: "#ffffff",
+      tracking: 4,
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillRect(M, 1034, measure, 8);
+
+    const footBottom = drawRaceFoot(ctx, fonts, { cx, top: 1078, width: 420, race });
+    const where = fitTrackedLine(ctx, race.where, fonts.mono, 32, 7, measure);
+    drawCenteredText(ctx, where.text, {
+      cx,
+      baseline: footBottom + 47,
+      font: `${where.size}px ${fonts.mono}`,
+      color: "rgba(255,255,255,0.86)",
+      tracking: 7,
+    });
+    ctx.restore();
+  },
+};
+
+/* The two of them, for the race day page's `only`. The dialog there opens on
+ * a payload built from a RowRaceSignup row, which carries no meters, so the
+ * picker must never be free to offer a total card reading 0 METERS — the
+ * `only` list and the zeroed rower fields ship together. Exported from here
+ * rather than typed at the call site so the list and the two ids cannot
+ * drift. Order inside it does not matter: `only` preserves CARDS order, so a
+ * rower in the field lands on their own card and everybody else lands on the
+ * bill. */
+export const RACE_CARD_IDS = [rowtemberRaceDay.id, rowtemberRaceDayBill.id];
+
 /* ------------------------------------------------------- community cards */
 
 /* "561k" for a community-scale day; the month can push a single day past a
@@ -2219,6 +2723,8 @@ export const CARDS: ShareCard[] = [
   rowtemberMonth,
   rowtemberElite,
   rowtemberLogo,
+  rowtemberRaceDay,
+  rowtemberRaceDayBill,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
   rowtemberCommunityToday,

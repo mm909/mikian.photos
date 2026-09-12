@@ -9,6 +9,7 @@ import { hoursLine, raceOpenFor, racePhase, waveTime } from "../raceday";
 import { resolvedRace } from "../racedaySettings";
 import { listRacers } from "../racedayData";
 import { FIELD_SHOWS_AT, Field } from "./Field";
+import { RaceShare, type RaceFacts } from "./RaceShare";
 import { rdCss } from "./rdCss";
 import { SignupPanel } from "./SignupPanel";
 
@@ -188,11 +189,33 @@ export default async function RaceDayPage() {
   // RACE over DAY. Two words on a title of two, one line on a title of one,
   // and each of them fitted to the column on its own.
   const head = race.title.toUpperCase().split(/\s+/).filter(Boolean);
+  // Written once because the bracket cell and the sticker both say it, and a
+  // free race that costs money on one of them is the worst kind of typo.
+  const price = "FREE";
   const cells = [
     { v: date, s: DAY_WORD[day.getUTCDay()] },
     { v: hours, s: `WAVES EVERY ${race.waveMinutes} MIN` },
-    { v: "FREE", s: "RACER OR SPECTATOR" },
+    { v: price, s: "RACER OR SPECTATOR" },
   ];
+
+  /* THE SHAREABLES (owner, 2026-09-11: "There should be a shareable for
+   * whenever you sign up for race day ... And just a shareable with the
+   * event name and logo"). The facts are built HERE, off the same values the
+   * bill prints — stamp, hoursLine, the room, the house's own mark — and
+   * handed down display-ready: share/cards.ts reads no clock and formats no
+   * day, because two surfaces that formatted the same evening their own way
+   * would disagree the first time a door moved in the console. The viewer's
+   * own half (`mine`) is not in here; the panel adds it, because it knows
+   * about an opt-in the moment it happens and this render does not. */
+  const raceFacts: RaceFacts = {
+    title: race.title.toUpperCase(),
+    sub: race.sub.toUpperCase(),
+    piece: `${race.meters.toLocaleString("en-US")} M`,
+    stamp,
+    when: `${stamp} · ${hours} · ${price}`,
+    where: `${race.room} · ${city}`.toUpperCase(),
+    mark: race.venueMark,
+  };
 
   // The bill wears a stamp once it is over, and nothing while it is open:
   // the day is already the biggest thing on the page.
@@ -310,7 +333,31 @@ export default async function RaceDayPage() {
                 joined={viewer.myParticipantId !== null}
                 open={phase === "open"}
                 mine={mine}
+                share={raceFacts}
               />
+
+              {/* THE TEAR-OFF STRIP, and the reason it is HERE: the bill is
+               * the last thing anybody reads before they decide, and the one
+               * thing a visitor who is NOT ready to sign in can still do with
+               * this page is hand it to somebody who is. So the event card
+               * closes the sheet the way a strip closes a bill on a wall —
+               * under the act, quiet, and reachable signed out, which costs
+               * nothing: the payload carries no `role`, so the picker holds
+               * exactly the one card that claims nothing about the viewer
+               * (share/cards.ts gates the rower's own card on `mine`).
+               *
+               * IT COMES OFF FOR SOMEBODY ALREADY IN THE FIELD, because for
+               * them it is the only thing on the sheet printed twice: their
+               * own block holds the same event card as the second chip in its
+               * picker. The server read is what decides, so opting in or out
+               * takes the strip away and gives it back on the refresh the
+               * panel already asks for. */}
+              {!(mine && mine.withdrewAt === null) && (
+                <div className="rd-tear">
+                  <span className="mono">Tell somebody</span>
+                  <RaceShare facts={raceFacts} label="Share race day" btn="quiet-btn" />
+                </div>
+              )}
             </div>
           </div>
         </section>

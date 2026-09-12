@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { availableCards, type ShareData, type ShareFonts } from "./share/cards";
+import { availableCards, prepareCard, type ShareData, type ShareFonts } from "./share/cards";
 
 /* The shareables menu: a card picker, a live preview, and the three ways off
  * the page — share sheet (phones), copy to clipboard (paste straight into a
@@ -17,6 +17,12 @@ import { availableCards, type ShareData, type ShareFonts } from "./share/cards";
  * share/cards.ts. Adding a card doesn't touch this file. */
 
 type Status = { kind: "idle" | "done" | "error"; message?: string };
+
+/* Cards with no person on them, which anyone may take away. The community
+ * ones are caught by their prefix; this is for the ones not named that way.
+ * rowtember-logo is arguably one of these too, but it has been downloading
+ * under a rower number all month and renaming it is not this change. */
+const ANYONES = new Set(["rowtember-raceday-bill"]);
 
 export function ShareDialog({
   data,
@@ -77,6 +83,15 @@ export function ShareDialog({
         ? window.getComputedStyle(monoProbe.current).fontFamily
         : "monospace",
     };
+
+    /* A card may declare assets of its own — the race cards carry the gym's
+     * mark. cards.ts documents prepareCard as the contract and caps the wait
+     * itself, so this costs nothing on every other card and is the whole
+     * difference between a sticker with a logo on it and one that has quietly
+     * fallen back to setting the gym's name in type. The dev harness was
+     * honouring the contract and this, the path everybody actually shares
+     * through, was not. */
+    await prepareCard(card, data);
 
     canvas.width = card.width;
     canvas.height = card.height;
@@ -150,12 +165,13 @@ export function ShareDialog({
     }
   };
 
-  /* Community cards are everyone's — no rower number in the name. */
-  const filename = !card
-    ? "rowtember.png"
-    : card.id.startsWith("rowtember-community")
-      ? `${card.id}.png`
-      : `rowtember-${data.rowerNumber}-${card.id}.png`;
+  /* Cards that belong to nobody in particular — the community totals, and
+   * the race day bill, which a signed-out stranger can take — carry no rower
+   * number in the name. Before the race card was added this was a prefix
+   * test, and the bill came off a signed-out visitor's phone called
+   * rowtember-0-rowtember-raceday-bill.png. */
+  const mine = card !== undefined && !ANYONES.has(card.id) && !card.id.startsWith("rowtember-community");
+  const filename = !card ? "rowtember.png" : mine ? `rowtember-${data.rowerNumber}-${card.id}.png` : `${card.id}.png`;
 
   async function onCopy() {
     // Safari wants the write to START inside the click gesture, so hand

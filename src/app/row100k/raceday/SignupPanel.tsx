@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { RACE_ROLES, waveTime, type RaceDef, type RaceRole } from "../raceday";
 import type { Racer } from "../racedayData";
+import { RaceShare, type RaceFacts } from "./RaceShare";
 
 /* THE ACT on the race day page: one block that is whatever the viewer needs
  * it to be — sign in, opt in, put my name in, or the confirmation that they
@@ -49,7 +50,18 @@ import type { Racer } from "../racedayData";
  * grey buttons would throw away a wave the rower has already been emailed
  * about, and the note in their inbox would then point at a wave they are
  * not in. So the press is instant while there is no wave to lose and asks
- * once, naming the wave, as soon as there is. */
+ * once, naming the wave, as soon as there is.
+ *
+ * THE SHAREABLE (owner, 2026-09-11: "There should be a shareable for
+ * whenever you sign up for race day. showing that you've signed up to
+ * race"). It rides in the block a rower is already reading — their own — on
+ * its own rail above the change-your-mind rail, because posting it is the
+ * happy act and opting out is not, and it stays there after registration
+ * closes: I'M RACING is never truer than on the morning itself. It also
+ * opens by ITSELF the one time it is most likely to be posted, the way the
+ * profile pops the dialog the second a row is logged — but only on JOINING,
+ * never on a role switch or a waiver tick. A card celebrates putting a name
+ * in; a dialog that jumped out on every press would be a jack-in-the-box. */
 
 const RACE_PATH = "/row100k/raceday";
 
@@ -66,6 +78,7 @@ export function SignupPanel({
   joined,
   open,
   mine: initialMine,
+  share,
 }: {
   race: RaceDef;
   signedIn: boolean;
@@ -73,6 +86,9 @@ export function SignupPanel({
   /* The race is still taking names (raceday.racePhase). */
   open: boolean;
   mine: Racer | null;
+  /* The race, as the share cards print it — built by the page off the same
+   * values the bill above does (RaceShare.RaceFacts). */
+  share: RaceFacts;
 }) {
   const router = useRouter();
   const [mine, setMine] = useState<Racer | null>(initialMine);
@@ -87,6 +103,11 @@ export function SignupPanel({
    * console keeps the chase list. Ticked here, stamped by the route. Only a
    * racer is ever asked: a spectator does not pull. */
   const [waiver, setWaiver] = useState(initialMine?.waiverAt !== null && initialMine !== null);
+  /* Bumped when a name goes IN, which is what pops the share dialog open by
+   * itself. A counter rather than a flag: the block that holds the button
+   * does not exist until the act that pops it has succeeded, so the signal
+   * has to survive that mount (RaceShare.openSignal). */
+  const [popped, setPopped] = useState(0);
 
   const inField = mine !== null && mine.withdrewAt === null;
   const racing = inField && mine?.role === "racer";
@@ -98,6 +119,11 @@ export function SignupPanel({
   ) => {
     setBusy(o.busy);
     setError(null);
+    /* Read BEFORE the round trip: whether this press is somebody JOINING —
+     * a first name in, or one going back in after a withdrawal — as opposed
+     * to a rower already in the field switching roles or ticking the waiver.
+     * Only the first of those earns the dialog. */
+    const joining = action === "enter" && !inField;
     try {
       const res = await fetch("/api/row100k/raceday", {
         method: "POST",
@@ -108,6 +134,14 @@ export function SignupPanel({
       if (res.ok && data.ok) {
         setMine(data.mine ?? null);
         setConfirm(null);
+        /* The card pops itself on the way in — but NOT over the waiver ask.
+         * The waiver is deliberately not a gate, so a rower can enter with
+         * it unticked, and the ONE THING LEFT strip appears in the same
+         * commit; a modal landing on top of the one instruction the gym
+         * actually needs followed would be the site celebrating over its own
+         * request. They still get the card from the link in the block. */
+        if (joining && data.mine && data.mine.withdrewAt === null && (!race.waiver || data.mine.waiverAt != null))
+          setPopped((n) => n + 1);
         // The racer list is rendered on the server below this block.
         router.refresh();
       } else setError(data.error ?? "Couldn't take that — try again.");
@@ -203,6 +237,25 @@ export function SignupPanel({
               </button>
             </div>
           ))}
+
+        {/* THE SHAREABLE, on a rail of its own above the one that takes a
+         * name back off the list — see the note at the top of the file. The
+         * WAVE handed over is the one the rower has already been TOLD about
+         * and never the one merely assigned: that is `emailed`, the same
+         * rule the start time above takes, and it is one notch tighter than
+         * the number on screen on purpose. A page corrects itself on the
+         * next load; a PNG in somebody's camera roll never can. */}
+        <div className="rd-two">
+          <span className="mono">Post it?</span>
+          <RaceShare
+            facts={share}
+            role={mine.role}
+            wave={emailed ? mine.wave : null}
+            rowerNumber={mine.rowerNumber}
+            label="Share a card"
+            openSignal={popped}
+          />
+        </div>
 
         {open ? (
           confirm === "out" ? (

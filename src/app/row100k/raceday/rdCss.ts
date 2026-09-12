@@ -203,6 +203,38 @@ export const rdCss = `
 .row100k .rd-wlink{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;text-decoration:underline;text-underline-offset:4px}
 .row100k .rd-wlink:hover{text-decoration-thickness:2px}
 
+/* THE TEAR-OFF (owner, 2026-09-11, on his phone: there should be a share
+ * link on this race day page). It closes the sheet the way a bill on a wall
+ * closes, with a strip anybody may take: a line on the left, the act on the
+ * right margin where a tear-off hangs. A DASHED rule, not one of the thick
+ * ones, because it is not part of the act above it — the act is the only
+ * thing on this page allowed to shout — and a quiet button, because a
+ * visitor who has not opted in yet must meet OPT IN first and this second. */
+.row100k .rd-tear{display:flex;align-items:center;justify-content:space-between;gap:12px 18px;flex-wrap:wrap;margin-top:clamp(18px,4cqw,28px);padding-top:clamp(12px,2.6cqw,18px);border-top:1px dashed rgba(255,255,255,.24)}
+.row100k .rd-tear .mono{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+/* Set like the waiver link, the page s other act that is a line of type
+ * rather than a button: mono caps, underlined, and a few pixels of band
+ * above and below so a thumb has something to land on. */
+.row100k .rd-tear .quiet-btn{font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-underline-offset:4px;padding:5px 0}
+.row100k .rd-tear .quiet-btn:hover{text-decoration-thickness:2px}
+
+/* THE SHAREABLES DIALOG, ON THIS SURFACE ONLY (owner, 2026-09-11: on the
+ * race day sign up, let us stick with monochromatic). ShareMenu is the site
+ * s own chrome and it is water blue everywhere else; opened from race day it
+ * would be the one hue on an ink page. So inside .rd-dark — which exists on
+ * no other page — its accents go ink. The sheet itself stays paper with ink
+ * type, because that IS the inversion this page already runs on: the modal
+ * reads as the white slab of the act lifting off the bill. Trouble is said
+ * by weight here too, never by turning something red. */
+.row100k .rd-dark .share-mark{background:var(--ink)}
+.row100k .rd-dark .share-x:hover{color:var(--ink)}
+.row100k .rd-dark .share-btn:hover{background:var(--ink);border-color:var(--ink);color:#fff}
+.row100k .rd-dark .share-btn.primary{background:var(--ink);border-color:var(--ink)}
+.row100k .rd-dark .share-btn.primary:hover{background:rgba(21,23,26,.82);border-color:rgba(21,23,26,.82)}
+.row100k .rd-dark .share-link:hover{color:var(--ink)}
+.row100k .rd-dark .share-status{color:var(--ink)}
+.row100k .rd-dark .share-status.bad{color:var(--ink);font-weight:700}
+
 /* THE FIELD: one table, the bracket marked on the row rather than split
  * into two brackets (owner, 2026-09-11). The wave is the one figure that
  * has to jump off a row, so it is the only cell in solid white and bold. */
