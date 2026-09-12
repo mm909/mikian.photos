@@ -17,7 +17,7 @@
 
 import { fmtRowerNumber } from "@/lib/row100k";
 import { FORMATS, pixelsFor, pointsFor, tokensFor } from "./formats";
-import { PAPER, makePaint } from "./paint";
+import { makePaint, paletteOf } from "./paint";
 import { jpegToPdf } from "./pdf";
 import type {
   PosterAssets,
@@ -32,6 +32,7 @@ import type {
   PosterPlanKey,
   PosterPpi,
   PosterRenderTarget,
+  PosterStock,
   PosterRow,
   PosterShrink,
   PosterSlot,
@@ -589,24 +590,29 @@ export type RenderInput<D extends PosterData> = {
   data: D;
   fonts: PosterFonts;
   assets: PosterAssets;
+  /* Which stock to print on (types.ts PosterStock); cream when nothing
+   * says, so every existing caller draws the sheet it drew. */
+  stock?: PosterStock;
 };
 
-/* One detached canvas at the target's pixels: paper over everything (the
- * PDF's JPEG has no alpha — an unpainted canvas encodes as black), then
- * translate by the bleed, scale once, compose. Never mounted; the caller
- * frees it with freeCanvas after encoding. */
+/* One detached canvas at the target's pixels: THE STOCK'S GROUND over
+ * everything (the PDF's JPEG has no alpha — an unpainted canvas encodes as
+ * black; a bw sheet is simply black on purpose, and its bleed trims to a
+ * black edge by construction), then translate by the bleed, scale once,
+ * compose. Never mounted; the caller frees it with freeCanvas after
+ * encoding. */
 export function render<D extends PosterData>(
   input: RenderInput<D>,
 ): { canvas: HTMLCanvasElement; log: PosterLayoutLog } {
-  const { target, layout, data, fonts, assets } = input;
+  const { target, layout, data, fonts, assets, stock } = input;
   const canvas = document.createElement("canvas");
   canvas.width = target.pxW;
   canvas.height = target.pxH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("poster: no 2d context");
-  ctx.fillStyle = PAPER;
+  ctx.fillStyle = paletteOf(stock).paper;
   ctx.fillRect(0, 0, target.pxW, target.pxH);
-  const paint = makePaint({ tk: tokensFor(target.format), format: target.format, fonts, assets });
+  const paint = makePaint({ tk: tokensFor(target.format), format: target.format, fonts, assets, stock });
   ctx.save();
   ctx.translate(target.offset.x, target.offset.y);
   ctx.scale(target.scale, target.scale);
@@ -656,17 +662,23 @@ export async function toPdf(canvas: HTMLCanvasElement, target: PosterRenderTarge
 
 /* ------------------------------------------------------------ filenames */
 
-/* rowtember-2026-poster-24x36.pdf · rower-013-story.png · a ppi other than
- * the format's default appends -300ppi; bleed appends -bleed (SPEC.md §2). */
+/* rowtember-2026-poster-24x36.pdf · rower-013-story.png ·
+ * rowtember-2026-story-bw.png · rower-013-poster-a4-bw-300ppi-bleed.pdf.
+ *
+ * THE STOCK LEADS THE SUFFIXES, the way raceGround.ts raceFileName puts
+ * -overlay and -photo first, so all three subjects name their variants by
+ * one grammar. Cream prints nothing, so every filename that exists today is
+ * byte-identical tomorrow. A ppi other than the format's default then
+ * appends -300ppi; bleed appends -bleed (SPEC.md §2). */
 export function fileName(
   data: PosterData,
   format: PosterFormat,
   ext: "png" | "pdf",
-  opts: { ppi?: PosterPpi | null; bleed?: boolean } = {},
+  opts: { stock?: PosterStock; ppi?: PosterPpi | null; bleed?: boolean } = {},
 ): string {
   const subject =
     data.kind === "community" ? `rowtember-${data.year}` : `rower-${fmtRowerNumber(data.rower.rowerNumber)}`;
-  let suffix = "";
+  let suffix = opts.stock === "bw" ? "-bw" : "";
   if (format.kind === "print" && opts.ppi && format.ppi && opts.ppi !== format.ppi.default)
     suffix += `-${opts.ppi}ppi`;
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";

@@ -110,8 +110,12 @@ export const TOKENS: Record<PosterFamily, PosterTokens> = {
  * know about them: the profile chip and the reply bar cover roughly the
  * top 250 px and the bottom 270 px of a 1920 story, which is 125 / 135
  * logical at scale 2. THIS IS THE ONE NUMBER TO BUMP if a real device
- * shows the dateline under the profile chip (SPEC.md §14.6). The bands
- * stay paper. */
+ * shows the dateline under the profile chip (SPEC.md §14.6). The bands are
+ * empty margin: they take whatever the canvas was filled with, which is the
+ * STOCK's ground — cream on a cream sheet, #15171A on a black one. (This
+ * line used to say "the bands stay paper", which was the behaviour on the
+ * one stock that then existed and is the sort of sentence that is still
+ * here in six months telling the next reader something false.) */
 export const STORY_SAFE = { top: 125, bottom: 135 };
 
 const A4_IN = { w: 210 / 25.4, h: 297 / 25.4 };

@@ -528,8 +528,26 @@ export type PosterSubject = PosterData | RaceDayPoster;
  *
  * The third ground exists because the black-and-white switch has to be TRUE
  * OF A FILE (review, 2026-09-11): on an overlay the picture is a preview and
- * the owner could approve a grey frame and post a colour one. */
+ * the owner could approve a grey frame and post a colour one.
+ *
+ * A GROUND IS NOT A STOCK. All three of these fill RACE_INK and then differ
+ * only in what the `window` row does — they are three files of one ad, not
+ * three colours. The black-and-white paper sheets are PosterStock below,
+ * which is an orthogonal axis: race day has a ground and no stock, the two
+ * paper subjects have a stock and no ground. */
 export type PosterGround = "ink" | "overlay" | "photo";
+
+/* THE STOCK a paper sheet is printed on (owner, 2026-09-12: "we also need
+ * black and white shareable versions of all the posters to match the race
+ * day aesthetic"). "cream" is the sheet the site is — #F4F3EE, ink type,
+ * water blue. "bw" is race day's own #15171A with race day's own grey
+ * ladder, so a Rowtember sheet and a race day ad hang together on a wall
+ * and share the same phone feed.
+ *
+ * It is NOT a fourth PosterGround: see the note above. Race day is offered
+ * no stock at all — it is the thing being matched, and a cream race day ad
+ * would invent an idiom the owner closed on 2026-09-11. */
+export type PosterStock = "cream" | "bw";
 
 /* The roster handed to the studio's subject picker — the looks/view.ts
  * RosterRower guard: the two things that are ALWAYS public plus the board
@@ -572,6 +590,73 @@ export type PosterBlockOpts = { align?: "left" | "right" | "center"; fill?: stri
  * chip with paper text an elite row wears where its place would go. */
 export type PosterChipKind = "gold" | "silver" | "bronze" | "outline" | "pace";
 
+/* ONE STEP OF THE CALENDAR RAMP — the cell fill AND the colour a letter
+ * takes ON it, carried as a pair. The label colour is a property of its
+ * step and can never drift from it: both files used to decide it with an
+ * anonymous `b === 3 ? WHITE : INK`, which is a fact about the CREAM ramp
+ * and not about the number 3. Cream flips its label once, at the top; bw
+ * flips in the MIDDLE, where the cells go light. */
+export type PosterHeatStep = { fill: string; on: string };
+
+/* A chip's three colours. `fill: null` is the hollow chip — chip() strokes
+ * `edge` instead of filling. It is a type rather than three fields because
+ * the PACE chip changes IDIOM and not only colour between stocks: filled
+ * on cream (where a medal is a hue and cannot be confused with it), hollow
+ * on bw (where a filled chip in the type colour IS a medal chip). */
+export type PosterChipPaint = { fill: string | null; edge: string; text: string };
+
+/* THE PALETTE a sheet is drawn in — every colour either stock puts on the
+ * canvas, resolved once per render (paint.ts paletteOf) and carried on the
+ * paint helper as `c`. A module-level constant cannot be two things at
+ * once, which is the whole reason this type exists.
+ *
+ * The field names are rowerCharts.ts PAL's, verbatim, so the rower modules
+ * convert by shadowing one name rather than by editing 65 call sites.
+ *
+ * The measured ladders live with the values in paint.ts; the one structural
+ * fact worth repeating here is that `water` is the ACCENT and on bw it is
+ * the BRIGHTEST thing on the sheet while `ink` steps down a rung. On cream
+ * the accent wins by hue (ink 16.16:1, water 4.38:1); take the hue away and
+ * contrast is all that is left to carry it. */
+export type PosterPalette = {
+  paper: string;
+  ink: string;
+  inkSoft: string;
+  gray: string;
+  line: string;
+  grid: string;
+  water: string;
+  waterArea: string;
+  waterBar: string;
+  waterBand: string;
+  waterBandSoft: string;
+  /* Lightest bucket first; [3] is the biggest day. */
+  ramp: readonly [PosterHeatStep, PosterHeatStep, PosterHeatStep, PosterHeatStep];
+  /* The keyline around a rowed calendar cell, or null for none. Cream
+   * strokes every cell so bucket 0 survives matte stock; bw does not,
+   * because there the rule would be brighter than the fill it holds. */
+  cellEdge: string | null;
+  gold: string;
+  silver: string;
+  bronze: string;
+  /* The letter ON a filled medal chip. Ink on cream (the .dtag idiom: ink
+   * text on a metal); the GROUND on bw, because there the chip is a light
+   * slab and only the ground reads on it. */
+  chipInk: string;
+  paceChip: PosterChipPaint;
+  /* OUR rule around the partner plate. Their own edge on cream; on bw
+   * their #06130c is 1.06:1 against the ground and the plate would read as
+   * a hole punched in the sheet, so we draw our own boundary there. */
+  plateEdge: string;
+  /* GRIZZLY'S COLOURS, the same five values on both stocks. A partner who
+   * wants a mono lockup supplies one; we never derive one. */
+  gzGreen: string;
+  gzDark: string;
+  gzCream: string;
+  gzSage: string;
+  gzGold: string;
+};
+
 /* THE PAINT HELPER — implemented once in poster/paint.ts (the slides.ts
  * text engine and the cards.ts block helpers copied with attribution,
  * re-coloured for paper), handed to every module. Stateless: each call
@@ -581,6 +666,11 @@ export type PosterChipKind = "gold" | "silver" | "bronze" | "outline" | "pace";
  * fallback), and NEVER through fillText's maxWidth (it condenses glyphs). */
 export type PosterPaint = {
   tk: PosterTokens;
+  /* THE PALETTE this sheet is drawn in (PosterStock). It rides where the
+   * tokens ride, so not one drawing signature in this subsystem changes:
+   * every function already takes `paint`, and compose() already clones it.
+   * Reach for `paint.c.ink`, never for an imported colour constant. */
+  c: PosterPalette;
   format: PosterFormat;
   fonts: PosterFonts;
   assets: PosterAssets;

@@ -7,6 +7,7 @@ import { resolvedRace } from "../../racedaySettings";
 import { makeFixture, type FixtureOpts } from "../../poster/fixture";
 import { isFormatKey } from "../../poster/formats";
 import { raceDayPoster } from "../../poster/raceAssemble";
+import { isStock } from "../../poster/paint";
 import { isGround } from "../../poster/raceGround";
 import { racePhoto } from "../../poster/racePhoto";
 import { poCss } from "../../poster/studioCss";
@@ -28,6 +29,9 @@ export const metadata: Metadata = {
  * database. Query switches:
  *
  *   ?subject=community|rower|raceday   which payload (default community)
+ *   &stock=cream|bw            the two PAPER subjects only: the cream sheet
+ *                              the site is, or the same drawing on race
+ *                              day's black. Race day has no stock.
  *   &ground=ink|photo|overlay  race day only: the solid ad, the same ad with
  *                              his photograph drawn into it, or the
  *                              transparent overlay to lay over one
@@ -81,13 +85,27 @@ export default async function DevPostersPage({
     : undefined;
   const groundQ = one("ground");
   const ground = isGround(groundQ) ? groundQ : undefined;
+  const stockQ = one("stock");
+  const stock = isStock(stockQ) ? stockQ : undefined;
   const noprobe = one("noprobe");
   const refusePpi: PosterPpi | null = noprobe === "300" ? 300 : noprobe === "150" ? 150 : null;
 
   // The chips keep every switch but the subject, so a masked FINAL stays
   // masked and final when the subject flips.
   const keep = new URLSearchParams();
-  for (const k of ["masked", "final", "day", "names", "log", "runup", "noprobe", "format", "ground", "field"]) {
+  for (const k of [
+    "masked",
+    "final",
+    "day",
+    "names",
+    "log",
+    "runup",
+    "noprobe",
+    "format",
+    "ground",
+    "stock",
+    "field",
+  ]) {
     const v = one(k);
     if (v !== undefined) keep.set(k, v);
   }
@@ -149,6 +167,7 @@ export default async function DevPostersPage({
             raceday={raceday}
             initialSubject={subject}
             initialGround={ground}
+            initialStock={stock}
             roster={fixture.roster}
             hrefs={hrefs}
             initialFormat={format}

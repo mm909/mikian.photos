@@ -85,7 +85,15 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
   // puts the boxes.
   const format = { ...target.format, margins: FULL_BLEED };
   const tk = { ...tokensFor(target.format), gap: 0 };
-  const paint = makePaint({ tk, format, fonts, assets });
+  // THE BLACK STOCK, declared rather than inherited. A no-op today: race
+  // day imports nothing from ./paint, calls no eyebrow / chip / blocks /
+  // figure / dashedRule / dottedRule, and passes an explicit colour to all
+  // fourteen of its paint.rule calls — so it reads not one palette field.
+  // It is here so that a FUTURE race day module reaching for paint.c.ink
+  // gets white on black and not ink on ink. The paper subjects' stock is
+  // PosterStock; race day is offered none, because it is the thing being
+  // matched (types.ts PosterGround, PosterStock).
+  const paint = makePaint({ tk, format, fonts, assets, stock: "bw" });
 
   ctx.save();
   ctx.translate(target.offset.x, target.offset.y);

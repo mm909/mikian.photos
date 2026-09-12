@@ -36,28 +36,10 @@
  * names them in no plan, so putting one back is one line there. */
 
 import { dayTicks, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
-import {
-  DOW_LETTERS,
-  GRAY,
-  GRID,
-  GZ_CREAM,
-  GZ_EDGE,
-  GZ_GOLD,
-  GZ_GREEN,
-  GZ_SAGE,
-  HEAT,
-  INK,
-  INK_SOFT,
-  LINE,
-  SEP_FIRST_DOW,
-  WATER,
-  WATER_AREA,
-  WATER_BAND,
-  WATER_BAND_SOFT,
-  WATER_BAR,
-  WHITE,
-  kLabel,
-} from "./paint";
+/* NO COLOUR NAMES HERE — that is the point. Every colour comes off
+ * `paint.c` (SPEC.md §4, THE BLACK STOCK), so one drawing serves both
+ * stocks; what is left is geometry and formatting. */
+import { DOW_LETTERS, SEP_FIRST_DOW, kLabel } from "./paint";
 import type {
   Figure,
   PosterBox,
@@ -240,10 +222,11 @@ function fitValue(ctx: Ctx, paint: PosterPaint, value: string, font: string, tra
 /* One mono line in gray — "THE CURVE STARTS TOMORROW", "NOT ENOUGH ROWS
  * LOGGED YET" — under an eyebrow; returns the y under it. */
 function noteLine(ctx: Ctx, paint: PosterPaint, x: number, y: number, text: string): number {
+  const C = paint.c;
   const size = paint.tk.small * 1.1;
   const f = paint.font("mono", size);
   const m = paint.metricsOf(ctx, f, size);
-  paint.drawText(ctx, text, x, y + m.asc, f, GRAY, 0.12 * paint.tk.small);
+  paint.drawText(ctx, text, x, y + m.asc, f, C.gray, 0.12 * paint.tk.small);
   return y + m.lh;
 }
 
@@ -262,6 +245,7 @@ export function drawNameplate(
   note: string | null,
   cap: number,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   const text = runs.map((r) => r.text).join("");
   const size = fitCap(ctx, paint, text, "black", cap, box.w, -0.02);
@@ -276,11 +260,11 @@ export function drawNameplate(
   const dFont = paint.font("monoBold", tk.datel);
   const dm = paint.metricsOf(ctx, dFont, tk.datel);
   const tr = 0.16 * tk.datel;
-  paint.drawText(ctx, paint.ellipsize(ctx, dateline, box.w, dFont, tr), box.x, y + dm.asc, dFont, INK_SOFT, tr);
+  paint.drawText(ctx, paint.ellipsize(ctx, dateline, box.w, dFont, tr), box.x, y + dm.asc, dFont, C.inkSoft, tr);
   y += dm.lh;
   if (note) {
     y += tk.datel * 0.25;
-    paint.drawText(ctx, paint.ellipsize(ctx, note, box.w, dFont, tr), box.x, y + dm.asc, dFont, INK, tr);
+    paint.drawText(ctx, paint.ellipsize(ctx, note, box.w, dFont, tr), box.x, y + dm.asc, dFont, C.ink, tr);
     y += dm.lh;
   }
   return y - box.y;
@@ -301,6 +285,7 @@ export function drawHeadline(
   label: Run[],
   cap: number,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   let size: number;
   if (value.shape !== undefined) {
@@ -310,8 +295,8 @@ export function drawHeadline(
     size = fitCap(ctx, paint, value.text, "black", cap, box.w * 0.94, -0.01);
   }
   const base = box.y + size * 0.74;
-  if (value.shape !== undefined) paint.blocks(ctx, box.x, base, value.shape, size * 0.98, { fill: INK });
-  else paint.drawText(ctx, value.text, box.x, base, paint.font("black", size), WATER, -0.01 * size);
+  if (value.shape !== undefined) paint.blocks(ctx, box.x, base, value.shape, size * 0.98, { fill: C.ink });
+  else paint.drawText(ctx, value.text, box.x, base, paint.font("black", size), C.water, -0.01 * size);
   const y = base + size * 0.08 + tk.headLabel * 1.2;
   const lFont = paint.font("mono", tk.headLabel);
   const lm = paint.metricsOf(ctx, lFont, tk.headLabel);
@@ -328,6 +313,7 @@ export type StripCell = { n: Figure; l: string };
  * hairlines, statN Archivo Black ink (shrink-to-fit the cell, floor 0.7×)
  * over a mono gray label. Blocks stand in for a hidden number. */
 export function drawStrip(ctx: Ctx, paint: PosterPaint, box: PosterBox, cells: StripCell[]): number {
+  const C = paint.c;
   const { tk } = paint;
   const count = Math.max(1, cells.length);
   const cellW = box.w / count;
@@ -348,14 +334,14 @@ export function drawStrip(ctx: Ctx, paint: PosterPaint, box: PosterBox, cells: S
       const bs = tk.statN * 0.9;
       const w = paint.blocks(ctx, 0, 0, cell.n.shape, bs, { paint: false });
       const s = w > maxW ? Math.max(bs * 0.7, (bs * maxW) / w) : bs;
-      paint.blocks(ctx, x + pad, base, cell.n.shape, s, { fill: INK });
+      paint.blocks(ctx, x + pad, base, cell.n.shape, s, { fill: C.ink });
     } else {
       const w = paint.measure(ctx, cell.n.text, paint.font("black", size), -0.01 * size);
       if (w > maxW) size = Math.max(size * 0.7, (size * maxW) / w);
-      paint.drawText(ctx, cell.n.text, x + pad, base, paint.font("black", size), INK, -0.01 * size);
+      paint.drawText(ctx, cell.n.text, x + pad, base, paint.font("black", size), C.ink, -0.01 * size);
     }
     const label = paint.ellipsize(ctx, cell.l.toUpperCase(), maxW, lFont, 0.14 * tk.statL);
-    paint.drawText(ctx, label, x + pad, base + tk.statL * 0.9 + lm.asc, lFont, GRAY, 0.14 * tk.statL);
+    paint.drawText(ctx, label, x + pad, base + tk.statL * 0.9 + lm.asc, lFont, C.gray, 0.14 * tk.statL);
     if (i > 0) paint.rule(ctx, x - tk.hair / 2, top, tk.hair, cellH);
   });
   paint.rule(ctx, box.x, top + cellH, box.w, tk.thick);
@@ -391,6 +377,7 @@ export function drawCurve(
   dayNumber: number,
   asOfDay: string,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   const yTop = paint.eyebrow(
     ctx,
@@ -426,15 +413,15 @@ export function drawCurve(
   for (let i = 1; i <= lines; i++) {
     const v = step * i;
     const gy = Y(v);
-    if (i === lines) paint.rule(ctx, L, gy, R - L, 1, GRID);
-    else paint.dashedRule(ctx, L, gy - 0.5, R - L, GRID, 1);
+    if (i === lines) paint.rule(ctx, L, gy, R - L, 1, C.grid);
+    else paint.dashedRule(ctx, L, gy - 0.5, R - L, C.grid, 1);
     if ((lines - i) % labelEvery === 0) {
-      paint.drawRight(ctx, abbr(v), L - tk.axis * 0.8, gy + tk.axis * 0.35, aFont, GRAY);
+      paint.drawRight(ctx, abbr(v), L - tk.axis * 0.8, gy + tk.axis * 0.35, aFont, C.gray);
     }
   }
-  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, INK);
+  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, C.ink);
   for (const d of dayTicks(days)) {
-    paint.drawCentered(ctx, d === 1 ? "SEP 1" : String(d), X(d), B + tk.axis * 1.7, aFont, GRAY);
+    paint.drawCentered(ctx, d === 1 ? "SEP 1" : String(d), X(d), B + tk.axis * 1.7, aFont, C.gray);
   }
   ctx.save();
   ctx.beginPath();
@@ -442,18 +429,18 @@ export function drawCurve(
   ctx.lineTo(X(days), Y(0));
   ctx.lineTo(X(1), Y(0));
   ctx.closePath();
-  ctx.fillStyle = WATER_AREA;
+  ctx.fillStyle = C.waterArea;
   ctx.fill();
   ctx.beginPath();
   cum.forEach((v, i) => (i ? ctx.lineTo(X(i + 1), Y(v)) : ctx.moveTo(X(1), Y(v))));
-  ctx.strokeStyle = WATER;
+  ctx.strokeStyle = C.water;
   ctx.lineWidth = tk.hair * 2.2;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   ctx.stroke();
   const lx = X(days);
   const ly = Y(total);
-  ctx.fillStyle = WATER;
+  ctx.fillStyle = C.water;
   ctx.beginPath();
   ctx.arc(lx, ly, tk.hair * 3.2, 0, Math.PI * 2);
   ctx.fill();
@@ -466,7 +453,7 @@ export function drawCurve(
   const lw = paint.measure(ctx, label, eFont);
   const above = ly - tk.axis * 1.1 >= T + tk.axis * 0.6;
   const right = above ? Math.max(L + lw, Math.min(lx, R - 2)) : Math.max(L + lw, lx - tk.hair * 5);
-  paint.drawRight(ctx, label, right, above ? ly - tk.axis * 1.1 : ly + tk.axis * 0.35, eFont, INK);
+  paint.drawRight(ctx, label, right, above ? ly - tk.axis * 1.1 : ly + tk.axis * 0.35, eFont, C.ink);
   return box.h;
 }
 
@@ -499,6 +486,7 @@ export type MonthOpts = {
  * with the day number top-left and the k-label bottom-centre; rest days a
  * dashed outline; future days paper. Left-aligned when the cell is capped. */
 export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: MonthOpts): number {
+  const C = paint.c;
   const { tk } = paint;
   let y = paint.eyebrow(ctx, box.x, box.y, box.w, o.eyebrow.left, o.eyebrow.right, o.eyebrow.short);
   const gap = tk.small * 0.7;
@@ -510,7 +498,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const cell = Math.min(cellW, cellH);
   const dow = paint.font("mono", tk.axis);
   DOW_LETTERS.forEach((d, i) =>
-    paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, GRAY, 0.1 * tk.small),
+    paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
   );
   y += tk.small * 1.9;
   const dayN = Math.max(1, Math.min(30, o.dayNumber));
@@ -551,18 +539,18 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
       // through, and the FINAL sheet is the same grid with every cell full.
       if (!o.full) continue;
       ctx.save();
-      ctx.strokeStyle = GRID;
+      ctx.strokeStyle = C.grid;
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
       ctx.restore();
-      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, LINE);
+      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.line);
       continue;
     }
     const m = o.meters ? Math.max(0, o.meters[i] ?? 0) : 0;
     const rowed = o.meters ? m > 0 : !!o.rowed?.[i];
     if (!rowed) {
       ctx.save();
-      ctx.strokeStyle = LINE;
+      ctx.strokeStyle = C.line;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
@@ -572,27 +560,39 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
     if (!o.meters) {
       // A rowed day is public; its meters are not — an ink outline, a dot.
       ctx.save();
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = C.ink;
       ctx.lineWidth = tk.hair;
       ctx.strokeRect(x + tk.hair / 2, cy + tk.hair / 2, cellW - tk.hair, cellH - tk.hair);
-      ctx.fillStyle = INK;
+      ctx.fillStyle = C.ink;
       ctx.beginPath();
       ctx.arc(x + cellW / 2, cy + cellH / 2 + cellH * 0.06, cell * 0.12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, INK);
+      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.ink);
       continue;
     }
     const b = m < th[0] ? 0 : m < th[1] ? 1 : m < th[2] ? 2 : 3;
-    ctx.fillStyle = HEAT[b];
+    const step = C.ramp[b];
+    ctx.fillStyle = step.fill;
     ctx.fillRect(x, cy, cellW, cellH);
-    // A 1-unit line outline so the first bucket survives matte stock.
-    ctx.save();
-    ctx.strokeStyle = LINE;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
-    ctx.restore();
-    const ink = b === 3 ? WHITE : INK;
+    // THE KEYLINE IS THE STOCK'S CALL, not this file's. On cream a 1-unit
+    // line outline is what makes bucket 0 (1.13:1 against paper) survive
+    // matte stock. On ink bucket 0 is already 1.88:1 LIGHTER than its
+    // ground and that same rule is 2.70:1 — BRIGHTER than the fill it is
+    // meant to hold, so the cell would read as an empty outlined box, which
+    // is what a rest day already reads as. Hence `cellEdge: string | null`.
+    if (C.cellEdge) {
+      ctx.save();
+      ctx.strokeStyle = C.cellEdge;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
+      ctx.restore();
+    }
+    // THE LABEL COLOUR IS A PROPERTY OF ITS STEP. This was `b === 3 ? WHITE
+    // : INK` — a fact about the CREAM ramp, which flips once at the top, and
+    // wrong for the bw ramp, which flips in the MIDDLE as the cells go
+    // light. Carried beside the fill, a label can never drift from it.
+    const ink = step.on;
     if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, ink);
     if (showLabel) paint.drawCentered(ctx, kLabel(m), x + cellW / 2, cy + cellH - cellH * 0.16, labelFont, ink);
   }
@@ -623,6 +623,7 @@ export function drawBoard(
   rowsIn: PosterStanding[],
   o: BoardOpts,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   const rows = rowsIn.slice(0, o.count);
   const div = o.division === "M" ? "MEN" : "WOMEN";
@@ -670,7 +671,7 @@ export function drawBoard(
     // label; the ranked rows keep their public-board places below a
     // hairline. (Ten per division are the elite, so this is the rare case.)
     if (!allMasked && r.masked && !bracket) {
-      paint.drawText(ctx, "THE ELITE", box.x, y + tk.small, paint.font("mono", tk.small), GRAY, 0.18 * tk.small);
+      paint.drawText(ctx, "THE ELITE", box.x, y + tk.small, paint.font("mono", tk.small), C.gray, 0.18 * tk.small);
       y += tk.small * 1.6;
       bracket = true;
     } else if (bracket && !r.masked) {
@@ -681,24 +682,24 @@ export function drawBoard(
     const base = y + (pitch - rm.lh) / 2 + rm.asc;
     const fig = withUnit(r.meters);
     const mw = figureWidth(ctx, paint, fig, metersFont, size);
-    drawFigure(ctx, paint, fig, right - mw, base, metersFont, size, INK);
+    drawFigure(ctx, paint, fig, right - mw, base, metersFont, size, C.ink);
     if (r.masked || r.unranked) {
-      paint.drawText(ctx, letter, box.x, base, monoS, GRAY);
+      paint.drawText(ctx, letter, box.x, base, monoS, C.gray);
     } else {
       const place = pad2(i + 1);
       const medal = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : null;
       if (medal) paint.chip(ctx, box.x, base, place, medal);
-      else paint.drawText(ctx, place, box.x + (chipW - paint.measure(ctx, place, monoS)) / 2, base, monoS, GRAY);
+      else paint.drawText(ctx, place, box.x + (chipW - paint.measure(ctx, place, monoS)) / 2, base, monoS, C.gray);
     }
     const numT = o.noNum && r.masked ? "" : `${fmtRowerNumber(r.rowerNumber)} `;
     const nx = box.x + placeW;
-    if (numT) paint.drawText(ctx, numT, nx, base, monoS, GRAY);
+    if (numT) paint.drawText(ctx, numT, nx, base, monoS, C.gray);
     const numW = numT ? paint.measure(ctx, numT, monoS) : 0;
     const tag = r.paceTag;
     const tagW = tag ? silently(ctx, () => paint.chip(ctx, 0, 0, tag, "pace")) + size * 0.5 : 0;
     const maxNameW = right - mw - size * 1.1 - (nx + numW) - tagW;
     const name = paint.ellipsize(ctx, r.name, Math.max(size * 2, maxNameW), nameFont);
-    paint.drawText(ctx, name, nx + numW, base, nameFont, INK);
+    paint.drawText(ctx, name, nx + numW, base, nameFont, C.ink);
     if (tag) {
       const nw = paint.measure(ctx, name, nameFont);
       paint.chip(ctx, nx + numW + nw + size * 0.5, base, tag, "pace");
@@ -723,6 +724,7 @@ export function drawRecords(
   records: PosterRecord[],
   blackout: boolean,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   let y = paint.eyebrow(
     ctx,
@@ -755,31 +757,31 @@ export function drawRecords(
   const holderFont = paint.font("archivoBold", tk.row);
   const metaFont = paint.font("mono", tk.small);
   records.forEach((rec, ri) => {
-    paint.drawText(ctx, rec.label.toUpperCase(), box.x, y + tk.small, labelFont, GRAY, 0.18 * tk.small);
+    paint.drawText(ctx, rec.label.toUpperCase(), box.x, y + tk.small, labelFont, C.gray, 0.18 * tk.small);
     y += labelH;
     if (rec.lines.length === 0) {
-      paint.drawText(ctx, "NOT YET ROWED", box.x, y + tk.recV * 0.98, metaFont, GRAY, 0.12 * tk.small);
+      paint.drawText(ctx, "NOT YET ROWED", box.x, y + tk.recV * 0.98, metaFont, C.gray, 0.12 * tk.small);
       y += linePitch;
     }
     rec.lines.forEach((l) => {
       const base = y + tk.recV * 0.98;
       let vx = box.x;
       if (l.division) {
-        paint.drawText(ctx, l.division === "M" ? "M" : "W", vx, base, tagFont, GRAY);
+        paint.drawText(ctx, l.division === "M" ? "M" : "W", vx, base, tagFont, C.gray);
         vx += tk.small * 1.8;
       }
       let vw: number;
       if (l.value.shape !== undefined) {
         const unit = /m$/.test(l.value.shape) ? " m" : "";
         const digits = unit ? l.value.shape.replace(/\s*m$/, "") : l.value.shape;
-        vw = paint.blocks(ctx, vx, base, digits, tk.recV * 0.9, { fill: INK });
+        vw = paint.blocks(ctx, vx, base, digits, tk.recV * 0.9, { fill: C.ink });
         if (unit) {
-          paint.drawText(ctx, unit, vx + vw, base, unitFont, INK);
+          paint.drawText(ctx, unit, vx + vw, base, unitFont, C.ink);
           vw += paint.measure(ctx, unit, unitFont);
         }
       } else {
         vw = paint.measure(ctx, l.value.text, valueFont, -0.01 * tk.recV);
-        paint.drawText(ctx, l.value.text, vx, base, valueFont, WATER, -0.01 * tk.recV);
+        paint.drawText(ctx, l.value.text, vx, base, valueFont, C.water, -0.01 * tk.recV);
       }
       const hx = vx + vw + tk.row * 0.9;
       let who = `  ${fmtRowerNumber(l.holder.rowerNumber)} · ${l.day.toUpperCase()}`;
@@ -792,14 +794,14 @@ export function drawRecords(
         whoW = paint.measure(ctx, who, metaFont);
       }
       const holder = paint.ellipsize(ctx, l.holder.name, Math.max(tk.row * 2, room - whoW), holderFont);
-      paint.drawText(ctx, holder, hx, base, holderFont, INK);
+      paint.drawText(ctx, holder, hx, base, holderFont, C.ink);
       const hw = paint.measure(ctx, holder, holderFont);
-      paint.drawText(ctx, who, hx + hw, base, metaFont, GRAY);
+      paint.drawText(ctx, who, hx + hw, base, metaFont, C.gray);
       // The split meta rides along only when the line has the room for it.
       if (l.meta) {
         const meta = ` · ${l.meta.toUpperCase()}`;
         if (hw + whoW + paint.measure(ctx, meta, metaFont) <= room) {
-          paint.drawText(ctx, meta, hx + hw + whoW, base, metaFont, GRAY);
+          paint.drawText(ctx, meta, hx + hw + whoW, base, metaFont, C.gray);
         }
       }
       y += linePitch;
@@ -818,6 +820,7 @@ export function drawRecords(
  * solid water with its count above it, ink baseline, 06 · 12 · 18 · 00.
  * Fills its box (a fixed-height row). Null → its one line. */
 export function drawHours(ctx: Ctx, paint: PosterPaint, box: PosterBox, hours: number[] | null): number {
+  const C = paint.c;
   const { tk } = paint;
   const yTop = paint.eyebrow(ctx, box.x, box.y, box.w, "THE HOURS", "SESSIONS BY HOUR");
   if (!hours || hours.length !== 24 || !hours.some((v) => v > 0)) {
@@ -844,7 +847,7 @@ export function drawHours(ctx: Ctx, paint: PosterPaint, box: PosterBox, hours: n
     const bx = L + i * slot + slot * 0.19;
     const bw = slot * 0.62;
     const bh = Math.max(B - Y(v), 2);
-    ctx.fillStyle = h === peak ? WATER : WATER_BAR;
+    ctx.fillStyle = h === peak ? C.water : C.waterBar;
     ctx.fillRect(bx, B - bh, bw, bh);
   }
   const pi = (((peak - start) % 24) + 24) % 24;
@@ -854,13 +857,13 @@ export function drawHours(ctx: Ctx, paint: PosterPaint, box: PosterBox, hours: n
     L + pi * slot + slot / 2,
     Y(hours[peak]) - tk.axis * 0.5,
     paint.font("monoBold", tk.small * 1.15),
-    INK,
+    C.ink,
   );
-  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, INK);
+  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, C.ink);
   const aFont = paint.font("mono", tk.axis);
   for (const h of [6, 12, 18, 0]) {
     const i = (((h - start) % 24) + 24) % 24;
-    paint.drawCentered(ctx, pad2(h), L + i * slot + slot / 2, B + tk.axis * 1.7, aFont, GRAY);
+    paint.drawCentered(ctx, pad2(h), L + i * slot + slot / 2, B + tk.axis * 1.7, aFont, C.gray);
   }
   return box.h;
 }
@@ -871,6 +874,7 @@ export function drawHours(ctx: Ctx, paint: PosterPaint, box: PosterBox, hours: n
  * label, ← FASTER / SLOWER → in the corners, ticks every 20 s. Fills its
  * box. Null → its one line. */
 export function drawSplit(ctx: Ctx, paint: PosterPaint, box: PosterBox, split: PosterSplit): number {
+  const C = paint.c;
   const { tk } = paint;
   const yTop = paint.eyebrow(ctx, box.x, box.y, box.w, "THE FIELD", "SPLIT PER 500 M");
   if (!split || split.xs.length < 2 || split.xs.length !== split.ys.length) {
@@ -887,7 +891,7 @@ export function drawSplit(ctx: Ctx, paint: PosterPaint, box: PosterBox, split: P
   const Y = (v: number) => T + (1 - Math.max(0, Math.min(1, v))) * (B - T);
   const bandL = Math.max(L, X(split.mean - split.sd));
   const bandR = Math.min(R, X(split.mean + split.sd));
-  ctx.fillStyle = WATER_BAND;
+  ctx.fillStyle = C.waterBand;
   ctx.fillRect(bandL, T, Math.max(0, bandR - bandL), B - T);
   ctx.save();
   ctx.beginPath();
@@ -895,11 +899,11 @@ export function drawSplit(ctx: Ctx, paint: PosterPaint, box: PosterBox, split: P
   ctx.lineTo(X(xMax), B);
   ctx.lineTo(X(xMin), B);
   ctx.closePath();
-  ctx.fillStyle = WATER_BAND_SOFT;
+  ctx.fillStyle = C.waterBandSoft;
   ctx.fill();
   ctx.beginPath();
   split.xs.forEach((s, i) => (i ? ctx.lineTo(X(s), Y(split.ys[i])) : ctx.moveTo(X(s), Y(split.ys[i]))));
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = C.ink;
   ctx.lineWidth = tk.hair;
   ctx.lineJoin = "round";
   ctx.stroke();
@@ -915,17 +919,17 @@ export function drawSplit(ctx: Ctx, paint: PosterPaint, box: PosterBox, split: P
   const medW = paint.measure(ctx, med, medFont);
   const mx = X(split.median) + tk.axis * 0.5;
   const medX = mx + medW > R ? X(split.median) - tk.axis * 0.5 - medW : mx;
-  paint.drawText(ctx, med, medX, T + tk.axis * 0.9, medFont, INK);
+  paint.drawText(ctx, med, medX, T + tk.axis * 0.9, medFont, C.ink);
   const cornerFont = paint.font("mono", tk.axis * 0.9);
-  paint.drawText(ctx, "← FASTER", L, T + tk.axis * 0.9, cornerFont, GRAY);
-  paint.drawRight(ctx, "SLOWER →", R, T + tk.axis * 0.9, cornerFont, GRAY);
-  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, INK);
+  paint.drawText(ctx, "← FASTER", L, T + tk.axis * 0.9, cornerFont, C.gray);
+  paint.drawRight(ctx, "SLOWER →", R, T + tk.axis * 0.9, cornerFont, C.gray);
+  paint.rule(ctx, L, B, R - L, tk.hair * 1.4, C.ink);
   // Ticks every 20 s, the end labels kept inside the frame.
   for (let s = Math.ceil(xMin / 20) * 20; s <= xMax + 1e-6; s += 20) {
     const t = fmtClock(s);
     const half = paint.measure(ctx, t, aFont) / 2;
     const cx = Math.max(L + half, Math.min(R - half, X(s)));
-    paint.drawCentered(ctx, t, cx, B + tk.axis * 1.7, aFont, GRAY);
+    paint.drawCentered(ctx, t, cx, B + tk.axis * 1.7, aFont, C.gray);
   }
   return box.h;
 }
@@ -954,6 +958,7 @@ export function drawLedger(
   items: PosterTakeaway[],
   o: LedgerOpts,
 ): number {
+  const C = paint.c;
   const { tk } = paint;
   const air = ledgerAir(paint);
   const pitch = tk.ledgerPitch;
@@ -977,10 +982,10 @@ export function drawLedger(
     const base = y0 + row * pitch + tk.ledger;
     const key = it.label.toUpperCase();
     const kw = paint.measure(ctx, key, kFont, tr);
-    paint.drawText(ctx, key, x, base, kFont, INK_SOFT, tr);
+    paint.drawText(ctx, key, x, base, kFont, C.inkSoft, tr);
     const value = fitValue(ctx, paint, it.value.toUpperCase(), vFont, tr, colW - kw - tk.ledger * 2.4);
     const vw = paint.measure(ctx, value, vFont, tr);
-    paint.drawRight(ctx, value, x + colW, base, vFont, INK, tr);
+    paint.drawRight(ctx, value, x + colW, base, vFont, C.ink, tr);
     const l1 = x + kw + tk.ledger * 0.6;
     const l2 = x + colW - vw - tk.ledger * 0.6;
     if (l2 - l1 > tk.ledger) paint.dottedRule(ctx, l1, l2, base - tk.ledger * 0.05);
@@ -1004,6 +1009,7 @@ export type ClubOpts = {
  * then small / rowPitch × .69) before the roll caps; the engine's `step`
  * shrink (paint.tk.step) forces the small one. */
 export function drawClub(ctx: Ctx, paint: PosterPaint, box: PosterBox, club: PosterClub, o: ClubOpts): number {
+  const C = paint.c;
   const { tk } = paint;
   const n = club.count;
   const right = n === 1 ? "ONE ROWER AT 100,000 M OR MORE" : `${n} ROWERS AT 100,000 M OR MORE`;
@@ -1014,9 +1020,9 @@ export function drawClub(ctx: Ctx, paint: PosterPaint, box: PosterBox, club: Pos
     const tr = 0.08 * tk.ledger;
     const base = y + tk.ledger;
     const runs: Run[] = [
-      { text: "FIRST TO 100,000 M · ", color: INK_SOFT },
-      { text: club.first.name.toUpperCase(), color: INK, font: bFont },
-      { text: ` · ${club.first.day.toUpperCase()}`, color: INK_SOFT },
+      { text: "FIRST TO 100,000 M · ", color: C.inkSoft },
+      { text: club.first.name.toUpperCase(), color: C.ink, font: bFont },
+      { text: ` · ${club.first.day.toUpperCase()}`, color: C.inkSoft },
     ];
     drawRuns(ctx, paint, fitRuns(ctx, paint, runs, lFont, tr, box.w), box.x, base, lFont, tr);
     y += tk.ledger * 1.5;
@@ -1060,9 +1066,9 @@ export function drawClub(ctx: Ctx, paint: PosterPaint, box: PosterBox, club: Pos
     const x = box.x + col * colW;
     const base = y + row * p.pitch + p.size;
     const numT = `${fmtRowerNumber(r.rowerNumber)} `;
-    paint.drawText(ctx, numT, x, base, p.numF, GRAY);
+    paint.drawText(ctx, numT, x, base, p.numF, C.gray);
     const nw = paint.measure(ctx, numT, p.numF);
-    paint.drawText(ctx, paint.ellipsize(ctx, r.name, colW - nw - p.size, p.nameF), x + nw, base, p.nameF, INK);
+    paint.drawText(ctx, paint.ellipsize(ctx, r.name, colW - nw - p.size, p.nameF), x + nw, base, p.nameF, C.ink);
   });
   if (!showAll) {
     const i = shown.length;
@@ -1074,7 +1080,7 @@ export function drawClub(ctx: Ctx, paint: PosterPaint, box: PosterBox, club: Pos
       box.x + col * colW,
       y + row * p.pitch + p.size,
       p.numF,
-      GRAY,
+      C.gray,
       0.08 * p.size,
     );
   }
@@ -1106,13 +1112,20 @@ export function drawPlate(
   partner: PosterPartner,
   year: number,
 ): number {
+  const C = paint.c;
   const { tk, assets } = paint;
   const h = Math.min(box.h, plateMaxH(paint));
   if (!(h >= plateMinH(paint))) return 0;
-  ctx.fillStyle = GZ_GREEN;
+  ctx.fillStyle = C.gzGreen;
   ctx.fillRect(box.x, box.y, box.w, h);
   ctx.save();
-  ctx.strokeStyle = GZ_EDGE;
+  // THEIR GREEN, OUR RULE. Grizzly's five colours are the same on both
+  // stocks — a partner who wants a mono lockup supplies one, we never
+  // derive one. The BORDER is ours, and it is the one value that has to
+  // move: their #06130c against #15171A is 1.06:1, so on black the panel
+  // would read as a hole punched in the sheet rather than a plate laid on
+  // it. `plateEdge` is their edge on cream and a .3 white rule on bw.
+  ctx.strokeStyle = C.plateEdge;
   ctx.lineWidth = 2;
   ctx.strokeRect(box.x + 1, box.y + 1, box.w - 2, h - 2);
   ctx.restore();
@@ -1128,7 +1141,7 @@ export function drawPlate(
   const gapM = stack ? tk.ledger * 1.2 : tk.ledger;
   let y = box.y + (stack ? tk.ledger * 1.4 : tk.ledger * 1.26);
   if (stack) {
-    paint.drawCentered(ctx, `ROWTEMBER ${year} · PARTNER`, cx, y + tk.small, smallF, GZ_SAGE, 0.22 * tk.small);
+    paint.drawCentered(ctx, `ROWTEMBER ${year} · PARTNER`, cx, y + tk.small, smallF, C.gzSage, 0.22 * tk.small);
     y += tk.small * 2.4;
   }
   let x = cx - (bearW + gapM + wmW) / 2;
@@ -1137,16 +1150,16 @@ export function drawPlate(
   paint.image(ctx, wm, x, y + (markH - wmH) / 2, wmW, wmH);
   if (!wm) {
     // No wordmark loaded: the partner's name in cream where it would sit.
-    paint.drawText(ctx, partner.name.toUpperCase(), x, y + markH * 0.62, paint.font("black", wmH * 0.9), GZ_CREAM, 0.04 * wmH);
+    paint.drawText(ctx, partner.name.toUpperCase(), x, y + markH * 0.62, paint.font("black", wmH * 0.9), C.gzCream, 0.04 * wmH);
   }
   y += markH + (stack ? tk.ledger * 1.6 : tk.ledger * 1.1);
-  paint.drawCentered(ctx, "THE CODE", cx, y + tk.small * 0.9, smallF, GZ_SAGE, 0.22 * tk.small);
+  paint.drawCentered(ctx, "THE CODE", cx, y + tk.small * 0.9, smallF, C.gzSage, 0.22 * tk.small);
   y += stack ? tk.small * 1.6 : tk.small * 1.5;
   const codeS = stack ? tk.recV * 1.05 : tk.ledger * 1.7;
-  paint.drawCentered(ctx, partner.code.toUpperCase(), cx, y + codeS * 0.84, paint.font("black", codeS), GZ_GOLD, 0.02 * codeS);
+  paint.drawCentered(ctx, partner.code.toUpperCase(), cx, y + codeS * 0.84, paint.font("black", codeS), C.gzGold, 0.02 * codeS);
   y += codeS * (stack ? 1.15 : 1.05);
   const deal = paint.ellipsize(ctx, partner.deal.toUpperCase(), box.w - tk.ledger * 2, smallF, 0.1 * tk.small);
-  paint.drawCentered(ctx, deal, cx, y + tk.small * 0.9, smallF, GZ_CREAM, 0.1 * tk.small);
+  paint.drawCentered(ctx, deal, cx, y + tk.small * 0.9, smallF, C.gzCream, 0.1 * tk.small);
   return h;
 }
 
@@ -1156,6 +1169,7 @@ export function drawPlate(
  * line ("for yourself and others" on print, the partner line on the
  * phone). Everything on the left — nothing parked on the right of a bar. */
 export function drawFooter(ctx: Ctx, paint: PosterPaint, box: PosterBox): number {
+  const C = paint.c;
   const { tk } = paint;
   paint.rule(ctx, box.x, box.y, box.w, tk.thick);
   const y = box.y + tk.thick + tk.footer * 1.4;
@@ -1169,7 +1183,7 @@ export function drawFooter(ctx: Ctx, paint: PosterPaint, box: PosterBox): number
     box.x,
     y + tk.footer * 0.85,
     paint.font("mono", tk.footer * 0.92),
-    GRAY,
+    C.gray,
     0.14 * tk.footer,
   );
   return y + tk.footer * 1.55 - box.y;

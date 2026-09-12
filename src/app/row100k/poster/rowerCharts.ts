@@ -16,57 +16,21 @@
  * call the other (see the stream report). The pace curve is
  * r/[num]/looks/PaceCurve.tsx on paper, rule for rule. */
 
-import {
-  DOW_LETTERS,
-  GRAY,
-  GRID,
-  GZ_CREAM,
-  GZ_EDGE,
-  GZ_GOLD,
-  GZ_GREEN,
-  GZ_SAGE,
-  HEAT,
-  INK,
-  INK_SOFT,
-  LINE,
-  MEDAL_BRONZE,
-  MEDAL_GOLD,
-  MEDAL_SILVER,
-  PAPER,
-  SEP_FIRST_DOW,
-  WATER,
-  WHITE,
-  kLabel,
-} from "./paint";
+/* NO COLOUR NAMES HERE — see charts.ts. Geometry and formatting only. */
+import { DOW_LETTERS, SEP_FIRST_DOW, kLabel } from "./paint";
 import type { PosterBox, PosterPaint, PosterTokens, RowerLogRow } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
 
-/* SPEC.md §4 — the paper palette, by the rower modules' own names, built
- * from paint.ts so the rower sheet and the community sheet are one paper
- * idiom: tune a colour there and both posters follow. Blocks are always
- * ink, water is the one colour, and the Grizzly plate is the only dark
- * surface on the sheet. */
-export const PAL = {
-  paper: PAPER,
-  ink: INK,
-  inkSoft: INK_SOFT,
-  gray: GRAY,
-  line: LINE,
-  grid: GRID,
-  water: WATER,
-  ramp: HEAT,
-  gold: MEDAL_GOLD,
-  silver: MEDAL_SILVER,
-  bronze: MEDAL_BRONZE,
-  gzGreen: GZ_GREEN,
-  gzDark: GZ_EDGE,
-  gzCream: GZ_CREAM,
-  gzSage: GZ_SAGE,
-  gzGold: GZ_GOLD,
-} as const;
-
-/* The September calendar constants and the cell label are paint.ts's
+/* THERE USED TO BE A MODULE-LEVEL `PAL` HERE, frozen at import time out of
+ * paint.ts's constants. It is the exact shape this job proves cannot work:
+ * a module constant cannot be two stocks at once. The palette now rides on
+ * the paint helper (types.ts PosterPalette, paint.ts paletteOf), and every
+ * drawing below opens with `const PAL = paint.c;` — the field names were
+ * chosen to be THESE names, so all 65 `PAL.x` bodies in this file and
+ * rower.ts convert by shadowing one binding and not one body edit.
+ *
+ * The September calendar constants and the cell label are paint.ts's
  * (share/cards.ts originals); re-exported for the rower modules. */
 export { DOW_LETTERS, SEP_FIRST_DOW, kLabel };
 
@@ -173,6 +137,7 @@ export function drawMonth(
   dayNumber: number,
   opts: MonthOpts,
 ): number {
+  const PAL = paint.c;
   const tk = paint.tk;
   const L = monthLayout(tk, w, dayNumber, opts);
   const { cell, gap } = L;
@@ -239,15 +204,23 @@ export function drawMonth(
       continue;
     }
     const b = m < ROWER_BUCKETS[0] ? 0 : m < ROWER_BUCKETS[1] ? 1 : m < ROWER_BUCKETS[2] ? 2 : 3;
-    ctx.fillStyle = PAL.ramp[b];
+    const step = PAL.ramp[b];
+    ctx.fillStyle = step.fill;
     ctx.fillRect(cx, cy, cell, cell);
-    // A 1-unit outline so the palest bucket survives matte stock.
-    ctx.save();
-    ctx.strokeStyle = PAL.line;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(cx + 0.5, cy + 0.5, cell - 1, cell - 1);
-    ctx.restore();
-    const fg = b === 3 ? WHITE : PAL.ink;
+    // The keyline and the label colour are the STOCK's, exactly as in the
+    // community twin (charts.ts drawMonth): cream outlines every cell so
+    // the palest bucket survives matte stock, bw draws none because the
+    // rule would be brighter than the fill it holds; and the crossover to
+    // ground-coloured numerals is a property of the ramp step, not of the
+    // number 3 — cream flips once at the top, bw flips in the middle.
+    if (PAL.cellEdge) {
+      ctx.save();
+      ctx.strokeStyle = PAL.cellEdge;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx + 0.5, cy + 0.5, cell - 1, cell - 1);
+      ctx.restore();
+    }
+    const fg = step.on;
     paint.drawText(ctx, String(i + 1), cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, fg);
     paint.drawCentered(ctx, kLabel(m), cx + cell / 2, cy + cell - cell * 0.14, labelFont, fg);
   }
@@ -311,6 +284,7 @@ export function drawPaceCurve(
   box: PosterBox,
   pts: { m: number; s: number }[],
 ): void {
+  const PAL = paint.c;
   const tk = paint.tk;
   const axisFont = paint.font("mono", tk.axis);
   const L = box.x + tk.axis * 4.6;
@@ -612,6 +586,7 @@ export function drawLog(
   plan: LogPlan,
   masked: boolean,
 ): number {
+  const PAL = paint.c;
   const tk = paint.tk;
   const { size, pitch, cols, colW, colGap, perCol } = plan;
   const headFont = paint.font("mono", tk.small);

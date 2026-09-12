@@ -18,7 +18,9 @@ Owner decisions still open are listed in §14 with the default the build takes.
 
 ## 1. Principles
 
-1. **The site on paper.** Paper `#F4F3EE` is the only ground; ink type; the headline number and every chart line in matte water `#0077B6`; a few thick black rules; mono datelines and eyebrows; Archivo Black headlines. "Running magazine, not sports app." No shadows (shadowBlur ignores the CTM anyway), no radii, no gradients, no boxes; white appears only as the label on the top calendar bucket and inside the Grizzly wordmark.
+1. **The site on paper, on two STOCKS.** The grammar is the front page: ink type, the headline number and every chart line in the accent, a few thick rules, mono datelines and eyebrows, Archivo Black headlines. "Running magazine, not sports app." No shadows (shadowBlur ignores the CTM anyway), no radii, no gradients, no boxes.
+
+   Since 2026-09-12 the two paper subjects print on either of two stocks (`types.ts PosterStock`, owner: *"we also need black and white shareable versions of all the posters to match the race day aesthetic"*). **Cream** is the sheet the site is — paper `#F4F3EE`, ink `#15171A`, water blue `#0077B6` — and is unchanged, byte for byte. **bw** is race day's own black `#15171A` with race day's own grey ladder, so a Rowtember sheet and a race day ad hang together on a wall and in the same feed. Race day has a GROUND and no stock; the paper subjects have a STOCK and no ground; the two axes are orthogonal and compose if a window ever lands on a broadsheet. Full palettes and the arithmetic behind them: §4.
 2. **Newspaper grammar.** Nameplate → dateline → the lead number → the bracketed strip → columns under one-line eyebrows → the footer. (The honour roll and the ad corner were the last two blocks of that line until the owner took the club roll and the partner plate off every plan, §16.) Nothing is parked on the right of a thick rule. The only sanctioned right-hand element is the gray descriptor of a `.pf-eye` eyebrow, on a hairline.
 3. **Adaptation is composition, not squeezing.** Same modules, same tokens per family; a shorter sheet spends a shrink order, then drops whole rows by cascading to the next plan. A chart is never stretched; a row with a dropped slot is not drawn with a hole — the plan that has that row is simply not used.
 4. **Masking is the share-card rule.** A poster leaves the site. Whatever a blackout hides arrives from the server as a shape and is drawn as ink blocks, for the rower themself and for an admin alike, decided off the PUBLIC board, fail closed. Nothing hidden exists in the client payload as a number.
@@ -44,7 +46,7 @@ Families, logical spaces (`W × H`), pixels, the physical size of one logical un
 - A3 and A4 are exact millimetres in `formats.ts` (297 × 420 mm = 11.6929 × 16.5354 in; 210 × 297 mm = 8.2677 × 11.6929 in), so the PDF page is exactly 841.89 × 1190.55 pt / 595.28 × 841.89 pt and A3 pixels are 1754 × 2480 @150, 3508 × 4961 @300 (the rounded-inch figures came out one pixel taller). Pixels = round(inches × ppi). `scale = pxW / W` (24x36 @150 = 3.0, @300 = 6.0; letter @300 = 3.54; phone = 2).
 - **Margins** (logical): printL 60 all round, gutter 40, three columns of 333.3; printS 44, gutter 28, two columns of 302; phone 36, gutter 24. The **story** folds Instagram's UI bands into its margins: top 125, bottom 135 (250 / 270 px of 1920); the bands stay paper. `formats.ts` notes this as the one number to bump if a real device shows the dateline under the profile chip.
 - **Plan keys** are per format and subject-independent (§7): the rower layout registers the same print plan under `tall`, `short` and `squat`.
-- **Filenames** (`engine.ts fileName`): `rowtember-2026-<stem>.png|pdf` and `rower-023-<stem>.png|pdf` (number zero-padded to three). A PNG at a ppi other than the format's default appends `-300ppi` / `-150ppi`; bleed appends `-bleed`. Examples: `rowtember-2026-poster-24x36.pdf`, `rowtember-2026-story.png`, `rower-013-poster-18x24-300ppi.png`, `rower-013-poster-a4-bleed.pdf`.
+- **Filenames** (`engine.ts fileName`): `rowtember-2026-<stem>.png|pdf` and `rower-023-<stem>.png|pdf` (number zero-padded to three). **The STOCK leads the suffixes** — `-bw` first, the way `raceGround.ts raceFileName` puts `-overlay` and `-photo` first, so all three subjects name their variants by one grammar. Cream prints nothing, so every filename that already exists is byte-identical. Then a ppi other than the format's default appends `-300ppi` / `-150ppi`; bleed appends `-bleed`. Examples: `rowtember-2026-poster-24x36.pdf`, `rowtember-2026-story.png`, `rowtember-2026-poster-24x36-bw.png`, `rowtember-2026-story-bw.png`, `rower-023-post-bw.png`, `rower-013-poster-a4-bw-300ppi-bleed.pdf`.
 
 ## 3. Type scale
 
@@ -90,14 +92,97 @@ Rules of type:
 - Fit-to-measure for the nameplate and the headline (`paint.fitSize`); names ellipsize; numbers never do; `fillText(maxWidth)` is never used (it condenses glyphs — visible on a 24x36).
 - Nameplate line box = 0.9 × size; hairline 0.12em under the baseline; dateline datel × 1.5 under the hairline.
 
-## 4. Colours, rules, texture
+## 4. Colours, rules, texture — TWO STOCKS
 
-- paper `#F4F3EE` (painted first, always — the PDF's JPEG has no alpha) · ink `#15171A` · ink-soft `#3b3e42` (datelines, ledger keys, log time) · gray `#8a8a85` (descriptors, places, numbers, axes, meta) · line `#c9c8c0` (dashed row rules, empty calendar cells) · grid `#dddbd2` (chart gridlines) · water `#0077B6` (headline number, record values, curve and pace lines, calendar top bucket, pace tags in a board row) · water-pale `#e3eef5`.
-- Calendar ramp `#d9e8f2 → #a5cde3 → #4d9fc9 → #0077B6`; every rowed cell also gets a 1-unit `line` outline so the first bucket survives matte stock; day labels ink, **white only on the top bucket** (theme.ts `.hm-num` rule).
+No drawing file names a colour any more. Every colour on either sheet comes off `paint.c` (`types.ts PosterPalette`), resolved once per render by `paint.ts paletteOf(stock)` — a module-level constant cannot be two things at once. The colour names are deliberately **not** imported by `charts.ts` / `rowerCharts.ts` / `rower.ts` / `community.ts`, so a missed site is a compile error rather than an invisible ink-on-ink pixel.
+
+Every ratio below is WCAG relative luminance, alpha composited over its ground first, **computed and not estimated**.
+
+### 4.1 Cream — the sheet that ships, unchanged
+
+- paper `#F4F3EE` (painted first, always — the PDF's JPEG has no alpha) · ink `#15171A` (16.16:1) · ink-soft `#3b3e42` (9.67:1 — datelines, ledger keys, log time) · gray `#8a8a85` (3.12:1 — descriptors, places, numbers, axes, meta) · line `#c9c8c0` (dashed row rules, empty calendar cells) · grid `#dddbd2` (chart gridlines) · water `#0077B6` (4.38:1 — headline number, record values, curve and pace lines, calendar top bucket, pace tags in a board row) · water-pale `#e3eef5` (unused by any drawing; kept exported, deliberately not a palette field).
+- Calendar ramp `#d9e8f2 → #a5cde3 → #4d9fc9 → #0077B6`, steps 1.35 / 1.75 / 1.65 apart; `cellEdge` = `line`, so every rowed cell gets a 1-unit outline and the first bucket (1.13:1) survives matte stock; day labels ink, **white only on the top bucket** (theme.ts `.hm-num`) — carried as the step's own `on` colour, not as a branch on the number 3.
 - Curve area `rgba(0,119,182,.08)`; hour bars `rgba(0,119,182,.32)` with the busiest bar solid water (never .16 — it vanishes on matte); split density: ±1 SD band `rgba(0,119,182,.10)`, area `.06`, line ink 1.5 units, median dashed ink.
-- Board wash: none by default (the owner may ask for table.board's `rgba(236,220,170,.22)` behind the top-ten rows — it is one fillRect before the rows; keep it in charts.ts as an option, off).
-- Medals `#D4AF37` / `#C0C0C0` / `#CD7F32` as FILLED chips with ink text (`.dtag.m1–m3`), never as coloured text; outline chip gray for #4+.
+- Medals `#D4AF37` / `#C0C0C0` / `#CD7F32` as FILLED chips with ink text (`.dtag.m1–m3`), never as coloured text; outline chip gray for #4+; the **pace chip** filled ink with paper text.
 - Grizzly plate `#0c2015`, border 2 units `#06130c`, cream `#f2ead7`, sage `#a9bba6`, gold `#d3ab5d` — the only dark surface on the sheet.
+
+### 4.2 bw — race day's black, applied to the same drawing
+
+Ground `#15171A`, race day's own ink. Every tone is WHITE AT AN ALPHA, `raceday.ts`'s ladder rung for rung — that is how we know the ad and the summary are the same black.
+
+| token | value | vs ground | what carries it |
+|---|---|---|---|
+| paper | `#15171A` | — | the ground |
+| **water** | `#ffffff` | **17.96:1** | **THE ACCENT** — headline number, record values, curve and pace lines, peak hour bar |
+| ink | `rgba(255,255,255,.74)` | 10.15:1 | body, names, strip numbers, rules, blackout blocks |
+| ink-soft | `rgba(255,255,255,.62)` | 7.44:1 | datelines, ledger keys, log times |
+| gray | `rgba(255,255,255,.5)` | 5.26:1 | descriptors, places, axes, meta, the #4+ chip |
+| line | `rgba(255,255,255,.3)` | 2.70:1 | dashed row rules, rest-day cells, the plate keyline |
+| grid | `rgba(255,255,255,.18)` | 1.75:1 | chart gridlines, future-day cells |
+| water-area | `rgba(255,255,255,.08)` | 1.24:1 | curve area |
+| water-bar | `rgba(255,255,255,.32)` | 2.90:1 | hour bars |
+| water-band | `rgba(255,255,255,.10)` | 1.32:1 | ±1 SD band |
+| water-band-soft | `rgba(255,255,255,.06)` | 1.17:1 | density area |
+
+**THE ONE STRUCTURAL MOVE, and the whole design in a sentence.** On cream, ink is 16.16:1 and water is 4.38:1 — the accent is the LOWER-contrast mark and wins by HUE. Take the hue away and contrast is the only thing left to carry it, so `water` goes to the TOP of the ladder as pure white and `ink` steps down one rung to .74. That is race day's own arrangement (WHITE rationed to the OPT IN slab, the thick rules and the wave cell; BONE .74 for body copy). A palette that maps ink → white 1:1 has nothing left for the accent and is the cream poster with its colours swapped.
+
+The washes need no invented number: each is a PERCENTAGE OF THE ACCENT, and the accent is what changed.
+
+**Nothing under .5 ever carries a letter**, with ONE documented exception so that it is a decision and not a slip: the date inside an EMPTY FUTURE DAY draws in `line` at .30 / 2.70:1. It is a placeholder on an empty cell, and the cream sheet draws that same glyph at 1.51:1 — the black sheet is the more legible of the two.
+
+The bw greys read louder than the cream ones (5.26 against 3.12 for the same role). Deliberate: 3.12:1 is a print-on-matte-cream value read at six feet, and the ask was for SHAREABLE versions read on a phone.
+
+### 4.3 The heat ramp inverts
+
+| bucket | fill | vs ground | label | step over the one below |
+|---|---|---|---|---|
+| 0 | `rgba(255,255,255,.20)` | 1.88:1 | white 9.55:1 | — |
+| 1 | `rgba(255,255,255,.38)` | 3.58:1 | white 5.02:1 | 1.90:1 |
+| 2 | `rgba(255,255,255,.64)` | 7.86:1 | ink 7.86:1 | 2.20:1 |
+| 3 | `#ffffff` | 17.96:1 | ink 17.96:1 | 2.29:1 |
+
+On cream a big day is DARKER than the sheet; on ink it is BRIGHTER. "More ink on paper" becomes "more light on ink" — the translation no desaturation filter could make. It is also the better ramp: its weakest step (1.90) beats cream's strongest (1.75), and all four labels clear AA where cream's top bucket lands at 4.87:1. That is structural, not luck — cream starts at luminance .909 and can only fall to .166 (a 5× run); ink starts at .0085 and can rise to 1.0 (118×).
+
+**A ramp step is a PAIR, not a colour.** `PosterHeatStep {fill, on}`: the label colour is a property of its step. Cream flips its label once, at the top; bw flips in the MIDDLE, as the cells go light. It used to be an anonymous `b === 3 ? WHITE : INK` in two files, which is a fact about the cream ramp and not about the number 3.
+
+**`cellEdge` is null on bw.** On ink bucket 0 is already 1.88:1 LIGHTER than its ground, and cream's `line` keyline is 2.70:1 — brighter than the fill it is meant to hold, so the cell would read as an empty outlined box, which is what a rest day already reads as. The three cell states stay three things by KIND on both stocks: rest is a dashed `line` outline, future a solid `grid` outline with its date, rowed is a FILL. Fill beats outline, so the states separate by kind before they separate by tone.
+
+The payoff in the room: the busiest days of September become solid white slabs with black numerals — the same gesture as race day's OPT IN slab. Cream's rule "white only on the top bucket" inverts into "the only black letters on a black poster sit on the biggest days".
+
+### 4.4 The medals — weight, not metal
+
+Greyscale the three metals with the Rec.709 matrix the site already uses (`raceday.ts greyOf`): `#D4AF37` → luma **174.20**, `#C0C0C0` → **192.00**, `#CD7F32` → **138.02**. **SILVER COMES OUT BRIGHTER THAN GOLD.** Any filter-based answer literally reverses first and second place on every poster, and a hue that fails in greyscale fails a colour-blind reader for the same reason. That single number is the strongest argument in this subsystem against desaturating the canvas at the end.
+
+So on bw the chips are a monotone ladder PLUS a fill/hollow distinction — two signals, neither of them hue:
+
+| place | chip | vs ground | text |
+|---|---|---|---|
+| 01 | filled `#ffffff` | 17.96:1 | ink, 17.96:1 |
+| 02 | filled `rgba(255,255,255,.74)` | 10.15:1 | ink, 10.15:1 |
+| 03 | filled `rgba(255,255,255,.52)` | 5.59:1 | ink, 5.59:1 |
+| 04+ | hollow, .5 stroke | 5.26:1 | .5 white |
+
+Gold→silver 1.77:1 / ΔL\* 21.3; silver→bronze 1.81:1 / ΔL\* 19.1 — evenly stepped and monotone, so "brighter is better" needs no legend. (.62 for bronze was the first draft and sits only 1.36:1 / ΔL\* 10.3 off silver, thin for two chips on adjacent rows of a top ten.) The chip already PRINTS its place as type — "01" "02" "03" on the board, "#1" "#2" "#3" on the rower's bests — so hue was decoration; it never named the place.
+
+**The pace chip changes IDIOM, not just colour.** On cream it is `{fill: ink, edge: ink, text: paper}` — a filled chip in the TYPE colour with GROUND-coloured text — which cannot be confused with a medal, because a medal is a hue. On bw that IS a medal chip, and the two really can meet: `assemble.ts toStanding` attaches `paceTag` to UNMASKED rows, and `charts.ts drawBoard` draws the medal at the left of the row and the pace chip after the name in the same loop. So on bw the pace chip is the one BRIGHT OUTLINE — `{fill: null, edge: .74, text: .74}`, 10.15:1. It never meets the other hollow chip: the community board uses gold/silver/bronze/pace only (4th and past is plain gray text), the rower sheet uses gold/silver/bronze/outline only. Three chip idioms stay three things. Geometry is unaffected — `chip()` already branches on `fill: string | null` and its width is text + padX × 2 either way, so the place-column measurement in `drawBoard` does not move.
+
+### 4.5 The partner plate — theirs on both stocks
+
+**A partner who wants a mono lockup supplies one; we never derive one.** Recolouring a sponsor's green to a grey we chose is a decision that belongs to them and their brand book, not to a poster switch. `gzGreen / gzDark / gzCream / gzSage / gzGold` are the same five values in both palettes, and the panel still works internally (gold on green 7.91:1, cream on green 14.21:1). On cream it is the one dark island; on bw it stops being an island in TONE and becomes one in HUE — the one panel that is not the poster's own colours, because it is not ours.
+
+The ONE value that moves is ours and not theirs: **the border**. `#0c2015` against `#15171A` is 1.05:1 and their own `#06130c` edge is 1.06:1 — both invisible. The panel would read not as a plate laid on the sheet but as a HOLE punched in it, with a gold word floating in it and the bear keyed on transparent sitting on nothing. So `plateEdge` is their edge on cream and `rgba(255,255,255,.3)` on bw — 2.70:1, the same value and weight as every other rule on the sheet, drawn exactly where their edge goes. Our rule, drawing our boundary.
+
+### 4.6 The photograph
+
+Neither paper subject carries one — `PosterAssets.photo` is race day's, and `community.ts` / `rower.ts` touch only the Grizzly bear and wordmark. So nothing was converted and no field was added. **The rule, for whoever adds one:** a photograph on a bw sheet is drawn black and white through a LUMINANCE PASS IN PIXELS, never `ctx.filter`, because *a switch the owner set to BLACK AND WHITE must never silently export colour* — race day already made that decision and its answer lives in `raceday.ts greyOf` + `RaceDayPoster.photo.bw`. When a paper plan takes a picture, `greyOf` moves to `paint.ts` as `paint.grey(img)` and both subjects share the one WeakMap. Same rule covers the Grizzly bear PNG: it is theirs, it draws as supplied, `greyOf` is not pointed at it.
+
+### 4.7 The general rule this job earned
+
+**A mark that was carried by HUE must be RE-CHECKED, not just recoloured** — it may need a different mark, not a different colour. Checked here and found to need nothing: the ±1 SD band. `rgba(0,119,182,.10)` over cream is 1.14:1 / ΔL\* −5.04; `rgba(255,255,255,.10)` over ink is 1.32:1 / ΔL\* +11.30. The grey wash is more than twice as separated in lightness as the blue one, so the bw sheet adds no mark the cream sheet does not make. Rendered side by side, the bw band is the more visible of the two.
+
+### 4.8 Rules and texture (both stocks)
+
+- Board wash: none by default (the owner may ask for table.board's `rgba(236,220,170,.22)` behind the top-ten rows — it is one fillRect before the rows; keep it in charts.ts as an option, off). It is a cream value and would need its own bw answer if it were ever switched on.
 - Rules: thick (strip brackets, ledger top, footer top), hairline ink (nameplate, eyebrows, cell dividers, the elite bracket), 1-unit dashed line `[3,3]` (rows), 2-unit dotted gray (ledger leaders), chart gridlines 1 unit grid `[3,4]` with the top one solid, chart baseline 2.1 units ink, water lines hair × 2.2 with round joins and caps (3.3 units on printL = 0.066 in at 24x36), end dot r = hair × 3.2. Weights are logical, so they scale with the sheet; 300 ppi is the same drawing at 2×.
 
 ## 5. Data and masking — the DATA contract
@@ -230,14 +315,16 @@ Module rules the engine relies on: a module never draws outside its box; a modul
 
 ## 9. Rendering (`engine.ts`, `paint.ts`)
 
-1. **Canvas.** One detached `document.createElement("canvas")` at the target's pixels; `fillRect` paper over everything (the PDF's JPEG has no alpha — an unpainted canvas encodes as black); `ctx.save(); ctx.translate(offset); ctx.scale(scale, scale)`; compose + draw in logical units; `ctx.restore()`; `toBlob`; then `canvas.width = canvas.height = 1` to free the store. Only ONE full-res canvas alive at a time; it is never mounted.
+1. **Canvas.** One detached `document.createElement("canvas")` at the target's pixels; `fillRect` **the STOCK's ground** over everything — `paletteOf(stock).paper`, cream or `#15171A` — still mandatory and still painted over everything including the bleed (the PDF's JPEG has no alpha; a bw sheet is simply black on purpose and trims to a black edge by construction); `ctx.save(); ctx.translate(offset); ctx.scale(scale, scale)`; compose + draw in logical units; `ctx.restore()`; `toBlob`; then `canvas.width = canvas.height = 1` to free the store. Only ONE full-res canvas alive at a time; it is never mounted.
 2. **Preview.** The same draw at ~1000 px wide (device-pixel-ratio aware, capped at 2×) into a second detached canvas, shown as an `<img>` from its object URL inside the frame. The preview renders immediately on any change; the full-res render follows after a 300 ms debounce and its blobs are kept so SHARE can build its `File` synchronously inside the tap (§10.3).
 3. **Allocation probe.** `probeCanvas(w, h)`: create a canvas of that size, `getContext("2d")`, fill `#0077B6` at `(w−2, h−2, 1, 1)`, `getImageData` there must read `[0,119,182,255]`, then `toBlob("image/png")` must be non-null; free it in `finally`; cache per `w×h` for the session. Over-limit canvases fail SILENTLY (no exception; `fillRect` no-ops; `getImageData` zeros) — never trust try/catch alone. Limits measured on this desktop: per side 65,535, area 268,435,456 px; every preset passes here. iOS: a total live-canvas budget ≈ 224 MB — 24x36 @150 (78 MB) fits only as the sole big canvas; @300 (311 MB) does not.
 4. **Ladder.** `ladder(format, wanted)`: try `wanted`, then 300 → 200 → 150 → 100 (skipping values ≥ the one that failed); the first pass wins; `fellBack = true` when it is not `wanted`; the studio prints "RENDERED AT N PPI — THIS DEVICE CANNOT MAKE 300" with the rung that actually passed (a refused 300 lands on 200 first, so the note reads "RENDERED AT 200 PPI …") and disables the 300 chip with the same note.
 5. **Fonts.** Three laid-out probes `<div class="po-probe blk|mn|arc">Hxg<i class="po-strut"/></div>` (PostPack markup and boxOf, the `.pk-probe` CSS copied under `.po-`), `readFonts()` after `await document.fonts.ready`, then `await document.fonts.load` per hashed family and weight (`400 100px <black>`, `400/700 100px <mono>`, `400/600/700 100px <archivo>`) with the poster glyph set as sample text: `0123456789 ,.:/%#·—…→←‘’ AÁÉÍÓÚÑÖØÜ ÆŒ` plus every name in the payload — the unicode-range subsets load lazily and the metric-override Fallback faces report "loaded" too, so `document.fonts.check` is not proof. Read FontBox ratios from the probes; never hardcode a family; never read them during SSR.
 6. **Bleed.** `RenderTarget.bleedIn` (0 or 0.125): pixels grow by `2 × bleedIn × ppi` per axis, the drawing is offset by `bleedIn × ppi`, the extra is paper; the PDF's `MediaBox` is trim + bleed, `TrimBox` the trim. Default off; the studio's BLEED switch is on print formats only, with the note "PRINT BORDERLESS OR TRIM TO SIZE".
 7. **Images.** `loadImage` (PostPack idiom, cached, never rejects); the marks are same-origin so no `crossOrigin`; a null asset draws nothing (the plate then draws its text block only).
-8. **paint.ts** copies, with attribution comments naming the source function: from `post/slides.ts` — `boxFor, metricsOf, baselineOf, hasLetterSpacing, measure, drawText, drawCentered, drawRight, Run/runsWidth/drawRuns, ellipsize, rule, dottedRule, headlineLines`; from `share/cards.ts` — `drawBlockShape` (with `paint:false`), `blockDigitsWidth`, `kLabel`, `medalColor`, `SEP_FIRST_DOW/DOW_LETTERS`; it imports `drawBlockDigits`, `drawBlockClock` from cards.ts. Every colour re-parameterised for paper; no shadow anywhere. `post/slides.ts`, `share/cards.ts`, `theme.ts` are not edited.
+8. **paint.ts** copies, with attribution comments naming the source function: from `post/slides.ts` — `boxFor, metricsOf, baselineOf, hasLetterSpacing, measure, drawText, drawCentered, drawRight, Run/runsWidth/drawRuns, ellipsize, rule, dottedRule, headlineLines`; from `share/cards.ts` — `drawBlockShape` (with `paint:false`), `blockDigitsWidth`, `kLabel`, `SEP_FIRST_DOW/DOW_LETTERS`; it imports `drawBlockDigits`, `drawBlockClock` from cards.ts. No shadow anywhere. `post/slides.ts`, `share/cards.ts`, `theme.ts` are not edited.
+9. **Palette threading** (§4). `PaintInput.stock` defaults to cream; `makePaint` resolves `paletteOf(stock)` once and hangs it on the paint object as `c`. **No drawing signature changes** — every function in this subsystem already takes `paint`, and `composePlan` already clones it. There are exactly two `makePaint` call sites: `engine.ts render()` and `raceGround.ts renderRaceDay()` (which declares `stock: "bw"` — a no-op today, since race day reads no palette field, but a future race day module reaching for `paint.c.ink` must get white on black). The **helper defaults** are the half that would otherwise leak cream and are the easiest thing in this subsystem to get wrong: `rule` / `dashedRule` / `dottedRule` are closures resolving `color ?? c.ink | c.line | c.gray`, and `blocks` / `figure` / `blockDigits` / `blockClock` all resolve `opts.fill ?? c.ink` — without that last one, `drawBlockShape` falls through to its own module `INK` and every masked figure on a black sheet paints `#15171A` on `#15171A` and vanishes.
+10. **Colour cannot reach `measure()`.** It is `silently()` / `hidden()` — the SAME `draw()` run under an empty clip. So every plan, shrink step, cascade and `slack` is identical on both stocks BY CONSTRUCTION, which is a verifiable claim and a gate (§13.10).
 
 ## 10. Files and sharing
 
@@ -256,10 +343,11 @@ Module rules the engine relies on: a module never draws outside its box; a modul
 **`PosterStudio.tsx` (client).**
 - **SUBJECT** chips (`.tabs`): ROWTEMBER · A ROWER. Picking A ROWER opens the roster panel (the `RowerSearch` search + panel copied with `fold()/search()/SHOWN` and the `.pf-find-*` markup, `onSelect` → `router.push("/row100k/posters?r=<num>")`); the ROWTEMBER chip pushes `/row100k/posters`. A picked rower shows as the chip label "023 · AVERY STONE ▾". Hidden when `fixed`.
 - **FORMAT** chips in two groups with mono eyebrows PRINT (24 × 36 · 18 × 24 · 16 × 20 · 11 × 17 · A3 · LETTER · A4) and INSTAGRAM (STORY · POST · SQUARE). The chosen format is remembered per session (`sessionStorage`, try/catch).
+- **STOCK** chips (`.st-sub .po-opts`, the exact slot and idiom race day's GROUND row occupies): `CREAM · BLACK AND WHITE`. Sentence case in the JSX, uppercased by the CSS, to match "Solid ad / On the photo / Overlay". Shown for the two paper subjects and **never for race day** — it is the thing being matched, and a cream race day ad would invent an idiom the owner closed on 2026-09-11. Plain `useState`, deliberately not `sessionStorage`: the format chip is remembered because re-picking 24 × 36 every visit is friction, but the stock is a per-artefact choice and cream is the right open state.
 - **Options** (`.st-sub` underline words, print only): `150 PPI · 300 PPI` (300 disabled with the fallback note when the probe refuses) · `BLEED` on/off.
-- **Preview**: a `.po-frame` (2px ink border, `aspect-ratio` of the format, max-width 100 % of the column, the story/post frames capped at 60vh) holding the preview `<img>`; a mono status line under it (`.po-status`, water): "RENDERING 3600 × 5400 …" / "READY · 3600 × 5400 · 150 PPI · 2.1 MB PNG · 1.4 MB PDF" / "READY · 1080 × 1920 · 0.6 MB PNG".
+- **Preview**: a `.po-frame` (2px ink border, `aspect-ratio` of the format, max-width 100 % of the column, the story/post frames capped at 60vh) holding the preview `<img>`. **The frame flips with the sheet**: `.po-frame.bw{background:var(--ink);border-color:var(--water)}`, or a black poster sits in a cream halo while its blob encodes and the frame's own ink border vanishes into the artwork. A mono status line under it (`.po-status`, water): "RENDERING 3600 × 5400 …" / "READY · 3600 × 5400 · 150 PPI · 2.1 MB PNG · 1.4 MB PDF" / "READY · 1080 × 1920 · 0.6 MB PNG".
 - **Buttons** (`.pk-btn` idiom, `.primary` water fill): SHARE · DOWNLOAD PNG · DOWNLOAD PDF (print only); disabled while rendering. Primary per §10.3.
-- **Notes** (mono small gray, uppercase): "PRINT BORDERLESS OR TRIM TO SIZE" on print; "RENDERED AT 150 PPI — THIS DEVICE CANNOT MAKE 300" when fell back; "BLACKOUT — THIS POSTER PRINTS WITH BLOCKS UNTIL SEP 27" when the payload masks anything; "LATE LOGS THROUGH OCT 3 — THE POSTER READS FINAL" between END_MS and LOG_CLOSE_MS.
+- **Notes** (mono small gray, uppercase): "PRINT BORDERLESS OR TRIM TO SIZE" on print; "RENDERED AT 150 PPI — THIS DEVICE CANNOT MAKE 300" when fell back; "BLACKOUT — THIS POSTER PRINTS WITH BLOCKS UNTIL SEP 27" when the payload masks anything; "LATE LOGS THROUGH OCT 3 — THE POSTER READS FINAL" between END_MS and LOG_CLOSE_MS. On the black stock: "BLACK AND WHITE — THE SAME SHEET ON BLACK STOCK, MADE TO SHARE", and on a print format "A BLACK SHEET IS FULL INK COVERAGE — PRINT BORDERLESS ON A PRESS, NOT AN INKJET". The second is the one risk in this job no code can fix — a 24 × 36 at full black coverage costs differently at a shop, bands on a consumer inkjet and bronzes on matte stock — and the studio is the only place the owner meets it before he pays.
 - **Dev** (`dev` prop): the `PosterLayoutLog` under the preview as a mono list (plan, rows and heights, dropped, shrinks, slack — red when negative) and a `<details>` with the payload JSON.
 - Page-local CSS in `poCss` (`.po-` prefix; probes, frame, status, notes, the roster panel copies); no double quotes, apostrophes, angle brackets or ampersands in it.
 
@@ -267,7 +355,7 @@ Module rules the engine relies on: a module never draws outside its box; a modul
 
 ## 12. The dev fixture — `/row100k/dev/posters`
 
-`if (process.env.NODE_ENV === "production") notFound();` — no session, visible signed out on :3000. RowBar with the mono child "PREVIEW — NOT REAL DATA". Deterministic fake data (the CardPreviews `sampleData` way), both subjects, chosen by query: `?subject=community|rower` (default community) `&format=<key>` `&masked=1` (blackout open; the rower one of the elite) `&final=1` (day 30, five-row month, 40 club names, a 40-row log) `&names=N` `&log=N` `&runup=1` (hideLow rows). Renders `<PosterStudio dev … />` so the studio itself is what is shot. Fake data must exercise: an eight-digit community total, a 19-character name, an accented name (Sørensen), a rower with no timed rows, a day-1 payload (`dayNumber = 1`), and `hours/split = null`.
+`if (process.env.NODE_ENV === "production") notFound();` — no session, visible signed out on :3000. RowBar with the mono child "PREVIEW — NOT REAL DATA". Deterministic fake data (the CardPreviews `sampleData` way), both subjects, chosen by query: `?subject=community|rower` (default community) `&stock=cream|bw` (the two paper subjects only — race day has no stock) `&format=<key>` `&masked=1` (blackout open; the rower one of the elite) `&final=1` (day 30, five-row month, 40 club names, a 40-row log) `&names=N` `&log=N` `&runup=1` (hideLow rows). Renders `<PosterStudio dev … />` so the studio itself is what is shot. Fake data must exercise: an eight-digit community total, a 19-character name, an accented name (Sørensen), a rower with no timed rows, a day-1 payload (`dayNumber = 1`), and `hours/split = null`.
 
 ## 13. Verification
 
@@ -279,6 +367,11 @@ Module rules the engine relies on: a module never draws outside its box; a modul
 6. Leak test: a scratchpad `tsx` script (NODE_PATH = the worktree's node_modules, `tsconfig.render.json`) calls `communityPosterData({ forceBlackout: true })` and `rowerPosterData(<an elite number>, { forceBlackout: true })` against the live DB (read only), takes the hidden rowers' real figures from `boardDataRaw()`, and asserts none of them (total, longest, biggest day, any row's meters or seconds, as `toLocaleString` and bare digit strings) appears in `JSON.stringify` of either payload; also asserts `pace === null`, `seconds === null`, every log `split === null`, `rank === "ELITE"` on the masked rower, and that `standings` carry no number field other than `rowerNumber`.
 7. Fonts: on the live page, `readFonts().black` contains `__Archivo_Black` and a 100px `measureText("2,431,900")` width differs from the Fallback face's by > 3 % before the first full-res draw.
 8. Share: on a handheld (or the pane's mobile emulation) SHARE is primary and hands a PNG `File`; DOWNLOAD PDF saves a file named per §2.
+9. **Cream must be BYTE-IDENTICAL before and after any palette work.** Shoot the cream sweep first, then again after, and compare hashes — the fixture already takes the query, so the before-shoot needs no code. This is the gate that proves a constant→palette conversion was lossless, and it is stronger than reading the diff.
+10. **The layout log must be IDENTICAL between stocks** for every format: plan, every row height, dropped, shrinks, slack. Colour cannot reach `measure()` (§9.10), so any difference is a conversion bug, not a design change.
+11. **The masked sheet is a SECOND FULL SURFACE on bw.** A blackout draws blocks through `opts.fill ?? c.ink`, so on black they are .74-white slabs — right in principle (a redaction is the type colour, not the ground) but it inverts what a redaction LOOKS like: cream shows black bars, bw shows light ones. Shoot `&masked=1` on both stocks and check it still reads as redaction and not as a bar chart (§14.10).
+12. **The PDF at high contrast.** `toJpeg` defaults to quality 0.92 and `toPdf` uses that default; DCT mosquito noise and chroma subsampling are at their ugliest on high-contrast edges and the eye catches them on black. Do not ship a bw PDF without a 1:1 crop of the strip's hairlines and the ledger's dotted leaders at 150 ppi on a 24 × 36 (§14.11).
+13. **A colour conversion is driven by the COMPILER, never by hand.** Strip the colour names out of the drawing files' import lists FIRST and delete any module-level palette object; then every missed site is a "Cannot find name" rather than an invisible pixel. `INK` still typechecks and still paints, which is exactly why reading the diff is not enough.
 
 ## 14. Open decisions for the owner (the build takes the default)
 
@@ -291,6 +384,8 @@ Module rules the engine relies on: a module never draws outside its box; a modul
 7. **Board wash** — off by default (the cream `table.board` wash behind the top-ten rows is a one-line option in `charts.ts`).
 8. **Lines before gaps** (Integrate) — §8's order is "lines yield first, then drop, then shrink", so the rower square at day 12 shows THREE of the four bests over 19 units of paper: the fourth line would fit if the `gap` step (13 units) ran before the lines yielded (7 units short). Swapping the two in `engine.ts composePlan` is one move of the `yieldLines()` call; both drawing streams tested against the current order.
 9. **Masked story mid-month** (Integrate) — the rower story's shrink order is `gap, cap, chart` (the rower stream's call, so a FINAL month keeps 43-unit cells); under a window mid-month the nameplate's two blackout lines push the two public time bests off and the DAYS ROWED month sits over ~70 units of paper (its cells are width-capped). `gap, chart, cap` would keep the two bests lines there at the cost of a smaller FINAL month (35-unit cells). One array in `rower.ts story.shrink`.
+10. **The masked sheet's blocks on bw** (2026-09-12) — default `c.ink`, .74 white, because a redaction is the TYPE colour and not the ground. Shot on both stocks and it does read as redaction — identical widths, real comma glyphs between the groups, nothing varying that a chart would vary — but solid `c.water` is ONE palette value away if he ever reads them as a bar chart.
+11. **A bw PDF at JPEG 0.92** (2026-09-12) — the default `toJpeg` quality, which the black stock has not yet been printed at. 0.96 is one number away if the hairlines or the dotted leaders ring; the file grows maybe 30 %.
 
 ## 15. As built (Integrate, 2026-09-10) — where the build differs from §6–§9 above
 
@@ -306,6 +401,16 @@ The streams read the sections above; the sheet the studio draws is the code. Whe
 - **§6 R8 log** — the progression is §0's graft: 1 column → as many columns as the box holds (≥ 330 printL / ≥ 300 printS) → small step → "+ N MORE"; `measure()` reports the multi-column height so a FINAL 40-row log never forces the plate off. On the hand-outs' row step the column shares leave no title room, so titles and the ROW header are dropped there and return at the small step.
 - **§8 engine** — a "lines yield first" pass trims `fit: "lines"` slots to their MINIMUM before the drop list and every shrink step (never to nothing there — the `gap` step alone finds the two lines a square or a post is a few units short of; the `cap` step and the terminal last resort are where a lines slot goes to nothing); the total is re-read from the live rows after every cut, so a row that yielded to nothing takes no gap and its room reaches the grow rows; the `gap` step shrinks the gap above the pinned footer too (the region follows `tk.gap`); every fit test carries a 1e-6 epsilon so a cut that lands exactly on the region does not spend a shrink step.
 - **§9.4** — the ladder is 300 → 200 → 150 → 100, so a device that refuses 7200 × 10800 gets 4800 × 7200 at 200 ppi and the note names that rung.
+
+### THE BLACK STOCK, as built (2026-09-12)
+
+- **Cream is byte-identical.** Both subjects × 24x36 / story / square shot before and after the conversion: all six MD5s match. **Race day is byte-identical too** (story and 24x36 on `ground=photo`), and it was not edited: `raceday.ts` imports nothing from `./paint`, calls no `eyebrow` / `chip` / `blocks` / `figure` / `dashedRule` / `dottedRule`, and passes an explicit colour to all fourteen of its `paint.rule` calls.
+- **The layout log is identical between stocks** on every format shot, exactly as §9.10 predicts.
+- **`medalColor` was DELETED** from `paint.ts` — nothing in `poster/` imported it, and leaving it would have been a third place a medal colour lives. **`WATER_PALE` is unused** by any drawing and is deliberately not a palette field; the constant stays exported.
+- **`rowerCharts.ts`'s module-level `PAL` was deleted.** The palette's field names were chosen to be PAL's, verbatim, so all 65 `PAL.x` sites across `rower.ts` (37 in 10 scopes) and `rowerCharts.ts` (28 in 3) convert by shadowing one binding per scope — 13 inserted lines, zero body edits.
+- **The bw partner plate is now shot, not assumed.** The plate draws on no plan, so it was put onto the rower story plan temporarily, rendered on both stocks and reverted: Grizzly's green keeps all five of its colours and our `.3` white keyline is what stops it reading as a hole. That is the only surface here that ships behind a temporary scaffold, so it is the first thing to look at the day a partner is slotted back in.
+- **Rest days and future days were forced into the fixture temporarily and shot on both stocks**, because no fixture rower rests: a rest day is a dashed `.3` outline, a future day a solid `.18` box with its date at `.3`, a rowed day a fill. Three states, three kinds, on both stocks.
+- **`formats.ts STORY_SAFE`** no longer claims "the bands stay paper" — the bands are empty margin and take whatever the canvas was filled with, which is the stock's ground.
 - **§5 data** — `totals.hours` is null for a rower with no timed row (the headline prints "N SESSIONS" in its place); ROWERS = rowers with a logged meter, not sign-ups; the payload clamps to "SEP 30 · FINAL" from END_MS; under the admin's test blackout with no real window the note has no date.
 
 ## 16. The owner's review (2026-09-10, spoken) — what changed on the ROWTEMBER sheet

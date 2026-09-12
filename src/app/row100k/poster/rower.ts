@@ -42,9 +42,12 @@ import type {
   RowerPoster,
 } from "./types";
 import { drawFooter } from "./charts";
+/* `PAL` is no longer imported: it is the STOCK's palette now and it comes
+ * off the paint helper, so each drawing below opens with
+ * `const PAL = paint.c;`. Every PAL.x body is untouched — the palette's
+ * fields were named after these. */
 import {
   LOG_STRETCH,
-  PAL,
   abbr,
   drawLog,
   drawMonth,
@@ -190,6 +193,7 @@ const nameplate: Mod = {
   id: "nameplate",
   minH: 60,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const cap = tk.nameCap * 0.8;
     const num = `${fmtRowerNumber(d.rower.rowerNumber)} `;
@@ -291,6 +295,7 @@ const headline: Mod = {
   id: "headline",
   minH: 100,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const fig = d.totals.meters;
     const maxW = box.w * 0.94;
@@ -402,6 +407,7 @@ const strip: Mod = {
   id: "strip",
   minH: 60,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const cells = stripCells(d, paint);
     const cellW = box.w / cells.length;
@@ -534,6 +540,7 @@ const pace: Mod = {
     return paint.tk.chart ? PACE_MIN_H[fam] : PACE_H[fam];
   },
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const y = paint.eyebrow(ctx, box.x, box.y, box.w, ...PACE_EYEBROW);
     const small = paint.font("mono", tk.small);
@@ -599,6 +606,7 @@ const pace: Mod = {
  * stream already nulls a masked meters best's place). Masked meters bests
  * arrive as shapes and draw as blocks + " m". */
 function drawBestValue(ctx: Ctx, paint: PosterPaint, b: RowerBest, right: number, base: number): number {
+  const PAL = paint.c;
   const tk = paint.tk;
   const vfont = paint.font("monoBold", tk.row);
   const vw = figureRight(ctx, paint, b.value, right, base, vfont, tk.row, PAL.ink);
@@ -616,6 +624,7 @@ const bests: Mod = {
   id: "bests",
   minH: 80,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", "THIS SEPTEMBER");
     const pitch = tk.rowPitch * 1.4;
@@ -650,6 +659,7 @@ const bestsCompact: Mod = {
   id: "bests.compact",
   minH: 88,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const eyeH = eyebrowHeight(ctx, paint, box.w, "THE BESTS", "THIS SEPTEMBER");
     // Half a unit of tolerance: a box handed back at exactly the measured
@@ -720,6 +730,7 @@ const ledger: Mod = {
   id: "ledger",
   minH: 40,
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const items = ledgerItems(d, paint);
     paint.rule(ctx, box.x, box.y, box.w, tk.thick, PAL.ink);
@@ -769,6 +780,7 @@ function drawLogModule(
   paint: PosterPaint,
   stretch = LOG_STRETCH,
 ): number {
+  const PAL = paint.c;
   const tk = paint.tk;
   const eye = logEyebrow(d);
   if (d.log.length === 0) {
@@ -875,6 +887,7 @@ const plate: Mod = {
     return paint.format.plan === "tall" ? plateStackH(paint) : plateCompactH(paint);
   },
   draw(ctx, box, d, _fonts, paint) {
+    const PAL = paint.c;
     const tk = paint.tk;
     const p = d.partner;
     if (!p) return 0;
@@ -888,7 +901,14 @@ const plate: Mod = {
     ctx.fillStyle = PAL.gzGreen;
     ctx.fillRect(box.x, top, box.w, h);
     ctx.save();
-    ctx.strokeStyle = PAL.gzDark;
+    // THEIR GREEN, OUR RULE — the same trade the community plate makes
+    // (charts.ts). Grizzly's own edge is #06130c, which is 1.06:1 against
+    // the black stock: the panel would read as a hole punched through the
+    // sheet rather than a plate laid on it. plateEdge is their edge on
+    // cream and a .3 white rule on bw. This module is registered and drawn
+    // by no plan today, which is exactly why it was missed in the stock
+    // conversion — it type-checked and rendered nowhere.
+    ctx.strokeStyle = PAL.plateEdge;
     ctx.lineWidth = 2;
     ctx.strokeRect(box.x + 1, top + 1, box.w - 2, h - 2);
     ctx.restore();

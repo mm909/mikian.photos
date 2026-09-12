@@ -7,6 +7,7 @@ import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout } from "../poster/layouts";
+import { POSTER_STOCKS } from "../poster/paint";
 import { RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
   CommunityPoster,
@@ -20,6 +21,7 @@ import type {
   PosterPpi,
   PosterRenderTarget,
   PosterRosterRower,
+  PosterStock,
   RaceDayPoster,
   RowerPoster,
 } from "../poster/types";
@@ -210,6 +212,9 @@ export type PosterStudioProps = {
   roster: PosterRosterRower[] | null;
   /* Race day only: which ground to open on (the dev fixture's ?ground=). */
   initialGround?: PosterGround;
+  /* The paper subjects only: which stock to open on (the fixture's
+   * ?stock=). */
+  initialStock?: PosterStock;
   /* The subject is fixed (the rower's own page): no SUBJECT chips. */
   fixed?: boolean;
   /* The dev fixture: the layout log and the payload under the preview. */
@@ -228,6 +233,7 @@ export function PosterStudio({
   raceday,
   initialSubject,
   initialGround,
+  initialStock,
   roster,
   fixed,
   dev,
@@ -243,6 +249,14 @@ export function PosterStudio({
    * defaults (review, 2026-09-11). */
   const [raceOn, setRaceOn] = useState(initialSubject === "raceday" && raceday != null);
   const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
+  /* WHICH STOCK the paper sheets print on (owner, 2026-09-12: "we also need
+   * black and white shareable versions of all the posters to match the race
+   * day aesthetic"). Plain state, deliberately NOT sessionStorage: the
+   * format chip is remembered because re-picking 24×36 every visit is
+   * friction, but the stock is a per-artefact choice and cream is the right
+   * thing to open on. Race day is never offered one — it is the thing being
+   * matched. */
+  const [stock, setStock] = useState<PosterStock>(initialStock ?? "cream");
   /* The overlay is judged over the real photograph by default; the chequer
    * is one chip away, because the transparency has to be judged too. */
   const [onPhoto, setOnPhoto] = useState(true);
@@ -385,8 +399,15 @@ export function PosterStudio({
       race
         ? renderRaceDay({ target: t, data: race, fonts, assets, ground })
         : subject === "rower"
-          ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets })
-          : render({ target: t, layout: communityLayout, data: data as CommunityPoster, fonts, assets });
+          ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock })
+          : render({
+              target: t,
+              layout: communityLayout,
+              data: data as CommunityPoster,
+              fonts,
+              assets,
+              stock,
+            });
 
     // The preview, drawn immediately.
     try {
@@ -488,7 +509,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, race, ground, subject, format, ppi, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, stock, subject, format, ppi, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -513,7 +534,9 @@ export function PosterStudio({
   const nameFor = (ext: "png" | "pdf", target: PosterRenderTarget): string => {
     const opts = { ppi: target.ppi, bleed: target.bleedIn > 0 };
     if (race) return raceFileName(race, format, ext, { ground, ...opts });
-    return data ? fileName(data, format, ext, opts) : `rowtember.${ext}`;
+    // The stock leads the suffixes, so -bw is the first thing after the
+    // format and two letters he would type into a search box.
+    return data ? fileName(data, format, ext, { stock, ...opts }) : `rowtember.${ext}`;
   };
 
   /* SHARE hands over the PNG only — Instagram's sheet takes images; the
@@ -599,6 +622,9 @@ export function PosterStudio({
   const masked = data ? (data.kind === "community" ? data.blackout.active : data.masked) : false;
   const overlay = subject === "raceday" && ground === "overlay";
   const flattened = subject === "raceday" && ground === "photo";
+  /* A PAPER sheet on the black stock. Race day is already black and has no
+   * stock of its own, so it is excluded rather than folded in. */
+  const bwSheet = subject !== "raceday" && stock === "bw";
   // Null when the bucket cannot be read or the race has no gallery behind
   // it; the photo ground is not offered at all then.
   const photo = race?.photo.url ? race.photo : null;
@@ -792,6 +818,27 @@ export function PosterStudio({
         </div>
       ) : null}
 
+      {subject !== "raceday" ? (
+        /* THE STOCK, in the exact slot and idiom race day's GROUND row
+           occupies. Sentence case here, uppercased by the CSS, to match
+           "Solid ad / On the photo / Overlay". Race day has no stock row at
+           all: a cream race day ad would invent an idiom he closed on
+           2026-09-11. */
+        <div className="st-sub po-opts" role="group" aria-label="Stock">
+          {POSTER_STOCKS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={stock === s.key ? "on" : undefined}
+              aria-pressed={stock === s.key}
+              onClick={() => setStock(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {format.kind === "print" && format.ppi ? (
         <div className="st-sub po-opts" role="group" aria-label="Print options">
           {format.ppi.options.map((p) => (
@@ -823,7 +870,12 @@ export function PosterStudio({
 
       <div
         ref={frameRef}
-        className="po-frame"
+        /* THE FRAME FLIPS WITH THE SHEET: cream under a cream poster, ink
+           under a black one, so the preview is never a black sheet in a
+           cream halo while its blob encodes, and the frame's own border
+           never vanishes into the artwork. Race day draws its own black and
+           keeps the cream frame it has always had. */
+        className={bwSheet ? "po-frame bw" : "po-frame"}
         style={{
           aspectRatio: `${format.w} / ${format.h}`,
           width: tallFrame ? `min(100%, calc(60vh * ${(format.w / format.h).toFixed(4)}))` : "100%",
@@ -865,6 +917,14 @@ export function PosterStudio({
       </p>
       <ul className="po-notes">
         {format.kind === "print" ? <li>Print borderless or trim to size</li> : null}
+        {bwSheet ? <li>Black and white — the same sheet on black stock, made to share</li> : null}
+        {/* THE ONE RISK IN THIS JOB NO CODE CAN FIX, and the studio is the
+            only place he meets it before he pays: a 24×36 at full black
+            coverage costs differently at a shop, bands on a consumer inkjet
+            and bronzes on matte stock. */}
+        {bwSheet && format.kind === "print" ? (
+          <li>A black sheet is full ink coverage — print borderless on a press, not an inkjet</li>
+        ) : null}
         {fellBack && files ? <li>Rendered at {files.target.ppi} ppi — this device cannot make 300</li> : null}
         {masked ? <li>Blackout — this poster prints with blocks{untilNote}</li> : null}
         {lateLogs ? <li>Late logs through Oct 3 — the poster reads final</li> : null}

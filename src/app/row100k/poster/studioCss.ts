@@ -8,7 +8,12 @@
  * post/page.tsx) under this prefix, because pkCss only ships on /post. The
  * roster panel reuses the theme's .pf-find-* rules as they are — they hang
  * under whatever is position:relative above them, which here is
- * .po-subject. */
+ * .po-subject.
+ *
+ * .po-frame.bw is the black stock's frame. The frame has to flip with the
+ * sheet: it is cream with a 2-unit ink border, so a black-and-white poster
+ * would sit in a cream halo while the preview blob encodes, and its own ink
+ * border would vanish into the artwork. Ink ground, water border. */
 export const poCss = `
 .row100k .po-probe{position:absolute;left:-9999px;top:0;font-size:100px;line-height:normal;white-space:nowrap;visibility:hidden;pointer-events:none}
 .row100k .po-strut{display:inline-block;width:0;height:0;overflow:hidden}
@@ -26,6 +31,7 @@ export const poCss = `
 .row100k .po-opts .po-sep{color:var(--line);padding:6px 0 4px;font-family:var(--row-mono),monospace;font-size:11px}
 
 .row100k .po-frame{position:relative;display:block;border:2px solid var(--ink);background:var(--paper);overflow:hidden;margin-top:20px;max-width:100%}
+.row100k .po-frame.bw{background:var(--ink);border-color:var(--water)}
 .row100k .po-frame img{display:block;width:100%;height:100%;object-fit:contain}
 .row100k .po-wait{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gray)}
 .row100k .po-status{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--water);margin:12px 0 0;line-height:1.7}

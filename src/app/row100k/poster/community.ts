@@ -58,7 +58,9 @@ import {
   type Run,
   type StripCell,
 } from "./charts";
-import { GRAY, INK, SEP_FIRST_DOW } from "./paint";
+/* NO COLOUR NAMES HERE — see charts.ts; the two run colours below come off
+ * `paint.c` so both stocks draw one masthead. */
+import { SEP_FIRST_DOW } from "./paint";
 import type {
   CommunityPoster,
   PosterBox,
@@ -127,7 +129,7 @@ const takeawaysOf = (d: CommunityPoster): PosterTakeaway[] =>
  * square has room for. The dateline itself is the DATA stream's ("SEP 12",
  * or "FINAL" from Oct 1 — the DAY N OF 30 tail came off both sheets). */
 const masthead = mod("masthead", 60, (ctx, box, d, paint) => {
-  const runs: Run[] = [{ text: `ROWTEMBER ${d.year}`, color: INK }];
+  const runs: Run[] = [{ text: `ROWTEMBER ${d.year}`, color: paint.c.ink }];
   const note = d.blackout.active && !isPhone(paint) ? d.blackout.note : null;
   return drawNameplate(ctx, paint, box, runs, d.asOf.dateline, note, paint.tk.nameCap);
 });
@@ -139,9 +141,9 @@ const masthead = mod("masthead", 60, (ctx, box, d, paint) => {
 const headline = mod("headline", 100, (ctx, box, d, paint) => {
   const bold = paint.font("monoBold", paint.tk.headLabel);
   const label: Run[] = [
-    { text: "METERS · ", color: GRAY },
-    { text: "EVERYONE TOGETHER", color: INK, font: bold },
-    { text: ` · ${d.totals.rowers} ROWERS`, color: GRAY },
+    { text: "METERS · ", color: paint.c.gray },
+    { text: "EVERYONE TOGETHER", color: paint.c.ink, font: bold },
+    { text: ` · ${d.totals.rowers} ROWERS`, color: paint.c.gray },
   ];
   return drawHeadline(ctx, paint, box, { text: n(d.totals.meters) }, label, paint.tk.headCap);
 });

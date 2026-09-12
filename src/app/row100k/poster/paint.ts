@@ -5,12 +5,21 @@
  * (boxFor, metricsOf, baselineOf, hasLetterSpacing, measure, drawText,
  * drawCentered, drawRight, ellipsize, rule, dottedRule) and the blackout
  * blocks are share/cards.ts's (drawBlockShape geometry, blockDigitsWidth,
- * kLabel, medalColor, the September calendar constants), copied with the
- * source named at each function so a fix there can be carried here. Both
- * sources are left untouched — the slides are the DARK photo idiom and the
- * cards are stickers; the posters are the PAPER idiom of the site itself,
- * so every colour is re-parameterised for cream and there is no shadow
- * anywhere (shadowBlur ignores the CTM and would smear at 300 ppi anyway).
+ * kLabel, the September calendar constants), copied with the source named
+ * at each function so a fix there can be carried here. Both sources are
+ * left untouched — the slides are the DARK photo idiom and the cards are
+ * stickers; the posters are the PAPER idiom of the site itself, so every
+ * colour is re-parameterised and there is no shadow anywhere (shadowBlur
+ * ignores the CTM and would smear at 300 ppi anyway).
+ *
+ * TWO STOCKS since 2026-09-12: the module constants below are the CREAM
+ * table's values and nothing else reads them. Everything that draws reaches
+ * colour through `paint.c` (types.ts PosterPalette), resolved once per
+ * render from PaintInput.stock, because a module-level constant cannot be
+ * two things at once. The colour names are no longer imported by the
+ * drawing files ON PURPOSE — a missed conversion site has to be a compile
+ * error, since ink-on-ink is invisible and cream-on-ink is a glaring band
+ * and neither is something a type checker would otherwise catch.
  *
  * Fonts are the hashed next/font families read off the studio's DOM
  * probes; never a literal family name. Text is positioned by the DOM
@@ -26,11 +35,14 @@ import type {
   PosterAssets,
   PosterBlockOpts,
   PosterChipKind,
+  PosterChipPaint,
   PosterFace,
   PosterFonts,
   PosterFormat,
   PosterMetrics,
   PosterPaint,
+  PosterPalette,
+  PosterStock,
   PosterTokens,
 } from "./types";
 
@@ -67,9 +79,198 @@ export const GZ_SAGE = "#a9bba6";
 export const GZ_GOLD = "#d3ab5d";
 export const WHITE = "#ffffff";
 
-/* share/cards.ts medalColor: a place's chip colour, or null past bronze. */
-export const medalColor = (place: number): string | null =>
-  place === 1 ? MEDAL_GOLD : place === 2 ? MEDAL_SILVER : place === 3 ? MEDAL_BRONZE : null;
+/* ------------------------------------------------------- the two stocks */
+
+/* THE BLACK STOCK (owner, 2026-09-12: "we also need black and white
+ * shareable versions of all the posters to match the race day aesthetic").
+ * The constants above are still the only place a cream colour is written
+ * down; CREAM below just names them by the palette's fields, so the cream
+ * sheet is byte-identical to the one that shipped.
+ *
+ * THE ONE STRUCTURAL MOVE, and the whole design in a sentence. On cream,
+ * ink is 16.16:1 against paper and water is 4.38:1 — the accent is the
+ * LOWER-contrast mark and wins by HUE. Take the hue away and contrast is
+ * the only thing left to carry it, so on bw `water` goes to the TOP of the
+ * ladder as pure white and `ink` steps down one rung to .74. That is race
+ * day's own arrangement (raceday.ts: WHITE for the OPT IN slab, the thick
+ * rules and the wave cell; BONE .74 for body copy). A palette that maps
+ * ink → white 1:1 has nothing left for the accent and is the cream poster
+ * with its colours swapped, which is not what he asked for. */
+
+/* THE BW GROUND is race day's own ink, so the two subjects hang together. */
+const BW_INK = "#15171A";
+/* Every bw tone is WHITE AT AN ALPHA — race day's grey ladder, rung for
+ * rung, and every ratio below is WCAG relative luminance alpha-composited
+ * over #15171A first, computed and not estimated:
+ *
+ *   white           17.96:1   the ACCENT
+ *   .74             10.15:1   body, names, strip numbers, rules, blocks
+ *   .62              7.44:1   datelines, ledger keys, log times
+ *   .5               5.26:1   descriptors, places, axes, meta, the #4+ chip
+ *   .3               2.70:1   rules
+ *   .18              1.75:1   rules
+ *
+ * NOTHING UNDER .5 EVER CARRIES A LETTER, with ONE documented exception so
+ * that it is a decision and not a slip: the date inside an EMPTY FUTURE DAY
+ * draws in `line` at .30 / 2.70:1. It is a placeholder on an empty cell, and
+ * the cream sheet draws that same glyph at 1.51:1 — the black sheet is the
+ * more legible of the two.
+ *
+ * The bw greys read louder than the cream ones (5.26 against 3.12 for the
+ * same role). Deliberate: 3.12:1 is a print-on-matte-cream value read at six
+ * feet, and the ask was for SHAREABLE versions read on a phone. */
+const BW_W = (a: number): string => `rgba(255,255,255,${a})`;
+
+/* The washes need no invented number: each is a PERCENTAGE OF THE ACCENT,
+ * and the accent is what changed. 32 % of it for an hour bar, 100 % for the
+ * peak bar, on both stocks. */
+
+export const CREAM: PosterPalette = {
+  paper: PAPER,
+  ink: INK,
+  inkSoft: INK_SOFT,
+  gray: GRAY,
+  line: LINE,
+  grid: GRID,
+  water: WATER,
+  waterArea: WATER_AREA,
+  waterBar: WATER_BAR,
+  waterBand: WATER_BAND,
+  waterBandSoft: WATER_BAND_SOFT,
+  /* The shipped ramp, with the label colour it always had: ink on the
+   * three blues, white on water. Steps 1.35 / 1.75 / 1.65 apart. */
+  ramp: [
+    { fill: HEAT[0], on: INK },
+    { fill: HEAT[1], on: INK },
+    { fill: HEAT[2], on: INK },
+    { fill: HEAT[3], on: WHITE },
+  ],
+  /* A 1-unit line outline so the first bucket survives matte stock. */
+  cellEdge: LINE,
+  gold: MEDAL_GOLD,
+  silver: MEDAL_SILVER,
+  bronze: MEDAL_BRONZE,
+  chipInk: INK,
+  /* Filled in the TYPE colour with GROUND-coloured text. On cream that can
+   * never be read as a medal, because a medal is a hue. */
+  paceChip: { fill: INK, edge: INK, text: PAPER },
+  plateEdge: GZ_EDGE,
+  gzGreen: GZ_GREEN,
+  gzDark: GZ_EDGE,
+  gzCream: GZ_CREAM,
+  gzSage: GZ_SAGE,
+  gzGold: GZ_GOLD,
+};
+
+export const BW: PosterPalette = {
+  paper: BW_INK,
+  ink: BW_W(0.74),
+  inkSoft: BW_W(0.62),
+  gray: BW_W(0.5),
+  line: BW_W(0.3),
+  grid: BW_W(0.18),
+  water: WHITE,
+  waterArea: BW_W(0.08),
+  waterBar: BW_W(0.32),
+  waterBand: BW_W(0.1),
+  waterBandSoft: BW_W(0.06),
+  /* THE RAMP INVERTS. On cream a big day is DARKER than the sheet; on ink
+   * it is BRIGHTER. "More ink on paper" becomes "more light on ink", which
+   * is the translation no desaturation filter could make — and it is a
+   * better ramp than the one it replaces:
+   *
+   *   bucket  fill vs ground   its label        step over the one below
+   *   0       1.88:1           white  9.55:1    —
+   *   1       3.58:1           white  5.02:1    1.90:1
+   *   2       7.86:1           ink    7.86:1    2.20:1
+   *   3      17.96:1           ink   17.96:1    2.29:1
+   *
+   * The bw ramp's WEAKEST step (1.90) beats the cream ramp's strongest
+   * (1.75), and all four labels clear AA where cream's top bucket lands at
+   * 4.87:1. That is structural rather than luck: cream starts at luminance
+   * .909 and can only fall to .166, a 5x run; ink starts at .0085 and can
+   * rise to 1.0, a 118x run.
+   *
+   * The payoff in the room: the busiest days of September become solid
+   * white slabs with black numerals — the same gesture as race day's OPT IN
+   * slab. Cream's rule "white only on the top bucket" inverts into "the only
+   * black letters on a black poster sit on the biggest days". */
+  ramp: [
+    { fill: BW_W(0.2), on: WHITE },
+    { fill: BW_W(0.38), on: WHITE },
+    { fill: BW_W(0.64), on: BW_INK },
+    { fill: WHITE, on: BW_INK },
+  ],
+  /* NO KEYLINE ON BLACK, and the number is the reason. On ink bucket 0 is
+   * already 1.88:1 LIGHTER than its ground, and the `line` rule cream draws
+   * around it is 2.70:1 — BRIGHTER than the fill it is meant to hold. A
+   * bucket-0 cell would read as an empty outlined box, which is exactly what
+   * a rest day already reads as. The three cell states stay three things by
+   * KIND on both stocks: rest is a dashed outline, future a solid faint
+   * outline, rowed is a FILL. */
+  cellEdge: null,
+  /* WEIGHT, NOT METAL — and arithmetic decided it, not taste. Greyscale the
+   * three metals with the Rec.709 matrix the site already uses (raceday.ts
+   * greyOf): #D4AF37 → luma 174.20, #C0C0C0 → 192.00, #CD7F32 → 138.02.
+   * SILVER COMES OUT BRIGHTER THAN GOLD. Any filter-based answer literally
+   * reverses first and second place on every poster, and a hue that fails in
+   * greyscale fails a colour-blind reader for the same reason. That single
+   * number is the strongest argument in this whole job against desaturating
+   * the canvas at the end.
+   *
+   * So the chips are a monotone ladder plus a fill/hollow distinction — two
+   * signals, neither of them hue:
+   *
+   *   01  filled white   17.96:1   ink text 17.96:1
+   *   02  filled .74     10.15:1   ink text 10.15:1
+   *   03  filled .52      5.59:1   ink text  5.59:1
+   *   04+ hollow .5       5.26:1   .5 text
+   *
+   * Gold→silver 1.77:1 / dL* 21.3; silver→bronze 1.81:1 / dL* 19.1 — evenly
+   * stepped and monotone, so "brighter is better" needs no legend. (.62 for
+   * bronze was the first draft and is 1.36:1 / dL* 10.3 off silver, thin for
+   * two chips on adjacent rows of a top ten.) The chip already PRINTS its
+   * place as type — "01" "02" "03" on the board, "#1" "#2" "#3" on the
+   * rower's bests — so hue was decoration; it never named the place. */
+  gold: WHITE,
+  silver: BW_W(0.74),
+  bronze: BW_W(0.52),
+  chipInk: BW_INK,
+  /* THE COLLISION, and it is real: `pace` is a filled chip in the TYPE
+   * colour with GROUND-coloured text, which on a monochrome sheet is
+   * exactly a medal chip. The two can meet — assemble.ts toStanding
+   * attaches paceTag to UNMASKED rows, and charts.ts drawBoard draws the
+   * medal at the left of the row and the pace chip after the name in the
+   * same loop, so a ranked top-three row really can wear both. On bw the
+   * pace chip is therefore the one BRIGHT OUTLINE, 10.15:1. It never meets
+   * the other hollow chip: the community board uses gold/silver/bronze/pace
+   * only (4th and past is plain gray text), the rower sheet uses
+   * gold/silver/bronze/outline only. Three chip idioms stay three things. */
+  paceChip: { fill: null, edge: BW_W(0.74), text: BW_W(0.74) },
+  /* GRIZZLY'S GREEN against #15171A is 1.05:1 and their own #06130c edge is
+   * 1.06:1 — both invisible. The panel would read not as a plate laid on the
+   * sheet but as a HOLE punched in it, with a gold word floating in it and
+   * the bear sitting on nothing. So OUR rule draws OUR boundary where their
+   * edge goes: .3 white, 2.70:1, the same value and weight as every other
+   * rule on the sheet. Their five colours below do not move. */
+  plateEdge: BW_W(0.3),
+  gzGreen: GZ_GREEN,
+  gzDark: GZ_EDGE,
+  gzCream: GZ_CREAM,
+  gzSage: GZ_SAGE,
+  gzGold: GZ_GOLD,
+};
+
+/* The studio's chip row, in the owner's own words. */
+export const POSTER_STOCKS: { key: PosterStock; label: string }[] = [
+  { key: "cream", label: "Cream" },
+  { key: "bw", label: "Black and white" },
+];
+
+export const isStock = (v: unknown): v is PosterStock => v === "cream" || v === "bw";
+
+export const paletteOf = (stock: PosterStock | undefined): PosterPalette =>
+  stock === "bw" ? BW : CREAM;
 
 /* share/cards.ts kLabel: "561k" for a day, rolling to "1.2M" past a
  * million combined meters. */
@@ -336,6 +537,10 @@ export type PaintInput = {
   format: PosterFormat;
   fonts: PosterFonts;
   assets: PosterAssets;
+  /* Which stock this sheet is printed on; cream when nothing says, so
+   * every caller that existed before the switch keeps drawing the sheet it
+   * drew. */
+  stock?: PosterStock;
 };
 
 /* Face → ctx.font shorthand, the hashed family LAST so boxFor matches it
@@ -357,30 +562,34 @@ export function fontFor(fonts: PosterFonts, face: PosterFace, size: number): str
   }
 }
 
-/* The chip: the site's .dtag — a filled medal with ink text, the gray
- * outline chip for #4+, and the ink pace chip with paper text an elite
- * row wears. Sized off the mono row × .86 so it sits on a table row. */
-function chipColors(kind: PosterChipKind): { fill: string | null; edge: string; text: string } {
+/* The chip: the site's .dtag — a filled medal with chip-ink text, the gray
+ * outline chip for #4+, and the pace chip an elite row wears. Sized off the
+ * mono row × .86 so it sits on a table row. Every colour comes off the
+ * palette: the pace chip is handed back WHOLE because it is the one chip
+ * whose idiom, and not just its colour, depends on the stock. */
+function chipColors(c: PosterPalette, kind: PosterChipKind): PosterChipPaint {
   switch (kind) {
     case "gold":
-      return { fill: MEDAL_GOLD, edge: MEDAL_GOLD, text: INK };
+      return { fill: c.gold, edge: c.gold, text: c.chipInk };
     case "silver":
-      return { fill: MEDAL_SILVER, edge: MEDAL_SILVER, text: INK };
+      return { fill: c.silver, edge: c.silver, text: c.chipInk };
     case "bronze":
-      return { fill: MEDAL_BRONZE, edge: MEDAL_BRONZE, text: INK };
+      return { fill: c.bronze, edge: c.bronze, text: c.chipInk };
     case "outline":
-      return { fill: null, edge: GRAY, text: GRAY };
+      return { fill: null, edge: c.gray, text: c.gray };
     case "pace":
-      return { fill: INK, edge: INK, text: PAPER };
+      return c.paceChip;
   }
 }
 
 export function makePaint(input: PaintInput): PosterPaint {
   const { tk, format, fonts, assets } = input;
+  const c = paletteOf(input.stock);
   const font = (face: PosterFace, size: number) => fontFor(fonts, face, size);
 
   const paint: PosterPaint = {
     tk,
+    c,
     format,
     fonts,
     assets,
@@ -423,12 +632,23 @@ export function makePaint(input: PaintInput): PosterPaint {
       return lines;
     },
 
-    rule,
-    dashedRule,
-    dottedRule,
+    /* THE HELPER DEFAULTS ARE THE HALF THAT WOULD OTHERWISE LEAK CREAM.
+     * These three used to be assigned as bare function references, so their
+     * default colours resolved against the MODULE constants INK / LINE /
+     * GRAY — right on cream, invisible on black. One-line closures instead:
+     * the signature does not change, so the ~10 calls in charts.ts that
+     * pass no colour keep working, now in the new key. */
+    rule: (ctx, x, y, w, h, color) => rule(ctx, x, y, w, h, color ?? c.ink),
+    dashedRule: (ctx, x, y, w, color, weight) => dashedRule(ctx, x, y, w, color ?? c.line, weight),
+    dottedRule: (ctx, x1, x2, y, color) => dottedRule(ctx, x1, x2, y, color ?? c.gray),
 
+    /* Same leak, one layer down: drawBlockShape defaults `opts.fill ?? INK`
+     * and share/cards.ts drawBlockDigits defaults to its OWN private
+     * near-black. charts.ts and rowerCharts.ts call paint.figure with no
+     * fill for a masked figure, so on a black sheet every blackout block
+     * would paint #15171A on #15171A and vanish. All four resolve here. */
     blocks: (ctx, x, baseline, shape, size, opts) =>
-      drawBlockShape(ctx, x, baseline, shape, size, fonts, opts),
+      drawBlockShape(ctx, x, baseline, shape, size, fonts, { ...opts, fill: opts?.fill ?? c.ink }),
 
     /* share/cards.ts drawBlockDigits (imported): one block per digit with
      * real commas. cards.ts aligns left or right; centre is done here by
@@ -437,7 +657,7 @@ export function makePaint(input: PaintInput): PosterPaint {
       const w = blockDigitsWidth(ctx, digits, size, fonts);
       if (opts.paint === false) return w;
       const left = opts.align === "right" ? x - w : opts.align === "center" ? x - w / 2 : x;
-      drawBlockDigits(ctx, left, baseline, digits, size, fonts, { fill: opts.fill });
+      drawBlockDigits(ctx, left, baseline, digits, size, fonts, { fill: opts.fill ?? c.ink });
       return w;
     },
 
@@ -445,14 +665,17 @@ export function makePaint(input: PaintInput): PosterPaint {
      * shape ("#:##:##") goes through the shape drawer. */
     blockClock: (ctx, x, baseline, secondsOrShape, size, opts = {}) => {
       if (typeof secondsOrShape === "string") {
-        return drawBlockShape(ctx, x, baseline, secondsOrShape, size, fonts, opts);
+        return drawBlockShape(ctx, x, baseline, secondsOrShape, size, fonts, {
+          ...opts,
+          fill: opts.fill ?? c.ink,
+        });
       }
       if (opts.paint === false) {
         return drawBlockShape(ctx, x, baseline, clockShape(secondsOrShape), size, fonts, { paint: false });
       }
       return drawBlockClock(ctx, x, baseline, secondsOrShape, size, fonts, {
         align: opts.align,
-        fill: opts.fill,
+        fill: opts.fill ?? c.ink,
       });
     },
 
@@ -463,7 +686,7 @@ export function makePaint(input: PaintInput): PosterPaint {
       if (fig.shape !== undefined) {
         return drawBlockShape(ctx, x, baseline, fig.shape, size, fonts, {
           align: opts.align,
-          fill: opts.fill,
+          fill: opts.fill ?? c.ink,
           paint: opts.paint,
         });
       }
@@ -488,40 +711,40 @@ export function makePaint(input: PaintInput): PosterPaint {
       const m = metricsOf(ctx, fonts, bold, eye);
       const base = y + m.asc;
       const L = left.toUpperCase();
-      const lw = drawText(ctx, L, x, base, bold, INK, 0.16 * eye);
+      const lw = drawText(ctx, L, x, base, bold, c.ink, 0.16 * eye);
       if (right) {
         const maxW = w - lw - eye * 2.4;
         const tr = 0.12 * eye;
         let R = right.toUpperCase();
         if (measure(ctx, R, plain, tr) > maxW && rightShort) R = rightShort.toUpperCase();
         R = ellipsize(ctx, R, maxW, plain, tr);
-        if (maxW > eye * 2) drawRight(ctx, R, x + w, base, plain, GRAY, tr);
+        if (maxW > eye * 2) drawRight(ctx, R, x + w, base, plain, c.gray, tr);
       }
       const ry = base + eye * 0.7;
-      rule(ctx, x, ry, w, tk.hair);
+      rule(ctx, x, ry, w, tk.hair, c.ink);
       return ry + tk.hair + eye * 1.1;
     },
 
     chip: (ctx, x, baseline, text, kind) => {
       const size = tk.row * 0.86;
       const f = font("monoBold", size);
-      const c = chipColors(kind);
+      const paints = chipColors(c, kind);
       const padX = size * 0.5;
       const tw = measure(ctx, text, f, 0.06 * size);
       const w = tw + padX * 2;
       const h = size * 1.5;
       const top = baseline - size * 0.78 - (h - size) / 2;
       ctx.save();
-      if (c.fill) {
-        ctx.fillStyle = c.fill;
+      if (paints.fill) {
+        ctx.fillStyle = paints.fill;
         ctx.fillRect(x, top, w, h);
       } else {
-        ctx.strokeStyle = c.edge;
+        ctx.strokeStyle = paints.edge;
         ctx.lineWidth = Math.max(1, tk.hair);
         ctx.strokeRect(x + 0.5, top + 0.5, w - 1, h - 1);
       }
       ctx.restore();
-      drawText(ctx, text, x + padX, baseline, f, c.text, 0.06 * size);
+      drawText(ctx, text, x + padX, baseline, f, paints.text, 0.06 * size);
       return w;
     },
 
