@@ -189,12 +189,28 @@ export function racePhase(r: RaceDef, at: number = nowMs()): RacePhase {
   return "raced";
 }
 
-/* THE GATE (owner, 2026-09-10: "this should be hidden in development for
- * now"). Same shape as the shirt shop's shopOpenFor: open to anyone in
- * local dev so the page can be seen and driven, admin-only in production
- * until the owner opens it. One switch, read by every race surface. */
-export function raceOpenFor(isAdmin: boolean): boolean {
-  return process.env.NODE_ENV !== "production" || isAdmin;
+/* THE GATE, and it is OPEN (owner, 2026-09-12: "make the race day sign up
+ * page live"). It was `NODE_ENV !== "production" || isAdmin` from 09-10,
+ * while the page was being built — "this should be hidden in development
+ * for now" — and this is him lifting that.
+ *
+ * THREE THINGS OPEN ON THIS ONE LINE, which is why it is a function and
+ * not a flag copied into three files: the sign-up page (raceday/page.tsx),
+ * the POST that puts a name in (api/row100k/raceday), and the RACE DAY
+ * stamp on the rail (RowBar hands BarNav the answer). The ads point at
+ * mikianmusser.com and the rail is how a stranger gets from the root to
+ * the race, so the address and the link had to go public together.
+ *
+ * `isAdmin` is kept in the signature deliberately. Shutting the race again
+ * is then one line here rather than an archaeology of what this used to
+ * be, and every call site already passes it.
+ *
+ * NOT everything race day rides this. The wave console is admin-only in
+ * every environment ("the console is the owner's, always"), and the sample
+ * results board wears the dev-page gate instead, on purpose: forty
+ * invented racers must not go public the day the real race does. */
+export function raceOpenFor(_isAdmin: boolean): boolean {
+  return true;
 }
 
 /* "6:15 PM" — an instant on the Pacific wall clock the race runs on. */

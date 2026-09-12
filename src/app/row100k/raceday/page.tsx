@@ -15,9 +15,34 @@ import { SignupPanel } from "./SignupPanel";
 
 export const dynamic = "force-dynamic";
 
+/* THE PAGE IS PUBLIC NOW (owner, 2026-09-12: "make the race day sign up
+ * page live"), so the noindex came off with the gate. It was there for the
+ * two days the page was admin-only and would have quietly outlived the
+ * reason for it — a page nobody can find is not live.
+ *
+ * AND IT HAS A CARD. The ads say mikianmusser.com and the rail carries a
+ * stranger from the root to here, but the other way a person arrives is a
+ * link somebody pastes, and until now that previewed as a bare URL. The
+ * image is the story ad's own masthead band — the same RACE DAY, the same
+ * date, the same photograph — cut to 1200 by 630 and saved as a file,
+ * because an OG image is fetched by a crawler that will not run a canvas.
+ * Re-cut it from the studio when the picture changes; it is a snapshot,
+ * not a render. */
 export const metadata: Metadata = {
-  title: "Race day — 100K September",
-  robots: { index: false, follow: false },
+  title: "Race day — Rowtember 2026",
+  description:
+    "A timed 5,000 m trial at The Strip Barbell, Las Vegas. Sunday, Sep 27, 6–9 PM. Free — race it or come and watch.",
+  openGraph: {
+    title: "Race day — Rowtember 2026",
+    description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
+    images: [{ url: "/row100k/raceday/og.jpg", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Race day — Rowtember 2026",
+    description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
+    images: ["/row100k/raceday/og.jpg"],
+  },
 };
 
 /* RACE DAY (owner, 2026-09-10): a timed 5,000 m trial at The Strip Barbell
