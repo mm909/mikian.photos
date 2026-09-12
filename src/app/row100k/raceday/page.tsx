@@ -47,7 +47,10 @@ export const metadata: Metadata = {
  * EIGHT, no NEW THIS SEPTEMBER, no MEN AND WOMEN SCORED APART, no SIGN UP BY
  * SAT SEP 26, and no registration-closes line anywhere. The rule still
  * refuses a late entry (raceday.closesAt); it simply no longer announces
- * itself.
+ * itself. Later the same day, the THE HOUSE label over the venue mark went
+ * too ("Remove the house on race day ads") — off the ads and off this page
+ * in one pass, because the mark is the credit and naming it twice was the
+ * only sentence that block ever spent on itself.
  *
  * IT IS STILL A PAGE. The act is not a picture of a button: sign in, opt in
  * as a racer, sign up as a spectator, the confirmation with the wave once
@@ -199,12 +202,19 @@ export default async function RaceDayPage() {
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{rdCss}</style>
-      <RowBar {...barProps(viewer)} />
+      {/* The rail marks this page: RACE DAY is a nav key now, and it rides
+        * the same raceOpenFor switch the page does, so the chip and the page
+        * appear for the same people on the same day. */}
+      <RowBar active="raceday" {...barProps(viewer)} />
 
       <div className="rd-dark">
         <section>
           <div className="wrap">
-            <p className="rd-dev">In development · not linked from the bar yet</p>
+            {/* It IS linked from the bar now — the rail carries RACE DAY on
+              * the same raceOpenFor switch — so the note says the thing that
+              * is still true: in production this page, and that chip, exist
+              * for the owner alone until he opens the race. */}
+            <p className="rd-dev">In development · admin only until the race opens</p>
 
             <div className="rd-bill">
               <div className="rd-rule" />
@@ -255,9 +265,11 @@ export default async function RaceDayPage() {
               </ul>
 
               {/* THE HOUSE, quietly: their mark, their room, their town, and
-               * the waiver that is signed on their system. */}
+               * the waiver that is signed on their system — and no label over
+               * it (owner, 2026-09-11: "Remove the house on race day ads").
+               * The ads dropped the eyebrow the same day, and the page is the
+               * flyer now, so a label here and none there would split them. */}
               <div className="rd-house">
-                <p className="rd-lab">The house</p>
                 <div className="rd-houseRow">
                   {race.venueMark ? (
                     <a

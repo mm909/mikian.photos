@@ -43,6 +43,15 @@
  * the grow row, which is the headline on an ad and the PICTURE on an
  * overlay. Nothing moved sideways to fill a gap.
  *
+ * AND THE LABEL OFF THE HOUSE, later the same day: "Remove the house on
+ * race day ads." A fifth line, by the same rule. The mark stays — it IS
+ * the credit — and so do the room, the town and the waiver; what went is
+ * the mono eyebrow that named the block above them. Its line and the blank
+ * under it came out of the module's own height (22 units on a phone, 27 on
+ * a hand sheet, 22 on a wall one) and went where the other four went, and
+ * /raceday dropped its own "The house" in the same pass: the sign-up page
+ * is the flyer now, so a label on one and not the other would split them.
+ *
  * AND THE HOLE THE JUDGES WOULD NOT HAVE: the gig poster left 62 units of
  * nothing between its bracket and its foot rule, which "reads as a loading
  * failure on a phone". There is no dead band on any frame here — the head
@@ -525,16 +534,28 @@ const ways = mod("ways", 50, (ctx, box, d, paint) => {
 });
 
 /* THE HOUSE. The venue mark placed exactly once, flush left at the foot,
- * under a quiet label, with the room and the town right-aligned opposite it
- * — a promoter credit, never a co-brand. This is where THE ENGINE ROOM
- * lands without spending a sentence on it; the note that used to ride under
- * it is gone (owner, 2026-09-11: "remove the phrase new this September"),
- * so the second line is the town on its own. The
- * mark is white on transparent, so it needs no treatment on ink and none
- * over a photograph; when the image has not loaded the block keeps its
- * height and the gym's name is set in type instead. It is on every frame
- * but one — the 1:1 OVERLAY drops it, because on that frame the choice is
- * between the venue and saying what the event is (see the overlay plans). */
+ * with the room and the town right-aligned opposite it — a promoter credit,
+ * never a co-brand. This is where THE ENGINE ROOM lands without spending a
+ * sentence on it; the note that used to ride under it is gone (owner,
+ * 2026-09-11: "remove the phrase new this September"), so the second line
+ * is the town on its own. The mark is white on transparent, so it needs no
+ * treatment on ink and none over a photograph; when the image has not
+ * loaded the block keeps its height and the gym's name is set in type
+ * instead. It is on every frame but one — the 1:1 OVERLAY drops it, because
+ * on that frame the choice is between the venue and saying what the event
+ * is (see the overlay plans).
+ *
+ * IT HAS NO LABEL (owner, 2026-09-11: "Remove the house on race day ads").
+ * A mono eyebrow reading THE HOUSE used to sit between the rule and the
+ * mark, and it was the one sentence this block spent on itself — a credit
+ * that has to caption itself is not a credit. The block is the rule, the
+ * mark and the lines opposite it now, and NOTHING was left where the
+ * eyebrow was: its line and the blank under it are out of the height the
+ * module returns, so the bill closes up by that much and the grow row (the
+ * headline on an ad, the picture on an overlay) takes the units. The mark
+ * hangs off the rule on the same 1.2 smalls the eyebrow sat on, answered by
+ * the 1.1 under the mark, so the foot is a block with its own air rather
+ * than a line that lost its caption. */
 const host = mod("host", 60, (ctx, box, d, paint) => {
   const tk = paint.tk;
   const { x, w } = colOf(box, paint);
@@ -544,11 +565,6 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
   let y = box.y + tk.small * 1.3;
   paint.rule(ctx, x, y, w, tk.thick, WHITE);
   y += tk.thick + tk.small * 1.2;
-  const ls = tk.small * 0.95;
-  const fl = paint.font("mono", ls);
-  const metL = paint.metricsOf(ctx, fl, ls);
-  paint.drawText(ctx, "THE HOUSE", x, paint.baselineOf(y, metL.lh, metL), fl, QUIET, ls * 0.22);
-  y += metL.lh + tk.small * 0.8;
   const markW = w * MARK_SHARE;
   const ratio = d.race.venueMark?.ratio ?? 1170 / 466;
   const markH = markW / ratio;

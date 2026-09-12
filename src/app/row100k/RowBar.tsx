@@ -6,16 +6,18 @@ import { CHALLENGE, LOG_CLOSE_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
 import { BarNav, type NavKey } from "./BarNav";
+import { raceOpenFor } from "./raceday";
 import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
 import { openRaffle, raffleDismissCookie } from "./raffles";
 
 /* The one bar every /row100k page wears: the Mikian.Musser wordmark (kept,
  * blue dot and all — owner call, 2026-09-05), then the nav rail with its
- * sliding pill (ROWTEMBER, THE BOARD, STATS, FEED, GALLERY, PARTNERS), then
- * — for a joined rower — the LOG A ROW button, then the sign-in / rower
- * chip on the right. Server component: it resolves the session itself
- * unless the page already did and hands the answer in.
+ * sliding pill (ROWTEMBER, the RACE DAY stamp while the race is open, THE
+ * BOARD, STATS, FEED, PARTNERS), then — for a joined rower — the LOG A ROW
+ * button, then the sign-in / rower chip on the right. Server component: it
+ * resolves the session itself unless the page already did and hands the
+ * answer in.
  * `children` lands between the rail and the account chip for page tags.
  *
  * Layout: direct flex children (.bar-lead, the rail, .bar-log, .bar-right)
@@ -107,7 +109,12 @@ export async function RowBar({
             Mikian<span className="dot">.</span>Musser
           </Link>
         </span>
-        <BarNav active={active} />
+        {/* RACE DAY on the rail rides the same switch as the race itself
+         * (raceday.ts raceOpenFor): everyone in local dev, the owner alone in
+         * production until he opens it — so the link is there for him today
+         * and for the world the hour he flips it. Resolved here, where isAdmin
+         * already is, so the server markup and the first client render agree. */}
+        <BarNav active={active} raceOpen={raceOpenFor(isAdmin)} />
         {/* Joined rowers only (owner call, 2026-09-05): the account menu's
          * "Log a row", made obvious. Signed out, not yet joined, or the log
          * window closed: nothing — the join CTA is on the front page. A direct

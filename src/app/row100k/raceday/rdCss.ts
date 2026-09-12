@@ -149,10 +149,16 @@ export const rdCss = `
  * beside a Rowtember mark as an equal, and never wider than the head above
  * it. It is keyed white on transparent already, so it needs no treatment on
  * the ink ground. Beside it: the room, the town, and the waiver, which is
- * signed at the gym and so is named beside the gym. */
+ * signed at the gym and so is named beside the gym.
+ *
+ * NO LABEL OVER IT (owner, same day: remove the house on race day ads). The
+ * mono eyebrow that read THE HOUSE is gone from the ads and from here, and
+ * .rd-lab went with it — it dressed nothing else on the page. The row keeps
+ * NO margin of its own now: the padding under the rule is the whole gap, so
+ * the mark hangs off the rule the way it does on the ad instead of floating
+ * where a caption used to be. */
 .row100k .rd-house{border-top:var(--r) solid #fff;margin-top:clamp(20px,4.4cqw,34px);padding-top:clamp(12px,2.8cqw,20px)}
-.row100k .rd-lab{font-family:var(--row-mono),monospace;font-size:clamp(10px,2cqw,13px);letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.5)}
-.row100k .rd-houseRow{display:flex;align-items:center;justify-content:space-between;gap:clamp(12px,3cqw,26px);flex-wrap:wrap;margin-top:clamp(10px,2.2cqw,18px)}
+.row100k .rd-houseRow{display:flex;align-items:center;justify-content:space-between;gap:clamp(12px,3cqw,26px);flex-wrap:wrap}
 .row100k .rd-houseRow a.rd-marklink{display:block;line-height:0;flex:none}
 .row100k .rd-houseRow a.rd-marklink:hover{opacity:.8}
 .row100k .rd-mark{display:block;width:clamp(112px,30cqw,200px);height:auto}

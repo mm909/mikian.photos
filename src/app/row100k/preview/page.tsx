@@ -86,7 +86,11 @@ export default function Row100kPreview({
               Mikian<span className="dot">.</span>Musser
             </Link>
           </span>
-          <BarNav active="home" />
+          {/* raceOpen on: this harness is dev-only and raceOpenFor is true
+            * for everyone in dev, so a preview without the RACE DAY band
+            * would be a picture of a bar no page actually renders — and the
+            * band is the thing that changed the bar most. */}
+          <BarNav active="home" raceOpen />
           <BarLog />
           <span className="bar-right">
             <BarAccount signedIn rowerNumber={23} admin defaultOpen={searchParams.menu === "1"} />

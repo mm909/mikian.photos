@@ -30,17 +30,36 @@ import { trackClick } from "./TrackedLink";
  * no flash, and no width correction a beat later from fallback-face metrics.
  *
  * A click pins the pill on the chosen item while the next page is fetched;
- * the pin lets go when the route changes, or on a timer if it never does. */
+ * the pin lets go when the route changes, or on a timer if it never does.
+ *
+ * RACE DAY rides on this rail but not in the pill's world (owner, 2026-09-11:
+ * "when this goes live I want a race day header link", "to be the left more
+ * link in that white on black font"). It is the black of the race day page
+ * dropped into the cream bar, so it carries its own indicator and is given no
+ * ref — with nothing in itemRefs it gets no Box, and the pill can only move to
+ * a box it has measured. It cannot land there by hover, by pin, by carry, or
+ * by being the active page. Whether it is on the rail at all is
+ * raceOpenFor(isAdmin), resolved by RowBar on the server, so the link and the
+ * page can never disagree about whether there is a race. */
 
-export type NavKey = "home" | "board" | "stats" | "feed" | "gallery" | "partners";
+export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
 
 const ITEMS: { key: NavKey; href: string; label: string }[] = [
   { key: "home", href: "/row100k", label: "ROWTEMBER" },
+  /* Straight after the mark and ahead of every section link. ROWTEMBER is the
+   * masthead, not a place to go — it is why clicking it on the front page is a
+   * scroll and not a navigation — so this is the leftmost LINK, and the rail
+   * reads brand, then race, then sections. */
+  { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
   { key: "board", href: "/row100k/board", label: "THE BOARD" },
   { key: "stats", href: "/row100k/stats", label: "STATS" },
   { key: "feed", href: "/row100k/feed", label: "FEED" },
   { key: "partners", href: "/row100k/partners", label: "PARTNERS" },
 ];
+
+/* The one item the pill may not address. It stays in ITEMS whether or not it
+ * renders, so isKey keeps accepting the key and `active` stays typed. */
+const STAMP: NavKey = "raceday";
 
 type Box = { left: number; top: number; width: number; height: number };
 type Stash = { key: NavKey | null; box: Box; at: number };
@@ -93,7 +112,7 @@ function reducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BarNav({ active }: { active?: NavKey }) {
+export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen?: boolean }) {
   const pathname = usePathname();
   const railRef = useRef<HTMLElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -226,6 +245,11 @@ export function BarNav({ active }: { active?: NavKey }) {
      * modifier check so a new-tab click counts too; not when already on the
      * page, which is a scroll-to-top, not a visit. Fire-and-forget. */
     if (key === "partners" && key !== active && href !== pathname) trackClick("partners");
+    /* The stamp has no box to pin the pill to and nothing worth stashing:
+     * clicking RACE DAY leaves the pill on the page you are leaving, and the
+     * next rail mounts with no carry, so the blue light goes out as you cross
+     * into the black. That is the point of it, not a gap. */
+    if (key === STAMP) return;
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     /* Clicking the page you are already on (ROWTEMBER as a scroll-to-top,
      * mostly) changes no route, so nothing would ever release the pin and
@@ -253,6 +277,11 @@ export function BarNav({ active }: { active?: NavKey }) {
     tickStash();
   };
 
+  /* raceOpenFor(isAdmin), resolved by RowBar: open to everyone in local dev,
+   * admin-only in production until the owner opens the race. Shut, and the
+   * stamp is not in the markup at all. */
+  const items = raceOpen ? ITEMS : ITEMS.filter((it) => it.key !== STAMP);
+
   const railClass = ["rail", live ? "live" : "", jump || placing ? "jump" : ""].filter(Boolean).join(" ");
   const pillStyle: React.CSSProperties | undefined =
     live && shown
@@ -269,11 +298,19 @@ export function BarNav({ active }: { active?: NavKey }) {
     <nav ref={railRef} className={railClass} aria-label="Rowtember" onPointerLeave={() => setHot(null)}>
       {/* .rail-pill, not .pill: that name is already the join form radio chip. */}
       <div ref={pillRef} className="rail-pill" aria-hidden="true" style={pillStyle} />
-      {ITEMS.map((it, i) => {
+      {items.map((it, i) => {
+        const stamp = it.key === STAMP;
+        /* The stamp takes neither .lit nor .on: it is already white on black
+         * and carries its own indicator. .on is the one that would actually
+         * bite — .rail:not(.live) a.on is four classes to the stamp rule's
+         * three, so it would paint water-blue straight over the black on every
+         * cold load of the race day page until the fonts land. The stamp needs
+         * no handover at all; its look is server-known and never measured. */
         const cls = [
           it.key === "home" ? "brand" : "",
-          lit === it.key ? "lit" : "",
-          !live && active === it.key ? "on" : "",
+          stamp ? "rail-stamp" : "",
+          !stamp && lit === it.key ? "lit" : "",
+          !stamp && !live && active === it.key ? "on" : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -283,14 +320,30 @@ export function BarNav({ active }: { active?: NavKey }) {
               href={it.href}
               className={cls || undefined}
               aria-current={active === it.key ? "page" : undefined}
-              ref={(el) => {
-                if (el) itemRefs.current.set(it.key, el);
-                else itemRefs.current.delete(it.key);
-              }}
+              /* No ref for the stamp, and that omission IS the rule: nothing in
+               * itemRefs means no Box in measure(), and the pill only ever
+               * moves to a box it has measured. A late font swap still
+               * re-measures everything to its right, because its mono
+               * neighbours swap in the same breath and they are observed. */
+              ref={
+                stamp
+                  ? undefined
+                  : (el) => {
+                      if (el) itemRefs.current.set(it.key, el);
+                      else itemRefs.current.delete(it.key);
+                    }
+              }
+              /* The stamp tells the pill nothing. Crossing it on the way down
+               * the rail leaves the pill where it was and the black simply
+               * passes over the blue; parking on it is the same as parking in
+               * the 4px gap between two links, which is how the rail has always
+               * behaved. Its own inversion is the pointer feedback. */
               onPointerEnter={(e) => {
-                if (e.pointerType !== "touch") setHot(it.key);
+                if (!stamp && e.pointerType !== "touch") setHot(it.key);
               }}
-              onFocus={() => setHot(it.key)}
+              onFocus={() => {
+                if (!stamp) setHot(it.key);
+              }}
               onBlur={() => setHot((h) => (h === it.key ? null : h))}
               onClick={onClick(it.key, it.href)}
             >
@@ -298,8 +351,10 @@ export function BarNav({ active }: { active?: NavKey }) {
             </Link>
             {/* Phone widths only (theme.ts): the rail dissolves, ROWTEMBER
              * joins the masthead row, and this break forces the section links
-             * onto their own dashed-ruled row beneath. Display none otherwise. */}
-            {i === 0 && <i className="rail-break" aria-hidden="true" />}
+             * onto their own dashed-ruled row beneath. Display none otherwise.
+             * When RACE DAY is open it takes that same line and rules it in
+             * black instead, so the two never both appear. */}
+            {i === 0 && !raceOpen && <i className="rail-break" aria-hidden="true" />}
           </Fragment>
         );
       })}

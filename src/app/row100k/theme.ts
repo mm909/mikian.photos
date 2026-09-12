@@ -32,7 +32,18 @@ const NOISE =
 export const css = `
 html:has(.row100k){scroll-behavior:smooth}
 .row100k,.row100k *{margin:0;padding:0;box-sizing:border-box}
+/* Anchor targets have to clear the sticky bar, and the bar is not one
+ * height. It is 62px across a desktop, two rows on a phone, and three rows
+ * on a phone once RACE DAY is in it, so the single 64px this sheet has
+ * always used dropped a jump to the join form or the log section behind
+ * the bar on every phone. Measured, not guessed: 98px for the two row bar
+ * and 128px with the stamp band, plus 8px of air. The stamp case is picked
+ * out with :has, which this sheet already leans on two rules above. */
 .row100k section[id]{scroll-margin-top:64px}
+@media (max-width:639px){
+  .row100k section[id]{scroll-margin-top:106px}
+  .row100k:has(.rail-stamp) section[id]{scroll-margin-top:136px}
+}
 .row100k{
   --paper:#F4F3EE; --ink:#15171a; --ink-soft:#3b3e42; --gray:#8a8a85; --line:#c9c8c0;
   --water:#0077B6; --water-hover:#1a90d4; --water-pale:#e3eef5; --frame:#1c2b33;
@@ -78,6 +89,32 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rail-pill{position:absolute;z-index:0;left:0;top:0;width:0;height:0;background:var(--water);opacity:0;pointer-events:none;transition:left 220ms cubic-bezier(.2,.7,.2,1),top 220ms cubic-bezier(.2,.7,.2,1),width 220ms cubic-bezier(.2,.7,.2,1),height 220ms cubic-bezier(.2,.7,.2,1),opacity 160ms ease}
 .row100k .rail.jump .rail-pill,.row100k .rail.jump a{transition:none}
 .row100k .rail-break{display:none}
+/* RACE DAY: the one item on the rail that is already on (owner, 2026-09-11 —
+ * a race day header link, the leftmost one, in that white on black font). The
+ * rail answers in water blue; race day answers in black and white. So this
+ * item never borrows the pill. It carries its own ground, it is inverted at
+ * rest, and it inverts AGAIN under the pointer and on its own page — the same
+ * flip the SIGN UP slab makes on the page it leads to.
+ * THE BOX IS A RAIL LINK TO THE PIXEL: 2px of ink border traded for 2px of
+ * padding on every side, so it measures the same 27px as the mono links and
+ * the pill keeps its height sliding past it. Measured in the running bar at
+ * 90.1 by 27. The border is invisible on ink and becomes the edge of the white
+ * slab on cream — the trade .bar-log and .outline-btn already make here.
+ * Tracking widens to .16em because that is the register of the page itself
+ * (rd-mast .22em, rd-stamp .2em, rd-room .14em): a letterspaced mono cap line
+ * on black is what that world sounds like. The right padding gives 2px back,
+ * since letter-spacing hangs after the last glyph and a short word in a black
+ * box shows it. Six pixels of margin each side keeps the black off a blue pill
+ * resting on ROWTEMBER or on THE BOARD.
+ * IT SNAPS. The rail eases colour over 160ms and nothing else, so an eased
+ * inversion is a blank white box for a tenth of a second if only the colour
+ * eases, and grey on grey halfway through if both do. A stamp does not fade —
+ * and transition none also puts this rule out of reach of the .jump tie, which
+ * it would otherwise win on source order alone.
+ * Whether it is here at all is BarNav and RowBar, never CSS: when race day is
+ * shut it is not in the markup. */
+.row100k .rail a.rail-stamp{background:var(--ink);border:2px solid var(--ink);color:#fff;font-weight:700;letter-spacing:.16em;padding:4px 5px 3px 7px;margin:0 6px;transition:none}
+.row100k .rail a.rail-stamp:hover,.row100k .rail a.rail-stamp:focus-visible,.row100k .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
 /* Right-hand chip group pushes itself to the far edge so the bar needs no
  * justify rule. */
 .row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex:none}
@@ -110,6 +147,16 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .rail a{font-size:11px;letter-spacing:.06em;padding:5px 6px 4px;order:2}
   .row100k .rail a.brand{font-size:12px;padding:5px 8px 4px;margin-left:6px;order:0}
   .row100k .rail-break{display:block;flex-basis:100%;height:0;border-top:1px dashed var(--line);order:1}
+  /* On the phone the chip stops being a chip. The link row carries four links
+   * and LOG A ROW at 375px with about two pixels to spare, so nothing more can
+   * be asked of it: RACE DAY takes the line the dashed rule used to hold and
+   * runs the full measure of the bar instead, a black band between the masthead
+   * and the sections. BarNav drops the dashed break whenever the band renders,
+   * because the band is that rule now. Taller than a link box on purpose: it is
+   * the one thing up here built to be tapped. Measured at 375: the band is 343
+   * by 31 and the bar goes 98 to 128, with the link row untouched, so no width
+   * from 320 up can wrap it. */
+  .row100k .rail a.rail-stamp{order:1;flex:0 0 100%;margin:0;padding:6px 10px 5px 12px;letter-spacing:.2em}
   .row100k .bar-log{order:3;margin-left:auto;font-size:11px;letter-spacing:.06em;line-height:16px;padding:3px 8px 2px}
   .row100k .bar-log + .bar-right{margin-left:auto}
 }
