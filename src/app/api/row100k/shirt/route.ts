@@ -47,8 +47,15 @@ async function listOrders() {
   });
 }
 
+/* The guard is not decoration here: without the `res` check this answered
+ * ok:true to anyone, counts and all, on a shop the owner still believes is
+ * hidden in production. POST has always checked; GET was written to reuse
+ * me() for the `mine` lookup and never looked at what it handed back.
+ * Found 2026-09-11 while auditing a different 404. No caller is lost — the
+ * shop page only ever POSTs (dev/shirts/ShirtShop.tsx). */
 export async function GET() {
   const g = await me();
+  if ("res" in g) return g.res;
   const orders = await listOrders();
   const mine = "p" in g && g.p ? (orders.find((o) => o.participantId === g.p.id) ?? null) : null;
   return NextResponse.json({
