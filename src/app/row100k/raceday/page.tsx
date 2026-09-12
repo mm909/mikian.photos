@@ -31,7 +31,7 @@ export const metadata: Metadata = {
  * promoter line with the day flush right, RACE over DAY jammed to the
  * measure, a hairline, the piece, the first wave, the bracketed strip
  * between two rules, THE HOUSE — and then, exactly where the ad prints its
- * SIGN UP slab, THE ACT. The canvas source is poster/raceday.ts; this is
+ * OPT IN slab, THE ACT. The canvas source is poster/raceday.ts; this is
  * that composition translated into HTML and CSS, not imported from it, and
  * the two are kept honest by reading the same RaceDef.
  *
@@ -303,7 +303,7 @@ export default async function RaceDayPage() {
                 </div>
               </div>
 
-              {/* THE ACT, where the ad prints SIGN UP. */}
+              {/* THE ACT, where the ad prints OPT IN. */}
               <SignupPanel
                 race={race}
                 signedIn={viewer.actor !== null}

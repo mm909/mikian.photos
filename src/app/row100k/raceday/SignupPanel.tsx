@@ -13,7 +13,7 @@ import type { Racer } from "../racedayData";
  * are in. Everything it can do is one POST to /api/row100k/raceday, which
  * re-authenticates and re-checks the gate; nothing here is trusted.
  *
- * IT SITS WHERE THE AD PRINTS ITS SIGN UP SLAB (owner, 2026-09-11: the page
+ * IT SITS WHERE THE AD PRINTS ITS OPT IN SLAB (owner, 2026-09-11: the page
  * should be the flyer). So it is the foot of the bill rather than a box of
  * its own: rdCss.ts opens it on the same thick rule the bracket and the
  * house open on, and the filled button IS the slab — white paper, ink type,

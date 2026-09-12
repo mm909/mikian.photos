@@ -22,7 +22,7 @@
  * the grey ladder below is rdCss.ts's, measured against that ground.
  *
  * WHAT THE JUDGES GRAFTED ON, all of it built here:
- *   · the SIGN UP block from the monitor design — a white slab with a verb
+ *   · the OPT IN block from the monitor design — a white slab with a verb
  *     in it, the one element that survives any photograph at any brightness
  *     (module `cta`, and it is the pinned footer of every plan).
  *   · the fact table from the monitor design — label grey left, value white
@@ -631,7 +631,12 @@ const cta = mod("cta", 60, (ctx, box, d, paint) => {
   const fg = paint.font("black", gs);
   const cap = capOf(ctx, fg, gs);
   const base = y + (blockH + cap) / 2;
-  const gw = paint.drawText(ctx, "SIGN UP", x + pad, base, fg, RACE_INK, -0.01 * gs);
+  /* OPT IN, not SIGN UP (owner, 2026-09-11). It is the challenge's one
+   * verb — the landing button, the front page, the race day act all say it
+   * — and an ad that asked for something different would be asking for a
+   * different thing. It is also two letters shorter, which the URL beside
+   * it simply takes. */
+  const gw = paint.drawText(ctx, "OPT IN", x + pad, base, fg, RACE_INK, -0.01 * gs);
   const us = Math.min(
     tk.footer * 1.2,
     paint.fitSize(ctx, d.url, "monoBold", 40, 7, w - gw - pad * 3, 0.04),
@@ -804,7 +809,7 @@ const lines = (id: string, module: string, extra: Partial<PosterRow> = {}): Post
  *
  * WHAT FITS WHERE, measured rather than argued. A 9:16 has 700 live units
  * and the bill — masthead, RACE over DAY flush, the piece, the bracket, the
- * house and the SIGN UP block — spends every one of them. So the fact table
+ * house and the OPT IN block — spends every one of them. So the fact table
  * and the two ways in are PRINT: a flyer on the gym wall is read standing
  * still and has the room for them. The phone frames carry NEITHER, and no
  * deadline either — the CTA is the slab alone since the owner took that line

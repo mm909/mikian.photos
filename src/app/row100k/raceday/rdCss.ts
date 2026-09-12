@@ -7,7 +7,7 @@
  * the bill is here instead, in the ad's own order: thick rule, promoter
  * line with the date flush right, RACE over DAY jammed to the measure, a
  * hairline, the piece, the first wave, the bracketed strip between two
- * rules, THE HOUSE, and then — where the ad prints its SIGN UP slab — the
+ * rules, THE HOUSE, and then — where the ad prints its OPT IN slab — the
  * ACT. The canvas source is poster/raceday.ts; this is that composition
  * translated to HTML, not imported from it.
  *
@@ -34,7 +34,7 @@
  * label is not), RULE (the bill is built out of rules; the block a rower is
  * IN wears the heaviest one on the page across its top; an error wears a
  * white bar down its side) and above all the INVERSION — the act is a white
- * slab with ink type in it, exactly the SIGN UP block of the ad, and it is
+ * slab with ink type in it, exactly the OPT IN block of the ad, and it is
  * the only white rectangle on the page.
  *
  * THE GREY LADDER, all four steps measured against the ink ground #15171a
@@ -168,7 +168,7 @@ export const rdCss = `
 .row100k .rd-room a{display:block;margin-top:6px;color:rgba(255,255,255,.62);text-decoration:underline;text-underline-offset:3px}
 .row100k .rd-room a:hover{color:#fff;text-decoration-thickness:2px}
 
-/* THE ACT — where the ad prints its SIGN UP slab, and the reason the page
+/* THE ACT — where the ad prints its OPT IN slab, and the reason the page
  * exists. It opens on the bill s thick rule rather than sitting in a box of
  * its own, so it reads as the foot of the same sheet; the filled button is
  * the slab itself, white paper with a verb on it flush left. */

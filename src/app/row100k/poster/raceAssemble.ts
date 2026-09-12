@@ -41,7 +41,15 @@ export type RacePhoto = { url: string | null; bw: boolean };
  * must not show (the judges, on the five-row wave grid). */
 export const FIELD_FLOOR = 6;
 
-export const RACE_URL = "MIKIANMUSSER.COM/ROW100K/RACEDAY";
+/* THE SHORT ADDRESS (owner, 2026-09-11: "instead of the full URL, just
+ * lead them to mikianmusser.com — this is for the race day ads"). A person
+ * reading a bill on a wall or a story on a phone types what they can hold
+ * in their head, and nobody holds a path. The deep link still works and is
+ * still what the site links to; the AD just stops asking anyone to copy
+ * it. Which means the root has to carry them onward — the RACE DAY stamp
+ * on the rail is that onward, so this address and that link go public on
+ * the same day. */
+export const RACE_URL = "MIKIANMUSSER.COM";
 
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -107,7 +115,10 @@ export function raceDayPoster(
     `${race.title.toUpperCase()} — ${race.sub.toLowerCase()}.`,
     `${race.when}, ${hoursLine(race)}, at ${race.venue}, ${cityOf(race)}.`,
     `${race.room}. First wave ${waveTime(race, 1)}, waves every ${race.waveMinutes} minutes.`,
-    `Sign up as a racer or as a spectator: ${RACE_URL.toLowerCase()}`,
+    /* OPT IN, not sign up — the challenge has one verb for this and it is
+     * his (owner, 2026-09-11: "instead of put my name in, the phrase
+     * should be opt in"). The slab on every frame says the same word. */
+    `Opt in as a racer or as a spectator: ${RACE_URL.toLowerCase()}`,
     ...(race.waiver ? ["", `The gym waiver is signed at ${race.waiver.host} before you row.`] : []),
   ].join("\n");
 
