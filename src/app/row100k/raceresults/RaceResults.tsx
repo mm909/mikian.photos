@@ -832,7 +832,7 @@ function worthSaying(board: ResultBoard): Note[] {
 
   if (all[0]) {
     notes.push({
-      k: "Fastest piece in the room",
+      k: "Fastest 5,000 m in the room",
       v: fmtTime(all[0].seconds ?? 0),
       n: `${all[0].name} · wave ${all[0].wave} · either bracket`,
     });

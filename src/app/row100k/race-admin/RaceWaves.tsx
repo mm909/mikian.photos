@@ -389,7 +389,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
           </table>
         </div>
       )}
-      {prorated && <p className="ra-foot">* PRORATED FROM A LONGER PIECE — THE SAME RULE THE RECORDS PAGE USES.</p>}
+      {prorated && <p className="ra-foot">* PRORATED FROM A LONGER ROW — THE SAME RULE THE RECORDS PAGE USES.</p>}
 
       {/* ----------------------------------------------------- spectators */}
       <div className="sec-head ra-sec">

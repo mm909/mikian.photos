@@ -45,7 +45,7 @@ export const DEAL = {
     {
       n: "03",
       title: "Log it",
-      body: "Meters and time. 5k / 10k pieces count for the record boards.",
+      body: "Meters and time. 5k / 10k rows count for the record boards.",
     },
   ],
 } as const;

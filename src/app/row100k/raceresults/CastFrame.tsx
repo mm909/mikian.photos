@@ -132,7 +132,7 @@ export function CastFrame({
                 <div className="rr-cell fill">
                   <div className="rr-n">{fastest ? fmtTime(fastest.seconds ?? 0) : "—"}</div>
                   <div className="rr-k">
-                    Fastest piece in the room{fastest ? ` · ${fastest.name}` : ""}
+                    Fastest 5,000 m in the room{fastest ? ` · ${fastest.name}` : ""}
                   </div>
                 </div>
                 <div className="rr-cell">
