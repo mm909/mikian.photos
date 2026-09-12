@@ -83,7 +83,10 @@ export default async function DevRaceDayResultsPage({
    * on the television on the night. */
   if (cast) {
     return (
-      <div className={`row100k rr-mono ${fonts}`}>
+      /* No chrome-ink here, and that is the same sentence as the one above:
+       * the class inverts a bar, a strip and a footer, and this view has
+       * none of them. Its white focus ring comes off .rr-fit in rrCss.ts. */
+      <div className={`row100k ${fonts}`}>
         <style>{css}</style>
         <style>{rrCss}</style>
         {/* The note rides in the phone-only caption under the frame, so a
@@ -129,7 +132,9 @@ export default async function DevRaceDayResultsPage({
   );
 
   return (
-    <div className={`row100k rr-mono ${fonts}`}>
+    /* .chrome-ink is theme.ts now, not .rr-mono in rrCss.ts — the race day
+     * sign up wears the same class, so the two ink pages cannot drift. */
+    <div className={`row100k chrome-ink ${fonts}`}>
       <style>{css}</style>
       <style>{rrCss}</style>
 

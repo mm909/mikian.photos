@@ -707,6 +707,85 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .row100k footer a:hover{color:var(--water)}
 
+/* ----------------------------------------------------------------------
+ * .chrome-ink — THE BAR, THE RAFFLE STRIP AND THE FOOTER, INVERTED. A page
+ * whose ground is ink puts this class on its own wrapper and the shared
+ * chrome comes with it: the bar goes black under a white rule, the wordmark
+ * and the rail go white, the water-blue pill goes white, the strip under the
+ * bar and the footer follow. Nothing else on the site changes.
+ *
+ * WHY IT IS HERE and not on the page that first wanted it. The race results
+ * board wrote these rules for itself, and then the race day sign up needed
+ * the same ones (owner, 2026-09-12: make the header and footer black and
+ * white on the race day sign up page — and the day before, that the way the
+ * header changes on the results board is the kind of change that should
+ * happen everywhere). Two copies of a block this size is two copies that
+ * drift, so the chrome half moved here and both pages wear the class. What
+ * was about the BOARD stayed in raceresults/rrCss.ts.
+ *
+ * ONLY FOR A PAGE THAT IS INK TOP TO BOTTOM. This inverts the chrome, not
+ * the body: on a cream page it would hang a black bar over a cream article.
+ * The white focus ring is scoped to the three chrome regions for that same
+ * reason, and a dark body paints its own (rd-dark, rr-dark).
+ *
+ * It sits after every rule it re-cuts, because most of them tie on
+ * specificity and source order is what settles a tie. */
+.row100k.chrome-ink .bar{background:var(--ink);border-bottom-color:#fff}
+.row100k.chrome-ink .bar-brand,.row100k.chrome-ink .bar-brand .dot{color:#fff}
+.row100k.chrome-ink .bar-brand:hover{color:rgba(255,255,255,.7)}
+.row100k.chrome-ink .bar .mono{color:rgba(255,255,255,.62)}
+.row100k.chrome-ink .rail a{color:rgba(255,255,255,.62)}
+.row100k.chrome-ink .rail a.brand{color:#fff}
+.row100k.chrome-ink .rail a.lit{color:var(--ink)}
+.row100k.chrome-ink .rail-pill{background:#fff}
+.row100k.chrome-ink .rail:not(.live) a.on{background:#fff;color:var(--ink)}
+/* THE STAMP FLIPS WITH THE GROUND. On cream RACE DAY is the one black thing
+ * on the rail; on ink it has to be the one white thing, or it is a black
+ * chip on a black bar. That is what the results board had been showing since
+ * race day went public on 2026-09-12 and the stamp started rendering for
+ * everybody instead of only for an admin: it sat there as grey mono like any
+ * other link, its ink slab invisible against the bar and its white letters
+ * overruled by the rail colour two rules up.
+ * So the pair is INVERTED here, and the first cut of it had the two states
+ * the other way round. Mirroring cream exactly made the RESTING stamp a
+ * solid white slab — and the rail pill is also a solid white slab under
+ * .chrome-ink. On the results board, which passes no active key, the stamp
+ * rests filled; hover any other link and the pill lands beside it at the
+ * same height, the same fill, the same ink letters, ten pixels away. Two
+ * identical white blocks, one of which is the indicator. Measured on the
+ * live page, not guessed.
+ * REST IS THEREFORE THE HOLLOW ONE: ink ground, white edge, white letters —
+ * a box that is plainly not the pill. The flip, on pointer, keyboard focus
+ * and its own page, fills white with ink type, which is the pill look and
+ * is correct there: the pill never rests on the stamp, so a filled stamp
+ * under the pointer is the only white block on that part of the rail, and
+ * on race day it says you are standing inside the black rather than
+ * pointing at it. The
+ * server paint needs nothing extra: BarNav hands the stamp neither .lit nor
+ * .on, so these two rules are its whole look before and after the fonts land.
+ * Both of them end in a.rail-stamp on purpose — the plain rail colour above
+ * ties with the base stamp rule and wins on source order, which was the bug.
+ * The border colour is set once, at rest, and holds through the flip. */
+.row100k.chrome-ink .rail a.rail-stamp{background:transparent;border-color:#fff;color:#fff}
+.row100k.chrome-ink .rail a.rail-stamp:hover,.row100k.chrome-ink .rail a.rail-stamp:focus-visible,.row100k.chrome-ink .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
+.row100k.chrome-ink .acct-chip{border-color:#fff;color:#fff}
+.row100k.chrome-ink .acct-chip:hover{border-color:#fff;color:var(--ink);background:#fff}
+.row100k.chrome-ink .bar-log{background:#fff;border-color:#fff;color:var(--ink)}
+/* The raffle strip was an ink band already, so the inverted bar costs it
+ * only its edges: the paper-tinted type goes plain white and its button
+ * takes the same white slab the rest of the chrome buttons wear here. */
+.row100k.chrome-ink .rfb-k,.row100k.chrome-ink .rfb-t,.row100k.chrome-ink .rfb-x{color:#fff}
+.row100k.chrome-ink .rfb-cta{background:#fff;border-color:#fff;color:var(--ink)}
+.row100k.chrome-ink .rfb-cta.in{background:transparent;color:#fff}
+.row100k.chrome-ink .rfb-cta:hover,.row100k.chrome-ink .rfb-cta:focus-visible{background:#fff;border-color:#fff;color:var(--ink)}
+.row100k.chrome-ink footer{background:var(--ink);color:#fff;border-top-color:#fff;margin-top:0}
+.row100k.chrome-ink footer .mono,.row100k.chrome-ink footer a{color:#fff}
+.row100k.chrome-ink .bar :focus-visible,.row100k.chrome-ink .rfb :focus-visible,.row100k.chrome-ink footer :focus-visible{outline-color:#fff}
+/* The account dropdown hangs inside the bar but is a paper panel with ink
+ * type in it, so the white ring would land on cream and disappear. It keeps
+ * the blue one the rest of the site uses. */
+.row100k.chrome-ink .acct-panel :focus-visible{outline-color:var(--water)}
+
 /* OPT IN, ported from the landing page (src/components/home/Home.tsx .opt):
  * Archivo Black at poster size, water-blue underline, the blunt arrow. One
  * class for both the link and the button form (OptIn.tsx), so the button

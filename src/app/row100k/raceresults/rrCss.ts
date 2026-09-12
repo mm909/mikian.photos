@@ -31,8 +31,14 @@
  *
  * THE BAR AND THE FOOTER ARE INVERTED HERE. Every judge said the same
  * thing: the cream site bar with its blue wordmark was the only colour in
- * the mocks and it sat directly above a monochrome board. Under .rr-mono
- * the shared chrome is re-cut for ink. Nothing outside this page changes.
+ * the mocks and it sat directly above a monochrome board. The rules that
+ * re-cut the chrome for ink used to be right here, under .rr-mono; they are
+ * theme.ts .chrome-ink now, because the race day sign up came asking for
+ * exactly the same ones (owner, 2026-09-12) and a second copy of them would
+ * have drifted from this one inside a week. This page wears that class.
+ * What stayed behind is the one rule of the set that was never about the
+ * chrome at all: the white focus ring on the ink GROUND, which the page-wide
+ * .rr-mono selector used to hand the board and the wall for free.
  *
  * WIDTH IS 1120px, not the site 760 — a results board is read from across a
  * room.
@@ -53,26 +59,14 @@ export const rrCss = `
 .row100k .rr-dark .sec-head h2{color:#fff}
 .row100k .rr-dark .sec-head .mono{color:rgba(255,255,255,.62)}
 
-/* THE CHROME, inverted for this page only. */
-.row100k.rr-mono .bar{background:var(--ink);border-bottom-color:#fff}
-.row100k.rr-mono .bar-brand,.row100k.rr-mono .bar-brand .dot{color:#fff}
-.row100k.rr-mono .bar-brand:hover{color:rgba(255,255,255,.7)}
-.row100k.rr-mono .rail a{color:rgba(255,255,255,.62)}
-.row100k.rr-mono .rail a.brand{color:#fff}
-.row100k.rr-mono .rail a.lit{color:var(--ink)}
-.row100k.rr-mono .rail-pill{background:#fff}
-.row100k.rr-mono .rail:not(.live) a.on{background:#fff;color:var(--ink)}
-.row100k.rr-mono .acct-chip{border-color:#fff;color:#fff}
-.row100k.rr-mono .acct-chip:hover{border-color:#fff;color:var(--ink);background:#fff}
-.row100k.rr-mono .bar-log{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k.rr-mono .bar .mono{color:rgba(255,255,255,.62)}
-.row100k.rr-mono .rfb-k,.row100k.rr-mono .rfb-t,.row100k.rr-mono .rfb-x{color:#fff}
-.row100k.rr-mono .rfb-cta{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k.rr-mono .rfb-cta.in{background:transparent;color:#fff}
-.row100k.rr-mono .rfb-cta:hover,.row100k.rr-mono .rfb-cta:focus-visible{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k.rr-mono footer{background:var(--ink);color:#fff;border-top-color:#fff;margin-top:0}
-.row100k.rr-mono footer .mono,.row100k.rr-mono footer a{color:#fff}
-.row100k.rr-mono :focus-visible{outline-color:#fff}
+/* THE CHROME went to theme.ts .chrome-ink, which page.tsx wears. This is
+ * what did not go with it: the white focus ring on the ink ground. It was
+ * never a chrome rule, it only looked like one while a page-wide selector
+ * was paying for both. Named grounds now, the way rdCss.ts names .rd-dark,
+ * and there are two because the wall is its own black page with no .rr-dark
+ * anywhere in it. */
+.row100k .rr-dark :focus-visible{outline-color:#fff}
+.row100k .rr-fit :focus-visible{outline-color:#fff}
 
 /* The sample note, same shape as the other dev pages. */
 .row100k .rr-dev{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);border-bottom:1px dashed rgba(255,255,255,.24);padding-bottom:12px;margin-bottom:20px;line-height:1.9}

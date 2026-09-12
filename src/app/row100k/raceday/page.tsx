@@ -257,7 +257,15 @@ export default async function RaceDayPage() {
   const headNote = phase === "closed" ? "REGISTRATION CLOSED" : phase === "raced" ? "RACED" : null;
 
   return (
-    <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
+    /* chrome-ink (theme.ts) takes the bar, the strip under it and the footer
+     * to black with the page (owner, 2026-09-12: make the header and footer
+     * black and white on the race day sign up page). The bill used to be an
+     * ink slab between two cream strips; now the black runs the whole height
+     * and .rd-dark only has to paint the part between them. The results board
+     * wears the same class — it is one block of rules, not two. */
+    <div
+      className={`row100k chrome-ink ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}
+    >
       <style>{css}</style>
       <style>{rdCss}</style>
       {/* The rail marks this page: RACE DAY is a nav key now, and it rides

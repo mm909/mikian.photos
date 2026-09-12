@@ -26,8 +26,11 @@
  * The rest of the site keeps the water blue; this one surface does not.
  * Everything between the bar and the footer sits inside .rd-dark, which
  * paints the ink ground full bleed and re-colours the theme classes it
- * contains for that ground. The bar and the footer stay the site's, so the
- * black reads as a bill the page is printed on.
+ * contains for that ground. The bar and the footer are ink too as of
+ * 2026-09-12 (owner: make the header and footer black and white on the race
+ * day sign up page) — page.tsx wears theme.ts .chrome-ink for that, so this
+ * file has only the middle to paint and the bill is no longer a black slab
+ * between two cream strips.
  *
  * WHAT CARRIES THE EMPHASIS NOW that no hue does: SIZE (the head and the
  * wave are the two biggest things on the page), WEIGHT (a value is 700, its
