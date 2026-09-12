@@ -268,12 +268,15 @@ export default async function RaceDayPage() {
       <div className="rd-dark">
         <section>
           <div className="wrap">
-            {/* It IS linked from the bar now — the rail carries RACE DAY on
-              * the same raceOpenFor switch — so the note says the thing that
-              * is still true: in production this page, and that chip, exist
-              * for the owner alone until he opens the race. */}
-            <p className="rd-dev">In development · admin only until the race opens</p>
-
+            {/* THE DEV NOTE IS GONE. It said IN DEVELOPMENT, ADMIN ONLY
+              * UNTIL THE RACE OPENS, which was true for the two days the
+              * page was admin-only and became a lie the moment the owner
+              * opened it (2026-09-12). It is the second note this block has
+              * outlived — the first said NOT LINKED FROM THE BAR YET — and
+              * that is the lesson worth keeping: a note about the state of
+              * the build does not belong on the page a stranger reads, and
+              * the page is now the first thing a stranger sees of the race.
+              * Nothing replaces it. The bill speaks for itself. */}
             <div className="rd-bill">
               <div className="rd-rule" />
               {/* The space between the two halves is written, not left to

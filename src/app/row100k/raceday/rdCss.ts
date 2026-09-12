@@ -89,7 +89,14 @@ export const rdCss = `
 .row100k .rd-dark table.board .who a{color:#fff}
 .row100k .rd-dark table.board .who a:hover{text-decoration:underline;text-underline-offset:3px}
 
-.row100k .rd-dev{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.5);border-bottom:1px dashed rgba(255,255,255,.24);padding-bottom:12px;margin-bottom:22px}
+/* .rd-dev is gone with the note it dressed: a line across the top of the
+ * bill saying the page was still being built and only the owner could
+ * see it. True for two days, false the hour he opened the race on
+ * 2026-09-12, and the second such note this block has outlived. The rule
+ * goes with the markup rather than waiting here for a third one to reuse
+ * it, and the sentence itself is not repeated here - a stylesheet ships
+ * its comments to the browser, and that one had already been read once
+ * too often. */
 
 /* THE BILL. The column is the container, so every fitted line is a share
  * of the MEASURE and nothing is sized off the viewport. --r is the thick
