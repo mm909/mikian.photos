@@ -1804,15 +1804,131 @@ const rowtemberRaceDayBill: ShareCard = {
   },
 };
 
-/* The race day page's `only`, and it is a list of ONE since the owner kept
- * the bill and dropped the claim card (2026-09-11). It is still a LIST and
- * still exported: the dialog there opens on a payload built from a
- * RowRaceSignup row, which carries no meters, so the picker must never be
- * free to offer a total card reading 0 METERS — the `only` list and the
- * zeroed rower fields ship together, and that guarantee is the reason this
- * exists, not the count. ShareDialog hides the picker strip below two cards,
- * so the dialog there is now the card and the buttons, with no chip row. */
-export const RACE_CARD_IDS = [rowtemberRaceDayBill.id];
+/* THE SAME DAY WITH THE FACTS TAKEN OFF (owner, 2026-09-12: "Another
+ * shareable that just says Rowtember race day, without the extra copy or
+ * the Strip Barbell logos on the bottom"). ANOTHER card, not an edit of the
+ * bill: the bill stays exactly as it is, for the stranger who needs to know
+ * when and where.
+ *
+ * SO IT IS THE LOGO CARD'S RACE DAY TWIN. "Just the mark" gets one more
+ * word, and the two blocks are built the two ways this file already knows:
+ * the mark fitted to the column (the logo card's move) over the event's
+ * name fitted to the same column (the bill's masthead move). Both flush to
+ * one measure, which is what makes it a LOCKUP and not the bill's top third
+ * lifted out. The bill stacks RACE over DAY because it is filling a tall
+ * portrait column with the biggest type on the sheet; this one is not
+ * filling anything, so the name goes on one line, the way you say it.
+ *
+ * THE INK BOX, NOT THE BLUE ONE. Race day is the site's one monochrome
+ * surface and the bill spends its single ink element on the mark's box; a
+ * card sitting beside it in the same picker has to wear the same look or
+ * the two chips hand back two different events. Which also settles the
+ * masked flag: an explicit `box` already beats `masked` inside drawMark, so
+ * passing it would be dead — and it would be dead anyway, because the race
+ * payload is built off a signup row (RaceShare) and carries no rower, no
+ * numbers and no blackout to honour. Nothing on this card is anybody's to
+ * hide.
+ *
+ * EVERYTHING ELSE IS GONE, INCLUDING THE HOUSE. No sub, no when, no where,
+ * no venue mark — so no `prepare` either, since the only asset on race day
+ * was the gym's PNG and this card never reaches for it. It is type, and type
+ * is synchronous once the webfonts have settled.
+ *
+ * THE NAME IS STILL THE RACE'S OWN (race.title, upper-cased by the page),
+ * never the literal "RACE DAY": renaming the event in the console has to
+ * move both stickers or the picker offers two names for one day. */
+const rowtemberRaceDayName: ShareCard = {
+  id: "rowtember-raceday-name",
+  label: "Just the name",
+  width: 1080,
+  /* A WIDE BAND, and not the bill's 4:5. Two blocks flush to one column are
+   * 344 tall in the middle of it; a portrait card would wrap that in a field
+   * of transparency that a rower still has to drag around a story and still
+   * has to scale, and scaling a box that is mostly nothing makes the art
+   * small. The height here is the art plus about seven tenths of the mark's
+   * own height in air above it and the same below — room for the shadow and
+   * the skew, and little else. */
+  height: 560,
+  light: true,
+  available: (d) => !!d.race,
+  draw(ctx, data, fonts) {
+    const race = data.race;
+    if (!race) return;
+    const cx = this.width / 2;
+    const M = 60;
+    const measure = this.width - M * 2;
+
+    /* The size whose BOX spans the column, not whose text does: drawMark
+     * pads the caps by 0.34 of the size either side, so it is fitToWidth's
+     * one measurement at 100px with that padding put back — the logo card's
+     * shrink loop, answered instead of iterated. */
+    ctx.save();
+    ctx.font = `100px ${fonts.black}`;
+    const em = ctx.measureText("ROWTEMBER").width / 100;
+    ctx.restore();
+    const markSize = em > 0 ? Math.floor(measure / (em + 0.68)) : 120;
+    const markH = markSize * 1.28; // drawMark: caps + its two paddings
+
+    /* "RACE DAY" fits the column at 172 and the cap never bites; it is there
+     * for a rename short enough to be set enormous — a four-letter name would
+     * want 320 and crowd the card. maxWidth is the other end of the same
+     * guard: a long one condenses inside the column instead of running out
+     * of it. */
+    const title = race.title.toUpperCase();
+    const titleSize = fitToWidth(ctx, title, fonts.black, measure, 300);
+    const capH = titleSize * 0.72;
+
+    // Off the mark's height rather than the name's, so the pair keeps its
+    // spacing if a rename moves the name's size. Wide enough that the skewed
+    // box never leans into the caps, tight enough to read as one lockup.
+    const gap = Math.round(markH * 0.42);
+    const top = (this.height - (markH + gap + capH)) / 2;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: top + markH / 2,
+      size: markSize,
+      fontFamily: fonts.black,
+      box: INK,
+    });
+    drawCenteredText(ctx, title, {
+      cx,
+      baseline: top + markH + gap + capH,
+      font: `${titleSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: measure,
+    });
+    ctx.restore();
+  },
+};
+
+/* The race day page's `only` — the bill, and the name on its own.
+ *
+ * WHY IT IS A LIST AND NOT A COUNT: the dialog there opens on a payload
+ * built from a RowRaceSignup row, which carries no meters, so the picker
+ * must never be free to offer a total card reading 0 METERS. The `only`
+ * list and RaceShare's zeroed rower fields ship together, and that
+ * guarantee is the reason this exists. It was a list of one from
+ * 2026-09-11, when the owner kept the bill and dropped the claim card,
+ * until he asked for the stripped one a day later.
+ *
+ * AND THE SECOND ENTRY BRINGS THE CHIP ROW BACK. ShareDialog hides the
+ * picker strip below two cards, so race day's dialog has been the card and
+ * the buttons all week; with two it is chips again — RACE DAY and JUST THE
+ * NAME. Intended: two cards nobody can choose between is not a deck.
+ *
+ * THE ORDER HERE IS NOT WHAT DECIDES WHICH OPENS — ShareDialog filters
+ * CARDS by this list and takes the first survivor, so the CARDS array
+ * decides, and the bill is above the name there. That is the right default:
+ * the bill is the picture already printed down the page under the act, and
+ * a stranger holding it can act on it. Stripping it back is a choice
+ * somebody makes, one chip away. This list is kept in the same order so the
+ * two never look like they disagree. */
+export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id];
 
 /* ------------------------------------------------------- community cards */
 
@@ -2607,8 +2723,11 @@ export const CARDS: ShareCard[] = [
   rowtemberElite,
   rowtemberLogo,
   // I'M RACING is retired (owner, 2026-09-11: "I just like the race day
-  // sticker"). Race day ships the bill and nothing else.
+  // sticker"). Race day ships the bill and, since 09-12, the same day with
+  // the facts taken off — in that order, because this order is the one the
+  // race day dialog opens on.
   rowtemberRaceDayBill,
+  rowtemberRaceDayName,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
   rowtemberCommunityToday,

@@ -38,10 +38,12 @@ import { CARDS, RACE_CARD_IDS, type ShareData } from "../share/cards";
  * who is in the field and nothing whatever about their September. So meters,
  * sessions and the day map are zeroed here, and `only={RACE_CARD_IDS}` is
  * what keeps that from becoming a TOTAL card reading 0 METERS. The two ship
- * together; neither is safe without the other — and that stays true with one
- * card in the list, because it is the LIST and not the count that guards it.
- * ShareDialog draws no chip row under two cards, so what opens here is the
- * bill and the buttons, with nothing to choose between.
+ * together; neither is safe without the other — and it held while the list
+ * held ONE card, because it is the LIST and not the count that guards it.
+ * There are two in it since 2026-09-12 (the bill, and the same day with the
+ * facts stripped off it), which brings the chip row back: ShareDialog draws
+ * no picker under two cards, so this dialog was the card and the buttons for
+ * as long as race day had one sticker.
  *
  * AND A ROWER'S OTHER CARDS ARE NOT OFFERED HERE — deliberately. Reaching
  * them would mean this page also read the log, the record boards and the
@@ -55,8 +57,9 @@ import { CARDS, RACE_CARD_IDS, type ShareData } from "../share/cards";
  * race payload any more, so the two are the same thing again. */
 export type RaceFacts = NonNullable<ShareData["race"]>;
 
-/* The card this surface may open, taken off the registry rather than by
- * name, so warming it here and drawing it there cannot drift. */
+/* The cards this surface may open — two since 2026-09-12, the bill and the
+ * name alone — taken off the registry rather than by name, so warming them
+ * here and drawing them there cannot drift. */
 const RACE_CARDS = CARDS.filter((c) => RACE_CARD_IDS.includes(c.id));
 
 export function RaceShare({
@@ -133,8 +136,10 @@ export function RaceShare({
       >
         {label}
       </button>
-      {/* No preferredCardId: the pool holds one card, so ShareDialog's own
-        * first-in-pool default IS the bill. */}
+      {/* No preferredCardId: ShareDialog opens on the first card of the pool
+        * and CARDS orders the bill above the name, so this still opens on the
+        * bill — the picture already printed down the page, and the one a
+        * stranger can act on. Stripping it back is a chip away. */}
       <ShareDialog data={data} open={open} onClose={() => setOpen(false)} only={RACE_CARD_IDS} />
     </>
   );

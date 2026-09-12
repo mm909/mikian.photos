@@ -22,7 +22,7 @@ type Status = { kind: "idle" | "done" | "error"; message?: string };
  * ones are caught by their prefix; this is for the ones not named that way.
  * rowtember-logo is arguably one of these too, but it has been downloading
  * under a rower number all month and renaming it is not this change. */
-const ANYONES = new Set(["rowtember-raceday-bill"]);
+const ANYONES = new Set(["rowtember-raceday-bill", "rowtember-raceday-name"]);
 
 export function ShareDialog({
   data,
