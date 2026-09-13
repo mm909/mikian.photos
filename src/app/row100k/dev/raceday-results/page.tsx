@@ -44,8 +44,13 @@ export const metadata: Metadata = {
  *                 day the owner moves the grid.
  *   ?at=finished  the sheet: two podiums, the fourth-place line under each,
  *                 what the table buries, and the whole field in one list.
- *   ?cast=1       the wall. A 1280 by 720 frame with no site bar and no
- *                 footer, forced signed out. Works with either state.
+ *   ?cast=1       the wall. The 1280 by 720 frame with no site bar and no
+ *                 footer, forced signed out, SCALED TO FILL whatever it is
+ *                 opened on — a 1920 or a 4K television in the room, not
+ *                 1280 stranded in the middle of it. Works with either state.
+ *   ?cast=fixed   the same wall at the literal 1280 by 720 and no full
+ *                 screen button, for a capture, an OBS source or a
+ *                 screenshot. ?cast=1280 does the same thing.
  *   ?you=0        drop the signed-in rower, to see what a stranger sees.
  *   ?wave=N       pin the lane panel to one wave. On the page a reader moves
  *                 it by tapping a cell and this is only a deep link; on the
@@ -66,7 +71,14 @@ export default async function DevRaceDayResultsPage({
   };
 
   const at: SampleState = one("at") === "finished" ? "finished" : "midrace";
-  const cast = one("cast") === "1" || one("cast") === "true";
+  /* The wall fills the screen now, so the OLD behaviour needs a name of its
+   * own: something is always going to want the real 1280 by 720 pixels — a
+   * capture, an OBS source, a screenshot to post — and a frame scaled to a
+   * television cannot hand those over. Both spellings, because fixed is what
+   * it is and 1280 is what you remember. */
+  const castRaw = one("cast");
+  const pinned = castRaw === "fixed" || castRaw === "1280";
+  const cast = pinned || castRaw === "1" || castRaw === "true";
   const you = one("you") !== "0";
   /* A wave that is not a plain number, or not a wave this board has, is
    * ignored rather than defended against downstream: pickedWave() checks the
@@ -95,6 +107,7 @@ export default async function DevRaceDayResultsPage({
         <CastFrame
           board={board}
           pick={pick}
+          pinned={pinned}
           note={<a href={`/row100k/dev/raceday-results?at=${at}`}>Back to the page</a>}
         />
       </div>
@@ -124,7 +137,11 @@ export default async function DevRaceDayResultsPage({
         {other === "midrace" ? "mid-race" : "finished"}
       </a>{" "}
       · the wall{" "}
-      <a href={`/row100k/dev/raceday-results?at=${at}&cast=1`}>cast view, 1280 by 720</a> ·{" "}
+      {/* TWO LINKS, because they are two different things now. The first is
+        * what goes on the television and fills it; the second is the literal
+        * 1280 by 720 for anything that captures pixels. */}
+      <a href={`/row100k/dev/raceday-results?at=${at}&cast=1`}>cast view, fills the screen</a> ·{" "}
+      <a href={`/row100k/dev/raceday-results?at=${at}&cast=fixed`}>pinned 1280 by 720</a> ·{" "}
       <a href={`/row100k/dev/raceday-results?at=${at}&you=${you ? "0" : "1"}`}>
         {you ? "signed out" : "signed in"}
       </a>

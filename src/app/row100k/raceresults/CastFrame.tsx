@@ -9,6 +9,7 @@ import {
   roomCounts,
   type ResultBoard,
 } from "./types";
+import { CastShell } from "./CastShell";
 import { LeaderBox, Podium, WavePicker } from "./RaceResults";
 
 /* THE WALL. A frame built for a television in the gym, not the page scaled
@@ -62,17 +63,29 @@ import { LeaderBox, Podium, WavePicker } from "./RaceResults";
  * a phone looking at the wall was looking at a thumbnail adrift in a 1280 by
  * 720 hole. The frame is pinned to the top left of a stage that is resized to
  * the scaled size, and on a phone it gets a caption — outside the scaled box,
- * so it is never on the television. */
+ * so it is never on the television.
+ *
+ * IT SCALES UP NOW TOO. The 1280 by 720 above is the DESIGN, not the output:
+ * the frame is drawn at that size and then scaled to the largest 16 by 9
+ * rectangle the screen holds, so a 1920 or a 4K television in the room gets
+ * type that is proportionally bigger rather than the same type in more black.
+ * The arithmetic is pure CSS and lives in rrCss.ts; nothing here measures
+ * anything. Pass pinned to get the literal 1280 by 720 back for a capture. */
 export function CastFrame({
   board,
   note,
   pick,
+  pinned,
 }: {
   board: ResultBoard;
   note?: ReactNode;
   /* ?wave=N — how a gym pins ONE wave to the wall for a night. Without it the
    * panel follows the room on its own. */
   pick?: number | null;
+  /* The capture frame: exactly 1280 by 720 at any viewport, and no full
+   * screen button on it, because whatever grabs those pixels must not grab a
+   * control sitting in the corner of them. */
+  pinned?: boolean;
 }) {
   /* Forced signed out. */
   const b: ResultBoard = { ...board, youId: null };
@@ -87,7 +100,11 @@ export function CastFrame({
   const frame = { "--rr-ergs": b.ergs } as CSSProperties;
 
   return (
-    <div className="rr-fit">
+    /* The shell is the black field and the full screen button, and it is the
+     * only client code on this view — the frame under it is server-rendered
+     * and sized by the stylesheet, so the wall is right before any script
+     * runs and right with scripting off. */
+    <CastShell pinned={pinned}>
       <div className="rr-stage">
         <div className="rr-cast" style={frame}>
           <div className="rr-line">
@@ -161,10 +178,27 @@ export function CastFrame({
         </div>
       </div>
       {/* Phone only — display:none from 768 up, so a television never sees
-        * it. It says what the shrunken rectangle IS. */}
+        * it. It says what the rectangle IS, and 1280 by 720 is still the
+        * answer: on a phone the frame now runs the full width of the screen,
+        * which makes it look like a page rather than the television it is. */}
+      {/* NOTHING ADDED FOR THE FIT CASE. 1280 by 720 is still exactly what
+        * the rectangle is, the scaling is self-evident when it runs the full
+        * width of the phone, and this line is ONE line wide at 430 with no
+        * room to spare — a caption that wraps to explain itself is worse than
+        * the caption that fit. Only the pinned frame says so, because there
+        * the size is the whole point and a second line is the edge case.
+        *
+        * The hard space keeps the separator on the line it belongs to, or the
+        * dot ends up alone at the head of the wrap, above the way out. */}
       <p className="rr-fitcap">
-        <b>The wall frame</b> · 1280 by 720{note ? <> · {note}</> : null}
+        <b>The wall frame</b> · 1280 by 720{pinned ? ", pinned" : ""}
+        {note ? (
+          <>
+            {" · "}
+            {note}
+          </>
+        ) : null}
       </p>
-    </div>
+    </CastShell>
   );
 }

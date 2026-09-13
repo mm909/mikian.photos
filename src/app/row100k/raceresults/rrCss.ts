@@ -395,7 +395,9 @@ export const rrCss = `
 .row100k .rr-say .n{display:block;color:rgba(255,255,255,.5);font-weight:400;font-size:10px;letter-spacing:.1em;line-height:1.7;margin-top:2px;text-align:right;overflow-wrap:anywhere}
 
 /* ---- the cast frame: 1280 by 720, no chrome, nothing scrolls ---- */
-.row100k .rr-fit{width:100%;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;overflow:hidden}
+/* position:relative because the one control this view has — full screen —
+ * hangs off the black, not off the frame. See .rr-full below. */
+.row100k .rr-fit{position:relative;width:100%;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;overflow:hidden}
 .row100k .rr-cast{width:1280px;height:720px;flex:none;background:var(--ink);color:#fff;padding:15px 20px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;overflow:hidden;transform-origin:top left}
 .row100k .rr-cast .rr-date{font-size:13px;letter-spacing:.18em;line-height:1.7;color:rgba(255,255,255,.66)}
 .row100k .rr-cast .rr-date b{font-size:14px}
@@ -452,21 +454,58 @@ export const rrCss = `
  * gone quiet has to say so LOUDER there than anywhere else. */
 .row100k .rr-cast .rr-samp.stale{color:#fff;font-weight:700}
 
-/* The frame is a fixed 1280 by 720 because a television is. Anything
- * narrower is shown the same frame, scaled — a phone looking at the cast
- * view is looking at what the wall shows, not at a reflowed page.
+/* The frame is a fixed 1280 by 720 because the whole composition is measured
+ * against that box — every size in it, and a frame clipped at exactly 720.
+ * So the wall is never reflowed. It is SCALED, and it scales UP as well as
+ * down: owner, 2026-09-12, looking at it on a monitor — how am I going to
+ * change this resolution, it has to fill a large TV in the room. It was
+ * sitting at 1280 by 720 in the middle of a black 1920 field, because the
+ * ladder below only ever went the one way.
  *
  * A TRANSFORM DOES NOT SHRINK THE BOX. Scaling alone left a 1280 by 720 hole
  * with a postage stamp floating in the middle of it, so the frame sits in a
- * STAGE that is resized to the scaled size at every step and the frame is
- * pinned to its top left corner. The steps are the same four; the smallest
- * one starts at 519 rather than 479 because .4 of 1280 is 512, and between
- * 480 and 511 the frame was losing both its edges to overflow. */
+ * STAGE that is resized to the scaled size and the frame is pinned to its
+ * top left corner.
+ *
+ * ONE NUMBER DOES BOTH JOBS AND CSS WORKS IT OUT. No script anywhere in the
+ * sizing, so nothing can flash at the wrong size while a bundle loads and
+ * the wall still fills a television with scripting switched off. The catch
+ * is that scale() wants a UNITLESS number and 100vw over 1280px is a length
+ * over a length, which calc cannot cancel; tan(atan2(a,b)) is a divided by
+ * b with the units gone, and the smaller of the two ratios is the one that
+ * fits. The leftover screen stays black, which is the ground already, so a
+ * letterbox on a 16 by 10 monitor costs nothing.
+ *
+ * THE LADDER UNDERNEATH IS THE FALLBACK, not dead weight: a television
+ * browser too old for atan2 over lengths drops the block below it whole and
+ * lands back on these four steps, which is what this page did until today.
+ * The smallest starts at 519 rather than 479 because .4 of 1280 is 512, and
+ * between 480 and 511 the frame was losing both its edges to overflow. */
 .row100k .rr-stage{width:1280px;height:720px;flex:none}
 @media(max-width:1279px){.row100k .rr-cast{transform:scale(.78)}.row100k .rr-stage{width:998px;height:562px}}
 @media(max-width:1023px){.row100k .rr-cast{transform:scale(.56)}.row100k .rr-stage{width:717px;height:403px}}
 @media(max-width:767px){.row100k .rr-cast{transform:scale(.4)}.row100k .rr-stage{width:512px;height:288px}}
 @media(max-width:519px){.row100k .rr-cast{transform:scale(.28)}.row100k .rr-stage{width:359px;height:202px}}
+@supports (top:calc(1px * tan(atan2(1px,1px)))){
+  .row100k .rr-fit{--rr-vw:100vw;--rr-vh:100dvh;--rr-s:min(tan(atan2(var(--rr-vw),1280px)),tan(atan2(var(--rr-vh),720px)))}
+  .row100k .rr-stage{width:calc(1280px * var(--rr-s));height:calc(720px * var(--rr-s))}
+  .row100k .rr-cast{transform:scale(var(--rr-s))}
+  /* THE PHONE KEEPS ITS CAPTION. Given the whole screen the frame would eat
+   * the height the label under it needs on a short window, and the label is
+   * the only thing saying what the rectangle is. 132 is the 28 of top
+   * padding, the 16 gap, three lines of 9px mono at 2.2 and air under it;
+   * it only ever bites on a window wider than it is tall, because on a
+   * phone held upright the width runs out first by a mile. */
+  @media(max-width:767px){.row100k .rr-fit{--rr-vh:calc(100dvh - 132px)}}
+}
+
+/* THE PINNED FRAME is one query away — cast=fixed on the dev page. A capture,
+ * an OBS source and a screenshot he wants to post all want the real 1280 by
+ * 720 pixels and not a scaled copy of them, and a wall that fills the screen
+ * cannot hand those over. Four classes deep so it beats the ladder and the
+ * fluid block both, wherever they sit in this file. */
+.row100k .rr-fit.pinned .rr-stage{width:1280px;height:720px}
+.row100k .rr-fit.pinned .rr-cast{transform:none}
 
 /* ON A PHONE the wall is pinned to the top and LABELLED. Centred and
  * unlabelled it was a thumbnail adrift in a screen of black with nothing
@@ -480,6 +519,33 @@ export const rrCss = `
   /* The way out never breaks across two lines. */
   .row100k .rr-fitcap a{color:#fff;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
 }
+
+/* THE FULL SCREEN CONTROL. He opens this in a browser on a television, and a
+ * browser prints about 100px of itself across the top of the wall; the only
+ * thing that takes that back is the Fullscreen API, which needs a real press.
+ *
+ * IT LIVES ON THE BLACK, never on the frame — absolutely positioned against
+ * .rr-fit and outside .rr-cast, so a capture of the wall itself cannot pick
+ * it up, and it is not rendered at all on the pinned frame.
+ *
+ * IT FADES. A control parked in the corner of a television all evening is
+ * the same complaint in a smaller font, so it goes after a few seconds
+ * still and comes back the moment a pointer moves. Once the screen is
+ * actually filled the cursor goes with it. FOCUS OVERRIDES THE FADE, which
+ * is the whole answer for a television with no pointer at all: it is the
+ * only focusable thing on the page, so one press of a remote lands on it. */
+/* A SOLID BACKDROP, not a tint. On a 16 by 9 television the frame IS the
+ * whole screen, so for the few seconds before it fades the button has no
+ * black margin to sit in and lands in the bottom corner of the wall; opaque,
+ * it reads as something laid over the board rather than a cell of it. */
+.row100k .rr-full{position:absolute;right:18px;bottom:16px;z-index:2;-webkit-appearance:none;appearance:none;border:1px solid rgba(255,255,255,.4);background:#000;color:rgba(255,255,255,.82);font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;padding:7px 13px;cursor:pointer;transition:opacity .5s ease}
+.row100k .rr-full:hover{color:#fff;border-color:#fff}
+.row100k .rr-fit.idle .rr-full{opacity:0;pointer-events:none}
+.row100k .rr-fit.idle .rr-full:focus-visible{opacity:1;pointer-events:auto}
+.row100k .rr-fit.casting.idle{cursor:none}
+/* A phone is LOOKING at the wall, not running it, and the corner the button
+ * wants is the corner the caption is already in. */
+@media(max-width:767px){.row100k .rr-full{display:none}}
 
 /* ---- widths ---- */
 @media(min-width:620px){
