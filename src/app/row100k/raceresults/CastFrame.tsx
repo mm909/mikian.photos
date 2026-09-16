@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import {
+  boardRacers,
   bracketView,
   fmtAgo,
   fmtClock,
@@ -9,8 +10,9 @@ import {
   roomCounts,
   type ResultBoard,
 } from "./types";
+import { CastPicker } from "./CastPicker";
 import { CastShell } from "./CastShell";
-import { LeaderBox, Podium, WavePicker } from "./RaceResults";
+import { LeaderBox, Podium } from "./RaceResults";
 
 /* THE WALL. A frame built for a television in the gym, not the page scaled
  * up: exactly 1280 by 720, no site bar, no footer, nothing that scrolls,
@@ -31,9 +33,10 @@ import { LeaderBox, Podium, WavePicker } from "./RaceResults";
  * THE LANE STRIP AND THE GRID ARE ONE BLOCK NOW, WavePicker. The strip used
  * to be welded to the wave on the ergs and rendered NOTHING between waves, so
  * every half hour a 131px band vanished out of a frame clipped at exactly 720
- * and the television carried a hole for twenty minutes at a stretch. Nothing
- * on the wall is a control — no inputs, no focus, one pane — because nobody
- * standing in front of a television is holding a keyboard.
+ * and the television carried a hole for twenty minutes at a stretch. No
+ * inputs and nothing focusable on the wall — but a CLICK on a wave cell
+ * moves the panel (owner, 2026-09-16): CastPicker is the thin client wrapper
+ * that owns that pick, and its first paint is exactly this server frame.
  *
  * THE ROOM COLUMN WENT (owner, 2026-09-11). It was the three-cell counter —
  * rowed, on the ergs, still to come — sitting in 424px beside the grid, and
@@ -45,11 +48,14 @@ import { LeaderBox, Podium, WavePicker } from "./RaceResults";
  * THE GREY FLOOR IS HIGHER HERE. Nothing under .62 white inside the frame
  * (rrCss.ts) because .5 and .45 crush on a cheap TV in a bright gym.
  *
- * NOT AUTO-REFRESHING YET. The real surface wants a poll so a wall board
- * cannot silently freeze; the sample has nothing to poll, and the freshness
- * line is what makes a stale board look stale in the meantime — which is
- * exactly why the WALL prints the age too, and shouts it. The wall is the one
- * screen in the building nobody can interrogate.
+ * THE POLL IS ON THE PAGE, NOT IN HERE (raceday/results/Refresh.tsx, since
+ * 2026-09-16): every thirty seconds while the sheet is not posted and the tab
+ * is visible, the real page asks the router for itself again, so a wall board
+ * cannot silently freeze. The sample has nothing to poll. The freshness line
+ * still earns its place — a slow wave and a dead connection look the same
+ * from across a gym — which is exactly why the WALL prints the age too, and
+ * shouts it. The wall is the one screen in the building nobody can
+ * interrogate.
  *
  * THE ERG COUNT COMES IN AS A CUSTOM PROPERTY. The frame is clipped at 720,
  * so a lane strip whose column count is typed into the stylesheet wraps to a
@@ -92,8 +98,8 @@ export function CastFrame({
   const final = b.state === "finished";
   const men = bracketView(b, "M");
   const women = bracketView(b, "F");
-  const c = roomCounts(b.racers);
-  const fastest = ranked(b.racers)[0] ?? null;
+  const c = roomCounts(b);
+  const fastest = ranked(boardRacers(b))[0] ?? null;
   const stale = !final && b.nowMs - b.updatedAtMs > 5 * 60_000;
   /* Inline style objects carry no hydration-character risk, which is why the
    * count travels this way rather than through the style template. */
@@ -171,8 +177,9 @@ export function CastFrame({
               {/* ONE CALL WHERE THERE WERE TWO BLOCKS AND A DEAD COLUMN: the
                 * lane strip, the caption and the grid. The picker draws its
                 * own caption, five plain cells with no inputs and exactly one
-                * open pane, which is the wave the room is on. */}
-              <WavePicker board={b} cast pick={pick} />
+                * open pane — the wave the room is on, until somebody clicks
+                * another. */}
+              <CastPicker board={b} pick={pick} />
             </>
           )}
         </div>

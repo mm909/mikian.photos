@@ -6,6 +6,7 @@ import { metersText, tokensFor } from "@/components/home/digits";
 import { fmtRowerNumber, type Division, type RecordBadge, type SanityBand } from "@/lib/row100k";
 import { type MyRow } from "./MyRows";
 import { LogInPlace } from "./LogInPlace";
+import type { ShareData } from "./share/cards";
 
 /* The signed-in rower's top of the front page (owner call, 2026-09-05:
  * "almost the same as mikianmusser.com"): their meters in the landing's
@@ -46,6 +47,10 @@ export function Dashboard(props: {
   days?: number;
   /* The did-you-mean-that band for the log form (sanity.ts). */
   sanity?: SanityBand;
+  /* RACE DAY with the rower's own told wave on it (shareables/waveShare.ts)
+   * — unlocks MY WAVE in the share dialog. Absent until the wave note has
+   * gone out. */
+  race?: ShareData["race"];
   /* Dev preview only. */
   simulate?: boolean;
   simulateJustJoined?: boolean;
@@ -101,6 +106,7 @@ export function Dashboard(props: {
           days: props.days,
           masked: props.masked,
           digits: props.digits,
+          race: props.race,
         }}
         defaultDay={props.defaultDay}
         defaultTitle={props.defaultTitle}

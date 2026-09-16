@@ -81,9 +81,8 @@ function NoPhoto() {
  * of the two thumbs — the same size at every width, whether the row had
  * two photos, one or none — carrying THE ELITE in white mono with the two
  * squares of the brand after it (paper on ink, the way the elite table
- * flips its blocks), as a link to the elite list — the page picks the
- * target for the viewer (view.ts eliteListHref: the board for a rower,
- * the front page's public list for a reader). */
+ * flips its blocks), as a link to the board's elite block, for everyone
+ * (view.ts eliteListHref). */
 function EliteMark({ href }: { href: string }) {
   return (
     <a className="fd-elite" href={href}>
@@ -206,7 +205,8 @@ export function Strips({
 }: {
   items: FeedItem[];
   days: Record<string, DayTotal>;
-  /* Where THE ELITE mark links (view.ts eliteListHref, per viewer). */
+  /* Where THE ELITE mark links (view.ts eliteListHref: the board's elite
+   * block, for everyone). */
   eliteHref: string;
 }) {
   const [idx, setIdx] = useState<number | null>(null);

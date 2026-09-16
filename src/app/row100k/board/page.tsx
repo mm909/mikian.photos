@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
@@ -11,13 +12,14 @@ import {
   isRow100kAdmin,
   nowMs as clockNow,
 } from "@/lib/row100k";
-import { maskStandings } from "@/lib/blackoutRules";
+import { maskStandings, type BlackoutPolicy } from "@/lib/blackoutRules";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
+import { headCss } from "../headCss";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { Boards } from "../Boards";
 import { StatsShare } from "../StatsShare";
-import { JoinPanel } from "../JoinPanel";
+import { PageHead } from "../PageHead";
 import { BOARD_CARD_IDS } from "../share/cards";
 import { EMPTY_BOARDS, boardView } from "../boardData";
 import { readBlackoutPreview } from "@/lib/row100kViewer";
@@ -27,17 +29,21 @@ export const metadata: Metadata = {
   description: "Every rower's September, ranked by meters.",
 };
 
-// Session-gated + live standings — never render statically.
+// Session-aware + live standings — never render statically.
 export const dynamic = "force-dynamic";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
 /* THE BOARD, on its own page (owner call, 2026-09-05: the front page is the
- * front page of the newspaper; the standings moved to a tab). It is for
- * rowers: signed out you get the nameplate, one line and OPT IN — signed in,
- * joined or not, you get the board. Same boardView masking as before: an
- * open blackout hides the elite from everyone but admins and the
- * rower themself, and the sticker that leaves the site is masked for all. */
+ * front page of the newspaper; the standings moved to a tab). Open to
+ * everyone since 2026-09-16 (owner: no need to be logged in or opted in to
+ * see the board or the stats) — signed out you get the same board as a
+ * rower who has not logged, and one line at the bottom to opt in. Same
+ * boardView masking as before: an open blackout hides the elite from
+ * everyone but admins and the rower themself, and the sticker that leaves
+ * the site is masked for all. The head is PageHead (owner, 2026-09-16: no
+ * bold THE BOARD; the community total in the front page odometer; variant
+ * A picked for every tab the same day, so no ?head query any more). */
 export default async function BoardPage() {
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
@@ -57,25 +63,27 @@ export default async function BoardPage() {
   // The admin's test blackout (row100kViewer): the window is open for this
   // request, the admin is no admin for the mask, and under OUTSIDE IT not
   // themself either — so THE BOARD is the one everybody else gets.
+  // Signed out: no viewer, no admin — the public board, elite masked while
+  // a window is open.
   const preview = readBlackoutPreview(isAdmin);
   let boards = EMPTY_BOARDS;
   let blackout: { active: boolean; endsAt?: string } = { active: false };
-  if (actor) {
-    try {
-      const view = await boardView(
-        preview
-          ? {
-              viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
-              admin: false,
-              forceBlackout: true,
-            }
-          : { viewerParticipantId: me?.id, admin: isAdmin },
-      );
-      boards = view.boards;
-      blackout = view.blackout;
-    } catch (err) {
-      console.error("row100k/board: failed to load board data", err);
-    }
+  let policy: BlackoutPolicy | undefined;
+  try {
+    const view = await boardView(
+      preview
+        ? {
+            viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
+            admin: false,
+            forceBlackout: true,
+          }
+        : { viewerParticipantId: me?.id ?? null, admin: isAdmin },
+    );
+    boards = view.boards;
+    blackout = view.blackout;
+    policy = view.policy;
+  } catch (err) {
+    console.error("row100k/board: failed to load board data", err);
   }
 
   const nowMs = clockNow();
@@ -129,7 +137,9 @@ export default async function BoardPage() {
         // board's intent forward — the map is not the reason it works.
         unranked: r.unranked,
       })),
-      { active: blackout.active, admin: false },
+      // The same policy the board above was masked with (boardView), so
+      // the sticker hides exactly the rows the page did.
+      { active: blackout.active, admin: false, policy },
     ),
     asOf: fmtDay(new Date(nowMs - 7 * 3600_000).toISOString().slice(0, 10)),
   };
@@ -137,51 +147,59 @@ export default async function BoardPage() {
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{headCss}</style>
 
       <RowBar active="board" signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} admin={isAdmin} />
 
-      {/* No nameplate here — the bar already says ROWTEMBER and the board
-       * is the whole page; the dateline rides in the section eyebrow. */}
-      {actor ? (
-        <section id="board">
-          <div className="wrap front">
-            <div className="sec-head">
-              <h2>The board</h2>
-              {/* Nothing to say while the month is running (owner,
-               * 2026-09-06: the LIVE line came out) — a board that is up
-               * is live, and the eyebrow only earns its place once the
-               * month is closing or closed. */}
-              {nowMs >= END_MS && (
-                <span className="mono">
-                  {nowMs >= LOG_CLOSE_MS ? "FINAL" : "CLOSING — LATE LOGS THROUGH OCT 3"}
-                </span>
-              )}
-            </div>
-            {/* Only the slices the board reads. Boards is a client
-             * component, so whatever is handed in is serialized into the
-             * page source — and boardView masks only `total`; the record
-             * boards still hold every elite rower's real seconds and
-             * meters, which the board never prints (review, 2026-09-05). */}
-            <Boards
-              boards={{ total: boards.total, community: boards.community }}
-              started={started}
-              blackout={blackout}
+      <section id="board" className="ph-sec">
+        <div className="wrap front">
+          {/* The head: the dateline carries the month's state (FINAL, LATE
+           * LOGS THROUGH OCT 3), so the old eyebrow has nothing left to
+           * say. The number is the community total — a sum, nobody's own
+           * figure, so the blackout never touches it. */}
+          <PageHead
+            name="The board"
+            dateline={dateline}
+            meters={boards.community.meters}
+            unit={
+              <>
+                Meters · <b>everyone together</b>
+              </>
+            }
+            wide
+          />
+          {/* Only the slices the board reads. Boards is a client
+           * component, so whatever is handed in is serialized into the
+           * page source — and boardView masks only `total`; the record
+           * boards still hold every elite rower's real seconds and
+           * meters, which the board never prints (review, 2026-09-05).
+           * head off: the number is printed above, once. */}
+          <Boards
+            boards={{ total: boards.total, community: boards.community }}
+            started={started}
+            blackout={blackout}
+            head={false}
+          />
+          {started && boards.total.length > 0 && (
+            <StatsShare
+              community={boardShare}
+              prefer={BOARD_CARD_IDS[0]}
+              only={BOARD_CARD_IDS}
+              label="SHARE THE BOARD"
             />
-            {started && boards.total.length > 0 && (
-              <StatsShare
-                community={boardShare}
-                prefer={BOARD_CARD_IDS[0]}
-                only={BOARD_CARD_IDS}
-                label="SHARE THE BOARD"
-              />
-            )}
-          </div>
-        </section>
-      ) : (
-        <section id="join" className="fs front-cta">
+          )}
+        </div>
+      </section>
+
+      {/* Not on the board yet — signed out or not joined: one line to the
+       * front page's join section, where OPT IN (and the form) live. The
+       * front page already carries the full call. */}
+      {!me && phase !== "closed" && (
+        <section className="fs front-cta">
           <div className="wrap front">
-            <p className="front-latest mono">THE BOARD IS FOR ROWERS — OPT IN TO SEE IT</p>
-            <JoinPanel mode="signedOut" />
+            <p className="front-more mono">
+              <Link href="/row100k#join">Not on the board yet? Opt in →</Link>
+            </p>
           </div>
         </section>
       )}

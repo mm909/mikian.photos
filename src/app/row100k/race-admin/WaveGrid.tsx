@@ -3,17 +3,13 @@
 import { fmtRowerNumber } from "@/lib/row100k";
 import { waveCount, waveTime, type RaceDef } from "../raceday";
 import type { Racer } from "../racedayData";
+import { bySeed } from "../wavePlan";
 
 /* THE SEED — quickest 5k first, a rower with no time at the back, rower
- * number to break a tie. The same order the route lays the waves out in
- * (api/row100k/raceday/waves), so what the console shows and what the
+ * number to break a tie. It is wavePlan.ts's own comparator (the one the
+ * route lays the waves out with), so what the console shows and what the
  * database holds cannot read differently. */
-export function bySeed(a: Racer, b: Racer): number {
-  const at = a.best5k ? a.best5k.seconds : Number.POSITIVE_INFINITY;
-  const bt = b.best5k ? b.best5k.seconds : Number.POSITIVE_INFINITY;
-  if (at !== bt) return at - bt;
-  return a.rowerNumber - b.rowerNumber;
-}
+export { bySeed };
 
 /* THE GRID — wave 1 when the first wave goes off, wave 2 race.waveMinutes
  * after it, who is in each and how full it is against the ergs on the floor

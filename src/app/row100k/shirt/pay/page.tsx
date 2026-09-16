@@ -11,6 +11,14 @@ import { PayButton } from "./PayButton";
 
 export const dynamic = "force-dynamic";
 
+/* RETIRED for now (owner, 2026-09-16: "we can retire the shirt page and
+ * the gallery page for now"): the page 404s for everyone, admins included.
+ * Flip this one const to bring it back. The month-end email
+ * (shirtEmail.ts settledEmail, sent by /api/row100k/shirt/settle) still
+ * points its pay button here, so do not settle the month while this is
+ * retired. */
+const RETIRED = true;
+
 export const metadata: Metadata = {
   title: "Your shirt — 100K September",
   robots: { index: false, follow: false },
@@ -20,6 +28,7 @@ export const metadata: Metadata = {
  * own shirt and, if it was billed, the $20 button. Nothing else lives
  * here: not a shop, not a way to change a size. */
 export default async function ShirtPayPage() {
+  if (RETIRED) notFound();
   const viewer = await resolveViewer();
   // Dev only for now — the whole shop answers only to an admin in production.
   if (!shopOpenFor(viewer.isAdmin)) notFound();

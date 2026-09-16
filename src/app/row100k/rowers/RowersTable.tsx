@@ -19,8 +19,9 @@ import { formatTimeDigits } from "../LogRow";
  * page folded into ONE admin table on /row100k/signups. Every rower on a
  * .board row — number, name, board, instagram, joined, meters rowed,
  * sessions — with a ... menu on the right end (rows, profile, instagram,
- * copy email, remove rower). Clicking a rower opens their log inside the
- * same table: day, title, meters, time, split, and EDIT / REMOVE on every
+ * copy email, download csv, remove rower). Clicking a rower opens their
+ * log inside the same table: day, title, meters, time, split, and EDIT /
+ * REMOVE on every
  * row, through the same PATCH / DELETE routes the ledger uses. Two-tap
  * confirms (SURE? / KEEP) for anything that deletes; no modal. Under 640px
  * instagram, joined and sessions leave the table (.rw-x) and the open
@@ -372,6 +373,11 @@ export function RowersTable({
                               <button type="button" disabled={!r.email} onClick={() => void copyEmail(r)}>
                                 {copied === r.id ? "Copied" : r.email ? "Copy email" : "No email"}
                               </button>
+                              {/* This rower's rows as a CSV (owner, 2026-09-16) — the
+                                  admin-only export route names the file. */}
+                              <a href={`/api/row100k/export?rower=${r.rowerNumber}`} download onClick={closeMenu}>
+                                Download CSV →
+                              </a>
                               {confirmRower === r.id ? (
                                 <>
                                   <button

@@ -91,27 +91,27 @@ export function PaceCurve({ pts }: { pts: PacePoint[] }) {
         >
           {yTicks.map((s) => (
             <g key={s}>
-              <line x1={L} x2={W - R} y1={y(s)} y2={y(s)} stroke="#dddbd2" strokeWidth="1" strokeDasharray="3 4" />
-              <text x={L - 8} y={y(s) + 3} textAnchor="end" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+              <line x1={L} x2={W - R} y1={y(s)} y2={y(s)} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 4" />
+              <text x={L - 8} y={y(s) + 3} textAnchor="end" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
                 {clock(s).slice(0, -2)}
               </text>
             </g>
           ))}
-          <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="#15171a" strokeWidth="2" />
+          <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="var(--ink)" strokeWidth="2" />
           {xTicks.map((m) => (
-            <text key={m} x={x(m)} y={H - 8} textAnchor={m === maxM ? "end" : "middle"} fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+            <text key={m} x={x(m)} y={H - 8} textAnchor={m === maxM ? "end" : "middle"} fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
               {abbr(m)}
             </text>
           ))}
-          <text x={L} y={H - 8} textAnchor="start" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+          <text x={L} y={H - 8} textAnchor="start" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
             0
           </text>
-          <path d={path} fill="none" stroke="#0077B6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <path d={path} fill="none" stroke="var(--water)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {pts.map((p, i) => (
-            <circle key={i} cx={x(p.m)} cy={y(p.s)} r={i === pts.length - 1 ? 4.5 : 2.2} fill="#0077B6" />
+            <circle key={i} cx={x(p.m)} cy={y(p.s)} r={i === pts.length - 1 ? 4.5 : 2.2} fill="var(--water)" />
           ))}
-          {h && <line x1={x(h.m)} x2={x(h.m)} y1={T} y2={H - B} stroke="#15171a" strokeWidth="1" strokeDasharray="2 3" />}
-          <text x={Math.min(x(last.m), W - R - 4)} y={Math.max(y(last.s) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="#15171a" fontFamily="var(--row-mono), monospace">
+          {h && <line x1={x(h.m)} x2={x(h.m)} y1={T} y2={H - B} stroke="var(--ink)" strokeWidth="1" strokeDasharray="2 3" />}
+          <text x={Math.min(x(last.m), W - R - 4)} y={Math.max(y(last.s) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--ink)" fontFamily="var(--row-mono), monospace">
             {clock(last.s)} /500M
           </text>
         </svg>

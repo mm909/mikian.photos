@@ -21,22 +21,38 @@
  * standing (racedaySettings.ts), and a race with an unreadable field or an
  * unreachable bucket is still an ad. */
 
+import { db } from "@/lib/db";
+import { CHALLENGE } from "@/lib/row100k";
 import type { RaceDef } from "../raceday";
 import { listRacers } from "../racedayData";
 import { resolvedRace } from "../racedaySettings";
-import { raceDayPoster, type RaceField } from "./raceAssemble";
+import { raceDayPoster, raceFieldOf, type RaceField } from "./raceAssemble";
 import { racePhoto } from "./racePhoto";
 import type { RaceDayPoster } from "./types";
 
+/* The counts the bill prints and, since 2026-09-16, the START LIST the
+ * field artwork prints (owner: "a poster showing what racers are coming to
+ * race day"). raceFieldOf is pure and does the ordering; this is only the
+ * read. A withdrawal is a fact, not a delete (racedayData.ts), so the field
+ * is as it stands, not as it was.
+ *
+ * listRacers fails open on its own — a signup read that throws comes back
+ * as the SAME empty list a field nobody has joined does — and the one
+ * thing a start list must never do is say nobody is coming because the
+ * database hiccuped (review, 2026-09-16). So an empty list is asked one
+ * more question before it is believed: a count of the signup rows. A count
+ * that throws, or that finds rows the list did not, is a failed read, and
+ * the null it becomes is what disables the field chip in the studio; a
+ * count of zero is an honest NOBODY IN YET. A list with names in it is
+ * never re-asked. */
 async function raceField(race: RaceDef): Promise<RaceField | null> {
   try {
-    // A withdrawal is a fact, not a delete (racedayData.ts), so the count
-    // the ad prints is the field as it stands, not as it was.
-    const live = (await listRacers(race)).filter((r) => !r.withdrewAt);
-    return {
-      racers: live.filter((r) => r.role === "racer").length,
-      spectators: live.filter((r) => r.role === "spectator").length,
-    };
+    const racers = await listRacers(race);
+    if (racers.length === 0) {
+      const n = await db.rowRaceSignup.count({ where: { challenge: CHALLENGE, race: race.slug } });
+      if (n > 0) throw new Error(`the signup list came back empty for ${n} rows`);
+    }
+    return raceFieldOf(race, racers);
   } catch (err) {
     console.error("row100k/poster: race day field read failed", err);
     return null;

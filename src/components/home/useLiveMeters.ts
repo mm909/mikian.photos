@@ -6,12 +6,14 @@ import type { MeterSnapshot } from "@/lib/homeStats";
 /* The erg-monitor engine behind the landing counter.
  *
  * The number on screen counts up the way a Concept2 monitor does: one meter
- * at a time, at a split. The split is drawn from the field's own pace
- * (mean and SD over every logged row, from the server) — a fresh draw at
- * the start and again every SAMPLE_EVERY_M of displayed advance, so the
- * rhythm drifts the way a real row does instead of running at one flat
- * average. Every tick is a whole meter (a couple at most): the ones wheel
- * turns one glyph, the tens wheel every tenth tick (owner's call,
+ * at a time, at a split. The resting split is fixed: FIXED_SPLIT_S, 1:59.9
+ * per 500 m, one meter every 239.8 ms — no random draw, no re-sample, no
+ * drift (owner, 2026-09-16: the wheels used to draw a split from the
+ * field's pace distribution, splitMean/splitSd from the server, and draw
+ * again every 500 m, so the rhythm wandered; the owner wants exactly
+ * 1:59.9). splitMean/splitSd still arrive in the snapshot but no longer
+ * touch the tempo. Every tick is a whole meter (a couple at most): the ones
+ * wheel turns one glyph, the tens wheel every tenth tick (owner's call,
  * 2026-09-05 — the old debt-clock model advanced by the challenge rate and
  * jumped 3–5 m a tick).
  *
@@ -82,13 +84,20 @@ const LEAD_HOURS = 1;
 const LEAD_FLOOR_M = 2000;
 export const LEAD_MAX_M = 8000;
 
-/* A drawn split governs this much displayed advance, then a new one is drawn. */
+/* The resting split, seconds per 500 m: 1:59.9, so one meter every
+ * 119.9 / 500 * 1000 = 239.8 ms (owner, 2026-09-16). Not drawn, not
+ * re-sampled, never drifts. */
+export const FIXED_SPLIT_S = 119.9;
+
+/* Meters in a split. Until 2026-09-16 also how much displayed advance a
+ * drawn split governed before the next draw; now only the denominator in
+ * stepMs. */
 export const SAMPLE_EVERY_M = 500;
 
-/* Bounds on a drawn split, seconds per 500 m. The floor is set by the
- * wheels: 85 s /500 m is 170 ms a meter, the everyday one-glyph roll in
- * Home.tsx, so at rest a roll always finishes before the next tick. The
- * ceiling keeps a slow field from reading as a stalled counter. */
+/* Bounds a drawn split used to be clamped to. Kept for importers; the
+ * fixed split sits inside them. The floor still documents the wheels:
+ * 85 s /500 m is 170 ms a meter, the one-glyph roll in Home.tsx, so at
+ * 239.8 ms a tick the roll settles with ~70 ms to spare. */
 export const SPLIT_MIN_S = 85;
 export const SPLIT_MAX_S = 240;
 
@@ -136,15 +145,18 @@ export const EASE_ZONE = 0.25;
 export const EASE_MAX = 4;
 export const CRAWL_MS = 8000;
 
-/* Standard normal via Box-Muller. 1 - u keeps the log away from zero. */
+/* Standard normal via Box-Muller. 1 - u keeps the log away from zero.
+ * No longer behind the tempo; kept for importers. */
 export function gaussian(): number {
   const u = 1 - Math.random();
   const v = Math.random();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-export function sampleSplit(mean: number, sd: number, rnd: () => number = gaussian): number {
-  return Math.min(SPLIT_MAX_S, Math.max(SPLIT_MIN_S, mean + sd * rnd()));
+/* Once a draw from the field's pace, clamped to the bounds above; since
+ * 2026-09-16 every split is the fixed one. Signature kept for callers. */
+export function sampleSplit(_mean: number, _sd: number, _rnd: () => number = gaussian): number {
+  return FIXED_SPLIT_S;
 }
 
 /* Milliseconds per meter at a split. */
@@ -156,18 +168,16 @@ export type Ticker = ReturnType<typeof createTicker>;
 
 /* The pure engine: no React, no timers, no wall clock of its own — every
  * call is handed `now`, so it runs the same under a 20 ms interval and
- * under a simulation with virtual time. `rnd` is the standard-normal draw
- * behind each split, injectable for a seeded test. */
-export function createTicker(init: TickerInput, now: number, rnd: () => number = gaussian) {
+ * under a simulation with virtual time. `rnd` once seeded the split draw;
+ * the split is fixed now and it is ignored (signature kept). */
+export function createTicker(init: TickerInput, now: number, _rnd: () => number = gaussian) {
   let display = init.meters;
   let truth = init.meters;
   let rate = init.rate;
-  let mean = init.splitMean;
-  let sd = init.splitSd;
-  let split = sampleSplit(mean, sd, rnd);
+  // The one tempo the wheels rest at; init.splitMean/splitSd are ignored.
+  const split = FIXED_SPLIT_S;
   // When the next step is owed. Absolute, so timer jitter never accumulates.
   let due = now + stepMs(split);
-  let sinceSample = 0;
 
   const capLead = () => Math.min(LEAD_MAX_M, Math.max(LEAD_FLOOR_M, rate * 3600 * LEAD_HOURS));
 
@@ -198,11 +208,6 @@ export function createTicker(init: TickerInput, now: number, rnd: () => number =
     while (due <= at) {
       const size = truth - display > STEP2_M ? 2 : 1;
       display += size;
-      sinceSample += size;
-      if (sinceSample >= SAMPLE_EVERY_M) {
-        split = sampleSplit(mean, sd, rnd);
-        sinceSample = 0;
-      }
       // Timed from where the step left the display, so the step that
       // reaches the cap is the one that starts the crawl.
       due += interval();
@@ -224,10 +229,7 @@ export function createTicker(init: TickerInput, now: number, rnd: () => number =
     }
     truth = t;
     rate = d.rate;
-    // The pace shape is taken on trust only when it is a pace: a malformed
-    // body keeps the distribution the wheels are already ticking on.
-    if (Number.isFinite(d.splitMean) && d.splitMean > 0) mean = d.splitMean;
-    if (Number.isFinite(d.splitSd) && d.splitSd >= 0) sd = d.splitSd;
+    // d.splitMean / d.splitSd are ignored: the split is fixed (2026-09-16).
     // A lifted board shortens the interval (a sprint to catch up, or a cap
     // that just released a crawl): the next step is owed no later than
     // that, never sooner than it already was.
@@ -273,8 +275,8 @@ export function useLiveMeters(
   // their roll off it so a sprint never leaves them trailing the number.
   const [tempo, setTempo] = useState(0);
 
-  // Built on mount, never during render: it draws a split (Math.random)
-  // and reads the clock, neither of which the server render may depend on.
+  // Built on mount, never during render: it reads the clock, which the
+  // server render may not depend on.
   const ticker = useRef<Ticker | null>(null);
   const engine = () => (ticker.current ??= createTicker(initial, Date.now()));
 

@@ -11,6 +11,12 @@ import { SettlePanel } from "./SettlePanel";
 
 export const dynamic = "force-dynamic";
 
+/* RETIRED for now (owner, 2026-09-16: "we can retire the raffles page and
+ * the shop page for now"): the page 404s for everyone, admins included.
+ * Flip this one const to bring it back. The shirt API routes, the orders
+ * listing and the month-end settlement code all stay as they are. */
+const RETIRED = true;
+
 export const metadata: Metadata = {
   title: "Shop administration — 100K September",
   robots: { index: false, follow: false },
@@ -24,6 +30,7 @@ export const metadata: Metadata = {
  * admin pages; the buy page is /row100k/dev/shirts. Real numbers always —
  * this is the owner's ledger, so the blackout never touches it. */
 export default async function ShopAdminPage() {
+  if (RETIRED) notFound();
   const viewer = await resolveViewer();
   if (!viewer.actor || !viewer.isAdmin) notFound();
 

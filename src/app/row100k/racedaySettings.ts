@@ -65,6 +65,13 @@ export type RaceSettingsView = {
   /* "6:00 – 9:00 PM", already derived, so the panel never types the hours
    * out either. */
   hours: string;
+  /* THE SHEET IS POSTED (owner, 2026-09-16): epoch ms when the results
+   * went final, null while the night is running or before it. Not an
+   * override of anything in raceday.ts — there is no code default to fall
+   * back to — so it rides beside the overrides, not inside them. The
+   * timing verbs (raceResults.ts setFinal) write it through saveRaceFinal
+   * below; the results board reads it through raceFinalAt. */
+  finalAt: number | null;
   defaults: {
     opensAt: number;
     endsAt: number;
@@ -78,9 +85,10 @@ export type RaceSettingsView = {
 
 /* ------------------------------------------------------------------ read */
 
-/* THE ONE QUERY. Throws on a database failure; the two readers below are
- * the same read with two different answers to what a failure costs. */
-async function readOverrides(slug: string): Promise<RaceOverrides> {
+/* THE ONE QUERY. Throws on a database failure; the readers below are the
+ * same read with different answers to what a failure costs. Carries
+ * finalAt beside the overrides so raceWithSettings still costs one read. */
+async function readSettingsRow(slug: string): Promise<{ overrides: RaceOverrides; finalAt: number | null }> {
   const row = await db.rowRaceSettings.findUnique({
     where: { challenge_race: { challenge: CHALLENGE, race: slug } },
     select: {
@@ -91,9 +99,10 @@ async function readOverrides(slug: string): Promise<RaceOverrides> {
       waveSize: true,
       photoKey: true,
       photoBw: true,
+      finalAt: true,
     },
   });
-  if (!row) return {};
+  if (!row) return { overrides: {}, finalAt: null };
   const o: RaceOverrides = {};
   /* Dates in, epoch ms out — RaceOverrides is plain numbers so it can
    * cross to a client component without a Date turning into a string. */
@@ -107,7 +116,11 @@ async function readOverrides(slug: string): Promise<RaceOverrides> {
   /* The one column that cannot be null: a row always carries a bw answer,
    * and its database default is the same true the code has. */
   o.photoBw = row.photoBw;
-  return o;
+  return { overrides: o, finalAt: row.finalAt ? row.finalAt.getTime() : null };
+}
+
+async function readOverrides(slug: string): Promise<RaceOverrides> {
+  return (await readSettingsRow(slug)).overrides;
 }
 
 /* The overrides sitting over one race, or an empty set when there is no row
@@ -120,6 +133,25 @@ export async function raceOverrides(slug: string): Promise<RaceOverrides> {
     console.error(`row100k raceday: settings read failed for ${slug} — the code default stands`, err);
     return {};
   }
+}
+
+/* IS THE SHEET POSTED — epoch ms, or null. Fails open to null with a
+ * console.error: a board that cannot read the switch draws as mid-race,
+ * which withholds the podium rather than inventing one. */
+export async function raceFinalAt(slug: string): Promise<number | null> {
+  try {
+    return (await readSettingsRow(slug)).finalAt;
+  } catch (err) {
+    console.error(`row100k raceday: finalAt read failed for ${slug} — treating the sheet as not posted`, err);
+    return null;
+  }
+}
+
+/* The same read without the net, for the writes that must not fail open:
+ * a racer posting a time while the switch cannot be read is refused, not
+ * waved through. */
+export async function raceFinalAtStrict(slug: string): Promise<number | null> {
+  return (await readSettingsRow(slug)).finalAt;
 }
 
 /* THE SAME READ WITHOUT THE NET, for the one caller that must not fail open:
@@ -138,8 +170,14 @@ export async function raceOverridesStrict(slug: string): Promise<RaceOverrides> 
  * allowed to be the thing that breaks a page. */
 export async function raceWithSettings(slug?: string): Promise<{ race: RaceDef; view: RaceSettingsView }> {
   const base = (slug ? raceBySlug(slug) : null) ?? currentRace();
-  const race = withOverrides(base, await raceOverrides(base.slug));
-  return { race, view: settingsView(base, race) };
+  let stored: { overrides: RaceOverrides; finalAt: number | null } = { overrides: {}, finalAt: null };
+  try {
+    stored = await readSettingsRow(base.slug);
+  } catch (err) {
+    console.error(`row100k raceday: settings read failed for ${base.slug} — the code default stands`, err);
+  }
+  const race = withOverrides(base, stored.overrides);
+  return { race, view: settingsView(base, race, stored.finalAt) };
 }
 
 /* The race as it stands. THE function every server surface should call. */
@@ -147,7 +185,7 @@ export async function resolvedRace(slug?: string): Promise<RaceDef> {
   return (await raceWithSettings(slug)).race;
 }
 
-function settingsView(base: RaceDef, race: RaceDef): RaceSettingsView {
+function settingsView(base: RaceDef, race: RaceDef, finalAt: number | null): RaceSettingsView {
   return {
     slug: base.slug,
     day: base.day,
@@ -159,6 +197,7 @@ function settingsView(base: RaceDef, race: RaceDef): RaceSettingsView {
     photoKey: race.photo.key,
     photoBw: race.photo.bw,
     hours: hoursLine(race),
+    finalAt,
     defaults: {
       opensAt: base.opensAt,
       endsAt: base.endsAt,
@@ -279,5 +318,18 @@ export async function saveRaceOverrides(slug: string, patch: RaceSettingsPatch, 
     where: { challenge_race: { challenge: CHALLENGE, race: slug } },
     create: { challenge: CHALLENGE, race: slug, ...data },
     update: data,
+  });
+}
+
+/* POST THE SHEET, or take it back down (owner, 2026-09-16). One column,
+ * its own write, so posting the results can never touch a wave time. `at`
+ * is the instant to stamp (the caller's clock); off writes null. Throws on
+ * a database failure — the route turns that into a 503. */
+export async function saveRaceFinal(slug: string, on: boolean, who: string, at: number = Date.now()): Promise<void> {
+  const finalAt = on ? new Date(at) : null;
+  await db.rowRaceSettings.upsert({
+    where: { challenge_race: { challenge: CHALLENGE, race: slug } },
+    create: { challenge: CHALLENGE, race: slug, finalAt, updatedBy: who.slice(0, 200) },
+    update: { finalAt, updatedBy: who.slice(0, 200) },
   });
 }

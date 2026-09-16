@@ -52,28 +52,36 @@ import { CARDS, RACE_CARD_IDS, type ShareData } from "../share/cards";
  * What belongs here is the race. */
 
 /* The race block as the page hands it over: display-ready, upper-cased, and
- * derived off the race AS IT STANDS the way the bill above is. It used to
- * be this type MINUS `mine`, the viewer's own half; there is no `mine` on a
- * race payload any more, so the two are the same thing again. */
+ * derived off the race AS IT STANDS the way the bill above is. `mine` is on
+ * it again since 2026-09-16, for ONE card — MY WAVE — and only when the
+ * caller (SignupPanel) has a wave the rower has been TOLD; the bill and the
+ * name still read nothing about the viewer. */
 export type RaceFacts = NonNullable<ShareData["race"]>;
 
-/* The cards this surface may open — two since 2026-09-12, the bill and the
- * name alone — taken off the registry rather than by name, so warming them
- * here and drawing them there cannot drift. */
+/* The cards this surface may open — the bill, the name alone and, for a
+ * told wave, MY WAVE — taken off the registry rather than by name, so
+ * warming them here and drawing them there cannot drift. */
 const RACE_CARDS = CARDS.filter((c) => RACE_CARD_IDS.includes(c.id));
 
 export function RaceShare({
   facts,
   rowerNumber = 0,
+  displayName = "",
   label,
   btn = "outline-btn",
+  prefer,
 }: {
   facts: RaceFacts;
-  /* Only ever the download filename and the usage ping — the card prints no
-   * number. 0 where there is no rower, the way the community cards ride. */
+  /* The download filename and the usage ping — and, with `facts.mine` set,
+   * the number MY WAVE prints. 0 where there is no rower, the way the
+   * community cards ride. */
   rowerNumber?: number;
+  /* Printed by MY WAVE alone; empty everywhere else. */
+  displayName?: string;
   label: string;
   btn?: string;
+  /* The card to open on — SignupPanel names MY WAVE once there is one. */
+  prefer?: string;
 }) {
   const [open, setOpen] = useState(false);
   /* The house mark has landed. Nothing on the card reads this; see the memo. */
@@ -81,11 +89,10 @@ export function RaceShare({
 
   const payload = useMemo<ShareData>(
     () => ({
-      /* THE ZEROES. Every one of these is a field no card in RACE_CARD_IDS
-       * so much as looks at — the bill carries no name, no number and no
-       * meters — and `only` is what guarantees nothing else can be reached
-       * to print them. */
-      displayName: "",
+      /* THE ZEROES. The bill and the name look at none of these; MY WAVE
+       * prints the number and the name and nothing else — no meters — and
+       * `only` is what guarantees nothing else can be reached to print them. */
+      displayName,
       rowerNumber,
       instagram: "",
       meters: 0,
@@ -93,7 +100,7 @@ export function RaceShare({
       byDay: {},
       race: facts,
     }),
-    [facts, rowerNumber],
+    [facts, rowerNumber, displayName],
   );
 
   /* WARM THE HOUSE MARK ON MOUNT, not on the press. The PNG is the same
@@ -136,11 +143,18 @@ export function RaceShare({
       >
         {label}
       </button>
-      {/* No preferredCardId: ShareDialog opens on the first card of the pool
-        * and CARDS orders the bill above the name, so this still opens on the
-        * bill — the picture already printed down the page, and the one a
-        * stranger can act on. Stripping it back is a chip away. */}
-      <ShareDialog data={data} open={open} onClose={() => setOpen(false)} only={RACE_CARD_IDS} />
+      {/* With no `prefer` ShareDialog opens on the first card of the pool
+        * and CARDS orders the bill above the name, so the tear-off opens on
+        * the bill — the picture already printed down the page, and the one a
+        * stranger can act on. A rower's own block names MY WAVE once the
+        * note has gone out. */}
+      <ShareDialog
+        data={data}
+        open={open}
+        onClose={() => setOpen(false)}
+        only={RACE_CARD_IDS}
+        preferredCardId={prefer}
+      />
     </>
   );
 }

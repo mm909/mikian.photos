@@ -16,3 +16,8 @@ export { rowerLayout } from "./rower";
  * cuts or fills. `raceLayoutFor` picks; poster/raceGround.ts is what paints
  * any of the three. */
 export { raceDayLayout, raceDayOverlayLayout, raceDayPhotoLayout, raceLayoutFor } from "./raceday";
+
+/* And a FOURTH time for THE FIELD — the start list (owner, 2026-09-16), the
+ * bill's masthead and head over the names by wave, on ink alone. Its own
+ * plans, its own file; raceGround.ts picks it by artwork, not by ground. */
+export { raceDayFieldLayout } from "./raceField";

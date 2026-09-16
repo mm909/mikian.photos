@@ -4,8 +4,9 @@
  * quotes, apostrophes, angle brackets or ampersands anywhere in the
  * string (React escapes them inside a style tag — see theme.ts).
  *
- * The probes and the button are the post pack's (.pk-probe / .pk-btn in
- * post/page.tsx) under this prefix, because pkCss only ships on /post. The
+ * The probes and the button were the post pack's (.pk-probe / .pk-btn),
+ * carried over under this prefix; the post pack itself is retired
+ * (2026-09-16), so these are the only copies now. The
  * roster panel reuses the theme's .pf-find-* rules as they are — they hang
  * under whatever is position:relative above them, which here is
  * .po-subject.
@@ -54,6 +55,9 @@ export const poCss = `
 .row100k .po-log summary{cursor:pointer;color:var(--water);letter-spacing:.12em;text-transform:uppercase;font-size:10px}
 .row100k .po-log pre{white-space:pre-wrap;word-break:break-word;font-size:10px;line-height:1.6;max-height:50vh;overflow:auto;margin-top:8px}
 .row100k .po-first{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--water);font-weight:700;margin-top:18px}
+.row100k .po-print{margin-top:22px;border-top:1px dashed var(--line);padding-top:14px;max-width:640px}
+.row100k .po-print p{font-family:var(--row-mono),monospace;font-size:11px;line-height:1.75;color:var(--ink-soft);margin:0 0 8px}
+.row100k .po-print .po-eye{margin-bottom:8px}
 @media (max-width:599px){
   .row100k .po-btn{padding:14px 16px}
   .row100k .po-acts .po-btn.primary{flex:1 1 auto}

@@ -8,7 +8,7 @@ import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } fro
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout } from "../poster/layouts";
 import { POSTER_STOCKS } from "../poster/paint";
-import { RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
+import { RACE_ARTWORKS, RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
   CommunityPoster,
   FontBox,
@@ -22,6 +22,7 @@ import type {
   PosterRenderTarget,
   PosterRosterRower,
   PosterStock,
+  RaceArtwork,
   RaceDayPoster,
   RowerPoster,
 } from "../poster/types";
@@ -34,13 +35,19 @@ import type {
  * Two canvases, never mounted: the preview (about a thousand pixels wide,
  * drawn at once on every change) and the full-res render, which follows
  * after a 300 ms debounce and whose blobs are KEPT — SHARE has to build
- * its File synchronously inside the tap, the way post/PostPack.tsx does,
+ * its File synchronously inside the tap (the retired post pack's rule),
  * or iOS refuses the share sheet. Only one full-res canvas is alive at a
  * time and it is freed the moment it has been encoded.
  *
+ * PUBLIC since 2026-09-16 (owner: "make the posters public. Only the
+ * racer's copy"): anyone may draw any rower's poster off the public
+ * board; Rowtember and race day are admin-only subjects (`rowerOnly`).
+ * Every print renders at formats.ts PRINT_PPI — the 150 / 300 chip and
+ * the four hand-out sizes came off the same day.
+ *
  * Fonts: next/font hashes the family names, so the real names — and the
  * line boxes those families make — are read off three laid-out probes
- * (PostPack.readFonts + boxOf under the .po- prefix), and every face is
+ * (readFonts + boxOf under the .po- prefix), and every face is
  * loaded through document.fonts.load with the poster's glyph set before
  * the first draw: the unicode-range subsets load lazily and the metric
  * override fallbacks report "loaded" too, so fonts.check is not proof. */
@@ -74,6 +81,10 @@ const raceWords = (d: RaceDayPoster | null | undefined): string =>
         d.race.room,
         "SIGN UP",
         ...d.race.roles.map((r) => r.label),
+        /* THE FIELD sets every name on the start list in Archivo 700 and
+         * the wave eyebrows in mono (poster/raceField.ts, 2026-09-16), so
+         * an accented name has to be in the sample too. */
+        ...(d.field ? [d.field.counts, ...d.field.waves.map((w) => w.label), ...d.field.list.map((r) => r.name)] : []),
       ].join(" ")
     : "";
 
@@ -105,7 +116,7 @@ const BEHIND = {
 
 const PROBE_SIZE = 100;
 
-/* PostPack.boxOf: the probe is one line at PROBE_SIZE with
+/* boxOf (the retired post pack's idiom): the probe is one line at PROBE_SIZE with
  * line-height:normal, so its height IS the normal line height, and the
  * zero-sized strut inside sits on the baseline. */
 function boxOf(probe: HTMLElement | null): FontBox | undefined {
@@ -120,7 +131,7 @@ function boxOf(probe: HTMLElement | null): FontBox | undefined {
   return { lh, baseline };
 }
 
-/* PostPack.saveBlob: object URL, a download anchor, click, revoke later. */
+/* saveBlob: object URL, a download anchor, click, revoke later. */
 function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -132,10 +143,10 @@ function saveBlob(blob: Blob, name: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/* PostPack.loadImage: once per URL, never rejects. The marks are
- * same-origin; the race photograph is not — it comes off R2 — so CORS is
- * armed BEFORE src exactly the way the post pack does it, or the canvas it
- * is drawn into is tainted and toPng throws a SecurityError. A bucket that
+/* loadImage: once per URL, never rejects. The marks are same-origin; the
+ * race photograph is not — it comes off R2 — so CORS is armed BEFORE src,
+ * or the canvas it is drawn into is tainted and toPng throws a
+ * SecurityError. A bucket that
  * refuses the CORS fetch fails the load, which resolves null and costs the
  * picture rather than the studio. */
 const imgCache = new Map<string, Promise<HTMLImageElement | null>>();
@@ -217,12 +228,19 @@ export type PosterStudioProps = {
   initialStock?: PosterStock;
   /* The subject is fixed (the rower's own page): no SUBJECT chips. */
   fixed?: boolean;
+  /* The public studio (owner, 2026-09-16: "only the racer's copy"): one
+   * rower is the only subject, so the Rowtember and race day chips are not
+   * offered. The page never fetches those payloads for a non-admin either;
+   * this only hides the chips. The dev fixture and an admin leave it off. */
+  rowerOnly?: boolean;
   /* The dev fixture: the layout log and the payload under the preview. */
   dev?: boolean;
-  /* Dev: the ppi the ladder must refuse (?noprobe=300) so the fallback
+  /* Dev: the ppi the ladder must refuse (?noprobe=150) so the fallback
    * path is exercised on a desktop that can allocate anything. */
   refusePpi?: PosterPpi | null;
-  /* Where the SUBJECT chips go. The rower href gets the number appended. */
+  /* Where the SUBJECT chips go. The rower href gets the number appended;
+   * the community href carries ?subject=rowtember because a joined
+   * viewer's no-query default is their own rower (posters/page.tsx). */
   hrefs?: { community: string; rowerPrefix: string };
   initialFormat?: PosterFormatKey;
 };
@@ -236,9 +254,10 @@ export function PosterStudio({
   initialStock,
   roster,
   fixed,
+  rowerOnly,
   dev,
   refusePpi,
-  hrefs = { community: "/row100k/posters", rowerPrefix: "/row100k/posters?r=" },
+  hrefs = { community: "/row100k/posters?subject=rowtember", rowerPrefix: "/row100k/posters?r=" },
   initialFormat,
 }: PosterStudioProps) {
   const router = useRouter();
@@ -249,6 +268,10 @@ export function PosterStudio({
    * defaults (review, 2026-09-11). */
   const [raceOn, setRaceOn] = useState(initialSubject === "raceday" && raceday != null);
   const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
+  /* WHICH RACE DAY ARTWORK (owner, 2026-09-16: "a poster showing what
+   * racers are coming to race day"): the bill, or the field — the start
+   * list. Page-local like the ground; the bill is the right open state. */
+  const [artwork, setArtwork] = useState<RaceArtwork>("bill");
   /* WHICH STOCK the paper sheets print on (owner, 2026-09-12: "we also need
    * black and white shareable versions of all the posters to match the race
    * day aesthetic"). Plain state, deliberately NOT sessionStorage: the
@@ -261,6 +284,9 @@ export function PosterStudio({
    * is one chip away, because the transparency has to be judged too. */
   const [onPhoto, setOnPhoto] = useState(true);
   const race = raceOn ? (raceday ?? null) : null;
+  /* The field is drawn only when the list could be read: a failed read
+   * still renders the bill and the field chip is disabled. */
+  const fieldOn = race !== null && artwork === "field" && race.field !== null;
   /* The PAYLOAD decides, not the chip: without a race day payload there is
    * nothing to draw as an ad, so the studio stays on the sheet it has. */
   const subject: Subject = race ? "raceday" : rower ? "rower" : "community";
@@ -275,7 +301,9 @@ export function PosterStudio({
 
   const [formatKey, setFormatKey] = useState<PosterFormatKey>(initialFormat ?? "24x36");
   const format = FORMATS[formatKey];
-  const [ppi, setPpi] = useState<PosterPpi>(format.ppi?.default ?? 150);
+  /* BLEED, default OFF (owner, 2026-09-16: he did not know what it was, so
+   * the printing notes under the buttons say when to turn it on). There is
+   * no ppi state any more — every print is formats.ts PRINT_PPI. */
   const [bleed, setBleed] = useState(false);
   const [fonts, setFonts] = useState<PosterFonts | null>(null);
   const [assets, setAssets] = useState<PosterAssets | null>(null);
@@ -288,7 +316,6 @@ export function PosterStudio({
   const [rendering, setRendering] = useState(true);
   const [canShareFiles, setCanShareFiles] = useState(false);
   const [handheld, setHandheld] = useState(false);
-  const [refused300, setRefused300] = useState(false);
   const seq = useRef(0);
 
   // The remembered format, read after mount so the server markup matches.
@@ -296,12 +323,9 @@ export function PosterStudio({
     if (initialFormat) return;
     try {
       const saved = window.sessionStorage.getItem(FORMAT_KEY);
-      if (isFormatKey(saved)) {
-        setFormatKey(saved);
-        // The remembered format's own default ppi (Letter/A4 are 300), not
-        // the first format's (review, 2026-09-10).
-        setPpi(FORMATS[saved].ppi?.default ?? 150);
-      }
+      // A key the studio no longer offers (a remembered "letter") fails
+      // isFormatKey and the default stands.
+      if (isFormatKey(saved)) setFormatKey(saved);
     } catch {
       /* private mode, blocked storage — the default stands */
     }
@@ -397,7 +421,16 @@ export function PosterStudio({
     // its ground is ink or nothing at all, never the engine's cream.
     const drawOn = (t: PosterRenderTarget) =>
       race
-        ? renderRaceDay({ target: t, data: race, fonts, assets, ground })
+        ? renderRaceDay({
+            target: t,
+            data: race,
+            fonts,
+            assets,
+            // The start list is ink only; the ground chips are hidden while
+            // it is up, and the ground they last held does not reach it.
+            ground: fieldOn ? "ink" : ground,
+            artwork: fieldOn ? "field" : "bill",
+          })
         : subject === "rower"
           ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock })
           : render({
@@ -440,14 +473,10 @@ export function PosterStudio({
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const target = await ladder(
-            format,
-            format.kind === "print" ? ppi : null,
-            bleed ? BLEED_IN : 0,
-            refusePpi ? [refusePpi] : [],
-          );
+          // A print renders at PRINT_PPI (the ladder's null); the probe
+          // steps down only when the device cannot allocate that canvas.
+          const target = await ladder(format, null, bleed ? BLEED_IN : 0, refusePpi ? [refusePpi] : []);
           if (stale()) return;
-          if (format.kind === "print" && ppi === 300 && target.ppi !== 300) setRefused300(true);
           setStatus(`RENDERING ${target.pxW} × ${target.pxH} …`);
           // Let the status paint before the main thread goes under. A
           // background tab never fires requestAnimationFrame, so a timer
@@ -472,7 +501,7 @@ export function PosterStudio({
             // No PDF for a transparent overlay: a PDF carries the canvas as
             // a JPEG and a JPEG has no alpha, so the window would print
             // solid black. The overlay is a PNG and says so.
-            if (format.kind === "print" && !(race && ground === "overlay"))
+            if (format.kind === "print" && !(race && !fieldOn && ground === "overlay"))
               pdf = await toPdf(drawn.canvas, target);
           } finally {
             freeCanvas(drawn.canvas);
@@ -509,7 +538,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, race, ground, stock, subject, format, ppi, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, fieldOn, stock, subject, format, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -520,8 +549,6 @@ export function PosterStudio({
 
   const pickFormat = (key: PosterFormatKey) => {
     setFormatKey(key);
-    const f = FORMATS[key];
-    setPpi(f.ppi?.default ?? 150);
     try {
       window.sessionStorage.setItem(FORMAT_KEY, key);
     } catch {
@@ -532,8 +559,8 @@ export function PosterStudio({
   /* Race day stems its files off the race itself — raceday-2026-09-27-story
    * -overlay.png — the way the other two stem off the year and the rower. */
   const nameFor = (ext: "png" | "pdf", target: PosterRenderTarget): string => {
-    const opts = { ppi: target.ppi, bleed: target.bleedIn > 0 };
-    if (race) return raceFileName(race, format, ext, { ground, ...opts });
+    const opts = { bleed: target.bleedIn > 0 };
+    if (race) return raceFileName(race, format, ext, { ground, artwork: fieldOn ? "field" : "bill", ...opts });
     // The stock leads the suffixes, so -bw is the first thing after the
     // format and two letters he would type into a search box.
     return data ? fileName(data, format, ext, { stock, ...opts }) : `rowtember.${ext}`;
@@ -548,7 +575,7 @@ export function PosterStudio({
     const name = nameFor("png", out.target);
     const file = new File([out.png], name, { type: "image/png" });
     const title = race
-      ? `${race.race.head.join(" ")} · ${race.race.date}`
+      ? `${race.race.head.join(" ")} · ${race.race.date}${fieldOn ? " · the field" : ""}`
       : data?.kind === "rower"
         ? `Rower ${fmtRowerNumber(data.rower.rowerNumber)} · poster`
         : `Rowtember ${data?.year ?? ""} · poster`;
@@ -584,7 +611,9 @@ export function PosterStudio({
   };
 
   /* ---- the roster picker (RowerSearch idiom, panel under the chips) ---- */
-  const [open, setOpen] = useState(false);
+  // Open from the start when there is nobody to draw yet (the public
+  // studio, signed out or not joined): the picker IS the page then.
+  const [open, setOpen] = useState(!fixed && drawing === null);
   const [q, setQ] = useState("");
   const chipRef = useRef<HTMLButtonElement>(null);
   const boxRef = useRef<HTMLInputElement>(null);
@@ -620,8 +649,9 @@ export function PosterStudio({
 
   /* ---- what the sheet says about itself ---- */
   const masked = data ? (data.kind === "community" ? data.blackout.active : data.masked) : false;
-  const overlay = subject === "raceday" && ground === "overlay";
-  const flattened = subject === "raceday" && ground === "photo";
+  // Neither ground applies while the field is up: it is ink only.
+  const overlay = subject === "raceday" && !fieldOn && ground === "overlay";
+  const flattened = subject === "raceday" && !fieldOn && ground === "photo";
   /* A PAPER sheet on the black stock. Race day is already black and has no
    * stock of its own, so it is excluded rather than folded in. */
   const bwSheet = subject !== "raceday" && stock === "bw";
@@ -640,8 +670,115 @@ export function PosterStudio({
   const tallFrame = format.h / format.w > 1.3;
   const untilNote = data?.blackout.until ? ` UNTIL ${data.blackout.until.toUpperCase()}` : "";
 
+  /* The SUBJECT row: the rower chip and its roster panel for everyone; the
+   * Rowtember and race day chips for an admin. Built before the empty
+   * state below because the pick-a-rower page is this row and one line. */
+  const subjectRow = fixed ? null : (
+    <>
+      <p className="po-eye">Subject</p>
+      <div className="po-subject">
+        <div className="tabs" role="group" aria-label="Subject" style={{ marginBottom: 0 }}>
+          {!rowerOnly ? (
+            <Link
+              className={subject === "community" ? "on" : undefined}
+              href={hrefs.community}
+              onClick={() => setRaceOn(false)}
+            >
+              Rowtember
+            </Link>
+          ) : null}
+          <button
+            ref={chipRef}
+            type="button"
+            className={subject === "rower" ? "on" : undefined}
+            aria-pressed={subject === "rower"}
+            aria-expanded={open}
+            onClick={() => {
+              setRaceOn(false);
+              if (open) close();
+              else {
+                setQ("");
+                setOpen(true);
+              }
+            }}
+          >
+            {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} · ${rower.rower.name} ▾` : "A rower ▾"}
+          </button>
+          {/* The ad, not a summary. It is a chip and not a route — the
+              payload does not depend on which rower is picked — but it
+              IS a server read (the settings row and the photograph), so
+              a page that handed the studio none offers no ad. Admin
+              only, like Rowtember. */}
+          {!rowerOnly ? (
+            <button
+              type="button"
+              className={subject === "raceday" ? "on" : undefined}
+              aria-pressed={subject === "raceday"}
+              disabled={!raceday}
+              title={raceday ? undefined : "The race day payload could not be read"}
+              onClick={() => {
+                setOpen(false);
+                setRaceOn(true);
+              }}
+            >
+              Race day
+            </button>
+          ) : null}
+        </div>
+        {open ? <div className="pf-find-overlay" onClick={close} aria-hidden="true" /> : null}
+        <div className="pf-find" role="search" aria-label="Find a rower" hidden={!open}>
+          <input
+            ref={boxRef}
+            type="text"
+            className="pf-find-in"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={onEnter}
+            placeholder="NAME OR NUMBER"
+            aria-label="Find a rower by name or number"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {!roster || roster.length === 0 ? (
+            <p className="pf-find-note">THE ROSTER COULD NOT BE READ.</p>
+          ) : typed && shown.length === 0 ? (
+            <p className="pf-find-note">NOBODY BY THAT NAME OR NUMBER.</p>
+          ) : shown.length === 0 ? null : (
+            <ul className="pf-find-list">
+              {shown.map(({ rower: r }) => (
+                <li key={r.rowerNumber}>
+                  <Link
+                    className="pf-find-row"
+                    href={`${hrefs.rowerPrefix}${r.rowerNumber}`}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="n">{fmtRowerNumber(r.rowerNumber)}</span>
+                    <span className="nm">{r.displayName}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {more > 0 ? <p className="pf-find-more">{more} MORE — KEEP TYPING</p> : null}
+        </div>
+      </div>
+    </>
+  );
+
   if (!drawing) {
-    return <p className="po-first">NOTHING TO DRAW — THE PAYLOAD IS EMPTY</p>;
+    // PICK A ROWER (owner, 2026-09-16): the public studio with nobody
+    // chosen — signed out, or signed in and not joined. The subject row
+    // with its picker open is the whole page.
+    return (
+      <>
+        {subjectRow}
+        <p className="po-first">
+          {roster && roster.length > 0
+            ? "PICK A ROWER — ANY NAME OR NUMBER ON THE ROSTER"
+            : "NOTHING TO DRAW — THE PAYLOAD IS EMPTY"}
+        </p>
+      </>
+    );
   }
 
   return (
@@ -659,92 +796,7 @@ export function PosterStudio({
         <i className="po-strut" />
       </div>
 
-      {!fixed && (
-        <>
-          <p className="po-eye">Subject</p>
-          <div className="po-subject">
-            <div className="tabs" role="group" aria-label="Subject" style={{ marginBottom: 0 }}>
-              <Link
-                className={subject === "community" ? "on" : undefined}
-                href={hrefs.community}
-                onClick={() => setRaceOn(false)}
-              >
-                Rowtember
-              </Link>
-              <button
-                ref={chipRef}
-                type="button"
-                className={subject === "rower" ? "on" : undefined}
-                aria-pressed={subject === "rower"}
-                aria-expanded={open}
-                onClick={() => {
-                  setRaceOn(false);
-                  if (open) close();
-                  else {
-                    setQ("");
-                    setOpen(true);
-                  }
-                }}
-              >
-                {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} · ${rower.rower.name} ▾` : "A rower ▾"}
-              </button>
-              {/* The ad, not a summary. It is a chip and not a route — the
-                  payload does not depend on which rower is picked — but it
-                  IS a server read (the settings row and the photograph), so
-                  a page that handed the studio none offers no ad. */}
-              <button
-                type="button"
-                className={subject === "raceday" ? "on" : undefined}
-                aria-pressed={subject === "raceday"}
-                disabled={!raceday}
-                title={raceday ? undefined : "The race day payload could not be read"}
-                onClick={() => {
-                  setOpen(false);
-                  setRaceOn(true);
-                }}
-              >
-                Race day
-              </button>
-            </div>
-            {open ? <div className="pf-find-overlay" onClick={close} aria-hidden="true" /> : null}
-            <div className="pf-find" role="search" aria-label="Find a rower" hidden={!open}>
-              <input
-                ref={boxRef}
-                type="text"
-                className="pf-find-in"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={onEnter}
-                placeholder="NAME OR NUMBER"
-                aria-label="Find a rower by name or number"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {!roster || roster.length === 0 ? (
-                <p className="pf-find-note">THE ROSTER COULD NOT BE READ.</p>
-              ) : typed && shown.length === 0 ? (
-                <p className="pf-find-note">NOBODY BY THAT NAME OR NUMBER.</p>
-              ) : shown.length === 0 ? null : (
-                <ul className="pf-find-list">
-                  {shown.map(({ rower: r }) => (
-                    <li key={r.rowerNumber}>
-                      <Link
-                        className="pf-find-row"
-                        href={`${hrefs.rowerPrefix}${r.rowerNumber}`}
-                        onClick={() => setOpen(false)}
-                      >
-                        <span className="n">{fmtRowerNumber(r.rowerNumber)}</span>
-                        <span className="nm">{r.displayName}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {more > 0 ? <p className="pf-find-more">{more} MORE — KEEP TYPING</p> : null}
-            </div>
-          </div>
-        </>
-      )}
+      {subjectRow}
 
       <div className="po-groups">
         <div className="po-group">
@@ -781,11 +833,34 @@ export function PosterStudio({
         </div>
       </div>
 
-      {subject === "raceday" ? (
+      {subject === "raceday" && race ? (
+        /* THE BILL / THE FIELD (owner, 2026-09-16: "a poster showing what
+           racers are coming to race day"). The same slot and idiom as the
+           ground row under it. The field is offered only when the start
+           list could be read; the bill still draws without it. */
+        <div className="st-sub po-opts" role="group" aria-label="Artwork">
+          {RACE_ARTWORKS.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              className={(fieldOn ? "field" : "bill") === a.key ? "on" : undefined}
+              aria-pressed={(fieldOn ? "field" : "bill") === a.key}
+              disabled={a.key === "field" && !race.field}
+              title={a.key === "field" && !race.field ? "The field could not be read" : undefined}
+              onClick={() => setArtwork(a.key)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {subject === "raceday" && !fieldOn ? (
         <div className="st-sub po-opts" role="group" aria-label="Ground">
           {/* ON THE PHOTO is only a ground when there IS a photograph: with
               no picture to draw it would be the solid ad under another
-              name. */}
+              name. The row is off while THE FIELD is up: a start list is
+              ink only. */}
           {RACE_GROUNDS.filter((g) => g.key !== "photo" || photo).map((g) => (
             <button
               key={g.key}
@@ -839,24 +914,11 @@ export function PosterStudio({
         </div>
       ) : null}
 
-      {format.kind === "print" && format.ppi ? (
+      {format.kind === "print" ? (
+        /* BLEED alone since 2026-09-16: the 150 / 300 ppi chips came off
+           (formats.ts PRINT_PPI). What bleed is and when to turn it on is
+           the printing notes block under the buttons. */
         <div className="st-sub po-opts" role="group" aria-label="Print options">
-          {format.ppi.options.map((p) => (
-            <button
-              key={p}
-              type="button"
-              className={ppi === p ? "on" : undefined}
-              aria-pressed={ppi === p}
-              disabled={p === 300 && refused300}
-              title={p === 300 && refused300 ? "This device cannot make 300 ppi" : undefined}
-              onClick={() => setPpi(p)}
-            >
-              {p} ppi
-            </button>
-          ))}
-          <span className="po-sep" aria-hidden="true">
-            ·
-          </span>
           <button
             type="button"
             className={bleed ? "on" : undefined}
@@ -925,12 +987,27 @@ export function PosterStudio({
         {bwSheet && format.kind === "print" ? (
           <li>A black sheet is full ink coverage — print borderless on a press, not an inkjet</li>
         ) : null}
-        {fellBack && files ? <li>Rendered at {files.target.ppi} ppi — this device cannot make 300</li> : null}
+        {fellBack && files ? (
+          <li>Rendered at {files.target.ppi} ppi — this device could not allocate the 150 ppi canvas</li>
+        ) : null}
         {masked ? <li>Blackout — this poster prints with blocks{untilNote}</li> : null}
         {lateLogs ? <li>Late logs through Oct 3 — the poster reads final</li> : null}
         {/* The one thing that blocks posting rather than building: the mark
             is OUR key of the gym logo, not a file they gave us. */}
         {race ? <li>Show {race.race.venue} these frames before anything is posted</li> : null}
+        {/* What the start list is and is not: names, numbers, brackets,
+            waves and lanes — no meters, no times — and who is counted but
+            not listed. The list is public data; the reminder is that the
+            frame prints as many as fit and says how many it did not. */}
+        {fieldOn && race?.field ? (
+          <li>
+            The field — {race.field.counts.toLowerCase()}; racers listed, spectators counted; no meters,
+            no times
+          </li>
+        ) : null}
+        {fieldOn && race?.field && race.field.waves.length === 0 ? (
+          <li>No waves assigned yet — the field runs A to Z; assign waves in the console to group it</li>
+        ) : null}
         {overlay ? <li>Overlay — PNG only, a PDF has no alpha</li> : null}
         {overlay ? <li>Put the subject in the open band and keep other brands out of it</li> : null}
         {/* THE PICTURE IS A PREVIEW ON AN OVERLAY. The file that downloads
@@ -986,6 +1063,27 @@ export function PosterStudio({
           </button>
         ) : null}
       </div>
+
+      {format.kind === "print" ? (
+        /* PRINTING NOTES (owner, 2026-09-16: "I also don't know what bleed
+           on/off is — what should it be if I am printing. Include that in
+           some copy down below"). JSX text, not a style string, so the
+           quoting rule does not apply here. */
+        <div className="po-print">
+          <p className="po-eye">Printing notes</p>
+          <p>
+            Bleed adds an eighth of an inch (0.125 in) of the paper ground on every edge, so a print
+            shop that trims to size never leaves a white sliver. Turn it ON when sending to a print
+            shop or an online poster printer that asks for bleed (most do). Leave it OFF when printing
+            at home or framing behind a mat.
+          </p>
+          <p>The PDF is the file to hand a printer. The PNG is for screens.</p>
+          <p>
+            Everything renders at 150 ppi — already sharper than a wall poster needs at any viewing
+            distance, and 300 ppi would be a canvas a phone cannot allocate.
+          </p>
+        </div>
+      ) : null}
 
       {dev && log ? (
         <div className="po-log">

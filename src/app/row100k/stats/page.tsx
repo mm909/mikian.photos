@@ -20,8 +20,10 @@ import {
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
+import { headCss } from "../headCss";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
+import { PageHead } from "../PageHead";
 import { StatsShare } from "../StatsShare";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -42,14 +44,18 @@ export const dynamic = "force-dynamic";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-/* THE STATS (owner review, 2026-09-05, second look): the nameplate, then
+/* THE STATS (owner review, 2026-09-05, second look): the head, then
  * the records straight under it — no section head of their own, the
  * owner found two titles in a row spent the screen on headers — then
  * meters by day or by week (the period IS that section's title, so the
  * head lives inside the client component that knows which is picked),
  * the month calendar, the hours grid and the field — every row's length
  * and pace as two densities. The cumulative and daily charts, the turnout
- * chart and the split-vs-distance scatter are the numbers page's. */
+ * chart and the split-vs-distance scatter are the numbers page's. The
+ * head is PageHead since 2026-09-16 (owner: no bold THE STATS; the
+ * community total in the front page odometer; variant A picked for every
+ * tab the same day, so no ?head query any more). No sign-in gate here,
+ * ever: the anonymous view is the page. */
 export default async function StatsPage() {
   /* Who is looking decides what the boards may print: the period boards
    * pull the signed-in rower into view below the top 10, and during a
@@ -295,9 +301,9 @@ export default async function StatsPage() {
     hourGrid[di][shifted.getUTCHours()] += 1;
   }
 
-  /* The dateline under the nameplate — the same line the front page
-   * prints: today in the rowers' day (Pacific, the UTC-7 shift every chart
-   * uses) and where the month stands. */
+  /* The dateline in the head — the same line the front page prints: today
+   * in the rowers' day (Pacific, the UTC-7 shift every chart uses) and
+   * where the month stands. */
   const phase: "before" | "open" | "closed" =
     now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
   const west = new Date(now - SHIFT_MS);
@@ -320,19 +326,29 @@ export default async function StatsPage() {
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{headCss}</style>
 
       <RowBar active="stats" {...barProps(viewer)} />
 
-      {/* The nameplate, the front page's (owner call, 2026-09-05: THE STATS,
-       * not the records — the big newspaper head with the dateline). */}
-      <header className="front-head">
+      {/* The head (owner, 2026-09-16): the page name kept quiet, the
+       * community total in the odometer — a sum over everyone, the elite
+       * included, which the blackout never masks — and the dateline. */}
+      <div className="ph-sec">
         <div className="wrap">
-          <h1>The stats</h1>
-          <p className="front-date mono">{dateline}</p>
+          <PageHead
+            name="The stats"
+            dateline={dateline}
+            meters={boardUnreadable ? null : community.meters}
+            unit={
+              <>
+                Meters · <b>everyone together</b>
+              </>
+            }
+          />
         </div>
-      </header>
+      </div>
 
-      {/* The records run straight off the nameplate: the record's number
+      {/* The records run straight off the head: the record's number
           one as the first thing on the page, the podiums, then the small
           record submenu (owner call, 2026-09-05 — the leaders and their
           values carry the emphasis, not the controls). */}

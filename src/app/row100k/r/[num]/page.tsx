@@ -29,6 +29,7 @@ import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { boardView } from "../../boardData";
 import { sanityBandForForm } from "../../sanity";
+import { myWaveShare } from "../../shareables/waveShare";
 import { resolvePhotoMedia } from "../../photoUrls";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -50,8 +51,9 @@ export const dynamic = "force-dynamic";
  * the view; looks/Profile.tsx lays it out (the owner's pick from three
  * looks, same day — the ?look= switch is gone with the other two).
  *
- * Blackout: while a window is open, THE ELITE — the top ten men and the
- * top ten women (blackoutRules.ts) — have their numbers hidden from the
+ * Blackout: while a window is open, THE ELITE — the top N of each board,
+ * or the top N overall, as the policy says (rowSettings.ts) — have their
+ * numbers hidden from the
  * public. This page hides exactly the rowers the board hides — same masked
  * set, same self/admin exemptions — and draws blocks of the right shape
  * wherever a number of theirs would print — meters, times and the pace
@@ -252,6 +254,10 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     days: daysElapsed(),
     masked: shareElite,
     digits: shareElite ? digits : undefined,
+    // MY WAVE (owner, 2026-09-16): this rower's own told wave, for their
+    // own dialog and an admin's repost — never on a stranger's view of the
+    // page, whose share surface does not mount anyway. Fails open.
+    race: isMe || isAdmin ? await myWaveShare(p.id) : undefined,
   };
 
   const now = clockNow();

@@ -355,7 +355,7 @@ export function MyRows({
                     appearance: "none",
                     WebkitAppearance: "none",
                     background: "var(--water)",
-                    color: "#fff",
+                    color: "var(--paper)",
                     border: "2px solid var(--water)",
                     borderRadius: 0,
                     padding: "8px 16px",

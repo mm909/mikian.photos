@@ -188,7 +188,7 @@ const footer = mod("footer", 40, (ctx, box, _d, paint) => drawFooter(ctx, paint,
 const curve = chart(
   "curve",
   115,
-  (paint) => (family(paint) === "printL" ? 210 : family(paint) === "printS" ? 160 : 115),
+  (paint) => (family(paint) === "printL" ? 210 : 115),
   (ctx, box, d, paint) => drawCurve(ctx, paint, box, d.byDay, d.asOf.dayNumber, d.asOf.day),
 );
 
@@ -258,10 +258,9 @@ const monthFull = monthModule("month.full", true);
 
 /* C7. The two top tens and their top-five variants. "I like that we list
  * the top ten men and women" (owner, 2026-09-10), so the wall sheets list
- * ten; the hand-outs keep the top five they were built with — a printS
- * column cannot hold twenty rows and the month. A masked row on a narrow
- * column drops the rower number so the name, the pace chip and the blocks
- * fit. */
+ * ten; the fives are the `core` last resort's (the hand-outs that also
+ * drew them came off on 2026-09-16). A masked row on a narrow column
+ * drops the rower number so the name, the pace chip and the blocks fit. */
 const board = (id: string, division: "M" | "F", count: 5 | 10): Mod =>
   mod(id, 60, (ctx, box, d, paint) =>
     drawBoard(ctx, paint, box, division === "M" ? d.standings.men : d.standings.women, {
@@ -278,9 +277,9 @@ const board = (id: string, division: "M" | "F", count: 5 | 10): Mod =>
 const records = mod("records", 80, (ctx, box, d, paint) => drawRecords(ctx, paint, box, d.records, d.blackout.active));
 
 /* C9, C10. "I like that we have the hours and the field chart here." Fixed
- * rows: 170 on the wall, 130 in the hand, 120 on the phone — or the
- * one-line note when the data is null (a day-1 sheet). */
-const fixedH = (paint: PosterPaint) => (family(paint) === "printL" ? 170 : family(paint) === "printS" ? 130 : 120);
+ * rows: 170 on the wall, 120 on the phone — or the one-line note when the
+ * data is null (a day-1 sheet). */
+const fixedH = (paint: PosterPaint) => (family(paint) === "printL" ? 170 : 120);
 const hours: Mod = {
   id: "hours",
   minH: 60,
@@ -298,11 +297,11 @@ const field: Mod = {
 
 /* C11. The print ledger: the first six takeaways as a dotted KEY ······
  * VALUE ledger (two columns when the box is 600 wide or more), two lines
- * at least or none at all. minH is TWO lines in the widest family metric
- * (printS: thick + air + 2 × 29 = 72.4), because the floor is what a
- * `fit:"lines"` slot is cut to and what a stack hands its fit member when
- * the column beside it is taller: a letter sheet gets two takeaways under
- * its month instead of 73 units of white. */
+ * at least or none at all. minH is TWO lines (73, set when the hand-out
+ * family existed and kept), because the floor is what a `fit:"lines"` slot
+ * is cut to and what a stack hands its fit member when the column beside
+ * it is taller: two takeaways under the month instead of 73 units of
+ * white. */
 const printItems = (d: CommunityPoster) => takeawaysOf(d).slice(0, 6);
 const ledger: Mod = {
   id: "ledger",
@@ -446,29 +445,9 @@ const core: PosterPlan = {
   shrink: ["gap", "pitch", "cap"],
 };
 
-/* 11x17, A3, letter, A4 — two columns, read in the hand. The month and the
- * takeaways in the first column, the two top fives in the second: the
- * whole front page above the fold. The ledger is the elastic part — 11x17
- * holds all six lines, A3 and A4 four, letter none — and the pitch step is
- * what letter spends to keep both boards whole. A printS column is 302
- * units: twenty board rows and a calendar cannot share it, so the hand-outs
- * keep the top five they were designed with. */
-const hand: PosterPlan = {
-  key: "hand",
-  cols: 2,
-  rows: [
-    ...top2,
-    {
-      id: "D",
-      slots: [
-        { stack: ["month.full", "ledger"], span: 1, fit: "lines" },
-        { stack: ["board.men.5", "board.women.5"], span: 1 },
-      ],
-    },
-  ],
-  footer: "footer",
-  shrink: ["gap", "pitch", "cap"],
-};
+/* The `hand` plan (11x17, A3, letter, A4 — two columns, read in the hand)
+ * stood here until 2026-09-16, when the owner took those sizes off the
+ * studio. */
 
 /* The phone: one full-width column (two of the family's, spanned). The
  * month is the picture on both frames now that the curve is gone; it
@@ -535,5 +514,5 @@ export const communityLayout: PosterLayout<CommunityPoster> = {
     plate,
     footer,
   },
-  plans: { tall, short, squat, core, hand, story, post, square },
+  plans: { tall, short, squat, core, story, post, square },
 };

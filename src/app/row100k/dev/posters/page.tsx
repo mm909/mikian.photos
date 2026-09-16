@@ -3,15 +3,16 @@ import { notFound } from "next/navigation";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import type { RaceDef } from "../../raceday";
 import { resolvedRace } from "../../racedaySettings";
 import { makeFixture, type FixtureOpts } from "../../poster/fixture";
 import { isFormatKey } from "../../poster/formats";
-import { raceDayPoster } from "../../poster/raceAssemble";
+import { raceDayPoster, type RaceField } from "../../poster/raceAssemble";
 import { isStock } from "../../poster/paint";
 import { isGround } from "../../poster/raceGround";
 import { racePhoto } from "../../poster/racePhoto";
 import { poCss } from "../../poster/studioCss";
-import type { PosterFormatKey, PosterPpi } from "../../poster/types";
+import type { PosterFormatKey, PosterPpi, PosterRosterRower } from "../../poster/types";
 import { PosterStudio } from "../../posters/PosterStudio";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,9 @@ export const metadata: Metadata = {
  *                              his photograph drawn into it, or the
  *                              transparent overlay to lay over one
  *   &field=N                   race day only: N racers are in, so the ad
- *                              prints its one line of social proof
+ *                              prints its one line of social proof — and
+ *                              THE FIELD draws N names off the fixture
+ *                              roster, in waves (benchField below)
  *
  * Race day's PHOTOGRAPH is not a switch: it is whatever the owner picked in
  * the settings console, or the newest gallery shot when he has picked none
@@ -49,8 +52,40 @@ export const metadata: Metadata = {
  *   &day=N                     the as-of day (1..30; day 1 = hours and split null)
  *   &names=N  &log=N           the club roll and the log, by count
  *   &runup=1                   the run-up: low digits covered, places kept
- *   &noprobe=300               the ppi ladder must refuse 300 (the fallback path)
+ *   &noprobe=150               the ppi ladder must refuse 150 (the fallback path)
  */
+/* ?field=N IS A LIST NOW, NOT A COUNT (2026-09-16): THE FIELD artwork draws
+ * the start list, and the count-only payload the bench used to pass drew
+ * NOBODY IN YET over a number of N. N rows off the fixture roster (names
+ * cycle past its end), in waves of race.waveSize, lanes 1..waveSize, the
+ * bracket mark cut off the race's own labels the way raceFieldOf() cuts it.
+ * Print order is wave then lane, which is what the live builder gives a
+ * field with no 5k seeds. Spectators stay a quarter of N, as before. */
+function benchField(race: RaceDef, roster: PosterRosterRower[], n: number): RaceField {
+  const size = Math.max(1, race.waveSize);
+  const mark = (division: string): string => {
+    const b = race.brackets.find((x) => x.key === division);
+    return b ? b.label.slice(0, 1).toUpperCase() : "—";
+  };
+  const picked = Array.from({ length: n }, (_, i) => {
+    const r = roster.length ? roster[i % roster.length] : undefined;
+    return r ?? { rowerNumber: i + 1, displayName: `Racer ${i + 1}`, division: i % 2 ? "F" : "M" };
+  });
+  return {
+    racers: n,
+    spectators: Math.round(n / 4),
+    men: picked.filter((r) => r.division === "M").length,
+    women: picked.filter((r) => r.division === "F").length,
+    list: picked.map((r, i) => ({
+      rowerNumber: i + 1,
+      name: r.displayName,
+      bracket: mark(r.division),
+      wave: Math.floor(i / size) + 1,
+      lane: (i % size) + 1,
+    })),
+  };
+}
+
 export default async function DevPostersPage({
   searchParams,
 }: {
@@ -121,15 +156,16 @@ export default async function DevPostersPage({
   // RACE DAY needs no fixture: the race IS the payload (raceday.ts), so the
   // dev page draws the real one — AS IT STANDS, settings row folded in, so
   // the bench previews what the console set and not what the deploy shipped
-  // (review, 2026-09-11). `?field=N` is the only invented number — the one
-  // line of social proof the ad prints once enough names are in.
+  // (review, 2026-09-11). `?field=N` is the only invented thing — the one
+  // line of social proof the ad prints once enough names are in, and the N
+  // fake rows THE FIELD lays out in waves (benchField).
   const field = num("field");
   const race = await resolvedRace();
   const raceday =
     subject === "raceday"
       ? raceDayPoster(
           race,
-          field ? { racers: field, spectators: Math.round(field / 4) } : null,
+          field ? benchField(race, fixture.roster, field) : null,
           // The one server read on this page, and it touches R2 rather than
           // the database: the owner's chosen shot, resolved to a URL.
           await racePhoto(race),

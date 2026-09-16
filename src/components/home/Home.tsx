@@ -17,6 +17,10 @@ import { metersText, tokensFor } from "./digits";
  * escapes them server-side only and the style tag hydration-mismatches. */
 
 const css = `
+/* The ink look (.home-ink, theme.ts) needs nothing from this sheet: every
+ * colour below is a variable, so when the palette flips the odometer, OPT
+ * IN, its underline, the live dot and the ledger rule all go white — the
+ * ink look is monochrome (owner, 2026-09-16). */
 .home .stage{position:relative;padding:clamp(34px,7vh,84px) 0 48px}
 .home .status{display:flex;align-items:center;flex-wrap:wrap;font-family:var(--home-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
 
@@ -75,9 +79,10 @@ const css = `
  *
  * The roll is timed per glyph off the counter's tempo (the hook's tempoMs,
  * the interval between steps right now). At rest — the ones wheel turning
- * one glyph every split/500 s, 170 ms at the fastest split useLiveMeters
- * allows — a glyph takes ROLL_GLYPH_MS, so it is settled before the next
- * tick lands: one glyph, a rest, one glyph, like an erg monitor and not a
+ * one glyph every 239.8 ms, the fixed 1:59.9 split (FIXED_SPLIT_S in
+ * useLiveMeters) — a glyph takes ROLL_GLYPH_MS = 170 ms, so it settles
+ * ~70 ms before the next tick lands: one glyph, a rest, one glyph, like an
+ * erg monitor and not a
  * slot machine (owner's call, 2026-09-05; the old fixed 420 ms roll was
  * always mid-flight under a faster cadence). When the counter sprints to
  * catch a board that got ahead, steps come as fast as every 70 ms: the

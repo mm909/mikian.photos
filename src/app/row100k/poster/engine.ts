@@ -16,7 +16,7 @@
  * exception — so a try/catch proves nothing. */
 
 import { fmtRowerNumber } from "@/lib/row100k";
-import { FORMATS, pixelsFor, pointsFor, tokensFor } from "./formats";
+import { FORMATS, PRINT_PPI, pixelsFor, pointsFor, tokensFor } from "./formats";
 import { makePaint, paletteOf } from "./paint";
 import { jpegToPdf } from "./pdf";
 import type {
@@ -481,7 +481,7 @@ export function targetFor(
 ): PosterRenderTarget {
   const bleed = format.kind === "print" ? bleedIn : 0;
   const px = pixelsFor(format, ppi, bleed);
-  const p = format.kind === "print" ? (ppi ?? format.ppi?.default ?? 150) : null;
+  const p = format.kind === "print" ? (ppi ?? PRINT_PPI) : null;
   const scale =
     format.kind === "print" ? (p as number) * ((format.inches?.w ?? 0) / format.w) : px.w / format.w;
   const off = format.kind === "print" ? bleed * (p as number) : 0;
@@ -554,12 +554,15 @@ export async function probeCanvas(w: number, h: number): Promise<boolean> {
   return ok;
 }
 
-export const PPI_LADDER: PosterPpi[] = [300, 200, 150, 100];
+/* Two rungs since 2026-09-16: PRINT_PPI, then 100 for a device that cannot
+ * allocate even a 150 ppi sheet (the 300 and 200 rungs went with the ppi
+ * chip — see formats.ts PRINT_PPI). */
+export const PPI_LADDER: PosterPpi[] = [PRINT_PPI, 100];
 
-/* Try `wanted`, then 300 → 200 → 150 → 100 skipping anything at or above a
- * failed value; the first pass wins. `refuse` lets the dev fixture force a
- * fallback (?noprobe=300). Instagram targets probe once at their fixed
- * frame. */
+/* Try `wanted` (PRINT_PPI when null), then down the ladder skipping
+ * anything at or above a failed value; the first pass wins. `refuse` lets
+ * the dev fixture force a fallback (?noprobe=150). Instagram targets probe
+ * once at their fixed frame. */
 export async function ladder(
   format: PosterFormat,
   wanted: PosterPpi | null,
@@ -567,7 +570,7 @@ export async function ladder(
   refuse: PosterPpi[] = [],
 ): Promise<PosterRenderTarget> {
   if (format.kind !== "print") return targetFor(format, null, 0);
-  const want = wanted ?? format.ppi?.default ?? 150;
+  const want = wanted ?? PRINT_PPI;
   const tried = new Set<PosterPpi>();
   let failedAt = Number.POSITIVE_INFINITY;
   for (const p of [want, ...PPI_LADDER]) {
@@ -663,24 +666,22 @@ export async function toPdf(canvas: HTMLCanvasElement, target: PosterRenderTarge
 /* ------------------------------------------------------------ filenames */
 
 /* rowtember-2026-poster-24x36.pdf · rower-013-story.png ·
- * rowtember-2026-story-bw.png · rower-013-poster-a4-bw-300ppi-bleed.pdf.
+ * rowtember-2026-story-bw.png · rower-013-poster-18x24-bw-bleed.pdf.
  *
  * THE STOCK LEADS THE SUFFIXES, the way raceGround.ts raceFileName puts
  * -overlay and -photo first, so all three subjects name their variants by
  * one grammar. Cream prints nothing, so every filename that exists today is
- * byte-identical tomorrow. A ppi other than the format's default then
- * appends -300ppi; bleed appends -bleed (SPEC.md §2). */
+ * byte-identical tomorrow. Bleed appends -bleed (SPEC.md §2). There is no
+ * ppi suffix any more: every print is PRINT_PPI (2026-09-16). */
 export function fileName(
   data: PosterData,
   format: PosterFormat,
   ext: "png" | "pdf",
-  opts: { stock?: PosterStock; ppi?: PosterPpi | null; bleed?: boolean } = {},
+  opts: { stock?: PosterStock; bleed?: boolean } = {},
 ): string {
   const subject =
     data.kind === "community" ? `rowtember-${data.year}` : `rower-${fmtRowerNumber(data.rower.rowerNumber)}`;
   let suffix = opts.stock === "bw" ? "-bw" : "";
-  if (format.kind === "print" && opts.ppi && format.ppi && opts.ppi !== format.ppi.default)
-    suffix += `-${opts.ppi}ppi`;
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";
   return `${subject}-${format.stem}${suffix}.${ext}`;
 }

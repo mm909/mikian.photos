@@ -25,10 +25,94 @@
  * hole on every frame. */
 
 import { RACE_ROLES, hoursLine, waveTime, type RaceDef } from "../raceday";
-import type { RaceDayPoster } from "./types";
+import type { Racer } from "../racedayData";
+import { bySeed } from "../wavePlan";
+import type { RaceDayField, RaceDayFieldRow, RaceDayPoster } from "./types";
 
-/* The field so far, as the ad may print it. */
-export type RaceField = { racers: number; spectators: number };
+/* The field so far, as the ad may print it — and, since 2026-09-16, as THE
+ * FIELD artwork prints it (owner: "I want a poster showing what racers are
+ * coming to race day"). The counts are what the bill always had; the
+ * brackets and the list are what the start list needs. The three extras
+ * are optional so a count-only caller (the dev bench's ?field=N) still
+ * builds a bill; the assembler reads them as nobody. raceFieldOf() below
+ * is the one builder that fills all five. */
+export type RaceField = {
+  racers: number;
+  spectators: number;
+  men?: number;
+  women?: number;
+  list?: RaceDayFieldRow[];
+};
+
+/* "M" / "W" — the bracket in one letter, off the race's own labels, the
+ * way raceday/Field.tsx marks its table. A rower carrying neither still
+ * races and still needs a wave: a dash, never a dropped row. */
+const bracketMark = (race: RaceDef, division: string): string => {
+  const b = race.brackets.find((x) => x.key === division);
+  return b ? b.label.slice(0, 1).toUpperCase() : "—";
+};
+
+/* THE FIELD OFF THE SIGNUPS — pure, so a scratchpad check can build it from
+ * a synthetic Racer[] (the db read is poster/raceData.ts). Withdrawals are
+ * off everything; spectators are a count and never a row. The list comes
+ * back IN PRINT ORDER: with waves assigned it is by wave and seeded inside
+ * each (wavePlan.ts bySeed — fastest first, no 5k last, number breaks the
+ * tie; a racer still without a wave sorts after every numbered one), and
+ * with no waves yet it is the whole field A to Z. The clock the seed was
+ * cut from does not travel: the rows carry no time and no meters. */
+export function raceFieldOf(race: RaceDef, racers: Racer[]): RaceField {
+  const live = racers.filter((r) => !r.withdrewAt);
+  const field = live.filter((r) => r.role === "racer");
+  const byWave = field.some((r) => r.wave !== null);
+  const waveOf = (r: Racer) => (r.wave === null ? Number.POSITIVE_INFINITY : r.wave);
+  const ordered = [...field].sort(
+    byWave
+      ? (a, b) => waveOf(a) - waveOf(b) || bySeed(a, b)
+      : (a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }) || a.rowerNumber - b.rowerNumber,
+  );
+  return {
+    racers: field.length,
+    spectators: live.filter((r) => r.role === "spectator").length,
+    men: field.filter((r) => r.division === "M").length,
+    women: field.filter((r) => r.division === "F").length,
+    list: ordered.map((r) => ({
+      rowerNumber: r.rowerNumber,
+      name: r.name,
+      bracket: bracketMark(race, r.division),
+      wave: r.wave,
+      lane: r.lane ?? null,
+    })),
+  };
+}
+
+/* "12 RACERS · 7 MEN · 5 WOMEN · 3 SPECTATORS" — the foot strip, counted in
+ * English so one of anything is not a plural. */
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+function fieldPoster(race: RaceDef, field: RaceField): RaceDayField {
+  const list = field.list ?? [];
+  const men = field.men ?? 0;
+  const women = field.women ?? 0;
+  const waveNums = [...new Set(list.map((r) => r.wave).filter((w): w is number => w !== null))].sort(
+    (a, b) => a - b,
+  );
+  return {
+    racers: field.racers,
+    spectators: field.spectators,
+    men,
+    women,
+    list,
+    /* The eyebrow over each wave, off waveTime() and never typed: moving the
+     * first wave in the console moves every eyebrow on the list. */
+    waves: waveNums.map((w) => ({ wave: w, label: `WAVE ${w} · ${waveTime(race, w).toUpperCase()}` })),
+    counts: [
+      plural(field.racers, "RACER", "RACERS"),
+      plural(men, "MAN", "MEN"),
+      plural(women, "WOMAN", "WOMEN"),
+      plural(field.spectators, "SPECTATOR", "SPECTATORS"),
+    ].join(" · "),
+  };
+}
 
 /* The photograph the ad is judged over: the owner's pick resolved to a URL
  * (poster/racePhoto.ts, server only) and how he wants it shown. The studio
@@ -91,7 +175,11 @@ export function raceDayPoster(
   const size = race.waveSize;
   const waiver = race.waiver ? `ON ${hostWord(race.waiver.host)}` : null;
   const hours = shortHours(hoursLine(race));
-  const racers = field && field.racers >= FIELD_FLOOR ? field : null;
+  /* NOT floored here any more (2026-09-16): the start list wants the rows
+   * the bill would not yet mention, so the payload carries the field
+   * whenever it could be read and the fact table applies FIELD_FLOOR to
+   * its own line. Null still means the read failed. */
+  const racers = field ? fieldPoster(race, field) : null;
 
   /* The caption the artwork ships with, and the home of everything a bill
    * has no room for — the waiver, the wave cadence, the scoring — so the

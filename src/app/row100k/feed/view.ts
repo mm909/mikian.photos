@@ -1,7 +1,7 @@
 import { PACIFIC_SHIFT_MS } from "@/lib/blackoutRules";
 import { fmtDay } from "@/lib/row100k";
 
-/* What the feed renders (Strips.tsx, FeedHead.tsx) and the pure helpers
+/* What the feed renders (Strips.tsx, the shared PageHead.tsx) and the pure helpers
  * that build it. No db, no server-only imports: page.tsx computes
  * everything on the server and the strips — a client component, for the
  * lightbox — only lay it out. Every number in here is either an aggregate
@@ -67,13 +67,11 @@ export type FeedItem = {
 };
 
 /* Where THE ELITE mark (and the partners card) sends a reader: the elite
- * section of the board for a signed-in viewer — the board page renders
- * only for an actor — and the front page's public elite list otherwise,
- * so a signed-out reader never lands on the OPT IN prompt. Both fragments
- * need an id=elite on their target (Boards.tsx, the front page's
- * .front-elite); until they carry one the pages still load at the top. */
-export function eliteListHref(signedIn: boolean): string {
-  return signedIn ? "/row100k/board#elite" : "/row100k#elite";
+ * block of the board (Boards.tsx id=elite). The board renders for everyone
+ * since 2026-09-16 (owner: no opt-in to see the board or the stats), so
+ * the signed-out detour to the front page's list is gone. */
+export function eliteListHref(): string {
+  return "/row100k/board#elite";
 }
 
 /* A whole day's total — every row that landed that Pacific day, not just

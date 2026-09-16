@@ -8,11 +8,13 @@ import { BLACKOUT_TAG, listBlackouts } from "@/lib/blackout";
 
 export const runtime = "nodejs";
 
-/* Blackout windows (src/lib/blackout.ts) — list, set, clear. Admin only on
- * every verb, JSON 401/403 like the other moderation routes; the page that
- * calls this already 404s everyone else, so a 403 here is someone poking
- * the API directly. Every write revalidates the blackout tag so the very
- * next board render masks (or unmasks). */
+/* Blackout windows (src/lib/blackout.ts) — list, set, edit, clear. Admin
+ * only on every verb, JSON 401/403 like the other moderation routes; the
+ * page that calls this already 404s everyone else, so a 403 here is someone
+ * poking the API directly. Every write revalidates the blackout tag so the
+ * very next board render masks (or unmasks). PATCH (owner, 2026-09-16:
+ * "allow me to edit a black out that is already set") takes the POST body
+ * plus the window id. */
 
 type Guarded = { actor: { photographerId: string; email: string } } | { res: NextResponse };
 
@@ -61,16 +63,13 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
-  const g = await guard();
-  if ("res" in g) return g.res;
+type WindowBody = { id?: unknown; startsAt?: unknown; endsAt?: unknown; reason?: unknown; rampDays?: unknown };
+type WindowFields = { startsAt: Date; endsAt: Date; reason: string; rampDays: number };
 
-  let body: { startsAt?: unknown; endsAt?: unknown; reason?: unknown; rampDays?: unknown };
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return bad("Send JSON.");
-  }
+/* The window fields as POST and PATCH both take them, or the 400 to send
+ * back. One validator so an edit can never save what a create would
+ * refuse. */
+function parseWindow(body: WindowBody): WindowFields | NextResponse {
   const startsAt = parseIso(body.startsAt);
   const endsAt = parseIso(body.endsAt);
   if (!startsAt || !endsAt) return bad("Both times are needed, as ISO strings.");
@@ -79,12 +78,31 @@ export async function POST(req: Request) {
   // The run-up, in days. Capped at a fortnight: it is a tease before the
   // window, not a second challenge.
   const rampDays = Math.min(14, Math.max(0, Math.floor(Number(body.rampDays) || 0)));
+  return { startsAt, endsAt, reason, rampDays };
+}
+
+async function readBody(req: Request): Promise<WindowBody | null> {
+  try {
+    return (await req.json()) as WindowBody;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(req: Request) {
+  const g = await guard();
+  if ("res" in g) return g.res;
+
+  const body = await readBody(req);
+  if (!body) return bad("Send JSON.");
+  const fields = parseWindow(body);
+  if (fields instanceof NextResponse) return fields;
 
   try {
     // Namespace-scoped like every other Row* write, so a demo-mode admin
     // cannot black out the live board (and vice versa).
     const row = await db.rowBlackout.create({
-      data: { challenge: CHALLENGE, startsAt, endsAt, rampDays, reason, createdBy: g.actor.email },
+      data: { challenge: CHALLENGE, ...fields, createdBy: g.actor.email },
       select: { id: true },
     });
     revalidateTag(BLACKOUT_TAG);
@@ -92,6 +110,33 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("row100k blackout: create failed", err);
     return bad("Couldn't save the window — has the table been pushed?", 503);
+  }
+}
+
+export async function PATCH(req: Request) {
+  const g = await guard();
+  if ("res" in g) return g.res;
+
+  const body = await readBody(req);
+  if (!body) return bad("Send JSON.");
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!id) return bad("Which window?");
+  const fields = parseWindow(body);
+  if (fields instanceof NextResponse) return fields;
+
+  try {
+    // updateMany, scoped by challenge like the delete: an id from the other
+    // namespace matches nothing and reads as gone.
+    const res = await db.rowBlackout.updateMany({
+      where: { id, challenge: CHALLENGE },
+      data: fields,
+    });
+    if (res.count === 0) return bad("That window is gone.", 404);
+    revalidateTag(BLACKOUT_TAG);
+    return NextResponse.json({ ok: true, id });
+  } catch (err) {
+    console.error("row100k blackout: update failed", err);
+    return bad("Couldn't save the window — try again.", 503);
   }
 }
 

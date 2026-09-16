@@ -19,10 +19,11 @@ import {
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
+import { headCss } from "../headCss";
 import { boardView, EMPTY_BOARDS } from "../boardData";
+import { PageHead } from "../PageHead";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { FeedHead } from "./FeedHead";
 import { Strips } from "./Strips";
 import {
   DAY_MS,
@@ -37,8 +38,12 @@ import {
 /* THE FEED — the strips (the owner's pick, 2026-09-05).
  * This page does every computation on the server — the rows, their
  * stamps, the photo media, the blackout masking, today's headline and the
- * day totals — and FeedHead / Strips lay it out. Styles: the .fd- block in
- * theme.ts. */
+ * day totals — and PageHead / Strips lay it out. Styles: the .fd- block in
+ * theme.ts, the head's in headCss.ts. The head is the shared PageHead
+ * since 2026-09-16 (owner: no bold THE FEED; the meters that landed today
+ * in the front page odometer, six wheels here — remove the million and
+ * ten million digits on the feed page — and variant A, picked for every
+ * tab the same day). */
 
 export const metadata: Metadata = {
   title: "The feed — 100K September",
@@ -48,8 +53,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const PAGE = 60;
-
-type SearchParams = { [key: string]: string | string[] | undefined };
 
 type EntryWithParticipant = {
   id: string;
@@ -62,9 +65,14 @@ type EntryWithParticipant = {
   participant: { displayName: string; rowerNumber: number };
 };
 
-/* Page one is a bare /row100k/feed; older pages carry only the cursor. */
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+/* Page one is a bare /row100k/feed; older pages carry the cursor. */
 function feedHref(beforeCursor: string | null): string {
-  return beforeCursor ? `/row100k/feed?before=${encodeURIComponent(beforeCursor)}` : "/row100k/feed";
+  const q = new URLSearchParams();
+  if (beforeCursor) q.set("before", beforeCursor);
+  const s = q.toString();
+  return s ? `/row100k/feed?${s}` : "/row100k/feed";
 }
 
 /* The dateline under THE FEED: today (Pacific) and where the month stands
@@ -302,25 +310,57 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       d.rows += 1;
     }
   } catch (err) {
-    // The rows still print; the head shows a dash and the day heads
+    // The rows still print; the head dims every zero and the day heads
     // carry the day alone.
     console.error("row100k/feed: failed to load the day totals", err);
   }
 
+  // The head's second mono line: the rows and rowers behind today's
+  // number. Everyone counts here too, THE ELITE included (see above).
+  const sub = !headline
+    ? "TODAY COULD NOT BE READ"
+    : headline.rows === 0
+      ? "NOTHING LANDED TODAY YET"
+      : `${headline.rows} ${headline.rows === 1 ? "ROW" : "ROWS"} · ${headline.rowers} ${
+          headline.rowers === 1 ? "ROWER" : "ROWERS"
+        } TODAY`;
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{headCss}</style>
 
       <RowBar active="feed" {...barProps(viewer)} />
 
       <section className="fd-sec">
         <div className="wrap">
-          <FeedHead headline={headline} dateline={feedDateline(now, todayStr, eyebrow)} />
+          {/* The ONE big blue number: meters that LANDED today, Pacific (by
+           * createdAt, the day the stamps show — so it agrees with the
+           * first day head; the front page's todayMeters goes by the rowed
+           * `day`, so a row rowed last night and logged this morning counts
+           * here today and there yesterday). Every rower's meters are in
+           * the figure, THE ELITE's included (FeedHeadline in view.ts).
+           * Six wheels, not eight: a day never needs the million and ten
+           * million digits (owner, 2026-09-16). */}
+          <PageHead
+            name="The feed"
+            dateline={feedDateline(now, todayStr, eyebrow)}
+            meters={headline ? headline.meters : null}
+            unit={
+              <>
+                Meters · <b>landed today</b>
+              </>
+            }
+            sub={sub}
+            digits={6}
+          />
 
           {items.length === 0 ? (
             <p className="board-empty">NOTHING LOGGED YET — THE FEED STARTS WITH THE FIRST ROW.</p>
           ) : (
-            <Strips items={items} days={days} eliteHref={eliteListHref(viewer.actor !== null)} />
+            /* THE ELITE mark links to the board's elite block for everyone
+             * now that the board has no sign-in gate (2026-09-16). */
+            <Strips items={items} days={days} eliteHref={eliteListHref()} />
           )}
 
           {(before || olderHref) && (

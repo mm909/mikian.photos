@@ -29,8 +29,6 @@ export const dynamic = "force-dynamic";
  *                    minute the doors open, so a broken arrival time would
  *                    hide behind a coincidence. Wave 3 goes off at 7:15 and
  *                    is due in the door at 7:00.
- *   ?signed=1        a rower whose waiver is already signed — drops the
- *                    ONE THING FIRST block, which is the shorter mail.
  *   ?text=1          the plain twin, as text/plain.
  *   ?images=blocked  srcs pointed at a path that serves nothing, so the
  *                    browser genuinely draws the alt text. This is what
@@ -65,7 +63,6 @@ export async function GET(req: Request) {
     race,
     ...SAMPLE,
     wave,
-    waiverSigned: url.searchParams.get("signed") === "1",
     baseUrl,
   });
 

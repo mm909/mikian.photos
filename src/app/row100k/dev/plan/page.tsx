@@ -20,7 +20,7 @@ export const metadata: Metadata = {
  * look like — meters a day, and the split the remaining meters must be
  * rowed at. Prefilled from the signed-in rower's own rows; every number
  * stays editable. Admin-only in production, open in local dev, the same
- * gate as /row100k/dev/stats. */
+ * gate as /row100k/shareables. */
 export default async function DevPlanPage() {
   const viewer = await resolveViewer();
   if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();

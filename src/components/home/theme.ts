@@ -86,4 +86,22 @@ export const css = `
 @media (prefers-color-scheme: dark){
   .home{--paper:#E9E7DF}
 }
+
+/* .home-ink — the landing in the white-on-black look (owner, 2026-09-16:
+ * race week and after may go ink). src/app/page.tsx reads the same switch
+ * the /row100k layout reads and Landing puts the class on. The flip is the
+ * palette, the same values as theme.ts .row-ink: paper goes black, ink
+ * white, the greys re-cut as white at .74 and .62 over the black. FULLY
+ * MONOCHROME (owner, 2026-09-16, later that day: a fully mono chrome UI,
+ * paper keeps its colours): the water is white here, so the odometer goes
+ * white, OPT IN is white on a white underline and the live dot is white,
+ * all through the variables; the ledger rule is var(--ink), so it goes
+ * white the same way. The safety orange of the LASD26 chip is a hue too,
+ * so it goes white beside the ROWTEMBER chip — two white slabs told apart
+ * by the word. The bar loses the noise, and its two chips print their
+ * type in the ground colour. Paper adds nothing. */
+html:has(.home-ink),html:has(.home-ink) body{background:#0b0c0e}
+.home.home-ink{--paper:#0b0c0e;--ink:#ffffff;--ink-soft:rgba(255,255,255,.74);--gray:rgba(255,255,255,.62);--water:#ffffff;--water-hover:rgba(255,255,255,.74);--safety:#ffffff;--safety-hover:rgba(255,255,255,.74);background:var(--paper);color-scheme:dark}
+.home.home-ink .bar{background:var(--paper)}
+.home.home-ink .bar nav a{color:var(--paper)}
 `;

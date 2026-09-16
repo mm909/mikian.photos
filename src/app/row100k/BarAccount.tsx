@@ -6,12 +6,18 @@ import { signIn, signOut } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 
 /* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
- * chip opening the account menu — profile, then settings (owner call,
- * 2026-09-05: settings live behind this menu, not on the page), then sign
- * out. Signed in but not joined: join link + sign out. Admins also get
+ * chip opening the account menu — profile, poster, then settings (owner
+ * call, 2026-09-05: settings live behind this menu, not on the page), then
+ * sign out. Signed in but not joined: join link + sign out. Admins also get
  * three eyebrowed groups above Sign out — UTILITIES, ADMINISTRATION,
  * DEVELOPMENT (owner call, 2026-09-08). Items are next/link so the bar
- * pill (BarNav) can carry across the hop. */
+ * pill (BarNav) can carry across the hop.
+ *
+ * owner, 2026-09-16: the menu was cut down with the pages. Gone: Post pack
+ * (the studio took it), Raffles, Shop administration, The shirt, Gallery
+ * (retired), Dev stats (now Shareables), Race day (public, on the rail) and
+ * the (dev) tags. New: My poster for a rower, Posters / Shareables / Look
+ * under UTILITIES, Race waves under ADMINISTRATION. */
 
 /* A group heading inside the panel: mono, grey, letterspaced. */
 function Eyebrow({ children }: { children: string }) {
@@ -80,10 +86,12 @@ export function BarAccount({
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>
-                {/* The rower's own poster (/row100k/r/N/poster) is admin-only
-                 * for now — owner, 2026-09-10: "give me the poster in the dev
-                 * menu, not live". The MY POSTER item comes back here when
-                 * he opens it to rowers. */}
+                {/* The studio on their own poster, roster picker still there
+                 * (owner opened it to rowers 2026-09-16); /row100k/r/N/poster
+                 * stays the fixed-subject deep link. */}
+                <Link className="acct-item" href={`/row100k/posters?r=${rowerNumber}`} onClick={close}>
+                  My poster →
+                </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
                 </Link>
@@ -100,8 +108,19 @@ export function BarAccount({
                  * surfaces still in the shop. The item above each eyebrow
                  * already draws the dashed divider (border-bottom). */}
                 <Eyebrow>Utilities</Eyebrow>
-                <Link className="acct-item" href="/row100k/post" onClick={close}>
-                  Post pack →
+                {/* The poster studio — Rowtember and any rower, print and
+                 * Instagram formats, PNG / PDF / share. Public since
+                 * 2026-09-16; an admin also gets the community subjects. */}
+                <Link className="acct-item" href="/row100k/posters" onClick={close}>
+                  Posters →
+                </Link>
+                {/* The share cards: on/off switches and the recent shares. */}
+                <Link className="acct-item" href="/row100k/shareables" onClick={close}>
+                  Shareables →
+                </Link>
+                {/* Paper or ink, for this browser or for everyone. */}
+                <Link className="acct-item" href="/row100k/look" onClick={close}>
+                  Look →
                 </Link>
                 <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
                   The plan →
@@ -111,39 +130,28 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/blackout" onClick={close}>
                   Blackout →
                 </Link>
-                <Link className="acct-item" href="/row100k/raffles" onClick={close}>
-                  Raffles →
-                </Link>
-                {/* Signups + moderation, one table (rowers/RowersTable.tsx). */}
+                {/* Signups + moderation, one table (rowers/RowersTable.tsx);
+                 * the CSV downloads live there too. */}
                 <Link className="acct-item" href="/row100k/signups" onClick={close}>
                   Rowers →
                 </Link>
-                <Link className="acct-item" href="/row100k/shop-admin" onClick={close}>
-                  Shop administration →
+                {/* The console that puts people in waves and tells them —
+                 * and, further down the same page, the timing console (start
+                 * a wave, type a time, post the sheet). One entry, not two. */}
+                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
+                  Race waves →
+                </Link>
+                {/* The real board and the wall (owner, 2026-09-16: one tap
+                 * away on the night). The sample board stays under
+                 * Development. */}
+                <Link className="acct-item" href="/row100k/raceday/results" onClick={close}>
+                  Race results →
+                </Link>
+                <Link className="acct-item" href="/row100k/raceday/results?cast=1" onClick={close}>
+                  The wall →
                 </Link>
 
                 <Eyebrow>Development</Eyebrow>
-                <Link className="acct-item" href="/row100k/dev/stats" onClick={close}>
-                  Dev stats →
-                </Link>
-                {/* The poster studio (owner, 2026-09-10: "in the dev menu, not
-                 * live") — Rowtember and any rower, print and Instagram
-                 * formats, PNG / PDF / share. Admin-only page. */}
-                <Link className="acct-item" href="/row100k/posters" onClick={close}>
-                  Posters (dev) →
-                </Link>
-                {/* Race day — the timed 5,000 m on Sep 27 (owner, 2026-09-10:
-                 * "this should be hidden in development for now, in
-                 * development tabs"). The sign-up page and the racer list
-                 * first, then the console that puts people in waves and
-                 * tells them. Both gates live on the pages themselves;
-                 * these are only the doors. */}
-                <Link className="acct-item" href="/row100k/raceday" onClick={close}>
-                  Race day (dev) →
-                </Link>
-                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
-                  Race waves (dev) →
-                </Link>
                 {/* The results board on sample data (owner, 2026-09-11:
                  * "push the sample race day board with sample data so I can
                  * take a look at it"). Mid-race, finished, and the frame a
@@ -151,17 +159,10 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/dev/raceday-results" onClick={close}>
                   Race results (sample) →
                 </Link>
-                {/* The numbers and the gallery live here rather than on the
-                 * bar for now (owner call, 2026-09-05): neither is ready to
-                 * be a public tab. */}
+                {/* The numbers live here rather than on the bar for now
+                 * (owner call, 2026-09-05): not ready to be a public tab. */}
                 <Link className="acct-item" href="/row100k/analysis" onClick={close}>
                   The numbers →
-                </Link>
-                <Link className="acct-item" href="/row100k/dev/shirts" onClick={close}>
-                  The shirt (dev) →
-                </Link>
-                <Link className="acct-item" href="/row100k/gallery" onClick={close}>
-                  Gallery →
                 </Link>
               </>
             )}

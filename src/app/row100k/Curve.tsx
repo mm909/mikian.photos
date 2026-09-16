@@ -7,7 +7,9 @@ import { dayTicks, fmtDay, fmtMeters } from "@/lib/row100k";
  * readout. Single series — the title names it, no legend. Used twice: the
  * community curve on the board, and the personal curve in the dashboard
  * (which adds `goal` — a dashed reference line from 0 on Sep 1 to the goal
- * on Sep 30, i.e. the pace that finishes exactly on time). */
+ * on Sep 30, i.e. the pace that finishes exactly on time). Colours are
+ * the theme variables, not literals, so the ink look reaches the SVG
+ * (owner, 2026-09-16). */
 export function Curve({
   daily,
   title,
@@ -88,33 +90,33 @@ export function Curve({
         >
           {[0.25, 0.5, 0.75, 1].map((f) => (
             <g key={f}>
-              <line x1={L} x2={W - R} y1={y(niceMax * f)} y2={y(niceMax * f)} stroke="#dddbd2" strokeWidth="1" strokeDasharray={f === 1 ? undefined : "3 4"} />
-              <text x={L - 8} y={y(niceMax * f) + 3} textAnchor="end" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+              <line x1={L} x2={W - R} y1={y(niceMax * f)} y2={y(niceMax * f)} stroke="var(--line)" strokeWidth="1" strokeDasharray={f === 1 ? undefined : "3 4"} />
+              <text x={L - 8} y={y(niceMax * f) + 3} textAnchor="end" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
                 {abbr(niceMax * f)}
               </text>
             </g>
           ))}
-          <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#15171a" strokeWidth="2" />
+          <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="var(--ink)" strokeWidth="2" />
           {dayTicks(span).map((d) => (
-            <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+            <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
               {d === 1 ? "SEP 1" : d}
             </text>
           ))}
           {goal ? (
             <g>
-              <line x1={x(1)} y1={y(0)} x2={x(span)} y2={y(goalHere)} stroke="#8a8a85" strokeWidth="1.5" strokeDasharray="5 5" />
-              <text x={x(span) - 4} y={Math.max(y(goalHere) - 8, 12)} textAnchor="end" fontSize="10" fill="#8a8a85" fontFamily="var(--row-mono), monospace">
+              <line x1={x(1)} y1={y(0)} x2={x(span)} y2={y(goalHere)} stroke="var(--gray)" strokeWidth="1.5" strokeDasharray="5 5" />
+              <text x={x(span) - 4} y={Math.max(y(goalHere) - 8, 12)} textAnchor="end" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
                 {abbr(goal)} PACE
               </text>
             </g>
           ) : null}
-          <path d={area} fill="rgba(0,119,182,0.08)" />
-          <path d={path} fill="none" stroke="#0077B6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <path d={area} fill="var(--water)" fillOpacity="0.08" />
+          <path d={path} fill="none" stroke="var(--water)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {h && h.day && (
-            <line x1={x(h.dayNum)} x2={x(h.dayNum)} y1={T} y2={y(0)} stroke="#15171a" strokeWidth="1" strokeDasharray="2 3" />
+            <line x1={x(h.dayNum)} x2={x(h.dayNum)} y1={T} y2={y(0)} stroke="var(--ink)" strokeWidth="1" strokeDasharray="2 3" />
           )}
-          <circle cx={x(last.dayNum)} cy={y(last.cum)} r="4.5" fill="#0077B6" />
-          <text x={Math.min(x(last.dayNum), W - R - 4)} y={Math.max(y(last.cum) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="#15171a" fontFamily="var(--row-mono), monospace">
+          <circle cx={x(last.dayNum)} cy={y(last.cum)} r="4.5" fill="var(--water)" />
+          <text x={Math.min(x(last.dayNum), W - R - 4)} y={Math.max(y(last.cum) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--ink)" fontFamily="var(--row-mono), monospace">
             {fmtMeters(last.cum)}
           </text>
         </svg>

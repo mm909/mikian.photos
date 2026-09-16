@@ -5,13 +5,21 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
+import { nowMs } from "@/lib/row100k";
 import { hoursLine, raceOpenFor, racePhase, waveTime } from "../raceday";
-import { resolvedRace } from "../racedaySettings";
+import { raceWithSettings } from "../racedaySettings";
 import { listRacers } from "../racedayData";
+import { postingWindow } from "../raceResults";
 import { FIELD_SHOWS_AT, Field } from "./Field";
 import { RaceShare, type RaceFacts } from "./RaceShare";
+import { raceFactsOf } from "../shareables/waveShare";
 import { rdCss } from "./rdCss";
-import { SignupPanel } from "./SignupPanel";
+import { SignupPanel, type OwnTiming } from "./SignupPanel";
+
+/* THE RESULTS BOARD, and when this page starts pointing at it: a day
+ * before the doors. Earlier it is an empty grid. */
+const RESULTS_HREF = "/row100k/raceday/results";
+const DAY_MS = 24 * 3_600_000;
 
 export const dynamic = "force-dynamic";
 
@@ -184,7 +192,9 @@ export default async function RaceDayPage() {
   // RowRaceSettings and this reads it, so a door or a first wave moved at
   // 4 PM is on the bill at 4 PM. racedaySettings fails open — a settings
   // table that cannot be read costs the overrides, never the page.
-  const race = await resolvedRace();
+  // The same single read also carries finalAt — whether the sheet is
+  // posted — which the POST YOUR TIME rail needs (owner, 2026-09-16).
+  const { race, view } = await raceWithSettings();
   const phase = racePhase(race);
   const racers = await listRacers(race);
   // A withdrawal keeps its row so the wave console can see the hole it
@@ -198,6 +208,22 @@ export default async function RaceDayPage() {
   const mine = viewer.myParticipantId
     ? (racers.find((r) => r.participantId === viewer.myParticipantId) ?? null)
     : null;
+
+  /* THE VIEWER S OWN TIME (owner, 2026-09-16: review how racers submit
+   * times during race day). Computed here because the rules are server
+   * only (raceResults.ts): they may post while the window is open — an hour
+   * before the doors to a day after — and the sheet is not posted. The
+   * panel prints what is stored and asks the route for the rest. */
+  const now = nowMs();
+  const final = view.finalAt !== null;
+  const myLive = mine && mine.withdrewAt === null && mine.role === "racer" && mine.wave !== null ? mine : null;
+  const timing: OwnTiming = {
+    canPost: myLive !== null && !final && postingWindow(race, now).open,
+    final,
+    tenths: myLive?.tenths ?? null,
+    resultsHref: RESULTS_HREF,
+    resultsOpen: now >= race.opensAt - DAY_MS,
+  };
 
   // Noon UTC on race day, so the square never slides either way whatever
   // zone the browser is standing in.
@@ -228,29 +254,20 @@ export default async function RaceDayPage() {
 
   /* THE SHAREABLES (owner, 2026-09-11: "There should be a shareable for
    * whenever you sign up for race day ... And just a shareable with the
-   * event name and logo"). The facts are built HERE, off the same values the
+   * event name and logo"). The facts are built off the same values the
    * bill prints — stamp, hoursLine, the room, the house's own mark — and
    * handed down display-ready: share/cards.ts reads no clock and formats no
    * day, because two surfaces that formatted the same evening their own way
-   * would disagree the first time a door moved in the console. The viewer's
-   * own half (`mine`) is not in here; the panel adds it, because it knows
-   * about an opt-in the moment it happens and this render does not. */
-  const raceFacts: RaceFacts = {
-    title: race.title.toUpperCase(),
-    sub: race.sub.toUpperCase(),
-    /* TWO CELLS, NOT THREE. This line ended in `price` until the owner read
-     * the sticker on his phone: "on the share race day, let us remove free."
-     * The bracket above still says it — a bill on a wall is sold on it — but
-     * the sticker is an invitation somebody lays over their own photograph,
-     * and it leads with the day. `price` is still written once, above, for
-     * the cell that keeps it. */
-    when: `${stamp} · ${hours}`,
-    /* The room alone: the town came off every surface that names the room
-     * the same day, and `piece` and `stamp` came off this block with the
-     * I'M RACING card that was the only thing printing them. */
-    where: race.room.toUpperCase(),
-    mark: race.venueMark,
-  };
+   * would disagree the first time a door moved in the console. Since
+   * 2026-09-16 the derivation is raceFactsOf (shareables/waveShare.ts),
+   * which the front page and the profile also use for MY WAVE, so the bill
+   * and every card read one source. Its `when` has TWO CELLS, NOT THREE:
+   * it ended in `price` until the owner read the sticker on his phone ("on
+   * the share race day, let us remove free"); the bracket above keeps it.
+   * The viewer's own half (`mine`) is not in here; the panel adds it,
+   * because it knows about an opt-in the moment it happens and this
+   * render does not. */
+  const raceFacts: RaceFacts = raceFactsOf(race);
 
   // The bill wears a stamp once it is over, and nothing while it is open:
   // the day is already the biggest thing on the page.
@@ -386,6 +403,7 @@ export default async function RaceDayPage() {
                 open={phase === "open"}
                 mine={mine}
                 share={raceFacts}
+                timing={timing}
               />
 
               {/* THE TEAR-OFF STRIP, and the reason it is HERE: the bill is
@@ -423,6 +441,14 @@ export default async function RaceDayPage() {
                 <span className="mono">
                   {field.length} IN THE FIELD
                   {watching > 0 ? ` · ${watching} WATCHING` : ""}
+                  {/* The board, once race day is within a day — the same
+                    * rule the act above uses for its own link. */}
+                  {timing.resultsOpen && (
+                    <>
+                      {" · "}
+                      <a href={RESULTS_HREF}>SEE THE RESULTS →</a>
+                    </>
+                  )}
                 </span>
               </div>
 

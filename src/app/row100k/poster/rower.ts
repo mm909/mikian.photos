@@ -17,8 +17,9 @@
  * freed (see the plans at the foot of this file).
  *
  * Masking is the share-card rule (SPEC §1.4): a poster leaves the site, so
- * a rower among the elite draws blocks for meters, block clocks for times,
- * keeps split / sessions / dates / places on the time bests, and carries
+ * a rower among the elite draws blocks for meters, block clocks for times
+ * (the time bests too, since the poster went public — owner, 2026-09-16),
+ * keeps sessions / dates / places on the time bests, and carries
  * no rank — ELITE where the place would go. Every hidden value arrives as
  * a Figure with a shape (types.ts) and `pace`, `seconds`, `month.meters`
  * arrive null; the modules here draw what they are handed and never
@@ -452,7 +453,7 @@ strip.measure = measureByDraw(strip.draw);
 /* -------------------------------------------------------------- month */
 
 /* R4. The calendar under "THE MONTH / METERS PER DAY": the full five-row
- * grid on the wall, the elapsed weeks on a phone or a hand-out. Masked:
+ * grid on the wall, the elapsed weeks on a phone. Masked:
  * "DAYS ROWED · METERS HIDDEN" and dots. The month never grows past its
  * cell cap, so a grown row leaves the remainder as paper. */
 function monthOpts(paint: PosterPaint) {
@@ -510,21 +511,20 @@ const month: Mod = {
 
 /* R5. "THE PACE / AVERAGE SPLIT · METER BY METER": the running average
  * split per session against cumulative meters (rowerCharts.drawPaceCurve).
- * Fixed 250 on printL, 200 on printS; the hand plan may grow it, capped
- * at a readable aspect, and the print fold (`paceLog`) hands it what the
- * log cannot use. Masked (`pace === null`): no curve of any kind — the
+ * Fixed 250 on printL, 160 on the phone; the print plan's grow row opens
+ * it up to PACE_ROW_MAX. Masked (`pace === null`): no curve of any kind — the
  * DogTag idiom on paper, the one figure that stays public. A rower with
  * fewer than two timed rows has neither: one gray line, and the module
  * measures at that line (a 250-unit frame around it was 3.75 inches of
  * paper above the log on the 18x24 — rowers who log meters without a
  * time are a real case). */
-const PACE_H = { printL: 250, printS: 200, phone: 160 } as const;
+const PACE_H = { printL: 250, phone: 160 } as const;
 
 /* What the pace asks for once the plan has spent its `chart` step
  * (tk.chart, SPEC §8.4): the wall sheet's own cascade lives here — the
  * 16x20 is 300 units shorter than the 18x24 and the chart is what yields
  * so the month, the bests, the ledger and the whole log stay on it. */
-const PACE_MIN_H = { printL: 185, printS: 160, phone: 120 } as const;
+const PACE_MIN_H = { printL: 185, phone: 120 } as const;
 
 const PACE_EYEBROW = ["THE PACE", "AVERAGE SPLIT · METER BY METER", "METER BY METER"] as const;
 
@@ -603,8 +603,9 @@ const pace: Mod = {
 /* R6. Four rows on dashed hairlines: the label (Archivo 700) over its
  * small gray sub, the value right in mono bold, a place chip before it
  * (#1–#3 filled medals, #4+ outline gray, none when unplaced — the DATA
- * stream already nulls a masked meters best's place). Masked meters bests
- * arrive as shapes and draw as blocks + " m". */
+ * stream already nulls a masked meters best's place). Masked bests arrive
+ * as shapes and draw as blocks — " m" on the meters, a block clock on the
+ * times (the chip stays on those). */
 function drawBestValue(ctx: Ctx, paint: PosterPaint, b: RowerBest, right: number, base: number): number {
   const PAL = paint.c;
   const tk = paint.tk;
@@ -697,19 +698,15 @@ bestsCompact.measure = measureByDraw(bestsCompact.draw);
  * the month above it counts the days in cells, and the ledger is where a
  * reader looks for the figure.
  *
- * The second line depends on the family, because it is the ONE place the
- * average split can be called out on a hand-out: the wall sheets carry a
- * bracketed strip with AVERAGE SPLIT in Archivo Black, the hand-outs have
- * no strip at all, so there the split rides in the ledger and the wall
- * ledger carries the days instead. The same number never prints twice on
- * one sheet.
+ * The second line is the days: every sheet that carries this ledger also
+ * carries the bracketed strip with AVERAGE SPLIT in Archivo Black, so the
+ * same number never prints twice on one sheet. (The hand-outs had no strip
+ * and put the split here instead; they came off on 2026-09-16.)
  *
- * Masked: SESSIONS · DAYS ROWED · AVERAGE SPLIT · EVERYONE — no time
- * (with the split public, time is the total by another route), no
- * per-day, no share. */
-function ledgerItems(d: RowerPoster, paint: PosterPaint): { k: string; v: string }[] {
+ * Masked: SESSIONS · DAYS ROWED · EVERYONE — no time (with the split
+ * public, time is the total by another route), no per-day, no share. */
+function ledgerItems(d: RowerPoster): { k: string; v: string }[] {
   const everyone = { k: "EVERYONE", v: `${abbr(d.community.meters)} · ${d.community.rowers} ROWERS` };
-  const split = { k: "AVERAGE SPLIT", v: d.totals.paceTag ? `${d.totals.paceTag} /500M` : "—" };
   const days = { k: "DAYS ROWED", v: `${d.totals.daysRowed} OF ${d.asOf.dayNumber}` };
   if (d.masked) {
     // No TIME ROWED, no per-day, no share while a window is open (§0), and
@@ -720,7 +717,7 @@ function ledgerItems(d: RowerPoster, paint: PosterPaint): { k: string; v: string
   }
   return [
     { k: "TIME ROWED", v: d.totals.seconds ? fmtDuration(d.totals.seconds) : "—" },
-    paint.format.family === "printS" ? split : days,
+    days,
     { k: "METERS A DAY", v: d.totals.metersADay !== null ? `${n(d.totals.metersADay)} M` : "—" },
     everyone,
   ];
@@ -732,7 +729,7 @@ const ledger: Mod = {
   draw(ctx, box, d, _fonts, paint) {
     const PAL = paint.c;
     const tk = paint.tk;
-    const items = ledgerItems(d, paint);
+    const items = ledgerItems(d);
     paint.rule(ctx, box.x, box.y, box.w, tk.thick, PAL.ink);
     const y = box.y + tk.thick + tk.ledger * 0.8;
     const kf = paint.font("mono", tk.ledger);
@@ -767,7 +764,7 @@ ledger.measure = measureByDraw(ledger.draw);
  * rows need, it opens its pitch toward the box (LOG_STRETCH) rather than
  * leave a band of paper under its last row. Cut so tight that a
  * log-column holds ONE row under "+ N MORE", it draws nothing at all: a
- * header, one row and "+ 39 MORE" was noise on the letter hand-out. */
+ * header, one row and "+ 39 MORE" was noise on a hand-out. */
 function logEyebrow(d: RowerPoster): [string, string, string] {
   const count = d.log.length;
   return ["THE LOG", `${count} SESSION${count === 1 ? "" : "S"} · EVERY ROW`, "EVERY ROW"];
@@ -810,12 +807,13 @@ function drawLogModule(
   return y + h - box.y;
 }
 
-/* minH is the floor the engine's `cap` step cuts the hand plan's log row
- * to (§8.4): eyebrow + header + two small-step rows on the hand-outs at
- * the pitch step (38 + 23 + 2 × 22 ≈ 105), so a capped log always shows
- * two rows a column or goes to nothing through the terminal path — never
- * a box that holds one row and "+ N MORE" (which draws nothing and would
- * have stood as paper above the footer). */
+/* minH is the floor the engine's `cap` step cuts a capped log row to
+ * (§8.4): eyebrow + header + two small-step rows at the pitch step
+ * (38 + 23 + 2 × 22 ≈ 105, measured on the hand-outs that have since come
+ * off), so a capped log always shows two rows a column or goes to nothing
+ * through the terminal path — never a box that holds one row and
+ * "+ N MORE" (which draws nothing and would have stood as paper above the
+ * footer). */
 const log: Mod = {
   id: "log",
   minH: 106,
@@ -1061,30 +1059,9 @@ const printPlan = (key: PosterPlan["key"]): PosterPlan => ({
   shrink: ["gap", "pitch", "chart", "step", "cap"],
 });
 
-/* The hand-out (11x17, A3, letter, A4): the whole profile above the log,
- * the pace grown to level the two stacks, the log capped on what is left.
- * The body row is the second grow row so that any slack the log row
- * cannot take goes to the pace rather than the gap above the footer —
- * inert while the log row has no maxH (it takes every unit first), kept
- * so the order is stated if the engine ever lets a slot decline a box. */
-const hand: PosterPlan = {
-  key: "hand",
-  cols: 2,
-  rows: [
-    { id: "nameplate", slots: [{ module: "nameplate", span: 2 }] },
-    {
-      id: "body",
-      grow: 2,
-      slots: [
-        { stack: ["headline", "ledger", "bests"], span: 1 },
-        { stack: ["month", "pace"], span: 1, grow: "pace" },
-      ],
-    },
-    { id: "log", grow: 1, slots: [{ module: "log", span: 2, fit: "cap" }] },
-  ],
-  footer: "footer",
-  shrink: ["gap", "pitch", "step", "cap"],
-};
+/* The `hand` plan — the two-column hand-out (11x17, A3, letter, A4) —
+ * stood here until 2026-09-16, when the owner took those sizes off the
+ * studio. */
 
 /* The story: the month made big (cell ≤ 44) over the bests; the post the
  * same without the strip (cell ≤ 56, the rank in the dateline, the hours
@@ -1168,7 +1145,6 @@ export const rowerLayout: PosterLayout<RowerPoster> = {
     tall: printPlan("tall"),
     short: printPlan("short"),
     squat: printPlan("squat"),
-    hand,
     story,
     post,
     square,

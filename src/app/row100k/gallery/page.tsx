@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import path from "path";
 import { readdir } from "fs/promises";
 import { getEffectiveActor } from "@/lib/permissions";
@@ -12,6 +13,16 @@ import { Gallery } from "./Gallery";
 import manifest from "./manifest.json";
 
 export const dynamic = "force-dynamic";
+
+/* RETIRED for now (owner, 2026-09-16: "we can retire the shirt page and
+ * the gallery page for now"): the public URL 404s. Admins still get the
+ * page, because the upload strip below is the ONLY way a gallery shot gets
+ * published, and the posters (../poster/racePhoto.ts) and the race console
+ * photo picker (/api/row100k/raceday/settings) keep reading the newest one —
+ * the owner is shooting all month. Flip this one const to bring it back for
+ * everyone. The listing (../galleryList.ts) and the sign and delete API
+ * routes stay as they are. */
+const RETIRED = true;
 
 export const metadata: Metadata = {
   title: "The gallery — 100K September",
@@ -101,6 +112,8 @@ export default async function GalleryPage() {
   } catch {
     /* no session backend in some local setups — the page is public anyway */
   }
+  // While retired, only admins get through (see the RETIRED note above).
+  if (RETIRED && !admin) notFound();
 
   // Source (a): the live R2 batch, newest upload first, on public CDN URLs.
   // The cached listing already folded the .thumb. companions onto their

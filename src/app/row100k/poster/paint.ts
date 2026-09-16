@@ -1,7 +1,7 @@
 /* poster/paint.ts — THE PAINT HELPER (types.ts PosterPaint), built once per
  * render and handed to every module.
  *
- * Nothing here is new drawing: the text engine is post/slides.ts's
+ * Nothing here is new drawing: the text engine is the retired post pack's slides.ts
  * (boxFor, metricsOf, baselineOf, hasLetterSpacing, measure, drawText,
  * drawCentered, drawRight, ellipsize, rule, dottedRule) and the blackout
  * blocks are share/cards.ts's (drawBlockShape geometry, blockDigitsWidth,
@@ -283,7 +283,7 @@ export const DOW_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
 /* ------------------------------------------------------------ type box */
 
-/* post/slides.ts boxFor — which family a font shorthand names. Black is
+/* slides.ts (the retired post pack) boxFor — which family a font shorthand names. Black is
  * checked first: its family name contains the plain Archivo one. */
 export function boxFor(fonts: PosterFonts, font: string): FontBox | undefined {
   const box = fonts.box;
@@ -294,7 +294,7 @@ export function boxFor(fonts: PosterFonts, font: string): FontBox | undefined {
   return undefined;
 }
 
-/* post/slides.ts metricsOf — the font's own line box at this size, from
+/* slides.ts (the retired post pack) metricsOf — the font's own line box at this size, from
  * the DOM-measured ratios; canvas fontBoundingBox* as the fallback (it is
  * the ink box, a touch tall), then rough mono-ish ratios. */
 export function metricsOf(ctx: Ctx, fonts: PosterFonts, font: string, size: number): PosterMetrics {
@@ -313,19 +313,19 @@ export function metricsOf(ctx: Ctx, fonts: PosterFonts, font: string, size: numb
   return { asc, desc, lh: asc + desc };
 }
 
-/* post/slides.ts baselineOf — half-leading: the glyph box centred in the
+/* slides.ts (the retired post pack) baselineOf — half-leading: the glyph box centred in the
  * line box, which is how a heading with line-height under 1 still sits
  * where CSS put it. */
 export function baselineOf(top: number, lh: number, m: PosterMetrics): number {
   return top + (lh - (m.asc + m.desc)) / 2 + m.asc;
 }
 
-/* post/slides.ts hasLetterSpacing. */
+/* slides.ts (the retired post pack) hasLetterSpacing. */
 export function hasLetterSpacing(ctx: Ctx): boolean {
   return typeof ctx.letterSpacing === "string";
 }
 
-/* post/slides.ts measure — the width WITH its tracking (the trailing
+/* slides.ts (the retired post pack) measure — the width WITH its tracking (the trailing
  * space after the last glyph included, exactly like CSS). */
 export function measure(ctx: Ctx, text: string, font: string, tracking = 0): number {
   ctx.font = font;
@@ -341,7 +341,7 @@ export function measure(ctx: Ctx, text: string, font: string, tracking = 0): num
   return w;
 }
 
-/* post/slides.ts drawText — returns the width so a run can advance. */
+/* slides.ts (the retired post pack) drawText — returns the width so a run can advance. */
 export function drawText(
   ctx: Ctx,
   text: string,
@@ -374,7 +374,7 @@ export function drawText(
   return cx - x;
 }
 
-/* post/slides.ts drawCentered / drawRight. */
+/* slides.ts (the retired post pack) drawCentered / drawRight. */
 export function drawCentered(
   ctx: Ctx,
   text: string,
@@ -403,7 +403,7 @@ export function drawRight(
   return w;
 }
 
-/* post/slides.ts Run / runsWidth / drawRuns — one baseline, mixed colour
+/* slides.ts (the retired post pack) Run / runsWidth / drawRuns — one baseline, mixed colour
  * or face (the label line with its one bold ink run). Exported for the
  * module streams; not part of the PosterPaint interface. */
 export type Run = { text: string; color: string; font?: string; tracking?: number };
@@ -430,7 +430,7 @@ export function drawRuns(
   return cx - x;
 }
 
-/* post/slides.ts ellipsize, made tracking-aware: measured with the same
+/* slides.ts (the retired post pack) ellipsize, made tracking-aware: measured with the same
  * tracking it will be drawn with, so a tracked eyebrow descriptor never
  * runs into its neighbour (ledger-design graft, SPEC.md §0). */
 export function ellipsize(ctx: Ctx, text: string, maxW: number, font: string, tracking = 0): string {
@@ -440,7 +440,7 @@ export function ellipsize(ctx: Ctx, text: string, maxW: number, font: string, tr
   return `${t.trimEnd()}…`;
 }
 
-/* post/slides.ts rule — a solid rule; ink unless told otherwise. */
+/* slides.ts (the retired post pack) rule — a solid rule; ink unless told otherwise. */
 export function rule(ctx: Ctx, x: number, y: number, w: number, h: number, color: string = INK): void {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
@@ -466,7 +466,7 @@ export function dashedRule(
   ctx.restore();
 }
 
-/* post/slides.ts dottedRule, as the 2-unit dotted leader of the .bl
+/* slides.ts (the retired post pack) dottedRule, as the 2-unit dotted leader of the .bl
  * ledger (gray, [2, 3.2]). */
 export function dottedRule(ctx: Ctx, x1: number, x2: number, y: number, color: string = GRAY): void {
   ctx.save();

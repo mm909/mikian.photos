@@ -4,10 +4,11 @@ import { sendPlainEmail } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
-import { currentRace, raceBySlug, waveTime, type RaceDef } from "@/app/row100k/raceday";
+import { currentRace, raceBySlug, waveTime } from "@/app/row100k/raceday";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
-import { listRacers, type Racer } from "@/app/row100k/racedayData";
+import { listRacers } from "@/app/row100k/racedayData";
 import { waveEmail } from "@/app/row100k/raceEmail";
+import { parsePlanMode, planWaves } from "@/app/row100k/wavePlan";
 
 export const runtime = "nodejs";
 
@@ -16,9 +17,10 @@ export const runtime = "nodejs";
  * after that ... and we also should email them what wave they are whenever
  * we assign them"). Admin only, every verb, from /row100k/race-admin.
  *
- * POST { action: "auto",  dryRun?, mix? } — lay the whole field out into
- *      waves. The dry run returns the plan and writes nothing; the real run
- *      writes only the rows whose wave actually moves.
+ * POST { action: "auto",  dryRun?, mode? } — lay the whole field out into
+ *      waves (wavePlan.ts: "balanced" unless told "apart"). The dry run
+ *      returns the plan and writes nothing; the real run writes only the
+ *      rows whose wave actually moves.
  * POST { action: "set",   id, wave }      — one racer, one wave (null clears
  *      it). The console saves this on change.
  * POST { action: "email", dryRun? }       — the wave note to every racer who
@@ -62,82 +64,7 @@ async function guard(): Promise<Guarded> {
   return { actor };
 }
 
-/* ------------------------------------------------------------- the plan */
-
-/* Kept local: a route file exports handlers, and the console declares the
- * shape it expects for itself (the settle panel's idiom). */
-type PlanRow = {
-  id: string;
-  rowerNumber: number;
-  name: string;
-  division: string;
-  /* Their seed, as the console prints it. */
-  best5k: string;
-  from: number | null;
-  to: number;
-};
-
-/* THE AUTO RULE — my call, and the owner can overrule it in one line.
- *
- * The brackets race each other, not the clock: men row with men and women
- * with women, so a wave is a real race and the two results tables come off
- * two real fields. Inside a bracket the seed is the fastest 5k on the
- * board, quickest first, filling waveSize at a time — eight people who can
- * see each other. A rower with no 5k yet has nothing to seed on, so they go
- * to the back of their own bracket (owner's brief: "timeless rowers last");
- * a rower in neither bracket brings up the rear of the morning.
- *
- * The brackets run in the order the race lists them (raceday.ts: men, then
- * women) — reorder that array and the morning reorders with it, which is
- * the one knob that needed no switch. MIX is the single override: one
- * field, one seeding, brackets ignored.
- *
- * Withdrawals are not in the plan at all and keep whatever wave they had;
- * nothing is emailed to them (the mail step skips a withdrawal too). */
-function planWaves(race: RaceDef, racers: Racer[], mix: boolean): PlanRow[] {
-  /* Only people who are actually pulling: a withdrawal is out, and so is
-   * anybody who signed up to watch. */
-  const live = racers.filter((r) => !r.withdrewAt && r.role === "racer");
-
-  /* Fastest first, no time last, rower number to break a tie — so a dry run
-   * and the write that follows it lay out the same morning. */
-  const seed = (a: Racer, b: Racer) => {
-    const at = a.best5k ? a.best5k.seconds : Number.POSITIVE_INFINITY;
-    const bt = b.best5k ? b.best5k.seconds : Number.POSITIVE_INFINITY;
-    if (at !== bt) return at - bt;
-    return a.rowerNumber - b.rowerNumber;
-  };
-
-  const keys = race.brackets.map((b) => b.key as string);
-  const groups: Racer[][] = mix
-    ? [live]
-    : [...race.brackets.map((b) => live.filter((r) => r.division === b.key)), live.filter((r) => !keys.includes(r.division))];
-
-  const size = Math.max(1, race.waveSize);
-  const out: PlanRow[] = [];
-  let wave = 1;
-  for (const group of groups) {
-    if (group.length === 0) continue;
-    const seeded = [...group].sort(seed);
-    for (let i = 0; i < seeded.length; i++) {
-      /* A new bracket always starts a new wave, so nobody races a bracket
-       * they are not scored in. */
-      if (i > 0 && i % size === 0) wave += 1;
-      const r = seeded[i];
-      out.push({
-        id: r.id,
-        rowerNumber: r.rowerNumber,
-        name: r.name,
-        division: r.division,
-        best5k: r.best5k ? r.best5k.text : "",
-        from: r.wave,
-        to: wave,
-      });
-    }
-    wave += 1;
-  }
-  return out;
-}
+/* The plan itself is wavePlan.ts — pure, so a script can check it. */
 
 /* ------------------------------------------------------------- the verbs */
 
@@ -200,9 +127,9 @@ export async function POST(req: Request) {
 
   /* --------------------------------------------------------- the whole field */
   if (action === "auto") {
-    const mix = body.mix === true;
+    const mode = parsePlanMode(body.mode) ?? "balanced";
     try {
-      const plan = planWaves(race, await listRacers(race), mix);
+      const plan = planWaves(race, await listRacers(race), { mode });
       const moves = plan.filter((p) => p.from !== p.to);
       if (!dryRun && moves.length > 0) {
         /* All or nothing: half a laid-out field is worse than none. */
@@ -218,7 +145,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         dryRun,
-        mix,
+        mode,
         assigned: plan.length,
         moved: moves.length,
         waves: plan.reduce((n, p) => Math.max(n, p.to), 0),
@@ -270,7 +197,6 @@ export async function POST(req: Request) {
           name: r.name,
           rowerNumber: r.rowerNumber,
           wave,
-          waiverSigned: r.waiverAt !== null,
         });
         const sent = await sendPlainEmail(to, mail.subject, mail.text, mail.html);
         if (sent.ok) {

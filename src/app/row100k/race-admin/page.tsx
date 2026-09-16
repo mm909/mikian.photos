@@ -7,11 +7,11 @@ import { RowFooter } from "../RowFooter";
 import { hoursLine, racePhase } from "../raceday";
 import { raceWithSettings } from "../racedaySettings";
 import { EMPTY_RACERS, listRacers, type Racer } from "../racedayData";
-import { listGallery } from "../galleryList";
-import { photoUrl, photosServable, thumbKey } from "../photoUrls";
-import { RaceSettings, type GalleryPick } from "./RaceSettings";
+import { resultBoard } from "../raceResults";
+import { RaceSettings } from "./RaceSettings";
 import { RaceWaves } from "./RaceWaves";
 import { DoorList } from "./DoorList";
+import { RaceTiming } from "./RaceTiming";
 
 export const dynamic = "force-dynamic";
 
@@ -82,20 +82,11 @@ const raWavCss = `
 .row100k .ra-read{font-family:var(--row-mono),monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin-top:22px;line-height:2}
 .row100k .ra-read b{color:var(--water);font-weight:700;font-variant-numeric:tabular-nums}
 .row100k .ra-warn{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#b3400f;margin-top:8px;line-height:1.8}
-.row100k .ra-cur{display:flex;align-items:flex-start;gap:16px;margin-top:14px;flex-wrap:wrap}
-.row100k .ra-cur img{display:block;width:96px;height:120px;object-fit:cover;border:2px solid var(--ink);background:var(--line)}
-.row100k .ra-cur .none{width:96px;height:120px;border:2px dashed var(--line)}
-.row100k .ra-pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:16px;max-height:340px;overflow-y:auto}
-.row100k .ra-pic{display:block;margin:0;padding:0;border:2px solid var(--line);background:none;cursor:pointer;aspect-ratio:4/5;overflow:hidden}
-.row100k .ra-pic.on{border-color:var(--water)}
-.row100k .ra-pic img{display:block;width:100%;height:100%;object-fit:cover}
 .row100k .ra-chg{list-style:none;margin:22px 0 0;padding:0;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);line-height:1.9}
 .row100k .ra-chg li{border-top:1px dashed var(--line);padding:5px 0}
-/* THE DOOR LIST — a reading object, not a console. Four short columns that
- * fit a phone, so it never needs the sideways scroll the .ra-t tables take,
- * and the only colour on it marks the one thing somebody has to act on. */
+/* THE DOOR LIST — a reading object, not a console. Three short columns that
+ * fit a phone, so it never needs the sideways scroll the .ra-t tables take. */
 .row100k .ra-door .st-tiles{margin-top:4px}
-.row100k .ra-door .st-tile.owe .n,.row100k .ra-door .st-tile.owe .l{color:#b3400f}
 /* The stat tiles stack one to a phone everywhere else on the site, where
  * they carry six-figure meters. These are headcounts of one or two digits,
  * and stacked they push the list itself a whole screen down — which on the
@@ -114,9 +105,36 @@ const raWavCss = `
 .row100k table.board.ra-d .ra-dn{color:var(--gray);font-weight:400}
 .row100k table.board.ra-d .ra-yes{color:var(--water);font-weight:700;letter-spacing:.08em}
 .row100k table.board.ra-d .ra-no{color:var(--gray);letter-spacing:.08em}
-.row100k table.board.ra-d .ra-owe{color:#b3400f;font-weight:700;letter-spacing:.08em}
 .row100k table.board.ra-d th.ra-dw,.row100k table.board.ra-d td.ra-dw{width:56px;font-variant-numeric:tabular-nums}
-.row100k table.board.ra-d th.ra-dv,.row100k table.board.ra-d td.ra-dv{width:74px}
+/* THE TIMING CONSOLE (owner, 2026-09-16). The wave cards again, cut wider
+ * so a lane row holds a time box and three verbs, and every lane on two
+ * lines: who and the result, then the controls. The wave on the ergs wears
+ * the thick border, the way the wall gives it the thick rule. */
+.row100k .ra-tm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:4px}
+.row100k .ra-wave.ra-tm.live{border-width:4px;padding:10px 12px 12px}
+.row100k .ra-tm-state{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}
+.row100k .ra-wave.ra-tm.live .ra-tm-state{color:var(--water);font-weight:700}
+.row100k .ra-tm-state .outline-btn{padding:5px 10px;font-size:10px}
+.row100k .ra-wave.ra-tm ul{margin-top:8px}
+.row100k .ra-wave.ra-tm ul li{display:block;border-top:1px dashed var(--line);padding:8px 0 6px}
+.row100k .ra-tm-who{display:flex;align-items:baseline;gap:8px;min-width:0}
+.row100k .ra-tm-who .ln{color:var(--gray);width:2.4em;flex:none}
+.row100k .ra-tm-who .w{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.row100k .ra-tm-who .res{flex:none;font-variant-numeric:tabular-nums}
+.row100k .ra-tm-lane.finished .res{color:var(--water);font-weight:700}
+.row100k .ra-tm-lane.dnf .res{color:var(--gray);letter-spacing:.1em}
+.row100k .ra-tm-lane.rowing .res{color:var(--water)}
+.row100k .ra-tm-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+.row100k input.ra-tm-in{width:8ch;background:transparent;border:none;border-bottom:2px solid var(--line);color:var(--ink);font-family:var(--row-mono),monospace;font-size:14px;padding:5px 2px;border-radius:0;appearance:none;font-variant-numeric:tabular-nums}
+.row100k input.ra-tm-in:focus{outline:none;border-bottom-color:var(--water)}
+.row100k input.ra-tm-in:disabled{opacity:.5}
+.row100k .ra-tm-ctl .outline-btn{padding:5px 10px;font-size:10px}
+.row100k .ra-tm-ctl .del-btn:disabled{opacity:.4;cursor:default}
+.row100k .ra-tm-ctl .q{font-size:10px;letter-spacing:.1em;color:var(--gray)}
+.row100k .ra-wave.ra-tm .form-err{margin-top:6px;font-size:11px}
+/* Two of the console actions are links to the board, dressed as the
+ * outline button beside them. */
+.row100k .ra-act a.outline-btn{text-decoration:none;display:inline-block}
 `;
 
 /* RACE WAVES — admin only (owner, 2026-09-10: "we need a way to assign
@@ -146,26 +164,13 @@ export default async function RaceAdminPage() {
     unreadable = true;
   }
 
-  /* THE PICTURE PICKER's thumbnails — the same cached gallery listing the
-   * gallery page reads, capped because this is a picker and not the album.
-   * Fails soft: a listing hiccup costs the thumbnails, not the console. */
-  let gallery: GalleryPick[] = [];
-  try {
-    if (photosServable()) {
-      gallery = await Promise.all(
-        (await listGallery()).slice(0, 60).map(async (o) => ({
-          key: o.key,
-          thumb: await photoUrl(o.hasThumb ? thumbKey(o.key) : o.key),
-        })),
-      );
-    }
-  } catch (err) {
-    console.error("row100k/race-admin: gallery listing failed", err);
-    gallery = [];
-  }
-
   /* What the read-out starts from: people actually pulling, right now. */
   const starters = racers.filter((r) => !r.withdrewAt && r.role === "racer").length;
+
+  /* THE BOARD, for the timing console (owner, 2026-09-16): the same
+   * ResultBoard the results page and the wall draw, so the console shows
+   * the wave states and lanes the room is looking at. Fails open. */
+  const board = await resultBoard(race);
 
   const phase = racePhase(race);
   /* RACE EVENING — the race is 6–9 PM (owner, 2026-09-11: "6-9pm on the
@@ -203,9 +208,14 @@ export default async function RaceAdminPage() {
             * the PLAN FOR box that defaults to it. */}
           <DoorList race={race} racers={racers} unreadable={unreadable} />
 
-          <RaceSettings view={view} gallery={gallery} field={starters} />
+          <RaceSettings view={view} field={starters} />
 
           <RaceWaves race={race} racers={racers} unreadable={unreadable} />
+
+          {/* THE NIGHT ITSELF: start a wave, type a time, DNF a lane, post
+            * the sheet. Under the wave console because it works off the
+            * waves that console lays out. */}
+          <RaceTiming race={race} racers={racers} board={board} />
         </div>
       </section>
 

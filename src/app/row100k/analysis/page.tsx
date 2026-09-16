@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { activeBlackout } from "@/lib/blackout";
-import { ELITE_N } from "@/lib/blackoutRules";
+import { DEFAULT_POLICY, policyMax, type BlackoutPolicy } from "@/lib/blackoutRules";
+import { siteSettings } from "@/lib/rowSettings";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, daysElapsed } from "@/lib/row100k";
@@ -38,18 +39,26 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
    * ready to go live, so it 404s for everyone but a challenge admin. */
   const gate = await getEffectiveActor().catch(() => null);
   if (!gate || !isRow100kAdmin(gate.email, gate.roles)) notFound();
+  /* By construction true past the gate; passed explicitly so the forecast
+   * table's names stay tied to the admin flag if the gate ever loosens. */
+  const admin = isRow100kAdmin(gate.email, gate.roles);
 
   /* The blackout rides along with the rows: while a window is open the
-   * board hides THE ELITE (blackoutRules.ts), so the per-rower
-   * charts here keep the same elite off the page — for everyone, the
-   * admin included, since the field view is one page for all. The lookup
-   * never throws (it fails open to no blackout on its own). */
+   * board hides THE ELITE (blackoutRules.ts, as many as the saved policy
+   * says — rowSettings.ts), so the per-rower charts here keep the same
+   * elite off the page — for everyone, the admin included, since the field
+   * view is one page for all. Neither lookup throws (both fail open). The
+   * policy itself travels too (review, 2026-09-16): the top N OF EACH
+   * BOARD is not the top 2N overall, and the elite set has to be the
+   * board's own. */
   let raw: RawData = EMPTY_DATA;
   let hideTop = HIDE_TOP_DEFAULT;
+  let policy: BlackoutPolicy = DEFAULT_POLICY;
   try {
-    const [rows, blackout] = await Promise.all([analysisData(), activeBlackout()]);
+    const [rows, blackout, settings] = await Promise.all([analysisData(), activeBlackout(), siteSettings()]);
     raw = rows;
-    if (blackout.active) hideTop = Math.max(HIDE_TOP_DEFAULT, ELITE_N);
+    policy = settings.blackout;
+    if (blackout.active) hideTop = Math.max(HIDE_TOP_DEFAULT, policyMax(settings.blackout));
   } catch (err) {
     console.error("row100k/analysis: failed to load rows", err);
   }
@@ -99,10 +108,10 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
   const today = daysElapsed();
   let model: Model;
   try {
-    model = buildModel(raw.participants, raw.entries, viewer, today, hideTop);
+    model = buildModel(raw.participants, raw.entries, viewer, today, hideTop, admin, policy);
   } catch (err) {
     console.error("row100k/analysis: buildModel failed", err);
-    model = buildModel([], [], { kind: "anon" }, today, hideTop);
+    model = buildModel([], [], { kind: "anon" }, today, hideTop, admin, policy);
   }
   const kind: ViewerKind =
     viewer.kind === "joined" ? (model.you && model.you.sessions > 0 ? "ready" : "empty") : viewer.kind;

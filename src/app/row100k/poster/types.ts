@@ -23,36 +23,28 @@
  * as a number. A hidden value arrives as a Figure with a shape and is drawn
  * as ink blocks; the renderer cannot print what it was never handed. */
 
-import type { FontBox, PostFonts } from "../post/slides";
-
 /* ================================================================ formats */
 
-/* Three logical families. W is fixed per family and H = W × (sheet height
- * / sheet width); the canvas is scaled by pixels / W, so 300 ppi is the
- * same drawing at twice the 150 ppi scale and the phone frames are the
- * drawing at 2×. printL = the wall sizes, three columns, read from six
- * feet. printS = the hand-outs (11x17, A3, letter, A4), two columns, read
- * at arm's length, so one logical unit is a bigger share of the sheet.
- * phone = the three Instagram frames. */
-export type PosterFamily = "printL" | "printS" | "phone";
+/* Two logical families. W is fixed per family and H = W × (sheet height
+ * / sheet width); the canvas is scaled by pixels / W, so the phone frames
+ * are the drawing at 2× and a print is the drawing at PRINT_PPI × the
+ * inches one unit spans. printL = the wall sizes, three columns, read from
+ * six feet. phone = the three Instagram frames. printS — the hand-outs
+ * (11x17, A3, letter, A4), two columns — came off with those sizes (owner,
+ * 2026-09-16: "remove options for 11x17, A3, letter, and A4"). */
+export type PosterFamily = "printL" | "phone";
 
-export type PosterFormatKey =
-  | "24x36"
-  | "18x24"
-  | "16x20"
-  | "11x17"
-  | "a3"
-  | "letter"
-  | "a4"
-  | "story"
-  | "post"
-  | "square";
+export type PosterFormatKey = "24x36" | "18x24" | "16x20" | "story" | "post" | "square";
 
 /* A plan is one fully specified composition (SPEC.md §7). A format names
  * the first plan of its cascade; when a plan cannot fit its rows even
- * after its shrink order, the engine falls through to `next`. */
-export type PosterPlanKey = "tall" | "short" | "squat" | "hand" | "story" | "post" | "square" | "core";
+ * after its shrink order, the engine falls through to `next`. (`hand`, the
+ * two-column hand-out plan, went with the printS family.) */
+export type PosterPlanKey = "tall" | "short" | "squat" | "story" | "post" | "square" | "core";
 
+/* The rungs the allocation ladder may land on. The studio asks for
+ * formats.ts PRINT_PPI (150) and nothing else since 2026-09-16; 100 is the
+ * fallback for a device that cannot allocate even that. */
 export type PosterPpi = 100 | 150 | 200 | 300;
 
 /* Logical units. For the story the Instagram safe bands are folded into
@@ -73,13 +65,9 @@ export type PosterFormat = {
   h: number;
   /* Print only: TRIM size in inches, no bleed — the PDF page is inches × 72
    * points. Bleed is an engine option (RenderTarget.bleedIn) that adds cream
-   * around the same drawing; it never re-lays out the sheet. */
+   * around the same drawing; it never re-lays out the sheet. Every print
+   * renders at formats.ts PRINT_PPI — there is no per-format ppi any more. */
   inches?: { w: number; h: number };
-  /* Print only: the ppi ladder. `default` is 150 on the wall sizes (plenty
-   * at six feet, and it fits an iPhone's canvas budget), 300 on letter/A4
-   * (cheap, read in the hand). The engine walks options behind the
-   * allocation probe (engine.ts probeCanvas) and says when it fell back. */
-  ppi?: { default: PosterPpi; options: PosterPpi[] };
   /* Instagram only: the fixed pixel frame. */
   pixels?: { w: number; h: number };
   margins: PosterMargins;
@@ -131,13 +119,25 @@ export type PosterTokens = {
 
 /* ================================================================== fonts */
 
+/* The line box a face makes at 100px with line-height:normal: `lh` is the
+ * box height over the size, `baseline` where the baseline sits in it. Read
+ * off the DOM, because canvas fontBoundingBox* reports the ink box of the
+ * glyphs and not the box the browser stacks lines with. (Both types lived
+ * in the post pack's slides.ts until it was retired, 2026-09-16.) */
+export type FontBox = { lh: number; baseline: number };
+
 /* The hashed next/font families read off the three laid-out probes
- * (PostPack.readFonts + boxOf idiom, copied under a .po- prefix) after
- * `await document.fonts.ready`, plus the DOM line-box ratios. Structurally
- * a cards.ts ShareFonts too, so drawBlockDigits / drawBlockClock accept it
- * as-is. Never hardcode a family: the hash changes with theme.ts. */
-export type PosterFonts = PostFonts;
-export type { FontBox };
+ * (readFonts + boxOf, the retired post pack's idiom, under a .po- prefix)
+ * after `await document.fonts.ready`, plus the DOM line-box ratios.
+ * Structurally a cards.ts ShareFonts too, so drawBlockDigits /
+ * drawBlockClock accept it as-is. Never hardcode a family: the hash changes
+ * with theme.ts. */
+export type PosterFonts = {
+  black: string;
+  mono: string;
+  archivo: string;
+  box?: { black?: FontBox; mono?: FontBox; archivo?: FontBox };
+};
 
 /* What a module asks the paint helper for; the helper turns it into the
  * ctx.font shorthand with the hashed family LAST (boxFor matches the family
@@ -180,7 +180,8 @@ export type PosterAsOf = {
 /* A window is open on the PUBLIC board (forceBlackout under the admin
  * preview cookie counts). `note` is the second masthead line the sheet
  * prints so it explains its own blocks: "BLACKOUT — THE ELITE ARE HIDDEN
- * UNTIL SEP 27 · TIMES ARE SHOWN". */
+ * UNTIL SEP 27 · TIMES ARE SHOWN" on the community sheet; the rower sheet
+ * drops the "TIMES ARE SHOWN" tail, since its bests block them. */
 export type PosterBlackout = {
   active: boolean;
   /* "Sep 27" — fmtPacificDay of endsAt */
@@ -340,12 +341,16 @@ export type RowerBest = {
   key: PosterRecordKey;
   /* "Fastest 5k" */
   label: string;
-  /* times are text (public); meters bests a shape while masked; {text: "—"} when not rowed */
+  /* a shape while masked — a clock shape ("##:##.#") for the times, a
+   * meters shape for the rest, as the profile hands a stranger a hidden
+   * rower's bests (owner, 2026-09-16: the poster is public); {text: "—"}
+   * when not rowed */
   value: Figure;
-  /* "Sep 4 · 1:47.9 /500m" | "Sep 5 · one row" | "not yet rowed" */
+  /* "Sep 4 · 1:47.9 /500m" | "Sep 5 · one row" | "not yet rowed"; a masked
+   * time best keeps only the day (no split) */
   sub: string;
-  /* The time boards never lose their places (records/defs.ts: times are
-   * public, so a place on them is); meters bests carry null while masked,
+  /* The time boards keep their places while masked, as the profile keeps
+   * them (a place is not the time); meters bests carry null while masked,
    * and everything is null when unplaced. */
   place: number | null;
 };
@@ -440,6 +445,38 @@ export type RaceDayRole = {
   line?: string;
 };
 
+/* ONE LINE OF THE START LIST (owner, 2026-09-16: "I want a poster showing
+ * what racers are coming to race day"). Names and rower numbers are public
+ * — the race day page already prints the field — and so are the bracket,
+ * the wave and the lane. NO meters and NO times ride here: the list is
+ * already in print order (seeded inside a wave, A to Z without waves), so
+ * the artwork never needs the clock the order was cut from. */
+export type RaceDayFieldRow = {
+  rowerNumber: number;
+  name: string;
+  /* "M" / "W" off the race's own bracket labels; "—" for neither. */
+  bracket: string;
+  /* 1-based, null until the console assigns one. */
+  wave: number | null;
+  /* The erg, 1..waveSize, null until known. */
+  lane: number | null;
+};
+
+/* THE FIELD as the artwork prints it: the counts for the foot strip, the
+ * rows in print order, and the wave eyebrows built off waveTime() so the
+ * poster cannot say a time the console did not set. */
+export type RaceDayField = {
+  racers: number;
+  spectators: number;
+  men: number;
+  women: number;
+  list: RaceDayFieldRow[];
+  /* One per wave present in the list, ascending: "WAVE 1 · 6:15 PM". */
+  waves: { wave: number; label: string }[];
+  /* "12 RACERS · 7 MEN · 5 WOMEN · 3 SPECTATORS" */
+  counts: string;
+};
+
 export type RaceDayPoster = {
   kind: "raceday";
   year: number;
@@ -486,10 +523,13 @@ export type RaceDayPoster = {
     room: string;
     roles: RaceDayRole[];
   };
-  /* The field so far, for the one line of social proof the ad may print —
-   * null when nobody has entered, when the count is under the floor, or
-   * when the read failed (poster/raceData.ts). */
-  field: { racers: number; spectators: number } | null;
+  /* The field as it stands (poster/raceData.ts): the bill prints its count
+   * as one line of social proof once it clears raceAssemble FIELD_FLOOR,
+   * and THE FIELD artwork prints the list. Null only when the read failed —
+   * the bill still draws, the field chip is disabled. Since 2026-09-16 the
+   * floor is the fact table's to apply, not the assembler's, because the
+   * start list wants the rows the bill would not yet mention. */
+  field: RaceDayField | null;
   /* THE PICTURE THE AD IS FOR (RaceDef.photo, resolved to a URL by
    * poster/racePhoto.ts): the owner's chosen gallery shot, or the newest
    * one when he has chosen none, and whether it is shown black and white
@@ -536,6 +576,14 @@ export type PosterSubject = PosterData | RaceDayPoster;
  * which is an orthogonal axis: race day has a ground and no stock, the two
  * paper subjects have a stock and no ground. */
 export type PosterGround = "ink" | "overlay" | "photo";
+
+/* WHICH RACE DAY ARTWORK (owner, 2026-09-16: "a poster showing what racers
+ * are coming to race day"). "bill" is the ad above, on any of the three
+ * grounds; "field" is the start list — the same masthead, head and piece
+ * on solid ink, then the names by wave, and it takes no ground because a
+ * list over a photograph was never asked for. poster/raceField.ts draws
+ * it; poster/raceGround.ts picks the layout. */
+export type RaceArtwork = "bill" | "field";
 
 /* THE STOCK a paper sheet is printed on (owner, 2026-09-12: "we also need
  * black and white shareable versions of all the posters to match the race
@@ -877,8 +925,8 @@ export type PosterLayout<D extends PosterSubject = PosterData> = {
 /* One render: the format at a ppi (null for Instagram), optional bleed
  * (inches of extra cream per edge; the drawing is offset by it), the
  * canvas size and the single ctx.scale. `fellBack` is true when the
- * allocation probe refused the requested ppi and the ladder stepped down —
- * the studio then says "RENDERED AT 150 PPI — THIS DEVICE CANNOT MAKE 300". */
+ * allocation probe refused PRINT_PPI and the ladder stepped down to 100 —
+ * the studio then says so under the preview. */
 export type PosterRenderTarget = {
   format: PosterFormat;
   ppi: PosterPpi | null;

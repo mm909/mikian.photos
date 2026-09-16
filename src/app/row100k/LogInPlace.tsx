@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FIRST_DAY, type SanityBand } from "@/lib/row100k";
 import { LogRow } from "./LogRow";
 import { OptIn } from "./OptIn";
+import { useCardsOff } from "./RowSite";
 import { ShareDialog } from "./ShareMenu";
 import type { ShareData } from "./share/cards";
 
@@ -50,12 +51,18 @@ export function LogInPlace({
     setBoosted(null);
   }, [share.meters]);
 
+  // The bib is switched off by default (owner, 2026-09-16), so the card that
+  // pops after joining is the logo unless he switches the bib back on —
+  // never the total, which reads 0 METERS to somebody who just joined.
+  const off = useCardsOff();
+  const joinedCard = off.includes("rowtember-bib") ? "rowtember-logo" : "rowtember-bib";
+
   useEffect(() => {
     try {
       if (justJoined || sessionStorage.getItem("row100k.justJoined") === "1") {
         sessionStorage.removeItem("row100k.justJoined");
         setShareRow(null);
-        setPreferredCardId("rowtember-bib");
+        setPreferredCardId(joinedCard);
         setShareOpen(true);
       }
     } catch {

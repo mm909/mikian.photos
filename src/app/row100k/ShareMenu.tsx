@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCardsOff } from "./RowSite";
 import { availableCards, prepareCard, type ShareData, type ShareFonts } from "./share/cards";
 
 /* The shareables menu: a card picker, a live preview, and the three ways off
@@ -41,18 +42,28 @@ export function ShareDialog({
    * stats page). Order still comes from CARDS. */
   only?: string[];
 }) {
-  const cards = availableCards(data).filter((c) => !only || only.includes(c.id));
+  /* THE SWITCHES (owner, 2026-09-16: "remove the profile shareable, remove
+   * the bib, the club card, and total + name ... maybe make me a shareables
+   * page where these can be turned on/off"). The layout hands every picker
+   * the ids switched off (RowSite / rowSettings cards.off); they come out of
+   * the pool HERE, after available() and before `only`, so no caller can
+   * reach one — a preferredCardId naming an off card falls back to the first
+   * card left, the way a card the data cannot unlock always has. */
+  const off = useCardsOff();
+  const pool = (d: ShareData) =>
+    availableCards(d).filter((c) => !off.includes(c.id) && (!only || only.includes(c.id)));
+  const cards = pool(data);
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current && preferredCardId) {
-      const pool = availableCards(data).filter((c) => !only || only.includes(c.id));
-      if (pool.some((c) => c.id === preferredCardId)) {
+      if (pool(data).some((c) => c.id === preferredCardId)) {
         setCardId(preferredCardId);
       }
     }
     wasOpen.current = open;
-  }, [open, preferredCardId, data, only]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, preferredCardId, data, only, off]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const blackProbe = useRef<HTMLSpanElement | null>(null);

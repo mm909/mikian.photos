@@ -55,7 +55,7 @@ export const clockTenths = (s: number): string => {
 
 export type MonthOpts = {
   /* The full five-row September grid (print on the wall), or the elapsed
-   * weeks only (phone, hand-outs) — SPEC §6 C6. */
+   * weeks only (phone) — SPEC §6 C6. */
   full: boolean;
   /* The story caps a cell at 44, the post at 56. */
   cellCap?: number;
@@ -337,7 +337,7 @@ export function drawPaceCurve(
   // The end readout clears the LINE, not just its last dot: with the
   // window closed down on the rower's own range the curve swings across
   // the frame, and a readout pinned above the end point printed straight
-  // through the segment behind it (verify, 2026-09-10, the 11x17). So
+  // through the segment behind it (verify, 2026-09-10, on a hand sheet). So
   // take the band the curve occupies under the label's own measure, and
   // put the label on whichever side of that band has room.
   const last = pts[pts.length - 1];
@@ -450,9 +450,8 @@ export const LOG_STRETCH = 1.55;
  * up to that factor when every row fits with room to spare, so a short
  * log closes on its box instead of leaving a band of paper under its last
  * row (1 = the natural pitch). Column widths are the SPEC's shares of
- * `small` (a touch narrower on the hand-outs, whose `small` is a bigger
- * share of a narrower column), widened to the widest figure actually in
- * the column so a six-digit row never runs into its neighbour. */
+ * `small`, widened to the widest figure actually in the column so a
+ * six-digit row never runs into its neighbour. */
 export function planLog(
   ctx: Ctx,
   paint: PosterPaint,
@@ -464,7 +463,6 @@ export function planLog(
   stretch = 1,
 ): LogPlan {
   const tk = paint.tk;
-  const printS = paint.format.family === "printS";
   const minColW = paint.format.family === "printL" ? 250 : 230;
   const colGap = tk.gutter;
   const maxCols = Math.max(1, Math.floor((w + colGap) / (minColW + colGap)));
@@ -523,22 +521,15 @@ export function planLog(
   // One `small` of air between right-aligned neighbours, whatever the
   // widest figure turns out to be.
   const airW = tk.small;
-  const share = printS ? 0.85 : 1;
   const wDay = Math.max(
-    tk.small * 4.6 * share,
+    tk.small * 4.6,
     paint.measure(ctx, "SEP 30", paint.font("mono", size * 0.86)) + tk.small * 0.7,
   );
-  const wMeters = Math.max(
-    tk.small * 6.6 * share,
-    widest((r) => r.meters, paint.font("monoBold", size)) + airW,
-  );
-  const wTime = Math.max(tk.small * 6.4 * share, widest((r) => r.time, paint.font("mono", size)) + airW);
+  const wMeters = Math.max(tk.small * 6.6, widest((r) => r.meters, paint.font("monoBold", size)) + airW);
+  const wTime = Math.max(tk.small * 6.4, widest((r) => r.time, paint.font("mono", size)) + airW);
   const wSplit = masked
     ? 0
-    : Math.max(
-        tk.small * 5.4 * share,
-        widest((r) => ({ text: r.split ?? "—" }), paint.font("mono", size)) + airW,
-      );
+    : Math.max(tk.small * 5.4, widest((r) => ({ text: r.split ?? "—" }), paint.font("mono", size)) + airW);
   // The title used to hold the day apart from the figures; with it gone a
   // log-column is wider than its four numbers need, so the slack is
   // SPREAD evenly over the three gutters instead of bunching every figure

@@ -13,12 +13,12 @@ import { PosterStudio } from "../../../posters/PosterStudio";
 
 export const dynamic = "force-dynamic";
 
-/* A ROWER'S OWN POSTER (SPEC.md §11): the same studio with the subject
- * fixed, for the rower themself and for admins — admins print these to
- * hand out at shirt pick-up. Everyone else gets a 404, the way the
- * settings page does. The payload is the public-board one (poster/data.ts):
- * one of the elite gets blocks on their own poster, because the poster
- * leaves the site. */
+/* A ROWER'S POSTER (SPEC.md §11): the same studio with the subject fixed.
+ * PUBLIC since 2026-09-16 (owner: "make the posters public. Only the
+ * racer's copy") — it was admin-only before that. The payload is the
+ * public-board one (poster/data.ts): one of the elite gets blocks on their
+ * own poster, because the poster leaves the site; an admin's test blackout
+ * forces the window the way it does everywhere. */
 
 function parseNum(raw: string): number | null {
   const n = Number(raw);
@@ -49,12 +49,6 @@ export default async function RowerPosterPage({ params }: { params: { num: strin
   const num = parseNum(params.num);
   if (!num) notFound();
   const viewer = await resolveViewer();
-  // Admin-only for now (owner, 2026-09-10: "give me the poster in the dev
-  // menu, not live"). When he opens it to rowers, this becomes
-  // `!isMe && !viewer.isAdmin` and BarAccount gets its MY POSTER item back.
-  const isMe = viewer.me?.rowerNumber === num;
-  if (!viewer.isAdmin) notFound();
-  void isMe;
 
   const before = nowMs() < START_MS;
   let rower: RowerPoster | null = null;
@@ -77,9 +71,9 @@ export default async function RowerPosterPage({ params }: { params: { num: strin
         <div className="wrap">
           <div className="sec-head">
             <h2>
-              {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} ${rower.rower.name}` : "Your poster"}
+              {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} ${rower.rower.name}` : "The poster"}
             </h2>
-            <span className="mono">YOUR POSTER · PNG, PDF, INSTAGRAM</span>
+            <span className="mono">ONE ROWER · PRINT OR INSTAGRAM</span>
           </div>
           {before || !rower ? (
             <p className="po-first">FIRST STROKE SEP 1</p>

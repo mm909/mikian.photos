@@ -3,7 +3,8 @@
  * bins, curves, identity-free dots — or, when the viewer has joined, THEIR
  * OWN marks. No other rower's name, number or individual value ever crosses
  * this boundary: the browser gets exactly what the signed-out page shows,
- * plus the viewer's own overlay. */
+ * plus the viewer's own overlay. The one exception is the forecast table
+ * (ForecastRow, owner ask 2026-09-16), documented there. */
 
 export type Tile = {
   /* the bold field number */
@@ -190,6 +191,61 @@ export type FanChart = {
 };
 export type FanYou = { cum: number[]; proj: [number, number][] | null; label: string };
 
+/* The FORECAST (owner ask, 2026-09-16: "a prediction for where everyone
+ * will end up"). One row per joined rower. This is the one place on the
+ * page where other rowers' individual numbers cross to the browser — the
+ * page is admin-only (page.tsx), and `name` is filled only when the model
+ * is built for an admin; every other viewer gets null names, and the
+ * numbers still sit under the blackout rule: while a window is open the
+ * hidden elite carry null for every figure of theirs and `hidden` says how
+ * many digits each would have, so the table draws blocks. */
+export type ForecastRow = {
+  rowerNumber: number;
+  name: string | null;
+  division: string;
+  sessions: number;
+  /* days since the last row (0 = rowed today; never rowed = today) */
+  idle: number;
+  /* the viewer's own row */
+  you: boolean;
+  /* in the elite block while a blackout is on: unranked, listed A to Z
+   * (the viewer's own row keeps its numbers there, like the board) */
+  elite: boolean;
+  current: number | null;
+  projected: number | null;
+  /* the band: the smaller and the larger of the two component rates */
+  low: number | null;
+  high: number | null;
+  /* meters per day over the last seven days */
+  rate: number | null;
+  /* the tier the projection reaches — "100K", "250K"…; "—" under 10 K */
+  onPace: string | null;
+  hidden: { current: number; projected: number } | null;
+};
+
+export type ForecastDist = {
+  bins: Bin[];
+  xMin: number;
+  xMax: number;
+  ticks: number[];
+  /* projections past xMax (and, in a blackout, the hidden elite) */
+  beyond: number;
+  tiers: { m: number; label: string }[];
+  yMax: number;
+  take: string;
+};
+export type ForecastYou = { x: number; tag: string };
+
+export type Forecast = {
+  s: Section;
+  daysLeft: number;
+  /* true while a blackout window hides the elite in the table */
+  blackout: boolean;
+  dist: ForecastDist | null;
+  distYou: ForecastYou | null;
+  rows: ForecastRow[];
+};
+
 export type Model = {
   sessions: number;
   rowers: number;
@@ -199,6 +255,8 @@ export type Model = {
   /* how many of the highest totals are kept off the per-rower charts: three
    * normally, the elite while a blackout window is open */
   hideTop: number;
+
+  forecast: Forecast;
 
   s1: Section;
   hist: HistChart | null;

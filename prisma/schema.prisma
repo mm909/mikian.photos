@@ -602,6 +602,12 @@ model ShareEvent {
   cardId      String
   action      String
   rowerNumber Int?
+  /// WHO PRESSED THE BUTTON (owner, 2026-09-16: "if rower 1 downloads for
+  /// rower 3 then include both of those cols"). `rowerNumber` above is the
+  /// SUBJECT of the card; this is the signed-in rower who shared it, when
+  /// there was one. Null for a signed-out sharer, and on every row written
+  /// before the column existed.
+  sharerRowerNumber Int?
   createdAt   DateTime @default(now())
 
   @@index([challenge, cardId])
@@ -718,6 +724,19 @@ model RowRaceSignup {
   withdrewAt    DateTime?
   /// Anything the rower said at signup (an injury, a late arrival).
   note          String    @default("")
+  /// THE RESULT (owner, 2026-09-16: review how racers submit times on race
+  /// day). `tenths` is the 5,000 m in tenths of a second (18:52.3 = 11323),
+  /// null until a time is posted — by the racer from the race day page or
+  /// by the owner from the timing console. `status` is where they are on
+  /// the night: "to_come" | "rowing" | "finished" | "dnf" (the board's
+  /// RacerStatus; "rowing" is derived from the wave clock, never stored).
+  /// `lane` is the erg they sat on, 1..waveSize, null until known.
+  /// `resultBy` is "self" or the admin's email; `resultAt` when it landed.
+  tenths        Int?
+  status        String    @default("to_come")
+  lane          Int?
+  resultAt      DateTime?
+  resultBy      String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -753,11 +772,36 @@ model RowRaceSettings {
   /// drawn in black and white (owner: "most likely" black and white).
   photoKey    String?
   photoBw     Boolean   @default(true)
+  /// THE SHEET IS POSTED (owner, 2026-09-16): once set, the results board
+  /// is final — podiums fill, racers can no longer post or edit their own
+  /// time, and only the owner can change a result. Null while the night
+  /// is running or before it.
+  finalAt     DateTime?
   updatedBy   String    @default("")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@unique([challenge, race])
+}
+
+/// A wave on the night (owner, 2026-09-16). The grid itself is arithmetic
+/// off the race definition (firstWaveAt + (n-1) x waveMinutes); this row
+/// holds the one fact the grid cannot know — WHEN THE WAVE ACTUALLY WENT
+/// OFF, stamped from the timing console — so the board can run an elapsed
+/// clock for the wave on the ergs and settle which waves are rowed. A wave
+/// with no row (or a null stamp) has not started. No FK, like the other
+/// Row* tables.
+model RowRaceWave {
+  id        String    @id @default(cuid())
+  challenge String    @default("row100k-sep-2026")
+  race      String
+  wave      Int
+  startedAt DateTime?
+  updatedBy String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([challenge, race, wave])
 }
 
 /// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
@@ -784,6 +828,26 @@ model RowRaffle {
   updatedAt           DateTime  @updatedAt
 
   @@unique([challenge, slug])
+}
+
+/// One site-wide switch for Rowtember (owner, 2026-09-16): the look (paper
+/// or white-on-black ink), which share cards are switched off, and the
+/// blackout policy (top N per board or top N overall). One row per key,
+/// the value as JSON text — src/lib/rowSettings.ts owns the keys and
+/// validates every value on the way in and out, so a stray row can only
+/// ever fall back to the code default. Every read fails OPEN to the
+/// defaults, which is exactly the site as it was before the table existed.
+/// No FK, like the other Row* tables; `updatedBy` is the admin's email.
+model RowSetting {
+  id        String   @id @default(cuid())
+  challenge String   @default("row100k-sep-2026")
+  key       String
+  value     String   @default("")
+  updatedBy String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([challenge, key])
 }
 
 // Crew-call applications ("Put your name in" on /lasd26). Standalone from the

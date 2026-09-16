@@ -26,6 +26,7 @@ import {
   maskStandings,
   partialShape,
   shapeOf,
+  type BlackoutPolicy,
   type StandingRow,
 } from "@/lib/blackoutRules";
 import {
@@ -131,12 +132,15 @@ export function posterAsOf(atMs = nowMs()): PosterAsOf & { stamp: string } {
 }
 
 /* The blackout as the sheet prints it. The note explains the blocks on the
- * paper itself — a poster has no legend page — and says that the times are
- * still real (records/defs.ts liteRecords: TIME records stay public). */
-export function posterBlackout(state: BlackoutState): PosterBlackout {
+ * paper itself — a poster has no legend page — and, on the community
+ * sheet, says that the times are still real (records/defs.ts liteRecords:
+ * TIME records stay public). The rower sheet passes `timesShown = false`:
+ * its bests block the times (assembleRower), so the note must not claim
+ * otherwise. */
+export function posterBlackout(state: BlackoutState, timesShown = true): PosterBlackout {
   const until = state.active && state.endsAt ? fmtPacificDay(state.endsAt) || null : null;
   const note = state.active
-    ? `BLACKOUT — THE ELITE ARE HIDDEN${until ? ` UNTIL ${until.toUpperCase()}` : ""} · TIMES ARE SHOWN`
+    ? `BLACKOUT — THE ELITE ARE HIDDEN${until ? ` UNTIL ${until.toUpperCase()}` : ""}${timesShown ? " · TIMES ARE SHOWN" : ""}`
     : null;
   return { active: state.active, until, note };
 }
@@ -172,6 +176,10 @@ export type CommunityInput = {
   boards: Boards | null;
   /* The window as boardView returned it (the forced one under the preview). */
   blackout: BlackoutState;
+  /* The policy the board was masked with (boardView returns it), so the
+   * idempotency pass in standingsOf masks under the same rule and never
+   * over-masks (owner, 2026-09-16). Absent: ten per division. */
+  policy?: BlackoutPolicy;
   /* Every row's who / day / logged-at, for the hour bars and the big-day
    * row count. null when the read failed — the hours then say so. */
   rows: { participantId: string; day: string; createdAtMs: number }[] | null;
@@ -224,7 +232,11 @@ function toStanding(r: StandRow): PosterStanding {
  * maskStandings runs over it again for idempotency (blackoutRules.ts: a
  * second pass finds the same elite in the same order), so a board that was
  * somehow read without the mask still leaves here masked. */
-function standingsOf(boards: Boards, active: boolean): { men: PosterStanding[]; women: PosterStanding[] } {
+function standingsOf(
+  boards: Boards,
+  active: boolean,
+  policy?: BlackoutPolicy,
+): { men: PosterStanding[]; women: PosterStanding[] } {
   const rows: StandRow[] = onBoard(boards).map((r) => ({
     participantId: r.participantId,
     name: r.name,
@@ -237,7 +249,7 @@ function standingsOf(boards: Boards, active: boolean): { men: PosterStanding[]; 
     ...(r.paceTag ? { paceTag: r.paceTag } : {}),
     ...(r.hideLow ? { hideLow: r.hideLow } : {}),
   }));
-  const safe = maskStandings(rows, { active, admin: false }) as StandRow[];
+  const safe = maskStandings(rows, { active, admin: false, policy }) as StandRow[];
   const pick = (d: Division) =>
     safe
       .filter((r) => r.division === d)
@@ -496,7 +508,7 @@ export function assembleCommunity(input: CommunityInput): CommunityPoster {
   const rowsThatDay = (participantId: string, day: string): number | null =>
     input.rows ? input.rows.filter((r) => r.participantId === participantId && r.day === day).length : null;
 
-  const standings = boards ? standingsOf(boards, input.blackout.active) : { men: [], women: [] };
+  const standings = boards ? standingsOf(boards, input.blackout.active, input.policy) : { men: [], women: [] };
   const records = boards ? recordsOf(boards, hidden, rowsThatDay) : EMPTY_RECORDS;
   const club = boards ? clubOf(boards, input.claim) : { count: 0, roll: [], first: null };
   const byDay = boards ? byDayOf(boards, asOf.dayNumber) : Array<number>(asOf.dayNumber).fill(0);
@@ -601,8 +613,9 @@ export function assembleRower(input: RowerInput): RowerPoster {
 
   /* Places to #10 off the public board's record lists (the record boards
    * are never masked — maskBoards touches total only — so a place is real).
-   * Time-board places stay while masked (times are public); meters-board
-   * places go with the meters. */
+   * Time-board places stay while masked, as the profile keeps them (a
+   * place on the 5k board is not the time); meters-board places go with
+   * the meters. */
   const places = pub ? recordPlacements(pub, p.id, 10) : [];
   const placeOf = (key: PosterRecordKey): number | null => {
     if (masked && (key === "longest" || key === "bigday")) return null;
@@ -652,16 +665,25 @@ export function assembleRower(input: RowerInput): RowerPoster {
         sub: "not yet rowed",
         place: null,
       };
-    // The prorated note stops naming the piece while masked: "pace from a
-    // 12,345 m row" is a row's meters by another route.
+    // While masked the time is a clock shape and the split is gone, exactly
+    // as r/[num]/page.tsx hands a stranger a hidden rower's bests: the
+    // poster is public now (owner, 2026-09-16) and leaves the site, and an
+    // elite rower's TIME and split are their numbers too (blackoutRules.ts)
+    // — the log below already blocks them. The records page's "a time is
+    // public even for a hidden rower" (owner, 2026-09-08) stays the
+    // community sheet's rule (recordsOf), not this one's. The prorated
+    // note stops naming the piece while masked: "pace from a 12,345 m row"
+    // is a row's meters by another route.
     const sub =
       r.prorated && r.meters
         ? `${fmtDay(r.day)} · pace from a ${masked ? "longer" : fmtMeters(r.meters)} row`
-        : `${fmtDay(r.day)} · ${fmtSplit(dist, r.value)} /500m`;
+        : masked
+          ? fmtDay(r.day)
+          : `${fmtDay(r.day)} · ${fmtSplit(dist, r.value)} /500m`;
     return {
       key,
       label,
-      value: { text: fmtRecordTime(r.value) },
+      value: masked ? { shape: clockShape(r.value, true) } : { text: fmtRecordTime(r.value) },
       sub,
       place: placeOf(key),
     };
@@ -727,7 +749,7 @@ export function assembleRower(input: RowerInput): RowerPoster {
       year: asOf.year,
       dateline,
     },
-    blackout: posterBlackout(input.blackout),
+    blackout: posterBlackout(input.blackout, false),
     rower: {
       rowerNumber: p.rowerNumber,
       name: p.displayName,

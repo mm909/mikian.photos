@@ -35,9 +35,10 @@ import type { Bracket, ResultBoard, ResultRacer, ResultWave } from "./types";
  *
  * ONE MAN STILL SITS DOWN AND STOPS (wave 5, lane 7). A DNF cannot be
  * marked upstream — it happens on the floor to a name already in a lane —
- * so it is the only reason a name on this sheet has no time, and that is
- * why DID NOT FINISH in the time column needs no sentence under the table
- * explaining that nobody was dropped. */
+ * so the fixture keeps him ON PURPOSE: the board drops anybody who did not
+ * row (owner, 2026-09-16; types.ts boardRacers), and the finished sheet
+ * proving he is gone — 38 in the result, lane 7 of wave 5 drawn open — is
+ * the whole reason he is still here. */
 
 type Row = {
   n: number;

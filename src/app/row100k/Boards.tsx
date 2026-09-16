@@ -115,10 +115,15 @@ export function Boards({
   boards,
   started,
   blackout = { active: false },
+  head = true,
 }: {
   boards: BoardsProp;
   started: boolean;
   blackout?: BlackoutProp;
+  /* Off: no .bhead number — the board page prints the community total in
+   * its PageHead (owner, 2026-09-16) and must not print it twice. The
+   * ledger and the tabs stay. */
+  head?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("ALL");
   const filtered = boards.total.filter((r) => tab === "ALL" || r.division === tab);
@@ -139,7 +144,8 @@ export function Boards({
   // the previous order of a filtered board is its rows sorted by their
   // previous EVERYONE rank, so a man logging can't read as every woman
   // dropping a place. The elite are out of both orders (review, 2026-09-08):
-  // maskBoards lifts the top ten of EACH division to the head of the table,
+  // maskBoards lifts the elite (the top N of each board, or the top N
+  // overall, as the policy says — rowSettings.ts) to the head of the table,
   // and the tenth woman lifted over the eleventh man would otherwise print
   // as him dropping ten places — an arrow that never happened, and a bound
   // on ten hidden totals. The elite keep the zeroed delta they arrived with.
@@ -205,13 +211,22 @@ export function Boards({
   return (
     <div>
       {/* The newspaper head: one big blue number, the way the landing does
-       * it, then a thin ledger with dotted leaders (owner call, 2026-09-05). */}
-      <div className="bhead">
-        <div className="bhead-n">{comm.meters.toLocaleString("en-US")}</div>
-        <p className="bhead-l mono">
-          Meters combined · <b>{tab === "ALL" ? "everyone" : `${TAB_LABEL[tab]} board`}</b>
-        </p>
-      </div>
+       * it, then a thin ledger with dotted leaders (owner call, 2026-09-05).
+       * The board page hands `head` off and prints the number itself. */}
+      {head ? (
+        <div className="bhead">
+          <div className="bhead-n">{comm.meters.toLocaleString("en-US")}</div>
+          <p className="bhead-l mono">
+            Meters combined · <b>{tab === "ALL" ? "everyone" : `${TAB_LABEL[tab]} board`}</b>
+          </p>
+        </div>
+      ) : (
+        /* Head off, division tab: the ledger under here is the men's or
+         * women's figures while the PageHead number above stays everyone's,
+         * so the old label line still names them (review, 2026-09-16). On
+         * Everyone the PageHead unit line already says so. */
+        tab !== "ALL" && <p className="bhead-l mono">{TAB_LABEL[tab]} board</p>
+      )}
       <ul className="bl">
         {ledger.map(([k, v]) => (
           <li key={k}>

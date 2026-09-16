@@ -18,6 +18,7 @@
 
 import { db } from "@/lib/db";
 import { activeBlackout, listBlackouts, type BlackoutState } from "@/lib/blackout";
+import type { BlackoutPolicy } from "@/lib/blackoutRules";
 import { CHALLENGE, nowMs, type Boards } from "@/lib/row100k";
 import type { Viewer } from "@/lib/row100kViewer";
 import { boardView } from "../boardData";
@@ -46,7 +47,7 @@ function forceOf(opts: PosterDataOpts | Viewer | undefined): boolean {
 async function publicBoard(
   force: boolean,
   what: string,
-): Promise<{ boards: Boards | null; blackout: BlackoutState }> {
+): Promise<{ boards: Boards | null; blackout: BlackoutState; policy?: BlackoutPolicy }> {
   // A poster leaves the site, so the window is decided here UNCACHED and
   // fail-CLOSED (review, 2026-09-10): activeBlackout() answers "no window"
   // on a db error and for a quiet minute after, which is the right call
@@ -68,7 +69,7 @@ async function publicBoard(
       admin: false,
       forceBlackout: force,
     });
-    return { boards: v.boards, blackout: v.blackout };
+    return { boards: v.boards, blackout: v.blackout, policy: v.policy };
   } catch (err) {
     console.error(`row100k/poster: failed to load the public board (${what})`, err);
     return {
@@ -82,7 +83,7 @@ async function publicBoard(
 export async function communityPosterData(opts?: PosterDataOpts | Viewer): Promise<CommunityPoster> {
   const force = forceOf(opts);
   const atMs = nowMs();
-  const [{ boards, blackout }, rows, field, claim] = await Promise.all([
+  const [{ boards, blackout, policy }, rows, field, claim] = await Promise.all([
     publicBoard(force, "community"),
     // Who / day / logged-at for the hour bars and the big-day row count.
     // Orphan rows are dropped in the assembler against the board's ids.
@@ -115,7 +116,7 @@ export async function communityPosterData(opts?: PosterDataOpts | Viewer): Promi
         return null;
       }),
   ]);
-  return assembleCommunity({ boards, blackout, rows, field, claim, atMs });
+  return assembleCommunity({ boards, blackout, policy, rows, field, claim, atMs });
 }
 
 /* One rower's poster, or null when there is no such rower (the page then

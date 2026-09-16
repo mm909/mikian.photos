@@ -38,8 +38,9 @@ export type ShareData = {
   /* One highlighted session — set when sharing straight from a logged row;
    * unlocks the single-row cards. Real numbers even for a hidden rower (it
    * is their own dialog): under `masked` the row cards draw blocks for the
-   * meters AND the time and no split at all, so a card that leaves the
-   * site carries nothing the board hides. */
+   * meters, no time at all, and the SPLIT — the one figure of theirs the
+   * feed prints (feed/view.ts: pace stays public, the paceTag rule), so a
+   * card that leaves the site carries exactly what the board shows. */
   row?: { day: string; meters: number; seconds: number; title?: string } | null;
   /* "M" | "F" — unlocks the profile card's board tag. */
   division?: string;
@@ -107,17 +108,20 @@ export type ShareData = {
     asOf?: string;
   };
   /* RACE DAY (owner, 2026-09-11: "just a shareable with the event name and
-   * logo"). Set only by the race day page — which is what keeps this card
-   * on race day and nowhere else, and hands it raceOpenFor's gate for free.
+   * logo"). Set by the race day page — and, since 2026-09-16, by the front
+   * page and a rower's own profile too, but ONLY with `mine` on it (see
+   * shareables/waveShare.ts): a wave a rower has been told is the one race
+   * fact that is theirs to post from their own deck.
    *
    * THERE WERE TWO CARDS AND THERE IS ONE. The other half of that ask — "a
    * shareable for whenever you sign up for race day, showing that you have
    * signed up to race" — was built as I'M RACING and the owner took it back
    * the same evening: "I do not like the I am racing sticker. I just like
    * the race day sticker. So let us just keep it Rowtember race day." The
-   * card is gone and so is the `mine` block that fed it — who the viewer is
-   * and what wave they drew — because the bill is about the EVENT and says
-   * nothing about whoever posts it.
+   * card is gone, because the bill is about the EVENT and says nothing
+   * about whoever posts it. `mine` is back (owner, 2026-09-16: "For race day
+   * add a shareable that shows their wave and start time") for one card,
+   * MY WAVE, and carries only what that card prints.
    *
    * EVERY STRING ARRIVES DISPLAY-READY AND UPPER-CASED, derived off the race
    * AS IT STANDS (resolvedRace(), overrides and all) the way the page derives
@@ -152,6 +156,21 @@ export type ShareData = {
      * before the file exists; `alt` is the gym's name, which the card sets in
      * type if the PNG never arrives. */
     mark: { src: string; ratio: number; alt: string } | null;
+    /* THE VIEWER'S OWN WAVE (owner, 2026-09-16) — unlocks MY WAVE. Set only
+     * for a racer who HAS a wave AND HAS BEEN TOLD IT (Racer.wave and
+     * waveEmailedAt both set, role racer, not withdrawn): a rower only ever
+     * learns their wave from the note, so a card must never print one the
+     * note has not. `time` is waveTime(race, wave), display-ready and
+     * upper-cased ("6:15 PM"). The gate lives in shareables/waveShare.ts
+     * (toldWave) and SignupPanel, never here. */
+    mine?: { wave: number; time: string };
+    /* THE BLOCK CAME WITH THE WAVE, NOT FROM RACE DAY (review, 2026-09-16).
+     * Set by shareables/waveShare.ts on a rower's own deck — the front page
+     * and their profile — so that only MY WAVE unlocks there; the bill and
+     * the name read it and stay out. The race day page never sets it, and
+     * keeps all three. The owner asked for the wave card, not for the race
+     * day event cards in every told racer's picker. */
+    waveOnly?: boolean;
   };
 };
 
@@ -904,11 +923,18 @@ const rowtemberMonth: ShareCard = {
   },
 };
 
-/* Card four: one session — the meters, the time, the mark. Available only
- * when the dialog was opened from a specific row; it stays in the menu for
- * a hidden rower, who still gets a card of their row — one with blocks for
- * the meters and the time, since either number would give the other away
- * (owner rule, 2026-09-05). */
+/* Card four: one session — the meters, the time and the split, the mark.
+ * Available only when the dialog was opened from a specific row; it stays
+ * in the menu for a hidden rower, who still gets a card of their row — one
+ * with blocks for the meters and NO time, since either number would give
+ * the other away (owner rule, 2026-09-05).
+ *
+ * THE SPLIT IS ON IT (owner, 2026-09-16: "when sharing a specific row also
+ * include the time per 500 meters on the shareable"), in the time's own
+ * type on the time's own line, whole seconds like the best card. A hidden
+ * rower keeps the split and loses the time: the split is the one figure of
+ * theirs the feed prints (feed/view.ts), and a split without a time or a
+ * distance is not the meters by any route. */
 const rowtemberRow: ShareCard = {
   id: "rowtember-row",
   label: "This row",
@@ -920,6 +946,7 @@ const rowtemberRow: ShareCard = {
     const cx = this.width / 2;
     const row = data.row;
     if (!row) return;
+    const split = row.meters > 0 && row.seconds > 0 ? `${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M` : null;
 
     if (data.masked) {
       // Blocks shrink to fit like the total card's, so a six-figure row
@@ -928,7 +955,17 @@ const rowtemberRow: ShareCard = {
       let mSize = 210;
       while (mSize > 110 && blockDigitsWidth(ctx, digits, mSize, fonts) > this.width - 90) mSize -= 6;
       drawBlockDigits(ctx, cx - blockDigitsWidth(ctx, digits, mSize, fonts) / 2, 250, digits, mSize, fonts);
-      drawBlockClock(ctx, cx, 352, row.seconds, 72, fonts, { align: "center" });
+      // The split alone where the time would go — no clock, not even its
+      // shape, beside a real split: shape times split is the distance.
+      if (split) {
+        drawCenteredText(ctx, split, {
+          cx,
+          baseline: 352,
+          font: `72px ${fonts.black}`,
+          color: "#ffffff",
+          maxWidth: this.width - 120,
+        });
+      }
     } else {
       drawCenteredText(ctx, row.meters.toLocaleString("en-US"), {
         cx,
@@ -937,12 +974,15 @@ const rowtemberRow: ShareCard = {
         color: "#ffffff",
       });
       /* The time earns second billing — solid white and big enough to read
-       * from a story, not a caption fading into the backdrop. */
-      drawCenteredText(ctx, fmtDuration(row.seconds), {
+       * from a story, not a caption fading into the backdrop — with the
+       * split beside it on the same baseline, condensed to the measure when
+       * an hours-long row makes the line long. */
+      drawCenteredText(ctx, split ? `${fmtDuration(row.seconds)} · ${split}` : fmtDuration(row.seconds), {
         cx,
         baseline: 352,
         font: `72px ${fonts.black}`,
         color: "#ffffff",
+        maxWidth: this.width - 120,
       });
     }
 
@@ -1680,8 +1720,11 @@ function drawRaceFoot(
 /* THE RACE DAY CARD — the bill, and the one the owner kept. An INVITATION
  * rather than a signature: it names the event, the day, the hours and the
  * room, which is what separates it from the logo card, one mark that says
- * only WHO. The logo card is in everyone's picker everywhere; this one is
- * only in the picker on the race day page, and it is the only card there.
+ * only WHO. The logo card is in everyone's picker everywhere; this one rides
+ * the race payload — race day's picker only. Since 2026-09-16 a rower's own
+ * deck carries the race block too once they have been told a wave, but it
+ * arrives flagged waveOnly and this card stays out of it: MY WAVE was the
+ * ask, not the event cards in every told racer's picker.
  *
  * IT NO LONGER NAMES THE PRICE. The acting line ran SUN SEP 27 · 6 – 9 PM ·
  * FREE and the owner struck the last cell (2026-09-11: "on the share race
@@ -1707,7 +1750,7 @@ const rowtemberRaceDayBill: ShareCard = {
   width: 1080,
   height: 1350,
   light: true,
-  available: (d) => !!d.race,
+  available: (d) => !!d.race && !d.race.waveOnly,
   prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
   draw(ctx, data, fonts) {
     const race = data.race;
@@ -1850,7 +1893,8 @@ const rowtemberRaceDayName: ShareCard = {
    * the skew, and little else. */
   height: 560,
   light: true,
-  available: (d) => !!d.race,
+  // Race day only, like the bill: a waveOnly block unlocks MY WAVE alone.
+  available: (d) => !!d.race && !d.race.waveOnly,
   draw(ctx, data, fonts) {
     const race = data.race;
     if (!race) return;
@@ -1906,7 +1950,115 @@ const rowtemberRaceDayName: ShareCard = {
   },
 };
 
-/* The race day page's `only` — the bill, and the name on its own.
+/* MY WAVE (owner, 2026-09-16: "For race day add a shareable that shows
+ * their wave and start time"). The bill's typography — the ink-boxed mark,
+ * RACE DAY fitted to the column, the rules — with the rower on it: their
+ * number and name, WAVE N as the biggest thing on the sheet, the day and
+ * the start time, and the house's mark at the foot.
+ *
+ * IT EXISTS ONLY FOR A WAVE THE ROWER HAS BEEN TOLD. `race.mine` is set by
+ * the pages under one rule (waveShare.ts toldWave / SignupPanel): a racer,
+ * still in, with a wave, and the wave note already sent. A wave the grid
+ * still holds unsent can move; a PNG in a camera roll cannot. The card
+ * reads the flag and prints what it is handed, nothing more.
+ *
+ * THE DAY comes off the bill's own `when` line — its first cell, "SUN SEP
+ * 27", before the middle dot — so this card and the bill can never name
+ * two days. No clock is read here. */
+const rowtemberRaceDayWave: ShareCard = {
+  id: "rowtember-raceday-wave",
+  label: "My wave",
+  width: 1080,
+  height: 1000,
+  light: true,
+  available: (d) => !!d.race?.mine,
+  prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
+  draw(ctx, data, fonts) {
+    const race = data.race;
+    const mine = race?.mine;
+    if (!race || !mine) return;
+    const cx = this.width / 2;
+    const M = 60;
+    const measure = this.width - M * 2;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 100,
+      size: 60,
+      fontFamily: fonts.black,
+      box: INK,
+    });
+
+    // The event's name on one line, flush to the column — the name card's
+    // move, capped so a short rename cannot crowd the wave under it.
+    const title = race.title.toUpperCase();
+    const titleSize = fitToWidth(ctx, title, fonts.black, measure, 190);
+    drawCenteredText(ctx, title, {
+      cx,
+      baseline: 176 + titleSize * 0.72,
+      font: `${titleSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: measure,
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.fillRect(M, 330, measure, 3);
+
+    // Who: number and name, the bib card's tracked mono line.
+    const who = fitTrackedLine(
+      ctx,
+      `${fmtRowerNumber(data.rowerNumber)} · ${data.displayName.toUpperCase()}`,
+      fonts.mono,
+      36,
+      4,
+      measure,
+      true,
+    );
+    drawCenteredText(ctx, who.text, {
+      cx,
+      baseline: 392,
+      font: `bold ${who.size}px ${fonts.mono}`,
+      color: "#ffffff",
+      tracking: 4,
+    });
+
+    // WAVE N, the biggest thing on the sheet, fitted to the column.
+    const wave = `WAVE ${Math.max(1, Math.floor(mine.wave))}`;
+    const waveSize = fitToWidth(ctx, wave, fonts.black, measure, 300);
+    drawCenteredText(ctx, wave, {
+      cx,
+      baseline: 440 + waveSize * 0.72,
+      font: `${waveSize}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: measure,
+    });
+
+    // The line they act on: the day off the bill, the start off the grid.
+    const day = race.when.split("·")[0].trim();
+    const when = fitTrackedLine(ctx, `${day} · ${mine.time}`, fonts.mono, 46, 4, measure, true);
+    drawCenteredText(ctx, when.text, {
+      cx,
+      baseline: 690,
+      font: `bold ${when.size}px ${fonts.mono}`,
+      color: "#ffffff",
+      tracking: 4,
+    });
+
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillRect(M, 730, measure, 8);
+
+    drawRaceFoot(ctx, fonts, { cx, top: 770, width: 420, race });
+    ctx.restore();
+  },
+};
+
+/* The race day page's `only` — the bill, the name on its own, and MY WAVE
+ * (which only unlocks for a told wave, so the list may always carry it).
  *
  * WHY IT IS A LIST AND NOT A COUNT: the dialog there opens on a payload
  * built from a RowRaceSignup row, which carries no meters, so the picker
@@ -1928,7 +2080,7 @@ const rowtemberRaceDayName: ShareCard = {
  * a stranger holding it can act on it. Stripping it back is a choice
  * somebody makes, one chip away. This list is kept in the same order so the
  * two never look like they disagree. */
-export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id];
+export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id, rowtemberRaceDayWave.id];
 
 /* ------------------------------------------------------- community cards */
 
@@ -2728,6 +2880,9 @@ export const CARDS: ShareCard[] = [
   // race day dialog opens on.
   rowtemberRaceDayBill,
   rowtemberRaceDayName,
+  // MY WAVE (owner, 2026-09-16): a told wave, on race day and on the
+  // rower's own deck.
+  rowtemberRaceDayWave,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
   rowtemberCommunityToday,

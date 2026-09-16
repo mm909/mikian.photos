@@ -215,10 +215,9 @@ export default async function PartnersPage() {
       fmtMeters(c.total)
     );
 
-  // THE ELITE links to the elite list this viewer can actually see — the
-  // board's section for a signed-in rower, the front page's public list
-  // for a reader (feed/view.ts eliteListHref, the feed mark's own rule).
-  const eliteHref = eliteListHref(viewer.actor !== null);
+  // THE ELITE links to the board's elite block, for everyone (feed/view.ts
+  // eliteListHref, the feed mark's own rule — the board is open to all).
+  const eliteHref = eliteListHref();
   const leading = (lead: Lead) =>
     lead === null ? (
       <>In play — decided Sep 30</>

@@ -66,11 +66,13 @@ export function Heatmap({
       </div>
       <div className="hm-legend">
         <span>Less</span>
-        <i style={{ border: "1px dashed var(--line)" }} />
-        <i style={{ background: "#d9e8f2" }} />
-        <i style={{ background: "#a5cde3" }} />
-        <i style={{ background: "#4d9fc9" }} />
-        <i style={{ background: "var(--water)" }} />
+        {/* The cells' own classes, so the ramp (and the ink look's ramp)
+         * is written once, in theme.ts. */}
+        <i className="hm-cell" />
+        <i className="hm-cell b1" />
+        <i className="hm-cell b2" />
+        <i className="hm-cell b3" />
+        <i className="hm-cell b4" />
         <span>More</span>
       </div>
     </div>

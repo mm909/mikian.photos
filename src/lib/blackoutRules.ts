@@ -8,11 +8,14 @@ import {
   type Boards,
   type TotalRow,
 } from "./row100k";
+import type { BlackoutPolicy } from "./rowSettings";
 
 /* Blackout rules — pure, no db, safe in client components.
  *
  * The owner's call (2026-09-05): while a blackout window is open, the top
- * ten men and ten women on the board — THE ELITE — do not have their numbers
+ * of the board — THE ELITE, the top N of each division or the top N overall
+ * as the policy says (rowSettings.ts, owner 2026-09-16; ten per division
+ * until then) — do not have their numbers
  * shown to the public. Not a black bar: one fat block per digit, commas in
  * the right places, so you can see it is a six-figure number and where the
  * 100k starts, just not which six figures. Sixteenth and everyone else are
@@ -46,14 +49,37 @@ import {
  * admin/self views need no second query. */
 
 /* THE ELITE (owner, 2026-09-08, rebranded from THE ELITE FIFTEEN): the top
- * TEN MEN and the top TEN WOMEN on the board, by meters within each
- * division — up to ELITE_N rowers in all. A rower on neither board is
- * never elite. */
+ * of each board by meters. These are the DEFAULTS — ten per division, up to
+ * ELITE_N in all — kept for the surfaces that size themselves before they
+ * know the policy; the live rule is siteSettings().blackout (owner,
+ * 2026-09-16: top N of each board, or top N overall). A rower on neither
+ * board is never elite. */
 export const ELITE_PER_DIVISION = 10;
 export const ELITE_N = ELITE_PER_DIVISION * 2;
 export const ELITE_LABEL = "THE ELITE";
 /* The tag in front of a hidden row's name — where the tier tag would go. */
 export const ELITE_TAG = "ELITE";
+
+export type { BlackoutPolicy };
+
+/* The policy the rules fall back to when a caller passes none: the rule as
+ * it stood before it was a setting. Says the same as
+ * rowSettings.DEFAULT_BLACKOUT_POLICY, which is not imported because that
+ * module carries the db and this one has to stay safe in the browser. */
+export const DEFAULT_POLICY: BlackoutPolicy = { scope: "division", count: ELITE_PER_DIVISION };
+
+/* How many rowers a policy can hide at most (both boards together). */
+export function policyMax(policy: BlackoutPolicy): number {
+  const n = Math.max(1, Math.floor(policy.count));
+  return policy.scope === "overall" ? n : n * 2;
+}
+
+/* The policy in words, for the console and any copy that names the rule:
+ * "TOP 10 OF EACH BOARD" / "TOP 15 OVERALL". */
+export function policyLabel(policy: BlackoutPolicy): string {
+  const n = Math.max(1, Math.floor(policy.count));
+  return policy.scope === "overall" ? `TOP ${n} OVERALL` : `TOP ${n} OF EACH BOARD`;
+}
 
 /* How many digits a total has, commas not counted: 123,456 -> 6. Zero is
  * one digit, so a block always draws. */
@@ -87,21 +113,32 @@ export type MaskOpts = {
   viewerParticipantId?: string | null;
   /* Challenge admins see everything. */
   admin?: boolean;
+  /* Who counts as elite (rowSettings.ts). Callers that read the board
+   * through boardData/boardView get it from siteSettings(); anyone else
+   * gets the code default, ten per division. */
+  policy?: BlackoutPolicy;
 };
 
-/* The rows that are hidden: walking a standings-ordered list, the first
- * ELITE_PER_DIVISION rows of the men's board and the first of the women's
- * that have any meters at all. Rows already masked count as elite too, so
- * re-masking an already-masked list never slides a cut-off down onto the
- * eleventh (a masked row under 10k carries a floor of 0). A list whose
- * rows carry no division at all (a sticker payload from before the
- * rebrand) falls back to the first ELITE_N overall — never fewer hidden
- * than the rule asks for. */
-function eliteIndexes<T extends { meters: number; masked?: boolean; division?: string }>(rows: T[]): Set<number> {
+/* The rows that are hidden, walking a standings-ordered list:
+ *   division  the first `count` rows of the men's board and the first
+ *             `count` of the women's that have any meters at all;
+ *   overall   the first `count` rows with meters, whichever board.
+ * Rows already masked count as elite too, so re-masking an already-masked
+ * list never slides a cut-off down onto the next rower (a masked row under
+ * 10k carries a floor of 0). A list whose rows carry no division at all (a
+ * sticker payload from before the rebrand) falls back to the first
+ * count*2 overall under the division scope — never fewer hidden than the
+ * rule asks for. */
+function eliteIndexes<T extends { meters: number; masked?: boolean; division?: string }>(
+  rows: T[],
+  policy: BlackoutPolicy = DEFAULT_POLICY,
+): Set<number> {
+  const count = Math.max(1, Math.floor(policy.count));
   const out = new Set<number>();
   const hasDivision = rows.some((r) => r.division === "M" || r.division === "F");
-  if (!hasDivision) {
-    for (let i = 0; i < rows.length && out.size < ELITE_N; i++) {
+  if (policy.scope === "overall" || !hasDivision) {
+    const n = policy.scope === "overall" ? count : count * 2;
+    for (let i = 0; i < rows.length && out.size < n; i++) {
       if (rows[i].meters > 0 || rows[i].masked) out.add(i);
     }
     return out;
@@ -110,7 +147,7 @@ function eliteIndexes<T extends { meters: number; masked?: boolean; division?: s
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const d = r.division === "M" || r.division === "F" ? r.division : null;
-    if (!d || taken[d] >= ELITE_PER_DIVISION) continue;
+    if (!d || taken[d] >= count) continue;
     if (r.meters > 0 || r.masked) {
       out.add(i);
       taken[d] += 1;
@@ -265,7 +302,7 @@ export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
   if (!opts.active) {
     const hide = Math.floor(opts.hideLow ?? 0);
     if (hide <= 0) return boards;
-    const eliteNow = eliteIndexes(boards.total);
+    const eliteNow = eliteIndexes(boards.total, opts.policy);
     if (eliteNow.size === 0) return boards;
     return {
       ...boards,
@@ -276,7 +313,7 @@ export function maskBoards(boards: Boards, opts: MaskOpts): Boards {
       }),
     };
   }
-  const elite = eliteIndexes(boards.total);
+  const elite = eliteIndexes(boards.total, opts.policy);
   if (elite.size === 0) return boards;
   const fifteen: TotalRow[] = [];
   const rest: TotalRow[] = [];
@@ -309,8 +346,8 @@ export type StandingRow = {
   name: string;
   rowerNumber: number;
   meters: number;
-  /* "M" | "F" — which board, so the top ten of each can be found. A
-   * payload without it falls back to the first ELITE_N overall. */
+  /* "M" | "F" — which board, so the top N of each can be found. A payload
+   * without it falls back to the first count*2 overall (eliteIndexes). */
   division?: string;
   masked?: boolean;
   digits?: number;
@@ -322,10 +359,10 @@ export type StandingRow = {
 
 export function maskStandings(
   rows: StandingRow[],
-  opts: { active: boolean; viewerRowerNumber?: number | null; admin?: boolean },
+  opts: { active: boolean; viewerRowerNumber?: number | null; admin?: boolean; policy?: BlackoutPolicy },
 ): StandingRow[] {
   if (!opts.active || opts.admin) return rows;
-  const elite = eliteIndexes(rows);
+  const elite = eliteIndexes(rows, opts.policy);
   if (elite.size === 0) return rows;
   const fifteen: StandingRow[] = [];
   const rest: StandingRow[] = [];

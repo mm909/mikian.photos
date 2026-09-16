@@ -6,8 +6,18 @@ import type { Racer } from "../racedayData";
  * who is signed up as a racer and a spectator, and a count of racers and
  * spectators"). The sheet he would print and carry to the gym: a name comes
  * at him, he finds it, and the row says whether they are on an erg or in a
- * chair, which wave, and whether the waiver is done. Four columns, A to Z,
- * nothing to click.
+ * chair, and which wave. Three columns, A to Z, nothing to click.
+ *
+ * FIVE COUNTS (owner, 2026-09-16: "I need to know how many m/w we have
+ * signed up along w/ the total number"): racers, the men and the women
+ * among them, spectators, and everybody — with anyone in neither bracket
+ * counted in the foot line under the tiles.
+ *
+ * NO WAIVER ANYWHERE. The tile and the column said OWED against anybody who
+ * had not ticked the box at signup, and the owner has no way to know
+ * (2026-09-16: "I wont know who signed the waiver or not, dont have this
+ * data") — the waiver is signed on the gym's system. The wave note carries
+ * the reminder to everybody instead (raceEmail.ts).
  *
  * IT IS NOT A SECOND WAVE CONSOLE. RaceWaves is the machine — two tables, a
  * picker on every row, dry runs, mail — and it sorts by wave and then by
@@ -34,10 +44,11 @@ export function DoorList({ race, racers, unreadable }: { race: RaceDef; racers: 
   const gone = racers.filter((r) => r.withdrewAt);
   const racing = coming.filter((r) => r.role === "racer");
   const watching = coming.filter((r) => r.role === "spectator");
-  /* Only a racer is ever ASKED for the waiver — a spectator is not pulling
-   * (SignupPanel) — and somebody who switched down from racer still carries
-   * the old stamp. Neither belongs in the column or the count. */
-  const owed = race.waiver ? racing.filter((r) => !r.waiverAt).length : 0;
+  /* The brackets are counted among RACERS only — a spectator's division is
+   * nothing the waves care about. */
+  const men = racing.filter((r) => r.division === "M").length;
+  const women = racing.filter((r) => r.division === "F").length;
+  const neither = racing.length - men - women;
 
   /* A TO Z, one list, racers and spectators interleaved: the one sort
    * nothing else on the page uses, and the only one you can run a finger
@@ -60,7 +71,7 @@ export function DoorList({ race, racers, unreadable }: { race: RaceDef; racers: 
       </p>
 
       {unreadable ? (
-        /* Four zeros and a broken read must never look the same. The console
+        /* Five zeros and a broken read must never look the same. The console
          * says this in the same words further down: one failure, one
          * sentence, said twice rather than described two ways. */
         <p className="board-empty">
@@ -75,38 +86,37 @@ export function DoorList({ race, racers, unreadable }: { race: RaceDef; racers: 
               <div className="l mono">PULLING THE {race.meters.toLocaleString("en-US")} M</div>
             </div>
             <div className="st-tile">
+              <div className="k mono">Men</div>
+              <div className="n">{men}</div>
+              <div className="l mono">RACERS IN THE MEN’S BRACKET</div>
+            </div>
+            <div className="st-tile">
+              <div className="k mono">Women</div>
+              <div className="n">{women}</div>
+              <div className="l mono">RACERS IN THE WOMEN’S BRACKET</div>
+            </div>
+            <div className="st-tile">
               <div className="k mono">Spectators</div>
               <div className="n">{watching.length}</div>
               <div className="l mono">IN THE ROOM, NOT ON AN ERG</div>
             </div>
-            {/* He asked for two numbers; the third is the one a door actually
-              * needs — how many bodies — and it is free, because the two it
-              * adds up are already on the screen beside it. */}
+            {/* The one number a door actually needs — how many bodies — and
+              * it is free, because the two it adds up are on the screen
+              * beside it. */}
             <div className="st-tile">
               <div className="k mono">Everybody</div>
               <div className="n">{coming.length}</div>
               <div className="l mono">BODIES THROUGH THE DOOR</div>
             </div>
-            {/* The one number here he can ACT on, so the only one that gets
-              * colour, and only above zero. A race carrying no waiver at all
-              * gives the tile to the withdrawals rather than leaving a hole
-              * in the four-up. */}
-            {race.waiver ? (
-              <div className={`st-tile${owed > 0 ? " owe" : ""}`}>
-                <div className="k mono">Waiver</div>
-                <div className="n">{owed}</div>
-                <div className="l mono">
-                  {owed > 0 ? "STILL OWED" : racing.length === 0 ? "NOBODY TO CHASE YET" : "EVERY RACER HAS SIGNED"}
-                </div>
-              </div>
-            ) : (
-              <div className="st-tile">
-                <div className="k mono">Took it back</div>
-                <div className="n">{gone.length}</div>
-                <div className="l mono">WITHDRAWN, NOT DELETED</div>
-              </div>
-            )}
           </div>
+          {/* Somebody in neither bracket is still a racer and still counted
+            * in RACERS; the tiles only add up once this line says where the
+            * rest went. */}
+          {neither > 0 && (
+            <p className="ra-foot">
+              {neither} {neither === 1 ? "RACER" : "RACERS"} IN NEITHER BRACKET — COUNTED IN RACERS, NOT IN MEN OR WOMEN
+            </p>
+          )}
 
           {rows.length === 0 ? (
             <p className="board-empty">NOBODY HAS SIGNED UP YET — NAMES LAND HERE THE MOMENT THEY COME IN.</p>
@@ -117,7 +127,6 @@ export function DoorList({ race, racers, unreadable }: { race: RaceDef; racers: 
                   <th>Who</th>
                   <th>Racing</th>
                   <th className="ra-dw">Wave</th>
-                  {race.waiver && <th className="ra-dv">Waiver</th>}
                 </tr>
               </thead>
               <tbody>
@@ -140,17 +149,6 @@ export function DoorList({ race, racers, unreadable }: { race: RaceDef; racers: 
                     <td className="mono ra-dw">
                       {r.role !== "racer" ? "" : r.wave === null ? <span className="ra-no">—</span> : r.wave}
                     </td>
-                    {race.waiver && (
-                      <td className="mono ra-dv">
-                        {r.role !== "racer" ? (
-                          ""
-                        ) : r.waiverAt ? (
-                          <span className="ra-no">SIGNED</span>
-                        ) : (
-                          <b className="ra-owe">OWED</b>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>

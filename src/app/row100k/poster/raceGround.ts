@@ -21,6 +21,7 @@ import { compose } from "./engine";
 import { tokensFor } from "./formats";
 import { makePaint } from "./paint";
 import { RACE_INK, raceLayoutFor } from "./raceday";
+import { raceDayFieldLayout } from "./raceField";
 import type {
   CommunityPoster,
   PosterAssets,
@@ -29,8 +30,8 @@ import type {
   PosterLayout,
   PosterLayoutLog,
   PosterMargins,
-  PosterPpi,
   PosterRenderTarget,
+  RaceArtwork,
   RaceDayPoster,
 } from "./types";
 
@@ -38,6 +39,14 @@ export const RACE_GROUNDS: { key: PosterGround; label: string }[] = [
   { key: "ink", label: "Solid ad" },
   { key: "photo", label: "On the photo" },
   { key: "overlay", label: "Overlay" },
+];
+
+/* THE TWO ARTWORKS (owner, 2026-09-16: "a poster showing what racers are
+ * coming to race day"). The bill is the ad on any ground; the field is the
+ * start list on ink alone (poster/raceField.ts). The studio's chip pair. */
+export const RACE_ARTWORKS: { key: RaceArtwork; label: string }[] = [
+  { key: "bill", label: "The bill" },
+  { key: "field", label: "The field" },
 ];
 
 export const isGround = (v: unknown): v is PosterGround =>
@@ -51,10 +60,13 @@ export type RaceRenderInput = {
   fonts: PosterFonts;
   assets: PosterAssets;
   ground: PosterGround;
+  /* Which artwork; the bill when absent, so every existing caller draws
+   * the ad it drew. The field ignores `ground` — it is ink only. */
+  artwork?: RaceArtwork;
 };
 
 export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasElement; log: PosterLayoutLog } {
-  const { target, data, fonts, assets, ground } = input;
+  const { target, data, fonts, assets, ground, artwork = "bill" } = input;
   const canvas = document.createElement("canvas");
   canvas.width = target.pxW;
   canvas.height = target.pxH;
@@ -78,6 +90,8 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
   // when the race HAS a photograph, and says so when the load fails, so
   // this is the belt and not the braces.
   const drawn: PosterGround = ground === "photo" && !assets.photo ? "ink" : ground;
+  // The start list takes no ground: solid ink, its own plans.
+  const layout = artwork === "field" ? raceDayFieldLayout : raceLayoutFor(drawn);
 
   // Full bleed, no gaps: the modules tile the frame. The format's REAL
   // margins are still what the type is inset by — poster/raceday.ts reads
@@ -108,7 +122,7 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
     // a type-level widening only, and it is contained here on purpose.
     log = compose({
       ctx,
-      layout: raceLayoutFor(drawn) as unknown as PosterLayout<CommunityPoster>,
+      layout: layout as unknown as PosterLayout<CommunityPoster>,
       format,
       data: data as unknown as CommunityPoster,
       paint,
@@ -121,19 +135,23 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
 }
 
 /* raceday-2026-09-27-story.png · raceday-2026-09-27-story-overlay.png ·
- * raceday-2026-09-27-story-photo.png · raceday-2026-09-27-poster-11x17.pdf —
+ * raceday-2026-09-27-story-photo.png · raceday-2026-09-27-poster-18x24.pdf —
  * the race's own slug is the subject, the way engine.ts fileName() stems the
  * other two. The ground is in the name because all three are the same ad and
- * only the name says which one is on the desktop. */
+ * only the name says which one is on the desktop. No ppi suffix: every print
+ * is formats.ts PRINT_PPI (2026-09-16).
+ *
+ * The field is a different artwork, not a ground, so it stems as one:
+ * raceday-2026-09-27-field-story.png · raceday-2026-09-27-field-poster-24x36
+ * .pdf — the word before the format, no ground suffix (it has none). */
 export function raceFileName(
   data: RaceDayPoster,
-  format: { stem: string; kind: "print" | "instagram"; ppi?: { default: PosterPpi } },
+  format: { stem: string; kind: "print" | "instagram" },
   ext: "png" | "pdf",
-  opts: { ground: PosterGround; ppi?: PosterPpi | null; bleed?: boolean },
+  opts: { ground: PosterGround; bleed?: boolean; artwork?: RaceArtwork },
 ): string {
-  let suffix = opts.ground === "overlay" ? "-overlay" : opts.ground === "photo" ? "-photo" : "";
-  if (format.kind === "print" && opts.ppi && format.ppi && opts.ppi !== format.ppi.default)
-    suffix += `-${opts.ppi}ppi`;
+  const field = opts.artwork === "field";
+  let suffix = field ? "" : opts.ground === "overlay" ? "-overlay" : opts.ground === "photo" ? "-photo" : "";
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";
-  return `${data.race.slug}-${format.stem}${suffix}.${ext}`;
+  return `${data.race.slug}-${field ? "field-" : ""}${format.stem}${suffix}.${ext}`;
 }

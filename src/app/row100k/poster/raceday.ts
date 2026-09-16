@@ -86,6 +86,7 @@
 
 import { silently } from "./charts";
 import { FORMATS } from "./formats";
+import { FIELD_FLOOR } from "./raceAssemble";
 import type {
   PosterBox,
   PosterGround,
@@ -136,9 +137,10 @@ const MARK_SHARE = 0.34;
  * spare hands the row more through `grow` and the head takes it (up to the
  * flush fit), so lowering the number on paper does not shrink a 24x36's
  * headline — it only stops the headline outbidding the rest of the bill on
- * a sheet that is short. At 0.22 the 11x17 keeps the wave row, the two ways
- * in AND the fact table; at 0.30 it dropped two of the three, and the 24x36
- * draws exactly the same headline either way because it grows back.
+ * a sheet that is short. At 0.22 the smallest print sheet keeps the wave
+ * row, the two ways in AND the fact table; at 0.30 it dropped two of the
+ * three, and the 24x36 draws exactly the same headline either way because
+ * it grows back.
  *
  * THE PHONE ADS HAVE NO DROP LIST AT ALL, so there is nothing for the head
  * to outbid there and the ask only needs to be small enough to fit: on the
@@ -148,8 +150,9 @@ const MARK_SHARE = 0.34;
  * hands back the same 200, so the 9:16 still draws RACE and DAY FLUSH with
  * no scaling at all — the signature — and the 4:5 spends its whole surplus
  * on type instead of leaving a band of nothing under the hairline. */
-const HEAD_SHARE: Record<string, number> = { phone: 0.24, printS: 0.22, printL: 0.22 };
-const headShare = (paint: PosterPaint): number => HEAD_SHARE[paint.format.family] ?? 0.24;
+const HEAD_SHARE: Record<string, number> = { phone: 0.24, printL: 0.22 };
+const headShare = (paint: PosterPaint, share?: number): number =>
+  share ?? HEAD_SHARE[paint.format.family] ?? 0.24;
 
 /* THE AIR AROUND THE PICTURE (owner, 2026-09-11: "put a little bit of blank
  * space between the photo and A TIMED 5,000 M TRIAL — the same amount of
@@ -263,31 +266,61 @@ function mastMod(id: string, lead: boolean): Mod {
  * nothing else needed goes into the TYPE first (up to the flush fit), then
  * into the leading, then around the block — so the bill never leaves a hole
  * somewhere else and never floats its headline in a field of air. */
-function headMod(id: string, split: boolean): Mod {
-  const linesOf = (d: RaceDayPoster) => (split ? d.race.head : [d.race.head.join(" ")]);
+/* `share` overrides HEAD_SHARE for a plan whose picture is not the headline
+ * — THE FIELD (poster/raceField.ts) asks less on paper so the names keep
+ * the sheet; the bill passes nothing and draws as it always did.
+ *
+ * `split` is true for RACE over DAY, false for RACE DAY on one line, and
+ * "auto" for the field's story and 4:5 (review, 2026-09-16): the row is
+ * MEASURED as the one line, so the start list keeps every slot the frame
+ * has, and DRAWN as the stack whenever the grow row handed back enough
+ * for both words to set at least as large as the one line would — a short
+ * field then spends its surplus as type, the way the bill's story does,
+ * instead of leaving RACE DAY floating in a band of air. The bill passes
+ * true or false and draws as it always did. */
+function headMod(id: string, split: boolean | "auto", share?: number): Mod {
   return mod(id, 60, (ctx, box, d, paint) => {
     const tk = paint.tk;
     const { x, w } = colOf(box, paint);
-    const lines = linesOf(d);
     // Flush first: the size at which each word spans the measure on its own,
     // which is why a three-letter word is set bigger than a four-letter one.
-    const flush = lines.map((t) => paint.fitSize(ctx, t, "black", 900, 18, w, -0.02));
+    const flushOf = (ls: string[]) => ls.map((t) => paint.fitSize(ctx, t, "black", 900, 18, w, -0.02));
     const capsAt = (ss: number[]) => ss.map((s) => capOf(ctx, paint.font("black", s), s));
     const leadAt = (cs: number[]) => Math.max(...cs) * 0.055;
-    const blockAt = (cs: number[]) => cs.reduce((a, b) => a + b, 0) + leadAt(cs) * (lines.length - 1);
-    const wanted = blockAt(capsAt(flush));
+    const blockAt = (cs: number[]) => cs.reduce((a, b) => a + b, 0) + leadAt(cs) * (cs.length - 1);
     const under = tk.small * 1.1;
     // The blank under the hairline. On an overlay it is the gap ABOVE the
     // window, which is why it is a shared number and not a local one.
     const below = WINDOW_AIR(tk);
     const air = under + tk.hair + below;
+    const room = Number.isFinite(box.h) ? Math.max(0, box.h - air) : 0;
+    const one = [d.race.head.join(" ")];
+    let lines = split === true ? d.race.head : one;
+    let flush = flushOf(lines);
+    // The auto stack: only once the room sets EVERY word at least as large
+    // as the one line — under that a stacked head is a shrunken one, and
+    // the one line with a little air is the better frame.
+    let autoStack = false;
+    if (split === "auto" && Number.isFinite(box.h) && d.race.head.length > 1) {
+      const sf = flushOf(d.race.head);
+      const k = Math.min(1, room / blockAt(capsAt(sf)));
+      if (Math.min(...sf) * k >= flush[0]) {
+        lines = d.race.head;
+        flush = sf;
+        autoStack = true;
+      }
+    }
+    const wanted = blockAt(capsAt(flush));
     // MEASURE asks for HEAD_SHARE of the frame; DRAW takes the room the
     // grow row actually handed it, up to the flush fit and never under what
     // it measured. So a 24x36, which has room to spare, gets RACE and DAY
     // FLUSH — the signature — instead of the same block floating in 350
-    // units of air, and a 9:16 gets exactly what it measured.
-    const room = Number.isFinite(box.h) ? Math.max(0, box.h - air) : 0;
-    const budget = Math.min(wanted, Math.max(paint.format.h * headShare(paint), room));
+    // units of air, and a 9:16 gets exactly what it measured. An auto
+    // stack was measured as the one line, so it budgets against the room
+    // alone: the share could overrun the row it was handed.
+    const budget = autoStack
+      ? Math.min(wanted, room)
+      : Math.min(wanted, Math.max(paint.format.h * headShare(paint, share), room));
     const k = wanted > budget ? budget / wanted : 1;
     const sizes = flush.map((s) => Math.max(18, Math.floor(s * k)));
     const fonts = sizes.map((s) => paint.font("black", s));
@@ -456,7 +489,11 @@ const waves = mod("waves", 40, (ctx, box, d, paint) => {
 const factRows = (d: RaceDayPoster): { k: string; v: string }[] => {
   const rows: { k: string; v: string }[] = [];
   if (d.race.waiver) rows.push({ k: "WAIVER", v: d.race.waiver });
-  if (d.field) rows.push({ k: "IN SO FAR", v: `${d.field.racers} RACERS` });
+  // The floor is applied HERE since 2026-09-16, not in the assembler: the
+  // payload now carries the field whenever it could be read, because the
+  // start list (poster/raceField.ts) prints the rows this line would not
+  // yet mention. "3 RACERS IN" still sells against you.
+  if (d.field && d.field.racers >= FIELD_FLOOR) rows.push({ k: "IN SO FAR", v: `${d.field.racers} RACERS` });
   return rows;
 };
 
@@ -483,7 +520,7 @@ function drawFacts(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPain
   const room = Number.isFinite(box.h) ? box.h - air : Number.POSITIVE_INFINITY;
   // THE EPSILON, and it is not decoration. measure() returns exactly
   // `air + n × pitch`, the engine hands that same number back as box.h, and
-  // room / pitch then comes out at 1.9999999999999998 on a printS sheet
+  // room / pitch then comes out at 1.9999999999999998 on a two-column sheet
   // (51.6 / 25.8) — so the floor cut the last row off the table it had just
   // asked room for, and the sheet drew a 26-unit hole under the waiver.
   // That was masked while the floor was two rows; it showed the moment the
@@ -994,7 +1031,6 @@ export const raceDayLayout: PosterLayout<RaceDayPoster> = {
     short: inkPrint("short"),
     squat: inkPrint("squat"),
     core: inkPrint("core"),
-    hand: inkPrint("hand"),
     story: inkStory,
     post: inkPost,
     square: inkSquare,
@@ -1011,7 +1047,6 @@ const overlayPlans = {
   short: overTorn("short", "head"),
   squat: overTorn("squat", "head"),
   core: overTorn("core", "head"),
-  hand: overTorn("hand", "head"),
   story: overTorn("story", "head.one"),
   post: overPasted("post", "head.one", ["mast.tight"]),
   square: overPasted("square", "head.one", ["host"]),
@@ -1031,3 +1066,12 @@ export const raceDayPhotoLayout: PosterLayout<RaceDayPoster> = {
 
 export const raceLayoutFor = (ground: PosterGround): PosterLayout<RaceDayPoster> =>
   ground === "overlay" ? raceDayOverlayLayout : ground === "photo" ? raceDayPhotoLayout : raceDayLayout;
+
+/* WHAT THE FIELD BORROWS (poster/raceField.ts, 2026-09-16). The start list
+ * is this bill with the names where the ways and the facts go, so it
+ * draws the same masthead, head, piece and mark with the same mechanics
+ * and the same greys — exported here rather than copied there, so the two
+ * artworks cannot drift a rung apart. Nothing else in this file is public. */
+export const RACE_TONES = { WHITE, BONE, KEY, QUIET, HAIR, FAINT } as const;
+export { MARK_SHARE, blocks as raceBlocks, capOf as raceCapOf, colOf as raceColOf, headMod as raceHeadMod };
+export { inset as raceInset, mod as raceMod };

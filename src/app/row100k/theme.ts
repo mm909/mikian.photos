@@ -29,6 +29,13 @@ export const spaceMono = Space_Mono({
 const NOISE =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP88vkdAwMDEwMDAwMDAwAiLALZuZcPKwAAAABJRU5ErkJggg==";
 
+/* The selector every rule of the ink look hangs off (the .row-ink block at
+ * the foot of the sheet): the wrapper class the layout adds, the page root,
+ * and NOT one of the two pages that are ink already, nor the cast wall —
+ * .rr-wall on its root, a class and not :has(), so a gym television with
+ * no :has() never gets the wall inverted (review, 2026-09-16). */
+const INK = ".row-ink .row100k:not(.chrome-ink):not(.rr-wall)";
+
 export const css = `
 html:has(.row100k){scroll-behavior:smooth}
 .row100k,.row100k *{margin:0;padding:0;box-sizing:border-box}
@@ -806,12 +813,18 @@ html:has(.row100k){scroll-behavior:smooth}
  * the 100K CLUB already wore), .25M legend (gold; the word never renders).
  * The -ink shade of each family carries the section text and the badge.
  * Rows are NOT tinted any more — the board stays on its cream and the
- * badge alone says the tier. */
+ * badge alone says the tier.
+ * THE .25M IS PREMIUM, NOT MUSTARD (owner, 2026-09-16: it should look more
+ * elite). The legend ink is a deep gold now — 4.9:1 on the cream, so the
+ * divider row still reads — and the badge itself is a matte ink slab with
+ * champagne type and a champagne hairline, tracked wide. It is told from the
+ * black ELITE tag by the gold; under the ink look ELITE goes hollow with a
+ * white ring and the .25M keeps its gold on a lifted slab. */
 .row100k{
   --tier-common-ink:var(--ink);
   --tier-rare-ink:#256e45;
   --tier-epic-ink:var(--water);
-  --tier-legend-ink:#8a6508;
+  --tier-legend-ink:#85661a;
 }
 /* Badge chip IN FRONT of the name — same voice as .donebadge, colored by
  * rarity. .elite is the black ELITE tag a blacked-out row wears in its
@@ -820,7 +833,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge.common{background:var(--tier-common-ink)}
 .row100k .tierbadge.rare{background:var(--tier-rare-ink)}
 .row100k .tierbadge.epic{background:var(--tier-epic-ink)}
-.row100k .tierbadge.legend{background:var(--tier-legend-ink)}
+/* The border is traded for padding (1px for 1px, top and bottom; 1px of the
+ * 6px each side) so the badge measures the same as its neighbours. */
+.row100k .tierbadge.legend{background:#15171a;color:#E6C46B;border:1px solid #E6C46B;padding:0 5px;letter-spacing:.12em}
 .row100k .tierbadge.elite{background:var(--ink)}
 .row100k .tierbadge.pace{background:var(--ink);letter-spacing:.02em}
 /* THE DOG TAG (DogTag.tsx): one of the elite, seen by anybody else while
@@ -1166,17 +1181,11 @@ html:has(.row100k){scroll-behavior:smooth}
 
 /* ----------------------------------------------------------------------
  * The feed (feed/ — the strips, the owner pick of 2026-09-05): the
- * profile language on the ticker. THE FEED as a nameplate over a
- * hairline with a mono dateline that carries the blackout line, the one
- * big blue number (meters that landed today, Pacific — .bhead-n) with its
- * mono descriptor, then the rows under small mono day heads with a dashed
- * rule. No 2px boxes anywhere: rows part on dashed hairlines. .fd- is the
- * prefix. */
+ * profile language on the ticker. The head (name, dateline, the meters
+ * that landed today) is PageHead.tsx + headCss.ts since 2026-09-16; here,
+ * the rows under small mono day heads with a dashed rule. No 2px boxes
+ * anywhere: rows part on dashed hairlines. .fd- is the prefix. */
 .row100k section.fd-sec{padding:30px 0 8px}
-.row100k .fd-head{padding:26px 0 0}
-.row100k .fd-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em}
-.row100k .fd-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px;line-height:1.7}
-.row100k .fd-big{margin-top:22px}
 .row100k .fd-list{margin-top:30px}
 /* The day head: ONE small mono line — the day, a dash, its whole total (a
  * blue figure in the strips) — over a dashed rule; the first sits tight to
@@ -1247,4 +1256,244 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k{--paper:#E9E7DF}
   .row100k .frame img,.row100k .inter img{filter:brightness(.94)}
 }
+
+/* ----------------------------------------------------------------------
+ * .row-ink — THE WHOLE SITE, WHITE ON BLACK (owner, 2026-09-16: show me
+ * what the whole rowtember page can look like in a white on black color
+ * scheme; the blackout starts the 20th, and race week and after may go
+ * ink). The segment layout (row100k/layout.tsx) wraps every page in a div
+ * that carries this class when the site look is ink or the LOOK_COOKIE says
+ * so. Paper adds nothing: nothing outside these selectors changes.
+ *
+ * FULLY MONOCHROME (owner, 2026-09-16, later that day: we will stick with
+ * the paper look for now — work on a fully mono chrome UI, keep the ui
+ * colors the same but work on the mono chrome, and give me the admin
+ * switch to see it on my side still). So paper keeps its blue, byte for
+ * byte, and under ink there is NO HUE AT ALL: black, white and greys, the
+ * register race day (raceday/rdCss.ts) and the results board
+ * (raceresults/rrCss.ts) set on 2026-09-11. No water, no champagne, no
+ * green or gold tier, no metal medal, no rust error, no blue ramp.
+ *
+ * THE GREY LADDER, white over the #0b0c0e ground (the rdCss.ts steps):
+ *   #fff                    1     the accent (what was water), headlines,
+ *                                 values, filled slabs, the 100K tier, the
+ *                                 gold medal ring, the error line
+ *   rgba(255,255,255,.74)   bone  body copy (ink-soft), the hover of a
+ *                                 filled white slab (water-hover), the
+ *                                 silver medal ring
+ *   rgba(255,255,255,.62)   key   mono eyebrows, keys, table heads (gray),
+ *                                 the 50K tier (#a3a3a3 opaque)
+ *   rgba(255,255,255,.5)    quiet the 10K tier (#858585 opaque), the
+ *                                 bronze medal ring, the down arrow, a
+ *                                 placeholder
+ *   rgba(255,255,255,.3)    hair  a rule meant to be seen, the second
+ *                                 heat of the ramps (#545454 opaque)
+ *   rgba(255,255,255,.24)   dash  the hairline (line): dashed rules,
+ *                                 input underlines, pill outlines
+ *   rgba(255,255,255,.18)   faint the first heat of the ramps (#373737
+ *                                 opaque), the progress track
+ *   rgba(255,255,255,.06)   wash  a hover, an empty hour cell
+ *   #1c1d20                 lift  a slab one step off the ground
+ *                                 (water-pale): the finished row, the
+ *                                 pressed record card, a disabled SEND,
+ *                                 the photo frame
+ * Nothing under .5 ever carries a letter. The ramps and the tier slabs
+ * are opaque hex so a border on them cannot stack brighter than the fill.
+ *
+ * HOW. The palette is flipped at the root — paper is the black, ink is
+ * white, the greys and the hairline re-cut for a black ground, and the
+ * water is WHITE, because the accent on black is the brightest thing on
+ * it, the way it is on race day — and everything above that is drawn in
+ * the variables comes along for free. What is left is every rule that
+ * named a colour outright, and every rule whose cue was the hue: white
+ * type on a blue or an ink fill (an ink fill is a WHITE fill now, so the
+ * type goes to the ground colour), the ink drop shadows, the cream board
+ * tint, the blue ramps, the medal chips, the tier badges, the rust of an
+ * error, and the hovers that went ink to water, which is white to white
+ * here and so needs a wash, a dim or an underline to say anything. The
+ * bar, the raffle strip and the footer take the .chrome-ink treatment
+ * re-cut in the flipped variables: a black bar under a white rule, a
+ * white pill with ink type, a white LOG A ROW slab.
+ *
+ * FILLED WHITE CARRIES BLACK TYPE HERE. .send, the pill, the tier slabs,
+ * the share mark and every other slab that was blue print their type in
+ * var(--paper) — cream on paper, black on ink.
+ *
+ * NOT FOR A PAGE THAT IS INK ALREADY. Race day and the results board wear
+ * .chrome-ink and paint their own black in rules that mean black when they
+ * say var(--ink); flipping the palette under them would have inverted them
+ * back to white. Every selector here excludes .chrome-ink, so those two
+ * pages render under ink exactly as they render today — and the :not() is
+ * also what lifts these rules over the page-local sheets, which are a
+ * second style tag, later in source, at the same specificity. The cast
+ * wall wears .rr-wall on its root and is excluded the same way.
+ *
+ * WHAT IS NOT REACHED FROM HERE: the analysis charts (analysis/charts.tsx)
+ * draw their washes as the water at low alpha through color-mix, so they
+ * go white here on their own — their gridline, pip stroke and dot halo
+ * keep paper literals and read the --an-* variables set at the root
+ * below, so paper stays byte for byte; the share cards (share/cards.ts) and the
+ * poster engine paint canvases in colours of their own; the partner slabs
+ * on /partners wear the partner brand green and gold, which is theirs. */
+html:has(.row-ink),html:has(.row-ink) body{background:#0b0c0e}
+.row-ink{background:#0b0c0e;min-height:100vh}
+${INK}{--paper:#0b0c0e;--ink:#ffffff;--ink-soft:rgba(255,255,255,.74);--gray:rgba(255,255,255,.62);--line:rgba(255,255,255,.24);--water:#ffffff;--water-hover:rgba(255,255,255,.74);--water-pale:#1c1d20;--frame:#1c1d20;--tier-common-ink:#858585;--tier-rare-ink:#a3a3a3;--tier-epic-ink:#ffffff;--tier-legend-ink:#ffffff;--an-grid:rgba(255,255,255,.24);--an-paper:#0b0c0e;--an-halo:#0b0c0e;background:var(--paper);color-scheme:dark}
+
+/* THE CHROME: .chrome-ink, re-cut for the flipped variables. The focus
+ * ring is the water, and the water is white, so nothing to re-cut there. */
+${INK} .bar{background:var(--paper)}
+${INK} .bar .tag{color:var(--paper)}
+${INK} .bar .mono{color:rgba(255,255,255,.62)}
+${INK} .bar-brand .dot{color:var(--ink)}
+${INK} .bar-brand:hover{color:rgba(255,255,255,.74)}
+${INK} .rail a{color:rgba(255,255,255,.62)}
+${INK} .rail a.brand{color:var(--ink)}
+${INK} .rail a.lit{color:var(--paper)}
+${INK} .rail-pill{background:var(--ink)}
+${INK} .rail:not(.live) a.on{background:var(--ink);color:var(--paper)}
+/* The stamp rests hollow and fills under the pointer — the .chrome-ink
+ * reasoning, one to one. */
+${INK} .rail a.rail-stamp{background:transparent;color:var(--ink)}
+${INK} .rail a.rail-stamp:hover,${INK} .rail a.rail-stamp:focus-visible,${INK} .rail a.rail-stamp[aria-current=page]{background:var(--ink);color:var(--paper)}
+${INK} .bar-log,${INK} .bar-log:hover,${INK} .bar-log:focus-visible{color:var(--paper)}
+${INK} .acct-chip:hover{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+${INK} .acct-panel{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
+/* A danger item says so with an underline, not a rust. */
+${INK} .acct-item.danger:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+/* The raffle strip stays a black band; the white rule under it is its
+ * edge, its type goes plain white and its button is the white slab the
+ * rest of the chrome buttons wear here. */
+${INK} .rfb{background:var(--paper);color:var(--ink);border-bottom-color:var(--ink)}
+${INK} .rfb-k,${INK} .rfb-t,${INK} .rfb-x{color:var(--ink)}
+${INK} .rfb-cta{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+${INK} .rfb-cta.in{background:transparent;color:var(--ink)}
+${INK} .rfb-cta:hover,${INK} .rfb-cta:focus-visible{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+/* FORMS AND BUTTONS. The ink-filled ones (.goog, .tabs .on, .day-select)
+ * already flip through the variables; these named a white or a rust. An
+ * error is the race day one: white, bold, a white bar down its side. */
+${INK} .send{color:var(--paper)}
+${INK} .send:disabled{background:var(--water-pale);color:var(--gray)}
+${INK} .goog:hover{background:var(--water-hover)}
+${INK} .form-err{color:var(--ink);font-weight:700;border-left:3px solid var(--ink);padding-left:11px}
+${INK} .panel ::placeholder{color:rgba(255,255,255,.5)}
+${INK} .big-act.primary{color:var(--paper)}
+${INK} .del-btn:hover{color:var(--ink)}
+${INK} .mv.dn{color:rgba(255,255,255,.5)}
+/* HOVER CUES. Outline buttons went ink to water under the pointer; both
+ * are white here, so the box takes a wash instead. The underlined words
+ * of the profile log switch are not boxes and keep their bare hover. */
+${INK} .tabs button:hover:not(.on):not(:disabled),${INK} .tabs a:hover:not(.on),${INK} .outline-btn:hover,${INK} .big-act:hover:not(.primary),${INK} button.rec:hover:not([aria-pressed=true]){background:rgba(255,255,255,.06)}
+${INK} .pf-log .tabs button:hover:not(.on){background:none}
+
+/* THE SHARE DIALOG: a dimmer that is darker than the page, white-cast
+ * shadows, black type on the white mark and the white buttons, and the
+ * dark card stage on the lift grey rather than its blue-black. */
+${INK} .share-overlay{background:rgba(0,0,0,.72)}
+${INK} .share-modal{box-shadow:8px 8px 0 rgba(255,255,255,.14)}
+${INK} .share-mark{color:var(--paper)}
+${INK} .share-btn:hover{color:var(--paper)}
+${INK} .share-btn.primary{color:var(--paper)}
+${INK} .share-btn.quiet:hover{color:var(--ink)}
+${INK} .share-status.bad{color:var(--ink);font-weight:700}
+${INK} .share-stage.dark{background-color:#1c1d20}
+
+/* THE LEDGER AND THE ROWERS TABLE: menu shadows, danger as an underline,
+ * the hover wash. */
+${INK} .mlg-menu{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
+${INK} .mlg-menu button.danger:not(:disabled){color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+${INK} .rw-menu{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
+${INK} .rw-menu .danger:not(:disabled){color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+${INK} .rw-act.danger:hover{color:var(--ink)}
+${INK} .rw-r:hover td{background:rgba(255,255,255,.04)}
+
+/* THE BOARD. Bare on the black, as it is on race day: the cream tint was
+ * a hue, and a lifted finished row needs the ground under it to read. The
+ * medals go hollow — a white ring for gold, bone for silver, quiet for
+ * bronze, the type in the ring colour — so no filled chip fights the tier
+ * slabs beside it. */
+${INK} table.board{background:transparent}
+${INK} .dtag.m1{background:transparent;border-color:#fff;color:#fff}
+${INK} .dtag.m2{background:transparent;border-color:rgba(255,255,255,.74);color:rgba(255,255,255,.74)}
+${INK} .dtag.m3{background:transparent;border-color:rgba(255,255,255,.5);color:rgba(255,255,255,.5)}
+${INK} .donebadge{color:var(--paper)}
+${INK} .rowbar{background:#373737}
+/* Tier badges, a ladder of lightness with black type on every slab: 10K
+ * quiet grey, 50K key grey, 100K white; the .25M is the one inversion — a
+ * black slab in a white ring with white letterspaced type, no champagne;
+ * ELITE and the pace tag are white slabs (the paper rule, flipped), which
+ * is what 10K, ELITE and pace are to each other on paper: one black slab
+ * each, told apart by the word. */
+${INK} .tierbadge{color:var(--paper)}
+${INK} .tierbadge.legend{background:var(--paper);color:var(--ink);border-color:var(--ink)}
+/* The blackout page state chip. */
+${INK} .bo-state.on{color:var(--paper)}
+
+/* THE HEATMAP AND THE HOUR GRID: the ramp runs faint to white on black
+ * (it ran pale to deep blue on cream) — .18, .3, .42, then the water,
+ * which is white and takes black type. The third heat stops at .42 so
+ * white type still clears 4.5:1 on it. The legend swatches (the cell
+ * classes, set in Heatmap.tsx) follow the cells. */
+${INK} .hm-cell.b1{background:#373737;border-color:#373737}
+${INK} .hm-cell.b2{background:#545454;border-color:#545454}
+${INK} .hm-cell.b3{background:#717171;border-color:#717171}
+${INK} .hm-cell.b4 .hm-num{color:var(--paper)}
+${INK} .hg-cell{background:rgba(255,255,255,.06)}
+${INK} .hg-cell.b1{background:#373737}
+${INK} .hg-cell.b2{background:#545454}
+${INK} .hg-cell.b3{background:#717171}
+
+/* THE DOG TAG is white on black by design; on a black page it needs an
+ * edge, so the slab lifts a step and takes a ring at its rim, outside the
+ * stamped rule .dt-in already draws. */
+${INK} .dt{background:#15171a;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+/* THE ELITE mark on the feed: a white block now, ink type; under the
+ * pointer the word underlines in black and the two squares dim, since
+ * the water they used to turn is the white of the block. */
+${INK} .fd-elite{color:var(--paper)}
+${INK} .fd-elite:hover .w{text-decoration-color:var(--paper)}
+${INK} .fd-elite:hover .sq i{background:rgba(11,12,14,.5)}
+
+/* THE SHIRT: the size boxes and the buy slab are white now, so their type
+ * goes black; the photo stepper keeps a black ground under the pointer.
+ * The picked size was the blue box among black ones — here it is the
+ * hollow one among white, a white ring with white type, and an unpicked
+ * box dims to bone under the pointer. BUY dims to bone the same way;
+ * KEEP stays hollow and its ring and word go bone. */
+${INK} .sh-nav:hover{background:#000}
+${INK} .sh-size,${INK} .sh-sz,${INK} .sh-cnt .hot{color:var(--paper)}
+${INK} .sh-cnt{color:rgba(11,12,14,.72)}
+${INK} .sh-size:hover:not(:disabled):not(.on){background:var(--water-hover);border-color:var(--water-hover)}
+${INK} .sh-size.on{background:var(--paper);border-color:var(--ink)}
+${INK} .sh-size.on .sh-sz,${INK} .sh-size.on .sh-cnt .hot{color:var(--ink)}
+${INK} .sh-size.on .sh-cnt{color:rgba(255,255,255,.74)}
+${INK} .sh-buy{color:var(--paper)}
+${INK} .sh-buy:hover:not(:disabled){background:var(--water-hover);border-color:var(--water-hover)}
+${INK} .sh-buy.keep{color:var(--ink)}
+${INK} .sh-buy.keep:hover:not(:disabled){background:transparent;color:var(--water-hover);border-color:var(--water-hover)}
+
+/* PAGE-LOCAL SHEETS that named a white, an ink shadow, a cream or a rust:
+ * the raffle ticket and the win box (partners/Raffle.tsx), the raffle
+ * admin win box (raffles/page.tsx), the partner slabs, the post pack and
+ * poster studio buttons and the studio render log, the race console
+ * warning (race-admin/page.tsx). */
+${INK} .rf-ticket{box-shadow:8px 8px 0 rgba(255,255,255,.14)}
+${INK} .rf-call.go{color:var(--paper)}
+/* The IN slab and the win box are white slabs now, so the sub-lines that
+ * named a literal cream go ink at the same wash; the GO button headline
+ * went black above, its sub-line follows (review, 2026-09-16). */
+${INK} .rf-call.go .mono{color:rgba(11,12,14,.8)}
+${INK} .rf-call.in .mono,${INK} .rf-win .t,${INK} .rf-win .meta{color:rgba(11,12,14,.7)}
+${INK} .rf-win .who a:hover{color:var(--paper)}
+${INK} .rf-cta:hover{color:var(--paper)}
+/* The two win boxes are white slabs with a shadow that was the water: a
+ * white shadow on a white slab is a bigger slab, so it goes hair grey. */
+${INK} .rf-win,${INK} .rf-adm-win{box-shadow:4px 4px 0 rgba(255,255,255,.3)}
+${INK} .rf-adm-win .k,${INK} .rf-adm-win .l{color:rgba(11,12,14,.7)}
+${INK} .ptn-logos,${INK} .ptn-brand{box-shadow:8px 8px 0 rgba(255,255,255,.12)}
+${INK} .pk-btn.primary,${INK} .pk-btn.primary:hover,${INK} .po-btn.primary,${INK} .po-btn.primary:hover{color:var(--paper)}
+/* The one rust left on a public page: a failed step in the poster render
+ * log. White, and the weight it already has (review, 2026-09-16). */
+${INK} .po-log .neg{color:var(--ink)}
+${INK} .ra-warn{color:var(--ink);font-weight:700}
 `;

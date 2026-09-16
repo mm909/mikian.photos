@@ -5,12 +5,15 @@
  * The ask (owner, 2026-09-10): "a summary to hang on a 24x36 poster or
  * 18x24 (if we can build a utility for the most common aspect ratios that
  * would be great) ... shareable in an insta story and insta post". So:
- * seven print sizes and the three Instagram frames, every one of them
- * drawn in one of three LOGICAL spaces — printL 1200 wide (the wall
- * sizes, three columns), printS 720 wide (the hand-outs, two columns),
- * phone 540 wide — and scaled to its pixels. One logical unit is a fixed
- * share of the sheet inside a family, which is what lets a 24x36 read from
- * six feet and a letter sheet read in the hand with one type scale each.
+ * three wall sizes and the three Instagram frames, every one of them
+ * drawn in one of two LOGICAL spaces — printL 1200 wide (the wall sizes,
+ * three columns), phone 540 wide — and scaled to its pixels. One logical
+ * unit is a fixed share of the sheet inside a family, which is what lets a
+ * 24x36 and a 16x20 read from six feet with one type scale.
+ *
+ * The four hand-out sizes (11x17, A3, letter, A4) and their printS family
+ * came off on 2026-09-16 — owner: "remove options for 11x17, A3, letter,
+ * and A4" — and the 150 / 300 ppi choice with them (PRINT_PPI below).
  *
  * Print sizes are TRIM sizes; bleed is an engine option that adds cream
  * around the same drawing (engine.ts targetFor) and never re-lays it out. */
@@ -54,30 +57,6 @@ export const TOKENS: Record<PosterFamily, PosterTokens> = {
     hair: 1.5,
     gap: 30,
   },
-  printS: {
-    W: 720,
-    margin: 44,
-    gutter: 28,
-    cols: 2,
-    nameCap: 84,
-    headCap: 125,
-    datel: 13,
-    headLabel: 13,
-    statL: 11,
-    eye: 13,
-    row: 15,
-    rowPitch: 30,
-    small: 12,
-    ledger: 14,
-    ledgerPitch: 29,
-    axis: 11,
-    footer: 13,
-    statN: 41,
-    recV: 31,
-    thick: 3.6,
-    hair: 1.4,
-    gap: 26,
-  },
   phone: {
     W: 540,
     margin: 36,
@@ -118,8 +97,14 @@ export const TOKENS: Record<PosterFamily, PosterTokens> = {
  * here in six months telling the next reader something false.) */
 export const STORY_SAFE = { top: 125, bottom: 135 };
 
-const A4_IN = { w: 210 / 25.4, h: 297 / 25.4 };
-const A3_IN = { w: 297 / 25.4, h: 420 / 25.4 };
+/* THE ONE PRINT RESOLUTION. Every print size renders at 150 ppi; the
+ * 150 / 300 chip came off the studio on 2026-09-16 (owner: "unless there
+ * is a reason to keep 150ppi and 300ppi just pick the better option by
+ * default and remove the other"). 150 is the better option: a 24x36 at
+ * 300 ppi is a 7200 by 10800 canvas an iPhone cannot allocate, and 150 ppi
+ * (3600 by 5400) is already sharper than a wall poster needs at any
+ * viewing distance. */
+export const PRINT_PPI: PosterPpi = 150;
 
 const same = (m: number): PosterMargins => ({ top: m, right: m, bottom: m, left: m });
 
@@ -130,23 +115,20 @@ const logicalH = (W: number, inches: { w: number; h: number }): number =>
 function print(
   key: PosterFormatKey,
   label: string,
-  family: "printL" | "printS",
   plan: PosterFormat["plan"],
   inches: { w: number; h: number },
-  ppiDefault: PosterPpi,
   stem: string,
 ): PosterFormat {
-  const tk = TOKENS[family];
+  const tk = TOKENS.printL;
   return {
     key,
     label,
     kind: "print",
-    family,
+    family: "printL",
     plan,
     w: tk.W,
     h: logicalH(tk.W, inches),
     inches,
-    ppi: { default: ppiDefault, options: [150, 300] },
     margins: same(tk.margin),
     stem,
   };
@@ -174,19 +156,11 @@ function instagram(
   };
 }
 
-/* The table in SPEC.md §2. The wall sizes default to 150 ppi (plenty at
- * six feet, and 24x36 @150 is the one big canvas an iPhone can hold);
- * letter and A4 default to 300 (cheap, read in the hand). 11x17 and A3
- * draw in the HAND family — in the wall family they came out at 8-pt
- * eyebrows (§0), and the design decided that, not this file. */
+/* The table in SPEC.md §2, trimmed to the three wall sizes (2026-09-16). */
 export const FORMATS: Record<PosterFormatKey, PosterFormat> = {
-  "24x36": print("24x36", "24 × 36 in", "printL", "tall", { w: 24, h: 36 }, 150, "poster-24x36"),
-  "18x24": print("18x24", "18 × 24 in", "printL", "short", { w: 18, h: 24 }, 150, "poster-18x24"),
-  "16x20": print("16x20", "16 × 20 in", "printL", "squat", { w: 16, h: 20 }, 150, "poster-16x20"),
-  "11x17": print("11x17", "11 × 17 in", "printS", "hand", { w: 11, h: 17 }, 150, "poster-11x17"),
-  a3: print("a3", "A3", "printS", "hand", A3_IN, 150, "poster-a3"),
-  letter: print("letter", "Letter", "printS", "hand", { w: 8.5, h: 11 }, 300, "poster-letter"),
-  a4: print("a4", "A4", "printS", "hand", A4_IN, 300, "poster-a4"),
+  "24x36": print("24x36", "24 × 36 in", "tall", { w: 24, h: 36 }, "poster-24x36"),
+  "18x24": print("18x24", "18 × 24 in", "short", { w: 18, h: 24 }, "poster-18x24"),
+  "16x20": print("16x20", "16 × 20 in", "squat", { w: 16, h: 20 }, "poster-16x20"),
   story: instagram(
     "story",
     "Story 9:16",
@@ -199,7 +173,7 @@ export const FORMATS: Record<PosterFormatKey, PosterFormat> = {
 };
 
 /* The studio's chip order: PRINT then INSTAGRAM. */
-export const PRINT_KEYS: PosterFormatKey[] = ["24x36", "18x24", "16x20", "11x17", "a3", "letter", "a4"];
+export const PRINT_KEYS: PosterFormatKey[] = ["24x36", "18x24", "16x20"];
 export const INSTAGRAM_KEYS: PosterFormatKey[] = ["story", "post", "square"];
 export const FORMAT_KEYS: PosterFormatKey[] = [...PRINT_KEYS, ...INSTAGRAM_KEYS];
 
@@ -226,7 +200,7 @@ export function pixelsFor(
   if (format.kind === "instagram" || !format.inches) {
     return format.pixels ?? { w: format.w * 2, h: format.h * 2 };
   }
-  const p = ppi ?? format.ppi?.default ?? 150;
+  const p = ppi ?? PRINT_PPI;
   return {
     w: Math.round((format.inches.w + 2 * bleedIn) * p),
     h: Math.round((format.inches.h + 2 * bleedIn) * p),

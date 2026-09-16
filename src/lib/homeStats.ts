@@ -25,16 +25,18 @@ export type MeterSnapshot = {
   sessions: number;
   finished: number;
   /* Meters per second of the whole challenge so far. The wheels no longer
-   * advance at this rate (they tick at a drawn split, see useLiveMeters);
+   * advance at this rate (they tick at a fixed split, see useLiveMeters);
    * it still bounds how far the display may run ahead of the board and,
    * at 0 outside Sep 1–30, holds the counter still before the first stroke
    * and after the month is rowed. */
   rate: number;
   /* The field's pace, seconds per 500 m, as mean and population SD over
-   * every logged row: the client draws a split from this distribution and
-   * ticks one meter every split/500 s, the way a Concept2 monitor counts
-   * up (owner's call, 2026-09-05). splitN says how many rows shaped it —
-   * under SPLIT_MIN_N the numbers are the SPLIT_FALLBACK defaults. */
+   * every logged row. The client used to draw its split from this
+   * (2026-09-05); since 2026-09-16 the wheels tick at a fixed 1:59.9
+   * (FIXED_SPLIT_S in useLiveMeters) and these no longer touch the tempo —
+   * still served for the feed and anyone reading it by eye. splitN says
+   * how many rows shaped it — under SPLIT_MIN_N the numbers are the
+   * SPLIT_FALLBACK defaults. */
   splitMean: number;
   splitSd: number;
   splitN: number;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE } from "@/lib/row100k";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { CARDS } from "@/app/row100k/share/cards";
@@ -62,14 +63,47 @@ export async function POST(req: Request) {
     );
   }
 
+  // WHO PRESSED THE BUTTON (owner, 2026-09-16: "if rower 1 downloads for
+  // rower 3 then include both of those cols"). The session is optional —
+  // most sharers have none — and a lookup that fails costs the column, not
+  // the event.
+  let sharerRowerNumber: number | null = null;
+  try {
+    const actor = await getEffectiveActor();
+    if (actor) {
+      const me = await db.rowParticipant.findUnique({
+        where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
+        select: { rowerNumber: true },
+      });
+      sharerRowerNumber = me?.rowerNumber ?? null;
+    }
+  } catch (err) {
+    console.error("row100k: share-event sharer lookup failed", err);
+  }
+
   // A dead table or DB hiccup is our problem, not the sharer's — log it and
   // answer 200 anyway so the ping never looks like a failure client-side.
+  // The sharer column is not pushed yet: a write carrying it is retried
+  // without it, so the event is kept and only the sharer is lost until
+  // npm run prisma:push. BOTH writes read back only the id (review,
+  // 2026-09-16): without a select, create reads every scalar column back
+  // after the insert, so even the sharer-less write named the missing
+  // column and nothing landed at all until the push.
+  const base = { challenge: CHALLENGE, cardId, action, rowerNumber };
   try {
     await db.shareEvent.create({
-      data: { challenge: CHALLENGE, cardId, action, rowerNumber },
+      data: sharerRowerNumber === null ? base : { ...base, sharerRowerNumber },
+      select: { id: true },
     });
   } catch (err) {
     console.error("row100k: share-event write failed", err);
+    if (sharerRowerNumber !== null) {
+      try {
+        await db.shareEvent.create({ data: base, select: { id: true } });
+      } catch (again) {
+        console.error("row100k: share-event write failed without the sharer too", again);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

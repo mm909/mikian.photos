@@ -26,20 +26,35 @@ const STATE_WORD: Record<AdminWindow["state"], string> = {
   past: "OVER",
 };
 
-/* Admin-only (the page 404s everyone else): set and clear blackout windows.
- * Times are typed and shown as Pacific — the fixed UTC-7 the whole
- * challenge runs on — and stored as UTC instants by the API. */
+/* Admin-only (the page 404s everyone else): set, edit and clear blackout
+ * windows. Times are typed and shown as Pacific — the fixed UTC-7 the
+ * whole challenge runs on — and stored as UTC instants by the API.
+ *
+ * One form does both jobs (owner, 2026-09-16: "allow me to edit a black
+ * out that is already set"): EDIT on a row loads it into the form, the
+ * heading says so, and the save goes out as a PATCH instead of a POST.
+ * CANCEL empties the form and it is a new window again. */
 export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
   const router = useRouter();
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [reason, setReason] = useState("");
   const [rampDays, setRampDays] = useState("0");
+  /* The window being edited, or null for a new one. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+
+  const clearForm = () => {
+    setStartsAt("");
+    setEndsAt("");
+    setReason("");
+    setRampDays("0");
+    setEditingId(null);
+  };
 
   // The shape of the first soft launch: open now, lift in seven days.
   const oneWeek = () => {
@@ -47,6 +62,29 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
     setStartsAt(msToPacificLocal(now));
     setEndsAt(msToPacificLocal(now + 7 * 86_400_000));
     setError(null);
+  };
+
+  const edit = (w: AdminWindow) => {
+    const s = Date.parse(w.startsAt);
+    const e = Date.parse(w.endsAt);
+    setStartsAt(Number.isFinite(s) ? msToPacificLocal(s) : "");
+    setEndsAt(Number.isFinite(e) ? msToPacificLocal(e) : "");
+    setReason(w.reason);
+    setRampDays(String(w.rampDays));
+    setEditingId(w.id);
+    setConfirmId(null);
+    setError(null);
+    setOk(null);
+    // The form sits above the table: bring it back into view.
+    if (typeof document !== "undefined") {
+      document.getElementById("bo-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const cancelEdit = () => {
+    clearForm();
+    setError(null);
+    setOk(null);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -64,19 +102,26 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
     setBusy(true);
     setError(null);
     setOk(null);
+    const editing = editingId;
     try {
       const res = await fetch("/api/row100k/blackout", {
-        method: "POST",
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startsAt: s, endsAt: en, reason, rampDays: Number(rampDays) || 0 }),
+        body: JSON.stringify({
+          ...(editing ? { id: editing } : {}),
+          startsAt: s,
+          endsAt: en,
+          reason,
+          rampDays: Number(rampDays) || 0,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
-        setOk(`BLACKOUT SET — ${fmtPacificStamp(s)} → ${fmtPacificStamp(en)}`);
-        setStartsAt("");
-        setEndsAt("");
-        setReason("");
-        setRampDays("0");
+        setOk(
+          `${editing ? "WINDOW UPDATED" : "BLACKOUT SET"} — ${fmtPacificStamp(s)} → ${fmtPacificStamp(en)}`,
+        );
+        clearForm();
+        // The list is server-rendered from the table: re-render it.
         router.refresh();
       } else {
         setError(data.error ?? "Couldn't save that — try again.");
@@ -100,6 +145,8 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         setOk("WINDOW REMOVED");
+        // Removing the window on the form makes it a new one again.
+        if (editingId === id) clearForm();
         router.refresh();
       } else {
         setError(data.error ?? "Couldn't remove that — try again.");
@@ -111,12 +158,16 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
     setConfirmId(null);
   };
 
+  const editingRow = editingId ? windows.find((w) => w.id === editingId) : undefined;
+
   return (
     <>
-      <form className="panel" onSubmit={(e) => void submit(e)}>
+      <form id="bo-form" className="panel" onSubmit={(e) => void submit(e)}>
         <div className="p-head">
-          <h3>New window</h3>
-          <span className="mono">PACIFIC TIME</span>
+          <h3>{editingId ? "Edit window" : "New window"}</h3>
+          <span className="mono">
+            {editingRow ? `EDITING — ${STATE_WORD[editingRow.state]} · PACIFIC TIME` : "PACIFIC TIME"}
+          </span>
         </div>
 
         <label className="fl" htmlFor="bo-start">
@@ -142,7 +193,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
         />
 
         <label className="fl" htmlFor="bo-ramp">
-          Run-up — days of one-digit-a-day before the window, 0 for none
+          Run-up — how many days it takes before the window, 0 for none
         </label>
         <input
           id="bo-ramp"
@@ -169,10 +220,15 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
           <button type="button" className="outline-btn" onClick={oneWeek}>
             One week from now
           </button>
+          {editingId && (
+            <button type="button" className="outline-btn" onClick={cancelEdit}>
+              Cancel
+            </button>
+          )}
         </div>
 
         <button type="submit" className="send" disabled={busy}>
-          {busy ? "Saving…" : "Set blackout"}
+          {busy ? "Saving…" : editingId ? "Save changes" : "Set blackout"}
         </button>
         {error && <p className="form-err">{error}</p>}
         {ok && <p className="form-ok">{ok}</p>}
@@ -194,12 +250,12 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
                 <th>Run-up</th>
                 <th>Reason</th>
                 <th>State</th>
-                <th aria-label="Remove" />
+                <th aria-label="Edit or remove" />
               </tr>
             </thead>
             <tbody>
               {windows.map((w) => (
-                <tr key={w.id}>
+                <tr key={w.id} className={editingId === w.id ? "fin" : undefined}>
                   <td style={{ whiteSpace: "nowrap" }}>{fmtPacificStamp(w.startsAt)}</td>
                   <td style={{ whiteSpace: "nowrap" }}>{fmtPacificStamp(w.endsAt)}</td>
                   <td className="bo-ramp">
@@ -229,9 +285,19 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
                         </button>
                       </>
                     ) : (
-                      <button type="button" className="del-btn" onClick={() => setConfirmId(w.id)}>
-                        remove
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="del-btn save"
+                          disabled={editingId === w.id}
+                          onClick={() => edit(w)}
+                        >
+                          {editingId === w.id ? "editing" : "edit"}
+                        </button>{" "}
+                        <button type="button" className="del-btn" onClick={() => setConfirmId(w.id)}>
+                          remove
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>

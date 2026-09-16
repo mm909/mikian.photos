@@ -33,4 +33,13 @@ export const analysisCss = `
 .row100k .an-foot.you{color:var(--water)}
 .row100k .an-empty{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);padding:18px 0;line-height:1.8}
 .row100k .an-note{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.06em;color:var(--gray);margin-top:16px;line-height:1.7;text-transform:uppercase}
+.row100k .an-fc{margin-top:24px;overflow-x:auto}
+.row100k .an-fc table.board{min-width:560px}
+.row100k .an-fc table.board th.num{text-align:right}
+.row100k .an-fc .an-band{display:block;font-size:10px;color:var(--gray);letter-spacing:.02em;margin-top:2px}
+.row100k .an-fc .an-dv{font-family:var(--row-mono),monospace;font-weight:400;font-size:10px;color:var(--gray);margin-left:8px;letter-spacing:.08em}
+.row100k .an-fc td.an-tier{font-size:11px;letter-spacing:.08em;white-space:nowrap}
+.row100k .an-fc td.an-tier .tierbadge{margin-right:0}
+.row100k .an-fc tr.you td{background:var(--water-pale)}
+.row100k .an-fc tr.you .who{color:var(--water)}
 `;

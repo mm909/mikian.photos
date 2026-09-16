@@ -23,7 +23,17 @@ export const metadata: Metadata = {
  * boards are the public view of this data. /row100k/moderation redirects
  * here, carrying its ?r=<rowerNumber> so an old moderation link still
  * lands on that rower, open. Real numbers always — this is the truth
- * table, so the blackout (and the admin test blackout) never touches it. */
+ * table, so the blackout (and the admin test blackout) never touches it.
+ * Two CSV links on the head line (owner, 2026-09-16: "download data to a
+ * csv") — /api/row100k/export, admin only there too. */
+
+/* Page-local styles — .sg- prefix, the blackout page idiom: no double
+ * quotes, no angle brackets and no apostrophes anywhere in the string. The
+ * download links sit on the right of the head line, small. */
+const sgCss = `
+.row100k .sg-dl{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-self:center}
+.row100k .sg-dl .outline-btn{display:inline-block;padding:5px 10px;font-size:10px;line-height:1.4;text-decoration:none;white-space:nowrap}
+`;
 
 /* "Sep 4" — createdAt shifted minus 7 hours, the repo's Pacific convention
  * (the feed and dev stats stamp the same way), read back as UTC fields. */
@@ -115,6 +125,7 @@ export default async function SignupsPage({ searchParams }: { searchParams?: { r
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{sgCss}</style>
       <RowBar {...barProps(viewer)} />
 
       <section>
@@ -123,6 +134,14 @@ export default async function SignupsPage({ searchParams }: { searchParams?: { r
             <h2>The rowers</h2>
             <span className="mono">
               ADMIN ONLY — {rowers.length} ROWERS · {sessions} SESSIONS · {Math.round(meters).toLocaleString("en-US")} M
+            </span>
+            <span className="sg-dl">
+              <a className="outline-btn" href="/api/row100k/export?kind=rows" download>
+                Download CSV · Rows
+              </a>
+              <a className="outline-btn" href="/api/row100k/export?kind=rowers" download>
+                Download CSV · Rowers
+              </a>
             </span>
           </div>
           {unreadable ? (

@@ -9,8 +9,9 @@ import { CHALLENGE, GOAL_METERS } from "@/lib/row100k";
  * row still counts for the day it happened.
  *
  * Lives here rather than on the partners page because two surfaces need the
- * same answer: the public partners page and the admin post pack
- * (/row100k/post), whose congrats slide headlines the same rower.
+ * same answer: the public partners page and the community poster
+ * (poster/data.ts communityPosterData), whose club line names the same
+ * rower.
  */
 
 export type GoalClaim = {

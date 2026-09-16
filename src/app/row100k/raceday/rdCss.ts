@@ -65,6 +65,8 @@ export const rdCss = `
 .row100k .rd-dark .sec-head{border-bottom-color:#fff}
 .row100k .rd-dark .sec-head h2{color:#fff}
 .row100k .rd-dark .sec-head .mono{color:rgba(255,255,255,.62)}
+/* SEE THE RESULTS in the racers head, once race day is within a day. */
+.row100k .rd-dark .sec-head .mono a{color:#fff;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .row100k .rd-dark .board-empty{color:rgba(255,255,255,.62)}
 /* globals.css underlines every link in --line, a warm grey off the paper
  * palette (201,200,192). It is the one hue that had got onto this surface:
@@ -217,6 +219,23 @@ export const rdCss = `
 .row100k .rd-waiver{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.24)}
 .row100k .rd-wlink{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;text-decoration:underline;text-underline-offset:4px}
 .row100k .rd-wlink:hover{text-decoration-thickness:2px}
+
+/* POST YOUR TIME (owner, 2026-09-16: review how racers submit times on
+ * race day). A dashed rail like the waiver strip — it is another thing
+ * owed on the night, not a second act — with one mono box on it. The box
+ * is the theme input re-cut for ink: no panel here, so it is written out.
+ * The saved time is the loudest thing on the rail, bold white mono; the
+ * error under it is the same .rd-small line the page uses everywhere, made
+ * white and bold the way .form-err is on this ground. */
+.row100k .rd-time{margin-top:20px;padding-top:16px;border-top:1px dashed rgba(255,255,255,.24)}
+.row100k .rd-time .rd-two{margin-top:12px;padding-top:0;border-top:none}
+.row100k .rd-time-val{font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff}
+.row100k input.rd-time-in{width:9ch;background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,.55);color:#fff;font-size:20px;font-weight:700;letter-spacing:.06em;padding:6px 2px;border-radius:0;appearance:none;font-variant-numeric:tabular-nums}
+.row100k input.rd-time-in::placeholder{color:rgba(255,255,255,.5);font-weight:400}
+.row100k input.rd-time-in:focus{outline:none;border-bottom-color:#fff}
+.row100k input.rd-time-in:disabled{opacity:.5}
+.row100k .rd-time .rd-time-err{color:#fff;font-weight:700;border-left:3px solid #fff;padding-left:11px}
+.row100k .rd-res{margin-top:16px}
 
 /* THE TEAR-OFF (owner, 2026-09-11, on his phone: there should be a share
  * link on this race day page). It closes the sheet the way a bill on a wall

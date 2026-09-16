@@ -43,7 +43,8 @@ export const metadata: Metadata = {
  *                 wave 3 comes off the race definition, so the hour moves the
  *                 day the owner moves the grid.
  *   ?at=finished  the sheet: two podiums, the fourth-place line under each,
- *                 what the table buries, and the whole field in one list.
+ *                 how the night ran, and the whole field in one list — minus
+ *                 the one man who sat down and stopped, who is off it.
  *   ?cast=1       the wall. The 1280 by 720 frame with no site bar and no
  *                 footer, forced signed out, SCALED TO FILL whatever it is
  *                 opened on — a 1920 or a 4K television in the room, not
@@ -54,9 +55,10 @@ export const metadata: Metadata = {
  *   ?you=0        drop the signed-in rower, to see what a stranger sees.
  *   ?wave=N       pin the lane panel to one wave. On the page a reader moves
  *                 it by tapping a cell and this is only a deep link; on the
- *                 WALL there is nothing to tap, so this is how a gym puts one
- *                 wave on the television for a night. Left off, the panel
- *                 follows the room — see pickedWave() in raceresults/types. */
+ *                 WALL a click on a cell moves it too, and this is how a gym
+ *                 puts one wave on the television for a night without
+ *                 touching it. Left off, the panel follows the room — see
+ *                 pickedWave() in raceresults/types. */
 export default async function DevRaceDayResultsPage({
   searchParams,
 }: {
@@ -97,8 +99,10 @@ export default async function DevRaceDayResultsPage({
     return (
       /* No chrome-ink here, and that is the same sentence as the one above:
        * the class inverts a bar, a strip and a footer, and this view has
-       * none of them. Its white focus ring comes off .rr-fit in rrCss.ts. */
-      <div className={`row100k ${fonts}`}>
+       * none of them. Its white focus ring comes off .rr-fit in rrCss.ts.
+       * .rr-wall keeps the ink look (theme.ts) off this root by class, not
+       * :has() (review, 2026-09-16). */
+      <div className={`row100k rr-wall ${fonts}`}>
         <style>{css}</style>
         <style>{rrCss}</style>
         {/* The note rides in the phone-only caption under the frame, so a
@@ -145,6 +149,10 @@ export default async function DevRaceDayResultsPage({
       <a href={`/row100k/dev/raceday-results?at=${at}&you=${you ? "0" : "1"}`}>
         {you ? "signed out" : "signed in"}
       </a>
+      {/* THE REAL ONE (2026-09-16): the same components off the database,
+        * at the address the race day page and the console point to. */}
+      {" · "}
+      <a href="/row100k/raceday/results">the real board →</a>
     </p>
   );
 

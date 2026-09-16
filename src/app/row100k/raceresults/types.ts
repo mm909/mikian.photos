@@ -20,9 +20,12 @@ import { fmtRecordTime, fmtSplit } from "@/lib/row100k";
  *     FLOOR fact — a name already printed in a lane, sat down and stopped —
  *     and there is no earlier place to record it, so it stays.
  *   - `ResultWave.startedAtMs` — the instant the wave was ACTUALLY sent, not
- *     the planned grid. Waves slip. When it is null NO elapsed clock is
- *     drawn at all, rather than counting from a schedule (the mid-race
- *     sample slips wave 3 by 80 seconds on purpose so that shows).
+ *     the planned grid. Waves slip. It drives the elapsed clock and NOTHING
+ *     ELSE: every wave time the board prints is the SCHEDULED one (owner,
+ *     2026-09-16: "wave one starts at 6:16 but it should just be 6:15"),
+ *     and no start stamp is printed anywhere. When it is null NO elapsed
+ *     clock is drawn at all, rather than counting from a schedule (the
+ *     mid-race sample slips wave 3 by 80 seconds on purpose so that shows).
  *   - `lane`. Nobody in the room asks who is in wave 3, they ask which erg.
  *     It can be derived for free from the seeded order the wave console
  *     already sorts by; a column is only needed once the floor reorders.
@@ -41,6 +44,12 @@ export type Bracket = "M" | "F";
 /* WHERE A RACER IS. `to_come` is assigned to a wave and has not sat down;
  * `rowing` is on an erg right now; `dnf` sat down and stopped. A missing
  * time cannot tell those apart, which is why the column exists.
+ *
+ * A DNF IS ON THE MODEL AND OFF EVERY VIEW (owner, 2026-09-16: "We don't
+ * need to show anyone who did not row, we can remove entries like Did not
+ * finish"). The fact is kept — it is the only place it can be recorded —
+ * but boardRacers() drops them, and on a finished sheet anybody with no
+ * time, before a table, a podium, a count or a lane ever sees them.
  *
  * THERE IS NO `dns`. It was here, and it came out: a no-show is marked when
  * the waves are assigned, so they never reach the board at all. The one
@@ -161,8 +170,23 @@ export function fmtGap(delta: number): string {
 
 /* ---- the field ----------------------------------------------------- */
 
+/* WHO IS ON THE BOARD. A DNF never is; on a finished sheet neither is
+ * anybody without a time. Everything below reads the field through this,
+ * so the tables, the podiums, the counts and the lanes cannot disagree
+ * about who rowed — and the sample keeps its one DNF so the board proves
+ * they vanish. */
+export function onBoard(b: ResultBoard, r: ResultRacer): boolean {
+  if (r.status === "dnf") return false;
+  if (b.state === "finished") return r.status === "finished" && r.seconds !== null;
+  return true;
+}
+
+export function boardRacers(b: ResultBoard): ResultRacer[] {
+  return b.racers.filter((r) => onBoard(b, r));
+}
+
 export function inBracket(b: ResultBoard, bracket: Bracket): ResultRacer[] {
-  return b.racers.filter((r) => r.bracket === bracket);
+  return boardRacers(b).filter((r) => r.bracket === bracket);
 }
 
 /* Finished, fastest first. Ties to the tenth keep the earlier wave ahead —
@@ -187,8 +211,7 @@ export function ranked(racers: ResultRacer[]): ResultRacer[] {
  * and the number a reader can see would disagree.
  *
  * ONE QUESTION, ONE PLACE: the podium, the field table, the result sheet and
- * the YOU strip all call this, and so does the PERSONAL RECORDS SET count in
- * WORTH SAYING, so the tally always equals the tags. */
+ * the YOU strip all call this, so the tag means the same thing everywhere. */
 export function isPr(r: ResultRacer): boolean {
   if (r.status !== "finished" || r.seconds === null || !r.best5k) return false;
   return r.seconds < r.best5k.seconds;
@@ -267,7 +290,9 @@ export type RoomCounts = {
   field: number;
 };
 
-export function roomCounts(racers: ResultRacer[]): RoomCounts {
+/* Off the board's own field (boardRacers), so a DNF is in neither number. */
+export function roomCounts(b: ResultBoard): RoomCounts {
+  const racers = boardRacers(b);
   return {
     rowed: racers.filter((r) => r.status === "finished").length,
     field: racers.length,
@@ -278,9 +303,13 @@ export function waveOf(b: ResultBoard, wave: number): ResultWave | null {
   return b.waves.find((w) => w.wave === wave) ?? null;
 }
 
-/* A wave in lane order — the order the room is called to the machines. */
+/* A wave in lane order — the order the room is called to the machines. A
+ * lane whose racer is off the board (a DNF) comes back empty, and the panel
+ * draws it as an open erg. */
 export function inWave(b: ResultBoard, wave: number): ResultRacer[] {
-  return b.racers.filter((r) => r.wave === wave).sort((a, b2) => a.lane - b2.lane);
+  return boardRacers(b)
+    .filter((r) => r.wave === wave)
+    .sort((a, b2) => a.lane - b2.lane);
 }
 
 export function liveWave(b: ResultBoard): ResultWave | null {
@@ -291,9 +320,11 @@ export function nextWave(b: ResultBoard): ResultWave | null {
   return b.waves.find((w) => w.state === "to_come") ?? null;
 }
 
+/* Null for a rower who is off the board, so the YOU strip goes quiet for
+ * somebody who did not row rather than telling them their wave is due. */
 export function racerById(b: ResultBoard, id: string | null): ResultRacer | null {
   if (!id) return null;
-  return b.racers.find((r) => r.id === id) ?? null;
+  return boardRacers(b).find((r) => r.id === id) ?? null;
 }
 
 /* WHICH WAVE THE PANEL IS SHOWING before anybody touches it — and on a
@@ -376,7 +407,8 @@ export function waveLines(b: ResultBoard): WaveLine[] {
       : null;
     return {
       wave: w.wave,
-      timeText: fmtClock(w.startedAtMs ?? w.scheduledAtMs),
+      /* The scheduled time, never the stamp — see startedAtMs up top. */
+      timeText: fmtClock(w.scheduledAtMs),
       lanes: field.length,
       fastest: done[0] ?? null,
       averageSeconds: avg,

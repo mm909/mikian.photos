@@ -1,4 +1,5 @@
-import { GOAL_METERS, WEEKS, splitSeconds } from "@/lib/row100k";
+import { GOAL_METERS, WEEKS, splitSeconds, tierFor } from "@/lib/row100k";
+import { DEFAULT_POLICY, digitCount, type BlackoutPolicy } from "@/lib/blackoutRules";
 import {
   circularMean,
   cv,
@@ -58,6 +59,10 @@ import type {
   Tile,
   FanChart,
   FanYou,
+  Forecast,
+  ForecastDist,
+  ForecastRow,
+  ForecastYou,
 } from "./model";
 
 /* The whole numbers page, computed once per render on the server. The
@@ -219,12 +224,92 @@ const r3 = (v: number) => Math.round(v * 1000) / 1000;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const fin = (v: number, digits = 1) => (Number.isFinite(v) ? v.toFixed(digits) : DASH);
 
+/* ------------------------------------------------------------ forecast */
+
+/* The projection (owner ask, 2026-09-16: "a prediction for where everyone
+ * will end up"). Per rower:
+ *
+ *   projected = current + rate × daysLeft
+ *   rate      = 0.6 × recent + 0.4 × month
+ *   recent    = meters per day over the last seven days (today included;
+ *               the whole month while it is shorter than seven days)
+ *   month     = meters per day since Sep 1 (current / today)
+ *
+ * daysLeft counts the days after today up to and including Sep 30, so on
+ * Sep 16 it is 14: today is already an elapsed day in both rates and its
+ * rows, if logged, are in `current`. A rower idle for IDLE_FLAT days or
+ * more (never rowed, or their last row was seven or more days ago)
+ * projects flat: rate 0, band closed. The band is the two component rates
+ * on their own — low from the smaller, high from the larger — so a rower
+ * who has slowed reads current + month on the high side and current +
+ * recent on the low side, and one who is picking up the reverse.
+ *
+ * Sessions after `today` are ignored (an admin can log ahead). Pure, so
+ * the fan chart, the section-6 tiles and the forecast table all call it
+ * and cannot disagree. */
+export const RECENT_DAYS = 7;
+export const IDLE_FLAT = 7;
+export const W_RECENT = 0.6;
+
+export type Projection = {
+  current: number;
+  recent: number;
+  month: number;
+  rate: number;
+  idle: number;
+  projected: number;
+  low: number;
+  high: number;
+};
+
+export function projectRower(sess: { day: number; meters: number }[], today: number): Projection {
+  const t = clamp(Math.round(today), 1, 30);
+  let current = 0;
+  let recentSum = 0;
+  let last = 0;
+  for (const s of sess) {
+    if (!(s.day >= 1 && s.day <= t) || !(s.meters > 0)) continue;
+    current += s.meters;
+    if (s.day > t - RECENT_DAYS) recentSum += s.meters;
+    if (s.day > last) last = s.day;
+  }
+  const idle = last ? t - last : t;
+  const month = current / t;
+  const recent = recentSum / Math.min(RECENT_DAYS, t);
+  const flat = idle >= IDLE_FLAT;
+  const rate = flat ? 0 : W_RECENT * recent + (1 - W_RECENT) * month;
+  const left = 30 - t;
+  const lo = flat ? 0 : Math.min(recent, month);
+  const hi = flat ? 0 : Math.max(recent, month);
+  return {
+    current,
+    recent,
+    month,
+    rate,
+    idle,
+    projected: Math.round(current + rate * left),
+    low: Math.round(current + lo * left),
+    high: Math.round(current + hi * left),
+  };
+}
+
+/* "100K" / "250K" — the tier a projection reaches, by its threshold. The
+ * TIERS labels themselves say .25M and ELITE; the table wants the number. */
+const tierAbbr = (m: number) => `${Math.round(m / 1000)}K`;
+
 export function buildModel(
   participants: RawParticipant[],
   entries: RawEntry[],
   viewer: Viewer,
   today: number,
   hideTop = HIDE_TOP_DEFAULT,
+  /* Built for a challenge admin: the forecast table carries names. Any
+   * other build ships null names — the model's anonymity contract holds. */
+  admin = false,
+  /* Who the blackout hides (siteSettings().blackout): the top `count` of
+   * EACH board, or the top `count` overall. Only read while a window is
+   * open (hideTop above the podium); the podium cut is always overall. */
+  policy: BlackoutPolicy = DEFAULT_POLICY,
 ): Model {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const sess: Sess[] = [];
@@ -267,22 +352,199 @@ export function buildModel(
   const myOk = my !== null && my.n >= MIN_ROWER;
 
   /* The hidden top, by the board's own definition (blackoutRules.ts
-   * eliteIndexes): the first hideTop of the standings with any meters at
-   * all. Their totals never become a dot or a step; the viewer's own point
-   * is still theirs to see. */
-  const elite = new Set(
-    [...rowersAll]
-      .filter((r) => r.total > 0)
-      .sort((a, c) => c.total - a.total)
-      .slice(0, Math.max(0, hideTop))
-      .map((r) => r.pid),
-  );
+   * eliteIndexes), walking the standings — meters down, then name, the
+   * board's order — over the rowers with any meters at all. Outside a
+   * window it is the podium, the first hideTop overall. While a window is
+   * open it is the POLICY's set (review, 2026-09-16: the page used to take
+   * the first hideTop overall, which under the top-N-of-each-board rule is
+   * not who the board hides): the first `count` of each of M and F, or
+   * the first `count` overall; a field with no M/F at all falls back to
+   * count × 2 overall, as the board does. Their totals never become a dot
+   * or a step; the viewer's own point is still theirs to see. */
+  const blackoutOn = hideTop > HIDE_TOP_DEFAULT;
+  const standings = rowersAll
+    .filter((r) => r.total > 0)
+    .sort(
+      (a, c) =>
+        c.total - a.total ||
+        (byId.get(a.pid)?.displayName ?? "").localeCompare(byId.get(c.pid)?.displayName ?? "") ||
+        a.pid.localeCompare(c.pid),
+    );
+  const elite = new Set<string>();
+  if (blackoutOn) {
+    const count = Math.max(1, Math.floor(policy.count));
+    const hasDivision = standings.some((r) => r.division === "M" || r.division === "F");
+    if (policy.scope === "overall" || !hasDivision) {
+      for (const r of standings.slice(0, policy.scope === "overall" ? count : count * 2)) elite.add(r.pid);
+    } else {
+      const taken: Record<string, number> = { M: 0, F: 0 };
+      for (const r of standings) {
+        const d = r.division === "M" || r.division === "F" ? r.division : null;
+        if (!d || taken[d] >= count) continue;
+        elite.add(r.pid);
+        taken[d] += 1;
+      }
+    }
+  } else {
+    for (const r of standings.slice(0, Math.max(0, hideTop))) elite.add(r.pid);
+  }
   const shown3 = rowers3.filter((r) => !elite.has(r.pid));
   /* While a blackout hides the top, their individual SESSIONS leave the dot
    * charts too — the owner's rule is that not one of their numbers gets
    * published, and an unlabelled dot is still their number. The aggregates
    * (histograms, densities, the fit) keep them. */
-  const publicSess = hideTop > HIDE_TOP_DEFAULT ? (s: Sess) => !elite.has(s.pid) : () => true;
+  const publicSess = blackoutOn ? (s: Sess) => !elite.has(s.pid) : () => true;
+
+  /* ------------------------------------------------ 0 · the forecast */
+  /* One row per joined rower, projectRower on their September days. The
+   * viewer's own row is built from their fresh sessions (mine), so a row
+   * logged a minute ago is already in their projection. Blackout: the
+   * elite (the same set the dot charts hide — the board's, per the policy)
+   * lose every figure of theirs here too — current, projected, band, rate
+   * and the tier they are on pace for — and sit unranked at the top, A to
+   * Z, the board's own rule; the viewer keeps their own numbers. Outside a
+   * window everyone prints. Names travel only on an admin build. */
+  const daysLeft = 30 - today;
+  /* The working row keeps the real name (for the A-to-Z sort) and the full
+   * projection beside the row that ships; only `row` leaves the function. */
+  type FRow = { row: ForecastRow; p: Projection; nm: string };
+  const fRows: FRow[] = participants.map((p) => {
+    const self = !!me && p.id === me.id;
+    const list = self ? mine : (perPid.get(p.id) ?? []);
+    const pr = projectRower(list, today);
+    const inElite = blackoutOn && elite.has(p.id);
+    const hide = inElite && !self;
+    const tier = tierFor(pr.projected);
+    const nm = p.displayName ?? "";
+    return {
+      row: {
+        rowerNumber: p.rowerNumber,
+        name: admin ? nm : null,
+        division: p.division,
+        sessions: list.length,
+        idle: pr.idle,
+        you: self,
+        elite: inElite,
+        current: hide ? null : pr.current,
+        projected: hide ? null : pr.projected,
+        low: hide ? null : pr.low,
+        high: hide ? null : pr.high,
+        rate: hide ? null : Math.round(pr.recent),
+        onPace: hide ? null : tier ? tierAbbr(tier.meters) : DASH,
+        hidden: hide ? { current: digitCount(pr.current), projected: digitCount(pr.projected) } : null,
+      },
+      p: pr,
+      nm,
+    };
+  });
+  const byName = (a: FRow, b: FRow) =>
+    a.nm.localeCompare(b.nm, "en", { sensitivity: "base" }) || a.row.rowerNumber - b.row.rowerNumber;
+  const fSorted = [
+    ...fRows.filter((r) => r.row.elite).sort(byName),
+    ...fRows
+      .filter((r) => !r.row.elite)
+      .sort((a, b) => b.p.projected - a.p.projected || b.p.current - a.p.current || byName(a, b)),
+  ];
+  const fLogged = fRows.filter((r) => r.row.sessions > 0);
+  const fNever = fRows.length - fLogged.length;
+  const fSum = (pick: (p: Projection) => number) => sum(fRows.map((r) => pick(r.p)));
+  const fAtLeast = (m: number) => fRows.filter((r) => r.p.projected >= m).length;
+  const fAlready = (m: number) => fRows.filter((r) => r.p.current >= m).length;
+  const onPace100 = fLogged.filter((r) => r.p.projected >= GOAL_METERS).length;
+  const short100 = fLogged.length - onPace100;
+  const idleWeek = fLogged.filter((r) => r.p.idle >= IDLE_FLAT).length;
+  const projLogged = sortAsc(fLogged.map((r) => r.p.projected));
+  const medProj = quantile(projLogged, 0.5);
+  const sumProj = fSum((p) => p.projected);
+  /* The viewer's own projection: their forecast row, or — for a rower who
+   * joined inside the field cache's five minutes — projectRower on their
+   * fresh sessions directly. */
+  const myF = me ? (fRows.find((r) => r.row.you) ?? null) : null;
+  const myProj: Projection | null = me ? (myF ? myF.p : projectRower(mine, today)) : null;
+  const myTier = myProj ? tierFor(myProj.projected) : null;
+  const myPaceLine = myProj
+    ? myProj.current >= GOAL_METERS
+      ? "you: past 100 K already"
+      : myProj.projected >= GOAL_METERS
+        ? `you: on pace for 100 K · ${fmtM(myProj.projected - GOAL_METERS)} to spare`
+        : `you: projected ${fmtM(GOAL_METERS - myProj.projected)} short of 100 K`
+    : null;
+  const fS: Section = {
+    title: "Where everyone ends up",
+    eyebrow: `FORECAST · SEP 30 · ${daysLeft} ${plural(daysLeft, "DAY")} LEFT · ${fmtInt(fRows.length)} ${plural(fRows.length, "ROWER")}`,
+    tiles: [
+      {
+        n: fRows.length ? fmtM(sumProj) : DASH,
+        d: fRows.length
+          ? `expected community total on Sep 30 · ${fmtM(fSum((p) => p.current))} today · band ${fmtInt(fSum((p) => p.low))}–${fmtM(fSum((p) => p.high))}`
+          : "expected community total on Sep 30 · nobody has joined yet",
+        you: myProj ? `you: ${fmtM(myProj.projected)} (${fmtK(myProj.low)}–${fmtK(myProj.high)})${sumProj > 0 ? ` · ${fmtPct(myProj.projected / sumProj)} of it` : ""}` : null,
+      },
+      {
+        n: `${fAtLeast(GOAL_METERS)}`,
+        d: `expected finishers past 100 K · ${fAlready(GOAL_METERS)} already there · ${fAtLeast(GOAL_METERS) - fAlready(GOAL_METERS)} more on pace`,
+        you: myPaceLine,
+      },
+      {
+        n: `${fAtLeast(250_000)}`,
+        d: `expected past 250 K · ${fAlready(250_000)} already there`,
+        you: myProj && myProj.projected >= 250_000 ? (myProj.current >= 250_000 ? "you: past 250 K already" : "you: on pace for 250 K") : null,
+      },
+      {
+        n: `${fAtLeast(500_000)}`,
+        d: `expected past 500 K · ${fAlready(500_000)} already there`,
+        you: myProj && myProj.projected >= 500_000 ? (myProj.current >= 500_000 ? "you: past 500 K already" : "you: on pace for 500 K") : null,
+      },
+      {
+        n: fLogged.length ? `${onPace100} vs ${short100}` : DASH,
+        d: `on pace for 100 K vs projected short · ${idleWeek} idle a week or more${fNever ? ` · ${fNever} never logged` : ""}`,
+        you: myProj ? `you: ${myProj.idle} ${plural(myProj.idle, "day")} idle · ${fmtInt(myProj.recent)} m/day this week` : null,
+      },
+      {
+        n: fLogged.length ? fmtM(medProj) : DASH,
+        d: fLogged.length
+          ? `median projected final · P25–P75 ${fmtK(quantile(projLogged, 0.25))}–${fmtK(quantile(projLogged, 0.75))}`
+          : "median projected final",
+        you: myProj ? `you: on pace for ${myTier ? tierAbbr(myTier.meters) : "under 10 K"}` : null,
+      },
+    ],
+  };
+
+  /* The distribution of projected finals. Per-rower, so the same cut as
+   * the ECDF: in a blackout the elite leave the histogram and are counted
+   * in BEYOND with everything past the axis; otherwise everyone who has
+   * logged is in it (a never-rowed rower is a spike at zero, left out). */
+  let fDist: ForecastDist | null = null;
+  const distPool = fLogged.filter((r) => !r.row.elite);
+  if (distPool.length >= 5) {
+    const vals = sortAsc(distPool.map((r) => r.p.projected));
+    const width = snapBinWidth(fdBinWidth(vals), [5000, 10000, 25000, 50000]);
+    const xMax = Math.max(width, Math.ceil(Math.max(quantile(vals, 0.98), GOAL_METERS) / width) * width);
+    const bins = histogram(vals, width, 0, xMax);
+    const beyond = vals.filter((v) => v >= xMax).length + (fLogged.length - distPool.length);
+    const step = tickStep(xMax, [25000, 50000, 100000, 200000, 250000, 500000, 1000000], 7);
+    fDist = {
+      bins,
+      xMin: 0,
+      xMax,
+      ticks: ticksBetween(0, xMax, step),
+      beyond,
+      tiers: [50_000, 100_000, 250_000, 500_000].filter((m) => m <= xMax).map((m) => ({ m, label: tierAbbr(m) })),
+      yMax: niceCount(Math.max(...bins.map((b) => b.n))),
+      take: `${fAtLeast(GOAL_METERS)} PROJECT PAST 100 K, ${fAtLeast(250_000)} PAST 250 K — MEDIAN FINAL ${fmtM(medProj)}`,
+    };
+  }
+  const fDistYou: ForecastYou | null =
+    fDist && myProj && mine.length ? { x: myProj.projected, tag: `YOU · ${fmtM(myProj.projected)} PROJECTED` } : null;
+
+  const forecast: Forecast = {
+    s: fS,
+    daysLeft,
+    blackout: blackoutOn,
+    dist: fDist,
+    distYou: fDistYou,
+    rows: fSorted.map((r) => r.row),
+  };
 
   const divInfo = (div: string) => {
     const rs = rowersAll.filter((r) => r.division === div);
@@ -975,7 +1237,8 @@ export function buildModel(
       : null;
 
   /* ------------------------------------------------ 6 · your place in the field */
-  const proj = (t: number) => (t / today) * 30;
+  /* Projections here are the forecast's (projectRower), so the tile, the
+   * fan line and the table up top are one number (owner ask, 2026-09-16). */
   const s6: Section = {
     title: "Your place in the field",
     eyebrow: me
@@ -988,14 +1251,14 @@ export function buildModel(
       { n: has3 ? `${+median(rowers3.map((r) => r.n)).toFixed(1)}` : DASH, d: "median sessions per rower" },
       { n: has3 ? `${signed(median(rowers3.map((r) => r.meanResid)))} s` : DASH, d: "median efficiency — s /500 m vs predicted" },
       { n: has3 ? fmtClock(median(rowers3.map((r) => r.medSplit))) : DASH, d: "median rower split" },
-      { n: has3 ? fmtM(median(totals3.map(proj))) : DASH, d: "median projected total at current rate" },
+      { n: fLogged.length ? fmtM(medProj) : DASH, d: "median projected final — the forecast method, up top" },
     ],
   };
 
   let s6You: Tile[] | null = null;
-  if (my) {
-    const left = 30 - today;
-    const rate = my.total / today;
+  if (my && myProj) {
+    const left = daysLeft;
+    const rate = myProj.rate;
     const daysTo = my.total >= GOAL_METERS ? 0 : rate > 0 ? Math.ceil((GOAL_METERS - my.total) / rate) : Infinity;
     const pTotalDiv =
       myOk && myDivOk
@@ -1020,8 +1283,8 @@ export function buildModel(
         d: `median split ${fmtClock(my.medSplit)} · best ${fmtClock(my.bestSplit)} on ${fmtDayN(my.bestDay)}`,
       },
       {
-        n: fmtM(proj(my.total)),
-        d: `projected total at current rate · ${
+        n: fmtM(myProj.projected),
+        d: `projected final (${fmtK(myProj.low)}–${fmtK(myProj.high)}) · ${
           my.total >= GOAL_METERS
             ? "past 100 K already"
             : Number.isFinite(daysTo)
@@ -1130,15 +1393,16 @@ export function buildModel(
       goal: GOAL_METERS,
       take: "AM I AHEAD OF A TYPICAL ROWER ON THIS DATE — BETTER THAN A RANK",
     };
-    if (my) {
+    if (my && myProj) {
       const myCum = cumOf(mine);
       const now = myCum[today - 1];
       const otherNow = sortAsc(others.map((r) => cumOf(r.sess)[today - 1]));
       const p = percentileRank(otherNow, now);
-      const rate = now / today;
+      /* The dashed line into the future ends on the forecast's number
+       * (projectRower — same rows, same today), not a second rate. */
       fanYou = {
         cum: myCum,
-        proj: today < 30 ? [[today, now], [30, Math.round(now + rate * (30 - today))]] : null,
+        proj: today < 30 ? [[today, now], [30, myProj.projected]] : null,
         label: `YOU · ${fmtP(p)} ON DAY ${today}`,
       };
     }
@@ -1150,6 +1414,7 @@ export function buildModel(
     day: today,
     you: me ? { rowerNumber: me.rowerNumber, sessions: mine.length } : null,
     hideTop: Math.max(0, hideTop),
+    forecast,
     s1,
     hist,
     histYou,

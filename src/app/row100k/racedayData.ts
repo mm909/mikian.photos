@@ -60,6 +60,22 @@ export type Racer = {
   best5k: { seconds: number; text: string; day: string; prorated: boolean } | null;
   /* Their September total. 0 on a row the blackout masks — never print it. */
   meters: number;
+  /* THE RESULT (owner, 2026-09-16: review how racers submit times on race
+   * day). The 5,000 m in tenths of a second (18:52.3 = 11323), null until
+   * posted — by the rower from the race day page, or by the owner from the
+   * timing console. raceResults.ts owns the writes and the board built off
+   * these; this only carries the columns. A race-day TIME is public for
+   * everybody, the blackout never masked one (see the note up top). */
+  tenths: number | null;
+  /* "to_come" | "finished" | "dnf" as STORED; "rowing" is never written,
+   * it is derived from the wave clock (raceResults.ts). */
+  status: string;
+  /* The erg they sat on, 1..waveSize, null until known. */
+  lane: number | null;
+  /* When the result landed, ISO, and who put it in: "self" or the admin's
+   * email. Empty string until something is posted. */
+  resultAt: string | null;
+  resultBy: string;
 };
 
 export const EMPTY_RACERS: Racer[] = [];
@@ -81,6 +97,11 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
     withdrewAt: Date | null;
     note: string;
     createdAt: Date;
+    tenths: number | null;
+    status: string;
+    lane: number | null;
+    resultAt: Date | null;
+    resultBy: string;
   }[];
   try {
     signups = await db.rowRaceSignup.findMany({
@@ -98,6 +119,11 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
         withdrewAt: true,
         note: true,
         createdAt: true,
+        tenths: true,
+        status: true,
+        lane: true,
+        resultAt: true,
+        resultBy: true,
       },
       orderBy: { createdAt: "asc" },
     });
@@ -162,6 +188,11 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
       createdAt: s.createdAt.toISOString(),
       best5k: best.get(s.participantId) ?? null,
       meters: meters.get(s.participantId) ?? 0,
+      tenths: s.tenths,
+      status: s.status,
+      lane: s.lane,
+      resultAt: s.resultAt?.toISOString() ?? null,
+      resultBy: s.resultBy,
     };
   });
 }

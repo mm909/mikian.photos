@@ -16,7 +16,10 @@ import { fmtRaceClock, waveTime, type RaceDef } from "./raceday";
  * gives a rower their own minute instead of the room's. THE ROOM survived,
  * down in the house credit: it was the one thing in that paragraph a rower
  * who has never been to this gym cannot do without — which door. The waiver
- * stays. He did not ask, and the gym needs it signed.
+ * stays, and it goes to EVERYBODY (owner, 2026-09-16: "I wont know who
+ * signed the waiver or not, dont have this data"): the note used to skip it
+ * for a rower who said they had signed, and the site never had a way to
+ * check that, so every wave note carries the reminder.
  *
  * MONOCHROME, like the rest of race day (owner, 2026-09-11: "on the race
  * day sign up, let us stick with monochromatic — just black and whites,
@@ -151,9 +154,6 @@ export function waveEmail(o: {
   name: string;
   rowerNumber: number;
   wave: number;
-  /* They have already told us the gym's waiver is signed, so the note does
-   * not ask again (owner sent the link 2026-09-11). */
-  waiverSigned?: boolean;
   /* Kept, though nothing in the letter reads it today: it was where the
    * two pictures were served from, and the owner took both off on
    * 2026-09-12. The preview route still passes its own origin, and the
@@ -169,9 +169,9 @@ export function waveEmail(o: {
    * part"). He kept the instruction and cut the reasoning: a rower does not
    * need to be told why fifteen minutes is fifteen minutes. */
   const arriveLine = `Be here by ${arrive} — fifteen minutes before your wave.`;
-  /* The waiver: the gym's, signed on the gym's own system. Only in the note
-   * when it is still owed, and never a threat — it takes a minute. */
-  const waiver = r.waiver && !o.waiverSigned ? r.waiver : null;
+  /* The waiver: the gym's, signed on the gym's own system. In every note a
+   * race with a waiver sends, and never a threat — it takes a minute. */
+  const waiver = r.waiver ?? null;
   const waiverLine = waiver
     ? `The gym needs a signed waiver before you pull. It takes a minute: ${waiver.url}`
     : null;

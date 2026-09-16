@@ -17,7 +17,7 @@
  * (hideLow), and a subject who is one of THE ELITE when masked. */
 
 import type { BlackoutState } from "@/lib/blackout";
-import { maskBoards } from "@/lib/blackoutRules";
+import { maskBoards, type BlackoutPolicy } from "@/lib/blackoutRules";
 import { GOAL_METERS, computeBoards, pacificDay, type EntryLite, type ParticipantLite } from "@/lib/row100k";
 import { assembleCommunity, assembleRower } from "./assemble";
 import type { CommunityPoster, PosterRosterRower, RowerPoster } from "./types";
@@ -39,6 +39,8 @@ export type FixtureOpts = {
   runup?: boolean;
   /* The subject rower's number (default 23 — one of the top men). */
   rower?: number;
+  /* Who counts as elite (rowSettings.ts); default ten per division. */
+  policy?: BlackoutPolicy;
 };
 
 export type Fixture = {
@@ -349,11 +351,13 @@ export function makeFixture(opts: FixtureOpts = {}): Fixture {
     active: blackout.active,
     hideLow: blackout.hideLow,
     admin: false,
+    policy: opts.policy,
   });
 
   const community = assembleCommunity({
     boards: pub,
     blackout,
+    policy: opts.policy,
     rows: entries.map((e) => ({
       participantId: e.participantId,
       day: e.day,

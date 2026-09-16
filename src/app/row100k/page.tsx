@@ -25,6 +25,7 @@ import { activeBlackout } from "@/lib/blackout";
 import { readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
+import { myWaveShare } from "./shareables/waveShare";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
 import { RowBar } from "./RowBar";
 import { RowFooter } from "./RowFooter";
@@ -217,6 +218,10 @@ export default async function Row100kPage() {
   // never throws, falls back to the club defaults.
   const sanity = me ? await sanityBandForForm() : undefined;
 
+  // MY WAVE for the share dialog (owner, 2026-09-16): the race block with
+  // the signed-in rower's own told wave on it, or nothing. Fails open.
+  const raceShare = me ? await myWaveShare(me.id) : undefined;
+
   // Time rowed, the latest row, the day-by-day leader — the newspaper's
   // extras. Cached alongside the board; a miss just blanks those lines.
   let extras: FrontExtras = EMPTY_FRONT;
@@ -375,6 +380,7 @@ export default async function Row100kPage() {
               digits={elite ? digitCount(myMeters) : undefined}
               days={today}
               sanity={sanity}
+              race={raceShare}
             />
           </div>
         </section>

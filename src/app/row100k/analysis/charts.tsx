@@ -13,6 +13,8 @@ import type {
   FanChart,
   FanYou,
   FitLine,
+  ForecastDist,
+  ForecastYou,
   GrindChart,
   GrindYou,
   HistChart,
@@ -51,15 +53,27 @@ const B = 30;
 const PW = W - L - R;
 const PH = H - T - B;
 const MONO = "var(--row-mono), monospace";
-const INK = "#15171a";
-const PAPER = "#F4F3EE";
-const GRAY = "#8a8a85";
-const GRID = "#dddbd2";
-const FIELD = "rgba(0,119,182,0.16)";
+/* The theme's variables, not literals, so the ink look reaches the SVG
+ * (owner, 2026-09-16). The washes are the water at low alpha through
+ * color-mix: on paper that is exactly the rgba(0,119,182,…) they were, and
+ * under ink — where the water is white, the look being fully monochrome
+ * (owner, later that day) — a white wash. The field edge is a grey and
+ * reads on both grounds as it is. */
+const INK = "var(--ink)";
+/* The gridline, the pip stroke and the YOU-dot halo keep their paper
+ * literals (review, 2026-09-16: paper byte for byte) — --line is #c9c8c0
+ * on paper, two steps darker than the #dddbd2 these charts always drew,
+ * and the halo was a plain #fff — and take their ink values from --an-grid,
+ * --an-paper and --an-halo, which only the .row-ink root in theme.ts sets. */
+const PAPER = "var(--an-paper, #F4F3EE)";
+const HALO = "var(--an-halo, #fff)";
+const GRAY = "var(--gray)";
+const GRID = "var(--an-grid, #dddbd2)";
+const FIELD = "color-mix(in srgb, var(--water) 16%, transparent)";
 const FIELD_EDGE = "#9a9a95";
-const BAND = "rgba(0,119,182,0.10)";
-const BAND2 = "rgba(0,119,182,0.06)";
-const WATER = "#0077B6";
+const BAND = "color-mix(in srgb, var(--water) 10%, transparent)";
+const BAND2 = "color-mix(in srgb, var(--water) 6%, transparent)";
+const WATER = "var(--water)";
 /* Bins and bars under this many sessions are drawn dashed and unlabelled —
  * a cell of four is close enough to a person to be a person. */
 const SMALL = 5;
@@ -484,7 +498,7 @@ export function DurSvg({ c, you }: { c: DurChart; you: DurYou | null }) {
           {you.pts
             .filter(([m, s]) => m <= c.xMax && s <= c.yMax)
             .map(([m, s], i) => (
-              <circle key={i} cx={r(x(m))} cy={r(y(s))} r="3.6" fill={WATER} stroke="#fff" strokeWidth="1" />
+              <circle key={i} cx={r(x(m))} cy={r(y(s))} r="3.6" fill={WATER} stroke={HALO} strokeWidth="1" />
             ))}
           <Lbl x={L + 6} y={T + 10} a="start" bold fill={WATER}>
             {you.tag}
@@ -552,7 +566,7 @@ export function PaceSvg({ c, you }: { c: PaceChart; you: PaceYou | null }) {
           {you.pts
             .filter(([lg, s]) => inY(s) && lg >= c.xMin && lg <= c.xMax)
             .map(([lg, s], i) => (
-              <circle key={i} cx={r(x(lg))} cy={r(y(s))} r="3.6" fill={WATER} stroke="#fff" strokeWidth="1" />
+              <circle key={i} cx={r(x(lg))} cy={r(y(s))} r="3.6" fill={WATER} stroke={HALO} strokeWidth="1" />
             ))}
           <Lbl x={L + 6} y={T + 10} a="start" bold fill={WATER}>
             {you.tag}
@@ -696,7 +710,7 @@ export function EcdfSvg({ c, you }: { c: EcdfChart; you: EcdfYou | null }) {
       {you && Number.isFinite(you.p) && you.x >= c.xMin && you.x <= c.xMax && (
         <g className="you">
           <line x1={L} x2={r(x(you.x))} y1={r(y(you.p))} y2={r(y(you.p))} stroke={WATER} strokeWidth="1.5" strokeDasharray="5 4" />
-          <circle cx={r(x(you.x))} cy={r(y(you.p))} r="4.5" fill={WATER} stroke="#fff" strokeWidth="1" />
+          <circle cx={r(x(you.x))} cy={r(y(you.p))} r="4.5" fill={WATER} stroke={HALO} strokeWidth="1" />
           <Tag x={x(you.x)} y={y(you.p) - 9} blue>
             {you.tag}
           </Tag>
@@ -753,7 +767,7 @@ export function GrindSvg({ c, you }: { c: GrindChart; you: GrindYou | null }) {
       )}
       {you && you.pt[1] >= c.yMin && you.pt[1] <= c.yMax && (
         <g className="you">
-          <circle cx={r(x(you.pt[0]))} cy={r(y(you.pt[1]))} r="4.5" fill={WATER} stroke="#fff" strokeWidth="1" />
+          <circle cx={r(x(you.pt[0]))} cy={r(y(you.pt[1]))} r="4.5" fill={WATER} stroke={HALO} strokeWidth="1" />
           <Lbl x={L + 6} y={T + 10} a="start" bold fill={WATER}>
             {you.tag}
           </Lbl>
@@ -957,7 +971,7 @@ export function DriftSvg({ c, you }: { c: DriftChart; you: DriftYou | null }) {
             {myLine && <path d={myLine} fill="none" stroke={WATER} strokeWidth="1.2" opacity="0.8" />}
             {you.fit && mine.length >= 2 && <line {...fitSeg(you.fit)} stroke={WATER} strokeWidth="1.5" strokeDasharray="5 4" />}
             {mine.map(([d, v], i) => (
-              <circle key={i} cx={r(xd(d))} cy={r(y(v))} r="3.5" fill={WATER} stroke="#fff" strokeWidth="1" />
+              <circle key={i} cx={r(xd(d))} cy={r(y(v))} r="3.5" fill={WATER} stroke={HALO} strokeWidth="1" />
             ))}
           </g>
         )}
@@ -1034,7 +1048,7 @@ export function LadderSvg({ c, you }: { c: LadderChart; you: LadderYou | null })
             <line x1={r(x(50))} x2={r(x(50))} y1={r(sy - 3)} y2={r(sy + 13)} stroke={INK} strokeWidth="1.5" />
             {p !== null && (
               <g className="you">
-                <circle cx={r(x(p))} cy={r(sy + 5)} r="5.5" fill={WATER} stroke="#fff" strokeWidth="1.5" />
+                <circle cx={r(x(p))} cy={r(sy + 5)} r="5.5" fill={WATER} stroke={HALO} strokeWidth="1.5" />
               </g>
             )}
           </g>
@@ -1045,6 +1059,68 @@ export function LadderSvg({ c, you }: { c: LadderChart; you: LadderYou | null })
           P{p}
         </Lbl>
       ))}
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------- 12 · forecast */
+/* Projected Sep 30 totals, one per rower, as the same bar frame as the
+ * session histogram — thin bins dashed and unlabelled — with the tier
+ * thresholds drawn as the fan's dashed goal line, stood upright. The
+ * viewer's own projection is the blue dashed line (owner ask, 2026-09-16). */
+export function ForecastSvg({ c, you }: { c: ForecastDist; you: ForecastYou | null }) {
+  if (!c.bins.length || !(c.yMax > 0) || !(c.xMax > c.xMin)) return null;
+  const x = (v: number) => L + ((v - c.xMin) / (c.xMax - c.xMin)) * PW;
+  const y = (v: number) => T + (1 - v / c.yMax) * PH;
+  const y0 = y(0);
+  const abbr = (v: number) => fmtK(v).replace(" k", "K");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Histogram of projected September totals, one per rower, with the tier lines">
+      <GridY yMax={c.yMax} fmt={(v) => String(Math.round(v))} />
+      {c.bins.map((bin, i) => {
+        if (bin.n <= 0) return null;
+        const bx = x(bin.x0) + 1;
+        const bw = Math.max(1, x(bin.x1) - x(bin.x0) - 2);
+        const bh = Math.max(y0 - y(bin.n), 2);
+        return bin.n < SMALL ? (
+          <rect key={i} x={r(bx)} y={r(y0 - bh)} width={r(bw)} height={r(bh)} fill="none" stroke={FIELD_EDGE} strokeWidth="1" strokeDasharray="2 2" />
+        ) : (
+          <rect key={i} x={r(bx)} y={r(y0 - bh)} width={r(bw)} height={r(bh)} fill={FIELD}>
+            <title>{`${fmtInt(bin.x0)}–${fmtInt(bin.x1)} m · ${bin.n} rowers`}</title>
+          </rect>
+        );
+      })}
+      {c.tiers.map((t) => {
+        const tx = x(t.m);
+        const flip = tx > L + PW * 0.88;
+        return (
+          <g key={t.m}>
+            <line x1={r(tx)} x2={r(tx)} y1={T} y2={r(y0)} stroke={GRAY} strokeWidth="1.5" strokeDasharray="5 5" />
+            <Lbl x={flip ? tx - 4 : tx + 4} y={T + 10} a={flip ? "end" : "start"} size={9}>
+              {t.label}
+            </Lbl>
+          </g>
+        );
+      })}
+      {c.beyond > 0 && (
+        <Lbl x={W - R} y={T + 22} a="end">
+          +{c.beyond} BEYOND →
+        </Lbl>
+      )}
+      <Base />
+      {c.ticks.map((t) => (
+        <Lbl key={t} x={x(t)} y={H - 8}>
+          {abbr(t)}
+        </Lbl>
+      ))}
+      {you && (
+        <g className="you">
+          {you.x >= c.xMin && you.x <= c.xMax && <VLine x={x(you.x)} dash="5 4" blue />}
+          <Tag x={Math.min(Math.max(x(you.x), L), W - R)} y={T + 36} blue>
+            {you.tag}
+          </Tag>
+        </g>
+      )}
     </svg>
   );
 }

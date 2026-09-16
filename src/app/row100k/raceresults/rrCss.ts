@@ -108,7 +108,6 @@ export const rrCss = `
  * class, so both rules went with it. */
 .row100k .rr-big{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(46px,7.4vw,64px);line-height:.94;letter-spacing:-.03em;text-transform:uppercase;color:#fff;font-variant-numeric:tabular-nums;margin:12px 0 0}
 .row100k .rr-who{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(19px,2.4vw,24px);line-height:1.1;text-transform:uppercase;letter-spacing:-.01em;color:#fff;margin:8px 0 0}
-.row100k .rr-who span{color:rgba(255,255,255,.5)}
 .row100k .rr-meta{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:9px 0 0;line-height:1.9}
 .row100k .rr-meta b{color:#fff;font-weight:700}
 /* .rr-foot and its three children are gone: the dashed-off block under each
@@ -191,6 +190,11 @@ export const rrCss = `
  * pseudo element: content needs a quoted value and this file cannot hold a
  * quote.
  *
+ * THE WALL PICKS TOO (owner, 2026-09-16: when I click on a wave in the cast
+ * view I should see the info change). No radio there — a click handler in a
+ * thin client wrapper (CastPicker.tsx) re-renders the same cells, so the
+ * .pick rules below are the whole of it and only the cursor is new.
+ *
  * THE ENHANCEMENT RULES ARE SPLIT OUT and never folded into a selector list
  * with the plain ones, the same note the elite row carries in theme.ts: a
  * browser with no :has() drops a whole list. Without :has() the server
@@ -240,9 +244,9 @@ export const rrCss = `
  * clock, and it is in the panel head rather than eight copies of it down the
  * lanes. */
 .row100k .rr-lval{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:#fff;margin:5px 0 0}
-.row100k .rr-lval.seed,.row100k .rr-lval.out{font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.row100k .rr-lval.seed{font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5)}
 .row100k .rr-cast .rr-lval{font-size:12px;margin-top:4px}
-.row100k .rr-cast .rr-lval.seed,.row100k .rr-cast .rr-lval.out{font-size:11px;color:rgba(255,255,255,.62)}
+.row100k .rr-cast .rr-lval.seed{font-size:11px;color:rgba(255,255,255,.62)}
 /* The tag already carries margin-left; inside a flex line with its own gap
  * that reads as one wide space, so it is zeroed here only. */
 .row100k .rr-lval .rr-tag{margin-left:0}
@@ -251,6 +255,7 @@ export const rrCss = `
  * cast frame is 1280 no matter what is holding it, so a phone looking at the
  * television must not strip the television. */
 .row100k .rr-cast .rr-sel{gap:8px}
+.row100k .rr-cast .rr-cw{cursor:pointer}
 .row100k .rr-cast .rr-sel .rr-hx{display:block}
 .row100k .rr-cast .rr-sel .rr-pane{padding:8px 12px 10px}
 .row100k .rr-cast .rr-sel .rr-pane .rr-lanes{margin-top:7px}
@@ -286,7 +291,6 @@ export const rrCss = `
 .row100k table.rr-t td{padding:9px 6px;border-bottom:1px dashed rgba(255,255,255,.2);vertical-align:middle}
 .row100k table.rr-t td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k table.rr-t td.nm{font-family:var(--row-archivo),sans-serif;font-weight:700;color:#fff;min-width:0}
-.row100k table.rr-t td.no{color:rgba(255,255,255,.5);width:52px;font-variant-numeric:tabular-nums}
 .row100k table.rr-t td.br{color:rgba(255,255,255,.5);width:34px}
 .row100k table.rr-t td.tm{color:#fff;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .row100k table.rr-t td.dim{color:rgba(255,255,255,.5);text-align:right;white-space:nowrap}
@@ -383,16 +387,8 @@ export const rrCss = `
  * marks down the sheet carry the numeral, so the blocks were the redundant
  * signal being explained rather than the other way round. */
 
-/* ---- worth saying: dotted leaders, the way the rest of the site lists ---- */
-.row100k .rr-say{list-style:none;margin:0;padding:0;display:grid;gap:13px}
-.row100k .rr-say li{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);min-width:0}
-.row100k .rr-say .ln{display:flex;align-items:baseline;gap:0;min-width:0}
-.row100k .rr-say .k{flex:0 1 auto;min-width:0}
-.row100k .rr-say .dt{flex:1 1 auto;border-bottom:1px dotted rgba(255,255,255,.32);margin:0 9px;transform:translateY(-4px);min-width:14px}
-.row100k .rr-say .v{flex:none;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
-/* The gloss sits on its own line under the figure it belongs to, or a long
- * one pushes the whole leader out of its column. */
-.row100k .rr-say .n{display:block;color:rgba(255,255,255,.5);font-weight:400;font-size:10px;letter-spacing:.1em;line-height:1.7;margin-top:2px;text-align:right;overflow-wrap:anywhere}
+/* .rr-say and its children are gone with WORTH SAYING (owner, 2026-09-16:
+ * remove Worth saying / What the table buries). */
 
 /* ---- the cast frame: 1280 by 720, no chrome, nothing scrolls ---- */
 /* position:relative because the one control this view has — full screen —
@@ -410,9 +406,6 @@ export const rrCss = `
 .row100k .rr-cast .rr-eye{font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.7)}
 .row100k .rr-cast .rr-big{font-size:104px;margin-top:1px}
 .row100k .rr-cast .rr-who{font-size:26px;margin-top:0}
-/* The rower number beside the leader was the last thing on the wall still
- * sitting at .5, under the floor this frame claims for a bright gym. */
-.row100k .rr-cast .rr-who span{color:rgba(255,255,255,.66)}
 .row100k .rr-cast .rr-meta{font-size:12px;color:rgba(255,255,255,.66);margin-top:5px}
 /* The wall override for .rr-foot went with the block it sized. */
 /* The tag is 9px on a page and unreadable on a television across a gym. */
@@ -554,7 +547,6 @@ export const rrCss = `
 @media(min-width:880px){
   .row100k .rr-two{grid-template-columns:1fr 1fr}
   .row100k .rr-pod{grid-template-columns:1.44fr 1fr 1fr}
-  .row100k .rr-say{grid-template-columns:1fr 1fr;gap:11px 40px}
   .row100k .rr-step.s1 .rr-pt{font-size:86px}
   .row100k .rr-step.s2 .rr-pt{font-size:52px}
   .row100k .rr-step.s3 .rr-pt{font-size:38px}
@@ -568,7 +560,6 @@ export const rrCss = `
   .row100k table.rr-t{font-size:12px}
   .row100k table.rr-t td{padding:8px 3px}
   .row100k table.rr-t th{padding:7px 3px}
-  .row100k table.rr-t td.no{width:40px}
   .row100k table.rr-t .pl{width:42px}
   .row100k .rr-pl{min-width:26px;font-size:10px}
   .row100k .rr-cell{padding:10px 10px 12px}

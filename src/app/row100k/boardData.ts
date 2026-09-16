@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { activeBlackout, type BlackoutState } from "@/lib/blackout";
 import { maskBoards } from "@/lib/blackoutRules";
+import { siteSettings, type BlackoutPolicy } from "@/lib/rowSettings";
 import {
   CHALLENGE,
   CHALLENGE_DEMO,
@@ -55,13 +56,20 @@ export const boardDataRaw = () =>
  * the leak (review, 2026-09-05: stats, records, partners and the profile
  * page all read the board without a viewer in mind). Pages that know who
  * is looking use boardView and get the self/admin exemptions; nobody else
- * needs them. Identical to boardDataRaw while no window is open. */
+ * needs them. Identical to boardDataRaw while no window is open. Who
+ * counts as elite is the policy in siteSettings() (owner, 2026-09-16),
+ * which fails open to ten per division. */
 export async function boardData(): Promise<BoardData> {
-  const [boards, blackout] = await Promise.all([boardDataRaw(), activeBlackout()]);
+  const [boards, blackout, settings] = await Promise.all([
+    boardDataRaw(),
+    activeBlackout(),
+    siteSettings(),
+  ]);
   return maskBoards(boards, {
     active: blackout.active,
     hideLow: blackout.hideLow,
     admin: false,
+    policy: settings.blackout,
   });
 }
 
@@ -77,20 +85,33 @@ export async function boardView(opts: {
   /* The admin's test blackout (row100kViewer.viewOpts): treat the window as
    * open for this request only. */
   forceBlackout?: boolean;
-}): Promise<{ boards: BoardData; blackout: BlackoutState }> {
-  const [boards, real] = await Promise.all([boardDataRaw(), activeBlackout()]);
+}): Promise<{
+  boards: BoardData;
+  blackout: BlackoutState;
+  /* The policy the mask was applied with, for a page that runs
+   * maskStandings itself (the board sticker) and must agree with it. */
+  policy: BlackoutPolicy;
+}> {
+  const [boards, real, settings] = await Promise.all([
+    boardDataRaw(),
+    activeBlackout(),
+    siteSettings(),
+  ]);
   const blackout: BlackoutState =
     opts.forceBlackout && !real.active
       ? { ...real, active: true, hideLow: undefined, rampDaysLeft: undefined }
       : real;
+  const policy = settings.blackout;
   return {
     boards: maskBoards(boards, {
       active: blackout.active,
       hideLow: blackout.hideLow,
       viewerParticipantId: opts.viewerParticipantId,
       admin: opts.admin,
+      policy,
     }),
     blackout,
+    policy,
   };
 }
 

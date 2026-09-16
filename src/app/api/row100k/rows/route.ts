@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { activeBlackout } from "@/lib/blackout";
+import { digitCount } from "@/lib/blackoutRules";
 import { sendOwnerNotification } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
@@ -8,15 +10,22 @@ import {
   CHALLENGE,
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
-  fmtDay,
-  fmtDuration,
-  fmtMeters,
-  fmtRowerNumber,
-  fmtSplit,
+  daysElapsed,
   isRow100kAdmin,
   nowMs,
   validateEntry,
 } from "@/lib/row100k";
+import { siteSettings } from "@/lib/rowSettings";
+import { boardDataRaw } from "@/app/row100k/boardData";
+import {
+  censorFor,
+  crossedMilestones,
+  freshPublicRow,
+  milestoneMail,
+  rowLoggedMail,
+  type Censor,
+  type RowLogged,
+} from "@/app/row100k/rowMail";
 
 export const runtime = "nodejs";
 
@@ -88,11 +97,15 @@ export async function POST(req: Request) {
 
   // Count-then-create is racy under concurrency, but the 40/hr rate limit
   // above bounds any overshoot to one window — these caps are anti-absurdity
-  // guards on an honor-system board, not hard invariants.
-  const [dayCount, totalCount] = await Promise.all([
+  // guards on an honor-system board, not hard invariants. The meters BEFORE
+  // this row ride along for the milestone note below (rowMail.ts): a
+  // milestone is a line crossed, so it needs the total on both sides.
+  const [dayCount, totalCount, before] = await Promise.all([
     db.rowEntry.count({ where: { participantId: participant.id, day: check.value.day } }),
     db.rowEntry.count({ where: { participantId: participant.id } }),
+    db.rowEntry.aggregate({ where: { participantId: participant.id }, _sum: { meters: true } }),
   ]);
+  const prevTotal = before._sum.meters ?? 0;
   if (dayCount >= MAX_ENTRIES_PER_DAY) {
     return NextResponse.json(
       { ok: false, error: `That's already ${MAX_ENTRIES_PER_DAY} sessions on that day — the max.` },
@@ -116,10 +129,12 @@ export async function POST(req: Request) {
   });
   revalidateTag("row100k-boards");
 
-  /* Heads-up to the owner on every logged row (owner call, launch day).
-   * Awaited so serverless can't kill it mid-send, but never allowed to fail
-   * the log — sendOwnerNotification swallows transport errors itself, and
-   * a thrown surprise here is caught and logged. */
+  /* Heads-up to the owner on every logged row (owner call, launch day), and
+   * a second note when the row crossed a milestone (owner, 2026-09-16). The
+   * wording lives in rowMail.ts. Awaited so serverless can't kill it
+   * mid-send, but never allowed to fail the log — sendOwnerNotification
+   * swallows transport errors itself, and a thrown surprise here is caught
+   * and logged. */
   try {
     const totals = await db.rowEntry.aggregate({
       where: { participantId: participant.id },
@@ -127,23 +142,71 @@ export async function POST(req: Request) {
       _count: true,
     });
     const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://mikianmusser.com").replace(/\/$/, "");
-    const total = fmtMeters(totals._sum.meters ?? value.meters);
-    // Subject is the whole story — name, meters, time — so the phone's
-    // mail preview says it without opening (owner call, day 3). The body
-    // is the two lines that matter plus the rower's page.
-    await sendOwnerNotification(
-      `${participant.displayName} · ${fmtMeters(value.meters)} · ${fmtDuration(value.seconds)}`,
-      [
-        `${participant.displayName} · ${fmtRowerNumber(participant.rowerNumber)} · ${fmtMeters(value.meters)} in ${fmtDuration(value.seconds)} (${fmtSplit(value.meters, value.seconds)} /500m)`,
-        `${fmtDay(value.day)}${value.title ? ` · ${value.title}` : ""} · total ${total} · ${totals._count} sessions`,
-        ``,
-        `${base}/row100k/r/${participant.rowerNumber}`,
-      ].join("\n"),
-      undefined,
-      // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
-      // unless explicitly rerouted.
-      process.env.ROW100K_NOTIFY_EMAIL || undefined,
-    );
+    const totalNow = totals._sum.meters ?? prevTotal + value.meters;
+    const logged: RowLogged = {
+      name: participant.displayName,
+      rowerNumber: participant.rowerNumber,
+      meters: value.meters,
+      seconds: value.seconds,
+      day: value.day,
+      title: value.title,
+      total: totalNow,
+      sessions: totals._count,
+      profileUrl: `${base}/row100k/r/${participant.rowerNumber}`,
+    };
+    // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
+    // unless explicitly rerouted — both notes go to the same place.
+    const notifyTo = process.env.ROW100K_NOTIFY_EMAIL || undefined;
+
+    // The owner is a rower himself, so his inbox is censored like the feed
+    // (owner, 2026-09-16): while a window or its run-up is on, the PUBLIC
+    // board says whether this rower is hidden. The tag revalidated above
+    // lands only after this handler returns, so the cached board is still
+    // the one from BEFORE this insert — freshPublicRow lays this row over
+    // it and masks the result, so the row that lifts a rower into the
+    // elite is judged elite (review, 2026-09-16). A board that cannot be
+    // read while a window or run-up is on hides everything (fail closed) —
+    // a hiccup must not print an elite rower's numbers. Outside a window
+    // the mail is what it always was.
+    const blackout = await activeBlackout();
+    let censor: Censor = { kind: "none" };
+    if (blackout.active || (blackout.hideLow ?? 0) > 0) {
+      try {
+        const [raw, settings] = await Promise.all([boardDataRaw(), siteSettings()]);
+        const row = freshPublicRow(
+          raw,
+          {
+            participantId: participant.id,
+            name: participant.displayName,
+            division: participant.division,
+            rowerNumber: participant.rowerNumber,
+            instagram: participant.instagram,
+          },
+          logged,
+          blackout,
+          settings.blackout,
+        );
+        censor = censorFor(row, totalNow, blackout);
+      } catch (err) {
+        console.error("row100k: board unreadable during a blackout — censoring the row-logged note", err);
+        censor = { kind: "full", digits: digitCount(totalNow), why: "unknown" };
+      }
+    }
+    const note = rowLoggedMail(logged, censor);
+    await sendOwnerNotification(note.subject, note.text, undefined, notifyTo);
+
+    // The milestone note: censored JUST FOR THE ELITE (owner, 2026-09-16,
+    // second telling: "make emails censored just for the elite"). A rower
+    // the board hides or rounds gets no milestone note while that lasts,
+    // and neither does anybody when the board could not say (both leave
+    // `censor` set); everyone else's rung is public on the board already,
+    // so their note goes out window or no window. It prints every real
+    // number, which is the point of it.
+    const crossed = crossedMilestones(prevTotal, totalNow);
+    if (crossed.length > 0 && censor.kind === "none") {
+      const star = milestoneMail(logged, crossed, daysElapsed());
+      await sendOwnerNotification(star.subject, star.text, undefined, notifyTo);
+    }
   } catch (err) {
     console.error("row100k: row-logged notification failed", err);
   }

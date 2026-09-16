@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { fmtRowerNumber } from "@/lib/row100k";
+import { fmtRecordTime, fmtRowerNumber } from "@/lib/row100k";
 import { RACE_ROLES, waveTime, type RaceDef, type RaceRole } from "../raceday";
 import type { Racer } from "../racedayData";
 import { RaceShare, type RaceFacts } from "./RaceShare";
@@ -85,6 +85,24 @@ const RACE_PATH = "/row100k/raceday";
 const roleOf = (key: RaceRole) => RACE_ROLES.find((r) => r.key === key) ?? RACE_ROLES[0];
 const SPECTATOR = roleOf("spectator");
 
+/* THE RACER S OWN TIME (owner, 2026-09-16: "Review how racers submit times
+ * during race day"). The page computes this off the viewer s own live racer
+ * row and the posting window (raceResults.ts postingWindow) — the panel
+ * cannot, because the rules live in a server-only module. `canPost` is the
+ * window open AND the sheet not posted; `tenths` is what is stored, if
+ * anything; `final` means the sheet is posted and the time is the sheet s.
+ * `resultsOpen` is race day within 24 h: the SEE THE RESULTS link waits for
+ * that, because a link to an empty board a week out is a link to nothing. */
+export type OwnTiming = {
+  canPost: boolean;
+  final: boolean;
+  tenths: number | null;
+  resultsHref: string;
+  resultsOpen: boolean;
+};
+
+const RESULTS_PATH = "/row100k/raceday/results";
+
 export function SignupPanel({
   race,
   signedIn,
@@ -92,6 +110,7 @@ export function SignupPanel({
   open,
   mine: initialMine,
   share,
+  timing,
 }: {
   race: RaceDef;
   signedIn: boolean;
@@ -102,9 +121,54 @@ export function SignupPanel({
   /* The race, as the share cards print it — built by the page off the same
    * values the bill above does (RaceShare.RaceFacts). */
   share: RaceFacts;
+  /* The viewer s own race-day time and whether they may post one. Absent
+   * on any render that has no racer to time. */
+  timing?: OwnTiming;
 }) {
   const router = useRouter();
   const [mine, setMine] = useState<Racer | null>(initialMine);
+  /* THE POST YOUR TIME RAIL. `posted` is the stored 5,000 m in tenths, kept
+   * here so a save repaints without waiting for the server render; the
+   * input opens by itself when nothing is stored and on EDIT. */
+  const [posted, setPosted] = useState<number | null>(timing?.tenths ?? null);
+  const [timeText, setTimeText] = useState("");
+  const [editing, setEditing] = useState((timing?.tenths ?? null) === null);
+  const [timeErr, setTimeErr] = useState<string | null>(null);
+  const [timeBusy, setTimeBusy] = useState(false);
+  const canPost = timing?.canPost === true;
+  const final = timing?.final === true;
+  const resultsHref = timing?.resultsHref ?? RESULTS_PATH;
+  const resultsOpen = timing?.resultsOpen === true;
+
+  /* One POST: { action: post, time }. The route re-checks everything — the
+   * window, the sheet, the wave — and says why if it refuses; the line
+   * under the box is whatever it said. */
+  const postTime = async () => {
+    setTimeBusy(true);
+    setTimeErr(null);
+    try {
+      const res = await fetch("/api/row100k/raceday/results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ race: race.slug, action: "post", time: timeText }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        posted?: { id: string; tenths: number };
+      };
+      if (res.ok && data.ok && data.posted) {
+        setPosted(data.posted.tenths);
+        setEditing(false);
+        setTimeText("");
+        /* The board and the results page read the row on the server. */
+        router.refresh();
+      } else setTimeErr(data.error ?? "Couldn't save that — try again.");
+    } catch {
+      setTimeErr("Couldn't save that — try again.");
+    }
+    setTimeBusy(false);
+  };
   /* Which question the rail is asking, if it is asking one: OUT is taking
    * the name off the list, WATCH is giving up an assigned wave. */
   const [confirm, setConfirm] = useState<null | "out" | "watch">(null);
@@ -120,6 +184,20 @@ export function SignupPanel({
   const inField = mine !== null && mine.withdrewAt === null;
   const racing = inField && mine?.role === "racer";
   const signed = mine?.waiverAt != null;
+  const emailed = racing && mine !== null && mine.wave !== null && mine.waveEmailedAt !== null;
+  /* MY WAVE (owner, 2026-09-16): the wave goes on the share payload under
+   * exactly the rule the START TIME line uses — assigned AND told. Same rule
+   * as shareables/waveShare.ts toldWave, off the row this panel already
+   * holds, so a switch to spectator takes the card away at once. Memoised:
+   * the dialog repaints whenever its payload changes identity. */
+  const told = useMemo(
+    () =>
+      emailed && mine && mine.wave !== null
+        ? { wave: mine.wave, time: waveTime(race, mine.wave).toUpperCase() }
+        : null,
+    [emailed, mine, race],
+  );
+  const shareFacts = useMemo<RaceFacts>(() => (told ? { ...share, mine: told } : share), [share, told]);
 
   const act = async (
     action: "enter" | "withdraw",
@@ -178,7 +256,6 @@ export function SignupPanel({
 
   if (inField && mine) {
     const bracket = race.brackets.find((b) => b.key === mine.division);
-    const emailed = racing && mine.wave !== null && mine.waveEmailedAt !== null;
     /* WHICH THEY ARE, said on the row that carries their number — the one
      * line a rower reads back to check they signed up as the thing they
      * meant to. */
@@ -244,20 +321,99 @@ export function SignupPanel({
             </div>
           ))}
 
+        {/* POST YOUR TIME (owner, 2026-09-16). Once the race is on — the
+         * posting window open, or a time already stored — a racer with a
+         * wave types their own 5,000 m here. It prints back as YOUR 5,000 M
+         * with an EDIT until the sheet is posted; posted, it prints FINAL
+         * and the box is gone, because the owner is the only door then.
+         * Nothing here decides anything: the route refuses with a reason
+         * and the reason is the line under the box. */}
+        {racing && mine.wave !== null && (canPost || posted !== null) && (
+          <div className="rd-time">
+            <p className="rd-eye">Post your time</p>
+            {posted !== null && (!editing || final) ? (
+              <div className="rd-two rd-time-row">
+                <span className="rd-time-val">
+                  YOUR {race.meters.toLocaleString("en-US")} M · {fmtRecordTime(posted / 10)}
+                  {final ? " · FINAL" : ""}
+                </span>
+                {!final && canPost && (
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    onClick={() => {
+                      setTimeText(fmtRecordTime(posted / 10));
+                      setEditing(true);
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            ) : canPost ? (
+              <div className="rd-two rd-time-row">
+                <input
+                  type="text"
+                  className="mono rd-time-in"
+                  inputMode="decimal"
+                  placeholder="18:52.3"
+                  aria-label="Your 5,000 m time, minutes:seconds.tenths — 18:52.3, or 1852.3 off a number pad"
+                  value={timeText}
+                  disabled={timeBusy}
+                  onChange={(e) => setTimeText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && timeText.trim() !== "") void postTime();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="outline-btn"
+                  disabled={timeBusy || timeText.trim() === ""}
+                  onClick={() => void postTime()}
+                >
+                  {timeBusy ? "…" : "Save"}
+                </button>
+                {posted !== null && (
+                  <button type="button" className="quiet-btn" disabled={timeBusy} onClick={() => setEditing(false)}>
+                    Never mind
+                  </button>
+                )}
+              </div>
+            ) : null}
+            {timeErr && <p className="rd-small mono rd-time-err">{timeErr}</p>}
+          </div>
+        )}
+        {/* THE RESULTS, for anybody in the field — a spectator came to read
+         * them too. Only once race day is within a day: a week out the
+         * board is an empty grid, and a link to it is a link to nothing. */}
+        {resultsOpen && (
+          <p className="rd-small mono rd-res">
+            <Link className="rd-wlink" href={resultsHref}>
+              See the results →
+            </Link>
+          </p>
+        )}
+
         {/* THE SHAREABLE, on a rail of its own above the one that takes a
          * name back off the list — see the note at the top of the file.
          *
-         * IT HANDS OVER THE RACE AND NOT THE ROWER. This call used to pass
-         * `role` and `wave` — the wave only ever one the rower had already
-         * been TOLD about, a notch tighter than the number on screen,
+         * IT HANDS OVER THE RACE, AND THE WAVE ONCE THEY HAVE BEEN TOLD IT.
+         * The old `role` and `wave` props went with the I'M RACING card
+         * (owner, 2026-09-11); `told` is the wave back (owner, 2026-09-16:
+         * "a shareable that shows their wave and start time"), under the
+         * same rule as before — only a wave the note has already carried,
          * because a page corrects itself on the next load and a PNG in a
-         * camera roll never can. The card that printed them is retired
-         * (owner, 2026-09-11: "I just like the race day sticker"), so the
-         * props are gone and that rule with them; what is left is the event
-         * card, which is the same for everybody and never goes stale. */}
+         * camera roll never can. The dialog opens on MY WAVE when there is
+         * one; the bill and the name are a chip away. */}
         <div className="rd-two">
           <span className="mono">Post it?</span>
-          <RaceShare facts={share} rowerNumber={mine.rowerNumber} label="Share race day" />
+          <RaceShare
+            facts={shareFacts}
+            rowerNumber={mine.rowerNumber}
+            displayName={mine.name}
+            label="Share race day"
+            prefer={told ? "rowtember-raceday-wave" : undefined}
+          />
         </div>
 
         {open ? (

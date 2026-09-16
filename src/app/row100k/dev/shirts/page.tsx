@@ -13,6 +13,12 @@ import { ShirtShop, type MineLite } from "./ShirtShop";
 
 export const dynamic = "force-dynamic";
 
+/* RETIRED for now (owner, 2026-09-16: "we can retire the shirt page and
+ * the gallery page for now"): the page 404s for everyone, admins included.
+ * Flip this one const to bring it back. The shirt API routes and the
+ * shirt emails stay as they are. */
+const RETIRED = true;
+
 export const metadata: Metadata = {
   title: "The shirt (dev) — 100K September",
   robots: { index: false, follow: false },
@@ -29,6 +35,7 @@ export const metadata: Metadata = {
 const PRODUCT_PHOTOS = 3;
 
 export default async function DevShirtsPage() {
+  if (RETIRED) notFound();
   const viewer = await resolveViewer();
   if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
 

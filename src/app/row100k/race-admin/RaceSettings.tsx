@@ -12,11 +12,13 @@ import type { RaceSettingsView } from "../racedaySettings";
  * number of waves, number of participants — and then let me assign waves
  * based off of those inputs").
  *
- * Three blocks, in the order the evening happens: THE TIMES, THE GRID, THE
- * PICTURE. It sits at the TOP of the console on purpose — every number
- * under it (a wave time in the picker, the grid, the wave note) is drawn
- * against these, so the page reads top to bottom: set the evening, then lay
- * the field into it.
+ * Two blocks, in the order the evening happens: THE TIMES, THE GRID. (THE
+ * PICTURE was a third — the gallery pick the ads carry — and came off on
+ * 2026-09-16, owner: "I don't need anything like that here"; the settings
+ * API and the two columns stay, untouched.) It sits at the TOP of the
+ * console on purpose — every number under it (a wave time in the picker,
+ * the grid, the wave note) is drawn against these, so the page reads top
+ * to bottom: set the evening, then lay the field into it.
  *
  * TIMES ARE TYPED AND SHOWN AS PACIFIC — the fixed UTC-7 the whole challenge
  * runs on — through the same two helpers the blackout console uses, so the
@@ -31,14 +33,12 @@ import type { RaceSettingsView } from "../racedaySettings";
  *
  * THE DRY RUN IS THE LIST: everything that would move is on screen, in full,
  * before the first press, and the button then asks a second time. Nothing
- * here is destructive, but it moves the public page, the ads and the wave
- * note all at once, which is close enough.
+ * here is destructive, but it moves the public page and the wave note at
+ * once, which is close enough.
  *
  * THE CONSOLE IS NOT MONOCHROME. Race day is (white on black, greys of
  * white), but this is the owner admin furniture and it keeps the site
  * palette, the way the wave console already marks NOT TOLD in water blue. */
-
-export type GalleryPick = { key: string; thumb: string };
 
 /* A 5,000 m at 2:30/500 m is 25 minutes, which is the back of a general
  * field rather than the front. It is an allowance, not a prediction — the
@@ -59,10 +59,6 @@ const intOf = (raw: string, lo: number, hi: number): number | null => {
   const n = Number(raw);
   return Number.isInteger(n) && n >= lo && n <= hi ? n : null;
 };
-
-/* The tail of a gallery key — the whole thing is a uuid under a prefix and
- * no use to anybody on screen. */
-const shortKey = (key: string) => key.split("/").pop()?.slice(0, 18) ?? key;
 
 /* What the code says, under every field — and, when the stored settings have
  * moved off it, the one click back. Every input on the panel wears the same
@@ -86,11 +82,9 @@ function Default({ shown, moved, onUse }: { shown: string; moved: boolean; onUse
 
 export function RaceSettings({
   view,
-  gallery,
   field,
 }: {
   view: RaceSettingsView;
-  gallery: GalleryPick[];
   /* Racers signed up right now — the read-out starts from the real field. */
   field: number;
 }) {
@@ -107,9 +101,6 @@ export function RaceSettings({
    * field as it stands and lets the owner ask what twenty-four would look
    * like before twenty-four turn up. */
   const [plan, setPlan] = useState(String(Math.max(1, field)));
-  const [photoKey, setPhotoKey] = useState<string | null>(view.photoKey);
-  const [bw, setBw] = useState(view.photoBw);
-  const [picking, setPicking] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +112,6 @@ export function RaceSettings({
     setFirst(msToPacificLocal(v.firstWaveAt));
     setSize(String(v.waveSize));
     setMins(String(v.waveMinutes));
-    setPhotoKey(v.photoKey);
-    setBw(v.photoBw);
   };
 
   /* ----------------------------------------------------------- the plan */
@@ -185,14 +174,6 @@ export function RaceSettings({
     patch.waveMinutes = minsN === saved.defaults.waveMinutes ? null : minsN;
     lines.push(`MINUTES BETWEEN WAVES ${saved.waveMinutes} → ${minsN}`);
   }
-  if (photoKey !== saved.photoKey) {
-    patch.photoKey = photoKey;
-    lines.push(`THE PICTURE → ${photoKey ? shortKey(photoKey) : "THE NEWEST SHOT"}`);
-  }
-  if (bw !== saved.photoBw) {
-    patch.photoBw = bw;
-    lines.push(`THE PICTURE → ${bw ? "BLACK AND WHITE" : "IN COLOUR"}`);
-  }
   const dirty = lines.length > 0;
 
   /* ----------------------------------------------------------- the save */
@@ -230,8 +211,6 @@ export function RaceSettings({
     setBusy(false);
     setConfirm(false);
   };
-
-  const current = photoKey ? gallery.find((g) => g.key === photoKey) : gallery[0];
 
   return (
     <div className="panel ra-set">
@@ -361,79 +340,6 @@ export function RaceSettings({
             {w}
           </p>
         ))}
-      </div>
-
-      {/* ------------------------------------------------------ picture */}
-      <div className="ra-block">
-        <div className="ra-eye">The picture</div>
-        <p className="ra-def">THE SHOT THE ADS CARRY. NO PICK MEANS THE NEWEST IN THE GALLERY, WHICH MOVES ON ITS OWN.</p>
-        {/* ONLY THE THUMBNAILS NEED THE GALLERY. Black and white is a way of
-         * drawing whatever picture the ads land on — it is true of the
-         * newest shot as much as of a pick — so the switch stays on screen
-         * when the listing comes back empty (an R2 hiccup, or photos not
-         * servable at all). The whole block used to go with it, which meant
-         * flipping the ads to colour had to wait on the bucket. */}
-        <div className="ra-cur">
-          {current ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={current.thumb} alt="" style={bw ? { filter: "grayscale(1)" } : undefined} />
-          ) : (
-            <div className="none" />
-          )}
-          <div>
-            <div className="ra-def">
-              {photoKey ? `PICKED · ${shortKey(photoKey)}` : "THE NEWEST SHOT"}
-              {bw ? " · BLACK AND WHITE" : " · IN COLOUR"}
-              {/* A pick older than the thumbnails on this page is still the
-               * pick, and the ads still carry it; say so rather than leave
-               * an empty box sitting under the word PICKED. Only worth
-               * saying when there IS a strip to be missing from — an empty
-               * listing has its own line below. */}
-              {photoKey && !current && gallery.length > 0 ? " · NOT IN THE NEWEST 60" : ""}
-            </div>
-            <div className="tabs ra-tabs" role="group" aria-label="How the picture is drawn">
-              <button type="button" className={bw ? "on" : undefined} aria-pressed={bw} onClick={() => setBw(true)}>
-                Black and white
-              </button>
-              <button type="button" className={!bw ? "on" : undefined} aria-pressed={!bw} onClick={() => setBw(false)}>
-                In colour
-              </button>
-            </div>
-            <div className="ra-act">
-              {gallery.length > 0 && (
-                <button type="button" className="outline-btn" onClick={() => setPicking((p) => !p)}>
-                  {picking ? "Close the gallery" : "Pick a photo"}
-                </button>
-              )}
-              {photoKey !== null && (
-                <button type="button" className="outline-btn" onClick={() => setPhotoKey(null)}>
-                  Use the newest
-                </button>
-              )}
-            </div>
-            {gallery.length === 0 && <div className="ra-def">NO GALLERY PHOTOS TO PICK FROM RIGHT NOW.</div>}
-          </div>
-        </div>
-        {picking && gallery.length > 0 && (
-          <div className="ra-pics">
-            {gallery.map((g) => (
-              <button
-                type="button"
-                key={g.key}
-                className={`ra-pic${g.key === photoKey ? " on" : ""}`}
-                aria-label={`Use ${shortKey(g.key)}`}
-                aria-pressed={g.key === photoKey}
-                onClick={() => {
-                  setPhotoKey(g.key);
-                  setPicking(false);
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={g.thumb} alt="" />
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ------------------------------------------------------ the save */}

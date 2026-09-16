@@ -665,8 +665,9 @@ export const TIERS = [
    * what that makes you. NOT censored — the owner was explicit on the
    * second telling: "if you just have five hundred k or above, it is not
    * necessarily censored ... but your title, your little tag should be your
-   * average pace". Only a blackout hides numbers, and only the top ten of
-   * each board. The name is shared with the blackout's THE ELITE on
+   * average pace". Only a blackout hides numbers, and only the top N of
+   * each board or the top N overall, as the policy says (rowSettings.ts).
+   * The name is shared with the blackout's THE ELITE on
    * purpose (owner, same message: "the sharing of the name is
    * intentional") — both are the rowers you know by their pace.
    *

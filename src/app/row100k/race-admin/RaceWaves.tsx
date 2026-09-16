@@ -7,6 +7,7 @@ import { fmtRowerNumber } from "@/lib/row100k";
 import { fmtPacificStamp } from "@/lib/blackoutRules";
 import { waveCount, waveTime, type RaceDef } from "../raceday";
 import type { Racer } from "../racedayData";
+import type { PlanMode } from "../wavePlan";
 import { bySeed, WaveGrid } from "./WaveGrid";
 
 /* THE WAVE CONSOLE (owner, 2026-09-10). Four things in one page: the field
@@ -25,7 +26,13 @@ import { bySeed, WaveGrid } from "./WaveGrid";
  * mail — runs off the RACERS and cannot see anybody else, so a spectator
  * can never be swept into a wave or a wave note. They get a list of their
  * own at the foot, because the owner still needs to know how many bodies
- * are going to be in the room. */
+ * are going to be in the room.
+ *
+ * THE AUTO RULE IS BALANCED BY DEFAULT (owner, 2026-09-16: "equal number
+ * of men's and women's rowers per wave; prio faster rowers at the end of
+ * the night") — wavePlan.ts; BRACKETS APART is the older rule, still one
+ * press away. NO WAIVER COLUMN (same day: "I wont know who signed the
+ * waiver or not") — the wave note carries the reminder to everybody. */
 
 /* What the route answers with — declared here rather than imported from a
  * route file (the settle panel's idiom). */
@@ -38,7 +45,7 @@ type PlanRow = {
   from: number | null;
   to: number;
 };
-type PlanOut = { dryRun: boolean; mix: boolean; assigned: number; moved: number; waves: number; plan: PlanRow[] };
+type PlanOut = { dryRun: boolean; mode: PlanMode; assigned: number; moved: number; waves: number; plan: PlanRow[] };
 type MailRow = {
   id: string;
   rowerNumber: number;
@@ -56,8 +63,8 @@ const stampDay = (iso: string) => fmtPacificStamp(iso).split(" · ")[0].toUpperC
 export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers: Racer[]; unreadable: boolean }) {
   const router = useRouter();
   const [field, setField] = useState<Racer[]>(racers);
-  /* THE ONE OVERRIDE on the auto rule: brackets apart, or one field. */
-  const [mix, setMix] = useState(false);
+  /* THE ONE OVERRIDE on the auto rule: balanced waves, or brackets apart. */
+  const [mode, setMode] = useState<PlanMode>("balanced");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -153,7 +160,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
 
   const runAuto = async (dryRun: boolean) => {
     setBusy(dryRun ? "auto-dry" : "auto");
-    const data = (await post({ action: "auto", dryRun, mix })) as (PlanOut & { ok: true }) | null;
+    const data = (await post({ action: "auto", dryRun, mode })) as (PlanOut & { ok: true }) | null;
     if (data) {
       setPlan(data);
       if (!dryRun) {
@@ -206,17 +213,37 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
         </span>
       </div>
       <p className="ra-note">
-        The brackets race each other: men with men, women with women, seeded by fastest 5k — quickest first, no time
-        last — <b>{race.waveSize} to a wave</b>. Racers only: anybody who signed up to watch is not in the plan and
-        never gets a wave. Dry run writes nothing. Assigning overwrites any wave you set by hand and forgets who was
-        told, so everybody moved is told again.
+        {mode === "balanced" ? (
+          <>
+            <b>Balanced</b>: as few waves as the field needs, <b>{race.waveSize} to a wave</b>, the men and the women
+            each spread evenly across them, and the faster you are the later you row — the fastest 5ks in the last
+            wave, no time yet in the first.
+          </>
+        ) : (
+          <>
+            <b>Brackets apart</b>: men with men, women with women, seeded by fastest 5k — quickest first, no time
+            last — <b>{race.waveSize} to a wave</b>.
+          </>
+        )}{" "}
+        Racers only: anybody who signed up to watch is not in the plan and never gets a wave. Dry run writes nothing.
+        Assigning overwrites any wave you set by hand and forgets who was told, so everybody moved is told again.
       </p>
-      <div className="tabs ra-tabs" role="group" aria-label="Bracket rule">
-        <button type="button" className={!mix ? "on" : undefined} aria-pressed={!mix} onClick={() => setMix(false)}>
-          Brackets apart
+      <div className="tabs ra-tabs" role="group" aria-label="Wave rule">
+        <button
+          type="button"
+          className={mode === "balanced" ? "on" : undefined}
+          aria-pressed={mode === "balanced"}
+          onClick={() => setMode("balanced")}
+        >
+          Balanced
         </button>
-        <button type="button" className={mix ? "on" : undefined} aria-pressed={mix} onClick={() => setMix(true)}>
-          Mix the brackets
+        <button
+          type="button"
+          className={mode === "apart" ? "on" : undefined}
+          aria-pressed={mode === "apart"}
+          onClick={() => setMode("apart")}
+        >
+          Brackets apart
         </button>
       </div>
       <div className="ra-act">
@@ -253,7 +280,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
           <p className="ra-note">
             {plan.dryRun ? "DRY RUN — NOTHING WRITTEN. " : "ASSIGNED. "}
             {plan.assigned} RACERS INTO {plan.waves} {plan.waves === 1 ? "WAVE" : "WAVES"} · {plan.moved}{" "}
-            {plan.moved === 1 ? "MOVE" : "MOVES"} · {plan.mix ? "BRACKETS MIXED" : "BRACKETS APART"}
+            {plan.moved === 1 ? "MOVE" : "MOVES"} · {plan.mode === "apart" ? "BRACKETS APART" : "BALANCED"}
           </p>
           {plan.plan.length > 0 && (
             <div style={{ overflowX: "auto" }}>
@@ -322,7 +349,6 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
                 <th>Rower</th>
                 <th>Bracket</th>
                 <th>Fastest 5k</th>
-                <th>Waiver</th>
                 <th>Wave</th>
                 <th>Told</th>
               </tr>
@@ -345,16 +371,6 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
                   <td className="mono">
                     {r.best5k ? r.best5k.text : "—"}
                     {r.best5k?.prorated ? "*" : ""}
-                  </td>
-                  {/* The waiver is signed on the gym's system, so this is
-                   * what the rower TOLD us — a chase list for the door, not
-                   * a fact this site can check. */}
-                  <td className="mono">
-                    {r.waiverAt ? (
-                      <span style={{ color: "var(--gray)" }}>SIGNED</span>
-                    ) : (
-                      <span style={{ color: "#b3400f", fontWeight: 700 }}>OWED</span>
-                    )}
                   </td>
                   <td className="ra-w">
                     <select
@@ -448,9 +464,8 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
       </div>
       <p className="ra-note">
         Goes to every <b>racer</b> who has a wave and has not been told <b>that</b> wave — never a spectator. The note
-        carries their wave and when
-        it goes off, the day, the place, the hours, the {race.meters.toLocaleString("en-US")} m, that it is free, and to
-        arrive fifteen minutes early. Dry run lists them and sends nothing.
+        carries their wave and when it goes off, the day, the place, the {race.meters.toLocaleString("en-US")} m, the
+        waiver link, and to arrive fifteen minutes early. Dry run lists them and sends nothing.
       </p>
       <div className="ra-act">
         <button

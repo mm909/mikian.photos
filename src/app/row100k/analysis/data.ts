@@ -10,7 +10,10 @@ import { CHALLENGE, CHALLENGE_DEMO } from "@/lib/row100k";
  * round-trips through JSON, so a Date would come back as a string on a hit
  * and as a Date on a miss. */
 
-export type RawParticipant = { id: string; rowerNumber: number; division: string };
+/* displayName rides along for the forecast table (owner ask, 2026-09-16:
+ * individual predictions by name). It never reaches the browser unless the
+ * model is built for an admin — compute.ts nulls it otherwise. */
+export type RawParticipant = { id: string; rowerNumber: number; division: string; displayName: string };
 export type RawEntry = {
   id: string;
   participantId: string;
@@ -25,7 +28,7 @@ const load = async (): Promise<RawData> => {
   const [participants, entries] = await Promise.all([
     db.rowParticipant.findMany({
       where: { challenge: CHALLENGE },
-      select: { id: true, rowerNumber: true, division: true },
+      select: { id: true, rowerNumber: true, division: true, displayName: true },
       orderBy: { rowerNumber: "asc" },
     }),
     db.rowEntry.findMany({
@@ -47,7 +50,9 @@ const load = async (): Promise<RawData> => {
   };
 };
 
-const cached = unstable_cache(load, ["row100k-analysis"], {
+/* The key part bumped with the shape (v2 = displayName), so a cache entry
+ * written before the deploy is never served to code that expects it. */
+const cached = unstable_cache(load, ["row100k-analysis", "v2"], {
   revalidate: 300,
   tags: ["row100k-boards"],
 });
