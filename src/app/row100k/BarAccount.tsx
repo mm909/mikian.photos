@@ -164,6 +164,12 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/analysis" onClick={close}>
                   The numbers →
                 </Link>
+                {/* The PM5 monitors over Web Bluetooth, finishes straight to
+                 * the race board (owner, 2026-09-16: a barebones UI to try
+                 * live results in the gym). Chrome/Edge only. */}
+                <Link className="acct-item" href="/row100k/pm5" onClick={close}>
+                  PM5 live (test) →
+                </Link>
               </>
             )}
             <button
