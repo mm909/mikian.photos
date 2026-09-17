@@ -804,6 +804,42 @@ model RowRaceWave {
   @@unique([challenge, race, wave])
 }
 
+/// A saved PM5 telemetry session (owner, 2026-09-17: "give me the option to
+/// save the live telemetry results of a row"). The telemetry console
+/// (/row100k/pm5/telemetry) records every decoded packet in the tab; SAVE
+/// sends the decoded piece here — the summary numbers as columns so a list
+/// can print them without opening the blob, and the strokes, splits,
+/// samples, force curves and summaries as one JSON document. Keyed to the
+/// rower who saved it; no FK, like the other Row* tables. `entryId` is an
+/// optional link to the RowEntry the piece was logged as.
+model RowTelemetry {
+  id            String   @id @default(cuid())
+  challenge     String   @default("row100k-sep-2026")
+  participantId String
+  rowerNumber   Int
+  /// The monitor: "PM5 430123456", or "SIMULATED PM5" (kept, marked).
+  device        String   @default("")
+  simulated     Boolean  @default(false)
+  startedAt     DateTime
+  endedAt       DateTime?
+  meters        Int      @default(0)
+  /// Elapsed time in tenths of a second, as the console last saw it.
+  tenths        Int      @default(0)
+  strokes       Int      @default(0)
+  /// Average pace in tenths of a second per 500 m, null when unknown.
+  avgPaceTenths Int?
+  avgWatts      Int?
+  avgSpm        Int?
+  avgHr         Int?
+  dragFactor    Int?
+  title         String   @default("")
+  entryId       String?
+  data          Json
+  createdAt     DateTime @default(now())
+
+  @@index([challenge, participantId, createdAt])
+}
+
 /// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
 /// Grizzly Health). The raffle itself — prize, sponsor, the entry window,
 /// the copy — is defined in code (src/app/row100k/raffles.ts, by slug);

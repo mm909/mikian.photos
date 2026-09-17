@@ -122,6 +122,33 @@ export const tmCss = `
 .row100k .tm-feed .dc{color:rgba(255,255,255,.74);white-space:pre-wrap;word-break:break-word;padding-left:16px}
 .row100k .tm-log{border:1px solid rgba(255,255,255,.4);font-family:var(--row-mono),monospace;font-size:11px;line-height:1.7;padding:10px 12px;max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;color:rgba(255,255,255,.82)}
 .row100k .tm-log .ts{color:rgba(255,255,255,.5);margin-right:8px}
+/* SAVE and SAVED ROWS (owner, 2026-09-17: the option to save the live
+ * telemetry of a row). The title box is the underline input the forms
+ * use, cut for the black ground; the note under the block is the quiet
+ * grey, a refusal wears the rule down its side that DROPPED wears; the
+ * LOADED word is the quiet inversion next to the link word. */
+.row100k .tm-save{display:flex;gap:14px 24px;flex-wrap:wrap;align-items:flex-end}
+.row100k .tm-title{display:flex;flex-direction:column;gap:6px;flex:1 1 320px;min-width:0}
+.row100k .tm-title .k{font-family:var(--row-mono),monospace;color:rgba(255,255,255,.62);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.row100k .tm-title input{width:100%;background:transparent;border:0;border-bottom:2px solid rgba(255,255,255,.55);color:#fff;font-family:var(--row-mono),monospace;font-size:13px;padding:6px 2px;border-radius:0;appearance:none;-webkit-appearance:none}
+.row100k .tm-title input::placeholder{color:rgba(255,255,255,.4)}
+.row100k .tm-title input:focus{outline:none;border-bottom-color:#fff}
+.row100k .tm-title input:disabled{color:rgba(255,255,255,.5);border-bottom-color:rgba(255,255,255,.25)}
+.row100k .tm-msg{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;line-height:1.7;margin:12px 0 0;color:#fff}
+.row100k .tm-msg.quiet{color:rgba(255,255,255,.5)}
+.row100k .tm-msg.ok{color:#fff;font-weight:700}
+.row100k .tm-msg.no{color:#fff;border-left:3px solid #fff;padding-left:10px;text-transform:none;letter-spacing:.06em}
+.row100k .tm-loaded{display:inline-block;border:1px solid rgba(255,255,255,.62);color:rgba(255,255,255,.82);font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:3px 8px 2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row100k table.board.tm-rows{min-width:900px}
+.row100k table.board.tm-rows td.tt{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row100k table.board.tm-rows tr.here td{color:#fff;font-weight:700}
+.row100k table.board.tm-rows .rn{color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums;margin-right:6px}
+.row100k .tm-simb{display:inline-block;background:#fff;color:var(--ink);font-family:var(--row-mono),monospace;font-size:9px;font-weight:700;letter-spacing:.16em;padding:2px 5px 1px;margin-left:8px;vertical-align:1px}
+.row100k .tm-act{white-space:nowrap}
+.row100k .tm-act .quiet-btn{margin-right:12px;text-transform:uppercase;letter-spacing:.12em;font-size:10px}
+.row100k .tm-act .quiet-btn:last-child{margin-right:0}
+.row100k .tm-act .quiet-btn.sure{color:#fff;font-weight:700}
+.row100k .tm-act .quiet-btn:disabled{opacity:.4;cursor:default;text-decoration:none}
 .row100k .tm-two{display:grid;grid-template-columns:1fr;gap:14px}
 .row100k .tm-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .row100k .tm-tools .n{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62)}

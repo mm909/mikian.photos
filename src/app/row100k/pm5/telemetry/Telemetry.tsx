@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import {
+  DurationType,
   PM5_REQUEST,
   PM5_UUID,
   SAMPLE_RATE,
@@ -14,6 +15,7 @@ import {
   fmtForce,
   fmtMeters,
   fmtPace,
+  fmtTenths,
   fmtWatts,
   fmtWorkoutTarget,
   intervalTypeWord,
@@ -55,6 +57,15 @@ import {
 } from "../pm5";
 import { Chart, ForceCurveChart, type Series } from "./charts";
 import { SIM_DEVICE_NAME, SIM_INFO, createPm5Sim, type Pm5Sim } from "./simulate";
+import {
+  buildTelemetryDoc,
+  fmtTenthsClock,
+  quickTitle,
+  type TelemetryCurve,
+  type TelemetryDoc,
+  type TelemetrySavedRow,
+  type TelemetryViewer,
+} from "./session";
 
 /* THE TELEMETRY CONSOLE (owner, 2026-09-17: a live telemetry screen like a
  * rocket launch). One erg, every number its monitor broadcasts, decoded
@@ -77,7 +88,15 @@ import { SIM_DEVICE_NAME, SIM_INFO, createPm5Sim, type Pm5Sim } from "./simulate
  * lines with the hex, the session keeps the DECODED fields of the last
  * 60,000 packets (about 45 minutes at 250 ms, where the monitor sends
  * some 17 a second) and says how many it dropped past that; the head says
- * how long that holds at the rate it is seeing. */
+ * how long that holds at the rate it is seeing.
+ *
+ * SAVE (owner, 2026-09-17: the option to save the live telemetry of a
+ * row). session.ts builds one document from this model — every stroke,
+ * one status tick a second, the splits, the force curves, the summaries —
+ * and POST /api/row100k/telemetry keeps it under the rower's number. SAVED
+ * ROWS lists them; LOAD replays one back into this same model, so the
+ * tiles, charts, splits and summary show the saved piece with the link
+ * reading NOT CONNECTED. */
 
 type Link = "idle" | "connecting" | "live" | "dropped";
 type Via = "direct" | "mixed" | "mux" | "sim";
@@ -94,6 +113,9 @@ const REC_CAP = 60_000;
 const REC_TRIM = 1_000;
 const STROKE_CAP = 6_000;
 const SAMPLE_CAP = 12_000;
+/* Force curves kept for SAVE, one per stroke; the chart only draws the last. */
+const FORCE_CAP = 2_000;
+const API = "/api/row100k/telemetry";
 /* Rolling windows on the charts. */
 const WINDOW_S = 120;
 const WINDOW_STROKES = 60;
@@ -133,7 +155,9 @@ type Stroke = {
 
 type Split = { n: number; a: SplitData | null; b: AdditionalSplitData | null };
 
-type Sample = { t: number; pace: number; avgPace: number; spm: number; hr: number | null };
+/* One 0x32 tick, with the distance, drag and latest stroke watts the
+ * console knew at that moment, so a saved sample stands on its own. */
+type Sample = { t: number; dist: number; pace: number; avgPace: number; spm: number; hr: number | null; watts: number | null; drag: number };
 
 type FeedLine = { at: string; id: number; via: "direct" | "mux"; bytes: number; hex: string; kind: string; decoded: Record<string, unknown> | null };
 
@@ -160,13 +184,18 @@ type Model = {
   samples: Sample[];
   force: ForceCurve | null;
   forceCount: number;
+  /* Every curve of the piece, tagged with the stroke count when it landed. */
+  forces: TelemetryCurve[];
   /* null = not asked yet; false = the characteristic is not on this monitor. */
   forceChar: boolean | null;
   feed: FeedLine[];
   log: LogLine[];
-  rec: { device: DeviceInfo | null; startedAt: string | null; packets: RecPacket[]; dropped: number; exported: boolean };
+  /* saved: a SAVE took this recording; a new packet clears it, like exported. */
+  rec: { device: DeviceInfo | null; startedAt: string | null; packets: RecPacket[]; dropped: number; exported: boolean; saved: boolean };
   ppsTimes: number[];
   simRunning: boolean;
+  /* A saved row replayed into the model, or null while the model is live. */
+  loaded: { id: string; title: string } | null;
 };
 
 const freshModel = (): Model => ({
@@ -186,12 +215,14 @@ const freshModel = (): Model => ({
   samples: [],
   force: null,
   forceCount: 0,
+  forces: [],
   forceChar: null,
   feed: [],
   log: [],
-  rec: { device: null, startedAt: null, packets: [], dropped: 0, exported: false },
+  rec: { device: null, startedAt: null, packets: [], dropped: 0, exported: false, saved: false },
   ppsTimes: [],
   simRunning: false,
+  loaded: null,
 });
 
 const clock = () => new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -257,19 +288,29 @@ const RESTING = new Set<number>([WorkoutState.INTERVALREST, WorkoutState.INTERVA
 
 /* Into the recording. Full means the oldest thousand go in one splice,
  * not a shift per packet on a 60,000-long array. */
+/* The packets that make a kept recording stale again. A PM5 keeps sending
+ * status ticks for as long as it is awake, so counting those would wipe the
+ * SAVED word one tick after a save and nag for a duplicate (review,
+ * 2026-09-17). Something a reader would miss — a stroke, a split, a
+ * summary, a new piece — is what counts. */
+const KEEPS_STALE = new Set(["stroke", "additionalStroke", "split", "additionalSplit", "summary", "additionalSummary1", "additionalSummary2", "piece"]);
+
 function record(mod: Model, p: RecPacket) {
   if (mod.rec.packets.length >= REC_CAP) {
     mod.rec.packets.splice(0, REC_TRIM);
     mod.rec.dropped += REC_TRIM;
   }
   mod.rec.packets.push(p);
-  mod.rec.exported = false;
+  if (KEEPS_STALE.has(p.kind)) {
+    mod.rec.exported = false;
+    mod.rec.saved = false;
+  }
   if (!mod.rec.startedAt) mod.rec.startedAt = new Date(p.t).toISOString();
 }
 
-/* A real recording nobody has exported: what a reload, another erg, the
- * simulator or CLEAR would throw away. */
-const unsaved = (mod: Model) => mod.rec.packets.length > 0 && !mod.rec.exported && !mod.rec.device?.simulated;
+/* A real recording nobody has exported or saved: what a reload, another
+ * erg, the simulator, a LOAD or CLEAR would throw away. */
+const unsaved = (mod: Model) => mod.rec.packets.length > 0 && !mod.rec.exported && !mod.rec.saved && !mod.rec.device?.simulated;
 
 /* The one question before that happens. */
 function confirmDiscard(mod: Model): boolean {
@@ -284,6 +325,26 @@ function exportName(rec: Model["rec"], what: string, ext: string): string {
   const when = (rec.startedAt ?? new Date().toISOString()).slice(0, 19).replace(/[:T]/g, "-");
   return `pm5-${what}-${who}-${when}.${ext}`;
 }
+
+/* The route's line, or the status when it sent none. */
+async function readError(res: Response): Promise<string> {
+  try {
+    const j = (await res.json()) as { error?: unknown };
+    if (typeof j.error === "string" && j.error) return j.error;
+  } catch {
+    /* not JSON */
+  }
+  return res.status === 401 ? "Sign in with Google first." : `The server answered ${res.status}.`;
+}
+
+/* 2026-09-17T18:03:00Z -> "Sep 17 · 11:03", in the viewer's own clock. */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+const dash = (v: number | null | undefined, unit = ""): string => (v === null || v === undefined ? "—" : `${v}${unit}`);
 
 /* The rowing characteristics subscribed directly, with the parser each
  * one runs. 0x3C is not here: the spec has it on 0x80 only. */
@@ -300,10 +361,22 @@ const DIRECT: { uuid: string; kind: string; parse: (dv: DataView) => Record<stri
   { uuid: PM5_UUID.heartRateBelt, kind: "heartRateBelt", parse: (dv) => parseHeartRateBelt(dv) },
 ];
 
-export function Telemetry() {
+export function Telemetry({ viewer, initialRows }: { viewer: TelemetryViewer; initialRows: TelemetrySavedRow[] }) {
   const [support, setSupport] = useState<"unknown" | "yes" | "no">("unknown");
   const [btOff, setBtOff] = useState(false);
   const [showFeed, setShowFeed] = useState(false);
+
+  /* ---- SAVE and SAVED ROWS, in state: a handful of values the buttons
+   * read, not the packet stream ---- */
+  const [rows, setRows] = useState<TelemetrySavedRow[]>(initialRows);
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  /* The line under the block: SAVED · time, or the route's refusal. */
+  const [saveNote, setSaveNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [rowNote, setRowNote] = useState<string | null>(null);
+  const [busyRow, setBusyRow] = useState<string | null>(null);
+  /* DELETE is two taps: the first arms this id and the button says SURE? */
+  const [armed, setArmed] = useState<string | null>(null);
   useEffect(() => {
     const bt = getBluetooth();
     setSupport(bt ? "yes" : "no");
@@ -360,6 +433,7 @@ export function Telemetry() {
     mod.summary2 = null;
     mod.force = null;
     mod.forceCount = 0;
+    mod.forces = [];
     assembler.current.reset();
   }, []);
 
@@ -377,7 +451,8 @@ export function Telemetry() {
       mod.feed = [];
       mod.ppsTimes = [];
       mod.device = device;
-      mod.rec = { device, startedAt: null, packets: [], dropped: 0, exported: false };
+      mod.rec = { device, startedAt: null, packets: [], dropped: 0, exported: false, saved: false };
+      mod.loaded = null;
       shortForce.current = 0;
     },
     [resetPiece],
@@ -448,7 +523,17 @@ export function Telemetry() {
         }
         case "additional1": {
           mod.a1 = p.data;
-          mod.samples.push({ t: p.data.elapsedS, pace: p.data.currentPaceS, avgPace: p.data.averagePaceS, spm: p.data.strokeRate, hr: p.data.heartRate });
+          const ls = mod.strokes[mod.strokes.length - 1];
+          mod.samples.push({
+            t: p.data.elapsedS,
+            dist: mod.general?.distanceM ?? 0,
+            pace: p.data.currentPaceS,
+            avgPace: p.data.averagePaceS,
+            spm: p.data.strokeRate,
+            hr: p.data.heartRate,
+            watts: ls?.watts ?? null,
+            drag: mod.general?.dragFactor ?? 0,
+          });
           if (mod.samples.length > SAMPLE_CAP) mod.samples.splice(0, mod.samples.length - SAMPLE_CAP);
           return;
         }
@@ -541,6 +626,10 @@ export function Telemetry() {
           if (curve) {
             mod.force = curve;
             mod.forceCount++;
+            /* Tagged with the stroke count the console had seen when the
+             * last chunk landed: on the wire the curve follows its 0x35. */
+            mod.forces.push({ n: mod.strokes.length ? mod.strokes[mod.strokes.length - 1].n : 0, points: curve.pointsLbf });
+            if (mod.forces.length > FORCE_CAP) mod.forces.splice(0, mod.forces.length - FORCE_CAP);
           }
           const lost = assembler.current.dropped;
           if (lost !== forceDropped.current) {
@@ -903,8 +992,11 @@ export function Telemetry() {
     const mod = m.current;
     if (!confirmDiscard(mod)) return;
     resetPiece();
-    mod.rec = { device: mod.device, startedAt: null, packets: [], dropped: 0, exported: false };
+    mod.rec = { device: mod.device, startedAt: null, packets: [], dropped: 0, exported: false, saved: false };
     mod.feed = [];
+    mod.loaded = null;
+    setSaveNote(null);
+    setTitleDraft(null);
     log("session cleared");
   }, [log, resetPiece]);
 
@@ -925,6 +1017,254 @@ export function Telemetry() {
     log(`exported ${strokes.length} strokes as CSV`);
   }, [log]);
 
+  /* ---- SAVE and SAVED ROWS ---- */
+
+  const refreshRows = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}${viewer.isAdmin ? "?all=1" : ""}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const j = (await res.json()) as { ok?: boolean; rows?: TelemetrySavedRow[] };
+      if (j.ok && Array.isArray(j.rows)) setRows(j.rows);
+    } catch {
+      /* the list on screen stands */
+    }
+  }, [viewer.isAdmin]);
+
+  const save = useCallback(
+    async (title: string) => {
+      const mod = m.current;
+      if (saving) return;
+      setSaving(true);
+      setSaveNote(null);
+      const doc = buildTelemetryDoc(mod);
+      try {
+        /* A gym network that swallows a megabyte must not leave SAVING… on
+         * the screen until the browser gives up minutes later. */
+        const res = await fetch(API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doc, title }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) {
+          const line = await readError(res);
+          setSaveNote({ ok: false, text: line });
+          log(`save refused — ${line}`);
+          return;
+        }
+        const j = (await res.json()) as { ok?: boolean; saved?: TelemetrySavedRow };
+        if (!j.ok || !j.saved) {
+          setSaveNote({ ok: false, text: "The server answered without a row." });
+          return;
+        }
+        const saved = j.saved;
+        mod.rec.saved = true;
+        setRows((prev) => [saved, ...prev.filter((r) => r.id !== saved.id)]);
+        setSaveNote({ ok: true, text: `SAVED · ${clock()}` });
+        setTitleDraft(null);
+        log(`saved as ${saved.title} (${doc.strokes.length} strokes, ${doc.samples.length} samples, ${doc.forceCurves.length} curves)`);
+        void refreshRows();
+      } catch (e) {
+        setSaveNote({ ok: false, text: `Couldn't reach the server — ${errText(e)}` });
+      } finally {
+        setSaving(false);
+      }
+    },
+    [log, refreshRows, saving],
+  );
+
+  /* A saved document back into the live model: strokes, samples, splits,
+   * curves and summaries as they were, plus a status trio synthesised
+   * from the totals so the tiles read the saved piece. The link stays
+   * idle, so nothing arrives on top of it until CONNECT or SIMULATE
+   * starts a fresh session. */
+  const replay = useCallback(
+    (row: TelemetrySavedRow, doc: TelemetryDoc) => {
+      const mod = m.current;
+      if (simRef.current) stopSim("stopped — a saved row is being loaded");
+      if (deviceRef.current) disconnect();
+      resetSession({
+        name: doc.device.name,
+        serial: doc.device.serial,
+        model: doc.device.model ?? null,
+        firmware: doc.device.firmware ?? null,
+        hardware: doc.device.hardware ?? null,
+        manufacturer: null,
+        machineType: null,
+        simulated: doc.device.simulated,
+      });
+      mod.link = "idle";
+      mod.via = null;
+      mod.strokes = doc.strokes.map((s) => ({
+        n: s.n,
+        elapsedS: s.elapsedHundredths / 100,
+        distanceM: s.distanceTenths / 10,
+        driveLengthM: s.driveLengthCm / 100,
+        driveTimeS: s.driveTimeHundredths / 100,
+        recoveryTimeS: s.recoveryTimeHundredths / 100,
+        strokeDistanceM: null,
+        peakLbf: s.peakForceTenthsLbf / 10,
+        avgLbf: s.avgForceTenthsLbf / 10,
+        workJ: s.workTenthsJ / 10,
+        watts: s.watts,
+        calPerHr: null,
+        projTimeS: null,
+        projDistM: null,
+        paceS: s.pace !== undefined ? s.pace / 100 : null,
+        spm: s.spm,
+        hr: s.hr,
+      }));
+      mod.samples = doc.samples.map((s) => ({
+        t: s.elapsedHundredths / 100,
+        dist: s.distanceTenths / 10,
+        pace: s.paceHundredths / 100,
+        avgPace: s.avgPaceHundredths / 100,
+        spm: s.spm,
+        hr: s.hr,
+        watts: s.watts,
+        drag: s.drag,
+      }));
+      mod.splits = doc.splits.map((s) => ({ n: s.n, a: s.a, b: s.b }));
+      mod.forces = doc.forceCurves.map((c) => ({ n: c.n, points: c.points }));
+      const lastCurve = mod.forces[mod.forces.length - 1];
+      if (lastCurve) {
+        let peakIndex = 0;
+        for (let i = 1; i < lastCurve.points.length; i++) if (lastCurve.points[i] > lastCurve.points[peakIndex]) peakIndex = i;
+        mod.force = { pointsLbf: lastCurve.points, peakLbf: lastCurve.points[peakIndex] ?? 0, peakIndex, chunks: 0 };
+      }
+      mod.forceCount = mod.forces.length;
+      mod.forceChar = mod.forces.length ? true : null;
+      mod.summary = doc.summary.s39;
+      mod.summary1 = doc.summary.s3a;
+      mod.summary2 = doc.summary.s3c;
+
+      const t = doc.totals;
+      const lastSample = mod.samples[mod.samples.length - 1] ?? null;
+      const lastSplit = mod.splits[mod.splits.length - 1] ?? null;
+      const seconds = t.tenths / 10;
+      mod.general = {
+        elapsedHundredths: t.tenths * 10,
+        elapsedS: seconds,
+        distanceM: t.meters,
+        workoutType: doc.workout.type,
+        intervalType: 255,
+        workoutState: WorkoutState.WORKOUTEND,
+        rowingState: 0,
+        strokeState: 0,
+        totalWorkDistanceM: doc.workout.durationType === DurationType.DISTANCE ? doc.workout.target : 0,
+        workoutDuration: doc.workout.target,
+        workoutDurationType: doc.workout.durationType,
+        dragFactor: t.dragFactor ?? lastSample?.drag ?? 0,
+      };
+      mod.a1 = {
+        elapsedS: seconds,
+        speedMps: seconds > 0 ? t.meters / seconds : 0,
+        strokeRate: lastSample?.spm ?? t.avgSpm ?? 0,
+        heartRate: lastSample?.hr ?? t.avgHr,
+        currentPaceS: lastSample ? lastSample.pace : 0,
+        averagePaceS: t.avgPaceTenths !== null ? t.avgPaceTenths / 10 : 0,
+        restDistanceM: 0,
+        restTimeS: 0,
+        averagePowerW: t.avgWatts,
+        ergMachineType: 0,
+      };
+      mod.a2 = {
+        elapsedS: seconds,
+        intervalCount: 0,
+        averagePowerW: t.avgWatts,
+        totalCalories: t.calories ?? 0,
+        splitAvgPaceS: lastSplit?.b?.avgPaceS ?? 0,
+        splitAvgPowerW: lastSplit?.b?.powerW ?? 0,
+        splitAvgCalories: lastSplit?.b?.avgCalories ?? 0,
+        lastSplitTimeS: lastSplit?.a?.splitTimeS ?? 0,
+        lastSplitDistanceM: lastSplit?.a?.splitDistanceM ?? 0,
+      };
+      mod.rec = { device: mod.device, startedAt: doc.startedAt, packets: [], dropped: 0, exported: true, saved: true };
+      mod.loaded = { id: row.id, title: row.title };
+      setSaveNote(null);
+      setTitleDraft(null);
+      log(`loaded ${row.title} — ${mod.strokes.length} strokes, ${mod.samples.length} samples, ${mod.forces.length} curves, ${mod.splits.length} splits`);
+      paint();
+    },
+    [disconnect, log, paint, resetSession, stopSim],
+  );
+
+  const fetchDoc = useCallback(async (id: string): Promise<{ row: TelemetrySavedRow; doc: TelemetryDoc } | string> => {
+    try {
+      const res = await fetch(`${API}/${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (!res.ok) return await readError(res);
+      const j = (await res.json()) as { ok?: boolean; row?: TelemetrySavedRow; doc?: TelemetryDoc };
+      if (!j.ok || !j.row || !j.doc) return "The server answered without the session.";
+      return { row: j.row, doc: j.doc };
+    } catch (e) {
+      return `Couldn't reach the server — ${errText(e)}`;
+    }
+  }, []);
+
+  const loadRow = useCallback(
+    async (id: string) => {
+      if (busyRow) return;
+      if (!confirmDiscard(m.current)) return;
+      setBusyRow(id);
+      setRowNote(null);
+      const got = await fetchDoc(id);
+      setBusyRow(null);
+      if (typeof got === "string") {
+        setRowNote(got);
+        return;
+      }
+      replay(got.row, got.doc);
+    },
+    [busyRow, fetchDoc, replay],
+  );
+
+  const exportRow = useCallback(
+    async (id: string) => {
+      if (busyRow) return;
+      setBusyRow(id);
+      setRowNote(null);
+      const got = await fetchDoc(id);
+      setBusyRow(null);
+      if (typeof got === "string") {
+        setRowNote(got);
+        return;
+      }
+      const who = `${got.doc.device.simulated ? "sim-" : ""}${(got.doc.device.serial || "erg").replace(/\W+/g, "")}`;
+      const when = got.doc.startedAt.slice(0, 19).replace(/[:T]/g, "-");
+      download(`pm5-saved-${who}-${when}.json`, JSON.stringify(got.doc, null, 1), "application/json");
+      log(`exported saved row ${got.row.title}`);
+    },
+    [busyRow, fetchDoc, log],
+  );
+
+  const deleteRow = useCallback(
+    async (id: string) => {
+      if (busyRow) return;
+      setBusyRow(id);
+      setRowNote(null);
+      setArmed(null);
+      try {
+        const res = await fetch(`${API}/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!res.ok) {
+          setRowNote(await readError(res));
+          return;
+        }
+        setRows((prev) => prev.filter((r) => r.id !== id));
+        if (m.current.loaded?.id === id) {
+          m.current.loaded = { id, title: `${m.current.loaded.title} (DELETED)` };
+          paint();
+        }
+        log("deleted a saved row");
+        void refreshRows();
+      } catch (e) {
+        setRowNote(`Couldn't reach the server — ${errText(e)}`);
+      } finally {
+        setBusyRow(null);
+      }
+    },
+    [busyRow, log, paint, refreshRows],
+  );
+
   /* ---- render ---- */
 
   if (support === "unknown") return null;
@@ -938,10 +1278,15 @@ export function Telemetry() {
   const pps = mod.ppsTimes.length;
   const busy = mod.link === "connecting";
 
-  /* Chart windows. */
+  /* Chart windows. Live they roll — the last two minutes and sixty strokes,
+   * which is what a rower wants to see while rowing. A LOADED piece is not
+   * rolling anywhere, so it shows all of itself; a forty-five minute row
+   * whose charts drew its last two minutes was hiding forty-three of them
+   * (review, 2026-09-17). */
+  const whole = mod.loaded !== null;
   const tEnd = mod.samples.length ? mod.samples[mod.samples.length - 1].t : 0;
-  const win = mod.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t > 0);
-  const strokesWin = mod.strokes.slice(-WINDOW_STROKES);
+  const win = whole ? mod.samples.filter((s) => s.t > 0) : mod.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t > 0);
+  const strokesWin = whole ? mod.strokes : mod.strokes.slice(-WINDOW_STROKES);
   let runSum = 0;
   let runN = 0;
   const runningAvg: { x: number; y: number }[] = [];
@@ -978,6 +1323,20 @@ export function Telemetry() {
   /* How long the recording holds at the packet rate it is seeing. */
   const holdsMin = pps ? Math.round(REC_CAP / pps / 60) : 0;
 
+  /* SAVE: what it would write, and why it is off when it is. */
+  const canSaveData = mod.strokes.length > 0 || mod.samples.length > 0;
+  const titleDefault = canSaveData ? quickTitle(mod) : "";
+  const titleValue = titleDraft ?? titleDefault;
+  const saveOff = !viewer.signedIn
+    ? "SIGN IN TO SAVE — the export buttons still work"
+    : !viewer.joined
+      ? "OPT IN TO ROWTEMBER TO SAVE — the export buttons still work"
+      : mod.loaded
+        ? "LOADED FROM SAVED ROWS — it is already saved; CONNECT or SIMULATE for a new session"
+        : !canSaveData
+          ? "NOTHING TO SAVE YET"
+          : null;
+
   return (
     <>
       {!bt && (
@@ -998,6 +1357,7 @@ export function Telemetry() {
               {linkWord[mod.link]}
               {mod.link === "live" && mod.via ? ` · ${mod.via.toUpperCase()}` : ""}
             </span>
+            {mod.loaded && <span className="tm-loaded">LOADED · {mod.loaded.title}</span>}
           </div>
           <dl>
             <dt>Serial</dt>
@@ -1018,6 +1378,14 @@ export function Telemetry() {
             <dd>
               {pps} / s · {mod.rec.packets.length.toLocaleString("en-US")} recorded{mod.rec.dropped ? ` · ${mod.rec.dropped.toLocaleString("en-US")} dropped` : ""}
               {holdsMin ? ` · holds ~${holdsMin} min at this rate` : ""}
+              {/* Whether the thing on screen is kept, said where the packet
+                * count already is (review, 2026-09-17). A loaded row is by
+                * definition saved; the simulator is nobody's session. */}
+              {mod.loaded || mod.rec.device?.simulated || !mod.rec.packets.length
+                ? ""
+                : mod.rec.saved
+                  ? " · SAVED"
+                  : " · NOT SAVED"}
             </dd>
           </dl>
           <div className="tm-state">
@@ -1053,6 +1421,14 @@ export function Telemetry() {
                 Simulate
               </button>
             )}
+            {/* SAVE IS UP HERE TOO (review, 2026-09-17). The piece ends at
+              * the summary and the hands are already on the head's buttons;
+              * the session block nine sections down, under the raw feed, is
+              * not where anybody would look for it. Same button, same
+              * disabling, same title as the one below. */}
+            <button type="button" className="outline-btn" disabled={!!saveOff || saving} onClick={() => void save(titleValue)} title={saveOff ?? "Save this session"}>
+              {saving ? "Saving…" : "Save"}
+            </button>
           </div>
           <div className="tm-rate">
             <span className="k">Status every</span>
@@ -1097,7 +1473,7 @@ export function Telemetry() {
       <section>
         <div className="sec-head">
           <h2>Charts</h2>
-          <span className="mono">LAST {WINDOW_S} S · LAST {WINDOW_STROKES} STROKES</span>
+          <span className="mono">{whole ? "THE WHOLE PIECE · LOADED" : `LAST ${WINDOW_S} S · LAST ${WINDOW_STROKES} STROKES`}</span>
         </div>
         <div className="tm-charts">
           <Chart title="Pace" unit="/500 M" series={paceSeries} xLabel="ELAPSED S" yLabel="FASTER ↑" xFmt={(x) => fmtClock(x)} yFmt={(y) => fmtPace(y)} invertY refY={120} refLabel="2:00" />
@@ -1325,21 +1701,139 @@ export function Telemetry() {
         <div className="sec-head">
           <h2>Session</h2>
           <span className="mono">
-            {mod.rec.startedAt ? `SINCE ${mod.rec.startedAt.slice(11, 19)} UTC` : "NOTHING RECORDED"} · {mod.rec.packets.length.toLocaleString("en-US")} PACKETS · {mod.strokes.length} STROKES
+            {mod.loaded
+              ? `LOADED · ${mod.loaded.title}`
+              : `${mod.rec.startedAt ? `SINCE ${mod.rec.startedAt.slice(11, 19)} UTC` : "NOTHING RECORDED"} · ${mod.rec.packets.length.toLocaleString("en-US")} PACKETS`}
+            {" · "}
+            {mod.strokes.length} STROKES
             {mod.rec.device?.simulated ? " · SIMULATED" : ""}
+            {mod.rec.saved && !mod.loaded ? " · SAVED" : ""}
           </span>
         </div>
-        <div className="tm-btns">
-          <button type="button" className="outline-btn" disabled={!mod.rec.packets.length} onClick={exportJson}>
-            Export JSON
-          </button>
-          <button type="button" className="outline-btn" disabled={!mod.strokes.length} onClick={exportCsv}>
-            Export CSV
-          </button>
-          <button type="button" className="outline-btn" disabled={!mod.rec.packets.length && !mod.strokes.length} onClick={clear}>
-            Clear
-          </button>
+        <div className="tm-save">
+          <label className="tm-title">
+            <span className="k">Title</span>
+            <input
+              type="text"
+              value={titleValue}
+              maxLength={80}
+              placeholder={titleDefault || "device · meters · time"}
+              disabled={!!saveOff || saving}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              aria-label="Title for the saved session"
+            />
+          </label>
+          <div className="tm-btns">
+            <button type="button" className="outline-btn" disabled={!!saveOff || saving} onClick={() => void save(titleValue)}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="outline-btn" disabled={!mod.rec.packets.length} onClick={exportJson}>
+              Export JSON
+            </button>
+            <button type="button" className="outline-btn" disabled={!mod.strokes.length} onClick={exportCsv}>
+              Export CSV
+            </button>
+            <button type="button" className="outline-btn" disabled={!mod.rec.packets.length && !mod.strokes.length && !mod.loaded} onClick={clear}>
+              Clear
+            </button>
+          </div>
         </div>
+        {saveOff ? (
+          <p className="tm-msg quiet">{saveOff}</p>
+        ) : saveNote ? (
+          <p className={`tm-msg ${saveNote.ok ? "ok" : "no"}`}>{saveNote.text}</p>
+        ) : (
+          <p className="tm-msg quiet">
+            SAVE keeps every stroke, one status tick a second, the splits, the force curves and the summary under rower {viewer.rowerNumber ?? "—"}
+            {mod.rec.device?.simulated ? " · marked SIMULATED" : ""} · saving twice makes two rows
+          </p>
+        )}
+      </section>
+
+      {/* ---- i. SAVED ROWS ---- */}
+      <section>
+        <div className="sec-head">
+          <h2>Saved rows</h2>
+          <span className="mono">
+            {viewer.isAdmin ? "EVERY ROWER · " : ""}
+            {rows.length} SAVED · NEWEST FIRST
+          </span>
+        </div>
+        {rowNote && <p className="tm-msg no">{rowNote}</p>}
+        {rows.length === 0 ? (
+          <p className="tm-empty">{viewer.signedIn ? "No saved rows yet — SAVE keeps a session here." : "Sign in to see your saved rows."}</p>
+        ) : (
+          <div className="tm-scroll">
+            <table className="board tm-t tm-rows">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  {viewer.isAdmin && <th>Rower</th>}
+                  <th>Device</th>
+                  <th>Meters</th>
+                  <th>Time</th>
+                  <th>Avg pace</th>
+                  <th>Watts</th>
+                  <th>SPM</th>
+                  <th>HR</th>
+                  <th>Strokes</th>
+                  <th>Title</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const busyHere = busyRow === r.id;
+                  const here = mod.loaded?.id === r.id;
+                  return (
+                    <tr key={r.id} className={here ? "here" : ""}>
+                      <td className="num">{fmtWhen(r.createdAt)}</td>
+                      {viewer.isAdmin && (
+                        <td>
+                          <span className="rn">{String(r.rowerNumber).padStart(3, "0")}</span> {r.displayName}
+                        </td>
+                      )}
+                      <td>
+                        {r.device}
+                        {r.simulated && <span className="tm-simb">SIM</span>}
+                      </td>
+                      <td className="num">{r.meters.toLocaleString("en-US")}</td>
+                      <td className="num">{fmtTenthsClock(r.tenths)}</td>
+                      <td className="num">{r.avgPaceTenths !== null ? fmtTenths(r.avgPaceTenths) : "—"}</td>
+                      <td className="num">{dash(r.avgWatts)}</td>
+                      <td className="num">{dash(r.avgSpm)}</td>
+                      <td className="num">{dash(r.avgHr)}</td>
+                      <td className="num">{r.strokes}</td>
+                      <td className="tt">{r.title}</td>
+                      <td className="tm-act">
+                        <button type="button" className="quiet-btn" disabled={!!busyRow} onClick={() => void loadRow(r.id)}>
+                          {busyHere ? "…" : here ? "loaded" : "load"}
+                        </button>
+                        <button type="button" className="quiet-btn" disabled={!!busyRow} onClick={() => void exportRow(r.id)}>
+                          export
+                        </button>
+                        {armed === r.id ? (
+                          <>
+                            <button type="button" className="quiet-btn sure" disabled={!!busyRow} onClick={() => void deleteRow(r.id)}>
+                              sure?
+                            </button>
+                            <button type="button" className="quiet-btn" disabled={!!busyRow} onClick={() => setArmed(null)}>
+                              keep
+                            </button>
+                          </>
+                        ) : (
+                          <button type="button" className="quiet-btn" disabled={!!busyRow} onClick={() => setArmed(r.id)}>
+                            delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );
