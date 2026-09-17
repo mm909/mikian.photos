@@ -227,6 +227,21 @@ export function Review({ row, a }: { row: TelemetrySavedRow; a: ErgAnalysis }) {
         <DeleteSession id={row.id} redirectTo="/erg/sessions" label="Delete this session" />
       </div>
 
+      {/* WHAT EXPLAINS, AT THE FOOT (owner, 2026-09-17: "whenever we have
+       * text that explains something, let us put it on the bottom of the
+       * page rather than the top"). The top of this screen is the time. */}
+      <div className="eg-tail">
+        <p>
+          <b>This is a piece that has already been rowed.</b> THE READ and WHAT NEXT are written from the numbers
+          on this page alone — no baseline from other sessions, nothing borrowed from a challenge. Where the
+          monitor sent no splits they are cut from the tick stream and labelled as derived.
+        </p>
+        <p>
+          PLAY IT BACK hands this document to the monitors screen, which feeds it to a row the way a monitor in
+          the room feeds one. EXPORT THE DOCUMENT is the saved file itself, exactly as it went into the database.
+        </p>
+      </div>
+
       {/* What the arithmetic above was allowed to see. A monitor sitting
        * between pieces keeps sending stroke packets at impossible rates;
        * those are kept in the document and left out of the averages, and

@@ -1,6 +1,5 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { CHALLENGE } from "@/lib/row100k";
 import { cleanTitle, columnsFrom, defaultTitle, type TelemetryDoc, type TelemetrySavedRow } from "./session";
 
 /* THE SAVED SESSIONS ON THE SERVER (owner, 2026-09-17: the erg console
@@ -79,19 +78,26 @@ function toSaved(row: DbRow): TelemetrySavedRow {
   };
 }
 
-/* The viewer's own RowParticipant id, or null when they never joined the
- * challenge — see THE LEGACY CLAUSE above. A failure here is not fatal:
- * the read goes on with the userId match alone. */
-async function legacyParticipantId(userId: string): Promise<string | null> {
+/* EVERY RowParticipant this account has ever had, whatever challenge it
+ * belongs to — see THE LEGACY CLAUSE above.
+ *
+ * It asks for all of them rather than the one in CHALLENGE on purpose
+ * (owner, 2026-09-17: two saved sessions he could not see). CHALLENGE is
+ * the DEMO namespace whenever the demo flag is set, which is what the
+ * local dev server runs on, so keying the lookup to it hid his own rows
+ * from him on the machine he was looking at — and would hide them again
+ * the day the challenge is renamed. The rows themselves are pinned to one
+ * participant id; which challenge that participant sat in is not this
+ * question.
+ *
+ * A failure is not fatal: the read goes on with the account match alone. */
+async function legacyParticipantIds(userId: string): Promise<string[]> {
   try {
-    const p = await db.rowParticipant.findUnique({
-      where: { challenge_userId: { challenge: CHALLENGE, userId } },
-      select: { id: true },
-    });
-    return p?.id ?? null;
+    const rows = await db.rowParticipant.findMany({ where: { userId }, select: { id: true } });
+    return rows.map((r) => r.id);
   } catch (err) {
     console.error("erg sessions: legacy participant lookup failed, matching on the account alone", err);
-    return null;
+    return [];
   }
 }
 
@@ -99,9 +105,9 @@ async function legacyParticipantId(userId: string): Promise<string | null> {
  * account's own rows plus its pre-move rows for anyone else. */
 async function scopeWhere(scope: ErgScope): Promise<Prisma.RowTelemetryWhereInput> {
   if (scope.isAdmin) return {};
-  const pid = await legacyParticipantId(scope.userId);
+  const pids = await legacyParticipantIds(scope.userId);
   const or: Prisma.RowTelemetryWhereInput[] = [{ userId: scope.userId }];
-  if (pid) or.push({ userId: null, participantId: pid });
+  if (pids.length > 0) or.push({ userId: null, participantId: { in: pids } });
   return { OR: or };
 }
 

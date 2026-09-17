@@ -16,8 +16,8 @@ import {
   workoutStateWord,
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
-import { fmtBand as fmtPredBand, fmtTime as fmtPredTime, predictFinish, type Block } from "@/lib/pm5/predict";
 import { Chart, ForceCurveChart, thinPoints, type Series, type XY } from "./charts";
+import { GoalControl, expectedFinish, goalMismatch, goalWord } from "./ErgGoal";
 import {
   LINK_WORD,
   RATE_KEYS,
@@ -85,9 +85,12 @@ function dotClass(e: Erg): string {
   return "eg-dot";
 }
 
-function Tile({ label, value, unit, sub }: { label: string; value: string; unit?: string; sub?: string }) {
+/* HINT is the long line a tile cannot print — what the expected finish's
+ * band is and where it came from — held on the tile rather than on the
+ * screen, the same way the monitors row holds it (review, 2026-09-17). */
+function Tile({ label, value, unit, sub, hint }: { label: string; value: string; unit?: string; sub?: string; hint?: string | null }) {
   return (
-    <div className="eg-big">
+    <div className="eg-big" title={hint ?? undefined}>
       <span className="l">{label}</span>
       <span className="v">
         {value}
@@ -175,40 +178,23 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
    * go. predict.ts answers the question the rower is actually asking —
    * a finish WITH A BAND, built from how much the finished splits varied
    * and how many are left, so it starts wide and closes as the piece does.
-   * The splits are the blocks; before the first one lands it falls back to
-   * a prior and says so. */
-  const blocks: Block[] = m.splits.flatMap((s) => {
-    const a = s.a;
-    if (!a) return [];
-    const meters = a.splitDistanceM > 0 ? a.splitDistanceM : 0;
-    const seconds = a.splitTimeS > 0 ? a.splitTimeS : 0;
-    return meters > 0 && seconds > 0 ? [{ n: s.n, meters, seconds }] : [];
-  });
-  const pred = g
-    ? predictFinish({
-        targetMeters: g.totalWorkDistanceM > 0 ? g.totalWorkDistanceM : null,
-        distanceM: g.distanceM,
-        elapsedS: g.elapsedHundredths / 100,
-        blocks,
-        blockM: blocks.length ? blocks[blocks.length - 1].meters : 500,
-        currentPaceS: a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null,
-      })
-    : null;
+   *
+   * IT IS READ AGAINST THE GOAL, not against the monitor's workout (owner,
+   * 2026-09-17: "infer the goal distance to be a five K always. But allow
+   * us to change it"). ErgGoal.tsx owns that call and the monitors row
+   * makes exactly the same one, so the two screens cannot disagree. Where
+   * the monitor is set to a different fixed distance, the line under the
+   * head says so and neither number is overruled. */
+  const finish = expectedFinish(erg);
+  const mismatch = goalMismatch(erg);
 
-  /* What the tile prints. A fixed distance gets the band; a just-row or a
-   * timed piece has no finish to predict, so it falls back to the
-   * monitor's own number and says where it came from. */
-  const finishTile = (() => {
-    if (pred?.ready && pred.finishS !== null) {
-      const done = pred.remainingS === 0;
-      const band = pred.bandS !== null && pred.bandS > 0 ? `± ${fmtPredBand(pred.bandS)}` : "EXACT";
-      const how = done ? "THE PIECE IS ROWED" : pred.sigmaFromPrior ? "BAND FROM A PRIOR, NOT YET FROM THIS PIECE" : `FROM ${pred.blocksDone.toFixed(1)} SPLITS ROWED`;
-      return { value: fmtPredTime(pred.finishS), sub: done ? how : `${band} · ${how}` };
-    }
-    const monitor = last?.projTimeS !== null && last?.projTimeS !== undefined ? fmtClock(last.projTimeS) : "—";
-    const why = pred?.note ? pred.note.toUpperCase() : last?.projDistM !== null && last?.projDistM !== undefined ? `PROJECTED ${fmtMeters(last.projDistM)}` : "";
-    return { value: monitor, sub: why ? `${why} · THE MONITOR'S OWN PROJECTION` : "" };
-  })();
+  /* Before there are metres to work with there is no band to print, so the
+   * tile falls back to the monitor's own number and says where it came
+   * from — with the reason the prediction is not ready yet. */
+  const monitorProj = last?.projTimeS !== null && last?.projTimeS !== undefined ? fmtClock(last.projTimeS) : null;
+  const finishTile = finish.ready
+    ? { value: finish.value, sub: finish.under }
+    : { value: monitorProj ?? "—", sub: monitorProj ? `${finish.under} · THE MONITOR'S OWN PROJECTION` : finish.under };
 
   const save = async () => {
     setBusy(true);
@@ -257,6 +243,11 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             {g ? <span>{strokeStateWord(g.strokeState)}</span> : null}
           </span>
 
+          {/* THE GOAL, changeable here as well as on the row (owner,
+           * 2026-09-17). Same control, same hub call. */}
+          <GoalControl ergId={erg.id} goalM={erg.goalM} />
+          {mismatch ? <span className="eg-note">{mismatch}</span> : null}
+
           <span className="eg-chips">
             <span className="eg-pb-k">Status every</span>
             {RATE_KEYS.map((k) => (
@@ -287,10 +278,14 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
            * piece helps nobody. */}
           {playback ? null : (
             <span className="eg-save">
+              {/* The same field the monitors row names this erg with
+                * (review, 2026-09-17), so it is worded the same on both
+                * screens: what is typed here is the row heading and the
+                * title the piece is saved under. */}
               <label className="eg-note" htmlFor={`dtitle-${erg.id}`} style={{ position: "absolute", left: -10000 }}>
-                Title for this session
+                Name this erg
               </label>
-              <input id={`dtitle-${erg.id}`} value={ergTitle(erg)} onChange={(ev) => setErgTitle(erg.id, ev.target.value)} placeholder="Title for this session" />
+              <input id={`dtitle-${erg.id}`} value={ergTitle(erg)} onChange={(ev) => setErgTitle(erg.id, ev.target.value)} placeholder="Name this erg" />
               <button
                 type="button"
                 className="eg-btn"
@@ -352,7 +347,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           value={last ? String(last.n) : "—"}
           sub={last?.strokeDistanceM !== null && last?.strokeDistanceM !== undefined ? `${last.strokeDistanceM.toFixed(2)} M PER STROKE` : ""}
         />
-        <Tile label="Projected finish" value={finishTile.value} sub={finishTile.sub} />
+        <Tile label={`Expected ${goalWord(erg.goalM)}`} value={finishTile.value} sub={finishTile.sub} hint={finish.hint} />
         <Tile
           label="Work per stroke"
           value={last?.workJ !== null && last?.workJ !== undefined ? last.workJ.toFixed(0) : "—"}

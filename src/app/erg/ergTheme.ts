@@ -1,7 +1,9 @@
 /* THE ERG PRODUCT SHEET (owner, 2026-09-17: the telemetry screen moves out
  * of Rowtember and the two things go disjoint). Its OWN tokens — nothing
  * here reaches into /row100k/theme.ts, and nothing here leaks out: every
- * rule is scoped under .eg, the class the layout puts on the page.
+ * rule is scoped under .eg, the class Shell.tsx puts on the page body. The
+ * bar and the footer above and below it are the site chrome and are styled
+ * by /row100k/theme.ts, not by this file.
  *
  * TWO GROUNDS, one skeleton. The skeleton (ergCss) colours itself entirely
  * off CSS variables; a surface picks which set it wants by wearing
@@ -57,9 +59,9 @@ export const ergPaperCss = `
 }
 `;
 
-/* The skeleton every erg surface shares: type, the bar, buttons, cards,
- * tiles, the log. Colours come from the variables above, so one rule set
- * reads on both grounds. */
+/* The skeleton every erg surface shares: type, buttons, the monitor rows,
+ * the console, the tables, the log. Colours come from the variables above,
+ * so one rule set reads on both grounds. */
 export const ergCss = `
 .eg,.eg *{margin:0;padding:0;box-sizing:border-box}
 .eg{
@@ -79,27 +81,16 @@ export const ergCss = `
 .eg a{color:inherit;text-underline-offset:3px}
 .eg b{font-weight:700}
 
-.eg .eg-bar{
-  position:sticky;top:0;z-index:40;
-  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
-  padding:12px 18px;
-  background:var(--eg-bg);
-  border-bottom:1px solid var(--eg-line);
-}
-.eg .eg-bar .eg-mark{font-family:var(--eg-black),sans-serif;font-size:15px;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
-.eg .eg-bar nav{display:flex;gap:16px;align-items:center}
-.eg .eg-bar nav a{font-family:var(--eg-mono),monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3);text-decoration:none}
-.eg .eg-bar nav a:hover{color:var(--eg-fg)}
-.eg .eg-bar nav a.on{color:var(--eg-fg);text-decoration:underline}
-.eg .eg-bar .eg-who{margin-left:auto;font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3)}
-.eg .eg-bar .eg-who a{color:var(--eg-fg)}
+/* THE BAR THIS SHEET USED TO CARRY IS GONE (owner, 2026-09-17: it does not
+ * need to be its own page at the moment — we will leave it in the drop-down
+ * menu for now, but when it goes live it will probably just be another
+ * header on the Rowtember site). These pages wear the site bar and the site
+ * footer now; see Shell.tsx. Only the body below them is .eg. */
 
 .eg .eg-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;justify-content:space-between;border-bottom:1px solid var(--eg-line);padding-bottom:10px;margin:26px 0 18px}
 .eg .eg-head h1{font-family:var(--eg-black),sans-serif;font-weight:400;font-size:30px;line-height:1.1;letter-spacing:-.01em}
 .eg .eg-head .eg-eyebrow{font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3)}
 
-.eg .eg-copy{color:var(--eg-fg-2);max-width:74ch;font-size:15px;margin-bottom:14px}
-.eg .eg-copy b{color:var(--eg-fg)}
 .eg .eg-note{font-family:var(--eg-mono),monospace;font-size:12px;color:var(--eg-fg-3)}
 .eg .eg-bad{color:#ff8a7a}
 
@@ -116,21 +107,114 @@ export const ergCss = `
 .eg .eg-btn-quiet:hover{background:transparent;border-color:var(--eg-fg);color:var(--eg-fg)}
 .eg .eg-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 22px}
 
-.eg .eg-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
-.eg .eg-card{border:1px solid var(--eg-line);border-radius:3px;background:var(--eg-panel);padding:0;display:flex;flex-direction:column}
-.eg .eg-card-open{
-  display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--eg-line-soft);
-  padding:14px 16px 12px;cursor:pointer;color:inherit;text-decoration:none;
-}
-.eg .eg-card-open:hover{background:rgba(127,127,127,.08)}
-.eg .eg-card-name{font-family:var(--eg-black),sans-serif;font-size:17px;letter-spacing:.01em;display:block}
-.eg .eg-card-sub{font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);display:block;margin-top:3px}
-.eg .eg-card-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:12px}
+/* ---- THE MONITORS LIST: ONE ROW PER ERG (owner, 2026-09-17, after using
+ * the cards: I want them to be more horizontal than cards — horizontally
+ * stacked rather than side by side like a card). A full-width line each,
+ * stacked down the page: the erg, the four live numbers, the goal, the dot
+ * menu. Six ergs read as six lines.
+ *
+ * The row is one anchor plus the controls beside it. The anchor carries the
+ * erg and the numbers; the goal and the menu sit outside it, because a
+ * control inside a link is not a control.
+ *
+ * ON A PHONE the numbers wrap UNDER the erg rather than squeezing, and the
+ * side controls take their own line. Nothing here may scroll sideways, so
+ * every flex child that holds text is min-width:0. ---- */
 
-.eg .eg-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.eg .eg-tile{border:1px solid var(--eg-line-soft);border-radius:2px;padding:8px 9px}
-.eg .eg-tile .k{display:block;font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3)}
-.eg .eg-tile .v{display:block;font-family:var(--eg-black),sans-serif;font-size:19px;line-height:1.2;font-variant-numeric:tabular-nums;margin-top:2px}
+.eg .eg-rows{display:flex;flex-direction:column;gap:10px}
+.eg .eg-r{
+  border:1px solid var(--eg-line);border-radius:3px;background:var(--eg-panel);
+  display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;
+  padding:10px 12px 10px 14px;
+}
+.eg .eg-r-open{
+  flex:1 1 560px;min-width:0;
+  display:flex;align-items:center;gap:12px 22px;flex-wrap:wrap;
+  text-decoration:none;color:inherit;padding:4px 2px;border-radius:2px;
+}
+.eg .eg-r-open:hover .eg-r-name{text-decoration:underline}
+.eg .eg-r-who{flex:1 1 200px;min-width:0}
+.eg .eg-r-name{display:block;font-family:var(--eg-black),sans-serif;font-size:17px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eg .eg-r-sub{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-family:var(--eg-mono),monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--eg-fg-3);margin-top:3px;
+}
+.eg .eg-r-nums{flex:2 1 440px;min-width:0;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.eg .eg-r-n{min-width:0;display:block}
+/* The key WRAPS rather than clipping: EXPECTED 5,000 M FINISH is the
+ * longest of the four and it has to read whole. Two lines of room on every
+ * key, so the four numbers under them still line up. */
+.eg .eg-r-n .k{display:block;font-family:var(--eg-mono),monospace;font-size:9px;line-height:1.25;letter-spacing:.13em;text-transform:uppercase;color:var(--eg-fg-3);min-height:23px;overflow:hidden}
+.eg .eg-r-n .v{display:block;font-family:var(--eg-black),sans-serif;font-size:clamp(18px,2.1vw,24px);line-height:1.15;font-variant-numeric:tabular-nums;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The line under a number WRAPS (review, 2026-09-17: at 9px, nowrap and an
+ * ellipsis, the band on the expected finish was cut off mid-word for the
+ * whole first kilometre of every piece, which left a bold clock with
+ * nothing beside it saying it was a guess). Two lines of room, the same
+ * grey as the keys rather than the quietest one on the sheet, and the long
+ * version of the sentence lives in a title attribute. */
+.eg .eg-r-n .s{display:block;font-family:var(--eg-mono),monospace;font-size:10.5px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);margin-top:3px;min-height:28px;overflow-wrap:break-word}
+.eg .eg-r-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+.eg .eg-r-goal{display:flex;align-items:center;min-width:0}
+/* SAVED or UNSAVED, on the row (review, 2026-09-17). Quiet when the piece
+ * is filed, outlined in full white when it is not. */
+.eg .eg-pip{display:inline-block;border:1px solid var(--eg-line);border-radius:2px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--eg-fg-3)}
+.eg .eg-pip-on{border-color:var(--eg-fg);color:var(--eg-fg)}
+.eg .eg-r-note{
+  flex:1 1 100%;border-top:1px dashed var(--eg-line-soft);padding-top:8px;
+  font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--eg-fg-4);
+}
+
+/* THE GOAL CONTROL (owner, 2026-09-17: infer the goal distance to be a
+ * five K always, but allow us to change it). Three chips and a box, on the
+ * row and in the console head. */
+.eg .eg-goal{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.eg .eg-goal-k{font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3)}
+.eg .eg-goal-box{
+  width:88px;min-width:0;
+  font-family:var(--eg-mono),monospace;font-size:12px;font-variant-numeric:tabular-nums;
+  padding:6px 8px;border:1px solid var(--eg-line);border-radius:2px;
+  background:transparent;color:var(--eg-fg);
+}
+.eg .eg-goal-box::placeholder{color:var(--eg-fg-4)}
+
+/* THE DOT MENU (owner, 2026-09-17: the save, remove, disconnect options
+ * should be like in a dot dot dot menu). A 44px button, a panel hung off
+ * it, and every control in the panel at thumb size. */
+.eg .eg-menu-wrap{position:relative}
+.eg .eg-dots{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;padding:0 10px;
+  border:1px solid var(--eg-line);border-radius:2px;background:transparent;color:var(--eg-fg-2);
+  font-family:var(--eg-mono),monospace;font-size:13px;letter-spacing:.14em;line-height:1;cursor:pointer;
+}
+.eg .eg-dots:hover{border-color:var(--eg-fg);color:var(--eg-fg)}
+.eg .eg-dots[aria-expanded=true]{border-color:var(--eg-fg);color:var(--eg-fg)}
+.eg .eg-menu{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:30;
+  width:266px;max-width:76vw;
+  display:flex;flex-direction:column;gap:8px;
+  border:1px solid var(--eg-fg);border-radius:3px;background:var(--eg-panel);padding:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.45);
+}
+.eg .eg-menu input{
+  width:100%;min-height:44px;
+  font-family:var(--eg-mono),monospace;font-size:12px;
+  padding:9px 10px;border:1px solid var(--eg-line);border-radius:2px;
+  background:transparent;color:var(--eg-fg);
+}
+.eg .eg-menu input::placeholder{color:var(--eg-fg-4)}
+.eg .eg-menu .eg-btn{justify-content:center;min-height:44px}
+.eg .eg-menu .eg-note{word-break:break-word}
+/* The two phone-only halves of the goal control: the button that stands in
+ * for it on the row, and the chips and the box inside this panel. Both are
+ * rendered on every row at every width; the media query below displays one
+ * of them and the row keeps the other. */
+.eg .eg-goal-mini{display:none}
+.eg .eg-menu-goal{display:none}
+
+/* Said to a screen reader, never on screen. */
+.eg .eg-away{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 .eg .eg-link-state{display:inline-flex;align-items:center;gap:6px;font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 .eg .eg-dot{width:8px;height:8px;border-radius:50%;background:var(--eg-fg-4);display:inline-block}
@@ -153,10 +237,49 @@ export const ergCss = `
 
 .eg .eg-foot{border-top:1px solid var(--eg-line-soft);margin-top:46px;padding:16px 0 40px;font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-4)}
 
+/* WHAT EXPLAINS, AT THE FOOT (owner, 2026-09-17: whenever we have text that
+ * explains something, let us put it on the bottom of the page rather than
+ * the top). Under a quiet rule, in the mono voice the rest of the quiet
+ * text on these pages uses — present for the reader who wants it, out of
+ * the way of the reader who does not. */
+.eg .eg-tail{border-top:1px solid var(--eg-line-soft);margin-top:40px;padding-top:16px;max-width:84ch}
+.eg .eg-tail p{font-family:var(--eg-mono),monospace;font-size:12px;line-height:1.75;color:var(--eg-fg-3);margin-bottom:10px}
+.eg .eg-tail p:last-child{margin-bottom:0}
+.eg .eg-tail b{color:var(--eg-fg-2);font-weight:700}
+
+/* INSIDE THE SITE SHELL the bar and the footer carry the page, so the erg
+ * body no longer needs a screen of its own height — but it should still
+ * hold the ground down a short page. */
+.row100k .eg{min-height:70vh}
+
+/* ON A PHONE THE GOAL FOLDS INTO THE MENU (review, 2026-09-17: a label,
+ * three 44px chips and a 44px box on their own full-width band roughly
+ * doubled every row, so three ergs ran to three screens of scrolling — on
+ * the screen whose whole point is that six ergs read as six lines). The row
+ * keeps the name, the four numbers and one 44px band: the current goal on
+ * the left, the ••• on the right, both opening the same panel. */
+@media (max-width:760px){
+  .eg .eg-r-open{gap:10px}
+  .eg .eg-r-who{flex:1 1 100%}
+  .eg .eg-r-nums{flex:1 1 100%;grid-template-columns:repeat(2,1fr);gap:10px 12px}
+  .eg .eg-r-side{width:100%;margin-left:0}
+  .eg .eg-r-goal{display:none}
+  .eg .eg-menu-wrap{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .eg .eg-goal-mini{
+    display:inline-flex;align-items:center;gap:8px;
+    min-height:44px;padding:6px 12px;
+    border:1px solid var(--eg-line);border-radius:2px;background:transparent;color:var(--eg-fg-2);
+    font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    line-height:1.2;cursor:pointer;
+  }
+  .eg .eg-goal-mini:hover{border-color:var(--eg-fg);color:var(--eg-fg)}
+  .eg .eg-goal-mini[aria-expanded=true]{border-color:var(--eg-fg);color:var(--eg-fg)}
+  .eg .eg-menu-goal{display:block}
+  .eg .eg-goal .eg-chip{min-height:44px;padding:5px 12px}
+  .eg .eg-goal-box{min-height:44px}
+}
 @media (max-width:560px){
   .eg .eg-head h1{font-size:24px}
-  .eg .eg-tiles{grid-template-columns:repeat(2,1fr)}
-  .eg .eg-bar{gap:10px;padding:10px 14px}
   .eg .eg-wrap{padding:0 16px}
 }
 /* ---- ONE ERG: the console (owner, 2026-09-17: click on that erg and see

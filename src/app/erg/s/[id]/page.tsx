@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { analyseSession, comparableRows } from "@/lib/pm5/analysis";
 import { getErgSession, listErgSessions } from "@/lib/pm5/store";
 import type { TelemetryDoc, TelemetrySavedRow } from "@/lib/pm5/session";
-import { ErgBar } from "../../ErgBar";
-import { ergPageOpen, ergViewer, type ErgViewer } from "../../gate";
+import { ergPageOpen, ergViewer } from "../../gate";
 import { reviewCss } from "../../reviewCss";
+import { ErgShell } from "../../Shell";
 import { Review } from "./Review";
 
 export const dynamic = "force-dynamic";
@@ -33,13 +33,11 @@ export const metadata: Metadata = {
  * A row outside the account is a 404 here, the same as it is on the
  * route: an id says nothing about whose it is. */
 
-function Shell({ v, children }: { v: ErgViewer; children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="eg-paper">
-      <style>{reviewCss}</style>
-      <ErgBar active="sessions" viewer={v} />
-      <div className="eg-wrap">{children}</div>
-    </div>
+    <ErgShell ground="paper" sheet={reviewCss}>
+      {children}
+    </ErgShell>
   );
 }
 
@@ -49,7 +47,7 @@ export default async function ErgSessionPage({ params }: { params: { id: string 
 
   if (!v.userId) {
     return (
-      <Shell v={v}>
+      <Shell>
         <div className="eg-head">
           <h1>Session</h1>
           <span className="eg-eyebrow">Sign in to read a saved piece</span>
@@ -87,7 +85,7 @@ export default async function ErgSessionPage({ params }: { params: { id: string 
   } catch (err) {
     console.error("erg session page: load failed", err);
     return (
-      <Shell v={v}>
+      <Shell>
         <div className="eg-head">
           <h1>Session</h1>
           <span className="eg-eyebrow">The database did not answer</span>
@@ -109,7 +107,7 @@ export default async function ErgSessionPage({ params }: { params: { id: string 
   const a = analyseSession({ doc: found.doc, id: found.row.id, history, compare });
 
   return (
-    <Shell v={v}>
+    <Shell>
       <Review row={found.row} a={a} />
     </Shell>
   );

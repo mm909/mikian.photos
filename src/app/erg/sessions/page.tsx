@@ -5,9 +5,9 @@ import { fmtMeters } from "@/lib/pm5/pm5";
 import { fmtSplit, fmtWhen } from "@/lib/pm5/analysis";
 import { fmtTenthsClock, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { listErgSessions } from "@/lib/pm5/store";
-import { ErgBar } from "../ErgBar";
-import { ergPageOpen, ergViewer, type ErgViewer } from "../gate";
+import { ergPageOpen, ergViewer } from "../gate";
 import { reviewCss } from "../reviewCss";
+import { ErgShell } from "../Shell";
 import { DeleteSession } from "../s/DeleteSession";
 
 export const dynamic = "force-dynamic";
@@ -29,17 +29,21 @@ export const metadata: Metadata = {
  *
  * A REVIEW SURFACE, so it wears paper rather than the ink of the live
  * screens. No heart rate column, no challenge, no rower number — a
- * session belongs to an account and prints the erg and the piece. */
+ * session belongs to an account and prints the erg and the piece.
+ *
+ * WHAT EXPLAINS IS AT THE FOOT (owner, 2026-09-17: "whenever we have text
+ * that explains something, let us put it on the bottom of the page rather
+ * than the top"). What is left at the top is the title, the count and the
+ * controls — and the one thing that BLOCKS a reader, which is being signed
+ * out, because that is not an explanation, it is the answer. */
 
 const dash = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v).toLocaleString("en-US") : "—");
 
-function Shell({ v, children }: { v: ErgViewer; children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="eg-paper">
-      <style>{reviewCss}</style>
-      <ErgBar active="sessions" viewer={v} />
-      <div className="eg-wrap">{children}</div>
-    </div>
+    <ErgShell ground="paper" sheet={reviewCss}>
+      {children}
+    </ErgShell>
   );
 }
 
@@ -50,7 +54,7 @@ export default async function ErgSessionsPage({ searchParams }: { searchParams: 
 
   if (!v.userId) {
     return (
-      <Shell v={v}>
+      <Shell>
         <div className="eg-head">
           <h1>Sessions</h1>
           <span className="eg-eyebrow">Sign in to see what is saved</span>
@@ -80,26 +84,13 @@ export default async function ErgSessionsPage({ searchParams }: { searchParams: 
   const meters = rows.reduce((a, r) => a + (r.simulated ? 0 : r.meters), 0);
 
   return (
-    <Shell v={v}>
+    <Shell>
       <div className="eg-head">
         <h1>Sessions</h1>
         <span className="eg-eyebrow">
           {rows.length.toLocaleString("en-US")} saved · {fmtMeters(meters)} rowed
         </span>
       </div>
-
-      {picking ? (
-        <p className="eg-copy">
-          <b>Pick a row to play back.</b> PLAY opens the monitors screen and feeds that saved document to a card
-          the same way a monitor in the room feeds one — the same tiles, the same charts, the same force curve,
-          at the speed it was rowed.
-        </p>
-      ) : (
-        <p className="eg-copy">
-          <b>Every piece saved to this account.</b> Open one for the read: how it ranks, how it was paced, what
-          moved through it, and the splits as the monitor recorded them.
-        </p>
-      )}
 
       {failed ? (
         <div className="eg-block">
@@ -163,6 +154,26 @@ export default async function ErgSessionsPage({ searchParams }: { searchParams: 
           Back to monitors
         </Link>
       </p>
+
+      {/* ---- WHAT EXPLAINS, AT THE FOOT (owner, 2026-09-17) ---- */}
+      <div className="eg-tail">
+        {picking ? (
+          <p>
+            <b>Pick a row to play back.</b> PLAY opens the monitors screen and feeds that saved document to a row
+            the same way a monitor in the room feeds one — the same numbers, the same charts, the same force
+            curve, at the speed it was rowed.
+          </p>
+        ) : null}
+        <p>
+          <b>Every piece saved to this account.</b> Open one for the read: how it ranks, how it was paced, what
+          moved through it, and the splits as the monitor recorded them. PLAY hands it back to the monitors
+          screen as a row that plays.
+        </p>
+        <p>
+          A session is filed under the account that saved it, and a piece only reaches this list once SAVE has
+          run — until then it lives in the tab that recorded it.
+        </p>
+      </div>
 
       <p className="eg-foot">Erg telemetry · saved sessions belong to the account that saved them</p>
     </Shell>

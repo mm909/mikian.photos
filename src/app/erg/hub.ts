@@ -212,6 +212,11 @@ export type Erg = {
   sourceLabel: string | null;
   /* A saved row read back into this slot, or null while it is its own. */
   loaded: { id: string; title: string } | null;
+  /* THE GOAL (owner, 2026-09-17: "infer the goal distance to be a five K
+   * always, but allow us to change it"). What the expected finish is
+   * measured against, whatever the monitor's own workout says. It starts
+   * at five thousand on every slot and lives as long as the tab does. */
+  goalM: number;
   addedAt: number;
 };
 
@@ -222,6 +227,14 @@ export const RATE_WORD: Record<RateKey, string> = { s1: "1 S", ms500: "500 MS", 
 export const RATE_KEYS: RateKey[] = ["s1", "ms500", "ms250", "ms100"];
 
 export const LINK_WORD: Record<ErgLink, string> = { idle: "NOT CONNECTED", connecting: "CONNECTING…", live: "LIVE", dropped: "DROPPED" };
+
+/* THE GOAL every slot starts at (owner, 2026-09-17: he rows fives and
+ * wants the number without setting anything up). The monitor may be set to
+ * anything at all — a just row, a 6 k, a timed twenty — and the expected
+ * finish is still read against this until somebody changes it. */
+export const DEFAULT_GOAL_M = 5000;
+export const GOAL_MIN_M = 100;
+export const GOAL_MAX_M = 100_000;
 
 const FEED_LINES = 60;
 const LOG_LINES = 80;
@@ -730,6 +743,7 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     save: { busy: false, note: null, savedId: null, title: null },
     sourceLabel: null,
     loaded: null,
+    goalM: DEFAULT_GOAL_M,
     addedAt: Date.now() + ergs.size,
   };
   ergs.set(e.id, e);
@@ -1169,6 +1183,26 @@ export function setErgTitle(id: string, title: string) {
   const e = ergs.get(id);
   if (!e) return;
   e.save.title = title;
+  paint();
+}
+
+/* THE GOAL, read and written (owner, 2026-09-17: "infer the goal distance
+ * to be a five K always. But allow us to change it").
+ *
+ * It is the slot's own number, not the monitor's: a rower on a 6 k who
+ * wants his 5 k read gets it, and the screens say the two differ rather
+ * than either one overruling the other. A CLEAR does not touch it — the
+ * goal belongs to the erg for the session, not to the piece. */
+export function ergGoalMeters(id: string): number {
+  return ergs.get(id)?.goalM ?? DEFAULT_GOAL_M;
+}
+
+export function setErgGoal(id: string, meters: number) {
+  const e = ergs.get(id);
+  if (!e) return;
+  if (!Number.isFinite(meters)) return;
+  const m = Math.round(meters);
+  e.goalM = Math.min(GOAL_MAX_M, Math.max(GOAL_MIN_M, m));
   paint();
 }
 
