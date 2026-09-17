@@ -1,4 +1,5 @@
-import { DurationType, MUX_ID, PM5_UUID, RowingState, StrokeState, WorkoutState, WorkoutType } from "../pm5";
+import { Packet, encodeForceCurve, pkt, type Pm5Packet } from "./encode";
+import { DurationType, MUX_ID, PM5_UUID, RowingState, StrokeState, WorkoutState, WorkoutType } from "./pm5";
 
 /* A SYNTHETIC PM5 (owner, 2026-09-17: a live telemetry screen like a rocket
  * launch — and a way to see the whole console with no monitor in the
@@ -31,7 +32,10 @@ export const SIM_INFO = {
   machineType: 0,
 } as const;
 
-export type SimPacket = { uuid: string; dv: DataView };
+/* The byte builders live in encode.ts now, shared with the playback of a
+ * saved row (owner, 2026-09-17: play a row back the way simulate simulates
+ * one). This file keeps the piece; that one keeps the bytes. */
+export type SimPacket = Pm5Packet;
 
 export type Pm5Sim = {
   /* Advance by dtMs of virtual time; the packets due in that slice. */
@@ -60,46 +64,6 @@ function prng(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-/* ---- byte builders: little-endian, like the monitor ---- */
-
-class Packet {
-  readonly bytes: Uint8Array;
-  private i = 0;
-  constructor(n: number) {
-    this.bytes = new Uint8Array(n);
-  }
-  u8(v: number) {
-    this.bytes[this.i++] = Math.max(0, Math.min(255, Math.round(v))) & 0xff;
-    return this;
-  }
-  u16(v: number) {
-    const x = Math.max(0, Math.min(0xffff, Math.round(v)));
-    this.bytes[this.i++] = x & 0xff;
-    this.bytes[this.i++] = (x >> 8) & 0xff;
-    return this;
-  }
-  u24(v: number) {
-    const x = Math.max(0, Math.min(0xffffff, Math.round(v)));
-    this.bytes[this.i++] = x & 0xff;
-    this.bytes[this.i++] = (x >> 8) & 0xff;
-    this.bytes[this.i++] = (x >> 16) & 0xff;
-    return this;
-  }
-  u32(v: number) {
-    const x = Math.max(0, Math.min(0xffffffff, Math.round(v)));
-    this.bytes[this.i++] = x & 0xff;
-    this.bytes[this.i++] = (x >> 8) & 0xff;
-    this.bytes[this.i++] = (x >> 16) & 0xff;
-    this.bytes[this.i++] = (x >>> 24) & 0xff;
-    return this;
-  }
-  dv(): DataView {
-    return new DataView(this.bytes.buffer);
-  }
-}
-
-const pkt = (uuid: string, p: Packet): SimPacket => ({ uuid, dv: p.dv() });
 
 /* Concept2: watts = 2.80 / (seconds per metre)^3, so a stroke's speed
  * follows from its watts. 220 W is 1:56.8 /500 m. */
@@ -265,13 +229,7 @@ export function createPm5Sim(opts: { distanceM?: number; seed?: number; statusEv
       const f = i < 2 ? 0 : peakLbf * Math.exp(-x * x) * (i > 26 ? (FORCE_POINTS - i) / 6 : 1);
       pts.push(Math.round(f));
     }
-    const chunks: number[][] = [];
-    for (let i = 0; i < pts.length; i += 9) chunks.push(pts.slice(i, i + 9));
-    return chunks.map((c, seq) => {
-      const p = new Packet(2 + c.length * 2).u8((chunks.length << 4) | c.length).u8(seq);
-      for (const v of c) p.u16(v);
-      return pkt(PM5_UUID.forceCurve, p);
-    });
+    return encodeForceCurve(pts);
   };
 
   const splitPackets = (n: number, timeS: number, avgSpm: number, avgHr: number, avgW: number, cal: number): SimPacket[] => [

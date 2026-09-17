@@ -29,7 +29,7 @@ import {
   type BleDevice,
   type GeneralStatus,
   type WorkoutSummary,
-} from "./pm5";
+} from "@/lib/pm5/pm5";
 
 /* PM5 LIVE, the client half (owner, 2026-09-16: a barebones UI to try live
  * results in the gym). Three panels and a log:

@@ -28,7 +28,13 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     pathname === "/row100k" ||
     pathname.startsWith("/row100k/") ||
     pathname === "/rowtember" ||
-    pathname.startsWith("/rowtember/");
+    pathname.startsWith("/rowtember/") ||
+    /* The erg telemetry product (owner, 2026-09-17: it and Rowtember should
+     * be disjoint). It carries its own bar, and the marketplace nav sitting
+     * over it offered a rower on a gym laptop links to Rowtember and the
+     * crew call, which is the opposite of the point. */
+    pathname === "/erg" ||
+    pathname.startsWith("/erg/");
 
   return (
     <>

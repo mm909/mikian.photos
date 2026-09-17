@@ -1,7 +1,15 @@
-import type { AdditionalSplitData, AdditionalSummary1, AdditionalSummary2, SplitData, WorkoutSummary } from "../pm5";
+import type { AdditionalSplitData, AdditionalSummary1, AdditionalSummary2, SplitData, WorkoutSummary } from "./pm5";
 
 /* THE SAVED SESSION (owner, 2026-09-17: the option to save the live
- * telemetry of a row). The document a SAVE writes into RowTelemetry.data,
+ * telemetry of a row). Moved here from the Rowtember console the same day,
+ * unchanged but for the two fields that named a rower: the erg product
+ * lives at /erg now and knows nothing about a challenge.
+ *
+ * HEART RATE is still parsed, still built into the document and still
+ * stored — the owner has no belt this month, so no surface SHOWS it, and
+ * the day one arrives the numbers are already here.
+ *
+ * The document a SAVE writes into RowTelemetry.data,
  * built from the console's in-memory model, checked on the way into the
  * route, and turned back into the scalar columns the list prints. NO DOM,
  * NO REACT, NO DATABASE: the scratchpad check imports this file straight.
@@ -98,12 +106,19 @@ export type TelemetryDoc = {
   forceCurves: TelemetryCurve[];
   summary: { s39: WorkoutSummary | null; s3a: AdditionalSummary1 | null; s3c: AdditionalSummary2 | null };
   /* thinned: what fitTelemetryDoc took out to get under the byte cap,
-   * absent when nothing was. */
-  notes: { packetsRecorded: number; packetsDropped: number; thinned?: string };
+   * absent when nothing was.
+   * headTrimmedFromS: the elapsed second the ticks and strokes in this
+   * document START at, when the console ran long enough to fill its
+   * buffers and drop the front of the piece. Absent when the whole row is
+   * here — which it is for anything under a couple of hours. */
+  notes: { packetsRecorded: number; packetsDropped: number; thinned?: string; headTrimmedFromS?: number };
 };
 
-/* One row of SAVED ROWS: the scalar columns plus who rowed it. Dates are
- * ISO strings so the page can hand the list to the client as it is. */
+/* One row of SESSIONS: the scalar columns of a saved piece. Dates are ISO
+ * strings so the page can hand the list to the client as it is. The rower
+ * number and the name went with the move out of Rowtember (owner,
+ * 2026-09-17: these things should be a little disjoint) — a session belongs
+ * to an account now, and the list prints the erg and the piece. */
 export type TelemetrySavedRow = {
   id: string;
   device: string;
@@ -119,15 +134,11 @@ export type TelemetrySavedRow = {
   avgHr: number | null;
   dragFactor: number | null;
   title: string;
+  /* LEGACY: the RowEntry a pre-move session was filed against. Null on
+   * everything saved since. */
   entryId: string | null;
   createdAt: string;
-  rowerNumber: number;
-  displayName: string;
 };
-
-/* What the page tells the console about who is looking, so SAVE can say
- * why it is off before a click. */
-export type TelemetryViewer = { signedIn: boolean; joined: boolean; isAdmin: boolean; rowerNumber: number | null };
 
 /* ---- the console model, as much of it as the builder reads ------------ */
 
@@ -161,7 +172,7 @@ export type TelemetryModel = {
   /* pieceStartedAt: the seam of the latest piece on the same erg, when
    * the console saw one; the document starts there, not at the first
    * packet of the recording, so each piece is its own row. */
-  rec: { startedAt: string | null; pieceStartedAt?: string | null; packets: ArrayLike<{ t: number }>; dropped: number };
+  rec: { startedAt: string | null; pieceStartedAt?: string | null; packets: ArrayLike<{ t: number }>; dropped: number; headTrimmedFromS?: number | null };
 };
 
 const r = (v: number | null | undefined, scale = 1): number => (v === null || v === undefined || !Number.isFinite(v) ? 0 : Math.round(v * scale));
@@ -277,6 +288,8 @@ export function buildTelemetryDoc(model: TelemetryModel, now = new Date()): Tele
   const splits = model.splits.slice(-CAPS.splits).map((s) => ({ n: s.n, a: s.a, b: s.b }));
   const forceCurves = thinTo(model.forces, CAPS.curves).map((c) => ({ n: c.n, points: c.points.slice(0, CAPS.curvePoints).map((p) => r(p)) }));
 
+  const headTrimmedFromS = model.rec.headTrimmedFromS;
+
   const summary = { s39: model.summary, s3a: model.summary1, s3c: model.summary2 };
   const g = model.general;
   const lastStroke = model.strokes.length ? model.strokes[model.strokes.length - 1] : null;
@@ -295,6 +308,15 @@ export function buildTelemetryDoc(model: TelemetryModel, now = new Date()): Tele
     calories: orNull(summary.s3a?.totalCalories) ?? orNull(model.a2?.totalCalories),
   };
 
+  const notes: TelemetryDoc["notes"] = { packetsRecorded: packets.length, packetsDropped: model.rec.dropped };
+  /* The console dropped the front of the piece to stay in memory. The
+   * totals still describe the whole row, so the document has to say where
+   * its own ticks and strokes begin or a reader will take them for the
+   * start. */
+  if (headTrimmedFromS !== null && headTrimmedFromS !== undefined && Number.isFinite(headTrimmedFromS)) {
+    notes.headTrimmedFromS = Math.max(0, Math.round(headTrimmedFromS));
+  }
+
   return {
     schema: TELEMETRY_SCHEMA,
     device,
@@ -307,8 +329,74 @@ export function buildTelemetryDoc(model: TelemetryModel, now = new Date()): Tele
     splits,
     forceCurves,
     summary,
-    notes: { packetsRecorded: packets.length, packetsDropped: model.rec.dropped },
+    notes,
   };
+}
+
+/* ---- under the byte cap ---------------------------------------------- */
+
+/* How little is worth keeping: past this a thinned list stops being a
+ * picture of the piece, so the next list gives instead. */
+const FIT_FLOOR = { samples: 120, curves: 16, strokes: 120 } as const;
+
+const countWord = (was: number, now: number) => `${was.toLocaleString("en-US")} → ${now.toLocaleString("en-US")}`;
+
+/* FIT A LONG PIECE INTO A SAVE. The route refuses a body over
+ * CAPS.jsonBytes, and it refuses it after the whole thing has gone up the
+ * wire — so an hour and a half of rowing would answer "2.3 MB, the cap is
+ * 2 MB" and leave the only copy of the piece in the tab that recorded it.
+ *
+ * So thin it here instead, and say so. Ticks go first and go furthest:
+ * they are a second apart to begin with, and two seconds still draws the
+ * same curve. Then every other force curve, then — last, because the
+ * per-stroke table IS the piece — every other stroke. Round after round
+ * until it fits, and what went is written into notes.thinned for whoever
+ * reads the row later.
+ *
+ * Nothing is cut off either end: thinBy keeps the last element and steps
+ * back through the whole list, so a thinned 100 K row still starts where
+ * it started and ends where it ended. */
+export function fitTelemetryDoc(doc: TelemetryDoc, cap = CAPS.jsonBytes): TelemetryDoc {
+  const size = (d: TelemetryDoc) => JSON.stringify(d).length;
+  if (size(doc) <= cap) return doc;
+
+  const was = { samples: doc.samples.length, curves: doc.forceCurves.length, strokes: doc.strokes.length };
+  let samples = doc.samples;
+  let curves = doc.forceCurves;
+  let strokes = doc.strokes;
+
+  const draft = (): TelemetryDoc => {
+    const parts: string[] = [];
+    if (samples.length < was.samples) parts.push(`ticks ${countWord(was.samples, samples.length)}`);
+    if (curves.length < was.curves) parts.push(`force curves ${countWord(was.curves, curves.length)}`);
+    if (strokes.length < was.strokes) parts.push(`strokes ${countWord(was.strokes, strokes.length)}`);
+    const notes = { ...doc.notes, thinned: `over the ${cap / 1_000_000} MB cap, so it was thinned: ${parts.join(", ")}` };
+    return { ...doc, samples, forceCurves: curves, strokes, notes };
+  };
+
+  /* Sixteen rounds halves a list sixty-five thousand times over; the floors
+   * stop it long before that. */
+  for (let round = 0; round < 16; round++) {
+    if (samples.length > FIT_FLOOR.samples) {
+      samples = thinBy(samples, 2);
+      if (size(draft()) <= cap) return draft();
+    }
+    if (curves.length > FIT_FLOOR.curves) {
+      curves = thinBy(curves, 2);
+      if (size(draft()) <= cap) return draft();
+    }
+    if (strokes.length > FIT_FLOOR.strokes) {
+      strokes = thinBy(strokes, 2);
+      if (size(draft()) <= cap) return draft();
+    }
+    if (samples.length <= FIT_FLOOR.samples && curves.length <= FIT_FLOOR.curves && strokes.length <= FIT_FLOOR.strokes) break;
+  }
+
+  /* Thinned to the floors and still over — only a document with enormous
+   * summary or split packets gets here. The force curves are the least of
+   * it, so they go whole rather than let the save be refused. */
+  if (size(draft()) > cap && curves.length) curves = [];
+  return draft();
 }
 
 /* ---- validation: a clean copy or one printable line -------------------- */
@@ -464,7 +552,16 @@ export function validateTelemetryDoc(input: unknown): TelemetryDoc | string {
     };
 
     const n = obj(d.notes ?? {}, "notes");
-    const notes = { packetsRecorded: isInt(n.packetsRecorded) ? n.packetsRecorded : 0, packetsDropped: isInt(n.packetsDropped) ? n.packetsDropped : 0 };
+    const notes: TelemetryDoc["notes"] = {
+      packetsRecorded: isInt(n.packetsRecorded) ? n.packetsRecorded : 0,
+      packetsDropped: isInt(n.packetsDropped) ? n.packetsDropped : 0,
+    };
+    /* Both of these say what is NOT in the document, so they have to
+     * survive the copy or the row stores a quiet lie. Trusted only as far
+     * as their shape: a line of text with a ceiling, and a count of
+     * seconds. */
+    if (typeof n.thinned === "string" && n.thinned.trim()) notes.thinned = n.thinned.trim().slice(0, 200);
+    if (isInt(n.headTrimmedFromS) && n.headTrimmedFromS > 0) notes.headTrimmedFromS = n.headTrimmedFromS;
 
     const doc: TelemetryDoc = { schema: TELEMETRY_SCHEMA, device, startedAt, endedAt, workout, totals, strokes, samples, splits, forceCurves, summary, notes };
     const bytes = JSON.stringify(doc).length;
@@ -493,8 +590,11 @@ export type TelemetryColumns = {
   dragFactor: number | null;
 };
 
-/* The summary is the monitor's own arithmetic and wins; the totals the
- * builder worked out come next; the stroke means are the last resort. */
+/* The scalar columns of the row: the summary is the monitor's own
+ * arithmetic and wins, the totals the builder worked out come next, the
+ * stroke means are the last resort. NOTHING ROWTEMBER comes out of here —
+ * no challenge, no participant, no rower number; the store sets the
+ * account and leaves those columns as the schema left them. */
 export function columnsFrom(doc: TelemetryDoc): TelemetryColumns {
   const { summary, totals, strokes } = doc;
   const s39 = summary.s39;

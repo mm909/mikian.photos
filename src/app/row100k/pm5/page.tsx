@@ -25,7 +25,10 @@ export const metadata: Metadata = {
  * the gate the other DEVELOPMENT pages wear (dev/raceday-results), so the
  * page can be driven on a laptop in the gym off npm run dev:live; the
  * POSTs to the board still need the admin cookie. Everything that talks
- * to a monitor is in Pm5Live.tsx; the bytes are read in pm5.ts. */
+ * to a monitor is in Pm5Live.tsx; the bytes are read in src/lib/pm5/pm5.ts
+ * — moved out of this folder on 2026-09-17, when the telemetry console
+ * left Rowtember for /erg and took the parsers with it. This page is the
+ * race-day bridge and stays exactly where it is. */
 export default async function Pm5Page() {
   let admin = false;
   try {
@@ -47,7 +50,7 @@ export default async function Pm5Page() {
           <div className="sec-head">
             <h2>PM5 live</h2>
             <span className="mono">
-              TEST · BLUETOOTH TO THE RACE BOARD · <Link href="/row100k/pm5/telemetry">Telemetry →</Link>
+              TEST · BLUETOOTH TO THE RACE BOARD · <Link href="/erg">Erg telemetry →</Link>
             </span>
           </div>
 

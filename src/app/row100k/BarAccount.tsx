@@ -170,11 +170,13 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/pm5" onClick={close}>
                   PM5 live (test) →
                 </Link>
-                {/* One erg, every number its monitor sends, charted live
-                 * (owner, 2026-09-17: a live telemetry screen like a rocket
-                 * launch). Disjoint from the race board. */}
-                <Link className="acct-item" href="/row100k/pm5/telemetry" onClick={close}>
-                  PM5 telemetry (test) →
+                {/* The telemetry console left Rowtember for its own product
+                 * at /erg (owner, 2026-09-17: "keep Rowtember out of it —
+                 * these things should be a little disjoint"). Many monitors
+                 * at once, a page per erg, sessions saved against the
+                 * account. The link above stays the race-day bridge. */}
+                <Link className="acct-item" href="/erg" onClick={close}>
+                  Erg telemetry (test) →
                 </Link>
               </>
             )}

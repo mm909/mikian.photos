@@ -1,21 +1,28 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { ForceCurve } from "../pm5";
+import type { ForceCurve } from "@/lib/pm5/pm5";
 
-/* THE CHARTS (owner, 2026-09-17: a live telemetry screen like a rocket
- * launch). Inline SVG, no library: one Chart that draws lines, dashed
- * lines and bars over a shared x/y scale with labelled axes, and a
- * ForceCurveChart for the filled curve of the latest stroke. Monochrome —
- * the ink rules in tmCss.ts do the colouring through class names, so a
- * series is told apart by weight and dash, not hue. Every chart is a
- * viewBox that fills its panel, so it reads at phone width too. */
+/* THE ERG CHARTS (owner, 2026-09-17: the telemetry product moves out of
+ * Rowtember into its own place). The same two components the Rowtember
+ * console drew with, re-cut for the /erg sheet: every colour comes from an
+ * --eg- variable through a class name, so one chart reads on the ink ground
+ * of a live erg and on the paper ground of a piece being read afterwards
+ * without knowing which it is on.
+ *
+ * Inline SVG, no library. A Chart draws lines, dashed lines and bars over
+ * one x/y scale with labelled axes; a ForceCurveChart draws the filled
+ * curve of a stroke. Monochrome on purpose — a series is told apart by
+ * weight and dash, not hue, which is the only way four series stay legible
+ * on both grounds.
+ *
+ * A viewBox that fills its panel, so every chart reads at phone width. */
 
 export type XY = { x: number; y: number };
 
 export type Series = {
   points: XY[];
-  /* line: solid white; dashed: the quieter second line; bars: filled. */
+  /* line: the solid one; dashed: the quieter second; bars: filled. */
   kind: "line" | "dashed" | "bars";
   label: string;
 };
@@ -28,7 +35,7 @@ type ChartProps = {
   yLabel: string;
   xFmt?: (x: number) => string;
   yFmt?: (y: number) => string;
-  /* Faster is up: pace charts. */
+  /* Faster is up: the pace chart. */
   invertY?: boolean;
   /* A dashed rule at this y, with its word. */
   refY?: number;
@@ -55,6 +62,18 @@ function ticks(min: number, max: number, n = 4): number[] {
   const out: number[] = [];
   for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(Number(v.toFixed(6)));
   return out;
+}
+
+/* At most `cap` points on a line, keeping the last one so a chart ends
+ * where the piece does. A played-back forty-five minute row hands the whole
+ * of itself to a panel 360 units wide; drawing twelve thousand points into
+ * that is a slower frame and not one extra pixel of truth. */
+export function thinPoints(points: XY[], cap = 600): XY[] {
+  if (points.length <= cap) return points;
+  const k = Math.ceil(points.length / cap);
+  const out: XY[] = [];
+  for (let i = points.length - 1; i >= 0; i -= k) out.push(points[i]);
+  return out.reverse();
 }
 
 export function Chart({
@@ -85,8 +104,8 @@ export function Chart({
       </text>
     );
   } else {
-    let x0 = Math.min(...all.map((p) => p.x));
     let x1 = Math.max(...all.map((p) => p.x));
+    const x0 = Math.min(...all.map((p) => p.x));
     if (x1 === x0) x1 = x0 + 1;
     let lo = yMin ?? Math.min(...all.map((p) => p.y), refY ?? Number.POSITIVE_INFINITY);
     let hi = yMax ?? Math.max(...all.map((p) => p.y), refY ?? Number.NEGATIVE_INFINITY);
@@ -147,8 +166,8 @@ export function Chart({
               <g key={i}>
                 {pts.map((p) => {
                   const y = sy(p.y);
-                  const y0 = sy(Math.max(lo, 0));
-                  return <rect key={p.x} className="bar" x={sx(p.x) - barW / 2} y={Math.min(y, y0)} width={barW} height={Math.abs(y0 - y)} />;
+                  const yz = sy(Math.max(lo, 0));
+                  return <rect key={p.x} className="bar" x={sx(p.x) - barW / 2} y={Math.min(y, yz)} width={barW} height={Math.abs(yz - y)} />;
                 })}
               </g>
             );
@@ -161,14 +180,14 @@ export function Chart({
   }
 
   return (
-    <div className="tm-chart">
+    <div className="eg-chart">
       <div className="t">
         <span>
           <b>{title}</b> {unit}
         </span>
         <span className="lg">{legend}</span>
       </div>
-      <svg className="tm-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}, ${unit}`}>
+      <svg className="eg-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}, ${unit}`}>
         {body}
         <text className="axl" x={W - PAD.r} y={H - 3} textAnchor="end">
           {xLabel}
@@ -231,14 +250,14 @@ export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; 
     );
   }
   return (
-    <div className="tm-chart">
+    <div className="eg-chart">
       <div className="t">
         <span>
           <b>FORCE CURVE</b> LBF
         </span>
         <span className="lg">{curve ? `${curve.pointsLbf.length} POINTS · ${curve.chunks} NOTIFICATIONS` : "0X3D"}</span>
       </div>
-      <svg className="tm-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Force curve of the latest stroke">
+      <svg className="eg-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Force curve of the latest stroke">
         {body}
         <text className="axl" x={W - PAD.r} y={H - 3} textAnchor="end">
           SAMPLE

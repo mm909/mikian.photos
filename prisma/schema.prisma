@@ -814,9 +814,16 @@ model RowRaceWave {
 /// optional link to the RowEntry the piece was logged as.
 model RowTelemetry {
   id            String   @id @default(cuid())
+  /// LEGACY, and only for the rows saved before the erg console moved out of
+  /// Rowtember (owner, 2026-09-17: the two products should be disjoint). New
+  /// sessions hang off `userId` — the account — and carry no challenge, no
+  /// participant and no rower number.
   challenge     String   @default("row100k-sep-2026")
-  participantId String
-  rowerNumber   Int
+  participantId String?
+  rowerNumber   Int?
+  /// The Photographer id of whoever saved it: the account, not a Rowtember
+  /// rower. Null on the two rows that predate the move.
+  userId        String?
   /// The monitor: "PM5 430123456", or "SIMULATED PM5" (kept, marked).
   device        String   @default("")
   simulated     Boolean  @default(false)
@@ -838,6 +845,7 @@ model RowTelemetry {
   createdAt     DateTime @default(now())
 
   @@index([challenge, participantId, createdAt])
+  @@index([userId, createdAt])
 }
 
 /// A partner raffle (owner, 2026-09-08: the FAIRWAY TO HEAVEN ticket from
