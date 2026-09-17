@@ -11,6 +11,7 @@ import {
   isRow100kAdmin,
   pacificDay,
 } from "@/lib/row100k";
+import { llmExport } from "@/app/row100k/llmExport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export const dynamic = "force-dynamic";
  *   GET /api/row100k/export?kind=rows            one line per logged row
  *   GET /api/row100k/export?kind=rowers          one line per rower
  *   GET /api/row100k/export?rower=19             that rower's rows only
+ *   GET /api/row100k/export?kind=llm[&rower=19]  JSON for a model to read
+ *                                                (row100k/llmExport.ts)
  *
  * Real numbers always — this is the admin truth table, so the blackout
  * never touches it; that is also why nothing here is public. Namespaced by
@@ -276,13 +279,36 @@ function fileName(kind: "rows" | "rowers", rower: number | null): string {
   return `rowtember-${kind}-${pacificDay(Date.now())}${demo}.csv`;
 }
 
+/* ----------------------------------------------------------------- llm */
+
+/* kind=llm (owner, 2026-09-16: "export my rows data to a json for eval from
+ * an LLM"): rowtember-rower-019-llm.json for one rower, pretty-printed so
+ * it pastes clean into a chat; rowtember-field-llm.json for everyone,
+ * compact, because a hundred rowers indented ran to ~2 MB (owner review,
+ * 2026-09-16) and that file is for attaching, not pasting. */
+async function llmResponse(rower: number | null): Promise<NextResponse> {
+  const demo = CHALLENGE === CHALLENGE_DEMO ? "-demo" : "";
+  const data = rower === null ? await llmExport(null) : await llmExport(rower);
+  if (!data) return bad("No such rower.", 404);
+  const name = rower ? `rowtember-rower-${fmtRowerNumber(rower)}-llm${demo}.json` : `rowtember-field-llm${demo}.json`;
+  const body = rower === null ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${name}"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
 export async function GET(req: Request) {
   const g = await guard();
   if ("res" in g) return g.res;
 
   const url = new URL(req.url);
   const kind = url.searchParams.get("kind") ?? "rows";
-  if (kind !== "rows" && kind !== "rowers") return bad("kind is rows or rowers.");
+  if (kind !== "rows" && kind !== "rowers" && kind !== "llm") return bad("kind is rows, rowers or llm.");
 
   const rowerRaw = url.searchParams.get("rower");
   let rower: number | null = null;
@@ -293,6 +319,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    if (kind === "llm") return await llmResponse(rower);
     const data = await load(rower);
     if (rower && data.participants.length === 0) return bad("No such rower.", 404);
     const lines = kind === "rows" ? rowsLines(data) : rowersLines(data);

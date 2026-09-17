@@ -378,6 +378,16 @@ export function RowersTable({
                               <a href={`/api/row100k/export?rower=${r.rowerNumber}`} download onClick={closeMenu}>
                                 Download CSV →
                               </a>
+                              {/* The same rower as a JSON a model can read (owner,
+                                  2026-09-16: "eval from an LLM about level of
+                                  athlete and training rec") — kind=llm. */}
+                              <a
+                                href={`/api/row100k/export?kind=llm&rower=${r.rowerNumber}`}
+                                download
+                                onClick={closeMenu}
+                              >
+                                Export JSON for AI →
+                              </a>
                               {confirmRower === r.id ? (
                                 <>
                                   <button

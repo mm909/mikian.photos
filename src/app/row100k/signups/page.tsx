@@ -25,7 +25,8 @@ export const metadata: Metadata = {
  * lands on that rower, open. Real numbers always — this is the truth
  * table, so the blackout (and the admin test blackout) never touches it.
  * Two CSV links on the head line (owner, 2026-09-16: "download data to a
- * csv") — /api/row100k/export, admin only there too. */
+ * csv") — /api/row100k/export, admin only there too — and a third, the
+ * whole field as JSON for a model (kind=llm, row100k/llmExport.ts). */
 
 /* Page-local styles — .sg- prefix, the blackout page idiom: no double
  * quotes, no angle brackets and no apostrophes anywhere in the string. The
@@ -141,6 +142,9 @@ export default async function SignupsPage({ searchParams }: { searchParams?: { r
               </a>
               <a className="outline-btn" href="/api/row100k/export?kind=rowers" download>
                 Download CSV · Rowers
+              </a>
+              <a className="outline-btn" href="/api/row100k/export?kind=llm" download>
+                Export JSON · Everyone
               </a>
             </span>
           </div>
