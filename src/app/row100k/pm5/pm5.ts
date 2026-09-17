@@ -42,6 +42,16 @@ export const PM5_UUID = {
   heartRateBelt: uuid("003b"),
   additionalWorkoutSummary2: uuid("003c"),
   multiplexed: uuid("0080"),
+  /* The rest of the information service and the force curve (owner,
+   * 2026-09-17: a live telemetry screen like a rocket launch). The race
+   * board never reads these; the telemetry page reads all of them. */
+  modelNumber: uuid("0011"),
+  hardwareRevision: uuid("0013"),
+  firmwareRevision: uuid("0014"),
+  manufacturer: uuid("0015"),
+  ergMachineType: uuid("0016"),
+  /* 2 to 288 bytes over several notifications; not on PM5v1. */
+  forceCurve: uuid("003d"),
 } as const;
 
 /* What requestDevice() is called with. Filtering on the discovery service
@@ -318,7 +328,17 @@ export type MuxPacket =
   | { kind: "additional1"; data: AdditionalStatus1 }
   | { kind: "additional2"; data: AdditionalStatus2 }
   | { kind: "summary"; data: WorkoutSummary }
-  /* An ID this bridge does not read (strokes, splits, belt, ...). */
+  /* The rest of the IDs (owner, 2026-09-17: the telemetry screen reads
+   * every one). The race board's chain ignores these, as it ignored
+   * "other" before. */
+  | { kind: "stroke"; data: StrokeData }
+  | { kind: "additionalStroke"; data: AdditionalStrokeData }
+  | { kind: "split"; data: SplitData }
+  | { kind: "additionalSplit"; data: AdditionalSplitData }
+  | { kind: "additionalSummary1"; data: AdditionalSummary1 }
+  | { kind: "heartRateBelt"; data: HeartRateBelt }
+  | { kind: "additionalSummary2"; data: AdditionalSummary2 }
+  /* An ID nobody here reads. */
   | { kind: "other"; id: number };
 
 /* Byte 0 is the ID (the spec's attribute table and both bridges agree; the
@@ -344,9 +364,452 @@ export function parseMultiplexed(dv: DataView): MuxPacket | null {
       const data = parseWorkoutSummary(dv, o, true);
       return data ? { kind: "summary", data } : null;
     }
+    case MUX_ID.strokeData: {
+      const data = parseStrokeData(dv, o, true);
+      return data ? { kind: "stroke", data } : null;
+    }
+    case MUX_ID.additionalStrokeData: {
+      const data = parseAdditionalStrokeData(dv, o, true);
+      return data ? { kind: "additionalStroke", data } : null;
+    }
+    case MUX_ID.splitData: {
+      const data = parseSplitData(dv, o);
+      return data ? { kind: "split", data } : null;
+    }
+    case MUX_ID.additionalSplitData: {
+      const data = parseAdditionalSplitData(dv, o, true);
+      return data ? { kind: "additionalSplit", data } : null;
+    }
+    case MUX_ID.additionalWorkoutSummary1: {
+      const data = parseAdditionalSummary1(dv, o, true);
+      return data ? { kind: "additionalSummary1", data } : null;
+    }
+    case MUX_ID.heartRateBelt: {
+      const data = parseHeartRateBelt(dv, o);
+      return data ? { kind: "heartRateBelt", data } : null;
+    }
+    case MUX_ID.additionalWorkoutSummary2: {
+      const data = parseAdditionalSummary2(dv, o);
+      return data ? { kind: "additionalSummary2", data } : null;
+    }
     default:
       return { kind: "other", id };
   }
+}
+
+/* ---- the per-stroke, split and summary payloads the telemetry page reads
+ * (owner, 2026-09-17: a live telemetry screen like a rocket launch). Same
+ * rules as above: little-endian, byteLength checked first, null on a
+ * short packet, `multiplexed` where the 0x0080 payload differs. ---------- */
+
+/* 0x0035 stroke data: 20 bytes direct, 18 multiplexed (work per stroke is
+ * dropped there and rides on 0x36 instead; stroke count moves up). */
+export type StrokeData = {
+  elapsedS: number;
+  distanceM: number;
+  driveLengthM: number;
+  driveTimeS: number;
+  recoveryTimeS: number;
+  strokeDistanceM: number;
+  peakDriveForceLbf: number;
+  avgDriveForceLbf: number;
+  /* Null on the multiplexed payload. */
+  workPerStrokeJ: number | null;
+  strokeCount: number;
+};
+
+export function parseStrokeData(dv: DataView, o = 0, multiplexed = false): StrokeData | null {
+  if (!fits(dv, o, multiplexed ? 18 : 20)) return null;
+  return {
+    elapsedS: u24(dv, o) / 100,
+    distanceM: u24(dv, o + 3) / 10,
+    driveLengthM: u8(dv, o + 6) / 100,
+    driveTimeS: u8(dv, o + 7) / 100,
+    recoveryTimeS: u16(dv, o + 8) / 100,
+    strokeDistanceM: u16(dv, o + 10) / 100,
+    peakDriveForceLbf: u16(dv, o + 12) / 10,
+    avgDriveForceLbf: u16(dv, o + 14) / 10,
+    workPerStrokeJ: multiplexed ? null : u16(dv, o + 16) / 10,
+    strokeCount: u16(dv, o + (multiplexed ? 16 : 18)),
+  };
+}
+
+/* 0x0036 additional stroke data: 15 bytes direct, 17 multiplexed (work per
+ * stroke, 0.1 J, is appended there). */
+export type AdditionalStrokeData = {
+  elapsedS: number;
+  strokePowerW: number;
+  /* cals/hr, as the monitor's own display shows it. */
+  strokeCalories: number;
+  strokeCount: number;
+  projectedWorkTimeS: number;
+  projectedWorkDistanceM: number;
+  /* Only on the multiplexed payload. */
+  workPerStrokeJ: number | null;
+};
+
+export function parseAdditionalStrokeData(dv: DataView, o = 0, multiplexed = false): AdditionalStrokeData | null {
+  if (!fits(dv, o, multiplexed ? 17 : 15)) return null;
+  return {
+    elapsedS: u24(dv, o) / 100,
+    strokePowerW: u16(dv, o + 3),
+    strokeCalories: u16(dv, o + 5),
+    strokeCount: u16(dv, o + 7),
+    projectedWorkTimeS: u24(dv, o + 9),
+    projectedWorkDistanceM: u24(dv, o + 12),
+    workPerStrokeJ: multiplexed ? u16(dv, o + 15) / 10 : null,
+  };
+}
+
+/* 0x0037 split/interval data: 18 bytes, same on 0x0080. */
+export type SplitData = {
+  elapsedS: number;
+  distanceM: number;
+  /* 0.1 s lsb on the wire. */
+  splitTimeS: number;
+  splitDistanceM: number;
+  intervalRestTimeS: number;
+  intervalRestDistanceM: number;
+  splitType: number;
+  splitNumber: number;
+};
+
+export function parseSplitData(dv: DataView, o = 0): SplitData | null {
+  if (!fits(dv, o, 18)) return null;
+  return {
+    elapsedS: u24(dv, o) / 100,
+    distanceM: u24(dv, o + 3) / 10,
+    splitTimeS: u24(dv, o + 6) / 10,
+    splitDistanceM: u24(dv, o + 9),
+    intervalRestTimeS: u16(dv, o + 12),
+    intervalRestDistanceM: u16(dv, o + 14),
+    splitType: u8(dv, o + 16),
+    splitNumber: u8(dv, o + 17),
+  };
+}
+
+/* 0x0038 additional split/interval data: 19 bytes direct, 18 multiplexed
+ * (the payload there stops at the split number, no machine type). */
+export type AdditionalSplitData = {
+  elapsedS: number;
+  avgStrokeRate: number;
+  workHeartRate: number | null;
+  restHeartRate: number | null;
+  /* 0.1 s lsb per 500 m. */
+  avgPaceS: number;
+  totalCalories: number;
+  /* cal/hr */
+  avgCalories: number;
+  speedMps: number;
+  powerW: number;
+  avgDragFactor: number;
+  splitNumber: number;
+  /* Null on the multiplexed payload. */
+  ergMachineType: number | null;
+};
+
+export function parseAdditionalSplitData(dv: DataView, o = 0, multiplexed = false): AdditionalSplitData | null {
+  if (!fits(dv, o, multiplexed ? 18 : 19)) return null;
+  return {
+    elapsedS: u24(dv, o) / 100,
+    avgStrokeRate: u8(dv, o + 3),
+    workHeartRate: hrOrNull(u8(dv, o + 4)),
+    restHeartRate: hrOrNull(u8(dv, o + 5)),
+    avgPaceS: u16(dv, o + 6) / 10,
+    totalCalories: u16(dv, o + 8),
+    avgCalories: u16(dv, o + 10),
+    speedMps: u16(dv, o + 12) / 1000,
+    powerW: u16(dv, o + 14),
+    avgDragFactor: u8(dv, o + 16),
+    splitNumber: u8(dv, o + 17),
+    ergMachineType: multiplexed ? null : u8(dv, o + 18),
+  };
+}
+
+/* 0x003A additional end of workout summary 1: 19 bytes direct, 18
+ * multiplexed (the split type byte is dropped and everything after the
+ * log time sits one byte earlier; pm5-base: s = multiplexed ? 4 : 5). */
+export type AdditionalSummary1 = {
+  logDate: number;
+  logTime: number;
+  /* Null on the multiplexed payload. */
+  splitType: number | null;
+  /* Metres or seconds, by the split type. */
+  splitSize: number;
+  splitCount: number;
+  totalCalories: number;
+  watts: number;
+  totalRestDistanceM: number;
+  intervalRestTimeS: number;
+  /* cals/hr */
+  avgCalories: number;
+};
+
+export function parseAdditionalSummary1(dv: DataView, o = 0, multiplexed = false): AdditionalSummary1 | null {
+  if (!fits(dv, o, multiplexed ? 18 : 19)) return null;
+  const s = multiplexed ? o + 4 : o + 5;
+  return {
+    logDate: u16(dv, o),
+    logTime: u16(dv, o + 2),
+    splitType: multiplexed ? null : u8(dv, o + 4),
+    splitSize: u16(dv, s),
+    splitCount: u8(dv, s + 2),
+    totalCalories: u16(dv, s + 3),
+    watts: u16(dv, s + 5),
+    totalRestDistanceM: u24(dv, s + 7),
+    intervalRestTimeS: u16(dv, s + 10),
+    avgCalories: u16(dv, s + 12),
+  };
+}
+
+/* 0x003B heart rate belt information: 6 bytes, same on 0x0080. */
+export type HeartRateBelt = {
+  manufacturerId: number;
+  deviceType: number;
+  beltId: number;
+};
+
+export function parseHeartRateBelt(dv: DataView, o = 0): HeartRateBelt | null {
+  if (!fits(dv, o, 6)) return null;
+  return {
+    manufacturerId: u8(dv, o),
+    deviceType: u8(dv, o + 1),
+    beltId: dv.getUint32(o + 2, true),
+  };
+}
+
+/* 0x003C additional end of workout summary 2: 10 bytes, multiplexed only
+ * per the spec (pm5-base also lists it as a direct characteristic, so the
+ * parser takes a plain offset either way). */
+export type AdditionalSummary2 = {
+  logDate: number;
+  logTime: number;
+  /* 0.1 s lsb per 500 m. */
+  avgPaceS: number;
+  gameId: number;
+  workoutVerified: number;
+  gameScore: number;
+  ergMachineType: number;
+};
+
+export function parseAdditionalSummary2(dv: DataView, o = 0): AdditionalSummary2 | null {
+  if (!fits(dv, o, 10)) return null;
+  const g = u8(dv, o + 6);
+  return {
+    logDate: u16(dv, o),
+    logTime: u16(dv, o + 2),
+    avgPaceS: u16(dv, o + 4) / 10,
+    gameId: g & 0x0f,
+    workoutVerified: g >> 4,
+    gameScore: u16(dv, o + 7),
+    ergMachineType: u8(dv, o + 9),
+  };
+}
+
+/* ---- 0x003D force curve ---------------------------------------------- */
+
+/* One notification of a force curve. Spec rev 1.30 p.23: byte 0 carries
+ * "MS Nibble = Total number of characteristics for this force curve, LS
+ * Nibble = Number of 16-bit data points in the current characteristic",
+ * byte 1 is the sequence number, then the points as uint16 little-endian,
+ * up to nine per notification (2 + 18 bytes). The points are pounds of
+ * force (pm5-force-logger checked the peak of every curve against the
+ * 0x35 peak force). Footnote 13: PM5v1 does not support this feature. */
+export type ForceCurveChunk = {
+  totalChunks: number;
+  pointCount: number;
+  sequence: number;
+  pointsLbf: number[];
+};
+
+export function parseForceCurve(dv: DataView, o = 0): ForceCurveChunk | null {
+  if (!fits(dv, o, 2)) return null;
+  const head = u8(dv, o);
+  const totalChunks = head >> 4;
+  const pointCount = head & 0x0f;
+  if (!fits(dv, o, 2 + pointCount * 2)) return null;
+  const pointsLbf: number[] = [];
+  for (let i = 0; i < pointCount; i++) pointsLbf.push(u16(dv, o + 2 + i * 2));
+  return { totalChunks, pointCount, sequence: u8(dv, o + 1), pointsLbf };
+}
+
+export type ForceCurve = {
+  pointsLbf: number[];
+  peakLbf: number;
+  peakIndex: number;
+  chunks: number;
+};
+
+/* Puts the chunks of one stroke back together. The sequence numbers are
+ * taken relative to the first chunk seen (0- or 1-based both work); a
+ * sequence that does not move forward, or a chunk count that changes,
+ * starts a new curve — so a stroke that lost a notification is thrown
+ * away (counted in `dropped`) rather than stitched to the next stroke's
+ * chunks; the curve is handed back once every slot is filled. */
+export function createForceCurveAssembler() {
+  let total = 0;
+  let base = -1;
+  let lastSeq = -1;
+  let parts: (number[] | null)[] = [];
+  let dropped = 0;
+  const reset = () => {
+    total = 0;
+    base = -1;
+    lastSeq = -1;
+    parts = [];
+  };
+  return {
+    reset,
+    /* Partial curves discarded because a new one began first. */
+    get dropped() {
+      return dropped;
+    },
+    push(chunk: ForceCurveChunk): ForceCurve | null {
+      if (chunk.totalChunks < 1) return null;
+      if (base < 0 || chunk.totalChunks !== total || chunk.sequence <= lastSeq || chunk.sequence - base >= total) {
+        if (base >= 0) dropped++;
+        total = chunk.totalChunks;
+        base = chunk.sequence;
+        parts = new Array<number[] | null>(total).fill(null);
+      }
+      lastSeq = chunk.sequence;
+      parts[chunk.sequence - base] = chunk.pointsLbf;
+      if (parts.some((p) => p === null)) return null;
+      const pointsLbf = parts.flatMap((p) => p ?? []);
+      let peakIndex = 0;
+      for (let i = 1; i < pointsLbf.length; i++) if (pointsLbf[i] > pointsLbf[peakIndex]) peakIndex = i;
+      const done = { pointsLbf, peakLbf: pointsLbf[peakIndex] ?? 0, peakIndex, chunks: total };
+      reset();
+      return done;
+    },
+  };
+}
+
+/* ---- words and units for the telemetry head ---------------------------- */
+
+const WORKOUT_TYPE_WORDS: Record<number, string> = {
+  0: "JUST ROW",
+  1: "JUST ROW · SPLITS",
+  2: "FIXED DISTANCE",
+  3: "FIXED DISTANCE · SPLITS",
+  4: "FIXED TIME",
+  5: "FIXED TIME · SPLITS",
+  6: "TIME INTERVALS",
+  7: "DISTANCE INTERVALS",
+  8: "VARIABLE INTERVALS",
+  9: "VARIABLE INTERVALS · OPEN REST",
+  10: "FIXED CALORIES",
+  11: "FIXED WATT-MINUTES",
+  12: "CALORIE INTERVALS",
+};
+
+export function workoutTypeWord(t: number): string {
+  return WORKOUT_TYPE_WORDS[t] ?? `TYPE ${t}`;
+}
+
+const ROWING_STATE_WORDS: Record<number, string> = { 0: "INACTIVE", 1: "ACTIVE" };
+
+export function rowingStateWord(s: number): string {
+  return ROWING_STATE_WORDS[s] ?? `ROWING ${s}`;
+}
+
+const STROKE_STATE_WORDS: Record<number, string> = {
+  0: "WAITING FOR MIN SPEED",
+  1: "WAITING TO ACCELERATE",
+  2: "DRIVE",
+  3: "DWELL",
+  4: "RECOVERY",
+};
+
+export function strokeStateWord(s: number): string {
+  return STROKE_STATE_WORDS[s] ?? `STROKE ${s}`;
+}
+
+const INTERVAL_TYPE_WORDS: Record<number, string> = {
+  0: "TIME",
+  1: "DISTANCE",
+  2: "REST",
+  3: "TIME · OPEN REST",
+  4: "DISTANCE · OPEN REST",
+  5: "OPEN REST",
+  6: "CALORIES",
+  7: "CALORIES · OPEN REST",
+  8: "WATT-MINUTES",
+  9: "WATT-MINUTES · OPEN REST",
+  255: "NONE",
+};
+
+export function intervalTypeWord(t: number): string {
+  return INTERVAL_TYPE_WORDS[t] ?? `INTERVAL ${t}`;
+}
+
+const ERG_MACHINE_WORDS: Record<number, string> = {
+  0: "ROWERG MODEL D",
+  1: "MODEL C",
+  2: "MODEL A",
+  3: "MODEL B",
+  5: "ROWERG MODEL E",
+  7: "SIMULATOR",
+  8: "DYNAMIC",
+  16: "SLIDES A",
+  17: "SLIDES B",
+  18: "SLIDES C",
+  19: "SLIDES D",
+  20: "SLIDES E",
+  32: "SLIDES DYNAMIC",
+  64: "DYNO",
+  128: "SKIERG",
+  143: "SKI SIMULATOR",
+  192: "BIKEERG",
+  193: "BIKE · ARMS",
+  194: "BIKE · NO ARMS",
+  207: "BIKE SIMULATOR",
+  224: "MULTIERG ROW",
+  225: "MULTIERG SKI",
+  226: "MULTIERG BIKE",
+};
+
+export function ergMachineTypeWord(t: number): string {
+  return ERG_MACHINE_WORDS[t] ?? `MACHINE ${t}`;
+}
+
+/* The workout target off general status: "2,000 m", "20:00", "300 cal",
+ * "1,200 watt-min". The duration scale follows byte 17. */
+export function fmtWorkoutTarget(duration: number, durationType: number): string {
+  if (durationType === DurationType.TIME) return fmtClock(duration / 100);
+  if (durationType === DurationType.DISTANCE) return fmtMeters(duration);
+  if (durationType === DurationType.CALORIES) return `${duration.toLocaleString("en-US")} cal`;
+  if (durationType === DurationType.WATTS) return `${duration.toLocaleString("en-US")} watt-min`;
+  return `${duration} (type ${durationType})`;
+}
+
+/* Whole seconds -> "m:ss" (or "h:mm:ss" past the hour). */
+export function fmtClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  const t = Math.round(seconds);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const ms = `${String(m).padStart(h ? 2 : 1, "0")}:${String(s).padStart(2, "0")}`;
+  return h ? `${h}:${ms}` : ms;
+}
+
+export function fmtWatts(w: number | null | undefined): string {
+  if (w === null || w === undefined || !Number.isFinite(w)) return "—";
+  return `${Math.round(w)} W`;
+}
+
+/* The monitor reports force in pounds; ErgData shows newtons. Both go on
+ * the page. */
+export const LBF_TO_N = 4.4482216152605;
+
+export function lbfToNewtons(lbf: number): number {
+  return lbf * LBF_TO_N;
+}
+
+export function fmtForce(lbf: number | null | undefined): string {
+  if (lbf === null || lbf === undefined || !Number.isFinite(lbf)) return "—";
+  return `${lbf.toFixed(1)} lbf · ${Math.round(lbfToNewtons(lbf))} N`;
 }
 
 /* ---- the finish --------------------------------------------------- */

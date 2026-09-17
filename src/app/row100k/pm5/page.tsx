@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
@@ -45,7 +46,9 @@ export default async function Pm5Page() {
         <div className="wrap">
           <div className="sec-head">
             <h2>PM5 live</h2>
-            <span className="mono">TEST · BLUETOOTH TO THE RACE BOARD</span>
+            <span className="mono">
+              TEST · BLUETOOTH TO THE RACE BOARD · <Link href="/row100k/pm5/telemetry">Telemetry →</Link>
+            </span>
           </div>
 
           {/* The three things that have to be true before a monitor shows

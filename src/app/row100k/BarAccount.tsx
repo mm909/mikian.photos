@@ -170,6 +170,12 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/pm5" onClick={close}>
                   PM5 live (test) →
                 </Link>
+                {/* One erg, every number its monitor sends, charted live
+                 * (owner, 2026-09-17: a live telemetry screen like a rocket
+                 * launch). Disjoint from the race board. */}
+                <Link className="acct-item" href="/row100k/pm5/telemetry" onClick={close}>
+                  PM5 telemetry (test) →
+                </Link>
               </>
             )}
             <button
