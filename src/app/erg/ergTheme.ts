@@ -110,12 +110,13 @@ export const ergCss = `
 /* ---- THE MONITORS LIST: ONE ROW PER ERG (owner, 2026-09-17, after using
  * the cards: I want them to be more horizontal than cards — horizontally
  * stacked rather than side by side like a card). A full-width line each,
- * stacked down the page: the erg, the four live numbers, the goal, the dot
- * menu. Six ergs read as six lines.
+ * stacked down the page: the erg, the four live numbers in the order he
+ * reads them, and one quiet dot button. Six ergs read as six lines.
  *
- * The row is one anchor plus the controls beside it. The anchor carries the
- * erg and the numbers; the goal and the menu sit outside it, because a
- * control inside a link is not a control.
+ * The row is one anchor plus the one control beside it. The anchor carries
+ * the erg and the numbers; the dot menu sits outside it, because a control
+ * inside a link is not a control. Nothing else on the row sets anything
+ * (owner, same day: I do not need the goal buttons here).
  *
  * ON A PHONE the numbers wrap UNDER the erg rather than squeezing, and the
  * side controls take their own line. Nothing here may scroll sideways, so
@@ -140,7 +141,14 @@ export const ergCss = `
   font-family:var(--eg-mono),monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--eg-fg-3);margin-top:3px;
 }
-.eg .eg-r-nums{flex:2 1 440px;min-width:0;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+/* FOUR COLUMNS, AND THE THIRD IS WIDER (review, 2026-09-17: the expected
+ * finish was being clipped to a tilde and four digits — tilde 19 colon 3 —
+ * because every column was an equal quarter of 464px while the goal control
+ * beside it held 337px of the row. The goal has gone into the dot menu, and
+ * the one column that can hold a clock over an hour long gets a little more
+ * of what it left behind). minmax with a zero floor is what stops a grid
+ * track refusing to shrink below its content on a narrow screen. */
+.eg .eg-r-nums{flex:2 1 520px;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr) minmax(0,1fr);gap:10px 14px}
 .eg .eg-r-n{min-width:0;display:block}
 /* The key WRAPS rather than clipping: EXPECTED 5,000 M FINISH is the
  * longest of the four and it has to read whole. Two lines of room on every
@@ -155,7 +163,6 @@ export const ergCss = `
  * version of the sentence lives in a title attribute. */
 .eg .eg-r-n .s{display:block;font-family:var(--eg-mono),monospace;font-size:10.5px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);margin-top:3px;min-height:28px;overflow-wrap:break-word}
 .eg .eg-r-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
-.eg .eg-r-goal{display:flex;align-items:center;min-width:0}
 /* SAVED or UNSAVED, on the row (review, 2026-09-17). Quiet when the piece
  * is filed, outlined in full white when it is not. */
 .eg .eg-pip{display:inline-block;border:1px solid var(--eg-line);border-radius:2px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--eg-fg-3)}
@@ -179,16 +186,25 @@ export const ergCss = `
 .eg .eg-goal-box::placeholder{color:var(--eg-fg-4)}
 
 /* THE DOT MENU (owner, 2026-09-17: the save, remove, disconnect options
- * should be like in a dot dot dot menu). A 44px button, a panel hung off
- * it, and every control in the panel at thumb size. */
+ * should be like in a dot dot dot menu). A panel hung off one button, and
+ * every control in the panel at thumb size.
+ *
+ * THE BUTTON IS DISCREET (owner, same day, after using it: the three dots
+ * button is a little large, can be a little more discreet). A 44px
+ * bordered box at the end of every row read as a fifth control competing
+ * with four numbers. It is a small grey glyph now with no box around it
+ * until it is hovered, focused or open. It keeps a 30px target on a mouse
+ * and the media query below gives it the full 44px back under a finger,
+ * where a small target is a miss rather than a subtlety. */
 .eg .eg-menu-wrap{position:relative}
 .eg .eg-dots{
   display:inline-flex;align-items:center;justify-content:center;
-  min-width:44px;min-height:44px;padding:0 10px;
-  border:1px solid var(--eg-line);border-radius:2px;background:transparent;color:var(--eg-fg-2);
-  font-family:var(--eg-mono),monospace;font-size:13px;letter-spacing:.14em;line-height:1;cursor:pointer;
+  width:30px;height:30px;padding:0;
+  border:1px solid transparent;border-radius:2px;background:transparent;color:var(--eg-fg-4);
+  font-family:var(--eg-mono),monospace;font-size:12px;letter-spacing:.1em;line-height:1;cursor:pointer;
 }
-.eg .eg-dots:hover{border-color:var(--eg-fg);color:var(--eg-fg)}
+.eg .eg-dots:hover{border-color:var(--eg-line);color:var(--eg-fg)}
+.eg .eg-dots:focus-visible{border-color:var(--eg-fg);color:var(--eg-fg)}
 .eg .eg-dots[aria-expanded=true]{border-color:var(--eg-fg);color:var(--eg-fg)}
 .eg .eg-menu{
   position:absolute;right:0;top:calc(100% + 6px);z-index:30;
@@ -206,12 +222,19 @@ export const ergCss = `
 .eg .eg-menu input::placeholder{color:var(--eg-fg-4)}
 .eg .eg-menu .eg-btn{justify-content:center;min-height:44px}
 .eg .eg-menu .eg-note{word-break:break-word}
-/* The two phone-only halves of the goal control: the button that stands in
- * for it on the row, and the chips and the box inside this panel. Both are
- * rendered on every row at every width; the media query below displays one
- * of them and the row keeps the other. */
-.eg .eg-goal-mini{display:none}
-.eg .eg-menu-goal{display:none}
+/* THE GOAL, INSIDE THE PANEL, AT EVERY WIDTH (owner, 2026-09-17: he does
+ * not want the goal buttons on the monitor row). It used to be displayed
+ * only under 760px, with the row carrying an open copy above that; the row
+ * carries nothing now, so this is the only copy on the monitors screen. A
+ * rule under it separates setting the goal from the four things below that
+ * act on the erg itself. */
+.eg .eg-menu-goal{
+  display:block;padding-bottom:10px;margin-bottom:2px;
+  border-bottom:1px solid var(--eg-line-soft);
+}
+.eg .eg-menu-goal .eg-goal{gap:6px 8px}
+.eg .eg-menu-goal .eg-chip{min-height:36px}
+.eg .eg-menu-goal .eg-goal-box{min-height:36px;width:76px}
 
 /* Said to a screen reader, never on screen. */
 .eg .eg-away{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -252,31 +275,32 @@ export const ergCss = `
  * hold the ground down a short page. */
 .row100k .eg{min-height:70vh}
 
-/* ON A PHONE THE GOAL FOLDS INTO THE MENU (review, 2026-09-17: a label,
- * three 44px chips and a 44px box on their own full-width band roughly
- * doubled every row, so three ergs ran to three screens of scrolling — on
- * the screen whose whole point is that six ergs read as six lines). The row
- * keeps the name, the four numbers and one 44px band: the current goal on
- * the left, the ••• on the right, both opening the same panel. */
+/* A DISCREET BUTTON IS STILL A TARGET. On a finger the dots go back to the
+ * full 44px, because at 30px a small grey glyph stops being subtle and
+ * starts being a miss. The box stays invisible until it is pressed. */
+@media (pointer:coarse){
+  .eg .eg-dots{width:44px;height:44px;font-size:13px}
+  /* AND SO DOES THE GOAL, WHEREVER IT IS (review, 2026-09-17: moving the
+   * monitors copy into the dot menu narrowed these two rules to the menu,
+   * which quietly took the 44px off the OTHER copy — the one in the console
+   * head, which is the one a rower actually sets a piece up with). Three
+   * classes so they outrank the 36px the menu copy takes on a mouse, and
+   * keyed to the pointer rather than the width, so a tablet gets them too. */
+  .eg .eg-goal .eg-chip{min-height:44px;padding:5px 12px}
+  .eg .eg-goal .eg-goal-box{min-height:44px}
+}
+
+/* ON A PHONE THE ROW STACKS (review, 2026-09-17: four numbers, a name and a
+ * control band ran three ergs to three screens of scrolling — on the screen
+ * whose whole point is that six ergs read as six lines). The name, then the
+ * four numbers two by two, then the dots on their own line at the right.
+ * The goal is inside the panel at every width now, so there is nothing else
+ * on that line to balance against. */
 @media (max-width:760px){
   .eg .eg-r-open{gap:10px}
   .eg .eg-r-who{flex:1 1 100%}
-  .eg .eg-r-nums{flex:1 1 100%;grid-template-columns:repeat(2,1fr);gap:10px 12px}
-  .eg .eg-r-side{width:100%;margin-left:0}
-  .eg .eg-r-goal{display:none}
-  .eg .eg-menu-wrap{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .eg .eg-goal-mini{
-    display:inline-flex;align-items:center;gap:8px;
-    min-height:44px;padding:6px 12px;
-    border:1px solid var(--eg-line);border-radius:2px;background:transparent;color:var(--eg-fg-2);
-    font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-    line-height:1.2;cursor:pointer;
-  }
-  .eg .eg-goal-mini:hover{border-color:var(--eg-fg);color:var(--eg-fg)}
-  .eg .eg-goal-mini[aria-expanded=true]{border-color:var(--eg-fg);color:var(--eg-fg)}
-  .eg .eg-menu-goal{display:block}
-  .eg .eg-goal .eg-chip{min-height:44px;padding:5px 12px}
-  .eg .eg-goal-box{min-height:44px}
+  .eg .eg-r-nums{flex:1 1 100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px}
+  .eg .eg-r-side{width:100%;margin-left:0;justify-content:flex-end}
 }
 @media (max-width:560px){
   .eg .eg-head h1{font-size:24px}
@@ -324,8 +348,22 @@ export const ergCss = `
 /* THE BIG NUMBERS: what a console shows from across a gym. */
 .eg .eg-bigs{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-bottom:8px}
 .eg .eg-big{border:1px solid var(--eg-line-soft);border-radius:2px;padding:12px 14px 13px;min-width:0}
-.eg .eg-big .l{display:block;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3)}
-.eg .eg-big .v{display:block;font-family:var(--eg-black),sans-serif;font-size:clamp(26px,3.4vw,40px);line-height:1;margin-top:8px;color:var(--eg-fg);font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+/* NOTHING IN A TILE LEAVES ITS TILE (owner, 2026-09-17, while playing a row
+ * back: in the expected 5,000 metres the numbers go out of the box). The
+ * value was nowrap with no overflow rule at all in a 168px column, so a
+ * clock like tilde 1:02:05.4 simply walked out over the border of its
+ * neighbour. It clips now, the way the same number on a monitors row always
+ * has, and the floor of the clamp drops far enough that it rarely has to. */
+.eg .eg-big .l{display:block;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eg .eg-big .v{display:block;font-family:var(--eg-black),sans-serif;font-size:clamp(22px,3.4vw,40px);line-height:1;margin-top:8px;color:var(--eg-fg);font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A LONG VALUE TAKES A SMALLER SIZE RATHER THAN AN ELLIPSIS. Twelve tiles
+ * auto-fill to about 180px each however wide the screen is, so the 40px the
+ * clamp reaches on a desktop fits six characters and no more — and the
+ * expected finish is eight, or ten once a piece runs over an hour. Every
+ * other tile is untouched; the one that needs the room takes it out of its
+ * own type. Tile picks the class from what it is about to print. */
+.eg .eg-big .v.v-snug{font-size:clamp(20px,2.7vw,32px)}
+.eg .eg-big .v.v-tight{font-size:clamp(17px,2.2vw,26px)}
 .eg .eg-big .v .u{font-family:var(--eg-mono),monospace;font-size:11px;font-weight:400;letter-spacing:.12em;color:var(--eg-fg-3);margin-left:6px}
 .eg .eg-big .s{display:block;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);margin-top:8px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -338,7 +376,12 @@ export const ergCss = `
 .eg .eg-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
 .eg .eg-charts.four{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .eg .eg-chart{border:1px solid var(--eg-line-soft);border-radius:2px;padding:10px 12px 8px;min-width:0}
-.eg .eg-chart .t{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3);margin-bottom:6px}
+/* TWO LINES TALL, ALWAYS (review, 2026-09-17: a reading that wraps on the
+ * narrow four-up charts would push the plot down under the pointer that put
+ * it there, and one that does not wrap loses the second series off the right
+ * edge). The room is reserved whether or not anything is in it, so hovering
+ * a chart never moves it or its neighbours. */
+.eg .eg-chart .t{display:flex;justify-content:space-between;align-items:flex-start;gap:4px 10px;flex-wrap:wrap;min-height:31px;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3);margin-bottom:6px}
 .eg .eg-chart .t b{color:var(--eg-fg);font-weight:700}
 .eg .eg-chart .t .lg{letter-spacing:.1em}
 .eg .eg-chart svg{display:block;width:100%;height:auto}
@@ -354,6 +397,66 @@ export const ergCss = `
 .eg .eg-svg .dot{fill:var(--eg-fg)}
 .eg .eg-svg .peak{fill:var(--eg-fg);font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.06em}
 .eg .eg-svg .empty{fill:var(--eg-fg-3);font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+
+/* THE CHART CURSOR, AND THE CHART OPENED (owner, 2026-09-17: let me click on
+ * the charts on the live look on the erg to open them up and scrub through
+ * them and make them bigger, kind of like how big the force curve is — and
+ * my cursor should be able to go to a certain point and see the XY values on
+ * it).
+ *
+ * The panel IS the button that opens: he said click on the charts, not click
+ * a little word above them. The opened chart is a slider, the same shape the
+ * stats scrub already is. Nothing here is portalled, because .eg is the only
+ * place the variables above exist.
+ *
+ * The opened svg carries its width and height INLINE in pixels, so no rule in
+ * this sheet fights it and nothing depends on the order of these blocks. The
+ * type overrides name the svg by element as well as by class, so they beat
+ * the base .eg .eg-svg rules on specificity rather than on being further
+ * down the file. */
+.eg .eg-chart-hit{display:block;width:100%;margin:0;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:zoom-in;touch-action:pan-y;-webkit-tap-highlight-color:transparent}
+.eg .eg-chart-hit:focus{outline:none}
+.eg .eg-chart-hit:focus-visible{outline:2px solid var(--eg-fg);outline-offset:3px}
+.eg .eg-chart .t .lg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eg .eg-chart .t .rd{flex:1 1 100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;color:var(--eg-fg);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.eg .eg-svg .cur{stroke:var(--eg-fg);stroke-width:1;stroke-dasharray:3 3;opacity:.8;pointer-events:none}
+.eg .eg-svg .cdot{fill:var(--eg-bg);stroke:var(--eg-fg);stroke-width:1.6;pointer-events:none}
+.eg .eg-svg .bar-on{fill:var(--eg-fg)}
+
+.eg .eg-zoom{position:fixed;inset:0;z-index:900;background:var(--eg-bg);display:flex;align-items:stretch;justify-content:center;padding:14px}
+.eg .eg-zoom-card{flex:1 1 auto;max-width:1180px;min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--eg-line);border-radius:3px;padding:12px 14px 10px}
+.eg .eg-zoom-head{flex:0 0 auto;display:flex;align-items:baseline;gap:10px 14px;flex-wrap:wrap;border-bottom:1px solid var(--eg-line);padding-bottom:9px}
+.eg .eg-zoom-title{font-family:var(--eg-black),sans-serif;font-size:19px;line-height:1.1;color:var(--eg-fg)}
+.eg .eg-zoom-head .eg-btn{margin-left:auto}
+.eg .eg-read{flex:0 0 auto;display:flex;align-items:baseline;gap:6px 22px;flex-wrap:wrap;min-height:38px;padding:9px 0 7px}
+.eg .eg-read .c{display:flex;align-items:baseline;gap:7px;min-width:0}
+.eg .eg-read .k{font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3);white-space:nowrap}
+.eg .eg-read .v{font-family:var(--eg-black),sans-serif;font-size:17px;line-height:1;color:var(--eg-fg);font-variant-numeric:tabular-nums;white-space:nowrap}
+.eg .eg-read .hint{font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-4)}
+.eg .eg-zoom-plot{flex:1 1 auto;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
+.eg .eg-zoom-plot:focus{outline:none}
+.eg .eg-zoom-plot:focus-visible{outline:2px solid var(--eg-fg);outline-offset:2px}
+.eg .eg-zoom-plot svg.eg-svg .ax{font-size:11px;letter-spacing:.06em}
+.eg .eg-zoom-plot svg.eg-svg .axl{font-size:10px;letter-spacing:.18em}
+.eg .eg-zoom-plot svg.eg-svg .peak{font-size:11px}
+.eg .eg-zoom-plot svg.eg-svg .empty{font-size:13px}
+.eg .eg-zoom-plot svg.eg-svg .ln{stroke-width:2}
+.eg .eg-zoom-plot svg.eg-svg .ln2{stroke-width:1.6;stroke-dasharray:5 4}
+.eg .eg-zoom-plot svg.eg-svg .cdot{stroke-width:2}
+.eg .eg-zoom-foot{flex:0 0 auto;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding-top:9px;border-top:1px solid var(--eg-line-soft)}
+@media (max-width:640px){
+  .eg .eg-zoom{padding:0}
+  .eg .eg-zoom-card{max-width:none;border:0;border-radius:0}
+  .eg .eg-read .v{font-size:15px}
+  /* A phone leaves far more height than a square chart wants, and centring
+   * the slack pushed the plot a third of a screen below the reading that
+   * belongs to it. It sits under the strip instead, and the empty is all at
+   * the bottom where the chips are. */
+  .eg .eg-zoom-plot{align-items:flex-start}
+}
+@media (hover:none) and (pointer:coarse){
+  .eg .eg-chart-hit{cursor:default}
+}
 
 /* The force curve panel when the monitor has no 0x3D to give. */
 .eg .eg-none{border:1px dashed var(--eg-line);border-radius:3px;padding:22px 16px;text-align:center;line-height:1.8;font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3)}

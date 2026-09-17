@@ -1,7 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { ForceCurve } from "@/lib/pm5/pm5";
+import { PAD, PADZ, VW, computePlot, fmtNum, nearestByX, stepOf, thinPoints, type Plot, type Series, type XY } from "./chartGeom";
+
+export { thinPoints };
+export type { Series, XY };
 
 /* THE ERG CHARTS (owner, 2026-09-17: the telemetry product moves out of
  * Rowtember into its own place). The same two components the Rowtember
@@ -16,15 +20,81 @@ import type { ForceCurve } from "@/lib/pm5/pm5";
  * weight and dash, not hue, which is the only way four series stay legible
  * on both grounds.
  *
- * A viewBox that fills its panel, so every chart reads at phone width. */
+ * ---------------------------------------------------------------------
+ * A CHART OPENS, AND YOU CAN POINT AT IT (owner, 2026-09-17, after using
+ * it: "let me click on the charts on the live look on the erg to open them
+ * up and scrub through them and make them bigger — kind of like how big the
+ * force chart is. I should also be able to hover over these values, my
+ * cursor should be able to go to a certain point and see the XY values on
+ * it").
+ *
+ * THE PANEL IS THE BUTTON. He said click on the charts, not click a little
+ * word above them, so the whole plot is a real button and the keyboard
+ * reaches it like any other.
+ *
+ * THE OPENED CHART MEASURES ITS OWN BOX and takes exactly that many viewBox
+ * units. This is the one decision the rest of the feature rests on. SVG text
+ * is sized in viewBox units and this sheet paints charts at width 100% with
+ * height auto, so a 9px axis label renders at 7.5px in a 300px column and at
+ * 28px across an 1,140px dialog. Enlarging by container width alone inflates
+ * the type nearly fourfold; picking a second fixed width instead makes the
+ * opened chart SMALLER with smaller type on a phone, which is the opposite
+ * of what was asked for. Measuring means the scale is exactly one: one unit
+ * is one CSS pixel on a phone, on a laptop and halfway through a window
+ * drag, every font size renders at the number it says, bigger type in the
+ * big view goes back to being an ordinary CSS rule, and mapping a pointer
+ * into the chart becomes a subtraction.
+ *
+ * THE CURSOR IS AN X, IN CHART UNITS — second 143.2, stroke 287 — and never
+ * a pixel and never an index. thinPoints re-picks which six hundred of
+ * twelve thousand points get drawn on every packet and the live window rolls
+ * under the cursor twelve times a second, so an index would be pointing at a
+ * different stroke a second later. A stroke number is a stroke number.
+ *
+ * NOTHING IS PORTALLED. Every rule on these screens is scoped .eg and every
+ * --eg- variable is declared there, so a portal to the body renders an
+ * unstyled chart. The sheet is position fixed inside the tree it belongs to,
+ * which works because nothing above it carries a transform.
+ *
+ * TWO HOOKS AND NOT ONE, and the reason is an ordering problem worth
+ * stating: the opened size is measured from the DOM, the plot is built from
+ * that size, and the cursor is mapped through the plot. So the FRAME hook
+ * runs first and owns the sheet and the box; the plot is computed between
+ * them; the SCRUB hook runs second and owns the pointer. One hook cannot do
+ * both without being called twice, and two calls are two copies of the same
+ * state that never agree.
+ *
+ * FOUR THINGS NOT TO DO HERE, each of which quietly breaks it:
+ *   1. Do NOT memo Chart and do NOT useMemo the series or the plot.
+ *      thinPoints allocates a fresh array every render, so every prop is a
+ *      new identity every packet: the comparison costs and never hits.
+ *   2. Do NOT key or remount a chart on anything. The cursor is component
+ *      state and a remount tears it. This is the one sure way to break it.
+ *   3. Do NOT add per-point hit targets. The handlers sit on the wrapper and
+ *      the events bubble; six hundred nodes a chart, rebuilt twelve times a
+ *      second, buys nothing.
+ *   4. Do NOT setState straight out of pointermove. One frame, one write,
+ *      and only when the snapped point actually changed.
+ *
+ * The maths is chartGeom.ts and nothing here duplicates it. The gesture is
+ * the one the house already shipped in src/app/row100k/stats/KdeScrub.tsx —
+ * rect arithmetic rather than a matrix, touch-action pan-y with a
+ * commitment test, a value-identity dedupe, and role=slider rather than a
+ * live region. Read that file before changing this one. */
 
-export type XY = { x: number; y: number };
+/* /erg is a server page, so these client components are prerendered and a
+ * bare useLayoutEffect warns during that pass. */
+const useIsoLayout = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export type Series = {
-  points: XY[];
-  /* line: the solid one; dashed: the quieter second; bars: filled. */
-  kind: "line" | "dashed" | "bars";
-  label: string;
+export type SpanControl = {
+  /* true: the charts hold the whole piece. false: the rolling window. */
+  whole: boolean;
+  /* False when there is no more piece than the window already shows, or the
+   * erg is a loaded row that was never windowed in the first place. */
+  can: boolean;
+  set: (v: boolean) => void;
+  /* THE WHOLE PIECE, or LAST 120 S · LAST 60 STROKES. */
+  note: string;
 };
 
 type ChartProps = {
@@ -40,40 +110,507 @@ type ChartProps = {
   /* A dashed rule at this y, with its word. */
   refY?: number;
   refLabel?: string;
+  /* How a distance from refY reads. The pace chart passes a signed second. */
+  refDeltaFmt?: (d: number) => string;
   yMin?: number;
   yMax?: number;
   /* What the panel says with no data yet. */
   empty?: string;
   small?: boolean;
+  /* The one word the x axis is counted in, for the readout: ELAPSED,
+   * STROKE, SAMPLE. Falls back to the first word of xLabel. */
+  xWord?: string;
+  span?: SpanControl;
 };
 
-const W = 360;
-const PAD = { l: 46, r: 10, t: 10, b: 28 };
+/* One reading off the rule: which series, and what it says there. */
+type Read = { label: string; text: string; p: XY | null };
 
-const fmtNum = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+/* Where a finger landed, and whether it has committed to scrubbing. */
+type Touch = { x: number; y: number; on: boolean };
 
-/* Round ticks: the axis wants about four labels at a step that reads. */
-function ticks(min: number, max: number, n = 4): number[] {
-  if (!(max > min)) return [min];
-  const raw = (max - min) / n;
-  const p = Math.pow(10, Math.floor(Math.log10(raw)));
-  const m = raw / p;
-  const step = (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p;
-  const out: number[] = [];
-  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(Number(v.toFixed(6)));
-  return out;
+/* CAPTURING A POINTER CAN THROW, and the throw is what matters here (review,
+ * 2026-09-17: it aborted the handler before the cursor was ever placed, so a
+ * finger in the opened sheet read nothing at all). setPointerCapture raises
+ * NotFoundError when the id names no live pointer — a finger already lifted,
+ * a pointer the browser cancelled under us, or a synthetic event. Capture is
+ * a convenience: it keeps a drag alive past the edge of the plot. Losing it
+ * must never cost the reading. */
+function capture(e: React.PointerEvent) {
+  try {
+    e.currentTarget.setPointerCapture(e.pointerId);
+  } catch {
+    /* No live pointer with that id. The drag simply ends at the border. */
+  }
 }
 
-/* At most `cap` points on a line, keeping the last one so a chart ends
- * where the piece does. A played-back forty-five minute row hands the whole
- * of itself to a panel 360 units wide; drawing twelve thousand points into
- * that is a slower frame and not one extra pixel of truth. */
-export function thinPoints(points: XY[], cap = 600): XY[] {
-  if (points.length <= cap) return points;
-  const k = Math.ceil(points.length / cap);
-  const out: XY[] = [];
-  for (let i = points.length - 1; i >= 0; i -= k) out.push(points[i]);
-  return out.reverse();
+function release(e: React.PointerEvent) {
+  try {
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  } catch {
+    /* Already gone. */
+  }
+}
+
+type Box = { w: number; h: number };
+
+/* THE BODY LOCK IS COUNTED (review, 2026-09-17: the first version asserted
+ * that a second sheet could not exist because the first covers the screen —
+ * true of a pointer and false of the TAB key, which walks straight out of an
+ * opaque overlay onto the eight chart buttons behind it. Two sheets then each
+ * saved the overflow they found, and the second saved the word HIDDEN, so
+ * closing both left the page unable to scroll). The sheet traps focus now, so
+ * the second sheet should no longer be reachable at all; the count is what
+ * makes that a nicety rather than the only thing holding it up. */
+let lockDepth = 0;
+let lockPrev = "";
+function lockBody() {
+  if (lockDepth++ === 0) {
+    lockPrev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+}
+function unlockBody() {
+  if (lockDepth > 0 && --lockDepth === 0) document.body.style.overflow = lockPrev;
+}
+
+/* ---- THE FRAME: is the sheet open, and how big is the plot in it ------ */
+
+function useChartFrame() {
+  const [zoom, setZoom] = useState(false);
+  /* The measured plot box, in CSS pixels. Null until the first layout pass. */
+  const [box, setBox] = useState<Box | null>(null);
+
+  /* Where focus goes back to, and the element that is measured — which is
+   * also the slider, so one ref does both jobs. */
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const plotRef = useRef<HTMLDivElement | null>(null);
+  /* THE BUTTON IS NOT THERE TO GIVE FOCUS BACK TO (review, 2026-09-17: the
+   * panel unmounts while the sheet is up, so the ref is null by the time the
+   * closing effect runs, and a remembered node would be a detached one
+   * anyway). So the wish is remembered instead of the element, and it is
+   * granted one render AFTER the button comes back. */
+  const wantFocus = useRef(false);
+
+  /* The svg is given its size in pixels as well as in units, so the viewBox
+   * and the box it is painted into are the same rectangle. Nothing can
+   * letterbox and the type cannot inflate. It cannot chase its own tail
+   * either: the svg is never larger than the container so it never pushes
+   * it, and the container takes its size from the flex column above. */
+  useIsoLayout(() => {
+    if (!zoom) {
+      setBox(null);
+      return;
+    }
+    const el = plotRef.current;
+    if (!el) return;
+    const read = () => {
+      const w = Math.round(el.clientWidth);
+      const avail = Math.round(el.clientHeight);
+      /* A zero-size first layout pass, or a box too short to draw a chart in
+       * at all — a landscape phone whose card chrome has eaten everything.
+       * Either way the observer fires again, and until it does the sheet
+       * shows the panel geometry, which is small but whole. */
+      if (w < 40 || avail < 120) return;
+      /* AS TALL AS THE CARD LEFT IT, up to square. On a desktop the card is
+       * the limit and the chart comes out wide, which is the shape a line
+       * over time wants. On a phone the limit would otherwise be the aspect,
+       * and a 347 wide chart held to a landscape ratio opens barely taller
+       * than the panel it came from — which is not bigger, which is the one
+       * thing that was asked for. Square is where it stops, because past
+       * that a time series becomes a tall thin strip. The slack under it is
+       * simply empty.
+       *
+       * AVAIL IS THE CEILING AND THERE IS NO FLOOR ABOVE IT (review,
+       * 2026-09-17: a 200px floor beat the measurement on a landscape phone,
+       * and the plot box is overflow:hidden with nothing to scroll, so the
+       * bottom of the chart — the x axis and its word — was simply cut off
+       * rather than there being more chart to see). The guard above is what
+       * keeps this above the 54 pixels the opened pad needs. */
+      const h = Math.min(avail, Math.max(200, w));
+      setBox((b) => (b && b.w === w && b.h === h ? b : { w, h }));
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    window.addEventListener("orientationchange", read);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("orientationchange", read);
+    };
+  }, [zoom]);
+
+  /* Escape, the scroll lock, and the focus into the plot. */
+  useEffect(() => {
+    if (!zoom) {
+      /* Coming back out: the panel button has just remounted, so this is the
+       * first moment there is anything to focus. */
+      if (wantFocus.current) {
+        wantFocus.current = false;
+        opener.current?.focus();
+      }
+      return;
+    }
+    wantFocus.current = true;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoom(false);
+    };
+    lockBody();
+    window.addEventListener("keydown", onKey);
+    plotRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      unlockBody();
+    };
+  }, [zoom]);
+
+  const size = (small: boolean, tall = 190): { W: number; H: number; pad: typeof PAD } =>
+    zoom && box ? { W: box.w, H: box.h, pad: PADZ } : { W: VW, H: small ? 150 : tall, pad: PAD };
+
+  return { zoom, setZoom, box, opener, plotRef, size };
+}
+
+/* ---- THE SCRUB: where the pointer is, in the plot it was given -------- */
+
+function useChartScrub(plot: Plot | null, zoom: boolean, open: () => void) {
+  const [cur, setCur] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const touch = useRef<Touch | null>(null);
+  const moved = useRef(false);
+  const pend = useRef<number | null>(null);
+  const raf = useRef(0);
+
+  const aim = (x: number | null) => {
+    pend.current = x;
+    if (raf.current) return;
+    raf.current = requestAnimationFrame(() => {
+      raf.current = 0;
+      const want = pend.current;
+      /* Same snapped point, no write: a mouse crossing one point does not
+       * redraw a chart that is already redrawing at packet rate. */
+      setCur((prev) => (prev === want ? prev : want));
+    });
+  };
+  useEffect(
+    () => () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    },
+    [],
+  );
+
+  /* THE WINDOW ROLLS OUT FROM UNDER A PARKED CURSOR, and a playback seek
+   * empties the slot and pours the piece back in. A cursor outside what is
+   * drawn is not corrected and is NOT clamped to the edge — clamping would
+   * keep reporting the oldest point as though it were under the pointer. It
+   * simply stops being drawn, which costs no render and no effect, and it
+   * quietly comes back if a playback is scrubbed back over it. */
+  const live = plot && cur !== null && cur >= plot.x0 && cur <= plot.x1 ? cur : null;
+  const leadPts = plot && plot.lead >= 0 ? plot.drawn[plot.lead] : null;
+  const snapped = live !== null && leadPts ? (nearestByX(leadPts, live)?.x ?? null) : null;
+
+  /* The svg carries no transform and keeps the default preserveAspectRatio,
+   * and the sheet paints a panel at width 100% with height auto, so the
+   * painted box is the viewBox scaled by one number and rect.width over W is
+   * that number. An opened chart is painted at its own pixel size, so the
+   * same expression is one there and the whole thing collapses to a
+   * subtraction. THE RECT IS READ PER EVENT AND NEVER REMEMBERED, which is
+   * what makes this survive a window drag, a page zoom and a scroll with no
+   * matrix anywhere. */
+  const place = (clientX: number) => {
+    const r = svgRef.current?.getBoundingClientRect();
+    if (!r || !r.width || !plot || !leadPts) return;
+    const at = plot.ix((clientX - r.left) * (plot.W / r.width));
+    aim(nearestByX(leadPts, at)?.x ?? null);
+  };
+
+  const down = (e: React.PointerEvent) => {
+    moved.current = false;
+    if (e.pointerType === "mouse") {
+      place(e.clientX);
+      return;
+    }
+    /* In the sheet a finger is committed at once, because the sheet does not
+     * scroll. On a panel it has to prove it is going across before it counts
+     * as a scrub, or nine stacked charts become nine scroll traps. */
+    touch.current = { x: e.clientX, y: e.clientY, on: zoom };
+    if (zoom) {
+      capture(e);
+      place(e.clientX);
+    }
+  };
+
+  const move = (e: React.PointerEvent) => {
+    const t = touch.current;
+    if (Math.abs(e.clientX - (t?.x ?? e.clientX)) > 6) moved.current = true;
+    if (e.pointerType === "mouse") {
+      place(e.clientX);
+      return;
+    }
+    if (!t) return;
+    if (!t.on) {
+      /* More across than down, and more than three pixels of it, before a
+       * finger counts — so the frames before the browser claims a vertical
+       * pan do not flash a hairline. */
+      const dx = Math.abs(e.clientX - t.x);
+      const dy = Math.abs(e.clientY - t.y);
+      if (dx < 3 || dy > dx) return;
+      t.on = true;
+      moved.current = true;
+    }
+    place(e.clientX);
+  };
+
+  const up = (e: React.PointerEvent) => {
+    release(e);
+    const t = touch.current;
+    touch.current = null;
+    if (e.pointerType === "mouse") return;
+    /* A tap on a panel opens and leaves no cursor behind; a tap in the sheet
+     * places one, and it stays until the next touch. */
+    if (t?.on) {
+      place(e.clientX);
+      return;
+    }
+    if (!zoom) aim(null);
+  };
+
+  const cancel = () => {
+    touch.current = null;
+    aim(null);
+  };
+
+  const leave = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") aim(null);
+  };
+
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      /* The first press drops the cursor, the second closes the sheet. React
+       * attaches at the root, so stopping here keeps it off the window.
+       *
+       * IT GATES ON WHAT IS DRAWN, NOT ON WHAT IS STORED (review,
+       * 2026-09-17): a cursor the rolling window has left behind is already
+       * invisible, and swallowing a press to drop something nobody can see
+       * made Escape do nothing at all, once, at random. That one is cleared
+       * silently and the press goes on to close the sheet. */
+      if (snapped !== null) e.stopPropagation();
+      aim(null);
+      return;
+    }
+    if (!leadPts || !leadPts.length) return;
+    const k = e.key;
+    if (k !== "ArrowLeft" && k !== "ArrowRight" && k !== "Home" && k !== "End") return;
+    /* The sheet must not scroll out from under the cursor. */
+    e.preventDefault();
+    if (k === "Home") {
+      aim(leadPts[0].x);
+      return;
+    }
+    if (k === "End" || snapped === null) {
+      /* No cursor yet: the first press lands on the live end, which is where
+       * a rower is looking anyway. */
+      aim(leadPts[leadPts.length - 1].x);
+      return;
+    }
+    let i = 0;
+    while (i < leadPts.length - 1 && leadPts[i].x < snapped) i++;
+    const by = (k === "ArrowRight" ? 1 : -1) * (e.shiftKey ? 10 : 1);
+    aim(leadPts[Math.min(leadPts.length - 1, Math.max(0, i + by))].x);
+  };
+
+  /* The click that opens. Never after a scrub: a drag across a panel that
+   * ends in a click would otherwise open the sheet every time. */
+  const openClick = () => {
+    if (moved.current) {
+      moved.current = false;
+      return;
+    }
+    open();
+  };
+
+  return {
+    snapped,
+    svgRef,
+    openClick,
+    keys,
+    handlers: { onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: cancel, onPointerLeave: leave },
+  };
+}
+
+/* Every series read at the rule, in series order. Written with map rather
+ * than filter(Boolean), which does not narrow a nullable array under strict
+ * TypeScript and is a compile error. */
+function readAt(plot: Plot | null, series: Series[], snapped: number | null, fy: (y: number) => string): Read[] {
+  if (!plot || snapped === null) return [];
+  return plot.drawn.map((pts, i) => {
+    const p = nearestByX(pts, snapped);
+    /* A series with no point near the rule prints a dash rather than lying
+     * about a value forty strokes away. */
+    const near = p !== null && Math.abs(p.x - snapped) <= stepOf(plot, pts) * 1.5;
+    return { label: series[i].label, text: near && p ? fy(p.y) : "—", p: near ? p : null };
+  });
+}
+
+/* THE SHEET. It holds no telemetry and no subscription: it is part of the
+ * chart output, so a packet landing re-renders the chart and redraws this
+ * with it. Closing is one setState and nothing here calls into the hub. A
+ * dropped link simply stops the packets and the sheet holds its last frame
+ * with the cursor parked where it was left. */
+function ChartZoom({
+  title,
+  unit,
+  legend,
+  reads,
+  moment,
+  xWord,
+  delta,
+  span,
+  children,
+  onClose,
+  plotRef,
+  plot,
+  snapped,
+  handlers,
+  keys,
+  valueText,
+}: {
+  title: string;
+  unit: string;
+  legend: string;
+  reads: Read[];
+  moment: string | null;
+  xWord: string;
+  delta: { k: string; v: string } | null;
+  span?: SpanControl;
+  children: ReactNode;
+  onClose: () => void;
+  plotRef: React.MutableRefObject<HTMLDivElement | null>;
+  plot: Plot | null;
+  snapped: number | null;
+  handlers: React.DOMAttributes<HTMLDivElement>;
+  keys: (e: React.KeyboardEvent) => void;
+  valueText: string;
+}) {
+  /* A pointerdown on the ground closes, but only when it started there AND
+   * hardly travelled: a scrub that ends past the edge of the card must not
+   * dismiss the thing being scrubbed. */
+  const from = useRef<{ x: number; y: number; self: boolean } | null>(null);
+  const card = useRef<HTMLDivElement | null>(null);
+
+  /* TAB STAYS IN THE SHEET (review, 2026-09-17: it did not, and an opaque
+   * overlay that focus walks out of is worse than no overlay — three presses
+   * from the plot landed on CLEAR behind it, which opens a confirm about
+   * discarding a recording, and a fourth opened a second chart on top of this
+   * one). Four focusables at most, so a wrap is the whole trap: no sentinels,
+   * no library, nothing to keep in sync. Escape still closes. */
+  const trap = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab" || !card.current) return;
+    const able = [...card.current.querySelectorAll<HTMLElement>("button, [tabindex]")].filter(
+      (el) => !el.hasAttribute("disabled") && el.tabIndex >= 0 && el.offsetParent !== null,
+    );
+    if (!able.length) return;
+    const first = able[0];
+    const last = able[able.length - 1];
+    const here = document.activeElement;
+    if (e.shiftKey && (here === first || !card.current.contains(here))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (here === last || !card.current.contains(here))) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <div
+      className="eg-zoom"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${title}, ${unit}`}
+      onKeyDown={trap}
+      onPointerDown={(e) => {
+        from.current = { x: e.clientX, y: e.clientY, self: e.target === e.currentTarget };
+      }}
+      onPointerUp={(e) => {
+        const f = from.current;
+        from.current = null;
+        if (!f || !f.self || e.target !== e.currentTarget) return;
+        if (Math.abs(e.clientX - f.x) > 8 || Math.abs(e.clientY - f.y) > 8) return;
+        onClose();
+      }}
+    >
+      <div className="eg-zoom-card" ref={card}>
+        <div className="eg-zoom-head">
+          <span className="eg-zoom-title">{title}</span>
+          <span className="eg-note">{unit}</span>
+          <span className="eg-note">{legend}</span>
+          <button type="button" className="eg-btn eg-btn-quiet" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        {/* THE READING SITS ABOVE THE PLOT. The one thing a thumb is certain
+          * to cover is whatever is directly under it, so the numbers go
+          * where the finger is not, in the same place at every width, at a
+          * fixed minimum height so nothing jumps as they appear. */}
+        <div className="eg-read">
+          {moment === null ? (
+            <span className="hint">Point at the chart, or drag across it</span>
+          ) : (
+            <>
+              <span className="c">
+                <span className="k">{xWord}</span>
+                <span className="v">{moment}</span>
+              </span>
+              {reads.map((r, i) => (
+                <span className="c" key={i}>
+                  <span className="k">{r.label}</span>
+                  <span className="v">{r.text}</span>
+                  <span className="hint">{unit}</span>
+                </span>
+              ))}
+              {delta ? (
+                <span className="c">
+                  <span className="k">{delta.k}</span>
+                  <span className="v">{delta.v}</span>
+                </span>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div
+          ref={plotRef}
+          className="eg-zoom-plot"
+          tabIndex={0}
+          role="slider"
+          aria-label={`${title}, ${unit}`}
+          aria-valuemin={plot ? plot.x0 : 0}
+          aria-valuemax={plot ? plot.x1 : 0}
+          aria-valuenow={snapped ?? (plot ? plot.x1 : 0)}
+          aria-valuetext={valueText}
+          onKeyDown={keys}
+          {...handlers}
+        >
+          {children}
+        </div>
+
+        <div className="eg-zoom-foot">
+          {span?.can ? (
+            <span className="eg-chips">
+              <button type="button" className={span.whole ? "eg-chip" : "eg-chip on"} aria-pressed={!span.whole} onClick={() => span.set(false)}>
+                Rolling window
+              </button>
+              <button type="button" className={span.whole ? "eg-chip on" : "eg-chip"} aria-pressed={span.whole} onClick={() => span.set(true)}>
+                Whole piece
+              </button>
+            </span>
+          ) : null}
+          <span className="eg-note">{span ? span.note : "DRAG ACROSS IT, OR USE THE ARROW KEYS · ESCAPE CLOSES"}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Chart({
@@ -87,185 +624,297 @@ export function Chart({
   invertY = false,
   refY,
   refLabel,
+  refDeltaFmt,
   yMin,
   yMax,
   empty = "WAITING FOR DATA",
   small = false,
+  xWord,
+  span,
 }: ChartProps) {
-  const H = small ? 150 : 190;
-  const all = series.flatMap((s) => s.points).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-  const legend = series.map((s) => s.label).join(" · ");
+  const f = useChartFrame();
+  const { W, H, pad } = f.size(small);
+  const plot = computePlot(series, { W, H, pad, invertY, refY, yMin, yMax });
+  const s = useChartScrub(plot, f.zoom, () => f.setZoom(true));
 
-  let body: ReactNode;
-  if (all.length < 2) {
-    body = (
-      <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
-        {empty}
-      </text>
-    );
-  } else {
-    let x1 = Math.max(...all.map((p) => p.x));
-    const x0 = Math.min(...all.map((p) => p.x));
-    if (x1 === x0) x1 = x0 + 1;
-    let lo = yMin ?? Math.min(...all.map((p) => p.y), refY ?? Number.POSITIVE_INFINITY);
-    let hi = yMax ?? Math.max(...all.map((p) => p.y), refY ?? Number.NEGATIVE_INFINITY);
-    if (hi === lo) {
-      lo -= 1;
-      hi += 1;
-    }
-    /* A little air above and below the data. */
-    const air = (hi - lo) * 0.08;
-    if (yMin === undefined) lo -= air;
-    if (yMax === undefined) hi += air;
-    const hasBars = series.some((s) => s.kind === "bars");
-    if (hasBars && yMin === undefined) lo = Math.min(lo, 0);
+  const legend = series.map((x) => x.label).join(" · ");
+  const word = xWord ?? xLabel.split(" ")[0];
+  const reads = readAt(plot, series, s.snapped, yFmt);
+  const moment = s.snapped === null ? null : xFmt(s.snapped);
 
-    const pw = W - PAD.l - PAD.r;
-    const ph = H - PAD.t - PAD.b;
-    const sx = (x: number) => PAD.l + ((x - x0) / (x1 - x0)) * pw;
-    const sy = (y: number) => {
-      const f = (y - lo) / (hi - lo);
-      return invertY ? PAD.t + f * ph : PAD.t + (1 - f) * ph;
-    };
-    const xt = ticks(x0, x1, 4);
-    const yt = ticks(lo, hi, 4);
-    const barN = Math.max(1, ...series.filter((s) => s.kind === "bars").map((s) => s.points.length));
-    const barW = Math.max(1, (pw / barN) * 0.7);
+  /* The one question a rower is actually asking of a chart with a reference
+   * on it: how far off two minutes am I, right here. */
+  const leadRead = plot && plot.lead >= 0 ? reads[plot.lead] : undefined;
+  const delta = refY !== undefined && refDeltaFmt && leadRead?.p ? { k: `VS ${refLabel ?? fmtNum(refY)}`, v: refDeltaFmt(leadRead.p.y - refY) } : null;
 
-    body = (
-      <>
-        {yt.map((v) => (
-          <g key={`y${v}`}>
-            <line className="grid" x1={PAD.l} x2={W - PAD.r} y1={sy(v)} y2={sy(v)} />
-            <text className="ax" x={PAD.l - 5} y={sy(v) + 3} textAnchor="end">
-              {yFmt(v)}
-            </text>
-          </g>
-        ))}
-        {xt.map((v) => (
-          <text key={`x${v}`} className="ax" x={sx(v)} y={H - PAD.b + 12} textAnchor="middle">
-            {xFmt(v)}
+  const readLine =
+    moment === null
+      ? `${title}, ${unit}`
+      : `${word} ${moment} · ${reads.map((r) => `${r.label} ${r.text}`).join(" · ")}${delta ? ` · ${delta.k} ${delta.v}` : ""}`;
+  /* Only on a panel. In the sheet the reading has its own strip and the head
+   * keeps its title. */
+  const panelRead = !f.zoom && s.snapped !== null;
+
+  const body: ReactNode = !plot ? (
+    <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
+      {empty}
+    </text>
+  ) : (
+    <>
+      {plot.yt.map((v) => (
+        <g key={`y${v}`}>
+          <line className="grid" x1={pad.l} x2={W - pad.r} y1={plot.sy(v)} y2={plot.sy(v)} />
+          <text className="ax" x={pad.l - 5} y={plot.sy(v) + 3} textAnchor="end">
+            {yFmt(v)}
           </text>
-        ))}
-        <line className="axis" x1={PAD.l} x2={PAD.l} y1={PAD.t} y2={H - PAD.b} />
-        <line className="axis" x1={PAD.l} x2={W - PAD.r} y1={H - PAD.b} y2={H - PAD.b} />
-        {refY !== undefined && refY >= Math.min(lo, hi) && refY <= Math.max(lo, hi) && (
-          <g>
-            <line className="ref" x1={PAD.l} x2={W - PAD.r} y1={sy(refY)} y2={sy(refY)} />
-            {refLabel && (
-              <text className="axl" x={W - PAD.r} y={sy(refY) - 3} textAnchor="end">
-                {refLabel}
-              </text>
-            )}
-          </g>
-        )}
-        {series.map((s, i) => {
-          const pts = s.points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-          if (s.kind === "bars") {
-            return (
-              <g key={i}>
-                {pts.map((p) => {
-                  const y = sy(p.y);
-                  const yz = sy(Math.max(lo, 0));
-                  return <rect key={p.x} className="bar" x={sx(p.x) - barW / 2} y={Math.min(y, yz)} width={barW} height={Math.abs(yz - y)} />;
-                })}
-              </g>
-            );
-          }
-          const d = pts.map((p, j) => `${j ? "L" : "M"}${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}`).join(" ");
-          return <path key={i} className={s.kind === "dashed" ? "ln2" : "ln"} d={d} />;
-        })}
-      </>
-    );
-  }
+        </g>
+      ))}
+      {plot.xt.map((v) => (
+        <text key={`x${v}`} className="ax" x={plot.sx(v)} y={H - pad.b + 12} textAnchor="middle">
+          {xFmt(v)}
+        </text>
+      ))}
+      <line className="axis" x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} />
+      <line className="axis" x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} />
+      {refY !== undefined && refY >= Math.min(plot.lo, plot.hi) && refY <= Math.max(plot.lo, plot.hi) && (
+        <g>
+          <line className="ref" x1={pad.l} x2={W - pad.r} y1={plot.sy(refY)} y2={plot.sy(refY)} />
+          {refLabel && (
+            <text className="axl" x={W - pad.r} y={plot.sy(refY) - 3} textAnchor="end">
+              {refLabel}
+            </text>
+          )}
+        </g>
+      )}
+      {series.map((x, i) => {
+        const pts = plot.drawn[i];
+        if (x.kind === "bars") {
+          return (
+            <g key={i}>
+              {pts.map((p) => {
+                const y = plot.sy(p.y);
+                const on = reads[i]?.p?.x === p.x;
+                return (
+                  <rect
+                    key={p.x}
+                    className={on ? "bar bar-on" : "bar"}
+                    x={plot.sx(p.x) - plot.barW / 2}
+                    y={Math.min(y, plot.barBaseY)}
+                    width={plot.barW}
+                    height={Math.abs(plot.barBaseY - y)}
+                  />
+                );
+              })}
+            </g>
+          );
+        }
+        const d = pts.map((p, j) => `${j ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ");
+        return <path key={i} className={x.kind === "dashed" ? "ln2" : "ln"} d={d} />;
+      })}
+      {s.snapped !== null ? (
+        <g>
+          <line className="cur" x1={plot.sx(s.snapped)} x2={plot.sx(s.snapped)} y1={pad.t} y2={H - pad.b} />
+          {reads.map((r, i) => (r.p ? <circle key={i} className="cdot" cx={plot.sx(r.p.x)} cy={plot.sy(r.p.y)} r={3.4} /> : null))}
+        </g>
+      ) : null}
+    </>
+  );
+
+  const svg = (
+    <svg ref={s.svgRef} className="eg-svg" viewBox={`0 0 ${W} ${H}`} style={f.zoom && f.box ? { width: `${W}px`, height: `${H}px` } : undefined} aria-hidden="true">
+      {body}
+      <text className="axl" x={W - pad.r} y={H - 3} textAnchor="end">
+        {xLabel}
+      </text>
+      <text className="axl" x={pad.l} y={pad.t - 2} textAnchor="start">
+        {yLabel}
+      </text>
+    </svg>
+  );
 
   return (
     <div className="eg-chart">
       <div className="t">
-        <span>
-          <b>{title}</b> {unit}
-        </span>
-        <span className="lg">{legend}</span>
+        {/* THE WHOLE ROW GIVES ITSELF UP TO THE READING while a cursor is on
+          * the chart: the title, the unit and the legend all step aside for
+          * one line of numbers. Same row, same type, nothing jumps, no
+          * floating box and no edge flipping — and HTML at a real font size,
+          * not nine-unit SVG text rendering at seven pixels.
+          *
+          * IT TAKES THE TITLE SLOT TOO (review, 2026-09-17: in the four-up
+          * stroke grid the title left 252px for a reading that wants 273,
+          * and the second series value was being ellipsised away — on the
+          * charts where two series is the whole point). Nothing is lost:
+          * your cursor is on the chart you would be reading the name of. */}
+        {panelRead ? (
+          <span className="lg rd">{readLine}</span>
+        ) : (
+          <>
+            <span>
+              <b>{title}</b> {unit}
+            </span>
+            <span className="lg">{legend}</span>
+          </>
+        )}
       </div>
-      <svg className="eg-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}, ${unit}`}>
-        {body}
-        <text className="axl" x={W - PAD.r} y={H - 3} textAnchor="end">
-          {xLabel}
-        </text>
-        <text className="axl" x={PAD.l} y={PAD.t - 2} textAnchor="start">
-          {yLabel}
-        </text>
-      </svg>
+
+      {f.zoom ? null : (
+        <button type="button" ref={f.opener} className="eg-chart-hit" aria-label={`Open ${title} bigger`} onClick={s.openClick} {...s.handlers}>
+          {svg}
+        </button>
+      )}
+
+      {f.zoom ? (
+        <ChartZoom
+          title={title}
+          unit={unit}
+          legend={legend}
+          reads={reads}
+          moment={moment}
+          xWord={word}
+          delta={delta}
+          span={span}
+          plot={plot}
+          snapped={s.snapped}
+          plotRef={f.plotRef}
+          handlers={s.handlers}
+          keys={s.keys}
+          valueText={readLine}
+          onClose={() => f.setZoom(false)}
+        >
+          {svg}
+        </ChartZoom>
+      ) : null}
     </div>
   );
 }
 
 /* The latest stroke's force curve: a filled area under the curve with the
- * peak marked and named in both units. */
+ * peak marked and named in both units. It opens and is scrubbed like every
+ * other chart — x is the sample index along one drive, which is the only
+ * thing on this screen where a cursor reads a shape rather than a moment. */
 export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; newtons: (lbf: number) => number }) {
-  const H = 200;
-  const pw = W - PAD.l - PAD.r;
-  const ph = H - PAD.t - PAD.b;
-  let body: ReactNode;
-  if (!curve || curve.pointsLbf.length < 2) {
-    body = (
-      <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
-        WAITING FOR A STROKE
-      </text>
-    );
-  } else {
-    const n = curve.pointsLbf.length;
-    const hi = Math.max(curve.peakLbf, 1) * 1.1;
-    const sx = (i: number) => PAD.l + (i / (n - 1)) * pw;
-    const sy = (v: number) => PAD.t + (1 - v / hi) * ph;
-    const line = curve.pointsLbf.map((v, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)} ${sy(v).toFixed(1)}`).join(" ");
-    const area = `${line} L${sx(n - 1).toFixed(1)} ${sy(0).toFixed(1)} L${sx(0).toFixed(1)} ${sy(0).toFixed(1)} Z`;
-    const yt = ticks(0, hi, 4);
-    const px = sx(curve.peakIndex);
-    const py = sy(curve.peakLbf);
-    body = (
-      <>
-        {yt.map((v) => (
-          <g key={v}>
-            <line className="grid" x1={PAD.l} x2={W - PAD.r} y1={sy(v)} y2={sy(v)} />
-            <text className="ax" x={PAD.l - 5} y={sy(v) + 3} textAnchor="end">
-              {Math.round(v)}
-            </text>
-          </g>
-        ))}
-        <line className="axis" x1={PAD.l} x2={PAD.l} y1={PAD.t} y2={H - PAD.b} />
-        <line className="axis" x1={PAD.l} x2={W - PAD.r} y1={H - PAD.b} y2={H - PAD.b} />
-        <path className="area" d={area} />
-        <path className="ln" d={line} />
-        <circle className="dot" cx={px} cy={py} r={3} />
-        <text className="peak" x={px + (px > W * 0.6 ? -6 : 6)} y={py - 6} textAnchor={px > W * 0.6 ? "end" : "start"}>
-          PEAK {curve.peakLbf} LBF · {Math.round(newtons(curve.peakLbf))} N
-        </text>
-        {[0, Math.floor((n - 1) / 2), n - 1].map((i) => (
-          <text key={i} className="ax" x={sx(i)} y={H - PAD.b + 12} textAnchor="middle">
-            {i}
+  const f = useChartFrame();
+  const { W, H, pad } = f.size(false, 200);
+
+  const series: Series[] = [{ points: curve ? curve.pointsLbf.map((v, i) => ({ x: i, y: v })) : [], kind: "line", label: "FORCE" }];
+  /* The peak sets the top of the axis with ten per cent of air over it, the
+   * way it always has — handed to computePlot as a pinned domain rather than
+   * derived, so the curve does not rescale under the cursor. */
+  const hi = curve ? Math.max(curve.peakLbf, 1) * 1.1 : 1;
+  const plot = computePlot(series, { W, H, pad, yMin: 0, yMax: hi });
+  const s = useChartScrub(plot, f.zoom, () => f.setZoom(true));
+
+  const reads = readAt(plot, series, s.snapped, (y) => String(Math.round(y)));
+  const moment = s.snapped === null ? null : String(Math.round(s.snapped));
+  const newtonRead = reads[0]?.p ? { k: "NEWTONS", v: `${Math.round(newtons(reads[0].p.y))} N` } : null;
+  const readLine = moment === null ? "Force curve of the latest stroke" : `SAMPLE ${moment} · ${reads[0]?.text ?? "—"} LBF${newtonRead ? ` · ${newtonRead.v}` : ""}`;
+
+  const body: ReactNode = !plot ? (
+    <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
+      WAITING FOR A STROKE
+    </text>
+  ) : (
+    <>
+      {plot.yt.map((v) => (
+        <g key={v}>
+          <line className="grid" x1={pad.l} x2={W - pad.r} y1={plot.sy(v)} y2={plot.sy(v)} />
+          <text className="ax" x={pad.l - 5} y={plot.sy(v) + 3} textAnchor="end">
+            {Math.round(v)}
           </text>
-        ))}
-      </>
-    );
-  }
+        </g>
+      ))}
+      <line className="axis" x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} />
+      <line className="axis" x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} />
+      <path
+        className="area"
+        d={`${plot.drawn[0].map((p, i) => `${i ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ")} L${plot.sx(plot.x1).toFixed(1)} ${plot
+          .sy(0)
+          .toFixed(1)} L${plot.sx(plot.x0).toFixed(1)} ${plot.sy(0).toFixed(1)} Z`}
+      />
+      <path className="ln" d={plot.drawn[0].map((p, i) => `${i ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ")} />
+      {curve ? (
+        <>
+          <circle className="dot" cx={plot.sx(curve.peakIndex)} cy={plot.sy(curve.peakLbf)} r={3} />
+          <text
+            className="peak"
+            x={plot.sx(curve.peakIndex) + (plot.sx(curve.peakIndex) > W * 0.6 ? -6 : 6)}
+            y={plot.sy(curve.peakLbf) - 6}
+            textAnchor={plot.sx(curve.peakIndex) > W * 0.6 ? "end" : "start"}
+          >
+            PEAK {curve.peakLbf} LBF · {Math.round(newtons(curve.peakLbf))} N
+          </text>
+        </>
+      ) : null}
+      {plot.xt.map((v) => (
+        <text key={v} className="ax" x={plot.sx(v)} y={H - pad.b + 12} textAnchor="middle">
+          {Math.round(v)}
+        </text>
+      ))}
+      {s.snapped !== null ? (
+        <g>
+          <line className="cur" x1={plot.sx(s.snapped)} x2={plot.sx(s.snapped)} y1={pad.t} y2={H - pad.b} />
+          {reads[0]?.p ? <circle className="cdot" cx={plot.sx(reads[0].p.x)} cy={plot.sy(reads[0].p.y)} r={3.4} /> : null}
+        </g>
+      ) : null}
+    </>
+  );
+
+  const svg = (
+    <svg ref={s.svgRef} className="eg-svg" viewBox={`0 0 ${W} ${H}`} style={f.zoom && f.box ? { width: `${W}px`, height: `${H}px` } : undefined} aria-hidden="true">
+      {body}
+      <text className="axl" x={W - pad.r} y={H - 3} textAnchor="end">
+        SAMPLE
+      </text>
+      <text className="axl" x={pad.l} y={pad.t - 2} textAnchor="start">
+        LBF
+      </text>
+    </svg>
+  );
+
+  const legend = curve ? `${curve.pointsLbf.length} POINTS · ${curve.chunks} NOTIFICATIONS` : "0X3D";
+
   return (
     <div className="eg-chart">
       <div className="t">
-        <span>
-          <b>FORCE CURVE</b> LBF
-        </span>
-        <span className="lg">{curve ? `${curve.pointsLbf.length} POINTS · ${curve.chunks} NOTIFICATIONS` : "0X3D"}</span>
+        {!f.zoom && s.snapped !== null ? (
+          <span className="lg rd">{readLine}</span>
+        ) : (
+          <>
+            <span>
+              <b>FORCE CURVE</b> LBF
+            </span>
+            <span className="lg">{legend}</span>
+          </>
+        )}
       </div>
-      <svg className="eg-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Force curve of the latest stroke">
-        {body}
-        <text className="axl" x={W - PAD.r} y={H - 3} textAnchor="end">
-          SAMPLE
-        </text>
-        <text className="axl" x={PAD.l} y={PAD.t - 2} textAnchor="start">
-          LBF
-        </text>
-      </svg>
+
+      {f.zoom ? null : (
+        <button type="button" ref={f.opener} className="eg-chart-hit" aria-label="Open the force curve bigger" onClick={s.openClick} {...s.handlers}>
+          {svg}
+        </button>
+      )}
+
+      {f.zoom ? (
+        <ChartZoom
+          title="Force curve"
+          unit="LBF"
+          legend={legend}
+          reads={reads}
+          moment={moment}
+          xWord="SAMPLE"
+          delta={newtonRead}
+          plot={plot}
+          snapped={s.snapped}
+          plotRef={f.plotRef}
+          handlers={s.handlers}
+          keys={s.keys}
+          valueText={readLine}
+          onClose={() => f.setZoom(false)}
+        >
+          {svg}
+        </ChartZoom>
+      ) : null}
     </div>
   );
 }

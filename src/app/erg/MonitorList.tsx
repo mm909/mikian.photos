@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, isEnded, workoutStateWord } from "@/lib/pm5/pm5";
+import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, isEnded, workoutStateWord } from "@/lib/pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { ErgDetail } from "./ErgDetail";
 import { GoalControl, expectedFinish, goalMismatch, goalWord } from "./ErgGoal";
@@ -38,17 +38,24 @@ import { createPlayback, forgetPlayback, rememberPlayback } from "./playback";
  * ROWS, NOT CARDS (owner, same day, after using it: "I want them to be more
  * horizontal than cards — horizontally stacked rather than side by side
  * like a card"). One full-width row per erg, stacked down the page: the erg
- * on the left, then the four numbers he asked to see from across a gym —
- * ELAPSED, DISTANCE, PACE and the EXPECTED FINISH at the goal — then the
- * goal itself, then a dot menu holding SAVE, DISCONNECT and REMOVE. Six
- * ergs read as six lines rather than a wall of tiles.
+ * on the left, then the four numbers he asked to see from across a gym, in
+ * the order he reads them — DISTANCE, PACE, the EXPECTED FINISH at the goal
+ * and only then ELAPSED — and then one quiet dot button. Six ergs read as
+ * six lines rather than a wall of tiles.
+ *
+ * NOTHING ON THE ROW SETS ANYTHING (owner, 2026-09-17: "on the monitor
+ * screen I do not need the goal buttons here, it is too much going on").
+ * The goal control was three chips, a label and a number box on every row,
+ * 337px of a 1440px screen, and it was crowding the expected finish so hard
+ * that the clock beside it was being clipped mid-digit. A row is four
+ * numbers now. Everything that CHANGES this erg is behind the dots.
  *
  * WHAT THE LEFT OF A ROW SAYS (review, 2026-09-17): the name the owner gave
  * this erg when he has given it one, because three PM5s in a gym all
- * advertise the same thing; under it the link, what the monitor is DOING,
- * whether the recording is UNSAVED or SAVED, and then the advertised name
- * and the serial. Under 760px the goal folds into the dot menu behind one
- * button, so the row stays a name, four numbers and one 44px band.
+ * advertise the same thing; under it the link, whether the recording is
+ * UNSAVED or SAVED, and then the advertised name and the serial. What the
+ * monitor is DOING appears only when it is not the obvious thing — see
+ * stateWord.
  *
  * THE WHOLE ROW IS A LINK into that erg console, so it opens in a tab like
  * any other link. A plain click does NOT navigate: it swaps this view in
@@ -135,6 +142,23 @@ function pieceEnded(e: Erg): boolean {
   return g ? isEnded(g.workoutState) : false;
 }
 
+/* WHAT THE MONITOR IS DOING, on the rows where that is worth saying (owner,
+ * 2026-09-17: "I do not know why we say ROWING on all these on the monitor,
+ * because obviously we are rowing").
+ *
+ * ROWING is the state a piece is in for all but a few seconds of its life,
+ * so printing it beside a green LIVE dot and four numbers that are visibly
+ * moving says nothing the row has not already said. Every OTHER state is
+ * news and stays: WAITING TO BEGIN, COUNTDOWN PAUSE, INTERVAL REST, WORKOUT
+ * END, TERMINATED, RE-ARM. The console head still prints the state in full,
+ * because that is a status line rather than a row. */
+function stateWord(e: Erg): string | null {
+  const g = e.model.general;
+  if (!g) return null;
+  if (g.workoutState === WorkoutState.WORKOUTROW) return null;
+  return workoutStateWord(g.workoutState);
+}
+
 /* THE DOT MENU (owner, 2026-09-17: "the save, remove, disconnect options
  * should be like in a dot dot dot menu"). It holds everything that acts on
  * this erg and nothing that reads it, so the row stays numbers.
@@ -145,14 +169,15 @@ function pieceEnded(e: Erg): boolean {
  * word — and the confirm before discarding an unsaved recording still
  * runs.
  *
- * ON A PHONE THE GOAL COMES IN HERE TOO (review, 2026-09-17: a label, three
- * 44px chips and a 44px box on every row roughly doubled its height, and
- * three ergs ran to three screens — on the screen whose whole point is that
- * six ergs read as six lines). Under 760px the row collapses that control
- * to the one button beside the dots, reading GOAL 5,000 M, which opens this
- * same panel with the chips and the box inside it. Both copies are always
- * rendered and the sheet displays exactly one of them, so the goal is one
- * tap away at any width. */
+ * THE GOAL LIVES IN HERE NOW, AT EVERY WIDTH (owner, 2026-09-17, after
+ * using it: "on the monitor screen I do not need the goal buttons here,
+ * it is too much going on"). A label, three chips and a number box on
+ * every row was the widest thing on the sheet — 337px of the row at
+ * 1440px, which is why the expected finish next to it was being clipped
+ * mid-clock. The goal is set once a session and read every second, so the
+ * setting goes behind the dots and the reading stays on the row. The
+ * console head still carries the control in the open, because that is the
+ * screen you are on when you are deciding what you are rowing. */
 function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void; signedIn: boolean }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -197,28 +222,30 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
 
   return (
     <div className="eg-menu-wrap" ref={wrap}>
-      {/* The phone-width goal button. It lives inside this wrapper so it
-       * shares the panel, the ESCAPE key and the press-anywhere-else that
-       * closes it; the sheet hides it above 760px. */}
-      <button type="button" className="eg-goal-mini" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        Goal {goalWord(erg.goalM)}
-      </button>
-
+      {/* THE DOTS ARE QUIET (owner, 2026-09-17: "the three dots button is a
+       * little large, can be a little more discreet"). A small glyph and no
+       * border until it is hovered, focused or open — and still a 44px
+       * target under a finger, which the sheet gives it back on a coarse
+       * pointer. The label is what a screen reader gets instead of three
+       * full stops. */}
       <button
         type="button"
         className="eg-dots"
         ref={button}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`More for ${typedName(erg) ?? erg.name}`}
+        aria-label={`More for ${typedName(erg) ?? erg.name} — goal, name, save, remove`}
+        title={`Goal ${goalWord(erg.goalM)} · name, save, disconnect, remove`}
         onClick={() => setOpen((v) => !v)}
       >
-        •••
+        <span aria-hidden="true">•••</span>
       </button>
 
       {open ? (
         <div className="eg-menu" role="group" aria-label={`Actions for ${typedName(erg) ?? erg.name}`}>
-          {/* Displayed only under 760px, where the row itself has none. */}
+          {/* The goal, at every width now that the row no longer carries
+           * it. First in the panel because it is the one thing in here
+           * that changes what the numbers on the row mean. */}
           <div className="eg-menu-goal">
             <GoalControl ergId={erg.id} goalM={erg.goalM} scope="menu" />
           </div>
@@ -282,13 +309,15 @@ function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => 
   const rec = recWord(erg);
   const ended = pieceEnded(erg);
 
-  /* The sub line: what the monitor is DOING as well as whether the radio is
-   * up (review, 2026-09-17: the row carried the Bluetooth link and nothing
-   * else, so a piece that had finished still read LIVE). Then the
-   * advertised name when the owner has given this erg one of his own, the
-   * serial, where the packets come from, and OPEN. */
+  /* The sub line: what the monitor is DOING when that is worth saying, as
+   * well as whether the radio is up (review, 2026-09-17: the row carried
+   * the Bluetooth link and nothing else, so a piece that had finished still
+   * read LIVE — and then it read ROWING on every row that was, obviously,
+   * rowing; see stateWord). Then the advertised name when the owner has
+   * given this erg one of his own, the serial, where the packets come from,
+   * and OPEN. */
   const bits = [
-    g ? workoutStateWord(g.workoutState) : null,
+    stateWord(erg),
     named ? erg.name : null,
     erg.serial || null,
     erg.sourceLabel ?? (erg.source === "live" ? "BLUETOOTH" : erg.source.toUpperCase()),
@@ -319,29 +348,35 @@ function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => 
           </span>
         </span>
 
-        {/* THE FOUR NUMBERS HE ASKED FOR (owner, 2026-09-17: "on the monitor
-         * screen I want to see the current elapsed time, pace and distance.
-         * And expected five K finish time"). Once the piece has ended the
-         * fourth stops predicting and prints what was actually rowed. */}
+        {/* THE FOUR NUMBERS, IN THE ORDER HE READS THEM (owner, 2026-09-17,
+         * after using it: "let us order this in terms of importance — let us
+         * go distance, then pace, then expected finish, then time elapsed").
+         * How far, how fast, where that lands, and only then the clock.
+         *
+         * ONCE THE PIECE HAS ENDED the third column has nothing left to
+         * predict, so it prints the AVERAGE SPLIT for the piece instead of
+         * the finish. It used to print the finish time, which was the same
+         * number as ELAPSED — harmless while the two sat at opposite ends of
+         * the row and a plain duplicate now that they are side by side. The
+         * clock says FINAL under itself instead. */}
         <span className="eg-r-nums">
-          <Num k="Elapsed" v={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"} />
           <Num k="Distance" v={g ? fmtMeters(g.distanceM) : "—"} />
           <Num k="Pace /500m" v={a1 && a1.currentPaceS > 0 ? fmtPace(a1.currentPaceS) : "—"} />
           {ended ? (
-            <Num k="Finish" v={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"} s={g ? `${fmtMeters(g.distanceM)} rowed` : ""} />
+            <Num k="Average /500m" v={a1 && a1.averagePaceS > 0 ? fmtPace(a1.averagePaceS) : "—"} s={g ? `OVER ${fmtMeters(g.distanceM)}` : ""} />
           ) : (
             <Num k={`Expected ${goalWord(erg.goalM)} finish`} v={finish.value} s={finish.under} hint={finish.hint} />
           )}
+          <Num k="Elapsed" v={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"} s={ended ? "FINAL" : ""} />
         </span>
       </a>
 
       {/* Outside the link: a control inside an anchor is not a control. The
-       * goal control here is the wide-screen copy; under 760px the sheet
-       * hides it and the dot menu carries the phone copy instead. */}
+       * goal used to sit here in the open and was the widest thing on the
+       * row; it lives in the dot menu now at every width (owner, 2026-09-17:
+       * "I do not need the goal buttons here"). What is left is one quiet
+       * button. */}
       <div className="eg-r-side">
-        <span className="eg-r-goal">
-          <GoalControl ergId={erg.id} goalM={erg.goalM} scope="row" />
-        </span>
         <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} />
       </div>
 
@@ -595,15 +630,20 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
         <p>
           <b>Pair as many ergs as there are monitors in the room.</b> Each one gets a row with its own link, its
           own recording and its own SAVE — saving one says nothing about the others. Open a row to watch that erg
-          on its own screen; come back and the link is still up. The goal on each row is what the EXPECTED FINISH
-          is measured against: 5,000 m unless you change it, whatever the monitor itself is set to. On a phone
-          the goal is the GOAL button beside the •••, which opens the same chips inside the menu.
+          on its own screen; come back and the link is still up.
+        </p>
+        <p>
+          <b>A row reads left to right in the order it matters:</b> how far, how fast, where that lands, and only
+          then the clock. The EXPECTED FINISH is measured against the goal — 5,000 m unless you change it,
+          whatever the monitor itself is set to — and the goal is the first thing in the ••• menu, at every
+          width. Nothing on the row itself sets anything.
         </p>
         <p>
           <b>The expected finish is a prediction, and it says so:</b> a ~ in front of the clock, and the band
           under it — ± 12 s — is how far out it could be. The band starts wide and closes as the piece does. Every
           other number on the row is measured, not predicted, which is why only that one wears the twiddle. When
-          the piece ends the row stops predicting and prints what was rowed.
+          the piece ends that column stops predicting and prints the average split instead, and the clock says
+          FINAL.
         </p>
         <p>
           <b>On each monitor:</b> set the piece up, then Main Menu, More Options, <b>Turn Wireless ON</b>, and
@@ -615,9 +655,9 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
           the browser asks first while anything is unsaved. {signedIn ? "SAVE files the piece under your account." : "You are signed out, so SAVE will not work — pairing, SIMULATE and playback all run without an account; keeping a piece does not."}
         </p>
         <p>
-          <b>Everything that acts on an erg is in the ••• menu</b> at the end of its row: the name, SAVE,
-          DISCONNECT or RECONNECT, and REMOVE. The row itself is a link — click it to open the console here,
-          or open it in a tab.
+          <b>Everything that acts on an erg is in the ••• menu</b> at the end of its row: the goal, the name,
+          SAVE, DISCONNECT or RECONNECT, and REMOVE. The row itself is a link — click it to open the console
+          here, or open it in a tab.
         </p>
         <p>
           <b>Name each erg in its ••• menu</b> — LANE 1, LANE 2 — and the row heading becomes that instead of the

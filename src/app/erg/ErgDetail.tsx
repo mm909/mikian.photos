@@ -16,7 +16,7 @@ import {
   workoutStateWord,
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
-import { Chart, ForceCurveChart, thinPoints, type Series, type XY } from "./charts";
+import { Chart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
 import { GoalControl, expectedFinish, goalMismatch, goalWord } from "./ErgGoal";
 import {
   LINK_WORD,
@@ -89,10 +89,15 @@ function dotClass(e: Erg): string {
  * band is and where it came from — held on the tile rather than on the
  * screen, the same way the monitors row holds it (review, 2026-09-17). */
 function Tile({ label, value, unit, sub, hint }: { label: string; value: string; unit?: string; sub?: string; hint?: string | null }) {
+  /* The tile is about 180px wide whatever the screen is, so the size the
+   * clamp reaches holds six characters. A longer number steps down a size
+   * rather than being cut off (owner, 2026-09-17, playing a row back: in the
+   * expected 5,000 metres the numbers go out of the box). */
+  const fit = value.length >= 9 ? "v v-tight" : value.length >= 7 ? "v v-snug" : "v";
   return (
     <div className="eg-big" title={hint ?? undefined}>
       <span className="l">{label}</span>
-      <span className="v">
+      <span className={fit}>
         {value}
         {unit ? <span className="u">{unit}</span> : null}
       </span>
@@ -112,6 +117,9 @@ function Kv({ k, v }: { k: string; v: string | number }) {
 
 export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack: () => void; signedIn?: boolean }) {
   const [showFeed, setShowFeed] = useState(false);
+  /* Whether the charts hold the whole piece rather than the rolling
+   * window. Here rather than in a chart, because all nine share it. */
+  const [wholePiece, setWholePiece] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const m = erg.model;
@@ -124,9 +132,23 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
 
   /* ---- the chart windows --------------------------------------------- */
 
+  /* THE WINDOW, AND THE WHOLE PIECE (owner, 2026-09-17: open a chart up and
+   * scrub through it). A playback rolls exactly like a live erg, so opening
+   * a chart on a forty-five minute row and scrubbing it would otherwise
+   * scrub the last two minutes of it. The chips in the charts head and in
+   * the foot of an opened chart are the same one control: one window for all
+   * nine charts, which is what that head already claims. A LOADED row was
+   * never windowed, so it has nothing to offer. */
   const tEnd = m.samples.length ? m.samples[m.samples.length - 1].t : 0;
-  const win = whole ? m.samples.filter((s) => s.t > 0) : m.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t > 0);
-  const strokesWin = whole ? m.strokes : m.strokes.slice(-WINDOW_STROKES);
+  const wide = whole || wholePiece;
+  const win = wide ? m.samples.filter((s) => s.t > 0) : m.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t > 0);
+  const strokesWin = wide ? m.strokes : m.strokes.slice(-WINDOW_STROKES);
+  const span: SpanControl = {
+    whole: wide,
+    can: !whole && (tEnd > WINDOW_S || m.strokes.length > WINDOW_STROKES),
+    set: setWholePiece,
+    note: wide ? (whole ? "THE WHOLE PIECE · LOADED" : "THE WHOLE PIECE") : `LAST ${WINDOW_S} S · LAST ${WINDOW_STROKES} STROKES`,
+  };
 
   /* The running average of every stroke so far, drawn only over the strokes
    * the window shows — so the dashed line is the piece average, not the
@@ -308,13 +330,14 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
       {/* ---- the transport, when this erg is a row being played back ---- */}
       {playback ? <PlaybackBar erg={erg} /> : null}
 
-      {/* ---- the tiles ---- */}
+      {/* ---- the tiles ----
+        *
+        * IN THE ORDER HE READS THEM (owner, 2026-09-17: "let us order this in
+        * terms of importance — distance, then pace, then expected finish,
+        * then time elapsed"). He said it of the monitors row and it is the
+        * same question on the same screen, so the console leads with the same
+        * four. The other eight follow in the order they always were. */}
       <div className="eg-bigs">
-        <Tile
-          label="Elapsed"
-          value={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"}
-          sub={g ? `${workoutTypeWord(g.workoutType)} · ${fmtWorkoutTarget(g.workoutDuration, g.workoutDurationType)}` : ""}
-        />
         <Tile
           label="Distance"
           value={g ? Math.floor(g.distanceM).toLocaleString("en-US") : "—"}
@@ -322,6 +345,16 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           sub={g && g.totalWorkDistanceM ? `OF ${fmtMeters(g.totalWorkDistanceM)}` : ""}
         />
         <Tile label="Pace /500m" value={a1 ? fmtPace(a1.currentPaceS) : "—"} sub={a2 ? `SPLIT AVG ${fmtPace(a2.splitAvgPaceS)}` : ""} />
+        {/* THE LABEL IS SHORT SO THE CLOCK IS NOT (review, 2026-09-17: the
+          * goal was in the label, which made a seventeen-character eyebrow
+          * over a number in a 168px column). The goal moved down into the
+          * quiet line, where it sits in front of the band. */}
+        <Tile label="Expected finish" value={finishTile.value} sub={[goalWord(erg.goalM), finishTile.sub].filter(Boolean).join(" · ")} hint={finish.hint} />
+        <Tile
+          label="Elapsed"
+          value={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"}
+          sub={g ? `${workoutTypeWord(g.workoutType)} · ${fmtWorkoutTarget(g.workoutDuration, g.workoutDurationType)}` : ""}
+        />
         <Tile
           label="Avg pace"
           value={a1 ? fmtPace(a1.averagePaceS) : "—"}
@@ -347,7 +380,6 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           value={last ? String(last.n) : "—"}
           sub={last?.strokeDistanceM !== null && last?.strokeDistanceM !== undefined ? `${last.strokeDistanceM.toFixed(2)} M PER STROKE` : ""}
         />
-        <Tile label={`Expected ${goalWord(erg.goalM)}`} value={finishTile.value} sub={finishTile.sub} hint={finish.hint} />
         <Tile
           label="Work per stroke"
           value={last?.workJ !== null && last?.workJ !== undefined ? last.workJ.toFixed(0) : "—"}
@@ -360,13 +392,53 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
       <section className="eg-sec">
         <div className="eg-sec-head">
           <h3>Charts</h3>
-          <span className="eg-note">{whole ? "THE WHOLE PIECE · LOADED" : `LAST ${WINDOW_S} S · LAST ${WINDOW_STROKES} STROKES`}</span>
+          {/* CLICK ANY CHART TO OPEN IT (owner, 2026-09-17). The window is
+            * said here and changed here, and the same pair of chips sits in
+            * the foot of an opened chart — one window for all nine, which is
+            * what this line has always claimed. */}
+          {span.can ? (
+            <span className="eg-chips">
+              <button type="button" className={span.whole ? "eg-chip" : "eg-chip on"} aria-pressed={!span.whole} onClick={() => span.set(false)}>
+                Rolling window
+              </button>
+              <button type="button" className={span.whole ? "eg-chip on" : "eg-chip"} aria-pressed={span.whole} onClick={() => span.set(true)}>
+                Whole piece
+              </button>
+            </span>
+          ) : null}
+          <span className="eg-note">{span.note} · CLICK A CHART TO OPEN IT</span>
         </div>
         <div className="eg-charts">
-          <Chart title="Pace" unit="/500 M" series={paceSeries} xLabel="ELAPSED S" yLabel="FASTER UP" xFmt={(x) => fmtClock(x)} yFmt={(y) => fmtPace(y)} invertY refY={120} refLabel="2:00" />
-          <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel="STROKE" yLabel="W" />
-          <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel="ELAPSED S" yLabel="SPM" xFmt={(x) => fmtClock(x)} yMin={0} />
-          <Chart title="Distance per stroke" unit="M" series={perStrokeSeries} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(1)} yMin={0} empty="WAITING FOR A STROKE" />
+          <Chart
+            title="Pace"
+            unit="/500 M"
+            series={paceSeries}
+            xLabel="ELAPSED S"
+            yLabel="FASTER UP"
+            xFmt={(x) => fmtClock(x)}
+            yFmt={(y) => fmtPace(y)}
+            invertY
+            refY={120}
+            refLabel="2:00"
+            /* On an inverted axis a minus is FASTER, which is the one
+             * reading a rower actually wants off this chart. */
+            refDeltaFmt={(d) => `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} S`}
+            xWord="ELAPSED"
+            span={span}
+          />
+          <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel="STROKE" yLabel="W" span={span} />
+          <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel="ELAPSED S" yLabel="SPM" xFmt={(x) => fmtClock(x)} yMin={0} xWord="ELAPSED" span={span} />
+          <Chart
+            title="Distance per stroke"
+            unit="M"
+            series={perStrokeSeries}
+            xLabel="STROKE"
+            yLabel="M"
+            yFmt={(y) => y.toFixed(1)}
+            yMin={0}
+            empty="WAITING FOR A STROKE"
+            span={span}
+          />
         </div>
 
         <div className="eg-sec-head" style={{ marginTop: 26 }}>
@@ -374,7 +446,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           <span className="eg-note">0X35 · 0X36 · PER STROKE</span>
         </div>
         <div className="eg-charts four">
-          <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: per((s) => s.driveLengthM) }]} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(2)} />
+          <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: per((s) => s.driveLengthM) }]} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(2)} span={span} />
           <Chart
             small
             title="Drive / recovery"
@@ -387,6 +459,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             yLabel="S"
             yFmt={(y) => y.toFixed(2)}
             yMin={0}
+            span={span}
           />
           <Chart
             small
@@ -399,8 +472,9 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             xLabel="STROKE"
             yLabel="LBF"
             yMin={0}
+            span={span}
           />
-          <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: per((s) => s.workJ) }]} xLabel="STROKE" yLabel="J" yMin={0} />
+          <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: per((s) => s.workJ) }]} xLabel="STROKE" yLabel="J" yMin={0} span={span} />
         </div>
       </section>
 
