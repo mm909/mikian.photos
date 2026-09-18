@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, isEnded, workoutStateWord } from "@/lib/pm5/pm5";
+import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, workoutStateWord } from "@/lib/pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { ErgDetail } from "./ErgDetail";
-import { GoalControl, expectedFinish, goalMismatch, goalWord } from "./ErgGoal";
+import { ErgRower, ViewChips, type RowerView } from "./ErgRower";
+import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded } from "./ErgGoal";
 import {
   ERG_API,
   LINK_WORD,
@@ -133,15 +134,6 @@ function recWord(e: Erg): "SAVED" | "UNSAVED" | null {
   return e.rec.packets.length ? "UNSAVED" : null;
 }
 
-/* The monitor has stopped: WORKOUT END, TERMINATE or WORKOUT LOGGED. A row
- * in one of these states is not advancing, so it stops printing a
- * prediction (review, 2026-09-17: a finished piece sat there with a green
- * LIVE dot and an expected finish beside four frozen numbers). */
-function pieceEnded(e: Erg): boolean {
-  const g = e.model.general;
-  return g ? isEnded(g.workoutState) : false;
-}
-
 /* WHAT THE MONITOR IS DOING, on the rows where that is worth saying (owner,
  * 2026-09-17: "I do not know why we say ROWING on all these on the monitor,
  * because obviously we are rowing").
@@ -248,6 +240,12 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
            * that changes what the numbers on the row mean. */}
           <div className="eg-menu-goal">
             <GoalControl ergId={erg.id} goalM={erg.goalM} scope="menu" />
+            {/* HOW FAST, beside HOW FAR (owner, 2026-09-17: "if I say I want
+              * to do a 5K in 20 minutes and I am rowing at not that pace, I
+              * want to be notified"). This is the primary door for it: you
+              * set it here, before you open the erg and before you sit
+              * down, and the rowing screen never has to ask. */}
+            <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="menu" />
           </div>
 
           {playback ? (
@@ -300,7 +298,7 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
   );
 }
 
-function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => void; onChanged: () => void; signedIn: boolean }) {
+function ErgRow({ erg, onOpen, onRow, onChanged, signedIn }: { erg: Erg; onOpen: () => void; onRow: () => void; onChanged: () => void; signedIn: boolean }) {
   const g = erg.model.general;
   const a1 = erg.model.a1;
   const finish = expectedFinish(erg);
@@ -377,6 +375,12 @@ function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => 
        * "I do not need the goal buttons here"). What is left is one quiet
        * button. */}
       <div className="eg-r-side">
+        {/* ONE TAP FROM THE LIST TO THE ERG (owner, 2026-09-17: he could not
+          * find the rowing screen at all). Straight into the big numbers,
+          * without going through the console and finding a chip. */}
+        <button type="button" className="eg-btn eg-btn-quiet eg-r-row" onClick={onRow}>
+          Row this one
+        </button>
         <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} />
       </div>
 
@@ -462,6 +466,21 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
   const [note, setNote] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(ergId ?? null);
+  /* WHICH OF THE TWO VIEWS an opened erg wears (owner, 2026-09-17: "I do not
+   * see the rower view that I can look at while I am rowing").
+   *
+   * It lives HERE and not inside either view, above the hub subscription and
+   * above the unsaved-work guard, so switching touches neither. Nothing
+   * below this line owns a connection — the hub is a module singleton and
+   * every control on both screens is one call into it — so the switch is a
+   * view swap and cannot drop a link. It also survives going back to the
+   * list and opening the same erg again, which is what somebody who set the
+   * phone up once expects.
+   *
+   * COACH is the default because /erg?erg=SOMEID has always opened the
+   * console and changing that silently would surprise somebody mid-piece.
+   * ROW THIS ONE on a row is the one-tap door for the gym. */
+  const [view, setView] = useState<RowerView>("coach");
   const [picking, setPicking] = useState(false);
   const [loadingRow, setLoadingRow] = useState<string | null>(null);
   const bump = useCallback(() => setErgs(listErgs()), []);
@@ -552,7 +571,12 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
    * from another tab of this view — or the row was opened in a NEW tab,
    * where this hub has never seen that id — fall back to the list. */
   const openErg = open ? getErg(open) : null;
-  if (open && openErg) return <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} />;
+  if (open && openErg)
+    return view === "rower" ? (
+      <ErgRower erg={openErg} onBack={() => setOpen(null)} view={view} onView={setView} />
+    ) : (
+      <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} view={view} onView={setView} />
+    );
 
   return (
     <div>
@@ -618,7 +642,20 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
       {ergs.length ? (
         <div className="eg-rows">
           {ergs.map((e) => (
-            <ErgRow key={e.id} erg={e} onOpen={() => setOpen(e.id)} onChanged={bump} signedIn={signedIn} />
+            <ErgRow
+              key={e.id}
+              erg={e}
+              onOpen={() => {
+                setView("coach");
+                setOpen(e.id);
+              }}
+              onRow={() => {
+                setView("rower");
+                setOpen(e.id);
+              }}
+              onChanged={bump}
+              signedIn={signedIn}
+            />
           ))}
         </div>
       ) : (
@@ -631,6 +668,13 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
           <b>Pair as many ergs as there are monitors in the room.</b> Each one gets a row with its own link, its
           own recording and its own SAVE — saving one says nothing about the others. Open a row to watch that erg
           on its own screen; come back and the link is still up.
+        </p>
+        <p>
+          <b>ROW THIS ONE is the screen you prop in front of you.</b> Big distance, the predicted finish and how
+          far out it could be, one graph at a time, and a card at every 500 m with the split, what it did against
+          the last one, and where the finish stood when it landed. Set a target time in the ••• menu first and it
+          tells you the pace that makes it. The row itself opens the COACH console instead — every chart, the
+          splits table and the raw feed — and the two swap with the chips at the top of either one.
         </p>
         <p>
           <b>A row reads left to right in the order it matters:</b> how far, how fast, where that lands, and only

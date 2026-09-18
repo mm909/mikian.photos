@@ -163,6 +163,9 @@ export const ergCss = `
  * version of the sentence lives in a title attribute. */
 .eg .eg-r-n .s{display:block;font-family:var(--eg-mono),monospace;font-size:10.5px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);margin-top:3px;min-height:28px;overflow-wrap:break-word}
 .eg .eg-r-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+/* ROW THIS ONE: the one tap from the list into the rowing screen. Quiet,
+ * because the row itself is still the link into the console. */
+.eg .eg-r-row{font-size:10px;padding:7px 10px;letter-spacing:.1em}
 /* SAVED or UNSAVED, on the row (review, 2026-09-17). Quiet when the piece
  * is filed, outlined in full white when it is not. */
 .eg .eg-pip{display:inline-block;border:1px solid var(--eg-line);border-radius:2px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--eg-fg-3)}
@@ -235,6 +238,13 @@ export const ergCss = `
 .eg .eg-menu-goal .eg-goal{gap:6px 8px}
 .eg .eg-menu-goal .eg-chip{min-height:36px}
 .eg .eg-menu-goal .eg-goal-box{min-height:36px;width:76px}
+/* AND SO MUST THE TARGET BOX (review, 2026-09-17: .eg .eg-menu input is one
+ * class plus an element, which outranks the two classes the rower sheet gives
+ * .eg-tgt-box, so inside the dot menu the target went full width and a
+ * different height from the goal box directly above it). Three classes
+ * settles it. */
+.eg .eg-menu-goal .eg-tgt{gap:6px 8px}
+.eg .eg-menu-goal .eg-tgt-box{min-height:36px;width:76px;padding:6px 8px}
 
 /* Said to a screen reader, never on screen. */
 .eg .eg-away{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -444,6 +454,34 @@ export const ergCss = `
 .eg .eg-zoom-plot svg.eg-svg .ln2{stroke-width:1.6;stroke-dasharray:5 4}
 .eg .eg-zoom-plot svg.eg-svg .cdot{stroke-width:2}
 .eg .eg-zoom-foot{flex:0 0 auto;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding-top:9px;border-top:1px solid var(--eg-line-soft)}
+/* THE SPREAD: the mean, one standard deviation, and the density of one KPI,
+ * drawn on the chart own y scale (owner, 2026-09-17: when most of these
+ * graphs I also want a KDE showing the results of each KPI and their mean
+ * and sd). The rule and the slab draw on every panel that asks for them; the
+ * hill itself only in an opened chart, where there is width to spend.
+ *
+ * THE LINE IS ITS OWN ROW. It is not a third span inside the title row,
+ * which reserves exactly two lines and would grow every panel and push the
+ * plot down under the pointer that asked for it.
+ *
+ * The fills are the foreground token at an explicit opacity rather than a
+ * line token, because the same two weights have to separate on the ink
+ * ground and on the paper one. */
+.eg .eg-chart-stat{display:flex;align-items:baseline;gap:3px 14px;flex-wrap:wrap;min-height:13px;margin:0 0 6px;font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-4);font-variant-numeric:tabular-nums}
+.eg .eg-chart-stat.off{color:var(--eg-fg-4);opacity:.75}
+.eg .eg-zoom-card .eg-chart-stat{flex:0 0 auto;font-size:11px;letter-spacing:.12em;color:var(--eg-fg-3);margin:0;padding-top:8px}
+.eg .eg-chart-still{display:block;width:100%;cursor:default}
+.eg .eg-svg .sdband{fill:var(--eg-fg);opacity:.055}
+.eg .eg-svg .meanln{stroke:var(--eg-fg-3);stroke-width:1;stroke-dasharray:6 4;opacity:.9}
+.eg .eg-svg .kd{fill:var(--eg-fg);opacity:.13}
+.eg .eg-svg .kdln{fill:none;stroke:var(--eg-fg-3);stroke-width:1.2;stroke-linejoin:round}
+.eg .eg-svg .kdax{stroke:var(--eg-line-soft);stroke-width:1}
+.eg .eg-svg .kdot{fill:var(--eg-bg);stroke:var(--eg-fg);stroke-width:1.6;pointer-events:none}
+.eg .eg-svg .kdlbl{fill:var(--eg-fg-3);font-family:var(--eg-mono),monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase}
+.eg .eg-zoom-plot svg.eg-svg .kdln{stroke-width:1.6}
+.eg .eg-zoom-plot svg.eg-svg .kdlbl{font-size:10px}
+.eg .eg-zoom-plot svg.eg-svg .meanln{stroke-width:1.2;stroke-dasharray:8 5}
+
 @media (max-width:640px){
   .eg .eg-zoom{padding:0}
   .eg .eg-zoom-card{max-width:none;border:0;border-radius:0}
@@ -514,6 +552,7 @@ export const ergCss = `
   .eg .eg-two{grid-template-columns:3fr 2fr}
 }
 @media (max-width:560px){
+  .eg .eg-chart-stat{gap:3px 10px;letter-spacing:.1em}
   .eg .eg-bigs{grid-template-columns:repeat(2,1fr)}
   .eg .eg-big .v{font-size:24px}
   .eg .eg-pb-note{margin-left:0}

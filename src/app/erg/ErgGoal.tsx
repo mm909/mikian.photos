@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fmtBand, fmtTime, predictFinish, type Block, type Prediction } from "@/lib/pm5/predict";
-import { DEFAULT_GOAL_M, GOAL_MAX_M, GOAL_MIN_M, setErgGoal, type Erg, type ErgSample } from "./hub";
+import { isEnded } from "@/lib/pm5/pm5";
+import { fmtBand, fmtPace as fmtPaceS, fmtTime, predictFinish, type Block, type PieceState, type Prediction } from "@/lib/pm5/predict";
+import { DEFAULT_GOAL_M, GOAL_MAX_M, GOAL_MIN_M, setErgGoal, setErgGoalTime, type Erg, type ErgSample } from "./hub";
 
 /* THE GOAL, AND WHAT IT PREDICTS (owner, 2026-09-17: "infer the goal
  * distance to be a five K always. But allow us to change it" — and, on the
@@ -50,17 +51,44 @@ export function goalWord(meters: number): string {
 export function derivedBlocks(samples: ErgSample[], blockM = BLOCK_M): Block[] {
   const out: Block[] = [];
   if (!(blockM > 0)) return out;
-  let mark = blockM;
-  let prevT = 0;
+
+  /* THE WALK STARTS WHERE THE SAMPLES DO, not at zero (review, 2026-09-17:
+   * the hub trims the head of a long piece in place, and seeding the first
+   * mark at 500 with prevT at 0 then folded every trimmed metre into one
+   * bogus opening block — a "500 m split" of twenty minutes that went
+   * straight into the spread, the band and the ladder).
+   *
+   * A piece that still has its first sample starts at metre zero and nothing
+   * changes. One that does not starts at the first WHOLE block boundary at
+   * or after where the record now begins, and the partial block before it is
+   * simply not there to be counted. Blocks are numbered by where they are in
+   * the piece rather than by how many have been emitted, so a trimmed row
+   * still says which five hundred each one was. */
+  const first = samples.find((s) => Number.isFinite(s.t) && Number.isFinite(s.dist));
+  if (!first) return out;
+
+  /* A record that starts on a block boundary — including a whole piece,
+   * which starts at metre zero — can measure the block that follows it. One
+   * that starts in the middle of a block cannot: the metres before it were
+   * never recorded. So the first crossing there only SEEDS the clock and is
+   * thrown away, and the walk emits from the one after it. */
+  const onBoundary = Math.abs(first.dist / blockM - Math.round(first.dist / blockM)) < 1e-9;
+  let mark = onBoundary ? first.dist + blockM : Math.ceil(first.dist / blockM) * blockM;
+  let skip = first.dist > 0 && !onBoundary;
+  let n = Math.round(mark / blockM);
+  let prevT = first.t;
   let prev: ErgSample | null = null;
+
   for (const s of samples) {
     if (!Number.isFinite(s.t) || !Number.isFinite(s.dist)) continue;
     while (s.dist >= mark && out.length < MAX_BLOCKS) {
       const t = prev && s.dist > prev.dist ? prev.t + ((mark - prev.dist) * (s.t - prev.t)) / (s.dist - prev.dist) : s.t;
       const seconds = t - prevT;
-      if (seconds > 0) out.push({ n: out.length + 1, meters: blockM, seconds });
+      if (skip) skip = false;
+      else if (seconds > 0) out.push({ n, meters: blockM, seconds });
       prevT = t;
       mark += blockM;
+      n++;
     }
     prev = s;
   }
@@ -95,7 +123,7 @@ function modalMeters(blocks: Block[]): number {
  * derived path cuts its own and is always BLOCK_M. */
 export type BlockSet = { blocks: Block[]; blockM: number };
 
-export function blocksFor(e: Erg): BlockSet {
+function computeBlocks(e: Erg): BlockSet {
   const fromMonitor: Block[] = e.model.splits.flatMap((s) => {
     const a = s.a;
     if (!a) return [];
@@ -105,21 +133,69 @@ export function blocksFor(e: Erg): BlockSet {
   return { blocks: derivedBlocks(e.model.samples), blockM: BLOCK_M };
 }
 
+/* THE ONE CACHE THAT PAYS FOR THE ROWING SCREEN (review, 2026-09-17).
+ * derivedBlocks walks every sample a piece has — twelve thousand on a long
+ * row — and blocksFor is called once per monitors row per paint AND again in
+ * the console, twelve times a second. It was already the most expensive
+ * thing on the list before anything new was added to it.
+ *
+ * THE KEY IS TWO LENGTHS AND NOTHING ELSE. The hub mutates its arrays IN
+ * PLACE, so an identity key would be a permanent hit that never updates and
+ * the prediction would freeze at the first block forever. Lengths are the
+ * only honest signal that something arrived — and they go DOWN on a CLEAR or
+ * a playback seek, which invalidates in that direction too. The goal is not
+ * in the key because blocks do not depend on it; predictFinish is uncached
+ * and reads it every time, so changing the goal still moves the number
+ * within one paint. */
+const blockCache = new Map<string, { key: string; set: BlockSet }>();
+
+export function blocksFor(e: Erg): BlockSet {
+  /* THE LAST SAMPLE'S CLOCK IS IN THE KEY, and it has to be (review,
+   * 2026-09-17): the hub caps the sample array and then trims its HEAD in
+   * place, so once a long piece hits the cap the LENGTH stops changing and a
+   * lengths-only key becomes a permanent hit. The splits, the band and the
+   * five hundred metre cards would all have frozen for the rest of the row.
+   * Elapsed never repeats within a piece and goes back to zero when a new
+   * one starts, so it invalidates in both directions. */
+  const ss = e.model.samples;
+  const key = `${e.model.splits.length}|${ss.length}|${ss.length ? ss[ss.length - 1].t : 0}`;
+  const hit = blockCache.get(e.id);
+  if (hit && hit.key === key) return hit.set;
+  /* No hub hook to evict on: a handful of slots is all a tab ever holds, and
+   * dropping the lot costs one walk each. */
+  if (blockCache.size > 16) blockCache.clear();
+  const set = computeBlocks(e);
+  blockCache.set(e.id, { key, set });
+  return set;
+}
+
 /* Where this erg finishes the goal, and how sure. Safe on an empty slot:
  * predictFinish is handed zeroes and answers with a reason rather than a
  * number. */
-export function predictForErg(e: Erg): Prediction {
+export function pieceStateFor(e: Erg): PieceState {
   const g = e.model.general;
   const a1 = e.model.a1;
   const { blocks, blockM } = blocksFor(e);
-  return predictFinish({
+  return {
     targetMeters: e.goalM > 0 ? e.goalM : DEFAULT_GOAL_M,
     distanceM: g ? g.distanceM : 0,
     elapsedS: g ? g.elapsedHundredths / 100 : 0,
     blocks,
     blockM,
     currentPaceS: a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null,
-  });
+  };
+}
+
+export function predictForErg(e: Erg): Prediction {
+  return predictFinish(pieceStateFor(e));
+}
+
+/* The monitor has stopped: WORKOUT END, TERMINATE or WORKOUT LOGGED. A piece
+ * in one of those states is not advancing, so nothing may keep predicting
+ * its finish. It lived in MonitorList and three screens need it now. */
+export function pieceEnded(e: Erg): boolean {
+  const g = e.model.general;
+  return g ? isEnded(g.workoutState) : false;
 }
 
 export type FinishRead = { value: string; under: string; ready: boolean; hint: string | null };
@@ -137,8 +213,12 @@ export type FinishRead = { value: string; under: string; ready: boolean; hint: s
  * the long sentence, on the element rather than on the screen. Before there
  * is anything to predict the second line carries the reason instead,
  * because a dash on its own tells the rower nothing. */
-export function expectedFinish(e: Erg): FinishRead {
-  const p = predictForErg(e);
+/* THE SAME TWO STRINGS FROM A PREDICTION ALREADY IN HAND. The rower view
+ * builds one PieceState, predicts once, and reads it with this — so it
+ * prints the identical words the monitors row and the console do without a
+ * second walk over every sample. The invariant that three screens cannot
+ * disagree about the finish is preserved by construction. */
+export function readFinish(p: Prediction): FinishRead {
   if (p.ready && p.finishS !== null) {
     if (p.remainingS === 0) return { value: fmtTime(p.finishS), under: "THE GOAL IS ROWED", ready: true, hint: null };
     const band = p.bandS !== null && p.bandS > 0 ? `± ${fmtBand(p.bandS)}` : "EXACT";
@@ -152,6 +232,10 @@ export function expectedFinish(e: Erg): FinishRead {
     };
   }
   return { value: "—", under: (p.note ?? "Waiting for the first metres.").toUpperCase(), ready: false, hint: null };
+}
+
+export function expectedFinish(e: Erg): FinishRead {
+  return readFinish(predictForErg(e));
 }
 
 /* One quiet line when the monitor is set to a fixed distance that is not
@@ -234,6 +318,123 @@ export function GoalControl({ ergId, goalM, scope = "row" }: { ergId: string; go
         }}
       />
       <span className="eg-goal-k">m</span>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------- the target time */
+
+/* THE OTHER HALF OF THE GOAL (owner, 2026-09-17: "if I start this session
+ * and I say I want to do a 5K in 20 minutes and I'm rowing at not that pace,
+ * I want to be notified, or if I can go a little slower I want to be
+ * notified"). The goal above is HOW FAR. This is HOW FAST, and predict.ts
+ * reads the two together through readTarget.
+ *
+ * NULL IS THE DEFAULT AND NULL IS FINE. Every screen is complete without a
+ * target — the finish is still predicted, the band still closes — so nobody
+ * is ever made to answer a question mid-piece. */
+
+/* MM:SS, H:MM:SS, M:SS.T, or a bare number of MINUTES. Bare is minutes
+ * because the box says MM:SS and because twenty SECONDS is under the floor
+ * anyway, so the minutes reading is the only one that could ever be meant.
+ * Anything else is null, and setErgGoalTime stores null for out of range
+ * too — a typo leaves no target rather than one nobody chose. */
+export function parseTargetTime(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^\d{1,3}(\.\d+)?$/.test(t)) {
+    const mins = Number(t);
+    return Number.isFinite(mins) && mins > 0 ? mins * 60 : null;
+  }
+  const m = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{1,2}(?:\.\d)?)$/.exec(t);
+  if (!m) return null;
+  const h = m[1] === undefined ? 0 : Number(m[1]);
+  const mi = Number(m[2]);
+  const sec = Number(m[3]);
+  if (!Number.isFinite(h) || !Number.isFinite(mi) || !Number.isFinite(sec)) return null;
+  if (mi > 59 || sec >= 60) return null;
+  const total = h * 3600 + mi * 60 + sec;
+  return total > 0 ? total : null;
+}
+
+/* "20:00" from 1200. The box shows what it would parse back to. */
+export function targetWord(seconds: number): string {
+  const whole = Math.round(seconds * 10) / 10;
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const s = whole % 60;
+  const ss = Number.isInteger(s) ? String(s).padStart(2, "0") : s.toFixed(1).padStart(4, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/* THE CHIPS ARE PACES, NOT CLOCKS. A 5 k at 2:00 is 20:00 and a 10 k at 2:00
+ * is 40:00, so three hardcoded times would be wrong the moment the distance
+ * changed. These stay right. */
+export const TARGET_PACES = [110, 120, 130];
+
+export function TargetControl({ ergId, goalS, goalM, scope = "row" }: { ergId: string; goalS: number | null; goalM: number; scope?: string }) {
+  const [draft, setDraft] = useState(goalS === null ? "" : targetWord(goalS));
+  const boxId = `target-${scope}-${ergId}`;
+
+  /* The chips write straight to the hub, so the box follows the slot rather
+   * than its own last keystroke. */
+  useEffect(() => {
+    setDraft(goalS === null ? "" : targetWord(goalS));
+  }, [goalS]);
+
+  const commit = () => {
+    const t = draft.trim();
+    if (!t) {
+      setErgGoalTime(ergId, null);
+      return;
+    }
+    const secs = parseTargetTime(t);
+    if (secs === null) {
+      setDraft(goalS === null ? "" : targetWord(goalS));
+      return;
+    }
+    setErgGoalTime(ergId, secs);
+  };
+
+  return (
+    <div className="eg-tgt">
+      <span className="eg-tgt-k">Target</span>
+      <label className="eg-away" htmlFor={boxId}>
+        Target time for the whole piece
+      </label>
+      <input
+        id={boxId}
+        className="eg-tgt-box"
+        inputMode="numeric"
+        value={draft}
+        placeholder="MM:SS"
+        onChange={(ev) => setDraft(ev.target.value)}
+        onBlur={commit}
+        onKeyDown={(ev) => {
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {TARGET_PACES.map((p) => {
+        const secs = (goalM / 500) * p;
+        const on = goalS !== null && Math.abs(goalS - secs) < 0.6;
+        return (
+          <button key={p} type="button" className={on ? "eg-chip on" : "eg-chip"} aria-pressed={on} onClick={() => setErgGoalTime(ergId, secs)}>
+            {fmtPaceS(p).replace(/\.0$/, "")}
+          </button>
+        );
+      })}
+      {goalS === null ? null : (
+        <button type="button" className="eg-chip" onClick={() => setErgGoalTime(ergId, null)}>
+          Clear
+        </button>
+      )}
+      {/* The two always travel together: a whole-piece time means nothing
+        * without the distance it is over, and changing either silently
+        * redefines the other. */}
+      <span className="eg-tgt-k">{goalS === null ? `NO TARGET · ${goalWord(goalM)}` : `${targetWord(goalS)} OVER ${goalWord(goalM)}`}</span>
     </div>
   );
 }

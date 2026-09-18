@@ -2,7 +2,25 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { ForceCurve } from "@/lib/pm5/pm5";
-import { PAD, PADZ, VW, computePlot, fmtNum, nearestByX, stepOf, thinPoints, type Plot, type Series, type XY } from "./chartGeom";
+import {
+  PAD,
+  PADZ,
+  SPREAD_MIN,
+  SPREAD_SD_MIN,
+  VW,
+  computePlot,
+  computeSpread,
+  densityAt,
+  fmtNum,
+  nearestByX,
+  spreadRank,
+  stepOf,
+  thinPoints,
+  type Plot,
+  type Series,
+  type Spread,
+  type XY,
+} from "./chartGeom";
 
 export { thinPoints };
 export type { Series, XY };
@@ -75,6 +93,11 @@ export type { Series, XY };
  *      second, buys nothing.
  *   4. Do NOT setState straight out of pointermove. One frame, one write,
  *      and only when the snapped point actually changed.
+ *   5. The useRef cache in useSpread is NOT a breach of 1. Prohibition 1 is
+ *      about comparing ARRAY IDENTITIES that thinPoints reallocates every
+ *      render, where the comparison costs and never hits. That cache is
+ *      keyed on a count, a last point and a clock — scalars — so it hits on
+ *      almost every render by construction. Do not delete it.
  *
  * The maths is chartGeom.ts and nothing here duplicates it. The gesture is
  * the one the house already shipped in src/app/row100k/stats/KdeScrub.tsx —
@@ -121,6 +144,22 @@ type ChartProps = {
    * STROKE, SAMPLE. Falls back to the first word of xLabel. */
   xWord?: string;
   span?: SpanControl;
+  /* THE SPREAD: the mean and the deviation of this KPI on every panel, and
+   * the density of it when the chart is opened. Off by default, and off for
+   * good on the force curve — see useSpread. */
+  stat?: boolean;
+  /* A chart on the rowing screen. No opener, no cursor, no focusable node: a
+   * sweaty thumb must never drop a full screen dialog over the finish time
+   * of the piece somebody is in the middle of. */
+  still?: boolean;
+  /* MORE ROOM FOR THE Y LABELS (review, 2026-09-17: the rowing screen prints
+   * its axis at thirteen units instead of nine so it can be read from a
+   * metre away, and 1:50.0 at that size is wider than the forty one units
+   * the default pad leaves — so the minute was being cut off the left of
+   * every tick and the axis read as a set of seconds). The number is in
+   * viewBox units, and an opened chart measures itself in pixels, so it is
+   * only honoured on a panel. */
+  padL?: number;
 };
 
 /* One reading off the rule: which series, and what it says there. */
@@ -437,6 +476,87 @@ function useChartScrub(plot: Plot | null, zoom: boolean, open: () => void) {
   };
 }
 
+/* THE SPREAD OF THE LEAD SERIES, on a clock.
+ *
+ * TWO TIERS. "stats" is one pass and one sort — no grid and no exp() — and
+ * every chart with the prop gets it. "curve" adds the kernel and is asked
+ * for only by a chart that is OPEN; the opened sheet is modal and counts its
+ * own lock, so at most one exists. A rower looking at nine panels pays for
+ * nine sorts and zero exponentials.
+ *
+ * THE LEAD SERIES ONLY, which is plot.lead, which is the first series with a
+ * line in it. That excludes every dashed companion automatically, and it
+ * should: AVERAGE and RUNNING AVG are CUMULANTS, not samples. The deviation
+ * of a running mean shrinks towards zero as a row goes on whatever the rower
+ * does, so printing it beside the deviation of the pace would say the
+ * average is six times steadier than the rower, which is arithmetic rather
+ * than a fact about anybody.
+ *
+ * THE KEY IS SCALARS. The hub mutates its arrays in place and thinPoints
+ * reallocates on every render, so an identity key is either a permanent hit
+ * that never updates or a permanent miss. A count, the last point, and the
+ * domain. The 400 ms floor on top means a live piece recomputes two and a
+ * half times a second rather than twelve, and a finished or paused one
+ * computes once, ever. */
+const SPREAD_EVERY_MS = 400;
+
+function useSpread(plot: Plot | null, want: "off" | "stats" | "curve"): Spread | null {
+  /* The tier is remembered as well as the key, because a tier change is not
+   * a data change and must not be made to wait out the clock (review,
+   * 2026-09-17: opening a chart within 400 ms of the last stats computation
+   * left it with no hill until the next packet moved the key). */
+  const cache = useRef<{ key: string; tier: string; at: number; v: Spread | null }>({ key: "", tier: "", at: 0, v: null });
+  if (want === "off" || !plot || plot.statLead < 0) return null;
+  const pts = plot.drawn[plot.statLead];
+  const last = pts.length ? pts[pts.length - 1] : null;
+  const key = `${want}|${pts.length}|${last ? last.x : 0}|${last ? last.y : 0}|${plot.lo.toFixed(3)}|${plot.hi.toFixed(3)}`;
+  const now = typeof performance === "undefined" ? 0 : performance.now();
+  if (cache.current.key !== key && (cache.current.tier !== want || now - cache.current.at >= SPREAD_EVERY_MS)) {
+    const dom: [number, number] = [Math.min(plot.lo, plot.hi), Math.max(plot.lo, plot.hi)];
+    cache.current = { key, tier: want, at: now, v: computeSpread(pts, want === "curve" ? "curve" : "stats", dom) };
+  }
+  return cache.current.v;
+}
+
+/* A DEVIATION ON THE KPI'S OWN SCALE. One fixed decimal rounds a real spread
+ * to zero on any KPI whose whole range sits under a tenth of its unit —
+ * drive length moves about three centimetres — so SD 0.0 would print one
+ * line under a guard that had just said the samples are NOT all the same,
+ * beside a z score computed from that same non-zero number. Two significant
+ * figures below one, spelled out with toFixed rather than toPrecision so a
+ * tiny value cannot come back in exponential form. yFmt is the wrong tool
+ * for it: a three second spread on the pace chart is three SECONDS, not the
+ * clock time 0:03. */
+function fmtSd(s: number): string {
+  if (!(s > 0)) return "0";
+  const dp = s >= 1 ? 1 : Math.min(6, 1 - Math.floor(Math.log10(s)));
+  return s.toFixed(dp);
+}
+
+/* THE LINE UNDER THE TITLE: what the piece was made of, in words.
+ *
+ * The direction word comes off invertY and off nothing else. It is already
+ * the prop that orients the axis, so the sentence and the picture cannot
+ * contradict each other: on an inverted chart a low number is a fast one, so
+ * a rower at the 22nd percentile of their own splits is FASTER THAN 78%. */
+function spreadWords(sp: Spread | null, now: number | null, yFmt: (y: number) => string, invertY: boolean): { text: string; quiet: boolean } | null {
+  if (!sp) return null;
+  const bits: string[] = [`MEAN ${yFmt(sp.mean)}`];
+  if (sp.n < SPREAD_MIN) return { text: `${bits[0]} · ${sp.n} VALUES`, quiet: true };
+  if (!(sp.sd > 0)) return { text: `${bits[0]} · EVERY SAMPLE THE SAME`, quiet: true };
+  bits.push(`SD ${fmtSd(sp.sd)}`);
+  if (sp.modes >= 2) bits.push("TWO GROUPS");
+  if (now !== null) {
+    bits.push(`NOW ${yFmt(now)}`);
+    const z = (now - sp.mean) / sp.sd;
+    bits.push(`${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(1)} SD`);
+    const pct = spreadRank(sp, now);
+    if (Number.isFinite(pct)) bits.push(invertY ? `FASTER THAN ${Math.round(100 - pct)}%` : `ABOVE ${Math.round(pct)}%`);
+  }
+  if (sp.n < sp.nAll) bits.push(`FROM ${sp.n.toLocaleString("en-US")} OF ${sp.nAll.toLocaleString("en-US")}`);
+  return { text: bits.join(" · "), quiet: false };
+}
+
 /* Every series read at the rule, in series order. Written with map rather
  * than filter(Boolean), which does not narrow a nullable array under strict
  * TypeScript and is a compile error. */
@@ -473,6 +593,7 @@ function ChartZoom({
   handlers,
   keys,
   valueText,
+  spread,
 }: {
   title: string;
   unit: string;
@@ -490,6 +611,9 @@ function ChartZoom({
   handlers: React.DOMAttributes<HTMLDivElement>;
   keys: (e: React.KeyboardEvent) => void;
   valueText: string;
+  /* The mean, the deviation and where the rower is in their own spread, when
+   * this chart carries one. Null on the force curve. */
+  spread?: string | null;
 }) {
   /* A pointerdown on the ground closes, but only when it started there AND
    * hardly travelled: a scrub that ends past the edge of the card must not
@@ -595,6 +719,8 @@ function ChartZoom({
           {children}
         </div>
 
+        {spread ? <div className="eg-chart-stat">{spread}</div> : null}
+
         <div className="eg-zoom-foot">
           {span?.can ? (
             <span className="eg-chips">
@@ -631,11 +757,17 @@ export function Chart({
   small = false,
   xWord,
   span,
+  stat = false,
+  still = false,
+  padL,
 }: ChartProps) {
   const f = useChartFrame();
-  const { W, H, pad } = f.size(small);
+  const base = f.size(small);
+  const { W, H } = base;
+  const pad = padL !== undefined && !f.zoom ? { ...base.pad, l: padL } : base.pad;
   const plot = computePlot(series, { W, H, pad, invertY, refY, yMin, yMax });
   const s = useChartScrub(plot, f.zoom, () => f.setZoom(true));
+  const sp = useSpread(plot, stat ? (f.zoom ? "curve" : "stats") : "off");
 
   const legend = series.map((x) => x.label).join(" · ");
   const word = xWord ?? xLabel.split(" ")[0];
@@ -654,6 +786,13 @@ export function Chart({
   /* Only on a panel. In the sheet the reading has its own strip and the head
    * keeps its title. */
   const panelRead = !f.zoom && s.snapped !== null;
+
+  /* WHERE THE ROWER IS ON THEIR OWN HILL: the scrubbed value when a cursor is
+   * placed, and otherwise the newest point — so the distribution is a reading
+   * instrument like everything else on this screen rather than a picture. */
+  const nowY = leadRead?.p ? leadRead.p.y : plot && plot.lead >= 0 ? (plot.drawn[plot.lead][plot.drawn[plot.lead].length - 1]?.y ?? null) : null;
+  const words = spreadWords(sp, nowY ?? null, yFmt, invertY);
+  const band = sp && sp.n >= SPREAD_SD_MIN && sp.sd > 0 && plot ? { a: plot.sy(sp.mean + sp.sd), b: plot.sy(sp.mean - sp.sd) } : null;
 
   const body: ReactNode = !plot ? (
     <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
@@ -686,6 +825,30 @@ export function Chart({
           )}
         </g>
       )}
+      {/* THE SLAB AND THE RULE GO UNDER THE DATA, so the line stays the
+        * brightest thing on the chart and the dots stay on top of both.
+        * Min and max rather than an assumed order: on an inverted axis the
+        * mean plus one deviation is the LOWER pixel. */}
+      {band && sp && Math.min(H - pad.b, Math.max(band.a, band.b)) - Math.max(pad.t, Math.min(band.a, band.b)) > 0 ? (
+        <rect
+          className="sdband"
+          x={pad.l}
+          y={Math.max(pad.t, Math.min(band.a, band.b))}
+          width={W - pad.r - pad.l}
+          height={Math.min(H - pad.b, Math.max(band.a, band.b)) - Math.max(pad.t, Math.min(band.a, band.b))}
+        />
+      ) : null}
+      {sp && plot.sy(sp.mean) >= pad.t && plot.sy(sp.mean) <= H - pad.b ? (
+        <g>
+          <line className="meanln" x1={pad.l} x2={W - pad.r} y1={plot.sy(sp.mean)} y2={plot.sy(sp.mean)} />
+          {/* Anchored LEFT because the reference label is already anchored
+            * right, and on a pace chart they would collide at exactly two
+            * minutes, which is the commonest split on this machine. */}
+          <text className="kdlbl" x={pad.l + 3} y={plot.sy(sp.mean) - 3} textAnchor="start">
+            MEAN {yFmt(sp.mean)}
+          </text>
+        </g>
+      ) : null}
       {series.map((x, i) => {
         const pts = plot.drawn[i];
         if (x.kind === "bars") {
@@ -711,6 +874,32 @@ export function Chart({
         const d = pts.map((p, j) => `${j ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ");
         return <path key={i} className={x.kind === "dashed" ? "ln2" : "ln"} d={d} />;
       })}
+      {/* THE HILL, lying on its side against the right edge and read off the
+        * SAME sy() as the line. Only in an opened chart: a usable strip is a
+        * fifth of a 360 unit panel, permanently, on nine charts, to draw a
+        * shape nobody looks at mid stroke. */}
+      {f.zoom && sp && sp.xs && sp.ys
+        ? (() => {
+            const xs = sp.xs;
+            const ys = sp.ys;
+            const kw = Math.min(96, plot.pw * 0.22);
+            const top = Math.max(...ys);
+            if (!(top > 0)) return null;
+            const edge = W - pad.r;
+            const xOf = (d: number) => edge - (d / top) * kw;
+            const line = xs.map((v, i) => `${i ? "L" : "M"}${xOf(ys[i]).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ");
+            const area = `M${edge} ${plot.sy(xs[0]).toFixed(1)} ${line.slice(1)} L${edge} ${plot.sy(xs[xs.length - 1]).toFixed(1)} Z`;
+            const dot = nowY === null ? null : { cx: xOf(densityAt(sp, nowY)), cy: plot.sy(nowY) };
+            return (
+              <g>
+                <path className="kd" d={area} />
+                <path className="kdln" d={line} />
+                <line className="kdax" x1={edge} x2={edge} y1={plot.sy(xs[0])} y2={plot.sy(xs[xs.length - 1])} />
+                {dot && dot.cy >= pad.t && dot.cy <= H - pad.b ? <circle className="kdot" cx={dot.cx} cy={dot.cy} r={3.6} /> : null}
+              </g>
+            );
+          })()
+        : null}
       {s.snapped !== null ? (
         <g>
           <line className="cur" x1={plot.sx(s.snapped)} x2={plot.sx(s.snapped)} y1={pad.t} y2={H - pad.b} />
@@ -758,7 +947,17 @@ export function Chart({
         )}
       </div>
 
-      {f.zoom ? null : (
+      {/* WHAT THE PIECE WAS MADE OF, in its own row and NOT inside the title
+        * row above: that one reserves exactly two lines, and a third span at
+        * nine pixels with wide tracking in a 300px column would wrap to a
+        * third line and push every plot down under the pointer that asked
+        * for it. HTML rather than SVG text, because a nine unit label
+        * renders at about seven pixels in a panel and cannot be read. */}
+      {words ? <div className={words.quiet ? "eg-chart-stat off" : "eg-chart-stat"}>{words.text}</div> : null}
+
+      {f.zoom ? null : still ? (
+        <div className="eg-chart-hit eg-chart-still">{svg}</div>
+      ) : (
         <button type="button" ref={f.opener} className="eg-chart-hit" aria-label={`Open ${title} bigger`} onClick={s.openClick} {...s.handlers}>
           {svg}
         </button>
@@ -780,6 +979,7 @@ export function Chart({
           handlers={s.handlers}
           keys={s.keys}
           valueText={readLine}
+          spread={words ? words.text : null}
           onClose={() => f.setZoom(false)}
         >
           {svg}

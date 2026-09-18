@@ -24,7 +24,11 @@
  * across the boundary. That is a lookup table added here when the review
  * screen asks for a cursor, and not before.
  *
- * NO REACT IMPORT OF ANY KIND, not even a type. */
+ * NO REACT IMPORT OF ANY KIND, not even a type. The one thing it does
+ * import is src/lib/rowStats.ts, which imports nothing itself — the same
+ * pure statistics the Rowtember numbers page runs on. */
+
+import { kde, linspace, mean, peaks, percentileRank, quantile, sd, silverman, sortAsc } from "@/lib/rowStats";
 
 export type XY = { x: number; y: number };
 
@@ -93,8 +97,16 @@ export type Plot = {
    * paths are built from, so a reading can never name a point that is not
    * on the glass. */
   drawn: XY[][];
-  /* Which series the rule snaps to: the first one with a line in it. */
+  /* Which series the rule snaps to: the first one with two points. */
   lead: number;
+  /* Which series the SPREAD describes, which is not always the same one
+   * (review, 2026-09-17). lead is the interaction anchor and must always
+   * exist; this one is allowed to be -1, and is, whenever the only drawable
+   * series is a DASHED companion. Those are cumulants and not samples — the
+   * deviation of a running mean shrinks towards zero as a row goes on
+   * whatever the rower does — so a distribution of one would be arithmetic
+   * rather than a fact about anybody. */
+  statLead: number;
 };
 
 export type PlotOpts = {
@@ -177,6 +189,7 @@ export function computePlot(series: Series[], o: PlotOpts): Plot | null {
     barBaseY: sy(Math.max(lo, 0)),
     drawn,
     lead: drawn.findIndex((p) => p.length >= 2),
+    statLead: drawn.findIndex((p, i) => p.length >= 2 && series[i].kind !== "dashed"),
   };
 }
 
@@ -215,4 +228,141 @@ export function nearestByX(pts: XY[], x: number): XY | null {
  * a dash rather than naming a value forty strokes away. */
 export function stepOf(p: Plot, pts: XY[]): number {
   return (p.x1 - p.x0) / Math.max(1, pts.length - 1);
+}
+
+/* ------------------------------------------------- the shape of a number */
+
+/* THE SPREAD OF ONE KPI (owner, 2026-09-17: "when most of these graphs I
+ * also want a KDE showing the results of each KPI and their mean and sd").
+ *
+ * A time series says what happened in what order. This says what the piece
+ * was MADE of: where the mass of the strokes sat, how wide it was, and where
+ * the number is right now inside its own history. Two rowers with the same
+ * average split can have completely different shapes here, and the shape is
+ * the part a coach reads.
+ *
+ * IT IS DRAWN ON THE CHART OWN Y SCALE — a hill lying on its side against
+ * the right edge, the mean a dashed rule across the plot, one standard
+ * deviation a slab across it. One sy() for the line and for its own
+ * distribution, which is what makes an inverted axis correct by
+ * construction rather than by care: the pace chart draws faster upward, and
+ * a density with its own geometry would need its own flip and its own
+ * flipped words, in two places that would eventually disagree.
+ *
+ * The maths is src/lib/rowStats.ts — the same gaussian kernel and the same
+ * Silverman bandwidth the Rowtember numbers page has drawn all month. That
+ * file imports nothing, so a client component can use it and so can a
+ * server one.
+ *
+ * WHAT IT COSTS, on a screen that repaints twelve times a second. A gaussian
+ * kernel is one exp() per value per grid point; nine charts of six hundred
+ * points on a hundred and twenty point grid at twelve hertz is about eight
+ * million exp() a second, which is a third of a core on a mid Android. So
+ * there are two tiers. STATS — the mean, the deviation, the sorted copy and
+ * the percentile — is one pass and one sort, no grid and no exp(), and every
+ * chart gets it. CURVE is asked for only by a chart that is OPEN, and the
+ * opened sheet is modal, so at most one exists. See useSpread in charts.tsx
+ * for the clock on top of that. */
+
+export type Spread = {
+  /* Values used, after thinning, and values offered. A thinned sample says
+   * so on screen rather than quietly describing a third of the piece. */
+  n: number;
+  nAll: number;
+  mean: number;
+  /* rowStats.sd is the POPULATION deviation, over n. It describes the values
+   * it was handed, which is the right question for a distribution. It is NOT
+   * the same quantity as predict.blockSigma, which divides by n minus one
+   * because it is estimating an unseen future. The two are never printed
+   * beside each other: this one prints as SD, that one as a plus or minus. */
+  sd: number;
+  /* Ascending. quantile and percentileRank both require sorted input and
+   * neither sorts for you. */
+  sorted: number[];
+  /* The window the curve was drawn over, already clipped to the axis. */
+  lo: number;
+  hi: number;
+  /* Null when only stats were asked for. */
+  xs: number[] | null;
+  ys: number[] | null;
+  /* How many humps. Two is a real answer on an interval piece and it is the
+   * one case where the mean is a pace nobody rowed. */
+  modes: number;
+};
+
+/* Under eight values there is no distribution, only eight values. */
+export const SPREAD_MIN = 8;
+/* Under three the deviation is a number but not a fact; the slab is not
+ * drawn, though the mean rule still is. */
+export const SPREAD_SD_MIN = 3;
+/* The kernel is linear in this, so it is the cost dial. */
+export const SPREAD_CAP = 300;
+/* The strip is at most ninety six units wide, and in an opened chart one
+ * unit is one pixel. More grid than that is invisible. */
+export const SPREAD_GRID = 96;
+
+export function computeSpread(pts: XY[], want: "stats" | "curve", domain: [number, number]): Spread | null {
+  const all = pts.filter((p) => Number.isFinite(p.y));
+  if (all.length < SPREAD_MIN) return null;
+  const used = thinPoints(all, SPREAD_CAP);
+  const v = used.map((p) => p.y);
+  const sorted = sortAsc(v);
+  const m = mean(v);
+  const s = sd(v);
+
+  /* EVERY SAMPLE THE SAME is a real answer and not a curve, and it has to be
+   * caught BEFORE silverman: a monitor sitting at a steady 24 spm sends one
+   * integer for a minute, and silverman ends with `return h > 0 ? h : 1`, so
+   * it hands back a made-up width of one and the kernel draws a confident
+   * hill over data that has no width at all. */
+  if (!(s > 0)) {
+    return { n: v.length, nAll: all.length, mean: m, sd: 0, sorted, lo: m, hi: m, xs: null, ys: null, modes: 0 };
+  }
+  if (want === "stats") {
+    return { n: v.length, nAll: all.length, mean: m, sd: s, sorted, lo: sorted[0], hi: sorted[sorted.length - 1], xs: null, ys: null, modes: 0 };
+  }
+
+  const h = silverman(v);
+  /* The middle ninety eight per cent, widened by a bandwidth so the curve
+   * comes down to the axis, then clipped to what the chart actually shows so
+   * the hill can never run off its own plot. */
+  const dLo = Math.min(domain[0], domain[1]);
+  const dHi = Math.max(domain[0], domain[1]);
+  const lo = Math.max(dLo, quantile(sorted, 0.01) - h);
+  const hi = Math.min(dHi, quantile(sorted, 0.99) + h);
+  if (!(hi > lo)) {
+    return { n: v.length, nAll: all.length, mean: m, sd: s, sorted, lo: sorted[0], hi: sorted[sorted.length - 1], xs: null, ys: null, modes: 0 };
+  }
+
+  const xs = linspace(lo, hi, SPREAD_GRID);
+  const raw = kde(v, h, xs);
+  const top = Math.max(...raw);
+  const ys = top > 0 ? raw.map((y) => y / top) : raw.map(() => 0);
+  /* Blunt on purpose: a second hump must stand fifteen per cent of the
+   * tallest above the dip before it counts, so a wobbly hill does not
+   * conjure a mode out of noise. */
+  const modes = top > 0 ? peaks(ys, 0.15).length : 0;
+
+  return { n: v.length, nAll: all.length, mean: m, sd: s, sorted, lo, hi, xs, ys, modes };
+}
+
+/* Where one value sits among the others, as a percentage at or below it.
+ * The caller decides what that MEANS: on an inverted axis lower is faster,
+ * so the sentence flips and the picture does not. */
+export function spreadRank(sp: Spread, v: number): number {
+  return percentileRank(sp.sorted, v);
+}
+
+/* The height of the curve at one value, for the dot that marks where the
+ * rower is on their own hill. Linear between grid points. */
+export function densityAt(sp: Spread, v: number): number {
+  if (!sp.xs || !sp.ys || sp.xs.length < 2) return 0;
+  if (v <= sp.xs[0]) return sp.ys[0];
+  const last = sp.xs.length - 1;
+  if (v >= sp.xs[last]) return sp.ys[last];
+  let i = 0;
+  while (i < last - 1 && sp.xs[i + 1] < v) i++;
+  const span = sp.xs[i + 1] - sp.xs[i];
+  const t = span > 0 ? (v - sp.xs[i]) / span : 0;
+  return sp.ys[i] + (sp.ys[i + 1] - sp.ys[i]) * t;
 }

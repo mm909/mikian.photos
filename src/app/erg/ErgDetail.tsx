@@ -17,7 +17,8 @@ import {
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
 import { Chart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
-import { GoalControl, expectedFinish, goalMismatch, goalWord } from "./ErgGoal";
+import { ViewChips, type RowerView } from "./ErgRower";
+import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded } from "./ErgGoal";
 import {
   LINK_WORD,
   RATE_KEYS,
@@ -115,7 +116,21 @@ function Kv({ k, v }: { k: string; v: string | number }) {
   );
 }
 
-export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack: () => void; signedIn?: boolean }) {
+export function ErgDetail({
+  erg,
+  onBack,
+  signedIn = false,
+  view,
+  onView,
+}: {
+  erg: Erg;
+  onBack: () => void;
+  signedIn?: boolean;
+  /* THE OTHER VIEW (owner, 2026-09-17). Optional so nothing that renders
+   * this console without a switch has to grow one. */
+  view?: RowerView;
+  onView?: (v: RowerView) => void;
+}) {
   const [showFeed, setShowFeed] = useState(false);
   /* Whether the charts hold the whole piece rather than the rolling
    * window. Here rather than in a chart, because all nine share it. */
@@ -180,7 +195,13 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
     { kind: "bars", label: "PER STROKE", points: per((s) => s.watts) },
     { kind: "dashed", label: "RUNNING AVG", points: thinPoints(runningAvg, CHART_POINTS) },
   ];
-  const spmSeries: Series[] = [{ kind: "line", label: "SPM", points: thinPoints(win.map((s) => ({ x: s.t, y: s.spm })), CHART_POINTS) }];
+  /* ZERO IS NOT A STROKE RATE, it is the monitor saying nobody is pulling
+   * (review, 2026-09-17: the new mean and deviation were being computed over
+   * every paused second, so a piece with two breaks in it reported a rate
+   * several spm below anything the rower ever rowed). The pace series has
+   * always filtered its own sentinel one line above; this one now does too,
+   * which also takes the dip out of the drawn line. */
+  const spmSeries: Series[] = [{ kind: "line", label: "SPM", points: thinPoints(win.filter((s) => s.spm > 0).map((s) => ({ x: s.t, y: s.spm })), CHART_POINTS) }];
   /* Where the heart rate chart used to be. Metres a stroke is the number
    * that says whether a rate went up because the rower did more work or
    * because the handle came back shorter. */
@@ -214,9 +235,20 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
    * tile falls back to the monitor's own number and says where it came
    * from — with the reason the prediction is not ready yet. */
   const monitorProj = last?.projTimeS !== null && last?.projTimeS !== undefined ? fmtClock(last.projTimeS) : null;
-  const finishTile = finish.ready
-    ? { value: finish.value, sub: finish.under }
-    : { value: monitorProj ?? "—", sub: monitorProj ? `${finish.under} · THE MONITOR'S OWN PROJECTION` : finish.under };
+  /* A PIECE THAT HAS ENDED PRINTS WHAT IT DID, not what it is going to do
+   * (review, 2026-09-17: the tile kept predicting a finish after WORKOUT END
+   * unless the goal distance happened to be the one the monitor was set to,
+   * which the monitors row already refused to do). */
+  const ended = pieceEnded(erg);
+  /* AND IT DOES NOT REPEAT THE CLOCK (review, 2026-09-17: printing the
+   * elapsed time here put the identical number in two tiles side by side,
+   * because ELAPSED is the very next one). The monitors row already answers
+   * this by printing the average split instead; the console now agrees. */
+  const finishTile = ended
+    ? { value: a1 && a1.averagePaceS > 0 ? fmtPace(a1.averagePaceS) : "—", sub: g ? `OVER ${fmtMeters(g.distanceM)}` : "" }
+    : finish.ready
+      ? { value: finish.value, sub: finish.under }
+      : { value: monitorProj ?? "—", sub: monitorProj ? `${finish.under} · THE MONITOR'S OWN PROJECTION` : finish.under };
 
   const save = async () => {
     setBusy(true);
@@ -260,6 +292,8 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             {erg.pps ? ` · ${erg.pps} PACKETS/S` : ""}
           </span>
 
+          {view && onView ? <ViewChips view={view} onView={onView} /> : null}
+
           <span className="eg-dstate">
             {g ? workoutStateWord(g.workoutState) : "NO STATUS PACKET YET"}
             {g ? <span>{strokeStateWord(g.strokeState)}</span> : null}
@@ -268,6 +302,10 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           {/* THE GOAL, changeable here as well as on the row (owner,
            * 2026-09-17). Same control, same hub call. */}
           <GoalControl ergId={erg.id} goalM={erg.goalM} />
+          {/* HOW FAST, beside HOW FAR. The rowing screen reads the two
+            * together through readTarget; with no target it is complete
+            * anyway, which is what makes it honest never to ask mid-piece. */}
+          <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="head" />
           {mismatch ? <span className="eg-note">{mismatch}</span> : null}
 
           <span className="eg-chips">
@@ -349,11 +387,16 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           * goal was in the label, which made a seventeen-character eyebrow
           * over a number in a 168px column). The goal moved down into the
           * quiet line, where it sits in front of the band. */}
-        <Tile label="Expected finish" value={finishTile.value} sub={[goalWord(erg.goalM), finishTile.sub].filter(Boolean).join(" · ")} hint={finish.hint} />
         <Tile
-          label="Elapsed"
+          label={ended ? "Average /500m" : "Expected finish"}
+          value={finishTile.value}
+          sub={ended ? finishTile.sub : [goalWord(erg.goalM), finishTile.sub].filter(Boolean).join(" · ")}
+          hint={ended ? null : finish.hint}
+        />
+        <Tile
+          label={ended ? "Final" : "Elapsed"}
           value={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"}
-          sub={g ? `${workoutTypeWord(g.workoutType)} · ${fmtWorkoutTarget(g.workoutDuration, g.workoutDurationType)}` : ""}
+          sub={ended ? "THE PIECE HAS ENDED" : g ? `${workoutTypeWord(g.workoutType)} · ${fmtWorkoutTarget(g.workoutDuration, g.workoutDurationType)}` : ""}
         />
         <Tile
           label="Avg pace"
@@ -425,9 +468,12 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             refDeltaFmt={(d) => `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} S`}
             xWord="ELAPSED"
             span={span}
+            stat
           />
-          <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel="STROKE" yLabel="W" span={span} />
-          <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel="ELAPSED S" yLabel="SPM" xFmt={(x) => fmtClock(x)} yMin={0} xWord="ELAPSED" span={span} />
+          <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel="STROKE" yLabel="W" span={span}
+            stat />
+          <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel="ELAPSED S" yLabel="SPM" xFmt={(x) => fmtClock(x)} yMin={0} xWord="ELAPSED" span={span}
+            stat />
           <Chart
             title="Distance per stroke"
             unit="M"
@@ -438,6 +484,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             yMin={0}
             empty="WAITING FOR A STROKE"
             span={span}
+            stat
           />
         </div>
 
@@ -446,7 +493,8 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
           <span className="eg-note">0X35 · 0X36 · PER STROKE</span>
         </div>
         <div className="eg-charts four">
-          <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: per((s) => s.driveLengthM) }]} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(2)} span={span} />
+          <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: per((s) => s.driveLengthM) }]} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(2)} span={span}
+            stat />
           <Chart
             small
             title="Drive / recovery"
@@ -460,6 +508,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             yFmt={(y) => y.toFixed(2)}
             yMin={0}
             span={span}
+            stat
           />
           <Chart
             small
@@ -473,8 +522,10 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             yLabel="LBF"
             yMin={0}
             span={span}
+            stat
           />
-          <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: per((s) => s.workJ) }]} xLabel="STROKE" yLabel="J" yMin={0} span={span} />
+          <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: per((s) => s.workJ) }]} xLabel="STROKE" yLabel="J" yMin={0} span={span}
+            stat />
         </div>
       </section>
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ergPageOpen, ergViewer } from "./gate";
 import { MonitorList } from "./MonitorList";
+import { rowerCss } from "./rowerCss";
 import { ErgShell } from "./Shell";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,9 @@ export default async function ErgMonitorsPage({ searchParams }: { searchParams?:
   const one = (raw: string | string[] | undefined) => (Array.isArray(raw) ? raw[0] : raw) ?? null;
 
   return (
-    <ErgShell ground="ink">
+    /* The rowing sheet is always mounted, so switching into it is not a
+        * style tag appearing and the screen never flashes. */
+    <ErgShell ground="ink" sheet={rowerCss}>
       {/* Signed out, the page still pairs, simulates and plays back — the
         * gym path runs off npm run dev with nobody signed in. Only SAVE
         * needs an account, and the foot of the list says so. */}

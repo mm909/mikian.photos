@@ -217,6 +217,15 @@ export type Erg = {
    * measured against, whatever the monitor's own workout says. It starts
    * at five thousand on every slot and lives as long as the tab does. */
   goalM: number;
+  /* THE TARGET TIME, in seconds, or null for no target (owner, 2026-09-17:
+   * "if I start this session and I say I want to do a 5K in 20 minutes and
+   * I am rowing at not that pace, I want to be notified, or if I can go a
+   * little slower I want to be notified"). The goal above is HOW FAR; this
+   * is HOW FAST, and predict.ts reads the two together. Null is the honest
+   * default: nobody should be told they are behind a number they never
+   * set. Like the distance, it belongs to the slot for the session and a
+   * CLEAR does not touch it. */
+  goalS: number | null;
   addedAt: number;
 };
 
@@ -235,6 +244,12 @@ export const LINK_WORD: Record<ErgLink, string> = { idle: "NOT CONNECTED", conne
 export const DEFAULT_GOAL_M = 5000;
 export const GOAL_MIN_M = 100;
 export const GOAL_MAX_M = 100_000;
+
+/* A target of a minute is not a target and one of ten hours is not either.
+ * The band is wide on purpose: it exists to catch a typo, not to have an
+ * opinion about what anybody should be rowing. */
+export const GOAL_MIN_S = 30;
+export const GOAL_MAX_S = 36_000;
 
 const FEED_LINES = 60;
 const LOG_LINES = 80;
@@ -744,6 +759,7 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     sourceLabel: null,
     loaded: null,
     goalM: DEFAULT_GOAL_M,
+    goalS: null,
     addedAt: Date.now() + ergs.size,
   };
   ergs.set(e.id, e);
@@ -1203,6 +1219,24 @@ export function setErgGoal(id: string, meters: number) {
   if (!Number.isFinite(meters)) return;
   const m = Math.round(meters);
   e.goalM = Math.min(GOAL_MAX_M, Math.max(GOAL_MIN_M, m));
+  paint();
+}
+
+/* THE TARGET TIME for this slot, or null to row without one. Out-of-range
+ * is treated as no target rather than clamped: a rower who typed something
+ * wrong should get no target line, not a target nobody chose. */
+export function ergGoalSeconds(id: string): number | null {
+  return ergs.get(id)?.goalS ?? null;
+}
+
+export function setErgGoalTime(id: string, seconds: number | null) {
+  const e = ergs.get(id);
+  if (!e) return;
+  if (seconds === null || !Number.isFinite(seconds) || seconds < GOAL_MIN_S || seconds > GOAL_MAX_S) {
+    e.goalS = null;
+  } else {
+    e.goalS = Math.round(seconds * 10) / 10;
+  }
   paint();
 }
 

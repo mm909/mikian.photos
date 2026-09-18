@@ -435,28 +435,36 @@ export function anomalies(strokes: StrokeLite[]): Anomaly[] {
 /* "19:58.4" / "1:58.4" — a duration, tenths kept under an hour. */
 export function fmtTime(seconds: number): string {
   if (!finite(seconds) || seconds < 0) return "—";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}`;
-  return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+  /* ROUND FIRST, THEN SPLIT (review, 2026-09-17: 119.96 seconds printed as
+   * 1:60.0, because the minute was floored off the raw value while the
+   * seconds field was rounded up into the next minute after it). Rounding to
+   * what this branch is about to print is what stops the carry. */
+  const t10 = Math.round(seconds * 10) / 10;
+  if (t10 >= 3600) {
+    const t = Math.round(t10);
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    return `${h}:${String(m).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  }
+  const m = Math.floor(t10 / 60);
+  return `${m}:${(t10 - m * 60).toFixed(1).padStart(4, "0")}`;
 }
 
 /* "1:58.4" — a pace, always to the tenth. */
 export function fmtPace(seconds: number): string {
   if (!finite(seconds) || seconds <= 0) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+  const t = Math.round(seconds * 10) / 10;
+  const m = Math.floor(t / 60);
+  return `${m}:${(t - m * 60).toFixed(1).padStart(4, "0")}`;
 }
 
-/* "±57 s" / "±1:02" — the band, in the unit that reads. */
+/* "57 s" / "1:02" — the band, in the unit that reads. */
 export function fmtBand(seconds: number): string {
   if (!finite(seconds) || seconds < 0) return "—";
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
+  if (seconds < 9.95) return `${seconds.toFixed(1)} s`;
+  const t = Math.round(seconds);
+  if (t < 60) return `${t} s`;
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 }
 
 /* "4.2 s" — a gap between two times. */
