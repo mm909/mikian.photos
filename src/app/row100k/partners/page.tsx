@@ -113,7 +113,7 @@ const ptnCss = `
 .row100k .ptn-code .deal a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
 .row100k .ptn-code .deal a:hover{color:#d3ab5d}
 
-.row100k .ptn-lvss{background:#0b0c0e;border:2px solid #0b0c0e;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:34px 22px 30px;margin-top:22px;text-align:center;color:#f4f3ee}
+.row100k .ptn-lvss{background:#0b0c0e;border:2px solid #0b0c0e;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:34px 22px 30px;margin-bottom:22px;text-align:center;color:#f4f3ee}
 .row100k .ptn-lvss .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:22px}
 .row100k .ptn-lvss-mark{display:inline-block;max-width:560px;width:100%}
 .row100k .ptn-lvss-mark img{display:block;width:100%;height:auto}
@@ -301,8 +301,34 @@ export default async function PartnersPage() {
             />
           ))}
 
+          {/* THE ROOM, FIRST (owner, 2026-09-21: "make sports and spine the
+            * first partner"). A sponsor block in the site's own ink rather
+            * than a brand green: they are backing the race, and race day is
+            * the site's one monochrome surface. It carries the page's
+            * eyebrow now that it opens the page. SPONSOR_SHOWN in
+            * raceday.ts is the off switch. */}
+          {SPONSOR_SHOWN && (
+          <div className="ptn-lvss">
+            <div className="eyebrow">Rowtember 2026 · Partners · Race day · The room</div>
+            <TrackedLink link="lvss">
+              <a className="ptn-lvss-mark" href={LVSS.site} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={LVSS.mark} alt={LVSS.name} />
+              </a>
+            </TrackedLink>
+            <p className="ptn-lvss-sub">
+              {LVSS.phone} ·{" "}
+              <TrackedLink link="lvss">
+                <a href={LVSS.site} target="_blank" rel="noopener noreferrer">
+                  lvsportsandspine.com
+                </a>
+              </TrackedLink>
+            </p>
+          </div>
+          )}
+
           <div className="ptn-logos">
-            <div className="eyebrow">Rowtember 2026 · Partners</div>
+            <div className="eyebrow">Prepared meals · Grizzly Health</div>
             <TrackedLink link="grizzly">
               <a className="ptn-mark" href={GRIZZLY.site} target="_blank" rel="noopener noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -417,30 +443,6 @@ export default async function PartnersPage() {
               </div>
             </div>
           </div>
-
-          {/* THE ROOM. A sponsor block in the site's own ink rather than a
-            * brand green: they are backing the race, and race day is the
-            * site's one monochrome surface. DEV AND PREVIEW ONLY until they
-            * accept (owner, 2026-09-21) — SPONSOR_SHOWN in raceday.ts. */}
-          {SPONSOR_SHOWN && (
-          <div className="ptn-lvss">
-            <div className="eyebrow">Race day · The room</div>
-            <TrackedLink link="lvss">
-              <a className="ptn-lvss-mark" href={LVSS.site} target="_blank" rel="noopener noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={LVSS.mark} alt={LVSS.name} />
-              </a>
-            </TrackedLink>
-            <p className="ptn-lvss-sub">
-              {LVSS.phone} ·{" "}
-              <TrackedLink link="lvss">
-                <a href={LVSS.site} target="_blank" rel="noopener noreferrer">
-                  lvsportsandspine.com
-                </a>
-              </TrackedLink>
-            </p>
-          </div>
-          )}
 
           <div className="ptn-next">
             <span className="k">Become a partner</span>
