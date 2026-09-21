@@ -88,6 +88,10 @@ export type RaceDef = {
    * signup asks whether it is done, and the wave note carries it again for
    * anyone who has not. `host` is how the link is named in copy. */
   waiver: { url: string; host: string } | null;
+  /* THE SPONSOR OF THE ROOM (owner, 2026-09-21). Named beside the house on
+   * the race day page and the console, and their mark rides the flyer
+   * beside the house's. White on transparent, like the house's own. */
+  sponsor: { name: string; url: string; mark: { src: string; alt: string; ratio: number } } | null;
 };
 
 export const RACES: RaceDef[] = [
@@ -136,6 +140,11 @@ export const RACES: RaceDef[] = [
     waiver: {
       url: "https://app.wodify.com/Token/SignWaiver?WaiverToken=A9C77171C1C472FF02B1FABB64AF3CD1FC0807324BBD0D3FC47FCCD838356278",
       host: "app.wodify.com",
+    },
+    sponsor: {
+      name: "Las Vegas Sports and Spine Center",
+      url: "https://lvsportsandspine.com",
+      mark: { src: "/row100k/partners/lvss-white.png", alt: "Las Vegas Sports and Spine Center", ratio: 1886 / 609 },
     },
   },
 ];

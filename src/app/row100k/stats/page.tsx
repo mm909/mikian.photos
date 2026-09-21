@@ -33,6 +33,7 @@ import { liteRecords, type RecordsProp } from "../records/defs";
 import { buildField, buildHours, type FieldEntry, type FieldModel } from "./field";
 import { buildDistanceKdes, type DistanceKde } from "./distances";
 import { FieldSection } from "./FieldSection";
+import { PerfectAttendance, perfectAttendance } from "./PerfectAttendance";
 
 export const metadata: Metadata = {
   title: "The stats — 100K September",
@@ -317,6 +318,8 @@ export default async function StatsPage() {
           ? `${stamp} · LATE LOGS THROUGH OCT 3`
           : `${stamp} · DAY ${gridDayCount} OF 30`;
 
+  const attendance = perfectAttendance(daily, now);
+
   const community = {
     meters: boards.community.meters,
     rowers: boards.community.people,
@@ -401,6 +404,20 @@ export default async function StatsPage() {
             hourGrid={hourGrid}
             days={gridDayCount}
           />
+        </div>
+      </section>
+
+      {/* PERFECT ATTENDANCE (owner, 2026-09-21: "give me a section for
+        * perfect attendance — list people who have not missed a day"). A day
+        * is not missed until it is over, so the rule is every day through
+        * yesterday, and on day one it is everyone who has rowed. */}
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>Perfect attendance</h2>
+            <span className="mono">{attendance.note}</span>
+          </div>
+          <PerfectAttendance rows={attendance.rows} />
         </div>
       </section>
 

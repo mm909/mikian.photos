@@ -1496,4 +1496,12 @@ ${INK} .pk-btn.primary,${INK} .pk-btn.primary:hover,${INK} .po-btn.primary,${INK
  * log. White, and the weight it already has (review, 2026-09-16). */
 ${INK} .po-log .neg{color:var(--ink)}
 ${INK} .ra-warn{color:var(--ink);font-weight:700}
+/* PERFECT ATTENDANCE (2026-09-21): a plain roll of names, three across on a
+ * desk and one on a phone. No numbers, so nothing here is ever masked. */
+.row100k .pa-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 22px}
+.row100k .pa-list li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px dashed var(--line);padding:7px 0}
+.row100k .pa-list a{color:var(--ink);text-decoration:none;font-weight:700}
+.row100k .pa-list a:hover{color:var(--water)}
+.row100k .pa-list .mono{font-size:10px;letter-spacing:.14em;color:var(--ink-soft)}
+.row100k .pa-none{font-size:11px;letter-spacing:.14em;color:var(--ink-soft)}
 `;

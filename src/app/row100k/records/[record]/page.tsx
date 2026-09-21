@@ -65,7 +65,6 @@ export default async function RecordRankingPage({
   }
   // The one masked set (row100kViewer.maskedIds) — self and admins exempt.
   const hidden = maskedIds(boards);
-  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   const started = clockNow() >= START_MS;
   const rows = rankedRows(boards, def.key).filter((r) => divMatch(div, r.row.division));
@@ -118,10 +117,10 @@ export default async function RecordRankingPage({
           {(blackout.active || hidden.size > 0) && (
             <p className="bo-note">
               {hidden.size > 0
-                ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${
+                ? `${ELITE_LABEL}${
                     def.key === "total" ? " · LISTED BY PACE" : def.kind === "time" ? " · TIMES ARE SHOWN" : ""
                   }`
-                : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
+                : `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`}
             </p>
           )}
 

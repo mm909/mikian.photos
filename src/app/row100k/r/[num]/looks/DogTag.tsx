@@ -66,7 +66,7 @@ export function DogTagCard({
 
         <p className="dt-foot mono">
           {board} · {ELITE_TAG}
-          {until ? ` · HIDDEN UNTIL ${until.toUpperCase()}` : ""}
+          {until ? " · HIDDEN" : ""}
         </p>
       </div>
     </div>

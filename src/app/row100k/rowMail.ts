@@ -164,7 +164,7 @@ export function rowLoggedMail(row: RowLogged, censor: Censor): RowMail {
   const meters = metersUnder(row.meters, censor);
   const total = censor.kind === "full" ? `${blocksOf(censor.digits)} m` : metersUnder(row.total, censor);
   const elite = censor.kind === "full" && censor.why === "elite";
-  const tag = censor.kind === "full" ? (elite ? "elite" : "hidden") : censor.kind === "partial" ? "run-up" : "";
+  const tag = censor.kind === "full" ? (elite ? "lights out" : "hidden") : censor.kind === "partial" ? "run-up" : "";
   const subject =
     censor.kind === "none"
       ? `${row.name} · ${fmtMeters(row.meters)} · ${fmtDuration(row.seconds)}`
@@ -172,7 +172,7 @@ export function rowLoggedMail(row: RowLogged, censor: Censor): RowMail {
   const why =
     censor.kind === "full"
       ? elite
-        ? "blackout, numbers hidden"
+        ? "lights out, numbers hidden"
         : "board could not say, numbers hidden"
       : "low digits hidden";
   const session =

@@ -192,7 +192,6 @@ export function Boards({
   // an unexplained elite block.
   const anyHidden = boards.total.some((r) => r.masked || r.unranked);
   const blackedOut = blackout.active || anyHidden;
-  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   // The head follows the tab (owner call, 2026-09-05): on the men's or
   // women's board it is that board's figures. Real sums from the server,
@@ -253,8 +252,8 @@ export function Boards({
       {blackedOut && (
         <p className="bo-note">
           {anyHidden
-            ? `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until} · LISTED BY PACE`
-            : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
+            ? `${ELITE_LABEL} · LISTED BY PACE`
+            : `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`}
         </p>
       )}
 

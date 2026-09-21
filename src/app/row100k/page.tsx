@@ -413,7 +413,7 @@ export default async function Row100kPage() {
                  * hidden and draws the longest total among them in blocks. */
                 <>
                   <div className="head mono">
-                    {eliteUntil ? `BLACKOUT — HIDDEN UNTIL ${eliteUntil.toUpperCase()}` : "BLACKOUT"}
+                    {ELITE_LABEL}
                   </div>
                   <div className="v">
                     <Blocks digits={eliteDigits} /> m
@@ -439,8 +439,8 @@ export default async function Row100kPage() {
               )}
             </div>
             <div className="front-box clock">
-              <div className="eyebrow mono">The clock</div>
-              <Countdown size="small" />
+              <div className="eyebrow mono">{hidden && blackoutEndsAt ? "Lights out ends in" : "The clock"}</div>
+              <Countdown size="small" lightsOutEndsAt={hidden ? blackoutEndsAt : null} />
             </div>
           </div>
         </div>

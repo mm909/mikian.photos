@@ -391,6 +391,13 @@ export default async function RaceDayPage() {
                         Waiver · {race.waiver.host}
                       </a>
                     )}
+                    {/* THE SPONSOR OF THE ROOM, by name, beside the house
+                      * (owner, 2026-09-21). */}
+                    {race.sponsor && (
+                      <a href={race.sponsor.url} target="_blank" rel="noopener noreferrer">
+                        The room · {race.sponsor.name}
+                      </a>
+                    )}
                   </p>
                 </div>
               </div>

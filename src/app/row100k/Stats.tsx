@@ -105,7 +105,6 @@ export function StatsRecords({
   const def = defOf(key);
   const rows = records[key] ?? [];
   const first = rows[0];
-  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
 
   /* TOTAL METERS is the leader, not a record (owner, 2026-09-08). While
    * the elite are hidden they carry no place, so there is no leader to name
@@ -157,8 +156,8 @@ export function StatsRecords({
             ? /* Times are public for the elite (owner, 2026-09-08) — said on
                  the two records that print one, the way the full-ranking
                  page says it, and not under a meters record. */
-              `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}${def.kind === "time" ? " · TIMES ARE SHOWN" : ""}`
-            : `BLACKOUT ON${until} — YOU SEE EVERYTHING`}
+              `${ELITE_LABEL}${def.kind === "time" ? " · TIMES ARE SHOWN" : ""}`
+            : `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`}
         </p>
       )}
 

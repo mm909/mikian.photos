@@ -32,6 +32,18 @@ const GRIZZLY = {
   wordmark: "/row100k/partners/grizzly-wordmark.png",
 };
 
+/* LAS VEGAS SPORTS AND SPINE CENTER (owner, 2026-09-21: "they are not
+ * giving anything away but they are giving us money for the room. We want
+ * to give them a good sponsor treatment"). Their white-on-transparent mark,
+ * lifted from their site, so it sits on ink the way their own header does.
+ * The room is the Engine Room at The Strip Barbell on race day. */
+const LVSS = {
+  name: "Las Vegas Sports and Spine Center",
+  site: "https://lvsportsandspine.com",
+  mark: "/row100k/partners/lvss-white.png",
+  phone: "(702) 707-7246",
+};
+
 /* The prize in hand (owner's gallery exports, resized to 1200px for this
  * page — the originals live in R2 under row100k/gallery/), plus the meals
  * on the erg-room floor from the first batch. */
@@ -99,6 +111,15 @@ const ptnCss = `
 .row100k .ptn-code .deal{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-top:16px;color:#f2ead7}
 .row100k .ptn-code .deal a{color:#f2ead7;text-decoration:underline;text-underline-offset:3px}
 .row100k .ptn-code .deal a:hover{color:#d3ab5d}
+
+.row100k .ptn-lvss{background:#0b0c0e;border:2px solid #0b0c0e;box-shadow:8px 8px 0 rgba(21,23,26,.2);padding:34px 22px 30px;margin-top:22px;text-align:center;color:#f4f3ee}
+.row100k .ptn-lvss .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:22px}
+.row100k .ptn-lvss-mark{display:inline-block;max-width:560px;width:100%}
+.row100k .ptn-lvss-mark img{display:block;width:100%;height:auto}
+.row100k .ptn-lvss-claim{font-size:15px;color:rgba(255,255,255,.78);max-width:58ch;margin:26px auto 0;line-height:1.6}
+.row100k .ptn-lvss-claim b{color:#fff}
+.row100k .ptn-lvss-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:18px 0 0}
+.row100k .ptn-lvss-sub a{color:#fff;text-decoration:underline;text-underline-offset:3px}
 
 /* The ask under the partner block: framed as backing the work, not selling a
  * slot (owner call — no scarcity, and it has to carry over to the athletes
@@ -393,6 +414,31 @@ export default async function PartnersPage() {
                 </TrackedLink>
               </div>
             </div>
+          </div>
+
+          {/* THE ROOM. A sponsor block in the site's own ink rather than a
+            * brand green: they are backing the race, and race day is the
+            * site's one monochrome surface. */}
+          <div className="ptn-lvss">
+            <div className="eyebrow">Race day · The room</div>
+            <TrackedLink link="lvss">
+              <a className="ptn-lvss-mark" href={LVSS.site} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={LVSS.mark} alt={LVSS.name} />
+              </a>
+            </TrackedLink>
+            <p className="ptn-lvss-claim">
+              <b>{LVSS.name} is backing the room on race day</b> — the Engine Room at The Strip Barbell, where
+              the 5,000 m trial is rowed. Pain management for Las Vegas, nine locations across the valley.
+            </p>
+            <p className="ptn-lvss-sub">
+              {LVSS.phone} ·{" "}
+              <TrackedLink link="lvss">
+                <a href={LVSS.site} target="_blank" rel="noopener noreferrer">
+                  lvsportsandspine.com
+                </a>
+              </TrackedLink>
+            </p>
           </div>
 
           <div className="ptn-next">

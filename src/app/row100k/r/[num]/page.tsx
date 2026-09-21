@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
   GOAL_METERS,
@@ -228,8 +228,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       shareElite = true;
     }
   }
-  const hiddenUntil = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
-  const blackoutNote = `BLACKOUT — HIDDEN${hiddenUntil}`;
+  const blackoutNote = ELITE_LABEL;
 
   // Everything the share cards draw. `masked`/`digits` ride along so a card
   // of a hidden rower draws blocks (share/cards.ts); a masked page never

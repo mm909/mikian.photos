@@ -17,7 +17,7 @@ import {
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
 import { Chart, DistChart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
-import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
+import { GoalControl, TargetControl, blocksFor, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
 import {
   LINK_WORD,
   RATE_KEYS,
@@ -658,8 +658,47 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
       <section className="eg-sec">
         <div className="eg-sec-head">
           <h3>Splits</h3>
-          <span className="eg-note">0X37 · 0X38</span>
+          <span className="eg-note">EVERY 500 M, CUT FROM THE TICK STREAM · THEN THE MONITOR&apos;S OWN, 0X37 · 0X38</span>
         </div>
+        {/* EVERY FIVE HUNDRED (owner, 2026-09-21: "split should be in 500
+          * metres, not kilometres"). The same blocks the prediction and the
+          * band are built from. */}
+        {(() => {
+          const { blocks } = blocksFor(erg);
+          if (!blocks.length) return <p className="eg-note">No 500 m yet.</p>;
+          let cum = 0;
+          return (
+            <div className="eg-scroll">
+              <table className="eg-table">
+                <thead>
+                  <tr>
+                    <th>At</th>
+                    <th>500 m in</th>
+                    <th>Pace /500m</th>
+                    <th>Vs last</th>
+                    <th>Elapsed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blocks.map((b, i) => {
+                    cum += b.seconds;
+                    const prev = i > 0 ? blocks[i - 1] : null;
+                    const d = prev ? b.seconds - prev.seconds : null;
+                    return (
+                      <tr key={b.n}>
+                        <td>{fmtMeters(b.n * b.meters)}</td>
+                        <td>{fmtTenthsS(b.seconds)}</td>
+                        <td>{fmtPace((b.seconds * 500) / b.meters)}</td>
+                        <td>{d === null ? "—" : Math.abs(d) < 0.05 ? "even" : `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} s`}</td>
+                        <td>{fmtTenthsS(cum)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
         {m.splits.length === 0 ? (
           <p className="eg-note">No split yet — they land at each split or interval boundary.</p>
         ) : (

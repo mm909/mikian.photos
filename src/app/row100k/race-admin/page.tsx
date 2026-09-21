@@ -195,8 +195,8 @@ export default async function RaceAdminPage() {
               * lockup the owner struck (2026-09-11, "we just keep it at the
               * strip barbell engine room"). His own console is the last
               * place that should go on saying it. */}
-            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venue} · {race.room} ·
-            waves of {race.waveSize} every {race.waveMinutes} minutes
+            <b>{race.title}</b> · {race.sub} · <b>{race.when}</b> · {hoursLine(race)} · {race.venue} · {race.room}
+            {race.sponsor ? ` · with ${race.sponsor.name}` : ""} · waves of {race.waveSize} every {race.waveMinutes} minutes
           </p>
 
           {/* WHO IS COMING, before anything he can press. The console below

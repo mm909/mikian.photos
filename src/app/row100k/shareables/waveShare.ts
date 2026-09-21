@@ -33,6 +33,7 @@ export function raceFactsOf(race: RaceDef): RaceShareBlock {
     when: `${stamp} · ${hours}`,
     where: race.room.toUpperCase(),
     mark: race.venueMark,
+    sponsor: race.sponsor?.mark ?? null,
   };
 }
 

@@ -95,26 +95,6 @@ export function derivedBlocks(samples: ErgSample[], blockM = BLOCK_M): Block[] {
   return out;
 }
 
-/* The length most of the monitor's splits are cut at. The commonest value
- * rather than the first or the mean, so the short last split of a piece
- * cannot set the unit for all of them; ties go to the longer. */
-function modalMeters(blocks: Block[]): number {
-  const seen = new Map<number, number>();
-  let best = BLOCK_M;
-  let bestN = 0;
-  for (const b of blocks) {
-    const m = Math.round(b.meters);
-    if (!(m > 0)) continue;
-    const n = (seen.get(m) ?? 0) + 1;
-    seen.set(m, n);
-    if (n > bestN || (n === bestN && m > best)) {
-      best = m;
-      bestN = n;
-    }
-  }
-  return bestN > 0 ? best : BLOCK_M;
-}
-
 /* THE BLOCKS AND THE UNIT THEY ARE COUNTED IN. The two travel together
  * (review, 2026-09-17): predict.ts counts how many blocks are done and how
  * many are left in `blockM`, and measures their spread in the same unit, so
@@ -123,13 +103,14 @@ function modalMeters(blocks: Block[]): number {
  * derived path cuts its own and is always BLOCK_M. */
 export type BlockSet = { blocks: Block[]; blockM: number };
 
+/* ALWAYS FIVE HUNDRED (owner, 2026-09-21: "split should be in 500 metres,
+ * not kilometres"). The monitor cuts a 5,000 at whatever split it was set
+ * to — a thousand, by default — and this used to take those when it had
+ * them. It cuts its own five hundreds out of the tick stream now, every
+ * time, so the band, the milestones and the console's own splits table all
+ * count in the unit he reads. The monitor's splits are still shown as the
+ * monitor's, in their own table. */
 function computeBlocks(e: Erg): BlockSet {
-  const fromMonitor: Block[] = e.model.splits.flatMap((s) => {
-    const a = s.a;
-    if (!a) return [];
-    return a.splitDistanceM > 0 && a.splitTimeS > 0 ? [{ n: s.n, meters: a.splitDistanceM, seconds: a.splitTimeS }] : [];
-  });
-  if (fromMonitor.length) return { blocks: fromMonitor, blockM: modalMeters(fromMonitor) };
   return { blocks: derivedBlocks(e.model.samples), blockM: BLOCK_M };
 }
 

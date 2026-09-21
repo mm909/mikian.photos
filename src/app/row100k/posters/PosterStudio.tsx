@@ -668,7 +668,6 @@ export function PosterStudio({
   const fellBack = files?.target.fellBack ?? false;
   const shareIsPrimary = canShareFiles && handheld;
   const tallFrame = format.h / format.w > 1.3;
-  const untilNote = data?.blackout.until ? ` UNTIL ${data.blackout.until.toUpperCase()}` : "";
 
   /* The SUBJECT row: the rower chip and its roster panel for everyone; the
    * Rowtember and race day chips for an admin. Built before the empty
@@ -990,7 +989,7 @@ export function PosterStudio({
         {fellBack && files ? (
           <li>Rendered at {files.target.ppi} ppi — this device could not allocate the 150 ppi canvas</li>
         ) : null}
-        {masked ? <li>Blackout — this poster prints with blocks{untilNote}</li> : null}
+        {masked ? <li>Lights out — this poster prints with blocks</li> : null}
         {lateLogs ? <li>Late logs through Oct 3 — the poster reads final</li> : null}
         {/* The one thing that blocks posting rather than building: the mark
             is OUR key of the gym logo, not a file they gave us. */}

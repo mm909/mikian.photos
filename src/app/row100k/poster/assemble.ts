@@ -140,7 +140,7 @@ export function posterAsOf(atMs = nowMs()): PosterAsOf & { stamp: string } {
 export function posterBlackout(state: BlackoutState, timesShown = true): PosterBlackout {
   const until = state.active && state.endsAt ? fmtPacificDay(state.endsAt) || null : null;
   const note = state.active
-    ? `BLACKOUT — THE ELITE ARE HIDDEN${until ? ` UNTIL ${until.toUpperCase()}` : ""}${timesShown ? " · TIMES ARE SHOWN" : ""}`
+    ? `LIGHTS OUT${timesShown ? " · TIMES ARE SHOWN" : ""}`
     : null;
   return { active: state.active, until, note };
 }

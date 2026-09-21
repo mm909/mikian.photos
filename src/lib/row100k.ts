@@ -675,7 +675,7 @@ export const TIERS = [
    * is past PACE_TAG_FROM, so Boards.tsx draws their split instead of the
    * tier label. They are the fallback for the one rower who reaches 500k
    * without a single timed row to average. */
-  { meters: 500_000, key: "t500", label: "ELITE", rarity: "elite", title: "Elite" },
+  { meters: 500_000, key: "t500", label: "LIGHTS OUT", rarity: "elite", title: "Lights out" },
 ] as const;
 export type Tier = (typeof TIERS)[number];
 

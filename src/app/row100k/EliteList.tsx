@@ -55,7 +55,7 @@ export function EliteList({
       {eyebrow && (
         <div className="elite-eye">
           <span>{ELITE_LABEL}</span>
-          <span className="r">{until ? `HIDDEN UNTIL ${until.toUpperCase()} · BY AVERAGE SPLIT` : "HIDDEN · BY AVERAGE SPLIT"}</span>
+          <span className="r">{until ? "BY AVERAGE SPLIT" : "HIDDEN · BY AVERAGE SPLIT"}</span>
         </div>
       )}
       <table className="board elite-t">

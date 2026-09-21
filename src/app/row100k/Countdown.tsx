@@ -18,7 +18,12 @@ function parts(msLeft: number) {
  * first client render match (same trick as /lasd26). `size` small is the
  * corner-of-the-newspaper cut (owner call, 2026-09-05: the clock was taking
  * up too much space — same box as the leader headline, still ticking). */
-export function Countdown({ size }: { size?: "small" } = {}) {
+/* THE CLOCK COUNTS DOWN TO THE END OF LIGHTS OUT while a window is open
+ * (owner, 2026-09-21: "let us not say hidden until September 27th — the
+ * clock that is currently counting down to the end of the month can instead
+ * count down to the end of lights out"). The end of the month is what it
+ * counts to the rest of the time. */
+export function Countdown({ size, lightsOutEndsAt }: { size?: "small"; lightsOutEndsAt?: string | null } = {}) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -45,7 +50,9 @@ export function Countdown({ size }: { size?: "small" } = {}) {
   }
 
   const started = now !== null && now >= START_MS;
-  const target = started ? END_MS : START_MS;
+  const outEnd = lightsOutEndsAt ? Date.parse(lightsOutEndsAt) : NaN;
+  const lightsOut = started && Number.isFinite(outEnd) && now !== null && now < outEnd;
+  const target = lightsOut ? outEnd : started ? END_MS : START_MS;
   const left = now === null ? null : parts(target - now);
   const pad = (n: number) => String(n).padStart(2, "0");
   const cells = [
@@ -59,7 +66,7 @@ export function Countdown({ size }: { size?: "small" } = {}) {
     <div
       className={`count${small}`}
       role="timer"
-      aria-label={started ? "Time left in September" : "Countdown to September 1"}
+      aria-label={lightsOut ? "Time left in lights out" : started ? "Time left in September" : "Countdown to September 1"}
     >
       {cells.map((c) => (
         <div className="c" key={c.l}>

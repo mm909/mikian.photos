@@ -128,24 +128,35 @@ export function BarAccount({
 
                 <Eyebrow>Administration</Eyebrow>
                 <Link className="acct-item" href="/row100k/blackout" onClick={close}>
-                  Blackout →
+                  Lights out →
                 </Link>
                 {/* Signups + moderation, one table (rowers/RowersTable.tsx);
                  * the CSV downloads live there too. */}
                 <Link className="acct-item" href="/row100k/signups" onClick={close}>
                   Rowers →
                 </Link>
-                {/* The console that puts people in waves and tells them —
-                 * and, further down the same page, the timing console (start
-                 * a wave, type a time, post the sheet). One entry, not two. */}
-                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
-                  Race waves →
+
+                {/* RACE DAY, ITS OWN GROUP (owner, 2026-09-21: "I need all my
+                 * race day menus under a special race day section in the
+                 * menu, and let us keep these items clean"). In the order of
+                 * the night: the page people sign up on, the console that
+                 * puts them in waves and times them, the ergs, the live
+                 * board while they are racing, the results, and the wall. */}
+                <Eyebrow>Race day</Eyebrow>
+                <Link className="acct-item" href="/row100k/raceday" onClick={close}>
+                  Sign-up page →
                 </Link>
-                {/* The real board and the wall (owner, 2026-09-16: one tap
-                 * away on the night). The sample board stays under
-                 * Development. */}
+                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
+                  Waves and timing →
+                </Link>
+                <Link className="acct-item" href="/erg" onClick={close}>
+                  Ergs →
+                </Link>
+                <Link className="acct-item" href="/erg?board=1" onClick={close}>
+                  Race board →
+                </Link>
                 <Link className="acct-item" href="/row100k/raceday/results" onClick={close}>
-                  Race results →
+                  Results →
                 </Link>
                 <Link className="acct-item" href="/row100k/raceday/results?cast=1" onClick={close}>
                   The wall →
@@ -163,20 +174,6 @@ export function BarAccount({
                  * (owner call, 2026-09-05): not ready to be a public tab. */}
                 <Link className="acct-item" href="/row100k/analysis" onClick={close}>
                   The numbers →
-                </Link>
-                {/* The PM5 monitors over Web Bluetooth, finishes straight to
-                 * the race board (owner, 2026-09-16: a barebones UI to try
-                 * live results in the gym). Chrome/Edge only. */}
-                <Link className="acct-item" href="/row100k/pm5" onClick={close}>
-                  PM5 live (test) →
-                </Link>
-                {/* The telemetry console left Rowtember for its own product
-                 * at /erg (owner, 2026-09-17: "keep Rowtember out of it —
-                 * these things should be a little disjoint"). Many monitors
-                 * at once, a page per erg, sessions saved against the
-                 * account. The link above stays the race-day bridge. */}
-                <Link className="acct-item" href="/erg" onClick={close}>
-                  Erg telemetry (test) →
                 </Link>
               </>
             )}

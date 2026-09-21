@@ -14,6 +14,7 @@ export type TrackedLinkName =
   | "partners"
   | "grizzly"
   | "grizzly-code"
+  | "lvss"
   | "raffle-event"
   | "raffle-grizzly"
   | "raffle-cta";

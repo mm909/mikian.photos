@@ -118,7 +118,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         setOk(
-          `${editing ? "WINDOW UPDATED" : "BLACKOUT SET"} — ${fmtPacificStamp(s)} → ${fmtPacificStamp(en)}`,
+          `${editing ? "WINDOW UPDATED" : "LIGHTS OUT SET"} — ${fmtPacificStamp(s)} → ${fmtPacificStamp(en)}`,
         );
         clearForm();
         // The list is server-rendered from the table: re-render it.
@@ -228,7 +228,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
         </div>
 
         <button type="submit" className="send" disabled={busy}>
-          {busy ? "Saving…" : editingId ? "Save changes" : "Set blackout"}
+          {busy ? "Saving…" : editingId ? "Save changes" : "Set lights out"}
         </button>
         {error && <p className="form-err">{error}</p>}
         {ok && <p className="form-ok">{ok}</p>}
@@ -239,7 +239,7 @@ export function BlackoutAdmin({ windows }: { windows: AdminWindow[] }) {
         <span className="mono">{windows.length === 1 ? "1 WINDOW" : `${windows.length} WINDOWS`}</span>
       </div>
       {windows.length === 0 ? (
-        <p className="board-empty">NO BLACKOUT WINDOWS SET — THE BOARD IS FULLY VISIBLE.</p>
+        <p className="board-empty">NO LIGHTS OUT WINDOWS SET — THE BOARD IS FULLY VISIBLE.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="board">

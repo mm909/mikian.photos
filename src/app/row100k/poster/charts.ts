@@ -631,10 +631,10 @@ export function drawBoard(
   const allMasked = rows.length > 0 && rows.every((r) => r.masked);
   let y: number;
   if (allMasked) {
-    const until = o.until ? `HIDDEN UNTIL ${o.until.toUpperCase()} · ` : "";
+    const until = "";
     // The descriptor's short forms, by the room left of the title: a
     // 302-wide hand-out column holds "BY SPLIT", a wall column the rest.
-    const left = `THE ELITE · ${div}`;
+    const left = `LIGHTS OUT · ${div}`;
     const room = box.w - paint.measure(ctx, left, paint.font("monoBold", tk.eye), 0.16 * tk.eye) - tk.eye * 2.4;
     const fitsShort = paint.measure(ctx, "BY AVERAGE SPLIT", paint.font("mono", tk.eye), 0.12 * tk.eye) <= room;
     y = paint.eyebrow(
@@ -671,7 +671,7 @@ export function drawBoard(
     // label; the ranked rows keep their public-board places below a
     // hairline. (Ten per division are the elite, so this is the rare case.)
     if (!allMasked && r.masked && !bracket) {
-      paint.drawText(ctx, "THE ELITE", box.x, y + tk.small, paint.font("mono", tk.small), C.gray, 0.18 * tk.small);
+      paint.drawText(ctx, "LIGHTS OUT", box.x, y + tk.small, paint.font("mono", tk.small), C.gray, 0.18 * tk.small);
       y += tk.small * 1.6;
       bracket = true;
     } else if (bracket && !r.masked) {

@@ -156,6 +156,10 @@ export type ShareData = {
      * before the file exists; `alt` is the gym's name, which the card sets in
      * type if the PNG never arrives. */
     mark: { src: string; ratio: number; alt: string } | null;
+    /* THE SPONSOR OF THE ROOM (owner, 2026-09-21: "add their logo to the
+     * race day flyer shareable"). Same shape as the house mark, drawn beside
+     * it in the bill's foot. */
+    sponsor?: { src: string; ratio: number; alt: string } | null;
     /* THE VIEWER'S OWN WAVE (owner, 2026-09-16) — unlocks MY WAVE. Set only
      * for a racer who HAS a wave AND HAS BEEN TOLD IT (Racer.wave and
      * waveEmailedAt both set, role racer, not withdrawn): a rower only ever
@@ -1455,7 +1459,7 @@ const rowtemberBest: ShareCard = {
  * dark one the type gets. */
 const rowtemberElite: ShareCard = {
   id: "rowtember-elite",
-  label: "The elite",
+  label: "Lights out · mine",
   width: 1080,
   height: 700,
   light: true,
@@ -1490,6 +1494,50 @@ const rowtemberElite: ShareCard = {
       maxWidth: this.width - 100,
     });
     ctx.restore();
+  },
+};
+
+/* LIGHTS OUT (owner, 2026-09-21: "I need a shareable for lights out — some
+ * with those black bars and a Rowtember lights out sticker, or just lights
+ * out in the Rowtember font with the black bars"). The event's own sticker,
+ * for anybody: the mark in its ink box, three of the board's own black bars
+ * across the middle — the blocks that hide a number while the lights are
+ * out — and LIGHTS OUT under them in the house face. No numbers on it and
+ * nobody's name, so it is never anybody's to hide. */
+const rowtemberLightsOut: ShareCard = {
+  id: "rowtember-lights-out",
+  label: "Lights out",
+  width: 1080,
+  height: 700,
+  light: true,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+      cx,
+      cy: 140,
+      size: 72,
+      fontFamily: fonts.black,
+      box: INK,
+    });
+
+    /* Three bars, the board's own blocks, matte ink. */
+    const size = 210;
+    const w = blockDigitsWidth(ctx, 3, size, fonts);
+    drawBlockDigits(ctx, cx - w / 2, 425, 3, size, fonts);
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+    drawCenteredText(ctx, "LIGHTS OUT", {
+      cx,
+      baseline: 600,
+      font: `${fitToWidth(ctx, "LIGHTS OUT", fonts.black, this.width - 100, 104)}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 100,
+    });
+    ctx.restore();
+    void data;
   },
 };
 
@@ -1682,6 +1730,33 @@ const RACE_MARK_RATIO = 1170 / 466;
  * PNG is a complete, correct sticker that has lost a logo; it is never a
  * blank rectangle. Returns the bottom of the block, so the caller can hang
  * the room line off it. */
+function drawOneMark(
+  ctx: CanvasRenderingContext2D,
+  fonts: ShareFonts,
+  mark: { src: string; ratio: number; alt: string },
+  cx: number,
+  top: number,
+  width: number,
+  boxH: number,
+): void {
+  const h = width / (mark.ratio > 0 ? mark.ratio : RACE_MARK_RATIO);
+  const y = top + (boxH - h) / 2;
+  const img = readyRaceMark(mark);
+  if (img) {
+    ctx.drawImage(img, cx - width / 2, y, width, h);
+  } else {
+    const name = mark.alt.toUpperCase();
+    const size = Math.min(h * 0.62, fitToWidth(ctx, name, fonts.black, width, 200));
+    drawCenteredText(ctx, name, {
+      cx,
+      baseline: y + (h + size * 0.72) / 2,
+      font: `${size}px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: width,
+    });
+  }
+}
+
 function drawRaceFoot(
   ctx: CanvasRenderingContext2D,
   fonts: ShareFonts,
@@ -1691,8 +1766,6 @@ function drawRaceFoot(
   // No house at all: no block. The room line rides straight under the rule
   // rather than under a hole reserved for nothing.
   if (!race.mark) return top;
-  const boxH = width / (race.mark.ratio > 0 ? race.mark.ratio : RACE_MARK_RATIO);
-  const img = readyRaceMark(race.mark);
   ctx.save();
   // Its own scope: the PNG is keyed white on transparent, so its alpha throws
   // the same halo the type does, and the block stays right called from
@@ -1700,19 +1773,24 @@ function drawRaceFoot(
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 16;
   ctx.shadowOffsetY = 3;
-  if (img) {
-    ctx.drawImage(img, cx - width / 2, top, width, boxH);
-  } else {
-    const name = race.mark.alt.toUpperCase();
-    const size = Math.min(boxH * 0.62, fitToWidth(ctx, name, fonts.black, width, 200));
-    drawCenteredText(ctx, name, {
-      cx,
-      baseline: top + (boxH + size * 0.72) / 2,
-      font: `${size}px ${fonts.black}`,
-      color: "#ffffff",
-      maxWidth: width,
-    });
+  /* TWO MARKS SIDE BY SIDE when the room has a sponsor (owner, 2026-09-21:
+   * "add their logo to the race day flyer"): the house on the left, the
+   * sponsor on the right, each fitted to its own half and centred on one
+   * line, so the foot is exactly as tall as the taller of the two. Alone,
+   * the house is centred at the full width, as it always was. */
+  if (race.sponsor) {
+    const each = Math.min(width * 0.86, (width * 2) / 2.3);
+    const hA = each / (race.mark.ratio > 0 ? race.mark.ratio : RACE_MARK_RATIO);
+    const hB = each / (race.sponsor.ratio > 0 ? race.sponsor.ratio : RACE_MARK_RATIO);
+    const boxH = Math.max(hA, hB);
+    const gap = 40;
+    drawOneMark(ctx, fonts, race.mark, cx - each / 2 - gap / 2, top, each, boxH);
+    drawOneMark(ctx, fonts, race.sponsor, cx + each / 2 + gap / 2, top, each, boxH);
+    ctx.restore();
+    return top + boxH;
   }
+  const boxH = width / (race.mark.ratio > 0 ? race.mark.ratio : RACE_MARK_RATIO);
+  drawOneMark(ctx, fonts, race.mark, cx, top, width, boxH);
   ctx.restore();
   return top + boxH;
 }
@@ -1751,7 +1829,7 @@ const rowtemberRaceDayBill: ShareCard = {
   height: 1350,
   light: true,
   available: (d) => !!d.race && !d.race.waveOnly,
-  prepare: (d) => (d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve()),
+  prepare: (d) => Promise.all([d.race?.mark ? loadRaceMark(d.race.mark.src) : Promise.resolve(), d.race?.sponsor ? loadRaceMark(d.race.sponsor.src) : Promise.resolve()]).then(() => undefined),
   draw(ctx, data, fonts) {
     const race = data.race;
     if (!race) return;
@@ -2691,7 +2769,7 @@ const BOARD_PAGES = 12;
  * is sentence case ("The board · 11–20"), so the group's name is set the
  * same way rather than shouted mid-sentence. Same words as ELITE_LABEL,
  * and the same words as the elite card's chip. */
-const ELITE_SECTION = "The elite";
+const ELITE_SECTION = "Lights out";
 
 /* Blackout, the places half (blackoutRules.ts): a hidden row carries no
  * place at all, so the sticker leaves the place column blank — the name and
@@ -2873,6 +2951,7 @@ export const CARDS: ShareCard[] = [
   rowtemberClub,
   rowtemberMonth,
   rowtemberElite,
+  rowtemberLightsOut,
   rowtemberLogo,
   // I'M RACING is retired (owner, 2026-09-11: "I just like the race day
   // sticker"). Race day ships the bill and, since 09-12, the same day with

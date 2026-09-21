@@ -87,7 +87,7 @@ export function AnalysisView({ model: m, viewer, initialYou }: { model: Model; v
           <ChartBox
             title="Projected finals — one per rower, tier lines dashed"
             take={m.forecast.dist.take}
-            foot={m.forecast.blackout ? "THE ELITE ARE COUNTED IN BEYOND WHILE THE BLACKOUT IS ON" : null}
+            foot={m.forecast.blackout ? "THE LIGHTS OUT ROWERS ARE COUNTED IN BEYOND WHILE IT IS ON" : null}
           >
             <ForecastSvg c={m.forecast.dist} you={you ? m.forecast.distYou : null} />
           </ChartBox>
@@ -99,7 +99,7 @@ export function AnalysisView({ model: m, viewer, initialYou }: { model: Model; v
           Projected = today + rate × {m.forecast.daysLeft} days left · rate = 0.6 × last-7-day meters per day + 0.4 × the
           month&rsquo;s meters per day · idle seven days or more projects flat · the small figure under Sep 30 is the band
           from the two rates on their own
-          {m.forecast.blackout ? " · the elite print blocks and sit unranked, A to Z, while the blackout is on" : ""}.
+          {m.forecast.blackout ? " · the lights out rowers print blocks and sit unranked, A to Z, while it is on" : ""}.
         </p>
       </Sec>
 
@@ -290,7 +290,7 @@ function ForecastTable({ f, you }: { f: Forecast; you: boolean }) {
         </td>
         <td className="num">{r.rate === null ? <BlockText chars={4} /> : fmtInt(r.rate)}</td>
         <td className="num">{r.idle === 0 ? "today" : `${r.idle} d`}</td>
-        <td className="an-tier">{r.onPace === null ? <span className="tierbadge elite">ELITE</span> : r.onPace}</td>
+        <td className="an-tier">{r.onPace === null ? <span className="tierbadge elite">LIGHTS OUT</span> : r.onPace}</td>
       </tr>
     );
   };
@@ -312,7 +312,7 @@ function ForecastTable({ f, you }: { f: Forecast; you: boolean }) {
           {elite.length > 0 && (
             <tr className="divrow elite">
               <td colSpan={cols}>
-                THE ELITE <span className="by">A TO Z · NO PLACES WHILE THE BLACKOUT IS ON</span>
+                LIGHTS OUT <span className="by">A TO Z · NO PLACES WHILE IT IS ON</span>
               </td>
             </tr>
           )}

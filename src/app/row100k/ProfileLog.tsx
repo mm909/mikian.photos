@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ELITE_LABEL } from "@/lib/blackoutRules";
 import { BlockClock, Blocks } from "./Blackout";
 import { Lightbox, type LightboxPhoto } from "./Lightbox";
 import { LogControls, SortHeader } from "./LogControls";
@@ -152,7 +153,7 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
             <article className="plog-card" key={r.id}>
               <div className="plog-top">
                 <span>{r.dayStr.toUpperCase()}</span>
-                <span>{r.masked ? "BLACKOUT" : `${r.splitStr} /500M`}</span>
+                <span>{r.masked ? ELITE_LABEL : `${r.splitStr} /500M`}</span>
               </div>
               {r.title ? <p className="plog-title">{r.title}</p> : null}
               <div className="plog-nums">

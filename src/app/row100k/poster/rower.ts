@@ -151,7 +151,7 @@ type StripCell = { v: Figure; l: string; short?: string };
 
 function rankCell(d: RowerPoster): StripCell {
   if (d.rank === "ELITE")
-    return { v: { text: "ELITE" }, l: "RANK · NO PLACES WHILE HIDDEN", short: "RANK · NO PLACES" };
+    return { v: { text: "LIGHTS OUT" }, l: "RANK · NO PLACES WHILE HIDDEN", short: "RANK · NO PLACES" };
   const board = boardWord(d);
   if (d.rank)
     return { v: { text: `#${d.rank.place} of ${d.rank.of}` }, l: board ? `RANK · ${board}` : "RANK" };
@@ -159,7 +159,7 @@ function rankCell(d: RowerPoster): StripCell {
 }
 
 const untilText = (d: RowerPoster): string =>
-  d.blackout.until ? `HIDDEN UNTIL ${d.blackout.until.toUpperCase()}` : "HIDDEN";
+  "LIGHTS OUT";
 
 /* The rower dateline, the two tags the owner took off it removed (2026-
  * 09-10: "for a specific rower, let us remove men's board, men's or
@@ -329,7 +329,7 @@ const headline: Mod = {
     const hours = d.totals.seconds !== null && d.totals.seconds > 0 ? d.totals.hours : null;
     const split = d.totals.paceTag ? `${d.totals.paceTag} /500` : null;
     const lead = d.masked
-      ? bold("THE ELITE")
+      ? bold("LIGHTS OUT")
       : card && split
         ? bold(`${split} AVERAGE`)
         : hours

@@ -218,19 +218,18 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
     };
   });
   const anyHidden = items.some((it) => it.masked);
-  const until = blackout.endsAt ? ` UNTIL ${fmtPacificDay(blackout.endsAt).toUpperCase()}` : "";
   // The eyebrow doubles as the blackout line — the feed has no tab row
   // for the board's note to sit under. Only an admin is told they see
   // everything: a reader whose sixty rows happen to hold no elite row is
   // still inside a window (review, 2026-09-05).
   const eyebrow = anyHidden
     ? hideAll
-      ? `BLACKOUT — ROWS HIDDEN${until}`
-      : `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+      ? `${ELITE_LABEL} · ROWS HIDDEN`
+      : `${ELITE_LABEL}`
     : blackout.active
       ? viewer.isAdmin
-        ? `BLACKOUT ON${until} — YOU SEE EVERYTHING`
-        : `BLACKOUT — ${ELITE_LABEL} ARE HIDDEN${until}`
+        ? `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`
+        : `${ELITE_LABEL}`
       : "EVERY ROW, AS IT LANDS";
 
   const full = entries.length === PAGE;

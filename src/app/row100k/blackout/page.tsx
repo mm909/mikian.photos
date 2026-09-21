@@ -17,7 +17,7 @@ import { PreviewSwitch } from "./PreviewSwitch";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Blackout — 100K September",
+  title: "Lights out — 100K September",
   robots: { index: false, follow: false },
 };
 
@@ -94,7 +94,7 @@ export default async function BlackoutPage() {
       <section>
         <div className="wrap">
           <div className="sec-head">
-            <h2>Blackout</h2>
+            <h2>Lights out</h2>
             <span className="mono">
               {current
                 ? `ACTIVE NOW — UNTIL ${fmtPacificStamp(current.endsAt).toUpperCase()} · ${policyLabel(settings.blackout)}`
@@ -134,7 +134,7 @@ export default async function BlackoutPage() {
               MANY DAYS it takes, and the digits are spread over them (owner, 2026-09-11): six days
               is one digit a day, three days is two digits a step, two days is three. Announce late
               and shorten it rather than starting it in the past. Set it to four and, four days
-              out, the elite lose the ones digit, then the tens, then the hundreds, then the
+              out, the lights out rowers lose the ones digit, then the tens, then the hundreds, then the
               thousands — and the window covers the rest.
             </p>
           </div>

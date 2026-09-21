@@ -48,17 +48,18 @@ import type { BlackoutPolicy } from "./rowSettings";
  * computeBoards, so the cached object stays the one source of truth and the
  * admin/self views need no second query. */
 
-/* THE ELITE (owner, 2026-09-08, rebranded from THE ELITE FIFTEEN): the top
- * of each board by meters. These are the DEFAULTS — ten per division, up to
+/* LIGHTS OUT (owner, 2026-09-21: "I do not think I like the elite branding.
+ * Instead let us focus on the event being lights out" — rebranded from THE
+ * ELITE, itself from THE ELITE FIFTEEN): the top of each board by meters. These are the DEFAULTS — ten per division, up to
  * ELITE_N in all — kept for the surfaces that size themselves before they
  * know the policy; the live rule is siteSettings().blackout (owner,
  * 2026-09-16: top N of each board, or top N overall). A rower on neither
  * board is never elite. */
 export const ELITE_PER_DIVISION = 10;
 export const ELITE_N = ELITE_PER_DIVISION * 2;
-export const ELITE_LABEL = "THE ELITE";
+export const ELITE_LABEL = "LIGHTS OUT";
 /* The tag in front of a hidden row's name — where the tier tag would go. */
-export const ELITE_TAG = "ELITE";
+export const ELITE_TAG = "LIGHTS OUT";
 
 export type { BlackoutPolicy };
 

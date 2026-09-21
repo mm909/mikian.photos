@@ -23,8 +23,8 @@ import type { BlackoutPreview } from "@/lib/row100kViewer";
  * debugging lever, so it is set from here and nowhere else. It is a session
  * cookie: closing the browser ends the test. */
 const MODES: { key: BlackoutPreview; label: string; note: string }[] = [
-  { key: "elite", label: "In the elite", note: "Your numbers show, everyone else's are blocks." },
-  { key: "public", label: "Outside it", note: "Every one of the elite is hidden, yours too." },
+  { key: "elite", label: "In lights out", note: "Your numbers show, everyone else's are blocks." },
+  { key: "public", label: "Outside it", note: "Every lights out rower is hidden, yours too." },
 ];
 
 export function PreviewSwitch({ active }: { active: BlackoutPreview | null }) {
@@ -54,13 +54,13 @@ export function PreviewSwitch({ active }: { active: BlackoutPreview | null }) {
   return (
     <div className="panel bo-prev">
       <div className="p-head">
-        <h3>Test blackout</h3>
+        <h3>Test lights out</h3>
         <span className="mono">{active ? "ON — ONLY YOU" : "OFF"}</span>
       </div>
       <p className="bo-prev-note mono">
         SEE THE SITE AS IF A WINDOW WERE OPEN. NOBODY ELSE IS AFFECTED.
       </p>
-      <div className="tabs" role="group" aria-label="Test blackout">
+      <div className="tabs" role="group" aria-label="Test lights out">
         {MODES.map((m) => (
           <button
             key={m.key}
