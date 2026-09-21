@@ -117,9 +117,10 @@ const ptnCss = `
 .row100k .ptn-lvss .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:22px}
 .row100k .ptn-lvss-mark{display:inline-block;max-width:560px;width:100%}
 .row100k .ptn-lvss-mark img{display:block;width:100%;height:auto}
-.row100k .ptn-lvss-claim{font-size:15px;color:rgba(255,255,255,.78);max-width:58ch;margin:26px auto 0;line-height:1.6}
-.row100k .ptn-lvss-claim b{color:#fff}
-.row100k .ptn-lvss-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:18px 0 0}
+/* No sentence under the mark (owner, 2026-09-21: "remove this copy") — the
+ * eyebrow says race day, the mark says who, the line under says how to
+ * reach them. */
+.row100k .ptn-lvss-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:26px 0 0}
 .row100k .ptn-lvss-sub a{color:#fff;text-decoration:underline;text-underline-offset:3px}
 
 /* The ask under the partner block: framed as backing the work, not selling a
@@ -430,10 +431,6 @@ export default async function PartnersPage() {
                 <img src={LVSS.mark} alt={LVSS.name} />
               </a>
             </TrackedLink>
-            <p className="ptn-lvss-claim">
-              <b>{LVSS.name} is backing the room on race day</b> — the Engine Room at The Strip Barbell, where
-              the 5,000 m trial is rowed. Pain management for Las Vegas, nine locations across the valley.
-            </p>
             <p className="ptn-lvss-sub">
               {LVSS.phone} ·{" "}
               <TrackedLink link="lvss">
