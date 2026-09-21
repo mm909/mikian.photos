@@ -288,28 +288,15 @@ export default async function PartnersPage() {
 
       <section>
         <div className="wrap">
-          {raffles.map((v) => (
-            <Raffle
-              key={v.r.slug}
-              raffle={v.r}
-              phase={v.phase}
-              state={v.state}
-              hat={v.hat}
-              myRows={v.myRows}
-              joined={viewer.me !== null}
-              winnerTotal={v.winnerTotal}
-            />
-          ))}
-
           {/* THE ROOM, FIRST (owner, 2026-09-21: "make sports and spine the
             * first partner"). A sponsor block in the site's own ink rather
             * than a brand green: they are backing the race, and race day is
-            * the site's one monochrome surface. It carries the page's
-            * eyebrow now that it opens the page. SPONSOR_SHOWN in
-            * raceday.ts is the off switch. */}
+            * the site's one monochrome surface. ABOVE THE RAFFLES TOO: the
+            * owner saw the drawn raffle sitting over it and said it was not
+            * at the top. SPONSOR_SHOWN in raceday.ts is the off switch. */}
           {SPONSOR_SHOWN && (
           <div className="ptn-lvss">
-            <div className="eyebrow">Rowtember 2026 · Partners · Race day · The room</div>
+            <div className="eyebrow">Partners · Race day · The room</div>
             <TrackedLink link="lvss">
               <a className="ptn-lvss-mark" href={LVSS.site} target="_blank" rel="noopener noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -326,6 +313,19 @@ export default async function PartnersPage() {
             </p>
           </div>
           )}
+
+          {raffles.map((v) => (
+            <Raffle
+              key={v.r.slug}
+              raffle={v.r}
+              phase={v.phase}
+              state={v.state}
+              hat={v.hat}
+              myRows={v.myRows}
+              joined={viewer.me !== null}
+              winnerTotal={v.winnerTotal}
+            />
+          ))}
 
           <div className="ptn-logos">
             <div className="eyebrow">Prepared meals · Grizzly Health</div>
