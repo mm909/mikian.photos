@@ -16,6 +16,7 @@ import {
   spreadRank,
   stepOf,
   thinPoints,
+  ticks,
   type Plot,
   type Series,
   type Spread,
@@ -767,7 +768,10 @@ export function Chart({
   const pad = padL !== undefined && !f.zoom ? { ...base.pad, l: padL } : base.pad;
   const plot = computePlot(series, { W, H, pad, invertY, refY, yMin, yMax });
   const s = useChartScrub(plot, f.zoom, () => f.setZoom(true));
-  const sp = useSpread(plot, stat ? (f.zoom ? "curve" : "stats") : "off");
+  /* Stats only: the density has its own chart now (owner, 2026-09-21:
+   * "there should be a view that I can see the KDE on its own, not on the
+   * same chart as the line chart — two different graphs"). */
+  const sp = useSpread(plot, stat ? "stats" : "off");
 
   const legend = series.map((x) => x.label).join(" · ");
   const word = xWord ?? xLabel.split(" ")[0];
@@ -874,32 +878,6 @@ export function Chart({
         const d = pts.map((p, j) => `${j ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ");
         return <path key={i} className={x.kind === "dashed" ? "ln2" : "ln"} d={d} />;
       })}
-      {/* THE HILL, lying on its side against the right edge and read off the
-        * SAME sy() as the line. Only in an opened chart: a usable strip is a
-        * fifth of a 360 unit panel, permanently, on nine charts, to draw a
-        * shape nobody looks at mid stroke. */}
-      {f.zoom && sp && sp.xs && sp.ys
-        ? (() => {
-            const xs = sp.xs;
-            const ys = sp.ys;
-            const kw = Math.min(96, plot.pw * 0.22);
-            const top = Math.max(...ys);
-            if (!(top > 0)) return null;
-            const edge = W - pad.r;
-            const xOf = (d: number) => edge - (d / top) * kw;
-            const line = xs.map((v, i) => `${i ? "L" : "M"}${xOf(ys[i]).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ");
-            const area = `M${edge} ${plot.sy(xs[0]).toFixed(1)} ${line.slice(1)} L${edge} ${plot.sy(xs[xs.length - 1]).toFixed(1)} Z`;
-            const dot = nowY === null ? null : { cx: xOf(densityAt(sp, nowY)), cy: plot.sy(nowY) };
-            return (
-              <g>
-                <path className="kd" d={area} />
-                <path className="kdln" d={line} />
-                <line className="kdax" x1={edge} x2={edge} y1={plot.sy(xs[0])} y2={plot.sy(xs[xs.length - 1])} />
-                {dot && dot.cy >= pad.t && dot.cy <= H - pad.b ? <circle className="kdot" cx={dot.cx} cy={dot.cy} r={3.6} /> : null}
-              </g>
-            );
-          })()
-        : null}
       {s.snapped !== null ? (
         <g>
           <line className="cur" x1={plot.sx(s.snapped)} x2={plot.sx(s.snapped)} y1={pad.t} y2={H - pad.b} />
@@ -989,26 +967,67 @@ export function Chart({
   );
 }
 
-/* The latest stroke's force curve: a filled area under the curve with the
- * peak marked and named in both units. It opens and is scrubbed like every
- * other chart — x is the sample index along one drive, which is the only
- * thing on this screen where a cursor reads a shape rather than a moment. */
-export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; newtons: (lbf: number) => number }) {
+/* THE FORCE CURVES (owner, 2026-09-21: "for the force curve I want to see
+ * it drawn out like it does on the erg — it draws every force curve. I want
+ * the latest one in a nice white, but I would also like to see the average
+ * of my force curves").
+ *
+ * EVERY STROKE THE PIECE HAS SENT, faint, on one frame — the PM5 does this
+ * and it is the picture a rower learns their stroke from: a tight bundle is
+ * a repeatable stroke, a wide one is not. Over the bundle the AVERAGE,
+ * dashed, and over that the LATEST stroke, bright. The frame is normalised
+ * to the drive — x is the share of the stroke, 0 to 1 — because strokes do
+ * not all have the same number of samples and a raw index would smear a
+ * short stroke over a long one. The y scale is the tallest peak in the
+ * bundle, so the latest stroke reads against its own history rather than
+ * against itself.
+ *
+ * Bounded: the last FORCE_DRAWN curves, each resampled to FORCE_GRID points,
+ * which is a fixed few thousand line segments however long the piece. */
+export const FORCE_DRAWN = 150;
+export const FORCE_GRID = 48;
+
+export type CurveLite = { n: number; points: number[] };
+
+/* One stroke on the 0..1 frame, linear between its own samples. */
+function resample(points: number[], n = FORCE_GRID): number[] {
+  const out: number[] = [];
+  const last = points.length - 1;
+  if (last < 1) return out;
+  for (let i = 0; i < n; i++) {
+    const t = (i / (n - 1)) * last;
+    const j = Math.min(last - 1, Math.floor(t));
+    const f = t - j;
+    out.push(points[j] + (points[j + 1] - points[j]) * f);
+  }
+  return out;
+}
+
+export function ForceCurveChart({ curves, latest, newtons }: { curves: CurveLite[]; latest: ForceCurve | null; newtons: (lbf: number) => number }) {
   const f = useChartFrame();
-  const { W, H, pad } = f.size(false, 200);
+  const { W, H, pad } = f.size(false, 240);
 
-  const series: Series[] = [{ points: curve ? curve.pointsLbf.map((v, i) => ({ x: i, y: v })) : [], kind: "line", label: "FORCE" }];
-  /* The peak sets the top of the axis with ten per cent of air over it, the
-   * way it always has — handed to computePlot as a pinned domain rather than
-   * derived, so the curve does not rescale under the cursor. */
-  const hi = curve ? Math.max(curve.peakLbf, 1) * 1.1 : 1;
-  const plot = computePlot(series, { W, H, pad, yMin: 0, yMax: hi });
-  const s = useChartScrub(plot, f.zoom, () => f.setZoom(true));
+  /* The bundle, the average and the latest, all on the same frame. */
+  const drawn = curves.slice(-FORCE_DRAWN).map((c) => resample(c.points)).filter((c) => c.length === FORCE_GRID);
+  const avg: number[] = drawn.length ? Array.from({ length: FORCE_GRID }, (_, i) => drawn.reduce((a, c) => a + c[i], 0) / drawn.length) : [];
+  const now = latest && latest.pointsLbf.length >= 2 ? resample(latest.pointsLbf) : [];
 
-  const reads = readAt(plot, series, s.snapped, (y) => String(Math.round(y)));
-  const moment = s.snapped === null ? null : String(Math.round(s.snapped));
-  const newtonRead = reads[0]?.p ? { k: "NEWTONS", v: `${Math.round(newtons(reads[0].p.y))} N` } : null;
-  const readLine = moment === null ? "Force curve of the latest stroke" : `SAMPLE ${moment} · ${reads[0]?.text ?? "—"} LBF${newtonRead ? ` · ${newtonRead.v}` : ""}`;
+  /* The frame the pointer maps into is the LATEST stroke, so a hover reads
+   * the stroke the rower just took; the average reads beside it. */
+  const series: Series[] = [
+    { points: now.map((v, i) => ({ x: i / (FORCE_GRID - 1), y: v })), kind: "line", label: "LATEST" },
+    { points: avg.map((v, i) => ({ x: i / (FORCE_GRID - 1), y: v })), kind: "dashed", label: "AVERAGE" },
+  ];
+  const peak = Math.max(1, ...drawn.flat(), ...now);
+  const plot = drawn.length || now.length ? computePlot(series, { W, H, pad, yMin: 0, yMax: peak * 1.08 }) : null;
+  const sc = useChartScrub(plot, f.zoom, () => f.setZoom(true));
+
+  const reads = readAt(plot, series, sc.snapped, (y) => String(Math.round(y)));
+  const moment = sc.snapped === null ? null : `${Math.round(sc.snapped * 100)}%`;
+  const readLine =
+    moment === null
+      ? "Force curves"
+      : `DRIVE ${moment} · ${reads.map((r) => `${r.label} ${r.text}`).join(" · ")} LBF${reads[0]?.p ? ` · ${Math.round(newtons(reads[0].p.y))} N` : ""}`;
 
   const body: ReactNode = !plot ? (
     <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
@@ -1026,45 +1045,37 @@ export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; 
       ))}
       <line className="axis" x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} />
       <line className="axis" x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} />
-      <path
-        className="area"
-        d={`${plot.drawn[0].map((p, i) => `${i ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ")} L${plot.sx(plot.x1).toFixed(1)} ${plot
-          .sy(0)
-          .toFixed(1)} L${plot.sx(plot.x0).toFixed(1)} ${plot.sy(0).toFixed(1)} Z`}
-      />
-      <path className="ln" d={plot.drawn[0].map((p, i) => `${i ? "L" : "M"}${plot.sx(p.x).toFixed(1)} ${plot.sy(p.y).toFixed(1)}`).join(" ")} />
-      {curve ? (
-        <>
-          <circle className="dot" cx={plot.sx(curve.peakIndex)} cy={plot.sy(curve.peakLbf)} r={3} />
-          <text
-            className="peak"
-            x={plot.sx(curve.peakIndex) + (plot.sx(curve.peakIndex) > W * 0.6 ? -6 : 6)}
-            y={plot.sy(curve.peakLbf) - 6}
-            textAnchor={plot.sx(curve.peakIndex) > W * 0.6 ? "end" : "start"}
-          >
-            PEAK {curve.peakLbf} LBF · {Math.round(newtons(curve.peakLbf))} N
-          </text>
-        </>
+      {/* The bundle: every stroke, faint. Drawn first so everything else
+        * sits on top of it. */}
+      {drawn.map((c, k) => (
+        <path key={k} className="fc-one" d={c.map((v, i) => `${i ? "L" : "M"}${plot.sx(i / (FORCE_GRID - 1)).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ")} />
+      ))}
+      {avg.length ? <path className="fc-avg" d={avg.map((v, i) => `${i ? "L" : "M"}${plot.sx(i / (FORCE_GRID - 1)).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ")} /> : null}
+      {now.length ? <path className="fc-now" d={now.map((v, i) => `${i ? "L" : "M"}${plot.sx(i / (FORCE_GRID - 1)).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ")} /> : null}
+      {latest && now.length ? (
+        <text className="peak" x={pad.l + 4} y={pad.t + 12} textAnchor="start">
+          PEAK {latest.peakLbf} LBF · {Math.round(newtons(latest.peakLbf))} N · {drawn.length} STROKES
+        </text>
       ) : null}
-      {plot.xt.map((v) => (
+      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
         <text key={v} className="ax" x={plot.sx(v)} y={H - pad.b + 12} textAnchor="middle">
-          {Math.round(v)}
+          {Math.round(v * 100)}%
         </text>
       ))}
-      {s.snapped !== null ? (
+      {sc.snapped !== null ? (
         <g>
-          <line className="cur" x1={plot.sx(s.snapped)} x2={plot.sx(s.snapped)} y1={pad.t} y2={H - pad.b} />
-          {reads[0]?.p ? <circle className="cdot" cx={plot.sx(reads[0].p.x)} cy={plot.sy(reads[0].p.y)} r={3.4} /> : null}
+          <line className="cur" x1={plot.sx(sc.snapped)} x2={plot.sx(sc.snapped)} y1={pad.t} y2={H - pad.b} />
+          {reads.map((r, i) => (r.p ? <circle key={i} className="cdot" cx={plot.sx(r.p.x)} cy={plot.sy(r.p.y)} r={3.4} /> : null))}
         </g>
       ) : null}
     </>
   );
 
   const svg = (
-    <svg ref={s.svgRef} className="eg-svg" viewBox={`0 0 ${W} ${H}`} style={f.zoom && f.box ? { width: `${W}px`, height: `${H}px` } : undefined} aria-hidden="true">
+    <svg ref={sc.svgRef} className="eg-svg" viewBox={`0 0 ${W} ${H}`} style={f.zoom && f.box ? { width: `${W}px`, height: `${H}px` } : undefined} aria-hidden="true">
       {body}
       <text className="axl" x={W - pad.r} y={H - 3} textAnchor="end">
-        SAMPLE
+        SHARE OF THE DRIVE
       </text>
       <text className="axl" x={pad.l} y={pad.t - 2} textAnchor="start">
         LBF
@@ -1072,17 +1083,17 @@ export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; 
     </svg>
   );
 
-  const legend = curve ? `${curve.pointsLbf.length} POINTS · ${curve.chunks} NOTIFICATIONS` : "0X3D";
+  const legend = `${drawn.length} STROKES · LATEST · AVERAGE`;
 
   return (
     <div className="eg-chart">
       <div className="t">
-        {!f.zoom && s.snapped !== null ? (
+        {!f.zoom && sc.snapped !== null ? (
           <span className="lg rd">{readLine}</span>
         ) : (
           <>
             <span>
-              <b>FORCE CURVE</b> LBF
+              <b>FORCE CURVES</b> LBF
             </span>
             <span className="lg">{legend}</span>
           </>
@@ -1090,31 +1101,144 @@ export function ForceCurveChart({ curve, newtons }: { curve: ForceCurve | null; 
       </div>
 
       {f.zoom ? null : (
-        <button type="button" ref={f.opener} className="eg-chart-hit" aria-label="Open the force curve bigger" onClick={s.openClick} {...s.handlers}>
+        <button type="button" ref={f.opener} className="eg-chart-hit" aria-label="Open the force curves bigger" onClick={sc.openClick} {...sc.handlers}>
           {svg}
         </button>
       )}
 
       {f.zoom ? (
         <ChartZoom
-          title="Force curve"
+          title="Force curves"
           unit="LBF"
           legend={legend}
           reads={reads}
           moment={moment}
-          xWord="SAMPLE"
-          delta={newtonRead}
+          xWord="DRIVE"
+          delta={reads[0]?.p ? { k: "NEWTONS", v: `${Math.round(newtons(reads[0].p.y))} N` } : null}
           plot={plot}
-          snapped={s.snapped}
+          snapped={sc.snapped}
           plotRef={f.plotRef}
-          handlers={s.handlers}
-          keys={s.keys}
+          handlers={sc.handlers}
+          keys={sc.keys}
           valueText={readLine}
           onClose={() => f.setZoom(false)}
         >
           {svg}
         </ChartZoom>
       ) : null}
+    </div>
+  );
+}
+
+/* THE DISTRIBUTION, ON ITS OWN (owner, 2026-09-21: "there should be a view
+ * that I can see the KDE on its own, not on the same chart as the line
+ * chart. So it would be two different graphs"). The value along x, the
+ * density up y, the mean as a rule, one standard deviation as a slab, and a
+ * dot for where the latest value sits on its own hill. It is handed the
+ * SAME points the line chart beside it draws, so the two can never describe
+ * different strokes.
+ *
+ * On an inverted line chart (pace, faster is up) the value axis here still
+ * runs left to right, low to high — so a faster pace is to the LEFT, and the
+ * axis says so. */
+export function DistChart({
+  title,
+  unit,
+  points,
+  fmt = fmtNum,
+  invertY = false,
+  small = false,
+}: {
+  title: string;
+  unit: string;
+  points: XY[];
+  fmt?: (v: number) => string;
+  invertY?: boolean;
+  small?: boolean;
+}) {
+  const H = small ? 150 : 190;
+  const W = VW;
+  const pad = PAD;
+  const cache = useRef<{ key: string; at: number; v: Spread | null }>({ key: "", at: 0, v: null });
+
+  /* The same cache shape and the same clock as useSpread, for the same
+   * reason: the kernel is the one thing on this page worth rationing. */
+  const last = points.length ? points[points.length - 1] : null;
+  const key = `${points.length}|${last ? last.x : 0}|${last ? last.y : 0}`;
+  const now = typeof performance === "undefined" ? 0 : performance.now();
+  if (cache.current.key !== key && now - cache.current.at >= SPREAD_EVERY_MS) {
+    const ys = points.map((p) => p.y).filter((y) => Number.isFinite(y));
+    const lo = ys.length ? Math.min(...ys) : 0;
+    const hi = ys.length ? Math.max(...ys) : 1;
+    cache.current = { key, at: now, v: computeSpread(points, "curve", [lo - (hi - lo) * 0.2 - 1e-6, hi + (hi - lo) * 0.2 + 1e-6]) };
+  }
+  const sp = cache.current.v;
+  const nowY = last ? last.y : null;
+
+  const pw = W - pad.l - pad.r;
+  const ph = H - pad.t - pad.b;
+
+  let body: ReactNode;
+  if (!sp || !sp.xs || !sp.ys || sp.xs.length < 2) {
+    body = (
+      <text className="empty" x={W / 2} y={H / 2} textAnchor="middle">
+        {sp && !(sp.sd > 0) ? "EVERY VALUE THE SAME" : sp ? `${sp.n} VALUES` : "WAITING FOR DATA"}
+      </text>
+    );
+  } else {
+    const xs = sp.xs;
+    const ys = sp.ys;
+    const x0 = xs[0];
+    const x1 = xs[xs.length - 1];
+    const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0)) * pw;
+    const sy = (d: number) => pad.t + (1 - d) * ph;
+    const line = xs.map((v, i) => `${i ? "L" : "M"}${sx(v).toFixed(1)} ${sy(ys[i]).toFixed(1)}`).join(" ");
+    const area = `${line} L${sx(x1).toFixed(1)} ${sy(0).toFixed(1)} L${sx(x0).toFixed(1)} ${sy(0).toFixed(1)} Z`;
+    const xt = ticks(x0, x1, 4);
+    const a = Math.max(pad.l, sx(sp.mean - sp.sd));
+    const b = Math.min(W - pad.r, sx(sp.mean + sp.sd));
+    body = (
+      <>
+        {b > a ? <rect className="sdband" x={a} y={pad.t} width={b - a} height={ph} /> : null}
+        <line className="axis" x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} />
+        <path className="kd" d={area} />
+        <path className="kdln" d={line} />
+        <line className="meanln" x1={sx(sp.mean)} x2={sx(sp.mean)} y1={pad.t} y2={H - pad.b} />
+        <text className="kdlbl" x={sx(sp.mean) + 4} y={pad.t + 9} textAnchor="start">
+          MEAN {fmt(sp.mean)}
+        </text>
+        {nowY !== null && nowY >= x0 && nowY <= x1 ? <circle className="kdot" cx={sx(nowY)} cy={sy(densityAt(sp, nowY))} r={3.6} /> : null}
+        {xt.map((v) => (
+          <text key={v} className="ax" x={sx(v)} y={H - pad.b + 12} textAnchor="middle">
+            {fmt(v)}
+          </text>
+        ))}
+      </>
+    );
+  }
+
+  const words = spreadWords(sp, nowY, fmt, invertY);
+
+  return (
+    <div className="eg-chart eg-dist">
+      <div className="t">
+        <span>
+          <b>{title}</b> {unit}
+        </span>
+        <span className="lg">DISTRIBUTION</span>
+      </div>
+      {words ? <div className={words.quiet ? "eg-chart-stat off" : "eg-chart-stat"}>{words.text}</div> : null}
+      <div className="eg-chart-hit eg-chart-still">
+        <svg className="eg-svg" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+          {body}
+          <text className="axl" x={W - pad.r} y={H - 3} textAnchor="end">
+            {invertY ? "FASTER TO THE LEFT" : unit}
+          </text>
+          <text className="axl" x={pad.l} y={pad.t - 2} textAnchor="start">
+            DENSITY
+          </text>
+        </svg>
+      </div>
     </div>
   );
 }

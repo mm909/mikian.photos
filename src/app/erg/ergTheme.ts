@@ -163,9 +163,6 @@ export const ergCss = `
  * version of the sentence lives in a title attribute. */
 .eg .eg-r-n .s{display:block;font-family:var(--eg-mono),monospace;font-size:10.5px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-3);margin-top:3px;min-height:28px;overflow-wrap:break-word}
 .eg .eg-r-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
-/* ROW THIS ONE: the one tap from the list into the rowing screen. Quiet,
- * because the row itself is still the link into the console. */
-.eg .eg-r-row{font-size:10px;padding:7px 10px;letter-spacing:.1em}
 /* SAVED or UNSAVED, on the row (review, 2026-09-17). Quiet when the piece
  * is filed, outlined in full white when it is not. */
 .eg .eg-pip{display:inline-block;border:1px solid var(--eg-line);border-radius:2px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--eg-fg-3)}
@@ -316,6 +313,40 @@ export const ergCss = `
   .eg .eg-head h1{font-size:24px}
   .eg .eg-wrap{padding:0 16px}
 }
+/* ---- THE RACE BOARD (owner, 2026-09-21: a live race board, one row per
+ * lane, distance, pace, expected time, and who is in the lead). Built to be
+ * read off a TV across a gym: one lane per line, the place in the largest
+ * type on the row, four numbers that line up down the screen, and a bar to
+ * the same 5,000 on every lane so the field reads as a field. ---- */
+.eg .eg-board{padding-bottom:24px}
+.eg .eg-board-head{display:flex;align-items:flex-end;gap:14px 18px;flex-wrap:wrap;border-bottom:1px solid var(--eg-line);padding-bottom:10px;margin:26px 0 16px}
+.eg .eg-board-head h1{font-family:var(--eg-black),sans-serif;font-weight:400;font-size:30px;line-height:1.1;letter-spacing:-.01em}
+.eg .eg-board-head .eg-eyebrow{margin-left:auto}
+.eg .eg-lanes{display:flex;flex-direction:column;gap:8px}
+.eg .eg-lane{
+  display:grid;grid-template-columns:72px minmax(160px,1.6fr) repeat(4,minmax(0,1fr));gap:10px 18px;align-items:center;
+  width:100%;text-align:left;border:1px solid var(--eg-line);border-radius:3px;background:var(--eg-panel);
+  padding:14px 16px;color:inherit;cursor:pointer;
+}
+.eg .eg-lane:hover{border-color:var(--eg-fg)}
+.eg .eg-lane-lead{border-color:var(--eg-fg)}
+.eg .eg-lane-place{font-family:var(--eg-black),sans-serif;font-size:clamp(26px,3vw,40px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.eg .eg-lane-who{min-width:0;display:flex;flex-direction:column;gap:5px}
+.eg .eg-lane-name{font-family:var(--eg-black),sans-serif;font-size:clamp(17px,1.7vw,22px);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eg .eg-lane-sub{font-family:var(--eg-mono),monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--eg-fg-3)}
+.eg .eg-lane-bar{display:block;height:6px;background:var(--eg-line-soft);border-radius:3px;overflow:hidden;margin-top:2px}
+.eg .eg-lane-bar span{display:block;height:100%;background:var(--eg-fg)}
+.eg .eg-lane-n{min-width:0}
+.eg .eg-lane-n .k{display:block;font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3)}
+.eg .eg-lane-n .v{display:block;font-family:var(--eg-black),sans-serif;font-size:clamp(22px,2.4vw,34px);line-height:1.1;margin-top:3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eg .eg-lane-n .s{display:block;font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--eg-fg-4);margin-top:3px;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eg .eg-board-foot{margin-top:22px;max-width:84ch;font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.06em;line-height:1.7;color:var(--eg-fg-4)}
+@media (max-width:900px){
+  .eg .eg-lane{grid-template-columns:56px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}
+  .eg .eg-lane-who{grid-column:2 / -1}
+  .eg .eg-lane-gap{display:none}
+}
+
 /* ---- ONE ERG: the console (owner, 2026-09-17: click on that erg and see
  * the telemetry for that person). The detail view swaps in over the list on
  * the same page, so it wears the same ground and adds only what a console
@@ -481,6 +512,53 @@ export const ergCss = `
 .eg .eg-zoom-plot svg.eg-svg .kdln{stroke-width:1.6}
 .eg .eg-zoom-plot svg.eg-svg .kdlbl{font-size:10px}
 .eg .eg-zoom-plot svg.eg-svg .meanln{stroke-width:1.2;stroke-dasharray:8 5}
+
+/* ---- THE CONSOLE, TIDIED (owner, 2026-09-21): the name is a field, the
+ * settings are a drawer, each KPI is a pair of charts, the force curves are
+ * a bundle, and the feed is a table that updates in place. ---- */
+.eg .eg-dname-box{
+  display:block;width:100%;max-width:520px;
+  font-family:var(--eg-black),sans-serif;font-size:26px;line-height:1.1;letter-spacing:-.01em;
+  padding:4px 8px;margin:6px 0 4px -8px;border:1px solid transparent;border-radius:2px;
+  background:transparent;color:var(--eg-fg);
+}
+.eg .eg-dname-box:hover{border-color:var(--eg-line-soft)}
+.eg .eg-dname-box:focus{outline:none;border-color:var(--eg-fg)}
+.eg .eg-dname-box::placeholder{color:var(--eg-fg-4)}
+.eg .eg-settings{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px 28px;
+  border:1px solid var(--eg-line);border-radius:3px;background:var(--eg-panel);
+  padding:14px 16px 16px;margin:-6px 0 14px;
+}
+.eg .eg-settings-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.eg .eg-settings .eg-eyebrow{font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--eg-fg-3);border-bottom:1px solid var(--eg-line-soft);padding-bottom:6px}
+.eg .eg-settings .eg-dfacts{margin:0}
+
+/* A PAIR: what happened, and what it was made of. The line chart takes the
+ * larger share; the distribution sits beside it at the same height. */
+.eg .eg-pairs{display:flex;flex-direction:column;gap:10px}
+.eg .eg-pair{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px}
+.eg .eg-dist .eg-chart-hit{cursor:default}
+@media (max-width:760px){
+  .eg .eg-pair{grid-template-columns:minmax(0,1fr)}
+}
+
+/* THE BUNDLE: every stroke faint, the average dashed, the latest bright. */
+.eg .eg-svg .fc-one{fill:none;stroke:var(--eg-fg);stroke-width:.8;opacity:.11;stroke-linejoin:round}
+.eg .eg-svg .fc-avg{fill:none;stroke:var(--eg-fg-2);stroke-width:1.8;stroke-dasharray:6 4;stroke-linejoin:round}
+.eg .eg-svg .fc-now{fill:none;stroke:var(--eg-fg);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.eg .eg-zoom-plot svg.eg-svg .fc-one{stroke-width:1}
+.eg .eg-zoom-plot svg.eg-svg .fc-now{stroke-width:3}
+
+/* THE FEED TABLE: one row per characteristic, the decoded fields as
+ * key value chips that update in place. A row that has never arrived is
+ * dim and empty, which is the honest way to show it is missing. */
+.eg .eg-feedtab td{vertical-align:top}
+.eg .eg-feed-none{opacity:.45}
+.eg .eg-feed-dc{display:flex;flex-wrap:wrap;gap:4px 10px;max-width:760px}
+.eg .eg-kv{display:inline-flex;align-items:baseline;gap:4px;font-family:var(--eg-mono),monospace;font-size:10.5px;white-space:nowrap}
+.eg .eg-kv .k{color:var(--eg-fg-4);letter-spacing:.04em}
+.eg .eg-kv .v{color:var(--eg-fg);font-variant-numeric:tabular-nums;min-width:2ch}
 
 @media (max-width:640px){
   .eg .eg-zoom{padding:0}

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ergPageOpen, ergViewer } from "./gate";
 import { MonitorList } from "./MonitorList";
-import { rowerCss } from "./rowerCss";
 import { ErgShell } from "./Shell";
 
 export const dynamic = "force-dynamic";
@@ -37,20 +36,18 @@ export const metadata: Metadata = {
  * site bar now (owner, same day: "when it goes live it will probably just
  * be another header on the Rowtember site") — but the page under it is a
  * tool for reading an erg and nothing else. */
-export default async function ErgMonitorsPage({ searchParams }: { searchParams?: { play?: string | string[]; erg?: string | string[] } }) {
+export default async function ErgMonitorsPage({ searchParams }: { searchParams?: { play?: string | string[]; erg?: string | string[]; board?: string | string[] } }) {
   const v = await ergViewer();
   if (!ergPageOpen(v)) notFound();
 
   const one = (raw: string | string[] | undefined) => (Array.isArray(raw) ? raw[0] : raw) ?? null;
 
   return (
-    /* The rowing sheet is always mounted, so switching into it is not a
-        * style tag appearing and the screen never flashes. */
-    <ErgShell ground="ink" sheet={rowerCss}>
+    <ErgShell ground="ink">
       {/* Signed out, the page still pairs, simulates and plays back — the
         * gym path runs off npm run dev with nobody signed in. Only SAVE
         * needs an account, and the foot of the list says so. */}
-      <MonitorList playId={one(searchParams?.play)} ergId={one(searchParams?.erg)} signedIn={v.signedIn} />
+      <MonitorList playId={one(searchParams?.play)} ergId={one(searchParams?.erg)} board={one(searchParams?.board) !== null} signedIn={v.signedIn} />
 
       <p className="eg-foot">Erg telemetry · Concept2 PM5 over Web Bluetooth · nothing here touches the race board</p>
     </ErgShell>

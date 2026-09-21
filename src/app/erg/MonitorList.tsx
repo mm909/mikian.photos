@@ -5,8 +5,8 @@ import Link from "next/link";
 import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, workoutStateWord } from "@/lib/pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { ErgDetail } from "./ErgDetail";
-import { ErgRower, ViewChips, type RowerView } from "./ErgRower";
-import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded } from "./ErgGoal";
+import { RaceBoard } from "./RaceBoard";
+import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
 import {
   ERG_API,
   LINK_WORD,
@@ -112,16 +112,7 @@ function Num({ k, v, s, hint }: { k: string; v: string; s?: string; hint?: strin
   );
 }
 
-/* WHAT THE OWNER CALLED THIS ERG, or null while it is still the name the
- * monitor advertises. Three PM5s in a gym all advertise PM5 4xxxxxxxx, so
- * the row heading is the typed name when there is one (review, 2026-09-17)
- * and the advertised name moves down to the sub line beside the serial. The
- * same field is still the title the piece is saved under: naming a lane and
- * titling its piece are one gesture. */
-function typedName(e: Erg): string | null {
-  const t = e.save.title === null ? "" : e.save.title.trim();
-  return t ? t : null;
-}
+const typedName = typedErgName;
 
 /* SAVED or UNSAVED on the row itself (review, 2026-09-17: nothing on the
  * list said which of three ergs had already been filed, so the dot menu had
@@ -298,7 +289,7 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
   );
 }
 
-function ErgRow({ erg, onOpen, onRow, onChanged, signedIn }: { erg: Erg; onOpen: () => void; onRow: () => void; onChanged: () => void; signedIn: boolean }) {
+function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => void; onChanged: () => void; signedIn: boolean }) {
   const g = erg.model.general;
   const a1 = erg.model.a1;
   const finish = expectedFinish(erg);
@@ -375,12 +366,6 @@ function ErgRow({ erg, onOpen, onRow, onChanged, signedIn }: { erg: Erg; onOpen:
        * "I do not need the goal buttons here"). What is left is one quiet
        * button. */}
       <div className="eg-r-side">
-        {/* ONE TAP FROM THE LIST TO THE ERG (owner, 2026-09-17: he could not
-          * find the rowing screen at all). Straight into the big numbers,
-          * without going through the console and finding a chip. */}
-        <button type="button" className="eg-btn eg-btn-quiet eg-r-row" onClick={onRow}>
-          Row this one
-        </button>
         <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} />
       </div>
 
@@ -459,28 +444,24 @@ function PlayPicker({ onPlay, busyId }: { onPlay: (row: TelemetrySavedRow) => vo
   );
 }
 
-export function MonitorList({ playId, ergId, signedIn = false }: { playId?: string | null; ergId?: string | null; signedIn?: boolean }) {
+export function MonitorList({ playId, ergId, board: boardParam = false, signedIn = false }: { playId?: string | null; ergId?: string | null; board?: boolean; signedIn?: boolean }) {
   const [ergs, setErgs] = useState<Erg[]>([]);
   const [support, setSupport] = useState<"unknown" | "yes" | "no">("unknown");
   const [btOff, setBtOff] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<string | null>(ergId ?? null);
-  /* WHICH OF THE TWO VIEWS an opened erg wears (owner, 2026-09-17: "I do not
-   * see the rower view that I can look at while I am rowing").
+  /* THE RACE BOARD (owner, 2026-09-21: "a screen where it shows all the
+   * rowers that are currently connected — a live race board, one row per
+   * lane, the distance they are at, the pace, their expected time, and who
+   * is in the lead"). It is a third VIEW of this one page, beside the list
+   * and the console, for the same reason those two are: the hub is a
+   * module singleton and a view swap cannot drop a link. /erg?board=1 opens
+   * straight onto it, which is what the laptop plugged into the TV wants.
    *
-   * It lives HERE and not inside either view, above the hub subscription and
-   * above the unsaved-work guard, so switching touches neither. Nothing
-   * below this line owns a connection — the hub is a module singleton and
-   * every control on both screens is one call into it — so the switch is a
-   * view swap and cannot drop a link. It also survives going back to the
-   * list and opening the same erg again, which is what somebody who set the
-   * phone up once expects.
-   *
-   * COACH is the default because /erg?erg=SOMEID has always opened the
-   * console and changing that silently would surprise somebody mid-piece.
-   * ROW THIS ONE on a row is the one-tap door for the gym. */
-  const [view, setView] = useState<RowerView>("coach");
+   * THE ROWER VIEW IS GONE (owner, same day: "it did not land, so we will
+   * just have the one view"). */
+  const [board, setBoard] = useState<boolean>(boardParam);
   const [picking, setPicking] = useState(false);
   const [loadingRow, setLoadingRow] = useState<string | null>(null);
   const bump = useCallback(() => setErgs(listErgs()), []);
@@ -571,12 +552,8 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
    * from another tab of this view — or the row was opened in a NEW tab,
    * where this hub has never seen that id — fall back to the list. */
   const openErg = open ? getErg(open) : null;
-  if (open && openErg)
-    return view === "rower" ? (
-      <ErgRower erg={openErg} onBack={() => setOpen(null)} view={view} onView={setView} />
-    ) : (
-      <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} view={view} onView={setView} />
-    );
+  if (open && openErg) return <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} />;
+  if (board) return <RaceBoard ergs={ergs} onBack={() => setBoard(false)} onOpen={(id) => setOpen(id)} />;
 
   return (
     <div>
@@ -609,6 +586,10 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
         <Link className="eg-btn eg-btn-quiet" href="/erg/sessions">
           Sessions
         </Link>
+        {/* THE BOARD: every erg on this page as a lane, in race order. */}
+        <button type="button" className="eg-btn" onClick={() => setBoard(true)} disabled={ergs.length === 0}>
+          Race board
+        </button>
       </div>
 
       {note ? <p className="eg-note eg-bad">{note}</p> : null}
@@ -642,20 +623,7 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
       {ergs.length ? (
         <div className="eg-rows">
           {ergs.map((e) => (
-            <ErgRow
-              key={e.id}
-              erg={e}
-              onOpen={() => {
-                setView("coach");
-                setOpen(e.id);
-              }}
-              onRow={() => {
-                setView("rower");
-                setOpen(e.id);
-              }}
-              onChanged={bump}
-              signedIn={signedIn}
-            />
+            <ErgRow key={e.id} erg={e} onOpen={() => setOpen(e.id)} onChanged={bump} signedIn={signedIn} />
           ))}
         </div>
       ) : (
@@ -670,11 +638,10 @@ export function MonitorList({ playId, ergId, signedIn = false }: { playId?: stri
           on its own screen; come back and the link is still up.
         </p>
         <p>
-          <b>ROW THIS ONE is the screen you prop in front of you.</b> Big distance, the predicted finish and how
-          far out it could be, one graph at a time, and a card at every 500 m with the split, what it did against
-          the last one, and where the finish stood when it landed. Set a target time in the ••• menu first and it
-          tells you the pace that makes it. The row itself opens the COACH console instead — every chart, the
-          splits table and the raw feed — and the two swap with the chips at the top of either one.
+          <b>RACE BOARD is the wall.</b> Every erg on this page as a lane, in race order — first, second, third
+          — with the distance, the pace, the expected 5,000 m finish and how far behind the leader each one is.
+          Put the laptop on the TV and open /erg?board=1 to land straight on it. The row itself opens the
+          console: every chart, the splits table and the live feed.
         </p>
         <p>
           <b>A row reads left to right in the order it matters:</b> how far, how fast, where that lands, and only

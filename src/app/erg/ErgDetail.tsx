@@ -16,9 +16,8 @@ import {
   workoutStateWord,
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
-import { Chart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
-import { ViewChips, type RowerView } from "./ErgRower";
-import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded } from "./ErgGoal";
+import { Chart, DistChart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
+import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
 import {
   LINK_WORD,
   RATE_KEYS,
@@ -32,6 +31,7 @@ import {
   setErgTitle,
   setRate,
   type Erg,
+  type ErgFeedLine,
   type ErgStroke,
 } from "./hub";
 import { PlaybackBar } from "./PlaybackBar";
@@ -66,6 +66,46 @@ const WINDOW_STROKES = 60;
 /* No line needs more points than the panel has pixels; a played-back
  * forty-five minute row would otherwise hand a chart twelve thousand. */
 const CHART_POINTS = 600;
+/* THE FIRST FIVE SECONDS ARE NOT CHARTED (owner, 2026-09-21: "the beginning
+ * five seconds of every row are going to really skew what the chart looks
+ * like, so we can adjust our axes to ignore the first five seconds"). The
+ * flywheel spinning up sends a 10:00 split and a 300 W stroke, and one of
+ * those on a chart drags every axis to fit it. They are still recorded and
+ * still saved; they are simply not drawn. */
+const SKIP_S = 5;
+
+/* WHAT THE X AXIS COUNTS (owner, 2026-09-21: "let us make the x axis always
+ * metres, not strokes. Metres and time should be the x axis, but metres by
+ * default"). One setting for every chart on the console. */
+type XMode = "meters" | "time";
+
+/* THE CHARACTERISTICS THE TABLE HAS A ROW FOR, in the order the spec lists
+ * them, whether or not this monitor has sent one yet — a row that has never
+ * arrived is an empty row, which is the honest way to show it is missing. */
+const FEED_ROWS: { id: number; word: string }[] = [
+  { id: 0x31, word: "General status" },
+  { id: 0x32, word: "Additional status" },
+  { id: 0x33, word: "Additional status 2" },
+  { id: 0x35, word: "Stroke" },
+  { id: 0x36, word: "Additional stroke" },
+  { id: 0x37, word: "Split" },
+  { id: 0x38, word: "Additional split" },
+  { id: 0x39, word: "Workout summary" },
+  { id: 0x3a, word: "Additional summary" },
+  { id: 0x3c, word: "Additional summary 2" },
+  { id: 0x3b, word: "Heart rate belt" },
+  { id: 0x3d, word: "Force curve" },
+];
+
+/* A decoded value as one cell. Arrays are the force curve, which is a
+ * picture and not a number. */
+function cell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return `${v.length} pts`;
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : v.toFixed(2);
+  if (typeof v === "boolean") return v ? "yes" : "no";
+  return String(v);
+}
 
 const dash = (v: string | null) => v ?? "—";
 
@@ -116,26 +156,19 @@ function Kv({ k, v }: { k: string; v: string | number }) {
   );
 }
 
-export function ErgDetail({
-  erg,
-  onBack,
-  signedIn = false,
-  view,
-  onView,
-}: {
-  erg: Erg;
-  onBack: () => void;
-  signedIn?: boolean;
-  /* THE OTHER VIEW (owner, 2026-09-17). Optional so nothing that renders
-   * this console without a switch has to grow one. */
-  view?: RowerView;
-  onView?: (v: RowerView) => void;
-}) {
+export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack: () => void; signedIn?: boolean }) {
   const [showFeed, setShowFeed] = useState(false);
   /* Whether the charts hold the whole piece rather than the rolling
    * window. Here rather than in a chart, because all nine share it. */
   const [wholePiece, setWholePiece] = useState(false);
   const [busy, setBusy] = useState(false);
+  /* Metres by default. */
+  const [xMode, setXMode] = useState<XMode>("meters");
+  /* THE SETTINGS DRAWER (owner, 2026-09-21: "the goal and the targets and the
+   * status every should all be in a little menu option and not prominently
+   * displayed — same with serial number, model, firmware, all of that should
+   * be in a settings or information section"). Closed by default. */
+  const [settings, setSettings] = useState(false);
 
   const m = erg.model;
   const g = m.general;
@@ -156,8 +189,17 @@ export function ErgDetail({
    * never windowed, so it has nothing to offer. */
   const tEnd = m.samples.length ? m.samples[m.samples.length - 1].t : 0;
   const wide = whole || wholePiece;
-  const win = wide ? m.samples.filter((s) => s.t > 0) : m.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t > 0);
-  const strokesWin = wide ? m.strokes : m.strokes.slice(-WINDOW_STROKES);
+  const win = wide ? m.samples.filter((s) => s.t >= SKIP_S) : m.samples.filter((s) => s.t >= tEnd - WINDOW_S && s.t >= SKIP_S);
+  const strokesAll = m.strokes.filter((s) => s.elapsedS === null || s.elapsedS >= SKIP_S);
+  const strokesWin = wide ? strokesAll : strokesAll.slice(-WINDOW_STROKES);
+
+  /* THE X OF A SAMPLE AND OF A STROKE, in the mode the console is in. A
+   * stroke with no distance on it — rare, a 0x35 that arrived before the
+   * first status packet — is left out rather than plotted at zero. */
+  const sampleX = (s: { t: number; dist: number }) => (xMode === "meters" ? s.dist : s.t);
+  const strokeX = (s: ErgStroke): number | null => (xMode === "meters" ? s.distanceM : s.elapsedS);
+  const xLabel = xMode === "meters" ? "METRES" : "ELAPSED";
+  const xFmt = xMode === "meters" ? (x: number) => Math.round(x).toLocaleString("en-US") : (x: number) => fmtClock(x);
   const span: SpanControl = {
     whole: wide,
     can: !whole && (tEnd > WINDOW_S || m.strokes.length > WINDOW_STROKES),
@@ -175,21 +217,23 @@ export function ErgDetail({
     if (s.watts === null) continue;
     runSum += s.watts;
     runN++;
-    if (s.n >= (strokesWin[0]?.n ?? 0)) runningAvg.push({ x: s.n, y: runSum / runN });
+    const x = strokeX(s);
+    if (x !== null && s.n >= (strokesWin[0]?.n ?? 0)) runningAvg.push({ x, y: runSum / runN });
   }
 
   const per = (pick: (s: ErgStroke) => number | null): XY[] =>
     thinPoints(
       strokesWin.flatMap((s) => {
         const y = pick(s);
-        return y === null ? [] : [{ x: s.n, y }];
+        const x = strokeX(s);
+        return y === null || x === null ? [] : [{ x, y }];
       }),
       CHART_POINTS,
     );
 
   const paceSeries: Series[] = [
-    { kind: "line", label: "CURRENT", points: thinPoints(win.filter((s) => s.pace > 0).map((s) => ({ x: s.t, y: s.pace })), CHART_POINTS) },
-    { kind: "dashed", label: "AVERAGE", points: thinPoints(win.filter((s) => s.avgPace > 0).map((s) => ({ x: s.t, y: s.avgPace })), CHART_POINTS) },
+    { kind: "line", label: "CURRENT", points: thinPoints(win.filter((s) => s.pace > 0).map((s) => ({ x: sampleX(s), y: s.pace })), CHART_POINTS) },
+    { kind: "dashed", label: "AVERAGE", points: thinPoints(win.filter((s) => s.avgPace > 0).map((s) => ({ x: sampleX(s), y: s.avgPace })), CHART_POINTS) },
   ];
   const wattsSeries: Series[] = [
     { kind: "bars", label: "PER STROKE", points: per((s) => s.watts) },
@@ -201,11 +245,17 @@ export function ErgDetail({
    * several spm below anything the rower ever rowed). The pace series has
    * always filtered its own sentinel one line above; this one now does too,
    * which also takes the dip out of the drawn line. */
-  const spmSeries: Series[] = [{ kind: "line", label: "SPM", points: thinPoints(win.filter((s) => s.spm > 0).map((s) => ({ x: s.t, y: s.spm })), CHART_POINTS) }];
+  const spmSeries: Series[] = [{ kind: "line", label: "SPM", points: thinPoints(win.filter((s) => s.spm > 0).map((s) => ({ x: sampleX(s), y: s.spm })), CHART_POINTS) }];
   /* Where the heart rate chart used to be. Metres a stroke is the number
    * that says whether a rate went up because the rower did more work or
    * because the handle came back shorter. */
   const perStrokeSeries: Series[] = [{ kind: "line", label: "M", points: per((s) => s.strokeDistanceM) }];
+  const driveLenPts = per((s) => s.driveLengthM);
+  const driveTimePts = per((s) => s.driveTimeS);
+  const recoveryPts = per((s) => s.recoveryTimeS);
+  const peakPts = per((s) => s.peakLbf);
+  const avgLbfPts = per((s) => s.avgLbf);
+  const workPts = per((s) => s.workJ);
 
   const avgPowerW = a2?.averagePowerW ?? a1?.averagePowerW ?? null;
   /* No 0x3D on the monitor, or one that took the subscription and then sent
@@ -269,19 +319,22 @@ export function ErgDetail({
           <button type="button" className="eg-btn eg-btn-quiet" onClick={onBack}>
             Back to monitors
           </button>
-          <h2 className="eg-dname">{erg.name}</h2>
-          <dl className="eg-dfacts">
-            <dt>Serial</dt>
-            <dd>{erg.serial || "—"}</dd>
-            <dt>Model</dt>
-            <dd>{erg.device.model ?? "—"}</dd>
-            <dt>Firmware</dt>
-            <dd>{erg.device.firmware ?? "—"}</dd>
-            <dt>Machine</dt>
-            <dd>{erg.device.machineType === null ? "—" : ergMachineTypeWord(erg.device.machineType)}</dd>
-            <dt>Source</dt>
-            <dd>{erg.sourceLabel ?? (erg.source === "live" ? "BLUETOOTH" : erg.source.toUpperCase())}</dd>
-          </dl>
+          {/* THE NAME IS THE FIELD (owner, 2026-09-21: "I should be able to
+            * rename the row in the viewer"). What is typed here is the row
+            * heading on the monitors page, the lane on the race board and
+            * the title the piece is saved under: one gesture. */}
+          <label className="eg-away" htmlFor={`dtitle-${erg.id}`}>
+            Name this erg
+          </label>
+          <input
+            id={`dtitle-${erg.id}`}
+            className="eg-dname eg-dname-box"
+            value={erg.save.title ?? ""}
+            onChange={(ev) => setErgTitle(erg.id, ev.target.value)}
+            placeholder={erg.name}
+            aria-label="Name this erg"
+          />
+          <span className="eg-note">{typedErgName(erg) ? `${erg.name} · ` : ""}{erg.serial || "NO SERIAL"}</span>
         </div>
 
         <div className="eg-dctl">
@@ -292,32 +345,16 @@ export function ErgDetail({
             {erg.pps ? ` · ${erg.pps} PACKETS/S` : ""}
           </span>
 
-          {view && onView ? <ViewChips view={view} onView={onView} /> : null}
-
           <span className="eg-dstate">
             {g ? workoutStateWord(g.workoutState) : "NO STATUS PACKET YET"}
             {g ? <span>{strokeStateWord(g.strokeState)}</span> : null}
           </span>
-
-          {/* THE GOAL, changeable here as well as on the row (owner,
-           * 2026-09-17). Same control, same hub call. */}
-          <GoalControl ergId={erg.id} goalM={erg.goalM} />
-          {/* HOW FAST, beside HOW FAR. The rowing screen reads the two
-            * together through readTarget; with no target it is complete
-            * anyway, which is what makes it honest never to ask mid-piece. */}
-          <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="head" />
           {mismatch ? <span className="eg-note">{mismatch}</span> : null}
 
-          <span className="eg-chips">
-            <span className="eg-pb-k">Status every</span>
-            {RATE_KEYS.map((k) => (
-              <button key={k} type="button" className={erg.rate === k ? "eg-chip on" : "eg-chip"} aria-pressed={erg.rate === k} onClick={() => setRate(erg.id, k)}>
-                {RATE_WORD[k]}
-              </button>
-            ))}
-          </span>
-
           <span className="eg-btns" style={{ margin: 0 }}>
+            <button type="button" className="eg-btn eg-btn-quiet" aria-expanded={settings} onClick={() => setSettings((v) => !v)}>
+              {settings ? "Close settings" : "Settings"}
+            </button>
             {erg.source === "live" && erg.link !== "live" ? (
               <button type="button" className="eg-btn eg-btn-quiet" onClick={() => void reconnect(erg.id)}>
                 Reconnect
@@ -338,14 +375,6 @@ export function ErgDetail({
            * piece helps nobody. */}
           {playback ? null : (
             <span className="eg-save">
-              {/* The same field the monitors row names this erg with
-                * (review, 2026-09-17), so it is worded the same on both
-                * screens: what is typed here is the row heading and the
-                * title the piece is saved under. */}
-              <label className="eg-note" htmlFor={`dtitle-${erg.id}`} style={{ position: "absolute", left: -10000 }}>
-                Name this erg
-              </label>
-              <input id={`dtitle-${erg.id}`} value={ergTitle(erg)} onChange={(ev) => setErgTitle(erg.id, ev.target.value)} placeholder="Name this erg" />
               <button
                 type="button"
                 className="eg-btn"
@@ -364,6 +393,45 @@ export function ErgDetail({
           {erg.loaded ? <span className="eg-loaded">Loaded · {erg.loaded.title}</span> : null}
         </div>
       </div>
+
+      {/* ---- THE SETTINGS DRAWER: everything that is set once ------------
+        * (owner, 2026-09-21). The goal, the target, how often the monitor
+        * reports, and the facts about the monitor itself. None of it is
+        * read mid-piece, so none of it is on screen mid-piece. */}
+      {settings ? (
+        <div className="eg-settings">
+          <div className="eg-settings-col">
+            <span className="eg-eyebrow">The piece</span>
+            <GoalControl ergId={erg.id} goalM={erg.goalM} scope="head" />
+            <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="head" />
+            <span className="eg-chips">
+              <span className="eg-pb-k">Status every</span>
+              {RATE_KEYS.map((k) => (
+                <button key={k} type="button" className={erg.rate === k ? "eg-chip on" : "eg-chip"} aria-pressed={erg.rate === k} onClick={() => setRate(erg.id, k)}>
+                  {RATE_WORD[k]}
+                </button>
+              ))}
+            </span>
+          </div>
+          <div className="eg-settings-col">
+            <span className="eg-eyebrow">The monitor</span>
+            <dl className="eg-dfacts">
+              <dt>Advertised</dt>
+              <dd>{erg.name}</dd>
+              <dt>Serial</dt>
+              <dd>{erg.serial || "—"}</dd>
+              <dt>Model</dt>
+              <dd>{erg.device.model ?? "—"}</dd>
+              <dt>Firmware</dt>
+              <dd>{erg.device.firmware ?? "—"}</dd>
+              <dt>Machine</dt>
+              <dd>{erg.device.machineType === null ? "—" : ergMachineTypeWord(erg.device.machineType)}</dd>
+              <dt>Source</dt>
+              <dd>{erg.sourceLabel ?? (erg.source === "live" ? "BLUETOOTH" : erg.source.toUpperCase())}</dd>
+            </dl>
+          </div>
+        </div>
+      ) : null}
 
       {/* ---- the transport, when this erg is a row being played back ---- */}
       {playback ? <PlaybackBar erg={erg} /> : null}
@@ -449,92 +517,129 @@ export function ErgDetail({
               </button>
             </span>
           ) : null}
-          <span className="eg-note">{span.note} · CLICK A CHART TO OPEN IT</span>
+          <span className="eg-chips">
+            <button type="button" className={xMode === "meters" ? "eg-chip on" : "eg-chip"} aria-pressed={xMode === "meters"} onClick={() => setXMode("meters")}>
+              Metres
+            </button>
+            <button type="button" className={xMode === "time" ? "eg-chip on" : "eg-chip"} aria-pressed={xMode === "time"} onClick={() => setXMode("time")}>
+              Time
+            </button>
+          </span>
+          <span className="eg-note">{span.note} · FIRST {SKIP_S} S NOT DRAWN · CLICK A CHART TO OPEN IT</span>
         </div>
-        <div className="eg-charts">
-          <Chart
-            title="Pace"
-            unit="/500 M"
-            series={paceSeries}
-            xLabel="ELAPSED S"
-            yLabel="FASTER UP"
-            xFmt={(x) => fmtClock(x)}
-            yFmt={(y) => fmtPace(y)}
-            invertY
-            refY={120}
-            refLabel="2:00"
-            /* On an inverted axis a minus is FASTER, which is the one
-             * reading a rower actually wants off this chart. */
-            refDeltaFmt={(d) => `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} S`}
-            xWord="ELAPSED"
-            span={span}
-            stat
-          />
-          <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel="STROKE" yLabel="W" span={span}
-            stat />
-          <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel="ELAPSED S" yLabel="SPM" xFmt={(x) => fmtClock(x)} yMin={0} xWord="ELAPSED" span={span}
-            stat />
-          <Chart
-            title="Distance per stroke"
-            unit="M"
-            series={perStrokeSeries}
-            xLabel="STROKE"
-            yLabel="M"
-            yFmt={(y) => y.toFixed(1)}
-            yMin={0}
-            empty="WAITING FOR A STROKE"
-            span={span}
-            stat
-          />
+
+        {/* EACH KPI IS A PAIR: what happened in order, and what it was made of
+          * (owner, 2026-09-21: the distribution on its own chart, not on the
+          * line chart). The distribution is handed the same points the line
+          * draws, so the two can never describe different strokes. */}
+        <div className="eg-pairs">
+          <div className="eg-pair">
+            <Chart
+              title="Pace"
+              unit="/500 M"
+              series={paceSeries}
+              xLabel={xLabel}
+              yLabel="FASTER UP"
+              xFmt={xFmt}
+              yFmt={(y) => fmtPace(y)}
+              invertY
+              refY={120}
+              refLabel="2:00"
+              refDeltaFmt={(d) => `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} S`}
+              xWord={xLabel}
+              span={span}
+              stat
+            />
+            <DistChart title="Pace" unit="/500 M" points={paceSeries[0].points} fmt={(y) => fmtPace(y)} invertY />
+          </div>
+          <div className="eg-pair">
+            <Chart title="Watts" unit="PER STROKE" series={wattsSeries} xLabel={xLabel} yLabel="W" xFmt={xFmt} xWord={xLabel} span={span} stat />
+            <DistChart title="Watts" unit="W" points={wattsSeries[0].points} />
+          </div>
+          <div className="eg-pair">
+            <Chart title="Stroke rate" unit="SPM" series={spmSeries} xLabel={xLabel} yLabel="SPM" xFmt={xFmt} yMin={0} xWord={xLabel} span={span} stat />
+            <DistChart title="Stroke rate" unit="SPM" points={spmSeries[0].points} />
+          </div>
+          <div className="eg-pair">
+            <Chart
+              title="Distance per stroke"
+              unit="M"
+              series={perStrokeSeries}
+              xLabel={xLabel}
+              yLabel="M"
+              xFmt={xFmt}
+              yFmt={(y) => y.toFixed(1)}
+              yMin={0}
+              empty="WAITING FOR A STROKE"
+              xWord={xLabel}
+              span={span}
+              stat
+            />
+            <DistChart title="Distance per stroke" unit="M" points={perStrokeSeries[0].points} fmt={(y) => y.toFixed(1)} />
+          </div>
         </div>
 
         <div className="eg-sec-head" style={{ marginTop: 26 }}>
           <h3>The stroke</h3>
           <span className="eg-note">0X35 · 0X36 · PER STROKE</span>
         </div>
-        <div className="eg-charts four">
-          <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: per((s) => s.driveLengthM) }]} xLabel="STROKE" yLabel="M" yFmt={(y) => y.toFixed(2)} span={span}
-            stat />
-          <Chart
-            small
-            title="Drive / recovery"
-            unit="S"
-            series={[
-              { kind: "line", label: "DRIVE", points: per((s) => s.driveTimeS) },
-              { kind: "dashed", label: "RECOVERY", points: per((s) => s.recoveryTimeS) },
-            ]}
-            xLabel="STROKE"
-            yLabel="S"
-            yFmt={(y) => y.toFixed(2)}
-            yMin={0}
-            span={span}
-            stat
-          />
-          <Chart
-            small
-            title="Drive force"
-            unit="LBF"
-            series={[
-              { kind: "line", label: "PEAK", points: per((s) => s.peakLbf) },
-              { kind: "dashed", label: "AVERAGE", points: per((s) => s.avgLbf) },
-            ]}
-            xLabel="STROKE"
-            yLabel="LBF"
-            yMin={0}
-            span={span}
-            stat
-          />
-          <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: per((s) => s.workJ) }]} xLabel="STROKE" yLabel="J" yMin={0} span={span}
-            stat />
+        <div className="eg-pairs">
+          <div className="eg-pair">
+            <Chart small title="Drive length" unit="M" series={[{ kind: "line", label: "M", points: driveLenPts }]} xLabel={xLabel} yLabel="M" xFmt={xFmt} yFmt={(y) => y.toFixed(2)} xWord={xLabel} span={span} stat />
+            <DistChart small title="Drive length" unit="M" points={driveLenPts} fmt={(y) => y.toFixed(2)} />
+          </div>
+          <div className="eg-pair">
+            <Chart
+              small
+              title="Drive / recovery"
+              unit="S"
+              series={[
+                { kind: "line", label: "DRIVE", points: driveTimePts },
+                { kind: "dashed", label: "RECOVERY", points: recoveryPts },
+              ]}
+              xLabel={xLabel}
+              yLabel="S"
+              xFmt={xFmt}
+              yFmt={(y) => y.toFixed(2)}
+              yMin={0}
+              xWord={xLabel}
+              span={span}
+              stat
+            />
+            <DistChart small title="Drive time" unit="S" points={driveTimePts} fmt={(y) => y.toFixed(2)} />
+          </div>
+          <div className="eg-pair">
+            <Chart
+              small
+              title="Drive force"
+              unit="LBF"
+              series={[
+                { kind: "line", label: "PEAK", points: peakPts },
+                { kind: "dashed", label: "AVERAGE", points: avgLbfPts },
+              ]}
+              xLabel={xLabel}
+              yLabel="LBF"
+              xFmt={xFmt}
+              yMin={0}
+              xWord={xLabel}
+              span={span}
+              stat
+            />
+            <DistChart small title="Peak force" unit="LBF" points={peakPts} />
+          </div>
+          <div className="eg-pair">
+            <Chart small title="Work per stroke" unit="J" series={[{ kind: "line", label: "J", points: workPts }]} xLabel={xLabel} yLabel="J" xFmt={xFmt} yMin={0} xWord={xLabel} span={span} stat />
+            <DistChart small title="Work per stroke" unit="J" points={workPts} />
+          </div>
         </div>
       </section>
 
       {/* ---- the force curve ---- */}
       <section className="eg-sec">
         <div className="eg-sec-head">
-          <h3>Force curve</h3>
+          <h3>Force curves</h3>
           <span className="eg-note">
-            0X3D · LATEST STROKE{last?.peakLbf !== null && last?.peakLbf !== undefined ? ` · 0X35 PEAK ${fmtForce(last.peakLbf)}` : ""}
+            0X3D · EVERY STROKE · THE LATEST BRIGHT · THE AVERAGE DASHED{last?.peakLbf !== null && last?.peakLbf !== undefined ? ` · 0X35 PEAK ${fmtForce(last.peakLbf)}` : ""}
           </span>
         </div>
         {forceMissing ? (
@@ -544,7 +649,7 @@ export function ErgDetail({
           </div>
         ) : (
           <div className="eg-charts">
-            <ForceCurveChart curve={m.force} newtons={lbfToNewtons} />
+            <ForceCurveChart curves={m.forces} latest={m.force} newtons={lbfToNewtons} />
           </div>
         )}
       </section>
@@ -650,9 +755,57 @@ export function ErgDetail({
       <section className="eg-sec">
         <div className="eg-sec-head">
           <h3>Feed</h3>
+          <span className="eg-note">
+            {erg.rec.packets.length ? `${erg.rec.packets.length.toLocaleString("en-US")} RECORDED` : "NO PACKETS YET"}
+            {erg.rec.dropped ? ` · ${erg.rec.dropped.toLocaleString("en-US")} DROPPED OFF THE FRONT` : ""}
+          </span>
           <button type="button" className="eg-btn eg-btn-quiet" onClick={() => setShowFeed((v) => !v)}>
-            {showFeed ? "Hide raw packets" : "Show raw packets"}
+            {showFeed ? "Hide the log" : "Show the log"}
           </button>
+        </div>
+        {/* THE FEED IS A TABLE THAT UPDATES IN PLACE (owner, 2026-09-21:
+          * "we get the same data every packet and those numbers just update,
+          * so it can be a table. If we do not get a value, show an empty
+          * space. It is more like: is it grabbing data?"). One row per
+          * characteristic in the order the spec lists them; a row that has
+          * never arrived is an empty row. Nothing scrolls. */}
+        <div className="eg-scroll">
+          <table className="eg-table eg-feedtab">
+            <thead>
+              <tr>
+                <th>Char</th>
+                <th>What</th>
+                <th>Last</th>
+                <th>Via</th>
+                <th>Bytes</th>
+                <th>Decoded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {FEED_ROWS.map((r) => {
+                const f: ErgFeedLine | undefined = m.latest[r.id];
+                return (
+                  <tr key={r.id} className={f ? "" : "eg-feed-none"}>
+                    <td className="eg-mono">0x{r.id.toString(16).toUpperCase()}</td>
+                    <td>{r.word}</td>
+                    <td className="eg-mono">{f ? f.at : ""}</td>
+                    <td>{f ? (f.via === "mux" ? "0x80" : "direct") : ""}</td>
+                    <td className="eg-mono">{f ? f.bytes : ""}</td>
+                    <td className="eg-feed-dc">
+                      {f && f.decoded
+                        ? Object.entries(f.decoded).map(([k, v]) => (
+                            <span className="eg-kv" key={k}>
+                              <span className="k">{k}</span>
+                              <span className="v">{cell(v)}</span>
+                            </span>
+                          ))
+                        : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
         <div className="eg-two">
           {showFeed ? (
@@ -662,6 +815,7 @@ export function ErgDetail({
                 : m.feed
                     .slice()
                     .reverse()
+                    .slice(0, 20)
                     .map((f, i) => (
                       <div key={`${f.at}-${i}`}>
                         <span className="ts">{f.at}</span>
@@ -669,24 +823,10 @@ export function ErgDetail({
                           0x{f.id.toString(16).toUpperCase().padStart(2, "0")} {f.via === "mux" ? "via 0x80" : "direct"} · {f.bytes} B
                         </span>
                         <span className="hx">{f.hex}</span>
-                        {f.decoded && (
-                          <div className="dc">
-                            {f.kind}:{" "}
-                            {Object.entries(f.decoded)
-                              .map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(",")}]` : String(v)}`)
-                              .join(" · ")}
-                          </div>
-                        )}
                       </div>
                     ))}
             </div>
-          ) : (
-            <p className="eg-note">
-              {m.feed.length
-                ? `${m.feed.length} packets in the raw feed · ${erg.rec.packets.length.toLocaleString("en-US")} recorded${erg.rec.dropped ? ` · ${erg.rec.dropped.toLocaleString("en-US")} dropped off the front` : ""}`
-                : "The raw feed is hidden."}
-            </p>
-          )}
+          ) : null}
           <div className="eg-log">
             {m.log.length === 0
               ? "Nothing yet."

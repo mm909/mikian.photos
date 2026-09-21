@@ -162,6 +162,13 @@ export type ErgModel = {
    * monitor (PM5v1). */
   forceChar: boolean | null;
   feed: ErgFeedLine[];
+  /* THE LATEST PACKET OF EACH KIND, by characteristic id (owner,
+   * 2026-09-21: "instead of the feed showing the raw packets being like a
+   * text box, we can just have it be like a table, because we get the same
+   * data every packet and those numbers just update"). The feed above is a
+   * scrolling window and a rare characteristic — a summary that arrives
+   * once a piece — falls out of it; this does not forget. */
+  latest: Record<number, ErgFeedLine>;
   log: ErgLogLine[];
 };
 
@@ -386,6 +393,7 @@ const freshModel = (): ErgModel => ({
   splits: [],
   samples: [],
   force: null,
+  latest: {},
   forceCount: 0,
   forces: [],
   forceChar: null,
@@ -729,7 +737,9 @@ function ingest(e: Erg, uuid: string, dv: DataView) {
     }
   }
 
-  m.feed = [...m.feed.slice(-(FEED_LINES - 1)), { at: clock(), id, via, bytes: dv.byteLength, hex: hex(dv), kind, decoded }];
+  const line: ErgFeedLine = { at: clock(), id, via, bytes: dv.byteLength, hex: hex(dv), kind, decoded };
+  m.feed = [...m.feed.slice(-(FEED_LINES - 1)), line];
+  m.latest[id] = line;
   record(e, { t: now, id, via, kind, decoded });
 
   w.ppsTimes.push(now);
@@ -1182,6 +1192,7 @@ export function clearErg(id: string) {
   e.model.belt = null;
   e.rec = freshRec();
   e.model.feed = [];
+  e.model.latest = {};
   e.loaded = null;
   e.save = { busy: false, note: null, savedId: null, title: null };
   log(e, "session cleared");

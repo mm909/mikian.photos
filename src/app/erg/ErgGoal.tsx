@@ -193,6 +193,16 @@ export function predictForErg(e: Erg): Prediction {
 /* The monitor has stopped: WORKOUT END, TERMINATE or WORKOUT LOGGED. A piece
  * in one of those states is not advancing, so nothing may keep predicting
  * its finish. It lived in MonitorList and three screens need it now. */
+/* WHAT THE OWNER CALLED THIS ERG, or null while it is still the name the
+ * monitor advertises. Three PM5s in a gym all advertise PM5 4xxxxxxxx, so
+ * every screen heads a lane with the typed name when there is one. The same
+ * field is the title the piece is saved under: naming a lane and titling
+ * its piece are one gesture. */
+export function typedErgName(e: Erg): string | null {
+  const t = e.save.title === null ? "" : e.save.title.trim();
+  return t ? t : null;
+}
+
 export function pieceEnded(e: Erg): boolean {
   const g = e.model.general;
   return g ? isEnded(g.workoutState) : false;
