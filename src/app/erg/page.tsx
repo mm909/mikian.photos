@@ -31,12 +31,14 @@ export const metadata: Metadata = {
  *                 the list, which is the honest answer.
  *   ?play=SOMEID  the console onto a playback of that saved session, so a
  *                 link from anywhere else lands on the row playing.
+ *   ?board=1      the race board; ?board=tv the same lanes on the
+ *                 television, and &look=a|b|c picks one of its three looks.
  *
  * Nothing on this page knows what a challenge is. The BAR does — it is the
  * site bar now (owner, same day: "when it goes live it will probably just
  * be another header on the Rowtember site") — but the page under it is a
  * tool for reading an erg and nothing else. */
-export default async function ErgMonitorsPage({ searchParams }: { searchParams?: { play?: string | string[]; erg?: string | string[]; board?: string | string[] } }) {
+export default async function ErgMonitorsPage({ searchParams }: { searchParams?: { play?: string | string[]; erg?: string | string[]; board?: string | string[]; look?: string | string[] } }) {
   const v = await ergViewer();
   if (!ergPageOpen(v)) notFound();
 
@@ -47,7 +49,7 @@ export default async function ErgMonitorsPage({ searchParams }: { searchParams?:
       {/* Signed out, the page still pairs, simulates and plays back — the
         * gym path runs off npm run dev with nobody signed in. Only SAVE
         * needs an account, and the foot of the list says so. */}
-      <MonitorList playId={one(searchParams?.play)} ergId={one(searchParams?.erg)} board={one(searchParams?.board) !== null} signedIn={v.signedIn} />
+      <MonitorList playId={one(searchParams?.play)} ergId={one(searchParams?.erg)} board={one(searchParams?.board)} look={one(searchParams?.look)} signedIn={v.signedIn} />
 
       <p className="eg-foot">Erg telemetry · Concept2 PM5 over Web Bluetooth · nothing here touches the race board</p>
     </ErgShell>

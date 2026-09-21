@@ -204,13 +204,13 @@ type Box = { w: number; h: number };
  * makes that a nicety rather than the only thing holding it up. */
 let lockDepth = 0;
 let lockPrev = "";
-function lockBody() {
+export function lockBody() {
   if (lockDepth++ === 0) {
     lockPrev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
   }
 }
-function unlockBody() {
+export function unlockBody() {
   if (lockDepth > 0 && --lockDepth === 0) document.body.style.overflow = lockPrev;
 }
 

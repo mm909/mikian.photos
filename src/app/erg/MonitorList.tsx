@@ -6,6 +6,7 @@ import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, work
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { ErgDetail } from "./ErgDetail";
 import { RaceBoard } from "./RaceBoard";
+import { parseTvLook, RaceBoardTv, type TvLook } from "./RaceBoardTv";
 import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
 import {
   ERG_API,
@@ -444,7 +445,7 @@ function PlayPicker({ onPlay, busyId }: { onPlay: (row: TelemetrySavedRow) => vo
   );
 }
 
-export function MonitorList({ playId, ergId, board: boardParam = false, signedIn = false }: { playId?: string | null; ergId?: string | null; board?: boolean; signedIn?: boolean }) {
+export function MonitorList({ playId, ergId, board: boardParam = null, look: lookParam = null, signedIn = false }: { playId?: string | null; ergId?: string | null; board?: string | null; look?: string | null; signedIn?: boolean }) {
   const [ergs, setErgs] = useState<Erg[]>([]);
   const [support, setSupport] = useState<"unknown" | "yes" | "no">("unknown");
   const [btOff, setBtOff] = useState(false);
@@ -460,8 +461,15 @@ export function MonitorList({ playId, ergId, board: boardParam = false, signedIn
    * straight onto it, which is what the laptop plugged into the TV wants.
    *
    * THE ROWER VIEW IS GONE (owner, same day: "it did not land, so we will
-   * just have the one view"). */
-  const [board, setBoard] = useState<boolean>(boardParam);
+   * just have the one view").
+   *
+   * THE WALL (owner, same day: "this will be on a full screen monitor, give
+   * me a view that would go on a TV") is the board again, full screen, in
+   * one of three looks — a fourth view of the same page for the same
+   * reason, and it sits OVER the board so leaving it lands back there.
+   * /erg?board=tv&look=b opens straight onto it. */
+  const [board, setBoard] = useState<boolean>(boardParam !== null);
+  const [tv, setTv] = useState<TvLook | null>(boardParam === "tv" ? (parseTvLook(lookParam) ?? "a") : null);
   const [picking, setPicking] = useState(false);
   const [loadingRow, setLoadingRow] = useState<string | null>(null);
   const bump = useCallback(() => setErgs(listErgs()), []);
@@ -553,7 +561,8 @@ export function MonitorList({ playId, ergId, board: boardParam = false, signedIn
    * where this hub has never seen that id — fall back to the list. */
   const openErg = open ? getErg(open) : null;
   if (open && openErg) return <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} />;
-  if (board) return <RaceBoard ergs={ergs} onBack={() => setBoard(false)} onOpen={(id) => setOpen(id)} />;
+  if (tv) return <RaceBoardTv ergs={ergs} look={tv} onLook={setTv} onExit={() => setTv(null)} />;
+  if (board) return <RaceBoard ergs={ergs} onBack={() => setBoard(false)} onOpen={(id) => setOpen(id)} onTv={() => setTv("a")} />;
 
   return (
     <div>
