@@ -170,23 +170,26 @@ export const rdCss = `
  * the mark hangs off the rule the way it does on the ad instead of floating
  * where a caption used to be. */
 .row100k .rd-house{border-top:var(--r) solid #fff;margin-top:clamp(20px,4.4cqw,34px);padding-top:clamp(12px,2.8cqw,20px)}
-.row100k .rd-houseRow{display:flex;align-items:center;justify-content:space-between;gap:clamp(12px,3cqw,26px);flex-wrap:wrap}
+/* ONE LINE at every width (owner, 2026-09-21: the logos and the room were
+ * wrapping on a phone): nothing wraps, the marks give way first and the
+ * room block keeps its two lines flush right. */
+.row100k .rd-houseRow{display:flex;align-items:center;justify-content:space-between;gap:clamp(10px,2.4cqw,26px);flex-wrap:nowrap}
 .row100k .rd-houseRow a.rd-marklink{display:block;line-height:0;flex:none}
 .row100k .rd-houseRow a.rd-marklink:hover{opacity:.8}
-.row100k .rd-mark{display:block;width:clamp(112px,30cqw,200px);height:auto}
+.row100k .rd-mark{display:block;width:clamp(84px,26cqw,200px);height:auto}
 /* Two houses on one row: the gym and the room sponsor, a rule between
  * them so neither reads as the other. The sponsor mark is wider than it
  * is tall, so it gets a little more width to land at about the same
  * height as the house. */
-.row100k .rd-marks{display:flex;align-items:center;gap:clamp(14px,3.2cqw,30px);flex-wrap:wrap;min-width:0}
-.row100k .rd-marks a.rd-sponsorlink{border-left:1px solid rgba(255,255,255,.3);padding-left:clamp(14px,3.2cqw,30px)}
-.row100k .rd-mark-sponsor{width:clamp(124px,32cqw,214px)}
-.row100k .rd-room{font-family:var(--row-mono),monospace;font-size:clamp(10px,2cqw,13px);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:right;line-height:1.7;min-width:0}
+.row100k .rd-marks{display:flex;align-items:center;gap:clamp(8px,2.4cqw,30px);flex:0 1 auto;flex-wrap:nowrap;min-width:0}
+.row100k .rd-marks a.rd-sponsorlink{border-left:1px solid rgba(255,255,255,.3);padding-left:clamp(8px,2.4cqw,30px)}
+.row100k .rd-mark-sponsor{width:clamp(92px,28cqw,214px)}
+.row100k .rd-room{font-family:var(--row-mono),monospace;font-size:clamp(9px,2cqw,13px);letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:right;line-height:1.7;min-width:0;flex:0 1 auto}
 /* One block, not two: the span held LAS VEGAS under the room and the town
  * came off race day on 2026-09-11 (the owner: we just keep it at the strip
  * barbell engine room). The rule is b alone now. */
 .row100k .rd-room b{display:block}
-.row100k .rd-room b{color:#fff;font-weight:700;font-size:clamp(11px,2.3cqw,15px);letter-spacing:.13em}
+.row100k .rd-room b{color:#fff;font-weight:700;font-size:clamp(10px,2.3cqw,15px);letter-spacing:.12em;white-space:nowrap}
 .row100k .rd-room a{display:block;margin-top:6px;color:rgba(255,255,255,.62);text-decoration:underline;text-underline-offset:3px}
 .row100k .rd-room a:hover{color:#fff;text-decoration-thickness:2px}
 
