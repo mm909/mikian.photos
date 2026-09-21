@@ -230,6 +230,7 @@ export function raceDayPoster(
       waveLabel: `${size} ERGS A WAVE · EVERY ${race.waveMinutes} MIN`,
       waiver,
       venueMark: race.venueMark,
+      sponsorMark: race.sponsor?.mark ?? null,
       venue: race.venue.toUpperCase(),
       room: race.room.toUpperCase(),
       /* A role with no line comes through with none — the spectator's went

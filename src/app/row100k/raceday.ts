@@ -96,13 +96,13 @@ export type RaceDef = {
   sponsor: { name: string; url: string; mark: { src: string; alt: string; ratio: number } } | null;
 };
 
-/* NOT YET ACCEPTED (owner, 2026-09-21: "keep the LVSS changes in
- * development for now — they have not accepted yet"). The whole sponsor
- * treatment — the partner block, the mark on the race day page, the mark on
- * the flyer card, the name in the console — reads through this one switch,
- * so going live is deleting the condition here and nowhere else. Dev and
- * preview builds show it; production reads null. */
-export const SPONSOR_SHOWN = process.env.NODE_ENV !== "production";
+/* ACCEPTED (owner, 2026-09-21, later the same day: "enable the sports and
+ * spine sponsorship"). For a few hours this read NODE_ENV so the treatment
+ * stayed in development while they decided; the switch is kept as the one
+ * place the whole treatment — the partner block, the mark on the race day
+ * page, the marks on the cards and the posters, the name in the console —
+ * can be turned off again if it ever has to be. */
+export const SPONSOR_SHOWN = true;
 
 export const RACES: RaceDef[] = [
   {

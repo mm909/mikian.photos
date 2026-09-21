@@ -511,6 +511,11 @@ export type RaceDayPoster = {
      * ink or over a photograph. `ratio` is width over height, which is what
      * lets the module measure the host block before the image loads. */
     venueMark: { src: string; alt: string; ratio: number } | null;
+    /* THE ROOM SPONSOR'S MARK (RaceDef.sponsor, owner 2026-09-21: "include
+     * the sports and spine logo on that one as well"), white on
+     * transparent like the host's, drawn beside it in the house block of
+     * both race artworks. Null when there is no sponsor. */
+    sponsorMark: { src: string; alt: string; ratio: number } | null;
     venue: string;
     /* "THE ENGINE ROOM", and it is the WHOLE address line now. There was a
      * `city` beside it, drawn under the room in the house block, and it is
@@ -615,6 +620,8 @@ export type PosterAssets = {
   bear: HTMLImageElement | null;
   wordmark: HTMLImageElement | null;
   venue?: HTMLImageElement | null;
+  /* The room sponsor's mark, loaded like the host's; null without one. */
+  sponsor?: HTMLImageElement | null;
   photo?: HTMLImageElement | null;
 };
 

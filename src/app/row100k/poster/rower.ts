@@ -158,9 +158,6 @@ function rankCell(d: RowerPoster): StripCell {
   return { v: { text: "—" }, l: "RANK" };
 }
 
-const untilText = (d: RowerPoster): string =>
-  "LIGHTS OUT";
-
 /* The rower dateline, the two tags the owner took off it removed (2026-
  * 09-10: "for a specific rower, let us remove men's board, men's or
  * women's board. We can also remove the hundred K club, like the club
@@ -340,9 +337,8 @@ const headline: Mod = {
     if (card) {
       if (!d.masked && split && hours) runs.push(gray(` · ${hours.toUpperCase()}`));
       runs.push(gray(` · ${d.totals.sessions} SESSIONS`));
-      if (d.masked) runs.push(gray(` · ${untilText(d)}`));
     } else if (d.masked) {
-      runs.push(gray(` · ${untilText(d)}`), gray(community));
+      runs.push(gray(community));
     } else {
       runs.push(gray(community));
       if (d.community.share !== null)
@@ -429,7 +425,10 @@ const strip: Mod = {
           ? paint.blocks(ctx, 0, 0, cell.v.shape, s * 0.9, { paint: false })
           : paint.measure(ctx, cell.v.text, paint.font("black", s), -0.01 * s);
       const w0 = widthAt(size);
-      if (w0 > room) size = Math.max(tk.statN * 0.7, Math.floor((size * room) / w0));
+      // …never under 0.7 × statN for a number; a WORD (LIGHTS OUT in the
+      // rank cell) may go to half, because a clipped word says nothing.
+      const floor = cell.v.shape === undefined && !/^[#\d]/.test(cell.v.text) ? 0.5 : 0.7;
+      if (w0 > room) size = Math.max(tk.statN * floor, Math.floor((size * room) / w0));
       const nfont = paint.font("black", size);
       const nm = paint.metricsOf(ctx, nfont, size);
       // The cap top sits at padTop whatever the fitted size.
@@ -575,7 +574,7 @@ const pace: Mod = {
         : tk.recV * 1.4;
       const line3 = paint.wrap(
         ctx,
-        `THE ONE FIGURE THAT STAYS PUBLIC · ${untilText(d)}`,
+        "THE ONE FIGURE THAT STAYS PUBLIC",
         box.w,
         small,
         0.1 * tk.small,

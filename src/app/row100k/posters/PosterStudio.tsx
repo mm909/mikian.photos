@@ -388,14 +388,18 @@ export function PosterStudio({
       ].map((spec) => document.fonts.load(spec, sample).catch(() => []));
       await Promise.race([Promise.all(loads), new Promise((r) => setTimeout(r, 8000))]);
       const venueMark = raceday?.race.venueMark?.src ?? null;
+      const sponsorMark = raceday?.race.sponsorMark?.src ?? null;
       const photoUrl = raceday?.photo.url ?? null;
-      const [bear, wordmark, venue, photo] = await Promise.all([
+      const [bear, wordmark, venue, sponsor, photo] = await Promise.all([
         loadImage(data?.partner?.bear ?? BEAR),
         loadImage(data?.partner?.wordmark ?? WORDMARK),
         // The host's mark, keyed white on transparent, same-origin like the
         // rest. A null here is not fatal: the host module keeps its block
         // and sets the gym's name in type instead.
         venueMark ? loadImage(venueMark) : Promise.resolve(null),
+        // The room sponsor's mark, the same way; null means the host's
+        // mark stands alone, as it did before there was a sponsor.
+        sponsorMark ? loadImage(sponsorMark) : Promise.resolve(null),
         // The owner's picture, off R2 and through CORS. A null is what the
         // photo ground falls back to the solid ad on, and the notes say so.
         photoUrl ? loadImage(photoUrl) : Promise.resolve(null),
@@ -403,7 +407,7 @@ export function PosterStudio({
       if (cancelled) return;
       // Re-read after the loads: the line boxes belong to the real faces.
       setFonts(read());
-      setAssets({ bear, wordmark, venue, photo });
+      setAssets({ bear, wordmark, venue, sponsor, photo });
     })();
     return () => {
       cancelled = true;
@@ -999,13 +1003,7 @@ export function PosterStudio({
             not listed. The list is public data; the reminder is that the
             frame prints as many as fit and says how many it did not. */}
         {fieldOn && race?.field ? (
-          <li>
-            The field — {race.field.counts.toLowerCase()}; racers listed, spectators counted; no meters,
-            no times
-          </li>
-        ) : null}
-        {fieldOn && race?.field && race.field.waves.length === 0 ? (
-          <li>No waves assigned yet — the field runs A to Z; assign waves in the console to group it</li>
+          <li>The field — the racers A to Z, nothing else: no waves, no counts, no meters, no times</li>
         ) : null}
         {overlay ? <li>Overlay — PNG only, a PDF has no alpha</li> : null}
         {overlay ? <li>Put the subject in the open band and keep other brands out of it</li> : null}

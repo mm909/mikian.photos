@@ -126,6 +126,46 @@ const FAINT = "rgba(255,255,255,.18)";
  * Rowtember is hosting something at their gym, and the frame reads that
  * way. */
 const MARK_SHARE = 0.34;
+/* The host's share when the room sponsor's mark stands beside it: the
+ * pair runs about six tenths of the measure and the room keeps its line. */
+const MARK_SHARE_PAIR = 0.27;
+
+/* THE HOUSE MARKS: the gym's, and beside it the room sponsor's when there
+ * is one (owner, 2026-09-21: "include the sports and spine logo on that
+ * one as well") — a hairline between, both at one height. Shared by the
+ * bill's host block and the field's foot so the two cannot drift. Returns
+ * how wide the marks ran and how tall they stand; the caller sets the room
+ * in what is left. Without a sponsor it is exactly the block it always
+ * was. */
+export function raceHouseMarks(
+  ctx: CanvasRenderingContext2D,
+  paint: PosterPaint,
+  d: RaceDayPoster,
+  x: number,
+  y: number,
+  w: number,
+): { used: number; h: number } {
+  const tk = paint.tk;
+  const sponsor =
+    d.race.sponsorMark && paint.assets.sponsor ? { img: paint.assets.sponsor, ratio: d.race.sponsorMark.ratio } : null;
+  const markW = w * (sponsor ? MARK_SHARE_PAIR : MARK_SHARE);
+  const ratio = d.race.venueMark?.ratio ?? 1170 / 466;
+  const markH = markW / ratio;
+  if (d.race.venueMark && paint.assets.venue) {
+    paint.image(ctx, paint.assets.venue, x, y, markW, markH);
+  } else {
+    const vs = Math.min(markH * 0.62, paint.fitSize(ctx, d.race.venue, "black", 200, 10, markW, -0.02));
+    const fv = paint.font("black", vs);
+    paint.drawText(ctx, d.race.venue, x, y + (markH + capOf(ctx, fv, vs)) / 2, fv, WHITE, -0.02 * vs);
+  }
+  if (!sponsor) return { used: markW, h: markH };
+  const gap = tk.small * 1.1;
+  const rx = x + markW + gap;
+  paint.rule(ctx, rx, y, tk.hair, markH, HAIR);
+  const sw = markH * (sponsor.ratio > 0 ? sponsor.ratio : 3);
+  paint.image(ctx, sponsor.img, rx + tk.hair + gap, y, sw, markH);
+  return { used: markW + gap + tk.hair + gap + sw, h: markH };
+}
 
 /* What the headline BLOCK asks for, as a share of the frame height. It is a
  * budget on the block rather than a cap per line, because a cap per line
@@ -622,20 +662,11 @@ const host = mod("host", 60, (ctx, box, d, paint) => {
   let y = box.y + tk.small * 1.3;
   paint.rule(ctx, x, y, w, tk.thick, WHITE);
   y += tk.thick + tk.small * 1.2;
-  const markW = w * MARK_SHARE;
-  const ratio = d.race.venueMark?.ratio ?? 1170 / 466;
-  const markH = markW / ratio;
-  if (d.race.venueMark && paint.assets.venue) {
-    paint.image(ctx, paint.assets.venue, x, y, markW, markH);
-  } else {
-    const vs = Math.min(markH * 0.62, paint.fitSize(ctx, d.race.venue, "black", 200, 10, markW, -0.02));
-    const fv = paint.font("black", vs);
-    paint.drawText(ctx, d.race.venue, x, y + (markH + capOf(ctx, fv, vs)) / 2, fv, WHITE, -0.02 * vs);
-  }
+  const { used, h: markH } = raceHouseMarks(ctx, paint, d, x, y, w);
   const rs = tk.small * 1.02;
   const fr = paint.font("monoBold", rs);
   const metR = paint.metricsOf(ctx, fr, rs);
-  const room = w - markW - tk.small * 1.6;
+  const room = w - used - tk.small * 1.6;
   // ONE line, centred on the mark — the town that used to sit under it is
   // off race day (see the note above). It is centred on the mark's whole
   // height, which is what the two-line block was centred on too, so the

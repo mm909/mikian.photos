@@ -36,16 +36,7 @@
  * so the two artworks cannot drift a rung apart. */
 
 import { fmtRowerNumber } from "@/lib/row100k";
-import {
-  MARK_SHARE,
-  RACE_TONES,
-  raceBlocks,
-  raceCapOf,
-  raceColOf,
-  raceHeadMod,
-  raceInset,
-  raceMod,
-} from "./raceday";
+import { RACE_TONES, raceBlocks, raceColOf, raceHeadMod, raceHouseMarks, raceInset, raceMod } from "./raceday";
 import type {
   PosterBox,
   PosterLayout,
@@ -90,8 +81,15 @@ type Item = { kind: "eye"; text: string } | { kind: "row"; r: RaceDayFieldRow } 
 function itemsOf(d: RaceDayPoster): { items: Item[]; rows: number; byWave: boolean } {
   const f = d.field;
   if (!f) return { items: [], rows: 0, byWave: false };
-  const byWave = f.waves.length > 0;
-  if (!byWave) return { items: f.list.map((r) => ({ kind: "row", r })), rows: f.list.length, byWave };
+  /* NO WAVES ON THE FRAME (owner, 2026-09-21: "for the race day partners
+   * exclude info about assigned waves"). The payload still groups by wave
+   * once the console has assigned them; this artwork lists the field A to
+   * Z regardless, so the gym never sees who is in which wave here. */
+  const byWave = false;
+  if (!byWave) {
+    const list = [...f.list].sort((a, b) => a.name.localeCompare(b.name));
+    return { items: list.map((r) => ({ kind: "row", r })), rows: list.length, byWave };
+  }
   const label = new Map(f.waves.map((w) => [w.wave, w.label]));
   const items: Item[] = [];
   let last: number | null | undefined;
@@ -310,31 +308,16 @@ const foot = raceMod("foot", 80, (ctx, box, d, paint) => {
   const tk = paint.tk;
   const m = raceInset(paint);
   const { x, w } = raceColOf(box, paint);
+  /* NO COUNT STRIP (owner, 2026-09-21: "we do not need the men's, women's,
+   * spectator count") — the foot opens straight on its rule. */
   let y = box.y;
-  if (d.field) {
-    const cs = tk.small * 1.05;
-    const fc = paint.font("monoBold", cs);
-    const met = paint.metricsOf(ctx, fc, cs);
-    const strip = paint.ellipsize(ctx, d.field.counts, w, fc, cs * 0.16);
-    paint.drawText(ctx, strip, x, paint.baselineOf(y, met.lh, met), fc, KEY, cs * 0.16);
-    y += met.lh + tk.small * 0.9;
-  }
   paint.rule(ctx, x, y, w, tk.thick, WHITE);
   y += tk.thick + tk.small * 1.2;
-  const markW = w * MARK_SHARE;
-  const ratio = d.race.venueMark?.ratio ?? 1170 / 466;
-  const markH = markW / ratio;
-  if (d.race.venueMark && paint.assets.venue) {
-    paint.image(ctx, paint.assets.venue, x, y, markW, markH);
-  } else {
-    const vs = Math.min(markH * 0.62, paint.fitSize(ctx, d.race.venue, "black", 200, 10, markW, -0.02));
-    const fv = paint.font("black", vs);
-    paint.drawText(ctx, d.race.venue, x, y + (markH + raceCapOf(ctx, fv, vs)) / 2, fv, WHITE, -0.02 * vs);
-  }
+  const { used, h: markH } = raceHouseMarks(ctx, paint, d, x, y, w);
   const rs = tk.small * 1.02;
   const fr = paint.font("monoBold", rs);
   const metR = paint.metricsOf(ctx, fr, rs);
-  const room = w - markW - tk.small * 1.6;
+  const room = w - used - tk.small * 1.6;
   const lead = rs * 0.35;
   const blockH = metR.lh * 2 + lead;
   const rTop = y + (markH - blockH) / 2;
