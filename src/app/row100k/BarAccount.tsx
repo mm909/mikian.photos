@@ -146,6 +146,9 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/raceday" onClick={close}>
                   Sign-up page →
                 </Link>
+                <Link className="acct-item" href="/row100k/raceday/print" onClick={close}>
+                  Print flyers →
+                </Link>
                 <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
                   Waves and timing →
                 </Link>

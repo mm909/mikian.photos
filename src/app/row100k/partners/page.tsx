@@ -7,6 +7,7 @@ import { BlockShape, Blocks } from "../Blackout";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { TrackedLink } from "../TrackedLink";
+import { SPONSOR_SHOWN } from "../raceday";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { eliteListHref } from "../feed/view";
 import { firstToGoal, type GoalClaim } from "../firstToGoal";
@@ -418,7 +419,9 @@ export default async function PartnersPage() {
 
           {/* THE ROOM. A sponsor block in the site's own ink rather than a
             * brand green: they are backing the race, and race day is the
-            * site's one monochrome surface. */}
+            * site's one monochrome surface. DEV AND PREVIEW ONLY until they
+            * accept (owner, 2026-09-21) — SPONSOR_SHOWN in raceday.ts. */}
+          {SPONSOR_SHOWN && (
           <div className="ptn-lvss">
             <div className="eyebrow">Race day · The room</div>
             <TrackedLink link="lvss">
@@ -440,6 +443,7 @@ export default async function PartnersPage() {
               </TrackedLink>
             </p>
           </div>
+          )}
 
           <div className="ptn-next">
             <span className="k">Become a partner</span>

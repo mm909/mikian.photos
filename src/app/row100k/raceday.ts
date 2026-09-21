@@ -88,11 +88,21 @@ export type RaceDef = {
    * signup asks whether it is done, and the wave note carries it again for
    * anyone who has not. `host` is how the link is named in copy. */
   waiver: { url: string; host: string } | null;
-  /* THE SPONSOR OF THE ROOM (owner, 2026-09-21). Named beside the house on
-   * the race day page and the console, and their mark rides the flyer
-   * beside the house's. White on transparent, like the house's own. */
+  /* THE SPONSOR OF THE ROOM (owner, 2026-09-21). Their mark beside the
+   * house's on the race day page (owner, same day: "put their logo on the
+   * flyer instead of the copy") and on the flyer card, their name in the
+   * console header. White on transparent, like the house's own. NULL IN
+   * PRODUCTION until they accept — see SPONSOR_SHOWN. */
   sponsor: { name: string; url: string; mark: { src: string; alt: string; ratio: number } } | null;
 };
+
+/* NOT YET ACCEPTED (owner, 2026-09-21: "keep the LVSS changes in
+ * development for now — they have not accepted yet"). The whole sponsor
+ * treatment — the partner block, the mark on the race day page, the mark on
+ * the flyer card, the name in the console — reads through this one switch,
+ * so going live is deleting the condition here and nowhere else. Dev and
+ * preview builds show it; production reads null. */
+export const SPONSOR_SHOWN = process.env.NODE_ENV !== "production";
 
 export const RACES: RaceDef[] = [
   {
@@ -141,11 +151,13 @@ export const RACES: RaceDef[] = [
       url: "https://app.wodify.com/Token/SignWaiver?WaiverToken=A9C77171C1C472FF02B1FABB64AF3CD1FC0807324BBD0D3FC47FCCD838356278",
       host: "app.wodify.com",
     },
-    sponsor: {
-      name: "Las Vegas Sports and Spine Center",
-      url: "https://lvsportsandspine.com",
-      mark: { src: "/row100k/partners/lvss-white.png", alt: "Las Vegas Sports and Spine Center", ratio: 1886 / 609 },
-    },
+    sponsor: SPONSOR_SHOWN
+      ? {
+          name: "Las Vegas Sports and Spine Center",
+          url: "https://lvsportsandspine.com",
+          mark: { src: "/row100k/partners/lvss-white.png", alt: "Las Vegas Sports and Spine Center", ratio: 1886 / 609 },
+        }
+      : null,
   },
 ];
 

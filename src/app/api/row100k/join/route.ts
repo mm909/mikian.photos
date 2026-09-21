@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
+import { ensureParticipant } from "@/lib/row100kJoin";
 import {
   CHALLENGE,
   CHALLENGE_LIVE,
@@ -77,39 +78,23 @@ export async function POST(req: Request) {
     );
   }
 
-  // Retry loop: two concurrent first-joins can race on the next rower number
-  // (or on challenge_userId itself) — the @@unique constraints turn either
-  // race into a P2002, and the next lap resolves it.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const existing = await db.rowParticipant.findUnique({
-      where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
-    });
-    if (existing) {
+  // The row is created in ONE place for both doors into the challenge
+  // (lib/row100kJoin.ts): here, and race day, which since 2026-09-21 takes
+  // a name from somebody who is not in Rowtember. An existing row comes
+  // back untouched and is updated here — this POST is also the profile
+  // edit — with the same three fields it always took.
+  {
+    const created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division });
+    if (!created.created) {
       await db.rowParticipant.update({
-        where: { id: existing.id },
+        where: { id: created.id },
         data: { displayName, instagram, division },
       });
       revalidateTag("row100k-boards");
-      return NextResponse.json({ ok: true, rowerNumber: existing.rowerNumber, updated: true });
+      return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: true });
     }
 
-    const max = await db.rowParticipant.aggregate({
-      where: { challenge: CHALLENGE },
-      _max: { rowerNumber: true },
-    });
-    try {
-      const created = await db.rowParticipant.create({
-        data: {
-          challenge: CHALLENGE,
-          userId: actor.photographerId,
-          rowerNumber: (max._max.rowerNumber ?? 0) + 1,
-          displayName,
-          instagram,
-          division,
-        },
-      });
-      revalidateTag("row100k-boards");
-
+    {
       // Every real signup lands in the owner's inbox. First joins only —
       // profile edits stay quiet — and never for the demo namespace. The
       // await is deliberate (Vercel can kill the lambda after the response),
@@ -134,13 +119,6 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: false });
-    } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code !== "P2002") throw err;
     }
   }
-  return NextResponse.json(
-    { ok: false, error: "Couldn't grab you a number — try again." },
-    { status: 500 },
-  );
 }

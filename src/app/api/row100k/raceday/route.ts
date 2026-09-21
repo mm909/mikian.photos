@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { sendOwnerNotification, type SendResult } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
+import { CHALLENGE, CHALLENGE_LIVE, isRow100kAdmin, parseDisplayName, parseDivision, parseInstagram } from "@/lib/row100k";
+import { ensureParticipant } from "@/lib/row100kJoin";
 import { parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { listRacers, type Racer } from "@/app/row100k/racedayData";
@@ -130,16 +131,7 @@ export async function POST(req: Request) {
     return bad("Race day is not open yet.", 403);
   }
 
-  const p = await db.rowParticipant.findUnique({
-    where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
-    select: { id: true, rowerNumber: true, division: true },
-  });
-  if (!p) return bad("Opt in to Rowtember first.", 403);
-
-  const limit = await rateLimit({ key: `row100k-raceday:${p.id}`, limit: 20, windowSec: 3600 });
-  if (!limit.ok) return bad("Too many changes at once — try again in a bit.", 429);
-
-  let body: { action?: unknown; role?: unknown; waiver?: unknown };
+  let body: { action?: unknown; role?: unknown; waiver?: unknown; name?: unknown; division?: unknown; instagram?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -148,6 +140,41 @@ export async function POST(req: Request) {
   const action = parseAction(body.action);
   if (!action) return bad("Say enter or withdraw.");
   const role = parseRole(body.role) ?? "racer";
+
+  /* WHO. A Rowtember rower is looked up; a STRANGER IS TAKEN IN HERE
+   * (owner, 2026-09-21: somebody "frustrated or confused that they need to
+   * sign up for Rowtember to do the race, or thinking I do not want to do
+   * Rowtember but I do want to race"). The page sends a name and a bracket
+   * with the entry, and the participant row — which is only what a rower
+   * number hangs off — is created on the spot through the same helper the
+   * Rowtember opt-in uses. Nothing else about the challenge is asked of
+   * them: no handle (empty is fine), no metres, ever. A spectator has no
+   * bracket, so they land on the overall board only ("X"). */
+  let p = await db.rowParticipant.findUnique({
+    where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
+    select: { id: true, rowerNumber: true, division: true },
+  });
+  if (!p) {
+    if (action !== "enter") return bad("Your name is not on the list.", 409);
+    const displayName = parseDisplayName(body.name);
+    if (!displayName) return bad("Add the name you want on the start list (at least 2 characters).");
+    const division = parseDivision(body.division) ?? (role === "spectator" ? "X" : null);
+    if (!division) return bad("Pick a bracket — men's or women's.");
+    const handleRaw = typeof body.instagram === "string" ? body.instagram.trim() : "";
+    const instagram = handleRaw ? parseInstagram(handleRaw) : "";
+    if (instagram === null) return bad("That Instagram handle does not look right — letters, numbers, dots and underscores only.");
+    const limitJoin = await rateLimit({ key: `row100k-join:${actor.photographerId}`, limit: 10, windowSec: 3600 });
+    if (!limitJoin.ok) return bad("Too many changes at once — try again in a bit.", 429);
+    try {
+      p = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division });
+    } catch (err) {
+      console.error("row100k raceday: could not create the participant", err);
+      return bad("Couldn't take that — try again.", 503);
+    }
+  }
+
+  const limit = await rateLimit({ key: `row100k-raceday:${p.id}`, limit: 20, windowSec: 3600 });
+  if (!limit.ok) return bad("Too many changes at once — try again in a bit.", 429);
 
   // The race AS IT STANDS, the same read the page makes: the gate below is
   // racePhase, and the closed/raced edge is firstWaveAt + 6h — a first wave
@@ -257,7 +284,9 @@ export async function POST(req: Request) {
    * participant and the role they pressed — and say plainly that the
    * tallies could not be read rather than printing two zeros he would
    * believe. A note with a number and no name beats no note. */
-  if (arrival) {
+  /* Never for the demo namespace (the join route has the same rule): a
+   * laptop walking the flow must not mail the owner a fake arrival. */
+  if (arrival && CHALLENGE === CHALLENGE_LIVE) {
     const known = mine !== null;
     await tellTheOwner({
       race,

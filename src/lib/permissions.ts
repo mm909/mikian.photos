@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { authOptions } from "./auth";
 import { db } from "./db";
 
@@ -126,6 +127,26 @@ export type Actor = {
 };
 
 export async function getEffectiveActor(): Promise<Actor | null> {
+  // Path 0, DEVELOPMENT ONLY: the mk_dev_actor cookie names an account by
+  // email and this resolves as it (set by /api/row100k/dev-actor, 2026-09-21,
+  // for walking signed-in flows without a Google sign-in). The check is on
+  // NODE_ENV, which a production build — Vercel production AND preview —
+  // fixes at "production", so the cookie is inert everywhere but a laptop.
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const email = cookies().get("mk_dev_actor")?.value?.trim().toLowerCase();
+      if (email) {
+        const row = await db.photographer.findFirst({
+          where: { email },
+          select: { id: true, email: true, name: true, roles: true },
+        });
+        if (row) return { photographerId: row.id, roles: normalizeRoles(row.roles), email: row.email, name: row.name };
+      }
+    } catch {
+      /* no request scope (a script), or no such account — fall through. */
+    }
+  }
+
   // Path 1: NextAuth session
   try {
     const session = await getServerSession(authOptions);

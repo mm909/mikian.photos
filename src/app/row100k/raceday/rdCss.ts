@@ -174,6 +174,13 @@ export const rdCss = `
 .row100k .rd-houseRow a.rd-marklink{display:block;line-height:0;flex:none}
 .row100k .rd-houseRow a.rd-marklink:hover{opacity:.8}
 .row100k .rd-mark{display:block;width:clamp(112px,30cqw,200px);height:auto}
+/* Two houses on one row: the gym and the room sponsor, a rule between
+ * them so neither reads as the other. The sponsor mark is wider than it
+ * is tall, so it gets a little more width to land at about the same
+ * height as the house. */
+.row100k .rd-marks{display:flex;align-items:center;gap:clamp(14px,3.2cqw,30px);flex-wrap:wrap;min-width:0}
+.row100k .rd-marks a.rd-sponsorlink{border-left:1px solid rgba(255,255,255,.3);padding-left:clamp(14px,3.2cqw,30px)}
+.row100k .rd-mark-sponsor{width:clamp(124px,32cqw,214px)}
 .row100k .rd-room{font-family:var(--row-mono),monospace;font-size:clamp(10px,2cqw,13px);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:right;line-height:1.7;min-width:0}
 /* One block, not two: the span held LAS VEGAS under the room and the town
  * came off race day on 2026-09-11 (the owner: we just keep it at the strip
@@ -212,6 +219,22 @@ export const rdCss = `
  * again afterwards for anyone who has not got to it (owner sent the link
  * 2026-09-11). Never a gate, so it is never styled as an error. Only a
  * racer is ever asked — a spectator does not pull. */
+/* THE STRANGER S FORM (owner, 2026-09-21: no detour through the Rowtember
+ * opt-in). Three fields on the ink ground, cut like the time box: no
+ * panel, a rule under each, the bracket as two chips. The name and the
+ * bracket share a row where there is room; the handle takes the width. */
+.row100k .rd-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px clamp(16px,4cqw,32px);margin-top:20px;align-items:end}
+.row100k .rd-field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.row100k .rd-field-wide{grid-column:1 / -1}
+.row100k .rd-field span{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.row100k input.rd-in{width:100%;background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,.55);color:#fff;font-size:20px;font-weight:700;letter-spacing:.01em;padding:6px 2px;border-radius:0;appearance:none}
+.row100k input.rd-in::placeholder{color:rgba(255,255,255,.4);font-weight:400}
+.row100k input.rd-in:focus{outline:none;border-bottom-color:#fff}
+.row100k .rd-chips{display:flex;gap:8px}
+.row100k .rd-chip{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:transparent;border:2px solid rgba(255,255,255,.55);border-radius:2px;padding:10px 16px;cursor:pointer}
+.row100k .rd-chip:hover{border-color:#fff}
+.row100k .rd-chip.on{background:#fff;color:var(--ink);border-color:#fff}
+@media (max-width:520px){.row100k .rd-form{grid-template-columns:minmax(0,1fr)}}
 .row100k .rd-check{display:flex;align-items:flex-start;gap:10px;margin-top:20px;font-size:14px;line-height:1.6;color:rgba(255,255,255,.74);cursor:pointer}
 .row100k .rd-check input{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:#fff}
 .row100k .rd-check a{color:#fff;text-decoration:underline;text-underline-offset:3px}

@@ -364,38 +364,54 @@ export default async function RaceDayPage() {
                * nothing reserved the line, so there is no hole to close. */}
               <div className="rd-house">
                 <div className="rd-houseRow">
-                  {race.venueMark ? (
-                    <a
-                      className="rd-marklink"
-                      href={race.venueUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <img
-                        className="rd-mark"
-                        src={race.venueMark.src}
-                        alt={race.venueMark.alt}
-                        width={1000}
-                        height={Math.round(1000 / race.venueMark.ratio)}
-                      />
-                    </a>
-                  ) : (
-                    <p className="rd-room">
-                      <b>{race.venue}</b>
-                    </p>
-                  )}
+                  <div className="rd-marks">
+                    {race.venueMark ? (
+                      <a
+                        className="rd-marklink"
+                        href={race.venueUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <img
+                          className="rd-mark"
+                          src={race.venueMark.src}
+                          alt={race.venueMark.alt}
+                          width={1000}
+                          height={Math.round(1000 / race.venueMark.ratio)}
+                        />
+                      </a>
+                    ) : (
+                      <p className="rd-room">
+                        <b>{race.venue}</b>
+                      </p>
+                    )}
+                    {/* THE SPONSOR OF THE ROOM, as a mark beside the house's
+                      * (owner, 2026-09-21: "put their logo on the flyer instead
+                      * of the copy"). A rule between the two, so they read as
+                      * two houses and not one lockup. Null in production until
+                      * they accept (SPONSOR_SHOWN in raceday.ts). */}
+                    {race.sponsor && (
+                      <a
+                        className="rd-marklink rd-sponsorlink"
+                        href={race.sponsor.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <img
+                          className="rd-mark rd-mark-sponsor"
+                          src={race.sponsor.mark.src}
+                          alt={race.sponsor.mark.alt}
+                          width={1000}
+                          height={Math.round(1000 / race.sponsor.mark.ratio)}
+                        />
+                      </a>
+                    )}
+                  </div>
                   <p className="rd-room">
                     <b>{race.room}</b>
                     {race.waiver && (
                       <a href={race.waiver.url} target="_blank" rel="noopener noreferrer">
                         Waiver · {race.waiver.host}
-                      </a>
-                    )}
-                    {/* THE SPONSOR OF THE ROOM, by name, beside the house
-                      * (owner, 2026-09-21). */}
-                    {race.sponsor && (
-                      <a href={race.sponsor.url} target="_blank" rel="noopener noreferrer">
-                        The room · {race.sponsor.name}
                       </a>
                     )}
                   </p>
@@ -406,6 +422,7 @@ export default async function RaceDayPage() {
               <SignupPanel
                 race={race}
                 signedIn={viewer.actor !== null}
+                viewerName={viewer.actor?.name ?? ""}
                 joined={viewer.myParticipantId !== null}
                 open={phase === "open"}
                 mine={mine}

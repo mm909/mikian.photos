@@ -106,6 +106,7 @@ const RESULTS_PATH = "/row100k/raceday/results";
 export function SignupPanel({
   race,
   signedIn,
+  viewerName = "",
   joined,
   open,
   mine: initialMine,
@@ -114,6 +115,8 @@ export function SignupPanel({
 }: {
   race: RaceDef;
   signedIn: boolean;
+  /* The account's own name, to start the form with. */
+  viewerName?: string;
   joined: boolean;
   /* The race is still taking names (raceday.racePhase). */
   open: boolean;
@@ -127,6 +130,19 @@ export function SignupPanel({
 }) {
   const router = useRouter();
   const [mine, setMine] = useState<Racer | null>(initialMine);
+  /* NOT IN ROWTEMBER, and the form that takes them in from here (owner,
+   * 2026-09-21: somebody "frustrated or confused that they need to sign up
+   * for Rowtember to do the race, or thinking I do not want to do Rowtember
+   * but I do want to race" — "make sure that use case is taken care of").
+   * The page used to send them to /row100k#join and back; now the entry
+   * itself carries a name and a bracket, the route creates the rower number
+   * on the spot, and the word Rowtember only appears to say it is NOT
+   * required. `joinedNow` flips the block to the in-field view the moment
+   * the route answers, ahead of the server re-render. */
+  const [joinedNow, setJoinedNow] = useState(joined);
+  const [name, setName] = useState(viewerName);
+  const [division, setDivision] = useState<string>("");
+  const [instagram, setInstagram] = useState("");
   /* THE POST YOUR TIME RAIL. `posted` is the stored 5,000 m in tenths, kept
    * here so a save repaints without waiting for the server render; the
    * input opens by itself when nothing is stored and on EDIT. */
@@ -201,20 +217,33 @@ export function SignupPanel({
 
   const act = async (
     action: "enter" | "withdraw",
-    o: { role?: RaceRole; waiver?: boolean; busy: "racer" | "spectator" | "withdraw" | "waiver" },
+    o: {
+      role?: RaceRole;
+      waiver?: boolean;
+      busy: "racer" | "spectator" | "withdraw" | "waiver";
+      /* The stranger's name, bracket and (optional) handle, on a first entry. */
+      join?: { name: string; division: string; instagram: string };
+    },
   ) => {
+    if (o.join) {
+      /* The route checks all three again; this is only so the answer is
+       * instant and under the right field. */
+      if (o.join.name.trim().length < 2) return setError("Add the name you want on the start list.");
+      if (o.role !== "spectator" && !o.join.division) return setError("Pick a bracket — men's or women's.");
+    }
     setBusy(o.busy);
     setError(null);
     try {
       const res = await fetch("/api/row100k/raceday", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, role: o.role, waiver: o.waiver === true }),
+        body: JSON.stringify({ action, role: o.role, waiver: o.waiver === true, ...(o.join ?? {}) }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; mine?: Racer | null };
       if (res.ok && data.ok) {
         setMine(data.mine ?? null);
         setConfirm(null);
+        if (o.join) setJoinedNow(true);
         /* NOTHING POPS HERE any more. A join used to raise the share dialog
          * on its own, everywhere except over the waiver ask — see the note
          * at the top of the file for why it earned that and why the card it
@@ -232,9 +261,13 @@ export function SignupPanel({
    * the shirt shop does it — never a dead button with an explanation. */
   if (!signedIn) {
     return (
-      <div className="rd-act">
+      <div className="rd-act" id="opt-in">
         <p className="rd-eye">Opt in</p>
-        <button type="button" className="send" onClick={() => signIn("google", { callbackUrl: RACE_PATH })}>
+        <p className="rd-lede">
+          <b>You do not have to be doing Rowtember to race.</b> Sign in with Google — that is how your wave reaches
+          you — then put your name in. Two steps, nothing else.
+        </p>
+        <button type="button" className="send" onClick={() => signIn("google", { callbackUrl: `${RACE_PATH}#opt-in` })}>
           Sign in to opt in
         </button>
         <p className="rd-small mono">RACE OR WATCH — SIGN IN FIRST</p>
@@ -242,14 +275,87 @@ export function SignupPanel({
     );
   }
 
-  if (!joined) {
+  if (!joinedNow) {
     return (
-      <div className="rd-act">
-        <p className="rd-eye">One step first</p>
-        <p className="rd-lede">Race day is for Rowtember rowers, so grab a rower number and come back.</p>
-        <Link className="send" href="/row100k#join">
-          Opt in to Rowtember
-        </Link>
+      <div className="rd-act" id="opt-in">
+        <p className="rd-eye">Opt in</p>
+        <p className="rd-lede">
+          <b>You do not have to be doing Rowtember to race.</b> Your name here puts you on the start list and gives
+          you a rower number for the night — that is all. Logging metres for 100K September is a separate thing,
+          and optional.
+        </p>
+        <div className="rd-form">
+          <label className="rd-field">
+            <span>Name on the start list</span>
+            <input
+              className="rd-in"
+              type="text"
+              value={name}
+              maxLength={40}
+              autoComplete="name"
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <div className="rd-field" role="group" aria-label="Bracket">
+            <span>Bracket</span>
+            <div className="rd-chips">
+              {race.brackets.map((b) => (
+                <button
+                  type="button"
+                  key={b.key}
+                  className={division === b.key ? "rd-chip on" : "rd-chip"}
+                  aria-pressed={division === b.key}
+                  onClick={() => setDivision(b.key)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="rd-field rd-field-wide">
+            <span>Instagram · optional</span>
+            <input
+              className="rd-in"
+              type="text"
+              value={instagram}
+              maxLength={31}
+              placeholder="@handle"
+              autoComplete="off"
+              onChange={(e) => setInstagram(e.target.value)}
+            />
+          </label>
+        </div>
+        {race.waiver && (
+          <label className="rd-check">
+            <input type="checkbox" checked={waiver} onChange={(e) => setWaiver(e.target.checked)} />
+            <span>
+              I have signed the{" "}
+              <a href={race.waiver.url} target="_blank" rel="noopener noreferrer">
+                gym waiver
+              </a>
+            </span>
+          </label>
+        )}
+        <button
+          type="button"
+          className="send"
+          disabled={busy !== null}
+          onClick={() => void act("enter", { role: "racer", waiver, busy: "racer", join: { name, division, instagram } })}
+        >
+          {busy === "racer" ? "…" : "Opt in to race"}
+        </button>
+        <div className="rd-two">
+          <span className="mono">Not pulling?</span>
+          <button
+            type="button"
+            className="outline-btn"
+            disabled={busy !== null}
+            onClick={() => void act("enter", { role: "spectator", busy: "spectator", join: { name, division, instagram } })}
+          >
+            {busy === "spectator" ? "…" : `Sign up as a ${SPECTATOR.label.toLowerCase()}`}
+          </button>
+        </div>
+        {error && <p className="form-err">{error}</p>}
       </div>
     );
   }
