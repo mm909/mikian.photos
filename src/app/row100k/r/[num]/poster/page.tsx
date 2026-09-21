@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forcedBlackout } from "@/lib/blackoutRules";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { CHALLENGE, START_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
@@ -53,7 +54,7 @@ export default async function RowerPosterPage({ params }: { params: { num: strin
   const before = nowMs() < START_MS;
   let rower: RowerPoster | null = null;
   if (!before) {
-    rower = await rowerPosterData(num, { forceBlackout: viewer.preview !== null }).catch((err: unknown) => {
+    rower = await rowerPosterData(num, { forceBlackout: forcedBlackout(viewer.preview) }).catch((err: unknown) => {
       console.error(`row100k/r/${num}/poster: payload failed`, err);
       return null;
     });

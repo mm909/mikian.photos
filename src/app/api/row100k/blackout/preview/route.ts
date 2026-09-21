@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
-import { BO_PREVIEW_COOKIE, parsePreview } from "@/lib/row100kViewer";
+import { BO_ADMIN_COOKIE, BO_PREVIEW_COOKIE, parsePreview } from "@/lib/row100kViewer";
 
 export const runtime = "nodejs";
 
@@ -26,11 +26,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Not allowed." }, { status: 403 });
   }
 
-  let body: { mode?: unknown };
+  let body: { mode?: unknown; all?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "Send JSON." }, { status: 400 });
+  }
+
+  /* SHOW ME EVERYTHING (settings page, owner 2026-09-21): { all: true }
+   * turns the admin exemption back on for this browser session, { all:
+   * false } returns to the rower's view. Same cookie rules as the test:
+   * session-scoped, admin-only, read by nobody else. */
+  if (typeof body.all === "boolean") {
+    const res = NextResponse.json({ ok: true, all: body.all });
+    if (body.all) {
+      res.cookies.set({
+        name: BO_ADMIN_COOKIE,
+        value: "all",
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      });
+    } else {
+      res.cookies.set({ name: BO_ADMIN_COOKIE, value: "", path: "/", maxAge: 0 });
+    }
+    return res;
   }
 
   const mode = parsePreview(body.mode);

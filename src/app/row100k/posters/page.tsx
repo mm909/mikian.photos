@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { forcedBlackout } from "@/lib/blackoutRules";
 import { notFound } from "next/navigation";
 import { START_MS, nowMs } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
@@ -63,7 +64,7 @@ export default async function PostersPage({
   // owner included), else nothing — the picker. Only an explicit ?r= may 404.
   const explicit = rNum !== null;
   const subjectNum = explicit ? rNum : wantsCommunity ? null : (viewer.me?.rowerNumber ?? null);
-  const opts = { forceBlackout: viewer.preview !== null };
+  const opts = { forceBlackout: forcedBlackout(viewer.preview) };
 
   let community: CommunityPoster | null = null;
   let rower: RowerPoster | null = null;

@@ -22,7 +22,7 @@ import { StatsShare } from "../StatsShare";
 import { PageHead } from "../PageHead";
 import { BOARD_CARD_IDS } from "../share/cards";
 import { EMPTY_BOARDS, boardView } from "../boardData";
-import { readBlackoutPreview } from "@/lib/row100kViewer";
+import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 
 export const metadata: Metadata = {
   title: "The board — Rowtember 2026",
@@ -70,15 +70,7 @@ export default async function BoardPage() {
   let blackout: { active: boolean; endsAt?: string } = { active: false };
   let policy: BlackoutPolicy | undefined;
   try {
-    const view = await boardView(
-      preview
-        ? {
-            viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
-            admin: false,
-            forceBlackout: true,
-          }
-        : { viewerParticipantId: me?.id ?? null, admin: isAdmin },
-    );
+    const view = await boardView(previewViewOpts(preview, me?.id ?? null, isAdmin));
     boards = view.boards;
     blackout = view.blackout;
     policy = view.policy;

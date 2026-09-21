@@ -17,6 +17,7 @@
  * window is open, which fails CLOSED (assemble.ts). */
 
 import { db } from "@/lib/db";
+import { forcedBlackout } from "@/lib/blackoutRules";
 import { activeBlackout, listBlackouts, type BlackoutState } from "@/lib/blackout";
 import type { BlackoutPolicy } from "@/lib/blackoutRules";
 import { CHALLENGE, nowMs, type Boards } from "@/lib/row100k";
@@ -38,7 +39,7 @@ export type PosterDataOpts = {
  * thing read off it is whether the preview cookie is set. */
 function forceOf(opts: PosterDataOpts | Viewer | undefined): boolean {
   if (!opts) return false;
-  if ("preview" in opts) return opts.preview !== null;
+  if ("preview" in opts) return forcedBlackout(opts.preview);
   return opts.forceBlackout === true;
 }
 

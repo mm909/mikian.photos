@@ -425,3 +425,12 @@ export function pacificLocalToIso(local: string): string | null {
 export function msToPacificLocal(ms: number): string {
   return new Date(ms - PACIFIC_SHIFT_MS).toISOString().slice(0, 16);
 }
+
+/* IS A WINDOW BEING FORCED OPEN for this viewer? Only the two test previews
+ * do that; "rower" — the admin's everyday default since 2026-09-21 — is
+ * the real rules and forces nothing. Every surface that used to test
+ * `preview !== null` for this asks here instead, so the default cannot
+ * open a window that is not there. */
+export function forcedBlackout(preview: string | null | undefined): boolean {
+  return preview === "elite" || preview === "public";
+}

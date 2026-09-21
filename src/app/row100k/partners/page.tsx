@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ELITE_LABEL, digitCount, partialShape } from "@/lib/blackoutRules";
+import { digitCount, ELITE_LABEL, forcedBlackout, partialShape } from "@/lib/blackoutRules";
 import { fmtDay, fmtMeters, fmtRowerNumber, type TotalRow } from "@/lib/row100k";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -165,7 +165,7 @@ export default async function PartnersPage() {
   let claim: GoalClaim | null = null;
   try {
     const [view, first] = await Promise.all([
-      boardView({ viewerParticipantId: null, admin: false, forceBlackout: viewer.preview !== null }),
+      boardView({ viewerParticipantId: null, admin: false, forceBlackout: forcedBlackout(viewer.preview) }),
       firstToGoal(),
     ]);
     boards = view.boards;

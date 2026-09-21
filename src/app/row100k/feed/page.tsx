@@ -227,7 +227,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SearchP
       ? `${ELITE_LABEL} · ROWS HIDDEN`
       : `${ELITE_LABEL}`
     : blackout.active
-      ? viewer.isAdmin
+      ? viewer.isAdmin && !viewer.preview
         ? `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`
         : `${ELITE_LABEL}`
       : "EVERY ROW, AS IT LANDS";

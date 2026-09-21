@@ -27,7 +27,10 @@ const MODES: { key: BlackoutPreview; label: string; note: string }[] = [
   { key: "public", label: "Outside it", note: "Every lights out rower is hidden, yours too." },
 ];
 
-export function PreviewSwitch({ active }: { active: BlackoutPreview | null }) {
+export function PreviewSwitch({ active: raw }: { active: BlackoutPreview | null }) {
+  /* "rower" is the admin's everyday default (row100kViewer readPreviewFor),
+   * not a test: here it reads as OFF. */
+  const active = raw === "rower" ? null : raw;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);

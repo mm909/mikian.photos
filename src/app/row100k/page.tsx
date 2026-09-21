@@ -22,7 +22,7 @@ import {
 } from "@/lib/row100k";
 import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
-import { readBlackoutPreview } from "@/lib/row100kViewer";
+import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
 import { myWaveShare } from "./shareables/waveShare";
@@ -180,15 +180,7 @@ export default async function Row100kPage() {
   let boards = EMPTY_BOARDS;
   let blackoutEndsAt: string | undefined;
   try {
-    const view = await boardView(
-      preview
-        ? {
-            viewerParticipantId: preview === "elite" ? (me?.id ?? null) : null,
-            admin: false,
-            forceBlackout: true,
-          }
-        : { viewerParticipantId: me?.id, admin: isAdmin },
-    );
+    const view = await boardView(previewViewOpts(preview, me?.id ?? null, isAdmin));
     boards = view.boards;
     blackoutEndsAt = view.blackout.endsAt;
   } catch (err) {

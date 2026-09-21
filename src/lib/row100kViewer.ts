@@ -30,22 +30,56 @@ export type ViewerParticipant = {
  * cookie, and honoured ONLY for a challenge admin: it makes the page
  * stricter, never looser, but it is still a debugging lever and does not
  * belong to anyone else. */
-export type BlackoutPreview = "elite" | "public";
+export type BlackoutPreview = "elite" | "public" | "rower";
 export const BO_PREVIEW_COOKIE = "row100k_bo_preview";
 
+/* THE ADMIN SEES WHAT EVERYONE SEES, BY DEFAULT (owner, 2026-09-21: "my
+ * view does not show the lights out version … default it to follow how it
+ * looks for everyone else but let me flip it off temporarily in the
+ * settings, just for my user"). A third preview, "rower": the REAL rules,
+ * with the admin exemption off and nothing forced — the page any rower in
+ * the admin's position gets. It is what an admin gets when no other
+ * preview is set, unless this cookie says "all", which is the settings
+ * page's SHOW ME EVERYTHING and lasts the browser session. */
+export const BO_ADMIN_COOKIE = "row100k_bo_admin";
+
 export function parsePreview(v: unknown): BlackoutPreview | null {
-  return v === "elite" || v === "public" ? v : null;
+  return v === "elite" || v === "public" || v === "rower" ? v : null;
+}
+
+/* The one read of both cookies, for an admin only: an explicit test
+ * preview wins; otherwise SHOW ME EVERYTHING gives null (the exemption on)
+ * and the default is "rower". Outside a request scope there are no
+ * cookies and no preview, which is the old behaviour for scripts. */
+export function readPreviewFor(isAdmin: boolean): BlackoutPreview | null {
+  if (!isAdmin) return null;
+  try {
+    const jar = cookies();
+    const explicit = parsePreview(jar.get(BO_PREVIEW_COOKIE)?.value);
+    if (explicit) return explicit;
+    return jar.get(BO_ADMIN_COOKIE)?.value === "all" ? null : "rower";
+  } catch {
+    return null;
+  }
 }
 
 /* The same read for a page that resolves its own session rather than going
  * through resolveViewer (the front page). Never honoured for a non-admin. */
 export function readBlackoutPreview(isAdmin: boolean): BlackoutPreview | null {
-  if (!isAdmin) return null;
-  try {
-    return parsePreview(cookies().get(BO_PREVIEW_COOKIE)?.value);
-  } catch {
-    return null;
-  }
+  return readPreviewFor(isAdmin);
+}
+
+/* What boardView is told about a viewer under a given preview — one answer
+ * for resolveViewer's pages and for the two that read the cookie on their
+ * own (the front page and the board). */
+export function previewViewOpts(
+  preview: BlackoutPreview | null,
+  meId: string | null,
+  isAdmin: boolean,
+): { viewerParticipantId: string | null; admin: boolean; forceBlackout: boolean } {
+  if (preview === "rower") return { viewerParticipantId: meId, admin: false, forceBlackout: false };
+  if (preview) return { viewerParticipantId: preview === "elite" ? meId : null, admin: false, forceBlackout: true };
+  return { viewerParticipantId: meId, admin: isAdmin, forceBlackout: false };
 }
 
 export type Viewer = {
@@ -77,15 +111,9 @@ export async function resolveViewer(): Promise<Viewer> {
       where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
       select: { id: true, rowerNumber: true, displayName: true, instagram: true, division: true },
     });
-    // Read only for an admin: a cookie nobody else can act on.
-    let preview: BlackoutPreview | null = null;
-    if (isAdmin) {
-      try {
-        preview = parsePreview(cookies().get(BO_PREVIEW_COOKIE)?.value);
-      } catch {
-        /* cookies() outside a request scope — no preview, same as none */
-      }
-    }
+    // Read only for an admin: cookies nobody else can act on — and the
+    // admin's default is the rower's view (readPreviewFor).
+    const preview = readPreviewFor(isAdmin);
     return { actor, isAdmin, preview, myParticipantId: me?.id ?? null, me: me ?? null };
   } catch (err) {
     console.error("row100k: viewer lookup failed, rendering the anonymous view", err);
@@ -105,14 +133,7 @@ export function viewOpts(v: Viewer): {
   admin: boolean;
   forceBlackout: boolean;
 } {
-  if (v.preview) {
-    return {
-      viewerParticipantId: v.preview === "elite" ? v.myParticipantId : null,
-      admin: false,
-      forceBlackout: true,
-    };
-  }
-  return { viewerParticipantId: v.myParticipantId, admin: v.isAdmin, forceBlackout: false };
+  return previewViewOpts(v.preview, v.myParticipantId, v.isAdmin);
 }
 
 /* The window state as THIS viewer should see it: the real one, or an open
@@ -120,7 +141,7 @@ export function viewOpts(v: Viewer): {
  * for itself runs the answer through here, so the test blackout reaches the
  * feed, the profile and the stats page and not only the board. */
 export function previewBlackout(v: Viewer, real: BlackoutState): BlackoutState {
-  if (!v.preview || real.active) return real;
+  if (!v.preview || v.preview === "rower" || real.active) return real;
   return { ...real, active: true, hideLow: undefined, rampDaysLeft: undefined };
 }
 

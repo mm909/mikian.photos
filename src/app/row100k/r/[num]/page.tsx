@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { ELITE_LABEL, clockShape, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { clockShape, digitCount, ELITE_LABEL, fmtPacificDay, forcedBlackout } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
   GOAL_METERS,
@@ -222,7 +222,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   let shareElite = false;
   if (blackout.active) {
     try {
-      const { boards: pub } = await boardView({ forceBlackout: !!viewer.preview });
+      const { boards: pub } = await boardView({ forceBlackout: forcedBlackout(viewer.preview) });
       shareElite = maskedIds(pub).has(p.id);
     } catch {
       shareElite = true;

@@ -3,6 +3,7 @@ import { fmtRowerNumber, parseDivision } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { EditProfile } from "../EditProfile";
+import { LightsOutView } from "./LightsOutView";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 
@@ -60,6 +61,12 @@ export default async function SettingsPage() {
                 </a>
               </p>
             </>
+          )}
+
+          {/* THE ADMIN'S OWN VIEW OF LIGHTS OUT (owner, 2026-09-21) — nobody
+            * else sees this panel. */}
+          {viewer.isAdmin && (
+            <LightsOutView all={viewer.preview === null} testing={viewer.preview === "elite" || viewer.preview === "public"} />
           )}
         </div>
       </section>
