@@ -136,8 +136,8 @@ export function SignupPanel({
    * but I do want to race" — "make sure that use case is taken care of").
    * The page used to send them to /row100k#join and back; now the entry
    * itself carries a name and a bracket, the route creates the rower number
-   * on the spot, and the word Rowtember only appears to say it is NOT
-   * required. `joinedNow` flips the block to the in-field view the moment
+   * on the spot, and Rowtember is not mentioned at all (owner, same day:
+   * "remove the you do not have to do Rowtember copy"). `joinedNow` flips the block to the in-field view the moment
    * the route answers, ahead of the server re-render. */
   const [joinedNow, setJoinedNow] = useState(joined);
   const [name, setName] = useState(viewerName);
@@ -263,10 +263,6 @@ export function SignupPanel({
     return (
       <div className="rd-act" id="opt-in">
         <p className="rd-eye">Opt in</p>
-        <p className="rd-lede">
-          <b>You do not have to be doing Rowtember to race.</b> Sign in with Google — that is how your wave reaches
-          you — then put your name in. Two steps, nothing else.
-        </p>
         <button type="button" className="send" onClick={() => signIn("google", { callbackUrl: `${RACE_PATH}#opt-in` })}>
           Sign in to opt in
         </button>
@@ -279,11 +275,6 @@ export function SignupPanel({
     return (
       <div className="rd-act" id="opt-in">
         <p className="rd-eye">Opt in</p>
-        <p className="rd-lede">
-          <b>You do not have to be doing Rowtember to race.</b> Your name here puts you on the start list and gives
-          you a rower number for the night — that is all. Logging metres for 100K September is a separate thing,
-          and optional.
-        </p>
         <div className="rd-form">
           <label className="rd-field">
             <span>Name on the start list</span>
