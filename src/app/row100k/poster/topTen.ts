@@ -112,8 +112,11 @@ const boardWomen = board("board.women", "F");
  * scaled down together when the measure is narrower than the row. The
  * pair drawn is the stock's: white on the black sheet, ink on cream. */
 type MarkKey = "grizzlyBear" | "grizzlyWord" | "lvss" | "venue";
+/* THE ROOM SPONSOR AND THE HOUSE, and not the meal partner (owner,
+ * 2026-09-22: "let us not include Grizzly Health in the list of sponsors
+ * on the shareables"). Their mono marks stay on disk; they are just not
+ * in the order. */
 const ORDER: { keys: MarkKey[]; gapEm: number }[] = [
-  { keys: ["grizzlyBear", "grizzlyWord"], gapEm: 0.35 },
   { keys: ["lvss"], gapEm: 0 },
   { keys: ["venue"], gapEm: 0 },
 ];
