@@ -80,9 +80,11 @@ export type Lane = {
    * clock between the sample 500 m back and now, per 500. Null until at
    * least half a block is behind them. */
   pace500: number | null;
-  /* Pace over metres, thinned for the wall's charts; the first five
-   * seconds left off, as on the console. */
-  trace: XY[];
+  /* THE WALL'S SERIES, each on elapsed seconds and thinned: pace per 500
+   * and watts from the samples, drive length per stroke from the strokes.
+   * The first five seconds are left off, as on the console; the wall
+   * draws a rolling window off the end of them. */
+  series: { pace: XY[]; watts: XY[]; length: XY[] };
   spm: number | null;
   elapsedS: number;
   fin: FinishRead;
@@ -141,10 +143,22 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
       const dt = last.t - back.t;
       if (dm >= 250 && dt > 0) pace500 = (dt / dm) * 500;
     }
-    const trace = thinPoints(
-      ss.filter((x) => x.t >= 5 && x.pace > 0 && x.pace < 600).map((x) => ({ x: x.dist, y: x.pace })),
-      240,
-    );
+    const series = {
+      pace: thinPoints(
+        ss.filter((x) => x.t >= 5 && x.pace > 0 && x.pace < 600).map((x) => ({ x: x.t, y: x.pace })),
+        400,
+      ),
+      watts: thinPoints(
+        ss.filter((x): x is typeof x & { watts: number } => x.t >= 5 && x.watts !== null && x.watts > 0).map((x) => ({ x: x.t, y: x.watts })),
+        400,
+      ),
+      length: thinPoints(
+        e.model.strokes
+          .filter((k) => k.elapsedS !== null && k.elapsedS >= 5 && k.driveLengthM !== null && k.driveLengthM > 0)
+          .map((k) => ({ x: k.elapsedS as number, y: k.driveLengthM as number })),
+        400,
+      ),
+    };
     const behindM = finishS !== null ? 0 : Math.max(0, leadM - m);
     const behindS =
       finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM > 0 ? (behindM / 500) * pace : 0;
@@ -154,9 +168,13 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
       rank: i,
       m,
       pace,
-      avgPace: a1 && a1.averagePaceS > 0 ? a1.averagePaceS : null,
+      /* THE AVERAGE FOR THE WHOLE ROW once it is rowed (owner, 2026-09-22:
+       * "fill in their avg 500 with the avg pace for the whole row") — the
+       * PM5 drops its status once the piece ends, so it is the finish
+       * clock over the distance, not the monitor's last word. */
+      avgPace: finishS !== null && m > 0 ? (finishS / m) * 500 : a1 && a1.averagePaceS > 0 ? a1.averagePaceS : null,
       pace500,
-      trace,
+      series,
       spm: a1 && a1.strokeRate > 0 ? a1.strokeRate : null,
       elapsedS: g ? g.elapsedS : 0,
       fin: finishS !== null ? { value: fmtTime(finishS), under: "FINISH", ready: true, hint: null } : readFinish(p),
@@ -244,8 +262,8 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
       <p className="eg-board-foot">
         Finished lanes first, in the order they finished; the rest by metres rowed. BEHIND is a finished lane&apos;s gap on the winner, or how
         long a gap would take to close at that lane&apos;s own pace. Everyone is read against the same {fmtMeters(goal)}. Click a lane to open it;
-        the link stays up. ON THE TV fills the screen with the same lanes — five looks that turn over on their own, or pick one with the keys 1
-        to 5.
+        the link stays up. ON THE TV fills the screen with the same lanes — the broadcast and the tower, turning over on their own, or the
+        keys 1 and 2.
       </p>
     </div>
   );

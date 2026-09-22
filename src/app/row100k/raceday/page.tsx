@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment, type CSSProperties } from "react";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
@@ -452,6 +453,16 @@ export default async function RaceDayPage() {
                   <RaceShare facts={raceFacts} label="Share race day" btn="quiet-btn" />
                 </div>
               )}
+              {/* THE RESULTS, at the foot of the bill for everybody (owner,
+                * 2026-09-22: "include a link to race day results on the race
+                * day page at the bottom"). Before the night it is the empty
+                * grid of waves to come, which is the honest picture. */}
+              <div className="rd-tear">
+                <span className="mono">On the night</span>
+                <Link className="rd-wlink" href={RESULTS_HREF}>
+                  Race day results →
+                </Link>
+              </div>
             </div>
           </div>
         </section>

@@ -2,77 +2,68 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { fmtPace } from "@/lib/pm5/pm5";
+import type { XY } from "./chartGeom";
 import { lockBody, unlockBody } from "./charts";
 import { DEFAULT_GOAL_M, type Erg } from "./hub";
 import { gapWord, laneRows, type Lane } from "./RaceBoard";
 import { tvCss } from "./tvCss";
 
 /* THE RACE BOARD ON THE TELEVISION (owner, 2026-09-21: "this will be on a
- * full screen monitor, give me a view that would go on a TV"; 2026-09-22
- * morning, after a night with it in the gym: twelve racers, a screen
- * saver, finish order; 2026-09-22 later: "keep the tower look and the
- * broadcast look. On the broadcast look show the pace chart on the left
- * side — use that empty space to show some live updating charts. Reduce
- * to just those 2 views, then build 3 more new ones. Make sure the bar at
- * the bottom can be hidden or hides when inactive. On the tower view I
- * want the pace to be avg pace over the last 500 meters").
+ * full screen monitor, give me a view that would go on a TV"; 2026-09-22,
+ * three rounds in the gym: twelve racers, a screen saver, finish order;
+ * then charts on the broadcast; then "charts should be on a rolling
+ * window. On the broadcast chart let us just keep the pace chart and
+ * cycle through the racers and highlight which one we are showing at a
+ * time … pick the top 3 and show their lines at the same time. Also show a
+ * different stat every time: pace, watts, length … sometimes show a single
+ * rower and other times the top 3. Let us just keep broadcast and tower.
+ * The lines should have a legend").
  *
  * THE SAME LANES AS THE DESK BOARD — laneRows() in RaceBoard.tsx — so the
- * wall and the laptop can never disagree. Everything else is different: it
- * fills the screen (a fixed overlay, so the site bar and the footer never
- * enter the picture and nothing under it remounts), it sizes every letter
- * against the screen, and nothing on it is a button to press with a mouse,
- * because a wall has no mouse.
+ * wall and the laptop can never disagree. It fills the screen (a fixed
+ * overlay, so the site bar and the footer never enter the picture and
+ * nothing under it remounts), sizes every letter against the screen, and
+ * nothing on it is a button to press with a mouse.
  *
  * IT FITS TWELVE. Every look sets --n to the lane count and --rowh to the
- * height one lane may take, and the type in a row is the smaller of its
- * wall size and a share of that row (tvCss.ts). Past eight lanes the sheet
- * is DENSE: the small second lines come off.
+ * height one lane may take (tvCss.ts). Past eight lanes the sheet is
+ * DENSE: the small second lines come off.
  *
- * FIVE LOOKS, one root class each, the keys 1 to 5 or ?board=tv&look=a..e:
+ * TWO LOOKS, the keys 1 and 2 or ?board=tv&look=a|b:
  *
- *   A  THE BROADCAST — the leader as the picture on the left with two
- *      live charts under the name: the whole field on pace over metres
- *      (the leader bright) and the leader's 500 m splits as bars; the
- *      standings list on the right.
+ *   A  THE BROADCAST — the chart on the left, the standings on the right.
+ *      The chart is a ROLLING WINDOW, the last two minutes of the race,
+ *      and it plays SCENES: every eight seconds it turns over — the top
+ *      three together, then one rower on their own, then the top three
+ *      on the next stat, then the next rower … through pace, watts and
+ *      drive length in turn. The rest of the field is faint behind the
+ *      lines it is showing; a legend under the chart says whose line is
+ *      whose; the standings mark the lanes on the chart.
  *   B  THE TOWER — a rally timing tower. Place, name, the pace over the
  *      last 500 m, and the gap to the leader as the one big number.
- *   C  THE CHART — the pace chart as the whole picture, every lane a
- *      line, with the running order as its key on the right.
- *   D  THE PODIUM — first, second and third as three steps, the winner
- *      inverted, and the rest of the field in two columns under them.
- *   E  THE GAPS — a bar per lane, the leader full and every other lane
- *      as far along as they are, with the gap as the number at the end.
  *
- * THE SCREEN SAVER. AUTO is on by default and turns the looks over every
- * twenty seconds. Picking a look by key or chip stops the turning on that
- * look; A or the AUTO chip starts it again.
- *
- * THE CONTROLS HIDE. The strip at the foot shows when the pointer moves
- * or a key is pressed and goes again after three seconds still (owner:
- * "make sure the bar at the bottom can be hidden or hides when
- * inactive"). Escape leaves, F fills the screen, H hides the strip at
- * once.
- *
- * THE CLOCK is the longest elapsed on any lane. Every lane is read against
- * DEFAULT_GOAL_M, as on the desk board. */
+ * THE SCREEN SAVER. AUTO is on by default and turns the two looks over
+ * every twenty seconds; a key or a chip stops it on one look; A starts it
+ * again. THE CONTROLS HIDE three seconds after the pointer last moved or
+ * a key was pressed; H hides them at once. Escape leaves, F fills the
+ * screen. */
 
-export type TvLook = "a" | "b" | "c" | "d" | "e";
+export type TvLook = "a" | "b";
 
 export const TV_LOOKS: { key: TvLook; label: string; note: string }[] = [
-  { key: "a", label: "Broadcast", note: "The leader as the picture with live charts; the standings beside." },
+  { key: "a", label: "Broadcast", note: "The rolling chart, cycling through the field and the stats; the standings beside." },
   { key: "b", label: "Tower", note: "A timing tower: place, name, last-500 pace, and the gap as the big number." },
-  { key: "c", label: "Chart", note: "The pace chart as the whole picture, the running order as its key." },
-  { key: "d", label: "Podium", note: "First, second and third as steps; the rest of the field under them." },
-  { key: "e", label: "Gaps", note: "A bar per lane, the leader full; the gap at the end of each." },
 ];
 
-const AUTO_ORDER: TvLook[] = ["a", "b", "c", "d", "e"];
+const AUTO_ORDER: TvLook[] = ["a", "b"];
 const AUTO_EVERY_MS = 20_000;
 const CTL_HIDE_MS = 3_000;
+/* How long a scene on the broadcast chart holds, and how far back it looks. */
+const SCENE_MS = 8_000;
+const WINDOW_S = 120;
 
 export function parseTvLook(v: string | null | undefined): TvLook | null {
-  return v === "a" || v === "b" || v === "c" || v === "d" || v === "e" ? v : null;
+  return v === "a" || v === "b" ? v : null;
 }
 
 const GOAL = DEFAULT_GOAL_M;
@@ -125,9 +116,9 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
         onExit();
         return;
       }
-      if (/^[1-5]$/.test(ev.key)) {
+      if (ev.key === "1" || ev.key === "2") {
         setAuto(false);
-        onLook(AUTO_ORDER[Number(ev.key) - 1]);
+        onLook(ev.key === "1" ? "a" : "b");
       } else if (ev.key === "a" || ev.key === "A") {
         setAuto((v) => !v);
       } else if (ev.key === "f" || ev.key === "F") {
@@ -150,8 +141,7 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
     };
   }, [onExit, onLook, wake]);
 
-  /* THE SCREEN SAVER: every AUTO_EVERY_MS the next look in the order. The
-   * timer restarts on every change of look. */
+  /* THE SCREEN SAVER: every AUTO_EVERY_MS the other look. */
   useEffect(() => {
     if (!auto) return;
     const id = window.setTimeout(() => {
@@ -175,14 +165,8 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
         </div>
       ) : look === "a" ? (
         <Broadcast lanes={lanes} clockS={clockS} />
-      ) : look === "b" ? (
-        <Tower lanes={lanes} clockS={clockS} />
-      ) : look === "c" ? (
-        <ChartLook lanes={lanes} clockS={clockS} />
-      ) : look === "d" ? (
-        <Podium lanes={lanes} clockS={clockS} />
       ) : (
-        <Gaps lanes={lanes} clockS={clockS} />
+        <Tower lanes={lanes} clockS={clockS} />
       )}
 
       <div className="eg-tv-ctl">
@@ -240,125 +224,98 @@ function fullScreen() {
   }
 }
 
-/* ---- THE CHARTS --------------------------------------------------------- */
+/* ---- THE STATS THE CHART CYCLES ------------------------------------------ */
 
-/* A viewBox of fixed units so the type inside is sized like everything
- * else on the wall; the SVG stretches to its box and the strokes stay one
- * width (vector-effect). */
+type StatKey = "pace" | "watts" | "length";
+
+const STATS: { key: StatKey; label: string; unit: string; invert: boolean; fmt: (v: number) => string; of: (l: Lane) => XY[] }[] = [
+  { key: "pace", label: "Pace", unit: "/500m · faster is higher", invert: true, fmt: (v) => fmtPace(v), of: (l) => l.series.pace },
+  { key: "watts", label: "Watts", unit: "W", invert: false, fmt: (v) => String(Math.round(v)), of: (l) => l.series.watts },
+  { key: "length", label: "Drive length", unit: "m per stroke", invert: false, fmt: (v) => `${v.toFixed(2)}`, of: (l) => l.series.length },
+];
+
+/* Three line styles for three lines, so a monochrome legend can still
+ * tell them apart. */
+const STYLES = ["s1", "s2", "s3"];
+
+/* ---- THE CHART ------------------------------------------------------------- */
+
 const CW = 1000;
-const CH = 420;
+const CH = 520;
 
-/* THE PACE CHART: every lane on pace over metres, faster HIGHER (the axis
- * is inverted, as on the console), the leader bright. The y domain is
- * the 5th to 95th percentile of every point so one blown stroke cannot
- * flatten the field; the x axis is the whole 5,000. */
-function PaceChart({ lanes, tall }: { lanes: Lane[]; tall?: boolean }) {
-  const H = tall ? 560 : CH;
-  const padL = 62;
-  const padR = 16;
-  const padT = 14;
-  const padB = 30;
+/* THE ROLLING CHART: the shown lanes bright in their own line styles, the
+ * rest of the field faint behind them, on the last WINDOW_S seconds of
+ * the race. The y domain is the 5th to 95th percentile of the SHOWN
+ * lanes' points in the window, so one blown stroke cannot flatten the
+ * picture; pace is drawn faster-higher. */
+function RollingChart({ lanes, shown, stat, clockS }: { lanes: Lane[]; shown: Lane[]; stat: (typeof STATS)[number]; clockS: number }) {
+  const padL = 64;
+  const padR = 18;
+  const padT = 16;
+  const padB = 32;
+  const t1 = Math.max(WINDOW_S, clockS);
+  const t0 = t1 - WINDOW_S;
+  const inWin = (pts: XY[]) => pts.filter((p) => p.x >= t0 && p.x <= t1);
   const ys: number[] = [];
-  for (const l of lanes) for (const p of l.trace) ys.push(p.y);
+  for (const l of shown) for (const p of inWin(stat.of(l))) ys.push(p.y);
   ys.sort((a, b) => a - b);
-  const q = (f: number) => (ys.length ? ys[Math.min(ys.length - 1, Math.max(0, Math.floor(f * (ys.length - 1))))] : 0);
-  let lo = ys.length ? q(0.05) : 100;
-  let hi = ys.length ? q(0.95) : 140;
-  if (hi - lo < 6) {
+  const q = (f: number) => ys[Math.min(ys.length - 1, Math.max(0, Math.floor(f * (ys.length - 1))))];
+  let lo = ys.length ? q(0.05) : 0;
+  let hi = ys.length ? q(0.95) : 1;
+  const floor = stat.key === "pace" ? 6 : stat.key === "watts" ? 30 : 0.1;
+  if (hi - lo < floor) {
     const mid = (hi + lo) / 2;
-    lo = mid - 3;
-    hi = mid + 3;
+    lo = mid - floor / 2;
+    hi = mid + floor / 2;
   }
   const pad = (hi - lo) * 0.12;
   lo -= pad;
   hi += pad;
-  const x = (m: number) => padL + (Math.min(GOAL, Math.max(0, m)) / GOAL) * (CW - padL - padR);
-  const y = (p: number) => padT + ((Math.min(hi, Math.max(lo, p)) - lo) / (hi - lo)) * (H - padT - padB);
-  const yTicks = 4;
-  const ticks = Array.from({ length: yTicks + 1 }, (_, i) => lo + ((hi - lo) * i) / yTicks);
-  const xMarks = [1000, 2000, 3000, 4000];
-  const path = (l: Lane) => {
-    if (l.trace.length < 2) return "";
-    return l.trace.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.x).toFixed(1)},${y(p.y).toFixed(1)}`).join(" ");
+  const x = (t: number) => padL + ((t - t0) / WINDOW_S) * (CW - padL - padR);
+  const yOf = (v: number) => {
+    const f = (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo);
+    const g = stat.invert ? f : 1 - f;
+    return padT + g * (CH - padT - padB);
   };
+  const ticks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
+  const xMarks = [t0, t0 + WINDOW_S / 4, t0 + WINDOW_S / 2, t0 + (3 * WINDOW_S) / 4, t1];
+  const path = (l: Lane) => {
+    const pts = inWin(stat.of(l));
+    if (pts.length < 2) return "";
+    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(p.x).toFixed(1)},${yOf(p.y).toFixed(1)}`).join(" ");
+  };
+  const shownIds = new Set(shown.map((l) => l.id));
   return (
-    <svg className="tv-chart" viewBox={`0 0 ${CW} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      {ticks.map((t) => (
-        <g key={t}>
-          <line className="gr" x1={padL} x2={CW - padR} y1={y(t)} y2={y(t)} />
-          <text className="lbl" x={padL - 8} y={y(t) + 4} textAnchor="end">
-            {fmtPace(t)}
+    <svg className="tv-chart" viewBox={`0 0 ${CW} ${CH}`} preserveAspectRatio="none" aria-hidden="true">
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line className="gr" x1={padL} x2={CW - padR} y1={yOf(t)} y2={yOf(t)} />
+          <text className="lbl" x={padL - 8} y={yOf(t) + 4} textAnchor="end">
+            {stat.fmt(t)}
           </text>
         </g>
       ))}
-      {xMarks.map((m) => (
-        <g key={m}>
-          <line className="gr" x1={x(m)} x2={x(m)} y1={padT} y2={H - padB} />
-          <text className="lbl" x={x(m)} y={H - 10} textAnchor="middle">
-            {m / 1000}K
+      {xMarks.map((t, i) => (
+        <g key={i}>
+          <line className="gr" x1={x(t)} x2={x(t)} y1={padT} y2={CH - padB} />
+          <text className="lbl" x={x(t)} y={CH - 10} textAnchor={i === 0 ? "start" : i === xMarks.length - 1 ? "end" : "middle"}>
+            {i === xMarks.length - 1 ? "NOW" : `-${Math.round(t1 - t)} S`}
           </text>
         </g>
       ))}
-      <line className="ax" x1={padL} x2={CW - padR} y1={H - padB} y2={H - padB} />
+      <line className="ax" x1={padL} x2={CW - padR} y1={CH - padB} y2={CH - padB} />
       {lanes
-        .filter((l) => l.rank !== 0)
+        .filter((l) => !shownIds.has(l.id))
         .map((l) => (
-          <path key={l.id} className="ln" d={path(l)} />
+          <path key={l.id} className="ln faint" d={path(l)} />
         ))}
-      {lanes
-        .filter((l) => l.rank === 0)
-        .map((l) => (
-          <g key={l.id}>
-            <path className="ln lead" d={path(l)} />
-            {l.trace.length > 0 && <circle className="dot" cx={x(l.trace[l.trace.length - 1].x)} cy={y(l.trace[l.trace.length - 1].y)} r={5} />}
-          </g>
-        ))}
-    </svg>
-  );
-}
-
-/* THE SPLITS: one lane's 500 m blocks as bars, faster TALLER, the latest
- * bright, the pace printed over each. */
-function SplitBars({ lane }: { lane: Lane }) {
-  const H = 260;
-  const padL = 12;
-  const padB = 26;
-  const padT = 26;
-  const cols = Math.round(GOAL / 500);
-  const paces = lane.blocks.filter((b) => b.meters > 0 && b.seconds > 0).map((b) => (b.seconds * 500) / b.meters);
-  const all = paces.length ? paces : [];
-  let lo = all.length ? Math.min(...all) : 100;
-  let hi = all.length ? Math.max(...all) : 140;
-  if (hi - lo < 6) {
-    const mid = (hi + lo) / 2;
-    lo = mid - 3;
-    hi = mid + 3;
-  }
-  const span = hi - lo;
-  lo -= span * 0.5;
-  hi += span * 0.15;
-  const slot = (CW - padL * 2) / cols;
-  const bw = slot * 0.66;
-  const top = (p: number) => padT + ((p - lo) / (hi - lo)) * (H - padT - padB);
-  return (
-    <svg className="tv-chart" viewBox={`0 0 ${CW} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <line className="ax" x1={padL} x2={CW - padL} y1={H - padB} y2={H - padB} />
-      {Array.from({ length: cols }, (_, i) => {
-        const cx = padL + slot * i + slot / 2;
-        const p = paces[i];
+      {shown.map((l, i) => {
+        const pts = inWin(stat.of(l));
+        const last = pts[pts.length - 1];
         return (
-          <g key={i}>
-            <text className="lbl" x={cx} y={H - 8} textAnchor="middle">
-              {((i + 1) * 500) / 1000}K
-            </text>
-            {p !== undefined && (
-              <>
-                <rect className={i === paces.length - 1 ? "bar now" : "bar"} x={cx - bw / 2} y={top(p)} width={bw} height={H - padB - top(p)} />
-                <text className="bv" x={cx} y={top(p) - 6}>
-                  {fmtPace(p)}
-                </text>
-              </>
-            )}
+          <g key={l.id}>
+            <path className={`ln ${STYLES[i % STYLES.length]}`} d={path(l)} />
+            {last && <circle className="dot" cx={x(last.x)} cy={yOf(last.y)} r={5} />}
           </g>
         );
       })}
@@ -368,50 +325,70 @@ function SplitBars({ lane }: { lane: Lane }) {
 
 /* ---- LOOK A — THE BROADCAST ---------------------------------------------- */
 
+/* THE SCENES: 0 the top three on pace, 1 the first rower on pace, 2 the
+ * top three on watts, 3 the second rower on watts, 4 the top three on
+ * drive length, 5 the third rower on drive length, 6 the top three on
+ * pace again, 7 the fourth rower … so every rower gets a turn and every
+ * stat comes round. */
+function sceneOf(k: number, lanes: Lane[]): { mode: "top3" | "single"; shown: Lane[]; stat: (typeof STATS)[number]; focus: Lane } {
+  const pair = Math.floor(k / 2);
+  const stat = STATS[pair % STATS.length];
+  if (k % 2 === 0 || lanes.length === 1) {
+    const shown = lanes.slice(0, 3);
+    return { mode: "top3", shown, stat, focus: lanes[0] };
+  }
+  const one = lanes[pair % lanes.length];
+  return { mode: "single", shown: [one], stat, focus: one };
+}
+
 function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
-  const lead = lanes[0];
+  const [k, setK] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setK((v) => v + 1), SCENE_MS);
+    return () => window.clearInterval(id);
+  }, []);
+  const { mode, shown, stat, focus } = sceneOf(k, lanes);
+  const shownIds = new Set(shown.map((l) => l.id));
+  const statNow = (l: Lane): string => {
+    const pts = stat.of(l);
+    const last = pts[pts.length - 1];
+    return last ? stat.fmt(last.y) : "—";
+  };
   return (
     <div className="tv-c">
       <section className="tv-c-hero">
         <span className="tv-c-eyebrow">
-          {lead.done ? "Winner" : "Leading"} · lane {lead.rank + 1} · {GOAL_WORD}
+          {mode === "single" ? `Lane ${focus.rank + 1} · ${focus.done ? "finished" : "rowing"}` : "The top three"} · {stat.label} · last two minutes
         </span>
-        <h2>{lead.name}</h2>
-        <div className="tv-c-charts">
-          <figure>
-            <figcaption>
-              <span>Pace /500m · the field</span>
-              <span>Faster is higher</span>
-            </figcaption>
-            <PaceChart lanes={lanes} />
-          </figure>
-          <figure>
-            <figcaption>
-              <span>Splits · {lead.name}</span>
-              <span>Every 500 m</span>
-            </figcaption>
-            <SplitBars lane={lead} />
-          </figure>
-        </div>
-        <div className="tv-c-big">
-          <b>{lead.done ? lead.fin.value : metresWord(lead)}</b>
-          <span>{lead.done ? "finish" : `of ${GOAL_WORD}`}</span>
-        </div>
-        <div className="tv-c-bar" aria-hidden="true">
-          <span style={{ width: `${lead.pct}%` }} />
-        </div>
+        <h2>{mode === "single" ? focus.name : "Head to head"}</h2>
+        <figure className="tv-c-fig">
+          <RollingChart lanes={lanes} shown={shown} stat={stat} clockS={clockS} />
+          <figcaption className="tv-legend">
+            {shown.map((l, i) => (
+              <span key={l.id} className={`tv-key ${STYLES[i % STYLES.length]}`}>
+                <i />
+                <b>{l.rank + 1}</b> {l.name} <em>{statNow(l)}</em>
+              </span>
+            ))}
+            <span className="tv-key faint">
+              <i />
+              the field
+            </span>
+            <span className="tv-unit">{stat.unit}</span>
+          </figcaption>
+        </figure>
         <div className="tv-c-kv">
           <div>
-            <span>Pace /500m</span>
-            <b>{paceWord(lead)}</b>
+            <span>{mode === "single" ? "Metres" : "Leader · metres"}</span>
+            <b>{focus.done ? focus.fin.value : metresWord(focus)}</b>
           </div>
           <div>
-            <span>{lead.done ? "Average" : "Expected"}</span>
-            <b>{lead.done ? (lead.avgPace ? fmtPace(lead.avgPace) : "—") : lead.fin.value}</b>
+            <span>Last 500 m</span>
+            <b>{focus.done ? (focus.avgPace ? fmtPace(focus.avgPace) : "—") : pace500Word(focus)}</b>
           </div>
           <div>
-            <span>Rate · spm</span>
-            <b>{lead.spm ? String(lead.spm) : "—"}</b>
+            <span>{focus.done ? "Finish" : "Expected"}</span>
+            <b>{focus.fin.value}</b>
           </div>
         </div>
       </section>
@@ -422,12 +399,12 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
         </div>
         <ol>
           {lanes.map((l) => (
-            <li key={l.id} className={`${l.rank === 0 ? "lead" : ""}${l.done ? " done" : ""}`}>
+            <li key={l.id} className={`${l.rank === 0 ? "lead" : ""}${l.done ? " done" : ""}${shownIds.has(l.id) ? " show" : ""}`}>
               <b className="p">{l.rank + 1}</b>
               <span className="nm">{l.name}</span>
               <span className="g">
-                {l.rank === 0 ? (l.done ? l.fin.value : metresWord(l)) : gapWord(l)}
-                <i>{l.rank === 0 ? (l.done ? "finish" : "metres") : l.done ? l.fin.value : `${metresWord(l)} m · ${paceWord(l)}`}</i>
+                {l.done ? l.fin.value : l.rank === 0 ? metresWord(l) : gapWord(l)}
+                <i>{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "metres" : `${metresWord(l)} m · ${paceWord(l)}`}</i>
               </span>
               <span className="tv-c-lbar" aria-hidden="true">
                 <span style={{ width: `${l.pct}%` }} />
@@ -461,122 +438,11 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               {l.done ? (l.avgPace ? fmtPace(l.avgPace) : "—") : pace500Word(l)}
               <i>{l.done ? "average /500m" : "last 500 m"}</i>
             </span>
-            <span className="gap">{l.rank === 0 ? (l.done ? l.fin.value : metresWord(l)) : gapWord(l)}</span>
-            <span className="u">{l.rank === 0 ? (l.done ? "finish" : "metres") : l.done ? "on the winner" : "seconds"}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-/* ---- LOOK C — THE CHART ----------------------------------------------------- */
-
-function ChartLook({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
-  return (
-    <div className="tv-f">
-      <header className="tv-head">
-        <span className="t">Pace</span>
-        <span className="m">/500M OVER THE {GOAL_WORD} · EVERY LANE · THE LEADER BRIGHT</span>
-        <span className="c">{clockWord(clockS)}</span>
-      </header>
-      <div className="tv-f-body">
-        <figure className="tv-f-plot">
-          <figcaption>
-            <span>Faster is higher</span>
-            <span>{lanes.length} {lanes.length === 1 ? "LANE" : "LANES"}</span>
-          </figcaption>
-          <PaceChart lanes={lanes} tall />
-        </figure>
-        <ol className="tv-f-key">
-          {lanes.map((l) => (
-            <li key={l.id} className={l.rank === 0 ? "lead" : ""}>
-              <span className="p">{l.rank + 1}</span>
-              <span className="nm">{l.name}</span>
-              <span className="v">{l.done ? l.fin.value : pace500Word(l)}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </div>
-  );
-}
-
-/* ---- LOOK D — THE PODIUM ---------------------------------------------------- */
-
-function Podium({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
-  const steps = lanes.slice(0, 3);
-  const rest = lanes.slice(3);
-  const order = steps.length === 3 ? [steps[1], steps[0], steps[2]] : steps;
-  return (
-    <div className="tv-g">
-      <header className="tv-head">
-        <span className="t">Race board</span>
-        <span className="m">
-          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · LIVE
-        </span>
-        <span className="c">{clockWord(clockS)}</span>
-      </header>
-      <div className="tv-g-steps">
-        {order.map((l) => (
-          <div key={l.id} className={l.rank === 0 ? "tv-g-step first" : "tv-g-step"}>
-            <span className="tv-eye">{l.done ? (l.rank === 0 ? "Winner" : "Finished") : l.rank === 0 ? "Leading" : `${gapWord(l)} s behind`}</span>
-            <span className="p">{l.rank + 1}</span>
-            <span className="nm">{l.name}</span>
-            <span className="big">{l.done ? l.fin.value : metresWord(l)}</span>
-            <div className="kv">
-              <div>
-                <b>{l.done ? (l.avgPace ? fmtPace(l.avgPace) : "—") : pace500Word(l)}</b>
-                <span className="k">{l.done ? "avg /500m" : "last 500 m"}</span>
-              </div>
-              <div>
-                <b>{l.done ? gapWord(l) : l.fin.value}</b>
-                <span className="k">{l.done ? "on the winner" : "expected"}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {rest.length > 0 && (
-        <ol className="tv-g-rest">
-          {rest.map((l) => (
-            <li key={l.id}>
-              <span className="p">{l.rank + 1}</span>
-              <span className="nm">{l.name}</span>
-              <span className="v">{l.done ? l.fin.value : gapWord(l)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-/* ---- LOOK E — THE GAPS ------------------------------------------------------ */
-
-function Gaps({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
-  const leadM = lanes.reduce((best, l) => Math.max(best, l.m), 0) || 1;
-  return (
-    <div className="tv-h">
-      <header className="tv-head">
-        <span className="t">Gaps</span>
-        <span className="m">
-          {GOAL_WORD} · THE LEADER FULL · EVERY LANE AS FAR AS THEY ARE
-        </span>
-        <span className="c">{clockWord(clockS)}</span>
-      </header>
-      <ol className="tv-h-rows">
-        {lanes.map((l) => (
-          <li key={l.id} className={l.rank === 0 ? "lead" : ""}>
-            <span className="p">{l.rank + 1}</span>
-            <span className="nm">{l.name}</span>
-            <span className="trk" aria-hidden="true">
-              <span style={{ width: `${Math.min(100, (l.m / leadM) * 100)}%` }} />
-            </span>
-            <span className="g">
-              {l.rank === 0 ? (l.done ? l.fin.value : metresWord(l)) : gapWord(l)}
-              <i>{l.rank === 0 ? (l.done ? "finish" : "metres") : l.done ? "on the winner" : `${Math.round(l.behindM)} m back`}</i>
-            </span>
+            {/* A FINISHED LANE SHOWS ITS TIME in the big letters and the
+              * gap under it (owner, 2026-09-22: "when they finish show their
+              * time in the big white letters"). */}
+            <span className="gap">{l.done ? l.fin.value : l.rank === 0 ? metresWord(l) : gapWord(l)}</span>
+            <span className="u">{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "metres" : "seconds"}</span>
           </li>
         ))}
       </ol>

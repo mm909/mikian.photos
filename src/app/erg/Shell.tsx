@@ -34,7 +34,7 @@ const rowFonts = `${rowArchivo.variable} ${rowArchivoBlack.variable} ${rowSpaceM
 
 export function ErgShell({ ground, sheet, children }: { ground: "ink" | "paper"; sheet?: string; children: React.ReactNode }) {
   return (
-    <div className={`row100k ${ground === "ink" ? "chrome-ink " : ""}${rowFonts}`}>
+    <div className={`row100k ${ground === "ink" ? "chrome-ink eg-root-ink " : ""}${rowFonts}`}>
       <style>{rowCss}</style>
       <RowBar />
 
