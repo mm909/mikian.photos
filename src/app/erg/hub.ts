@@ -604,6 +604,19 @@ function apply(e: Erg, p: MuxPacket) {
     }
     case "additional1": {
       m.a1 = p.data;
+      /* A STALE TICK. When the monitor is re-armed for a new piece, the
+       * general status flips first and the next additional-status packet
+       * can still carry the OLD piece's frozen clock — 19:04.2 on a row
+       * that is two seconds in. Recorded, it became the first sample of the
+       * new piece; played back, it sorted to the very END and left the row
+       * showing the previous piece's time instead of FINAL (owner's photo,
+       * 2026-09-22, four played-back rows each wearing the time of the row
+       * before it). A tick that is well ahead of the monitor's own clock is
+       * not a sample of this piece. */
+      if (m.general && p.data.elapsedS > m.general.elapsedS + 2) {
+        if (m.samples.length === 0) log(e, `stale tick ignored (${p.data.elapsedS.toFixed(1)} s against a clock at ${m.general.elapsedS.toFixed(1)} s)`);
+        return;
+      }
       const ls = m.strokes[m.strokes.length - 1];
       m.samples.push({
         t: p.data.elapsedS,

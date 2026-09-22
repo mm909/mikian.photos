@@ -528,6 +528,22 @@ export function validateTelemetryDoc(input: unknown): TelemetryDoc | string {
         drag: int(s.drag, "sample.drag"),
       };
     });
+    /* ONE PIECE, IN ORDER. A recording made before 2026-09-22 can open on a
+     * stray tick from the piece before it on the same monitor (hub.ts,
+     * case additional1) — a first sample whose clock reads 19:04.2 on a
+     * 19:02.7 row. Played back, that tick sorted to the end and put the
+     * previous row's time on the finish. So a sample past the piece's own
+     * clock is dropped, and a sample the next one runs BEHIND is a stray
+     * head and comes off. */
+    const clockCap = totals.tenths > 0 ? totals.tenths * 10 + 200 : Number.POSITIVE_INFINITY;
+    const ordered: typeof samples = [];
+    for (const smp of samples) {
+      if (smp.elapsedHundredths > clockCap) continue;
+      while (ordered.length && ordered[ordered.length - 1].elapsedHundredths > smp.elapsedHundredths) ordered.pop();
+      ordered.push(smp);
+    }
+    samples.length = 0;
+    samples.push(...ordered);
 
     const splits = list(d.splits, "splits", CAPS.splits).map((v, i) => {
       const s = obj(v, `splits[${i}]`);

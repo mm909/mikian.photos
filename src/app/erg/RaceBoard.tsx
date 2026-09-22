@@ -80,11 +80,10 @@ export type Lane = {
    * clock between the sample 500 m back and now, per 500. Null until at
    * least half a block is behind them. */
   pace500: number | null;
-  /* THE WALL'S SERIES, each on elapsed seconds and thinned: pace per 500
-   * and watts from the samples, drive length per stroke from the strokes.
-   * The first five seconds are left off, as on the console; the wall
-   * draws a rolling window off the end of them. */
-  series: { pace: XY[]; watts: XY[]; length: XY[] };
+  /* THE WALL'S SERIES: pace per 500 over METRES, thinned, the first five
+   * seconds left off as on the console; the wall draws a rolling window
+   * off the end of it. */
+  series: { pace: XY[] };
   spm: number | null;
   elapsedS: number;
   fin: FinishRead;
@@ -145,18 +144,8 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     }
     const series = {
       pace: thinPoints(
-        ss.filter((x) => x.t >= 5 && x.pace > 0 && x.pace < 600).map((x) => ({ x: x.t, y: x.pace })),
-        400,
-      ),
-      watts: thinPoints(
-        ss.filter((x): x is typeof x & { watts: number } => x.t >= 5 && x.watts !== null && x.watts > 0).map((x) => ({ x: x.t, y: x.watts })),
-        400,
-      ),
-      length: thinPoints(
-        e.model.strokes
-          .filter((k) => k.elapsedS !== null && k.elapsedS >= 5 && k.driveLengthM !== null && k.driveLengthM > 0)
-          .map((k) => ({ x: k.elapsedS as number, y: k.driveLengthM as number })),
-        400,
+        ss.filter((x) => x.t >= 5 && x.pace > 0 && x.pace < 600).map((x) => ({ x: x.dist, y: x.pace })),
+        600,
       ),
     };
     const behindM = finishS !== null ? 0 : Math.max(0, leadM - m);

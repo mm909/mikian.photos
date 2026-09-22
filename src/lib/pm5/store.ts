@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { cleanTitle, columnsFrom, defaultTitle, type TelemetryDoc, type TelemetrySavedRow } from "./session";
+import { cleanTitle, columnsFrom, defaultTitle, type TelemetryDoc, type TelemetrySavedRow, validateTelemetryDoc } from "./session";
 
 /* THE SAVED SESSIONS ON THE SERVER (owner, 2026-09-17: the erg console
  * moves out of Rowtember and the two things go disjoint). Insert, list,
@@ -143,7 +143,13 @@ export async function getErgSession(args: ErgScope & { id: string }): Promise<{ 
   });
   if (!row) return null;
   const { data, ...rest } = row;
-  return { row: toSaved(rest), doc: data as unknown as TelemetryDoc };
+  /* READ THROUGH THE VALIDATOR, not straight off the column: the validator
+   * is where a stored doc is put in order (session.ts — a stray tick from
+   * the piece before, recorded up to 2026-09-22, comes off the head of the
+   * samples), and playback and the review read whatever this hands them. A
+   * doc the validator refuses is handed over as it is rather than lost. */
+  const checked = validateTelemetryDoc(data);
+  return { row: toSaved(rest), doc: typeof checked === "string" ? (data as unknown as TelemetryDoc) : checked };
 }
 
 /* True when a row went; false when the scope held none to delete. */
