@@ -2,6 +2,7 @@
 
 import { fmtMeters, fmtPace } from "@/lib/pm5/pm5";
 import { fmtTime, type Block } from "@/lib/pm5/predict";
+import { thinPoints, type XY } from "./chartGeom";
 import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
 import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
 
@@ -74,6 +75,14 @@ export type Lane = {
   /* Seconds per 500 m, or null before the first stroke. */
   pace: number | null;
   avgPace: number | null;
+  /* THE PACE OVER THE LAST 500 METRES (owner, 2026-09-22: "on the tower
+   * view I want the pace to be avg pace over the last 500 meters") — the
+   * clock between the sample 500 m back and now, per 500. Null until at
+   * least half a block is behind them. */
+  pace500: number | null;
+  /* Pace over metres, thinned for the wall's charts; the first five
+   * seconds left off, as on the console. */
+  trace: XY[];
   spm: number | null;
   elapsedS: number;
   fin: FinishRead;
@@ -121,6 +130,21 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     const a1 = e.model.a1;
     const g = e.model.general;
     const pace = a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null;
+    const ss = e.model.samples;
+    let pace500: number | null = null;
+    if (ss.length > 1) {
+      const last = ss[ss.length - 1];
+      let j = ss.length - 2;
+      while (j > 0 && last.dist - ss[j].dist < 500) j--;
+      const back = ss[j];
+      const dm = last.dist - back.dist;
+      const dt = last.t - back.t;
+      if (dm >= 250 && dt > 0) pace500 = (dt / dm) * 500;
+    }
+    const trace = thinPoints(
+      ss.filter((x) => x.t >= 5 && x.pace > 0 && x.pace < 600).map((x) => ({ x: x.dist, y: x.pace })),
+      240,
+    );
     const behindM = finishS !== null ? 0 : Math.max(0, leadM - m);
     const behindS =
       finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM > 0 ? (behindM / 500) * pace : 0;
@@ -131,6 +155,8 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
       m,
       pace,
       avgPace: a1 && a1.averagePaceS > 0 ? a1.averagePaceS : null,
+      pace500,
+      trace,
       spm: a1 && a1.strokeRate > 0 ? a1.strokeRate : null,
       elapsedS: g ? g.elapsedS : 0,
       fin: finishS !== null ? { value: fmtTime(finishS), under: "FINISH", ready: true, hint: null } : readFinish(p),

@@ -11,7 +11,7 @@ export { rowerLayout } from "./rower";
 
 /* THE TOP TEN (owner, 2026-09-21): the Rowtember payload drawn as one list of
  * ten with the partners in mono under it. poster/topTen.ts. */
-export { topTenLayout } from "./topTen";
+export { TOP_TEN_BOARDS, topTenMenLayout, topTenWomenLayout, type TopTenBoard } from "./topTen";
 
 /* RACE DAY registers THREE TIMES — the solid ad, the transparent overlay
  * and the same overlay with the owner's photograph drawn into its window.

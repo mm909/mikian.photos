@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
-import { communityLayout, rowerLayout, topTenLayout } from "../poster/layouts";
+import { communityLayout, rowerLayout, TOP_TEN_BOARDS, topTenMenLayout, topTenWomenLayout, type TopTenBoard } from "../poster/layouts";
 import { POSTER_STOCKS } from "../poster/paint";
 import { RACE_ARTWORKS, RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
@@ -271,6 +271,10 @@ export function PosterStudio({
    * topTen layout. A chip, not a route, like race day; it opens on the
    * black stock because that is what was asked for. */
   const [topOn, setTopOn] = useState(initialSubject === "top10" && community != null);
+  /* WHICH BOARD (owner, 2026-09-22: "one shareable per board"): the men's
+   * ten or the women's ten, a chip row under the subject like race day's
+   * bill/field. */
+  const [topBoard, setTopBoard] = useState<TopTenBoard>("M");
   const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
   /* WHICH RACE DAY ARTWORK (owner, 2026-09-16: "a poster showing what
    * racers are coming to race day"): the bill, or the field — the start
@@ -458,7 +462,14 @@ export function PosterStudio({
             artwork: fieldOn ? "field" : "bill",
           })
         : subject === "top10"
-          ? render({ target: t, layout: topTenLayout, data: data as CommunityPoster, fonts, assets, stock })
+          ? render({
+              target: t,
+              layout: topBoard === "M" ? topTenMenLayout : topTenWomenLayout,
+              data: data as CommunityPoster,
+              fonts,
+              assets,
+              stock,
+            })
           : subject === "rower"
           ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock })
           : render({
@@ -566,7 +577,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, race, ground, fieldOn, stock, subject, format, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, fieldOn, stock, subject, topBoard, format, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -884,6 +895,23 @@ export function PosterStudio({
           </div>
         </div>
       </div>
+
+      {subject === "top10" ? (
+        /* MEN / WOMEN (owner, 2026-09-22: "one shareable per board"). */
+        <div className="st-sub po-opts" role="group" aria-label="Board">
+          {TOP_TEN_BOARDS.map((b) => (
+            <button
+              key={b.key}
+              type="button"
+              className={topBoard === b.key ? "on" : undefined}
+              aria-pressed={topBoard === b.key}
+              onClick={() => setTopBoard(b.key)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {subject === "raceday" && race ? (
         /* THE BILL / THE FIELD (owner, 2026-09-16: "a poster showing what
