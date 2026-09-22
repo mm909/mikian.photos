@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
-import { communityLayout, rowerLayout } from "../poster/layouts";
+import { communityLayout, rowerLayout, topTenLayout } from "../poster/layouts";
 import { POSTER_STOCKS } from "../poster/paint";
 import { RACE_ARTWORKS, RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import type {
@@ -207,7 +207,7 @@ function search(roster: PosterRosterRower[], query: string): Hit[] {
 
 type Files = { png: Blob; pdf: Blob | null; target: PosterRenderTarget };
 
-type Subject = "community" | "rower" | "raceday";
+type Subject = "community" | "rower" | "raceday" | "top10";
 
 export type PosterStudioProps = {
   community: CommunityPoster | null;
@@ -267,6 +267,10 @@ export function PosterStudio({
    * none offers no race day at all rather than drawing one out of the code
    * defaults (review, 2026-09-11). */
   const [raceOn, setRaceOn] = useState(initialSubject === "raceday" && raceday != null);
+  /* THE TOP TEN (owner, 2026-09-21): the Rowtember payload under the
+   * topTen layout. A chip, not a route, like race day; it opens on the
+   * black stock because that is what was asked for. */
+  const [topOn, setTopOn] = useState(initialSubject === "top10" && community != null);
   const [ground, setGround] = useState<PosterGround>(initialGround ?? "ink");
   /* WHICH RACE DAY ARTWORK (owner, 2026-09-16: "a poster showing what
    * racers are coming to race day"): the bill, or the field — the start
@@ -279,7 +283,7 @@ export function PosterStudio({
    * friction, but the stock is a per-artefact choice and cream is the right
    * thing to open on. Race day is never offered one — it is the thing being
    * matched. */
-  const [stock, setStock] = useState<PosterStock>(initialStock ?? "cream");
+  const [stock, setStock] = useState<PosterStock>(initialStock ?? (initialSubject === "top10" ? "bw" : "cream"));
   /* The overlay is judged over the real photograph by default; the chequer
    * is one chip away, because the transparency has to be judged too. */
   const [onPhoto, setOnPhoto] = useState(true);
@@ -289,8 +293,8 @@ export function PosterStudio({
   const fieldOn = race !== null && artwork === "field" && race.field !== null;
   /* The PAYLOAD decides, not the chip: without a race day payload there is
    * nothing to draw as an ad, so the studio stays on the sheet it has. */
-  const subject: Subject = race ? "raceday" : rower ? "rower" : "community";
-  const data: PosterData | null = race ? null : rower ? rower : community;
+  const subject: Subject = race ? "raceday" : topOn && community ? "top10" : rower ? "rower" : "community";
+  const data: PosterData | null = race ? null : subject === "top10" ? community : rower ? rower : community;
   /* Whatever is being drawn — the null check every effect below wants. */
   const drawing: PosterData | RaceDayPoster | null = race ?? data;
 
@@ -367,7 +371,7 @@ export function PosterStudio({
       for (const d of [community, rower]) {
         if (!d) continue;
         if (d.kind === "community") {
-          for (const r of [...d.standings.men, ...d.standings.women]) names.push(r.name);
+          for (const r of [...d.standings.men, ...d.standings.women, ...d.standings.overall]) names.push(r.name);
           for (const r of d.club.roll) names.push(r.name);
           for (const rec of d.records) for (const l of rec.lines) names.push(l.holder.name);
         } else {
@@ -404,10 +408,28 @@ export function PosterStudio({
         // photo ground falls back to the solid ad on, and the notes say so.
         photoUrl ? loadImage(photoUrl) : Promise.resolve(null),
       ]);
+      // The partners in mono, for the top-ten sheet: a white and an ink
+      // mark each. Same-origin, never fatal — a missing one is skipped.
+      const bwMarks = await Promise.all(
+        (["grizzly-bear", "grizzly-wordmark", "lvss", "strip-barbell"] as const).flatMap((n) => [
+          loadImage(`/row100k/partners/bw/${n}-white.png`),
+          loadImage(`/row100k/partners/bw/${n}-ink.png`),
+        ]),
+      );
+      const bw = {
+        grizzlyBearWhite: bwMarks[0],
+        grizzlyBearInk: bwMarks[1],
+        grizzlyWordWhite: bwMarks[2],
+        grizzlyWordInk: bwMarks[3],
+        lvssWhite: bwMarks[4],
+        lvssInk: bwMarks[5],
+        venueWhite: bwMarks[6],
+        venueInk: bwMarks[7],
+      };
       if (cancelled) return;
       // Re-read after the loads: the line boxes belong to the real faces.
       setFonts(read());
-      setAssets({ bear, wordmark, venue, sponsor, photo });
+      setAssets({ bear, wordmark, venue, sponsor, photo, bw });
     })();
     return () => {
       cancelled = true;
@@ -435,7 +457,9 @@ export function PosterStudio({
             ground: fieldOn ? "ink" : ground,
             artwork: fieldOn ? "field" : "bill",
           })
-        : subject === "rower"
+        : subject === "top10"
+          ? render({ target: t, layout: topTenLayout, data: data as CommunityPoster, fonts, assets, stock })
+          : subject === "rower"
           ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock })
           : render({
               target: t,
@@ -685,7 +709,10 @@ export function PosterStudio({
             <Link
               className={subject === "community" ? "on" : undefined}
               href={hrefs.community}
-              onClick={() => setRaceOn(false)}
+              onClick={() => {
+                setRaceOn(false);
+                setTopOn(false);
+              }}
             >
               Rowtember
             </Link>
@@ -698,6 +725,7 @@ export function PosterStudio({
             aria-expanded={open}
             onClick={() => {
               setRaceOn(false);
+              setTopOn(false);
               if (open) close();
               else {
                 setQ("");
@@ -721,10 +749,31 @@ export function PosterStudio({
               title={raceday ? undefined : "The race day payload could not be read"}
               onClick={() => {
                 setOpen(false);
+                setTopOn(false);
                 setRaceOn(true);
               }}
             >
               Race day
+            </button>
+          ) : null}
+          {/* THE TOP TEN (owner, 2026-09-21): the Rowtember payload as one
+              list, on the black stock by default. Admin only, like
+              Rowtember, and disabled when that payload could not be read. */}
+          {!rowerOnly ? (
+            <button
+              type="button"
+              className={subject === "top10" ? "on" : undefined}
+              aria-pressed={subject === "top10"}
+              disabled={!community}
+              title={community ? undefined : "The Rowtember payload could not be read"}
+              onClick={() => {
+                setOpen(false);
+                setRaceOn(false);
+                setTopOn(true);
+                setStock("bw");
+              }}
+            >
+              Top ten
             </button>
           ) : null}
         </div>

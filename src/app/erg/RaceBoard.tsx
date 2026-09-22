@@ -1,7 +1,8 @@
 "use client";
 
 import { fmtMeters, fmtPace } from "@/lib/pm5/pm5";
-import { expectedFinish, pieceEnded, typedErgName, type FinishRead } from "./ErgGoal";
+import { fmtTime, type Block } from "@/lib/pm5/predict";
+import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
 import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
 
 /* THE RACE BOARD (owner, 2026-09-21: "a screen where it shows all the
@@ -10,11 +11,17 @@ import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
  * lane: the distance they are at, the pace they are rowing at, their
  * expected time, and who is in the lead — first, second, third").
  *
- * EVERY ERG ON THIS PAGE, AS A LANE, IN RACE ORDER. The order is metres
- * rowed, which is the only honest order mid-piece: a fast pace on a lane
- * that started late is not a lead. Beside each lane, how far behind the
- * leader it is — in metres, and in the seconds it would take at that lane's
- * own pace to close them, which is the number a spectator actually wants.
+ * EVERY ERG ON THIS PAGE, AS A LANE, IN RACE ORDER. Mid-piece the order is
+ * metres rowed, which is the only honest order then: a fast pace on a lane
+ * that started late is not a lead. FINISHED LANES COME FIRST, BY THEIR
+ * TIME (owner, 2026-09-22: "think about what place every rower ends in —
+ * they should be in order of finish time when done; it looked like all
+ * the finished rowers got moved to the bottom"): a lane that has rowed the
+ * whole distance holds a place nothing still on the water can take from
+ * it, so the top of the board is the finish order and the rest of the
+ * field sorts under it by metres. BEHIND, for a finished lane, is the gap
+ * to the winner's time; for a lane still rowing, the gap in metres to the
+ * leader and the seconds it would take to close at that lane's own pace.
  *
  * IT IS THE SAME 5,000 FOR EVERYONE (owner, same day: "let us assume that
  * everyone is just going to be doing a 5K always"). The progress bar and the
@@ -46,10 +53,22 @@ export function place(i: number): string {
   return `${n}${suffix}`;
 }
 
+/* THE NAME ON THE LANE. A typed name wins; otherwise the monitor's own,
+ * which for a real PM5 is "PM5 530737731 Row Erg" — twelve of those in a
+ * column are twelve identical rows with the digits that differ cut off
+ * (owner's photo, 2026-09-22). So a PM5's advertised name is shortened to
+ * its make and the last four of its serial, which is how the gym tells
+ * them apart anyway. */
+export function shortErgName(name: string): string {
+  const m = /^PM5\s+(\d{4,})/i.exec(name.trim());
+  if (m) return `PM5 ·${m[1].slice(-4)}`;
+  return name.replace(/\s+Row\s*Erg$/i, "").trim() || name;
+}
+
 export type Lane = {
   id: string;
   name: string;
-  /* Zero-based race position. */
+  /* Zero-based race position: finish order first, then by metres. */
   rank: number;
   m: number;
   /* Seconds per 500 m, or null before the first stroke. */
@@ -58,46 +77,80 @@ export type Lane = {
   spm: number | null;
   elapsedS: number;
   fin: FinishRead;
+  /* The rowed time, seconds, once the distance is done; null while rowing. */
+  finishS: number | null;
+  /* Metres behind the leader (0 for a finished lane). */
   behindM: number;
-  /* Seconds behind: the gap in metres at THIS lane's own pace, so a slower
-   * lane is told the truth about how long the gap is for them, not for the
-   * leader. Zero for the leader and for anyone without a pace yet. */
+  /* Seconds behind: a finished lane's gap to the winner; a rowing lane's
+   * gap in metres at ITS OWN pace, so a slower lane is told the truth
+   * about how long the gap is for them. Zero for the leader and for
+   * anyone without a pace yet. */
   behindS: number;
   /* Progress to the goal, 0..100. */
   pct: number;
   done: boolean;
   hasData: boolean;
   link: ErgLink;
+  /* The 500 m blocks rowed so far (ErgGoal blocksFor), for the splits wall. */
+  blocks: Block[];
 };
 
 export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
-  const sorted = [...ergs].sort((a, b) => metres(b) - metres(a));
-  const leadM = sorted[0] ? metres(sorted[0]) : 0;
-  return sorted.map((e, i) => {
+  const read = ergs.map((e) => {
     const g = e.model.general;
-    const a1 = e.model.a1;
     const m = metres(e);
+    const ended = m >= goal || pieceEnded(e);
+    const p = predictForErg({ ...e, goalM: goal });
+    /* The finish is the predictor's when the goal is rowed (remainingS 0
+     * means the whole distance is in the samples), else the monitor's
+     * clock — an erg the PM5 has ended short of the goal is done at the
+     * time it shows. */
+    const finishS = ended ? (p.ready && p.remainingS === 0 && p.finishS !== null ? p.finishS : g ? g.elapsedS : null) : null;
+    return { e, m, ended, p, finishS };
+  });
+  const sorted = [...read].sort((a, b) => {
+    if (a.finishS !== null && b.finishS !== null) return a.finishS - b.finishS;
+    if (a.finishS !== null) return -1;
+    if (b.finishS !== null) return 1;
+    return b.m - a.m;
+  });
+  const leadM = sorted.reduce((best, r) => Math.max(best, r.m), 0);
+  const winnerS = sorted[0]?.finishS ?? null;
+  return sorted.map((r, i) => {
+    const { e, m, ended, p, finishS } = r;
+    const a1 = e.model.a1;
+    const g = e.model.general;
     const pace = a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null;
-    const behindM = Math.max(0, leadM - m);
-    const behindS = pace && behindM > 0 ? (behindM / 500) * pace : 0;
+    const behindM = finishS !== null ? 0 : Math.max(0, leadM - m);
+    const behindS =
+      finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM > 0 ? (behindM / 500) * pace : 0;
     return {
       id: e.id,
-      name: typedErgName(e) ?? e.name,
+      name: typedErgName(e) ?? shortErgName(e.name),
       rank: i,
       m,
       pace,
       avgPace: a1 && a1.averagePaceS > 0 ? a1.averagePaceS : null,
       spm: a1 && a1.strokeRate > 0 ? a1.strokeRate : null,
       elapsedS: g ? g.elapsedS : 0,
-      fin: expectedFinish({ ...e, goalM: goal }),
+      fin: finishS !== null ? { value: fmtTime(finishS), under: "FINISH", ready: true, hint: null } : readFinish(p),
+      finishS,
       behindM,
       behindS,
       pct: Math.min(100, (m / goal) * 100),
-      done: m >= goal || pieceEnded(e),
+      done: ended,
       hasData: g !== null,
       link: e.link,
+      blocks: blocksFor(e).blocks,
     };
   });
+}
+
+/* The gap, as a board says it: the leader has none, a finished lane is
+ * +seconds on the winner, a rowing lane is +seconds at its own pace. */
+export function gapWord(l: Lane): string {
+  if (l.rank === 0) return l.done ? "WINNER" : "LEADER";
+  return l.behindS > 0 ? `+${l.behindS.toFixed(1)}` : "—";
 }
 
 export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack: () => void; onOpen: (id: string) => void; onTv: () => void }) {
@@ -154,8 +207,8 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
               </span>
               <span className="eg-lane-n eg-lane-gap">
                 <span className="k">Behind</span>
-                <span className="v">{l.rank === 0 || l.done ? "—" : l.behindS > 0 ? `${l.behindS.toFixed(1)} s` : "—"}</span>
-                <span className="s">{l.rank === 0 ? "" : `${fmtMeters(Math.round(l.behindM))}`}</span>
+                <span className="v">{l.rank === 0 ? "—" : l.behindS > 0 ? `${l.behindS.toFixed(1)} s` : "—"}</span>
+                <span className="s">{l.rank === 0 ? "" : l.done ? "ON THE WINNER" : `${fmtMeters(Math.round(l.behindM))}`}</span>
               </span>
             </button>
           ))}
@@ -163,9 +216,10 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
       )}
 
       <p className="eg-board-foot">
-        In race order by metres rowed. BEHIND is how long the gap would take to close at that lane&apos;s own pace. Everyone is read against the
-        same {fmtMeters(goal)}. Click a lane to open it; the link stays up. ON THE TV fills the screen with the same lanes — three looks, pick one
-        with the keys 1, 2 and 3.
+        Finished lanes first, in the order they finished; the rest by metres rowed. BEHIND is a finished lane&apos;s gap on the winner, or how
+        long a gap would take to close at that lane&apos;s own pace. Everyone is read against the same {fmtMeters(goal)}. Click a lane to open it;
+        the link stays up. ON THE TV fills the screen with the same lanes — five looks that turn over on their own, or pick one with the keys 1
+        to 5.
       </p>
     </div>
   );

@@ -59,7 +59,7 @@ export default async function PostersPage({
   const rNum = parseNum(rRaw);
   if (rRaw !== undefined && rNum === null) notFound();
   const subjectQ = one(searchParams?.subject);
-  const wantsCommunity = admin && (subjectQ === "rowtember" || subjectQ === "community");
+  const wantsCommunity = admin && (subjectQ === "rowtember" || subjectQ === "community" || subjectQ === "top10");
   // The subject: ?r=N, else the viewer's own rower (any joined rower, the
   // owner included), else nothing — the picker. Only an explicit ?r= may 404.
   const explicit = rNum !== null;
@@ -127,6 +127,7 @@ export default async function PostersPage({
               raceday={raceday}
               roster={roster}
               rowerOnly={!admin}
+              initialSubject={wantsCommunity && subjectQ === "top10" ? "top10" : undefined}
             />
           )}
         </div>

@@ -308,7 +308,7 @@ export type CommunityPoster = {
   /* Ten each, off the PUBLIC board (boardView viewerParticipantId null,
    * admin false, forceBlackout under the preview) through maskStandings
    * ({active, admin: false}). */
-  standings: { men: PosterStanding[]; women: PosterStanding[] };
+  standings: { men: PosterStanding[]; women: PosterStanding[]; overall: PosterStanding[] };
   /* 5k (M, W), 10k (M, W), longest, biggest day — six lines in four records. */
   records: PosterRecord[];
   club: PosterClub;
@@ -623,7 +623,22 @@ export type PosterAssets = {
   /* The room sponsor's mark, loaded like the host's; null without one. */
   sponsor?: HTMLImageElement | null;
   photo?: HTMLImageElement | null;
+  /* THE PARTNERS IN MONO (owner, 2026-09-21: "individualized black and
+   * white logos for sponsors") — public/row100k/partners/bw, a WHITE and an
+   * INK mark per partner, for the top-ten sheet's partner strip
+   * (poster/topTen.ts), which picks by stock. Any one may be null. */
+  bw?: Record<PosterBwMarkKey, HTMLImageElement | null>;
 };
+
+export type PosterBwMarkKey =
+  | "grizzlyBearWhite"
+  | "grizzlyBearInk"
+  | "grizzlyWordWhite"
+  | "grizzlyWordInk"
+  | "lvssWhite"
+  | "lvssInk"
+  | "venueWhite"
+  | "venueInk";
 
 /* A module's box in logical units. `h` is the BUDGET on the way in (the
  * row's height once the engine has composed the plan); a module draws
@@ -721,6 +736,9 @@ export type PosterPalette = {
  * fallback), and NEVER through fillText's maxWidth (it condenses glyphs). */
 export type PosterPaint = {
   tk: PosterTokens;
+  /* Which stock the palette was picked for — for the one module that
+   * chooses an IMAGE by stock rather than a colour (topTen.ts partners). */
+  stock: PosterStock;
   /* THE PALETTE this sheet is drawn in (PosterStock). It rides where the
    * tokens ride, so not one drawing signature in this subsystem changes:
    * every function already takes `paint`, and compose() already clones it.

@@ -602,7 +602,9 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
 /* ======================================================== C7 boards */
 
 export type BoardOpts = {
-  division: "M" | "F";
+  /* "ALL" is the top-ten sheet's one list, everyone together: the eyebrow
+   * says EVERYONE and a masked row's letter is its own division's. */
+  division: "M" | "F" | "ALL";
   count: 5 | 10;
   /* "Sep 27" — the window's end, for the elite eyebrow. */
   until: string | null;
@@ -626,8 +628,9 @@ export function drawBoard(
   const C = paint.c;
   const { tk } = paint;
   const rows = rowsIn.slice(0, o.count);
-  const div = o.division === "M" ? "MEN" : "WOMEN";
-  const letter = o.division === "M" ? "M" : "W";
+  const div = o.division === "M" ? "MEN" : o.division === "F" ? "WOMEN" : "EVERYONE";
+  const letterOf = (r: PosterStanding) =>
+    o.division === "ALL" ? (r.division === "F" ? "W" : "M") : o.division === "M" ? "M" : "W";
   const allMasked = rows.length > 0 && rows.every((r) => r.masked);
   let y: number;
   if (allMasked) {
@@ -684,7 +687,7 @@ export function drawBoard(
     const mw = figureWidth(ctx, paint, fig, metersFont, size);
     drawFigure(ctx, paint, fig, right - mw, base, metersFont, size, C.ink);
     if (r.masked || r.unranked) {
-      paint.drawText(ctx, letter, box.x, base, monoS, C.gray);
+      paint.drawText(ctx, letterOf(r), box.x, base, monoS, C.gray);
     } else {
       const place = pad2(i + 1);
       const medal = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : null;

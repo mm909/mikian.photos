@@ -236,7 +236,7 @@ function standingsOf(
   boards: Boards,
   active: boolean,
   policy?: BlackoutPolicy,
-): { men: PosterStanding[]; women: PosterStanding[] } {
+): { men: PosterStanding[]; women: PosterStanding[]; overall: PosterStanding[] } {
   const rows: StandRow[] = onBoard(boards).map((r) => ({
     participantId: r.participantId,
     name: r.name,
@@ -255,7 +255,10 @@ function standingsOf(
       .filter((r) => r.division === d)
       .slice(0, 10)
       .map(toStanding);
-  return { men: pick("M"), women: pick("F") };
+  /* THE OVERALL TEN (owner, 2026-09-21: "a top 10 poster") — the first
+   * ten of the same masked, public-order list, everyone together, for
+   * poster/topTen.ts. */
+  return { men: pick("M"), women: pick("F"), overall: safe.slice(0, 10).map(toStanding) };
 }
 
 /* The four records, six lines (records/defs.ts liteRecords rule): the two
@@ -508,7 +511,9 @@ export function assembleCommunity(input: CommunityInput): CommunityPoster {
   const rowsThatDay = (participantId: string, day: string): number | null =>
     input.rows ? input.rows.filter((r) => r.participantId === participantId && r.day === day).length : null;
 
-  const standings = boards ? standingsOf(boards, input.blackout.active, input.policy) : { men: [], women: [] };
+  const standings = boards
+    ? standingsOf(boards, input.blackout.active, input.policy)
+    : { men: [], women: [], overall: [] };
   const records = boards ? recordsOf(boards, hidden, rowsThatDay) : EMPTY_RECORDS;
   const club = boards ? clubOf(boards, input.claim) : { count: 0, roll: [], first: null };
   const byDay = boards ? byDayOf(boards, asOf.dayNumber) : Array<number>(asOf.dayNumber).fill(0);

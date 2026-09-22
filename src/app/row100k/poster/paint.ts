@@ -589,6 +589,7 @@ export function makePaint(input: PaintInput): PosterPaint {
 
   const paint: PosterPaint = {
     tk,
+    stock: input.stock ?? "cream",
     c,
     format,
     fonts,
