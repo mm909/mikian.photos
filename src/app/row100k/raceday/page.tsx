@@ -467,8 +467,11 @@ export default async function RaceDayPage() {
           </div>
         </section>
 
-        {/* The start list, once it is one (Field.FIELD_SHOWS_AT). */}
-        {field.length >= FIELD_SHOWS_AT && (
+        {/* The start list, once it is one (Field.FIELD_SHOWS_AT) — ADMIN
+          * ONLY since 2026-09-23 (owner: "remove the racers list on the
+          * race day page, you can make it viewable by admin only"). The
+          * field is still read for the viewer's own row and the counts. */}
+        {viewer.isAdmin && field.length >= FIELD_SHOWS_AT && (
           <section>
             <div className="wrap">
               <div className="sec-head">
