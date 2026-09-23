@@ -306,12 +306,12 @@ export function gapWord(l: Lane): string {
 /* THE LINE UNDER THE FINISH, as the boards say it: what the gap is a gap
  * on. One place, so the wall, the standings and the desk agree. */
 export function gapLine(l: Lane): string {
-  if (l.done) {
-    if (l.rank === 0) return l.allDone ? "winner" : "finished";
-    return `+${l.behindS.toFixed(1)} on the ${l.allDone ? "winner" : "first"}`;
-  }
+  /* A finished lane just says so (owner, 2026-09-23: no "+x on the first",
+   * no "+x on the winner" once everyone is in — the time above it is the
+   * whole story). */
+  if (l.done) return l.rank === 0 && l.allDone ? "winner" : "finished";
   if (l.expectS === null) return "no read yet";
-  if (l.aheadS !== null) return `${Math.round(l.aheadS)} s ahead of the finished`;
+  if (l.aheadS !== null) return `${Math.round(l.aheadS)} s ahead`;
   if (l.rank === 0) return "expected";
   return `+${Math.round(l.behindS)} s behind`;
 }
@@ -370,8 +370,8 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
               </span>
               <span className="eg-lane-n eg-lane-gap">
                 <span className="k">Behind</span>
-                <span className="v">{l.aheadS !== null ? `${Math.round(l.aheadS)} s` : l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
-                <span className="s">{l.aheadS !== null ? "AHEAD OF THE FINISHED" : l.rank === 0 ? "" : l.done ? (l.allDone ? "ON THE WINNER" : "ON THE FIRST") : "ON EXPECTED FINISH"}</span>
+                <span className="v">{l.aheadS !== null ? `${Math.round(l.aheadS)} s` : l.done || l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
+                <span className="s">{l.aheadS !== null ? "AHEAD" : l.done || l.rank === 0 ? "" : "ON EXPECTED FINISH"}</span>
               </span>
             </button>
           ))}
