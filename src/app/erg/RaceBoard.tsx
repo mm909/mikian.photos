@@ -45,6 +45,14 @@ import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
  * field and explains itself. A lane the predictor cannot yet read sorts
  * last. The equal-clock metres are still carried, for the small line.
  *
+ * FINISHED AND ROWING SHARE ONE ORDER (owner, 2026-09-23: "in the case
+ * where one person has finished and others are still going, still put
+ * them in order of expected finish — those faster than 19:10 should be
+ * higher than the finished, and it should not be labelled winner"). A
+ * rowed time and an expected one sort together; nobody is the WINNER
+ * until everybody is in; a rowing lane above every finished lane is
+ * SECONDS AHEAD of the best finished time rather than behind anyone.
+ *
  * IT IS THE SAME 5,000 FOR EVERYONE (owner, same day: "let us assume that
  * everyone is just going to be doing a 5K always"). The progress bar and the
  * expected finish are read against DEFAULT_GOAL_M on every lane whatever
@@ -137,6 +145,11 @@ export type Lane = {
   /* The finish as the boards print it: the rowed time to the tenth once
    * done, the expected one to the second while rowing, — before that. */
   expWord: string;
+  /* Every lane on the board is in. Only then is the first the WINNER. */
+  allDone: boolean;
+  /* Seconds this rowing lane is expected to beat the best finished time
+   * by; null when it is not above every finished lane, or nobody is in. */
+  aheadS: number | null;
   /* Metres behind where the leader was at this lane's clock — SIGNED,
    * negative when this lane is ahead on time. 0 for a finished lane. */
   behindM: number;
@@ -183,7 +196,6 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
   /* The yardstick: the lane with the most metres among those still
    * rowing, whose track every rowing lane is measured along. */
   const lead = sorted.find((r) => r.finishS === null) ?? sorted[0] ?? null;
-  const winnerS = sorted[0]?.finishS ?? null;
   /* Where the leader was at a given clock, off their track; their metres
    * now once the clock runs past their last sample. */
   const leaderAt = (t: number): number => {
@@ -214,11 +226,13 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     const dm = r === lead ? 0 : leaderAt(g ? g.elapsedS : 0) - r.m;
     gapOf.set(r.e, { m: dm, expect: r.p.ready && r.p.finishS !== null ? r.p.finishS : null });
   }
-  const finished = sorted.filter((r) => r.finishS !== null);
-  const expectOf = (r: (typeof sorted)[number]) => gapOf.get(r.e)?.expect ?? Number.POSITIVE_INFINITY;
-  const rowing = sorted.filter((r) => r.finishS === null).sort((a, b) => expectOf(a) - expectOf(b) || b.m - a.m);
-  const topExpect = rowing[0] ? expectOf(rowing[0]) : Number.POSITIVE_INFINITY;
-  const ordered = [...finished, ...rowing];
+  /* ONE ORDER: a rowed time and an expected one sort together. */
+  const keyOf = (r: (typeof sorted)[number]) => r.finishS ?? gapOf.get(r.e)?.expect ?? Number.POSITIVE_INFINITY;
+  const ordered = [...sorted].sort((a, b) => keyOf(a) - keyOf(b) || (a.finishS !== null ? -1 : b.finishS !== null ? 1 : 0) || b.m - a.m);
+  const topKey = ordered[0] ? keyOf(ordered[0]) : Number.POSITIVE_INFINITY;
+  const doneTimes = sorted.filter((r) => r.finishS !== null).map((r) => r.finishS as number);
+  const bestDone = doneTimes.length ? Math.min(...doneTimes) : null;
+  const allDone = sorted.length > 0 && doneTimes.length === sorted.length;
   return ordered.map((r, i) => {
     const { e, m, ended, p, finishS, track } = r;
     const a1 = e.model.a1;
@@ -243,12 +257,9 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     };
     const gap = gapOf.get(e) ?? { m: 0, expect: null };
     const behindM = finishS !== null ? 0 : gap.m;
-    const behindS =
-      finishS !== null && winnerS !== null
-        ? Math.max(0, finishS - winnerS)
-        : gap.expect !== null && Number.isFinite(topExpect)
-          ? Math.max(0, gap.expect - topExpect)
-          : 0;
+    const key = keyOf(r);
+    const behindS = Number.isFinite(key) && Number.isFinite(topKey) ? Math.max(0, key - topKey) : 0;
+    const aheadS = finishS === null && gap.expect !== null && bestDone !== null && gap.expect < bestDone ? bestDone - gap.expect : null;
     const expWord = finishS !== null ? fmtTime(finishS) : gap.expect !== null ? `~${fmtTimeRound(gap.expect)}` : "—";
     return {
       id: e.id,
@@ -269,6 +280,8 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
       finishS,
       expectS: gap.expect,
       expWord,
+      allDone,
+      aheadS,
       behindM,
       behindS,
       pct: Math.min(100, (m / goal) * 100),
@@ -284,10 +297,23 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
 /* The gap, as a board says it: the leader has none, a finished lane is
  * +seconds on the winner, a rowing lane is +seconds at its own pace. */
 export function gapWord(l: Lane): string {
-  if (l.rank === 0) return l.done ? "WINNER" : "LEADER";
+  if (l.rank === 0) return l.done ? (l.allDone ? "WINNER" : "FINISHED") : "LEADER";
   if (l.done) return `+${l.behindS.toFixed(1)}`;
   if (l.expectS === null) return "—";
   return `+${Math.round(l.behindS)}`;
+}
+
+/* THE LINE UNDER THE FINISH, as the boards say it: what the gap is a gap
+ * on. One place, so the wall, the standings and the desk agree. */
+export function gapLine(l: Lane): string {
+  if (l.done) {
+    if (l.rank === 0) return l.allDone ? "winner" : "finished";
+    return `+${l.behindS.toFixed(1)} on the ${l.allDone ? "winner" : "first"}`;
+  }
+  if (l.expectS === null) return "no read yet";
+  if (l.aheadS !== null) return `${Math.round(l.aheadS)} s ahead of the finished`;
+  if (l.rank === 0) return "expected";
+  return `+${Math.round(l.behindS)} s behind`;
 }
 
 export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack: () => void; onOpen: (id: string) => void; onTv: () => void }) {
@@ -321,7 +347,7 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
                 <span className="eg-lane-name">{l.name}</span>
                 <span className="eg-lane-sub">
                   {l.link === "live" ? "" : `${LINK_WORD[l.link]} · `}
-                  {l.done ? "FINISHED" : l.rank === 0 ? "LEADER" : l.behindM >= 0 ? `${fmtMeters(Math.round(l.behindM))} BACK ON THE CLOCK` : `${fmtMeters(Math.round(-l.behindM))} UP ON THE CLOCK`}
+                  {l.done ? gapLine(l).toUpperCase() : l.rank === 0 ? "LEADER" : l.behindM >= 0 ? `${fmtMeters(Math.round(l.behindM))} BACK ON THE CLOCK` : `${fmtMeters(Math.round(-l.behindM))} UP ON THE CLOCK`}
                 </span>
                 <span className="eg-lane-bar" aria-hidden="true">
                   <span style={{ width: `${l.pct}%` }} />
@@ -344,8 +370,8 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
               </span>
               <span className="eg-lane-n eg-lane-gap">
                 <span className="k">Behind</span>
-                <span className="v">{l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
-                <span className="s">{l.rank === 0 ? "" : l.done ? "ON THE WINNER" : "ON EXPECTED FINISH"}</span>
+                <span className="v">{l.aheadS !== null ? `${Math.round(l.aheadS)} s` : l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
+                <span className="s">{l.aheadS !== null ? "AHEAD OF THE FINISHED" : l.rank === 0 ? "" : l.done ? (l.allDone ? "ON THE WINNER" : "ON THE FIRST") : "ON EXPECTED FINISH"}</span>
               </span>
             </button>
           ))}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { lockBody, unlockBody } from "./charts";
 import { DEFAULT_GOAL_M, type Erg } from "./hub";
-import { fmtPaceWhole, gapWord, laneRows, type Lane } from "./RaceBoard";
+import { fmtPaceWhole, gapLine, laneRows, type Lane } from "./RaceBoard";
 import { tvCss } from "./tvCss";
 
 /* THE RACE BOARD ON THE TELEVISION (owner, 2026-09-21: "this will be on a
@@ -338,7 +338,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               <span className="nm">{l.name}</span>
               <span className="g">
                 {l.expWord}
-                <i>{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? `${metresWord(l)} m · expected` : `${metresWord(l)} m · ${gapWord(l)} s behind`}</i>
+                <i>{l.done ? gapLine(l) : `${metresWord(l)} m · ${gapLine(l)}`}</i>
               </span>
               <span className="tv-c-lbar" aria-hidden="true">
                 <span style={{ width: `${l.pct}%` }} />
@@ -359,7 +359,7 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
       <header className="tv-head">
         <span className="t">Race day</span>
         <span className="m">
-          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · BY EXPECTED FINISH
+          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · FINISHED AND EXPECTED, IN ONE ORDER
         </span>
         <span className="c">{clockWord(clockS)}</span>
       </header>
@@ -381,9 +381,7 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               * gap under it (owner, 2026-09-22: "when they finish show their
               * time in the big white letters"). */}
             <span className="gap">{l.expWord}</span>
-            <span className="u">
-              {l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "expected" : l.expectS !== null ? `${gapWord(l)} s behind` : "no read yet"}
-            </span>
+            <span className="u">{gapLine(l)}</span>
           </li>
         ))}
       </ol>
