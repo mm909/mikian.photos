@@ -104,14 +104,14 @@ export const tvCss = `
 /* ==== LOOK B — THE TOWER ================================================ */
 .eg .tv-d{height:100vh;display:flex;flex-direction:column;padding:3vh 3.2vw 3vh;--rowh:calc(84vh / var(--n))}
 .eg .tv-d-rows{list-style:none;margin:0;padding:0;flex:1;display:flex;flex-direction:column;min-height:0}
-.eg .tv-d-rows li{flex:1;max-height:16vh;display:grid;grid-template-columns:8vw minmax(0,1fr) 16vw 26vw 12vw;gap:0 1.6vw;align-items:center;border-bottom:1px solid var(--tv-line)}
+.eg .tv-d-rows li{flex:1;max-height:16vh;display:grid;grid-template-columns:7vw minmax(0,1fr) 10vw 13vw 22vw 11vw;gap:0 1.6vw;align-items:center;border-bottom:1px solid var(--tv-line)}
 .eg .tv-d-rows li.lead{background:#fff;color:#000;border-bottom-color:#fff;padding:0 1vw;margin:0 -1vw}
-.eg .tv-d-rows li.lead .u,.eg .tv-d-rows li.lead .pc,.eg .tv-d-rows li.lead .pc i{color:rgba(0,0,0,.6)}
+.eg .tv-d-rows li.lead .u,.eg .tv-d-rows li.lead .pc,.eg .tv-d-rows li.lead .pc i,.eg .tv-d-rows li.lead .mt i{color:rgba(0,0,0,.6)}
 .eg .tv-d-rows .p{font-family:var(--eg-black),sans-serif;font-size:min(7vh,calc(var(--rowh) * .66));line-height:1;font-variant-numeric:tabular-nums}
 .eg .tv-d-rows .nm{font-family:var(--eg-black),sans-serif;font-size:min(4.2vh,calc(var(--rowh) * .42));line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.eg .tv-d-rows .pc{font-family:var(--eg-black),sans-serif;font-size:min(3.4vh,calc(var(--rowh) * .34));line-height:1;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.eg .tv-d-rows .pc i{display:block;margin-top:.5vh;font-family:var(--eg-mono),monospace;font-size:min(1.4vh,calc(var(--rowh) * .15));letter-spacing:.14em;text-transform:uppercase;color:var(--tv-dim)}
-.eg .dense .tv-d-rows .pc i{display:none}
+.eg .tv-d-rows .pc,.eg .tv-d-rows .mt{font-family:var(--eg-black),sans-serif;font-size:min(3.4vh,calc(var(--rowh) * .34));line-height:1;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.eg .tv-d-rows .pc i,.eg .tv-d-rows .mt i{display:block;margin-top:.5vh;font-family:var(--eg-mono),monospace;font-size:min(1.4vh,calc(var(--rowh) * .15));letter-spacing:.14em;text-transform:uppercase;color:var(--tv-dim)}
+.eg .dense .tv-d-rows .pc i,.eg .dense .tv-d-rows .mt i{display:none}
 .eg .tv-d-rows .gap{font-family:var(--eg-black),sans-serif;font-size:min(7vh,calc(var(--rowh) * .66));line-height:1;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .eg .tv-d-rows .u{font-family:var(--eg-mono),monospace;font-size:min(1.7vh,calc(var(--rowh) * .18));letter-spacing:.16em;text-transform:uppercase;color:var(--tv-dim);text-align:left;padding-left:.4vw}
 `;

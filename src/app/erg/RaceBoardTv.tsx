@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { fmtPace } from "@/lib/pm5/pm5";
 import { lockBody, unlockBody } from "./charts";
 import { DEFAULT_GOAL_M, type Erg } from "./hub";
-import { gapWord, laneRows, type Lane } from "./RaceBoard";
+import { fmtPaceWhole, gapWord, laneRows, type Lane } from "./RaceBoard";
 import { tvCss } from "./tvCss";
 
 /* THE RACE BOARD ON THE TELEVISION (owner, 2026-09-21: "this will be on a
@@ -76,13 +75,13 @@ function metresWord(l: Lane): string {
 }
 
 function paceWord(l: Lane): string {
-  return l.pace ? fmtPace(l.pace) : "—";
+  return l.pace ? fmtPaceWhole(l.pace) : "—";
 }
 
 /* The last-500 pace, falling back to the monitor's pace before half a
  * block is behind them. */
 function pace500Word(l: Lane): string {
-  return l.pace500 ? fmtPace(l.pace500) : paceWord(l);
+  return l.pace500 ? fmtPaceWhole(l.pace500) : paceWord(l);
 }
 
 /* mm:ss for the race clock — whole seconds, a wall does not need tenths. */
@@ -254,7 +253,7 @@ function RollingChart({ lane }: { lane: Lane }) {
         <g key={i}>
           <line className="gr" x1={padL} x2={CW - padR} y1={yOf(t)} y2={yOf(t)} />
           <text className="lbl" x={padL - 8} y={yOf(t) + 4} textAnchor="end">
-            {fmtPace(t)}
+            {fmtPaceWhole(t)}
           </text>
         </g>
       ))}
@@ -300,7 +299,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
           <figcaption className="tv-legend">
             <span className="tv-key s1">
               <i />
-              <b>{focus.rank + 1}</b> {focus.name} <em>{last ? fmtPace(last.y) : "—"}</em>
+              <b>{focus.rank + 1}</b> {focus.name} <em>{last ? fmtPaceWhole(last.y) : "—"}</em>
             </span>
             <span className="tv-unit">Faster is higher</span>
           </figcaption>
@@ -312,7 +311,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
           </div>
           <div>
             <span>Last 500 m</span>
-            <b>{focus.done ? (focus.avgPace ? fmtPace(focus.avgPace) : "—") : pace500Word(focus)}</b>
+            <b>{focus.done ? (focus.avgPace ? fmtPaceWhole(focus.avgPace) : "—") : pace500Word(focus)}</b>
           </div>
           <div>
             <span>{focus.done ? "Finish" : "Expected"}</span>
@@ -355,9 +354,9 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
   return (
     <div className="tv-d">
       <header className="tv-head">
-        <span className="t">Race board</span>
+        <span className="t">Race day</span>
         <span className="m">
-          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · GAP TO THE LEADER
+          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · IN ORDER ON THE CLOCK
         </span>
         <span className="c">{clockWord(clockS)}</span>
       </header>
@@ -366,15 +365,20 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
           <li key={l.id} className={`${l.rank === 0 ? "lead" : ""}${l.done ? " done" : ""}`}>
             <span className="p">{l.rank + 1}</span>
             <span className="nm">{l.name}</span>
+            {/* THE METRES on every row (owner, 2026-09-23). */}
+            <span className="mt">
+              {metresWord(l)}
+              <i>metres</i>
+            </span>
             <span className="pc">
-              {l.done ? (l.avgPace ? fmtPace(l.avgPace) : "—") : pace500Word(l)}
+              {l.done ? (l.avgPace ? fmtPaceWhole(l.avgPace) : "—") : pace500Word(l)}
               <i>{l.done ? "average /500m" : "last 500 m"}</i>
             </span>
             {/* A FINISHED LANE SHOWS ITS TIME in the big letters and the
               * gap under it (owner, 2026-09-22: "when they finish show their
               * time in the big white letters"). */}
-            <span className="gap">{l.done ? l.fin.value : l.rank === 0 ? metresWord(l) : gapWord(l)}</span>
-            <span className="u">{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "metres" : "seconds"}</span>
+            <span className="gap">{l.done ? l.fin.value : l.rank === 0 ? "LEADER" : gapWord(l)}</span>
+            <span className="u">{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "on the clock" : "seconds"}</span>
           </li>
         ))}
       </ol>

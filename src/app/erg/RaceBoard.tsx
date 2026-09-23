@@ -1,6 +1,6 @@
 "use client";
 
-import { fmtMeters, fmtPace } from "@/lib/pm5/pm5";
+import { fmtMeters } from "@/lib/pm5/pm5";
 import { fmtTime, type Block } from "@/lib/pm5/predict";
 import { thinPoints, type XY } from "./chartGeom";
 import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
@@ -33,8 +33,15 @@ import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
  * leader's own track, interpolated at this lane's clock — in metres, and
  * in the seconds that gap is at this lane's own pace. It is SIGNED: a lane
  * that has rowed further than the leader had at the same clock is ahead
- * on time, and says so with a minus. The running order stays by metres,
- * which is what is on the water; the gap is what the race would say.
+ * on time, and says so with a minus.
+ *
+ * AND THE ORDER IS ON THE CLOCK TOO (owner, 2026-09-23: "since the board
+ * is still sorted by metres there is this strange ordering when someone
+ * is ahead in time"). The lanes still rowing are ranked by that gap, so
+ * the lane furthest ahead on the clock is first whatever its metres, and
+ * every gap is then re-based on it: the top says LEADER, everyone else
+ * is + seconds on the clock. The metres leader's track is only the
+ * yardstick the gaps are measured along.
  *
  * IT IS THE SAME 5,000 FOR EVERYONE (owner, same day: "let us assume that
  * everyone is just going to be doing a 5K always"). The progress bar and the
@@ -58,6 +65,15 @@ import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
  * but it has no metres and sorts to the bottom under the ones that do. */
 function metres(e: Erg): number {
   return e.model.general ? e.model.general.distanceM : 0;
+}
+
+/* PACE TO THE WHOLE SECOND on the boards (owner, 2026-09-23: "floor all
+ * pace values so 1:55.6 goes to 1:55"). */
+export function fmtPaceWhole(s: number): string {
+  const t = Math.max(0, Math.floor(s));
+  const m = Math.floor(t / 60);
+  const r = t % 60;
+  return `${m}:${r < 10 ? "0" : ""}${r}`;
 }
 
 export function place(i: number): string {
@@ -144,8 +160,10 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     if (b.finishS !== null) return 1;
     return b.m - a.m;
   });
-  const lead = sorted[0] ?? null;
-  const winnerS = lead?.finishS ?? null;
+  /* The yardstick: the lane with the most metres among those still
+   * rowing, whose track every rowing lane is measured along. */
+  const lead = sorted.find((r) => r.finishS === null) ?? sorted[0] ?? null;
+  const winnerS = sorted[0]?.finishS ?? null;
   /* Where the leader was at a given clock, off their track; their metres
    * now once the clock runs past their last sample. */
   const leaderAt = (t: number): number => {
@@ -166,7 +184,23 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     const f = b.x > a.x ? (t - a.x) / (b.x - a.x) : 0;
     return a.y + (b.y - a.y) * f;
   };
-  return sorted.map((r, i) => {
+  /* The gap on equal clocks, per rowing lane, then the rowing lanes in
+   * that order under the finished ones, and the gaps re-based on the new
+   * first. */
+  const gapOf = new Map<Erg, { m: number; s: number }>();
+  for (const r of sorted) {
+    if (r.finishS !== null) continue;
+    const g = r.e.model.general;
+    const a1 = r.e.model.a1;
+    const pace = a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null;
+    const dm = r === lead ? 0 : leaderAt(g ? g.elapsedS : 0) - r.m;
+    gapOf.set(r.e, { m: dm, s: pace && dm !== 0 ? (dm / 500) * pace : 0 });
+  }
+  const finished = sorted.filter((r) => r.finishS !== null);
+  const rowing = sorted.filter((r) => r.finishS === null).sort((a, b) => (gapOf.get(a.e)?.s ?? 0) - (gapOf.get(b.e)?.s ?? 0));
+  const top = rowing[0] ? gapOf.get(rowing[0].e) ?? { m: 0, s: 0 } : { m: 0, s: 0 };
+  const ordered = [...finished, ...rowing];
+  return ordered.map((r, i) => {
     const { e, m, ended, p, finishS, track } = r;
     const a1 = e.model.a1;
     const g = e.model.general;
@@ -188,8 +222,9 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
         600,
       ),
     };
-    const behindM = finishS !== null || i === 0 ? 0 : leaderAt(g ? g.elapsedS : 0) - m;
-    const behindS = finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM !== 0 ? (behindM / 500) * pace : 0;
+    const gap = gapOf.get(e) ?? { m: 0, s: 0 };
+    const behindM = finishS !== null ? 0 : gap.m - top.m;
+    const behindS = finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : gap.s - top.s;
     return {
       id: e.id,
       name: typedErgName(e) ?? shortErgName(e.name),
@@ -277,8 +312,8 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
               </span>
               <span className="eg-lane-n">
                 <span className="k">Pace /500m</span>
-                <span className="v">{l.pace ? fmtPace(l.pace) : "—"}</span>
-                <span className="s">{l.avgPace ? `AVG ${fmtPace(l.avgPace)}` : ""}</span>
+                <span className="v">{l.pace ? fmtPaceWhole(l.pace) : "—"}</span>
+                <span className="s">{l.avgPace ? `AVG ${fmtPaceWhole(l.avgPace)}` : ""}</span>
               </span>
               <span className="eg-lane-n">
                 <span className="k">{l.done ? "Finish" : "Expected"}</span>
