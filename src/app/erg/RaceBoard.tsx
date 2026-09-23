@@ -21,8 +21,20 @@ import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
  * whole distance holds a place nothing still on the water can take from
  * it, so the top of the board is the finish order and the rest of the
  * field sorts under it by metres. BEHIND, for a finished lane, is the gap
- * to the winner's time; for a lane still rowing, the gap in metres to the
- * leader and the seconds it would take to close at that lane's own pace.
+ * to the winner's time.
+ *
+ * FOR A LANE STILL ROWING THE GAP IS ON EQUAL CLOCKS (owner, 2026-09-23:
+ * "I do not like presenting the second rower as 32 seconds behind — it is
+ * only that far behind because the rower started thirty seconds later.
+ * What if they are actually ahead of where the first place rower was at
+ * that same time"). Lanes do not all start together in a gym, so a gap in
+ * metres on the wall is a gap in start times as much as anything. So the
+ * gap is read against WHERE THE LEADER WAS AT THIS LANE'S ELAPSED — the
+ * leader's own track, interpolated at this lane's clock — in metres, and
+ * in the seconds that gap is at this lane's own pace. It is SIGNED: a lane
+ * that has rowed further than the leader had at the same clock is ahead
+ * on time, and says so with a minus. The running order stays by metres,
+ * which is what is on the water; the gap is what the race would say.
  *
  * IT IS THE SAME 5,000 FOR EVERYONE (owner, same day: "let us assume that
  * everyone is just going to be doing a 5K always"). The progress bar and the
@@ -89,13 +101,17 @@ export type Lane = {
   fin: FinishRead;
   /* The rowed time, seconds, once the distance is done; null while rowing. */
   finishS: number | null;
-  /* Metres behind the leader (0 for a finished lane). */
+  /* Metres behind where the leader was at this lane's clock — SIGNED,
+   * negative when this lane is ahead on time. 0 for a finished lane. */
   behindM: number;
-  /* Seconds behind: a finished lane's gap to the winner; a rowing lane's
-   * gap in metres at ITS OWN pace, so a slower lane is told the truth
-   * about how long the gap is for them. Zero for the leader and for
-   * anyone without a pace yet. */
+  /* Seconds behind, signed: a finished lane's gap to the winner; a rowing
+   * lane's equal-clock gap in metres at ITS OWN pace, so a slower lane is
+   * told the truth about how long the gap is for them. Zero for the
+   * leader and for anyone without a pace yet. */
   behindS: number;
+  /* Metres over elapsed seconds, thinned — the track another lane's gap is
+   * read against. */
+  track: XY[];
   /* Progress to the goal, 0..100. */
   pct: number;
   done: boolean;
@@ -116,7 +132,11 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
      * clock — an erg the PM5 has ended short of the goal is done at the
      * time it shows. */
     const finishS = ended ? (p.ready && p.remainingS === 0 && p.finishS !== null ? p.finishS : g ? g.elapsedS : null) : null;
-    return { e, m, ended, p, finishS };
+    const track = thinPoints(
+      e.model.samples.filter((x) => x.t > 0).map((x) => ({ x: x.t, y: x.dist })),
+      600,
+    );
+    return { e, m, ended, p, finishS, track };
   });
   const sorted = [...read].sort((a, b) => {
     if (a.finishS !== null && b.finishS !== null) return a.finishS - b.finishS;
@@ -124,10 +144,30 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     if (b.finishS !== null) return 1;
     return b.m - a.m;
   });
-  const leadM = sorted.reduce((best, r) => Math.max(best, r.m), 0);
-  const winnerS = sorted[0]?.finishS ?? null;
+  const lead = sorted[0] ?? null;
+  const winnerS = lead?.finishS ?? null;
+  /* Where the leader was at a given clock, off their track; their metres
+   * now once the clock runs past their last sample. */
+  const leaderAt = (t: number): number => {
+    if (!lead) return 0;
+    const tr = lead.track;
+    if (tr.length === 0) return lead.m;
+    if (t >= tr[tr.length - 1].x) return Math.max(lead.m, tr[tr.length - 1].y);
+    if (t <= tr[0].x) return 0;
+    let lo = 0;
+    let hi = tr.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (tr[mid].x <= t) lo = mid;
+      else hi = mid;
+    }
+    const a = tr[lo];
+    const b = tr[hi];
+    const f = b.x > a.x ? (t - a.x) / (b.x - a.x) : 0;
+    return a.y + (b.y - a.y) * f;
+  };
   return sorted.map((r, i) => {
-    const { e, m, ended, p, finishS } = r;
+    const { e, m, ended, p, finishS, track } = r;
     const a1 = e.model.a1;
     const g = e.model.general;
     const pace = a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null;
@@ -148,9 +188,8 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
         600,
       ),
     };
-    const behindM = finishS !== null ? 0 : Math.max(0, leadM - m);
-    const behindS =
-      finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM > 0 ? (behindM / 500) * pace : 0;
+    const behindM = finishS !== null || i === 0 ? 0 : leaderAt(g ? g.elapsedS : 0) - m;
+    const behindS = finishS !== null && winnerS !== null ? Math.max(0, finishS - winnerS) : pace && behindM !== 0 ? (behindM / 500) * pace : 0;
     return {
       id: e.id,
       name: typedErgName(e) ?? shortErgName(e.name),
@@ -174,6 +213,7 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
       done: ended,
       hasData: g !== null,
       link: e.link,
+      track,
       blocks: blocksFor(e).blocks,
     };
   });
@@ -183,7 +223,8 @@ export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
  * +seconds on the winner, a rowing lane is +seconds at its own pace. */
 export function gapWord(l: Lane): string {
   if (l.rank === 0) return l.done ? "WINNER" : "LEADER";
-  return l.behindS > 0 ? `+${l.behindS.toFixed(1)}` : "—";
+  if (Math.abs(l.behindS) < 0.05) return l.done ? "+0.0" : "LEVEL";
+  return l.behindS > 0 ? `+${l.behindS.toFixed(1)}` : `−${Math.abs(l.behindS).toFixed(1)}`;
 }
 
 export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack: () => void; onOpen: (id: string) => void; onTv: () => void }) {
@@ -217,7 +258,13 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
                 <span className="eg-lane-name">{l.name}</span>
                 <span className="eg-lane-sub">
                   {l.link === "live" ? "" : `${LINK_WORD[l.link]} · `}
-                  {l.done ? "FINISHED" : l.rank === 0 ? "LEADER" : `${fmtMeters(Math.round(l.behindM))} BACK`}
+                  {l.done
+                    ? "FINISHED"
+                    : l.rank === 0
+                      ? "LEADER"
+                      : l.behindM >= 0
+                        ? `${fmtMeters(Math.round(l.behindM))} BACK ON THE CLOCK`
+                        : `${fmtMeters(Math.round(-l.behindM))} UP ON THE CLOCK`}
                 </span>
                 <span className="eg-lane-bar" aria-hidden="true">
                   <span style={{ width: `${l.pct}%` }} />
@@ -240,20 +287,14 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
               </span>
               <span className="eg-lane-n eg-lane-gap">
                 <span className="k">Behind</span>
-                <span className="v">{l.rank === 0 ? "—" : l.behindS > 0 ? `${l.behindS.toFixed(1)} s` : "—"}</span>
-                <span className="s">{l.rank === 0 ? "" : l.done ? "ON THE WINNER" : `${fmtMeters(Math.round(l.behindM))}`}</span>
+                <span className="v">{l.rank === 0 ? "—" : gapWord(l) === "LEVEL" ? "LEVEL" : `${gapWord(l)} s`}</span>
+                <span className="s">{l.rank === 0 ? "" : l.done ? "ON THE WINNER" : "AT THE SAME CLOCK"}</span>
               </span>
             </button>
           ))}
         </div>
       )}
 
-      <p className="eg-board-foot">
-        Finished lanes first, in the order they finished; the rest by metres rowed. BEHIND is a finished lane&apos;s gap on the winner, or how
-        long a gap would take to close at that lane&apos;s own pace. Everyone is read against the same {fmtMeters(goal)}. Click a lane to open it;
-        the link stays up. ON THE TV fills the screen with the same lanes — the broadcast and the tower, turning over on their own, or the
-        keys 1 and 2.
-      </p>
     </div>
   );
 }

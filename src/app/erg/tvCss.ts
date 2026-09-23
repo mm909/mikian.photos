@@ -89,6 +89,7 @@ export const tvCss = `
  * page header (padding, a rule, sticky) and it reached in here once. */
 .eg .tv-c-list li{flex:1;min-height:0;max-height:14vh;overflow:hidden;display:grid;grid-template-columns:3.2vw minmax(0,1fr) auto;grid-template-rows:auto auto;gap:min(.6vh,calc(var(--rowh) * .06)) 1.4vw;align-items:end;align-content:center;border-bottom:1px solid var(--tv-line);padding:min(1.2vh,calc(var(--rowh) * .1)) .8vw}
 /* THE LANES ON THE CHART are marked in the standings. */
+.eg .tv-c-list li{cursor:pointer}
 .eg .tv-c-list li.show{background:rgba(255,255,255,.1)}
 .eg .tv-c-list li .p{grid-row:1 / 3;align-self:center;font-family:var(--eg-black),sans-serif;font-size:min(4.6vh,calc(var(--rowh) * .44));line-height:1;font-variant-numeric:tabular-nums;color:var(--tv-dim)}
 .eg .tv-c-list li.lead .p,.eg .tv-c-list li.show .p{color:#fff}

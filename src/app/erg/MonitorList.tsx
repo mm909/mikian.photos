@@ -639,53 +639,6 @@ export function MonitorList({ playId, ergId, board: boardParam = null, look: loo
         <div className="eg-empty">No ergs yet — ADD AN ERG to pair a monitor, SIMULATE to see the screens with no erg in the room, or PLAY BACK A SAVED ROW.</div>
       )}
 
-      {/* ---- WHAT EXPLAINS, AT THE FOOT (owner, 2026-09-17) ---- */}
-      <div className="eg-tail">
-        <p>
-          <b>Pair as many ergs as there are monitors in the room.</b> Each one gets a row with its own link, its
-          own recording and its own SAVE — saving one says nothing about the others. Open a row to watch that erg
-          on its own screen; come back and the link is still up.
-        </p>
-        <p>
-          <b>RACE BOARD is the wall.</b> Every erg on this page as a lane, in race order — first, second, third
-          — with the distance, the pace, the expected 5,000 m finish and how far behind the leader each one is.
-          Put the laptop on the TV and open /erg?board=1 to land straight on it. The row itself opens the
-          console: every chart, the splits table and the live feed.
-        </p>
-        <p>
-          <b>A row reads left to right in the order it matters:</b> how far, how fast, where that lands, and only
-          then the clock. The EXPECTED FINISH is measured against the goal — 5,000 m unless you change it,
-          whatever the monitor itself is set to — and the goal is the first thing in the ••• menu, at every
-          width. Nothing on the row itself sets anything.
-        </p>
-        <p>
-          <b>The expected finish is a prediction, and it says so:</b> a ~ in front of the clock, and the band
-          under it — ± 12 s — is how far out it could be. The band starts wide and closes as the piece does. Every
-          other number on the row is measured, not predicted, which is why only that one wears the twiddle. When
-          the piece ends that column stops predicting and prints the average split instead, and the clock says
-          FINAL.
-        </p>
-        <p>
-          <b>On each monitor:</b> set the piece up, then Main Menu, More Options, <b>Turn Wireless ON</b>, and
-          leave it on the workout screen. <b>One app per monitor:</b> if ErgData on a phone is linked to that erg,
-          this page cannot see it. Do not pair the PM5 in the laptop Bluetooth settings — ADD AN ERG does it.
-        </p>
-        <p>
-          <b>The recording lives in this tab only</b> until SAVE: a reload or a closed tab takes it with it, and
-          the browser asks first while anything is unsaved. {signedIn ? "SAVE files the piece under your account." : "You are signed out, so SAVE will not work — pairing, SIMULATE and playback all run without an account; keeping a piece does not."}
-        </p>
-        <p>
-          <b>Everything that acts on an erg is in the ••• menu</b> at the end of its row: the goal, the name,
-          SAVE, DISCONNECT or RECONNECT, and REMOVE. The row itself is a link — click it to open the console
-          here, or open it in a tab.
-        </p>
-        <p>
-          <b>Name each erg in its ••• menu</b> — LANE 1, LANE 2 — and the row heading becomes that instead of the
-          PM5 4xxxxxxxx every monitor advertises, with the advertised name and the serial moving down to the line
-          under it. The same name is the title the piece is saved under. Beside the link word, each row says
-          UNSAVED or SAVED, so nothing has to be opened to find out which pieces are already filed.
-        </p>
-      </div>
     </div>
   );
 }

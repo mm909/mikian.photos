@@ -60,6 +60,8 @@ const CTL_ZONE = 0.14;
 /* How long the chart holds one rower, and how far back it looks. */
 const SCENE_MS = 8_000;
 const WINDOW_M = 500;
+/* How long a clicked rower holds the chart before the turning resumes. */
+const PICK_HOLD_MS = 45_000;
 
 export function parseTvLook(v: string | null | undefined): TvLook | null {
   return v === "a" || v === "b" ? v : null;
@@ -275,11 +277,16 @@ function RollingChart({ lane }: { lane: Lane }) {
 
 function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
   const [k, setK] = useState(0);
+  /* A CLICK ON A ROWER puts them on the chart (owner, 2026-09-23: "allow
+   * me to click on the rowers and have the graph swap") and holds them
+   * there for a while before the turning resumes. */
+  const [pick, setPick] = useState<{ id: string; until: number } | null>(null);
   useEffect(() => {
     const id = window.setInterval(() => setK((v) => v + 1), SCENE_MS);
     return () => window.clearInterval(id);
   }, []);
-  const focus = lanes[k % lanes.length];
+  const picked = pick && pick.until > Date.now() ? lanes.find((l) => l.id === pick.id) ?? null : null;
+  const focus = picked ?? lanes[k % lanes.length];
   const last = focus.series.pace[focus.series.pace.length - 1];
   return (
     <div className="tv-c">
@@ -295,7 +302,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               <i />
               <b>{focus.rank + 1}</b> {focus.name} <em>{last ? fmtPace(last.y) : "—"}</em>
             </span>
-            <span className="tv-unit">Faster is higher · next rower in a moment</span>
+            <span className="tv-unit">Faster is higher</span>
           </figcaption>
         </figure>
         <div className="tv-c-kv">
@@ -320,7 +327,11 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
         </div>
         <ol>
           {lanes.map((l) => (
-            <li key={l.id} className={`${l.rank === 0 ? "lead" : ""}${l.done ? " done" : ""}${l.id === focus.id ? " show" : ""}`}>
+            <li
+              key={l.id}
+              className={`${l.rank === 0 ? "lead" : ""}${l.done ? " done" : ""}${l.id === focus.id ? " show" : ""}`}
+              onClick={() => setPick({ id: l.id, until: Date.now() + PICK_HOLD_MS })}
+            >
               <b className="p">{l.rank + 1}</b>
               <span className="nm">{l.name}</span>
               <span className="g">

@@ -51,7 +51,6 @@ export default async function ErgMonitorsPage({ searchParams }: { searchParams?:
         * needs an account, and the foot of the list says so. */}
       <MonitorList playId={one(searchParams?.play)} ergId={one(searchParams?.erg)} board={one(searchParams?.board)} look={one(searchParams?.look)} signedIn={v.signedIn} />
 
-      <p className="eg-foot">Erg telemetry · Concept2 PM5 over Web Bluetooth · nothing here touches the race board</p>
     </ErgShell>
   );
 }
