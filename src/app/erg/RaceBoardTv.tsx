@@ -35,8 +35,11 @@ import { tvCss } from "./tvCss";
  *      3 at a time, one rower at a time, a rolling 500 metre window");
  *      every eight seconds the next rower in the running order. The
  *      legend names them; the standings mark the lane on the chart.
- *   B  THE TOWER — a rally timing tower. Place, name, the pace over the
- *      last 500 m, and the gap to the leader as the one big number.
+ *   B  THE TOWER — a rally timing tower. Place, name, metres, the pace
+ *      over the last 500 m, and the EXPECTED FINISH to the second as the
+ *      one big number (the rowed time once in), with the seconds behind
+ *      the first under it — the field is in that order, so the column
+ *      reads down.
  *
  * THE SCREEN SAVER. AUTO is on by default and turns the two looks over
  * every twenty seconds; a key or a chip stops it on one look; A starts it
@@ -315,7 +318,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
           </div>
           <div>
             <span>{focus.done ? "Finish" : "Expected"}</span>
-            <b>{focus.fin.value}</b>
+            <b>{focus.expWord}</b>
           </div>
         </div>
       </section>
@@ -334,8 +337,8 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               <b className="p">{l.rank + 1}</b>
               <span className="nm">{l.name}</span>
               <span className="g">
-                {l.done ? l.fin.value : l.rank === 0 ? metresWord(l) : gapWord(l)}
-                <i>{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "metres" : `${metresWord(l)} m · ${paceWord(l)}`}</i>
+                {l.expWord}
+                <i>{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? `${metresWord(l)} m · expected` : `${metresWord(l)} m · ${gapWord(l)} s behind`}</i>
               </span>
               <span className="tv-c-lbar" aria-hidden="true">
                 <span style={{ width: `${l.pct}%` }} />
@@ -356,7 +359,7 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
       <header className="tv-head">
         <span className="t">Race day</span>
         <span className="m">
-          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · IN ORDER ON THE CLOCK
+          {GOAL_WORD} · {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · BY EXPECTED FINISH
         </span>
         <span className="c">{clockWord(clockS)}</span>
       </header>
@@ -377,8 +380,10 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
             {/* A FINISHED LANE SHOWS ITS TIME in the big letters and the
               * gap under it (owner, 2026-09-22: "when they finish show their
               * time in the big white letters"). */}
-            <span className="gap">{l.done ? l.fin.value : l.rank === 0 ? "LEADER" : gapWord(l)}</span>
-            <span className="u">{l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "on the clock" : "seconds"}</span>
+            <span className="gap">{l.expWord}</span>
+            <span className="u">
+              {l.done ? (l.rank === 0 ? "winner" : `${gapWord(l)} on the winner`) : l.rank === 0 ? "expected" : l.expectS !== null ? `${gapWord(l)} s behind` : "no read yet"}
+            </span>
           </li>
         ))}
       </ol>
