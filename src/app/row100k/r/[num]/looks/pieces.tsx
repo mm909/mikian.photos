@@ -313,7 +313,7 @@ export function Eyebrow({ left, right }: { left: ReactNode; right?: ReactNode })
  * without one, 2026-09-05). */
 export function MonthBlock({ view }: { view: ProfileView }) {
   if (view.masked) return <p className="pf-bo">{view.blackoutNote}</p>;
-  return <Heatmap byDay={view.byDay} days={view.days} />;
+  return <Heatmap byDay={view.byDay} days={view.days} month={view.month ?? undefined} />;
 }
 
 /* The bests boards: with SHARE for the rower and admins (a client

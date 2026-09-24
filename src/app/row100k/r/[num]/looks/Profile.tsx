@@ -1,4 +1,3 @@
-import { MONTH } from "@/lib/row100k";
 import {
   Actions,
   Bests,
@@ -14,6 +13,7 @@ import {
 } from "./pieces";
 import { DogTagCard } from "./DogTag";
 import { ErgRows } from "./ErgRows";
+import { PeriodSelect } from "../../../PeriodSelect";
 import { PaceCurve } from "./PaceCurve";
 import { ProfileField } from "./ProfileField";
 import type { ProfileView } from "./view";
@@ -40,6 +40,11 @@ export function Profile({ view }: { view: ProfileView }) {
         <div className="wrap front pf-two">
           <div className="pf-col">
             <Nameplate view={view} />
+            {/* WHICH MONTH (owner, 2026-09-24): the same page over another
+                month, or all time. Not there while there is one month. */}
+            {view.periodOptions.length > 2 ? (
+              <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
+            ) : null}
             <BigMeters view={view} unit={<MetersUnit view={view} />} />
             <Actions view={view} />
             <Identity view={view} />
@@ -47,7 +52,7 @@ export function Profile({ view }: { view: ProfileView }) {
           </div>
           <div className="pf-side">
             <div className="pf-month">
-              <Eyebrow left="The month" right="METERS PER DAY" />
+              <Eyebrow left={view.period.kind === "month" ? view.period.label : "This month"} right="METERS PER DAY" />
               <MonthBlock view={view} />
             </div>
             <div className="pf-bests-sec">
@@ -55,7 +60,7 @@ export function Profile({ view }: { view: ProfileView }) {
                 left="The bests"
                 right={
                   <>
-                    <span className="pf-ph">PERSONAL — </span>{MONTH.label.toUpperCase()}
+                    <span className="pf-ph">PERSONAL — </span>{view.period.label.toUpperCase()}
                   </>
                 }
               />

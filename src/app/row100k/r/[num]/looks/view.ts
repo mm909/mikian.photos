@@ -164,6 +164,13 @@ export type ProfileView = {
   /* THE ERG (owner, 2026-09-23): the telemetry pieces saved with this
    * rower on the erg, newest first. Only ever built for an unmasked page. */
   ergRows: ProfileErgRow[];
+  /* WHICH MONTH the page is over (owner, 2026-09-24), the calendar month
+   * to draw (null for all time — the current month's grid), and the
+   * options the month control offers. */
+  period: { key: string; kind: "month" | "all"; label: string };
+  month: { key: string; firstDow: number; days: number } | null;
+  periodOptions: { key: string; label: string }[];
+  thisMonthKey: string;
   /* The logging station, on the rower's own page only. `phase` here is the
    * admin-adjusted one (open before Sep 1 for test rows). */
   log: {

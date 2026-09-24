@@ -24,6 +24,7 @@ import {
   pacificDay,
   recordPlacements,
   type RecordBadge,
+  MONTH,
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
@@ -41,6 +42,7 @@ import type { PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
 import type { ProfileBest, ProfileErgRow, ProfileView, RosterRower } from "./looks/view";
 import { listRowerErgSessions } from "@/lib/pm5/store";
+import { inPeriod, parsePeriod, periodOptions } from "@/lib/rowPeriod";
 import { fmtTenths } from "@/lib/pm5/pm5";
 import { fmtTenthsClock } from "@/lib/pm5/session";
 
@@ -150,12 +152,18 @@ export async function generateMetadata({ params }: { params: { num: string } }):
   return { title };
 }
 
-export default async function RowerProfilePage({ params }: { params: { num: string } }) {
+export default async function RowerProfilePage({ params, searchParams }: { params: { num: string }; searchParams?: { m?: string | string[] } }) {
   const num = parseNum(params.num);
   if (!num) notFound();
   const data = await getRower(num).catch(() => null);
   if (!data) notFound();
-  const { participant: p, entries } = data;
+  const { participant: p, entries: allEntries } = data;
+  /* WHICH MONTH (owner, 2026-09-24): this one unless ?m= says a past one
+   * or all time. Every figure below is over these rows. */
+  const period = parsePeriod(searchParams?.m, clockNow());
+  const entries = allEntries.filter((e) => inPeriod(e.day, period));
+  const periodDays = period.kind === "month" && period.key !== MONTH.key ? period.days : daysElapsed();
+  const periodMonth = period.kind === "month" ? { key: period.key, firstDow: period.firstDow, days: period.days } : null;
 
   // The roster for the nameplate search, and who is looking. Together, not
   // one after the other: the roster is only read for a panel most visitors
@@ -215,7 +223,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   // own row and on none of them for an admin, whose board is ranked.
   let elite = false;
   try {
-    const { boards: full } = await boardView(viewOpts(viewer));
+    const { boards: full } = await boardView({ ...viewOpts(viewer), period });
     rank = divisionRank(full, p.id);
     records = recordPlacements(full, p.id, 10);
     elite = full.total.find((r) => r.participantId === p.id)?.unranked === true;
@@ -250,7 +258,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
   let shareElite = false;
   if (blackout.active) {
     try {
-      const { boards: pub } = await boardView({ forceBlackout: forcedBlackout(viewer.preview) });
+      const { boards: pub } = await boardView({ forceBlackout: forcedBlackout(viewer.preview), period });
       shareElite = maskedIds(pub).has(p.id);
     } catch {
       shareElite = true;
@@ -278,7 +286,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     rank: shareElite ? null : rank,
     records: masked ? records?.map((r) => ({ ...r, value: "" })) : records,
     // The cards stop at today like the page calendar does.
-    days: daysElapsed(),
+    days: periodDays,
     masked: shareElite,
     digits: shareElite ? digits : undefined,
     // MY WAVE (owner, 2026-09-16): this rower's own told wave, for their
@@ -425,7 +433,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       const all = await fieldEntries();
       const hidden = new Set<string>();
       try {
-        const { boards: pub } = await boardView(viewOpts(viewer));
+        const { boards: pub } = await boardView({ ...viewOpts(viewer), period });
         for (const id of maskedIds(pub)) hidden.add(id);
       } catch {
         /* no board, no hidden set — the densities are aggregates anyway */
@@ -487,7 +495,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     blackoutNote,
     club: (masked ? floor : me.meters) >= GOAL_METERS,
     phase,
-    days: daysElapsed(),
+    days: periodDays,
     // The average split: computed here, from the real total and the real
     // seconds, and shipped as a string. It survives the mask on purpose.
     paceTag: me.meters > 0 && totalSeconds > 0 ? fmtPaceTag(me.meters, totalSeconds) : undefined,
@@ -509,6 +517,10 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     logRows,
     ergRows,
     log,
+    period: { key: period.key, kind: period.kind, label: period.label },
+    month: periodMonth,
+    periodOptions: periodOptions(clockNow()),
+    thisMonthKey: MONTH.key,
   };
 
   return (

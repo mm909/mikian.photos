@@ -23,7 +23,8 @@ import { StatsShare } from "../StatsShare";
 import { PageHead } from "../PageHead";
 import { BOARD_CARD_IDS } from "../share/cards";
 import { EMPTY_BOARDS, boardView } from "../boardData";
-import { monthsThrough, parsePeriod } from "@/lib/rowPeriod";
+import { monthsThrough, parsePeriod, periodOptions } from "@/lib/rowPeriod";
+import { PeriodSelect } from "../PeriodSelect";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 
 export const metadata: Metadata = {
@@ -171,21 +172,11 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
             }
             wide
           />
-          {/* THE MONTH SELECTOR (owner, 2026-09-24): this month, each month
-            * before it, all time — the same page filled with other rows.
-            * Not there while there is only the one month. */}
-          {months.length > 1 ? (
-            <nav className="pd-sel" aria-label="Which month">
-              {months.map((m) => (
-                <Link key={m.key} className={period.kind === "month" && period.key === m.key ? "on" : ""} href={m.key === MONTH.key ? "/row100k/board" : `/row100k/board?m=${m.key}`}>
-                  {m.short} {m.year}
-                </Link>
-              ))}
-              <Link className={period.kind === "all" ? "on" : ""} href="/row100k/board?m=all">
-                All time
-              </Link>
-            </nav>
-          ) : null}
+          {/* THE MONTH (owner, 2026-09-24): this month, any month before
+            * it, all time — one select with arrows (PeriodSelect.tsx), the
+            * same page filled with other rows. Not there while there is
+            * only the one month. */}
+          {months.length > 1 ? <PeriodSelect options={periodOptions(clockNow())} value={period.key} base="/row100k/board" current={MONTH.key} /> : null}
           {/* Only the slices the board reads. Boards is a client
            * component, so whatever is handed in is serialized into the
            * page source — and boardView masks only `total`; the record

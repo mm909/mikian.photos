@@ -20,16 +20,20 @@ export function Heatmap({
   byDay,
   thresholds = ONE_ROWER,
   days = MONTH_DAYS,
+  month,
 }: {
   byDay: Record<string, number>;
+  /* Which month to draw (rowPeriod.ts); this one when absent. */
+  month?: { key: string; firstDow: number; days: number };
   thresholds?: [number, number, number];
   /* Draw only this many September days — the month stops at today rather
    * than trailing a fortnight of empty cells (owner call, day 4). */
   days?: number;
 }) {
-  const shown = Math.min(MONTH_DAYS, Math.max(1, days));
+  const mon = month ?? { key: MONTH_KEY, firstDow: MONTH_FIRST_DOW, days: MONTH_DAYS };
+  const shown = Math.min(mon.days, Math.max(1, days));
   // Leading blanks align day 1 under its weekday (rowPeriod.ts).
-  const firstDow = MONTH_FIRST_DOW;
+  const firstDow = mon.firstDow;
 
   return (
     <div>
@@ -43,7 +47,7 @@ export function Heatmap({
           <div key={`blank${i}`} />
         ))}
         {Array.from({ length: shown }, (_, i) => {
-          const day = `${MONTH_KEY}-${String(i + 1).padStart(2, "0")}`;
+          const day = `${mon.key}-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);
           return (

@@ -233,6 +233,11 @@ export default async function Row100kPage() {
   const phase: "before" | "open" | "closed" =
     nowMs < START_MS ? "before" : nowMs >= LOG_CLOSE_MS ? "closed" : "open";
   const today = daysElapsed(nowMs);
+  /* ROWTEMBER, OR THE OFF-SEASON (owner, 2026-09-24): September keeps the
+   * giant nameplate and the clock; any other month is the evergreen front
+   * — the month as a subtitle, the totals as the main object, OPT IN first
+   * for a stranger, no clock, no latest row. */
+  const rowtember = MONTH.month === 9;
 
   // The dateline: today in the rowers' day (Pacific, the UTC-7 shift every
   // chart uses) and where the month stands.
@@ -244,7 +249,7 @@ export default async function Row100kPage() {
       : phase === "closed"
         ? `${stamp} · FINAL`
         : nowMs >= END_MS
-          ? `${stamp} · LATE LOGS THROUGH OCT 3`
+          ? `${stamp} · LATE LOGS FOR ${MONTH.label.toUpperCase()}`
           : `${stamp} · DAY ${today} OF ${MONTH_DAYS}`;
 
   // The PLACES half of the blackout rule (blackoutRules.ts): while a window
@@ -336,6 +341,32 @@ export default async function Row100kPage() {
   const defaultDay = clampDay(pacificDay(nowMs));
   const earlyAdmin = isAdmin && phase === "before";
 
+  /* The call to action, in one place: after the news in Rowtember, first
+   * thing in the off-season. Sign-in callbacks land on #join either way. */
+  const cta = (
+        <section id="join" className="fs front-cta">
+          <div className="wrap front">
+            {phase === "closed" ? (
+              <p className="board-empty">{MONTH.label.toUpperCase()} IS WRAPPED — THE BOARD IS FINAL.</p>
+            ) : actor ? (
+              /* No 2px box around the form — the owner found that chrome
+                 hard on the log form and this one sits on the same page. */
+              <div className="panel flat">
+                <JoinPanel
+                  mode="form"
+                  signedInAs={actor.email}
+                  initialName={actor.name}
+                  initialInstagram=""
+                  initialDivision={null}
+                />
+              </div>
+            ) : (
+              <JoinPanel mode="signedOut" />
+            )}
+          </div>
+        </section>
+  );
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
@@ -344,14 +375,27 @@ export default async function Row100kPage() {
 
       {/* The nameplate. Just the title, like a newspaper (owner call,
        * 2026-09-05) — the pitch that used to sit here is in pitch.ts. */}
-      <header className="front-head">
-        <div className="wrap front">
-          <h1>
-            Rowtember <span className="yr">2026</span>
-          </h1>
-          <p className="front-date mono">{dateline}</p>
-        </div>
-      </header>
+      {rowtember ? (
+        <header className="front-head">
+          <div className="wrap front">
+            <h1>
+              Rowtember <span className="yr">{MONTH.year}</span>
+            </h1>
+            <p className="front-date mono">{dateline}</p>
+          </div>
+        </header>
+      ) : (
+        <header className="front-head off">
+          <div className="wrap front">
+            <p className="front-kicker mono">
+              {MONTH.label} <span className="dim">· {dateline}</span>
+            </p>
+          </div>
+        </header>
+      )}
+
+      {/* A stranger in the off-season meets OPT IN before the numbers. */}
+      {!me && !rowtember ? cta : null}
 
       {me && (
         <section className="fs">
@@ -368,7 +412,7 @@ export default async function Row100kPage() {
               rank={elite ? null : myRank}
               records={myRecords}
               defaultDay={defaultDay}
-              defaultTitle={`Rowtember #${myRows.length + 1}`}
+              defaultTitle={`${rowtember ? "Rowtember" : MONTH.label.split(" ")[0]} #${myRows.length + 1}`}
               earlyAdmin={earlyAdmin}
               masked={elite}
               digits={elite ? digitCount(myMeters) : undefined}
@@ -383,7 +427,7 @@ export default async function Row100kPage() {
       {/* Everyone together: bold number over a lighter descriptor. */}
       <section className="fs">
         <div className="wrap front">
-          <div className="front-stats">
+          <div className={rowtember ? "front-stats" : "front-stats three big"}>
             <div className="cell">
               <div className="n">{togetherMeters.toLocaleString("en-US")}</div>
               <div className="l mono">meters together</div>
@@ -392,6 +436,12 @@ export default async function Row100kPage() {
               <div className="n">{hoursText} h</div>
               <div className="l mono">time rowed</div>
             </div>
+            {rowtember ? null : (
+              <div className="cell">
+                <div className="n">{boards.community.people.toLocaleString("en-US")}</div>
+                <div className="l mono">rowers this month</div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -432,10 +482,22 @@ export default async function Row100kPage() {
                 </div>
               )}
             </div>
-            <div className="front-box clock">
-              <div className="eyebrow mono">{hidden && blackoutEndsAt ? "Lights out ends in" : "The clock"}</div>
-              <Countdown size="small" lightsOutEndsAt={hidden ? blackoutEndsAt : null} />
-            </div>
+            {rowtember ? (
+              <div className="front-box clock">
+                <div className="eyebrow mono">{hidden && blackoutEndsAt ? "Lights out ends in" : "The clock"}</div>
+                <Countdown size="small" lightsOutEndsAt={hidden ? blackoutEndsAt : null} />
+              </div>
+            ) : (
+              /* No clock in the off-season (owner, 2026-09-24): the month's
+               * milestones instead. */
+              <div className="front-box">
+                <div className="eyebrow mono">{MONTH.label}</div>
+                <div className="v">{boards.community.sessions.toLocaleString("en-US")}</div>
+                <div className="nm">
+                  sessions · {boards.community.finished} in the 100K club · {today} of {MONTH_DAYS} days
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -461,7 +523,17 @@ export default async function Row100kPage() {
         </div>
       </section>
 
-      {latestRow && extras.latest && (
+      {!rowtember ? (
+        <section className="fs">
+          <div className="wrap front">
+            <p className="front-more mono">
+              <Link href="/row100k/board">See the whole board →</Link>
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {rowtember && latestRow && extras.latest && (
         <section className="fs">
           <div className="wrap front">
             {/* Two lines, not one (owner, 2026-09-05): the label and when it
@@ -496,29 +568,7 @@ export default async function Row100kPage() {
 
       {/* The call to action comes after the news. Sign-in callbacks and the
        * account menu land on #join, so the anchor stays. */}
-      {!me && (
-        <section id="join" className="fs front-cta">
-          <div className="wrap front">
-            {phase === "closed" ? (
-              <p className="board-empty">ROWTEMBER 2026 IS WRAPPED — THE BOARD IS FINAL.</p>
-            ) : actor ? (
-              /* No 2px box around the form — the owner found that chrome
-                 hard on the log form and this one sits on the same page. */
-              <div className="panel flat">
-                <JoinPanel
-                  mode="form"
-                  signedInAs={actor.email}
-                  initialName={actor.name}
-                  initialInstagram=""
-                  initialDivision={null}
-                />
-              </div>
-            ) : (
-              <JoinPanel mode="signedOut" />
-            )}
-          </div>
-        </section>
-      )}
+      {!me && rowtember ? cta : null}
 
       <RowFooter />
     </div>
