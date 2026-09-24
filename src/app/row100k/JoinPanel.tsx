@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import type { Division } from "@/lib/row100k";
+import { birthdayBounds, parseBirthday, parseInstagramOptional, type Division } from "@/lib/row100k";
 import { OptIn } from "./OptIn";
 
 const DIVISIONS: { value: Division; label: string }[] = [
@@ -13,11 +13,16 @@ const DIVISIONS: { value: Division; label: string }[] = [
 
 /* The in-place signup: signed out → OPT IN (the landing's button, signs in
  * with Google); signed in → the entry form. Vertical on purpose: name, then
- * Instagram, then the two board pills one per row, then OPT IN again as the
- * submit (owner call, 2026-09-05 — no "I'm in", no name-and-Instagram on one
- * line, no age). After a successful join the page refreshes and the server
- * swaps this panel for the rower's own front page. Also reused (joined=true)
- * as the profile settings form, where the button says Save changes. */
+ * Instagram, then birthday, then the two board pills one per row, then OPT
+ * IN again as the submit (owner call, 2026-09-05 — no "I'm in", no
+ * name-and-Instagram on one line). Since 2026-09-24 the handle is OPTIONAL
+ * and the BIRTHDAY is asked instead (owner: "on the sign-up page: their
+ * name, their Instagram optionally, their birthday. We already have their
+ * email") — the birthday is stored and shown nowhere. After a successful
+ * join the page refreshes and the server swaps this panel for the rower's
+ * own front page. Also reused (joined=true) as the profile settings form,
+ * where the button says Save changes and the birthday field is NOT here —
+ * it lives in the settings page's own About you block. */
 export function JoinPanel(props: {
   mode: "signedOut" | "form";
   joined?: boolean;
@@ -25,7 +30,7 @@ export function JoinPanel(props: {
   initialName?: string;
   initialInstagram?: string;
   initialDivision?: Division | null;
-  onSaved?: (values: { displayName: string; instagram: string; division: Division }) => void;
+  onSaved?: (values: { displayName: string; instagram: string; division: Division; birthday: string }) => void;
   /* Dev preview only: skip the network — validate locally, then hand the
    * values to onSaved as if the join succeeded. */
   simulate?: boolean;
@@ -33,9 +38,13 @@ export function JoinPanel(props: {
   const router = useRouter();
   const [name, setName] = useState(props.initialName ?? "");
   const [instagram, setInstagram] = useState(props.initialInstagram ?? "");
+  const [birthday, setBirthday] = useState("");
   const [division, setDivision] = useState<Division | null>(props.initialDivision ?? null);
   const [status, setStatus] = useState<"idle" | "sending" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
+  /* The join form asks for a birthday; the settings copy of this form does
+   * not (see the header comment). */
+  const asksBirthday = !props.joined;
 
   if (props.mode === "signedOut") {
     // Sign-in lands back on #join, where the form is waiting.
@@ -49,9 +58,18 @@ export function JoinPanel(props: {
       setError("Add the name you want on the board.");
       return;
     }
-    if (!/^@?[a-zA-Z0-9._]{1,30}$/.test(instagram.trim())) {
-      setError("Add your Instagram handle — letters, numbers, dots and underscores.");
+    // Blank is fine now; only a typed handle that is not one is stopped.
+    const handle = parseInstagramOptional(instagram);
+    if (handle === null) {
+      setError("That Instagram handle does not look right — letters, numbers, dots and underscores.");
       return;
+    }
+    if (asksBirthday) {
+      const checked = parseBirthday(birthday);
+      if (!checked.ok) {
+        setError(checked.error);
+        return;
+      }
     }
     if (!division) {
       setError("Pick which board you're competing on.");
@@ -59,8 +77,9 @@ export function JoinPanel(props: {
     }
     const values = {
       displayName: name.replace(/\s+/g, " ").trim(),
-      instagram: instagram.trim().replace(/^@+/, ""),
+      instagram: handle,
       division,
+      birthday: asksBirthday ? birthday.trim() : "",
     };
     if (props.simulate) {
       props.onSaved?.(values);
@@ -71,7 +90,14 @@ export function JoinPanel(props: {
       const res = await fetch("/api/row100k/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: values.displayName, instagram: values.instagram, division }),
+        body: JSON.stringify({
+          displayName: values.displayName,
+          instagram: values.instagram,
+          division,
+          // The settings save sends none, and the API reads "absent" as
+          // "leave it" — so it must not be sent as "" from that form.
+          ...(asksBirthday ? { birthday: values.birthday } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
@@ -120,7 +146,7 @@ export function JoinPanel(props: {
         onChange={(e) => setName(e.target.value)}
         autoComplete="name"
       />
-      <label className="fl" htmlFor="row-ig">Instagram</label>
+      <label className="fl" htmlFor="row-ig">Instagram · optional</label>
       <input
         id="row-ig"
         type="text"
@@ -131,6 +157,23 @@ export function JoinPanel(props: {
         autoComplete="off"
         autoCapitalize="none"
       />
+      {asksBirthday && (
+        <>
+          <label className="fl" htmlFor="row-bday">Birthday</label>
+          {/* The picker stops at the age band on its own; the API checks
+           * the same band again. Not printed anywhere, by the owner's
+           * word (2026-09-24). */}
+          <input
+            id="row-bday"
+            type="date"
+            value={birthday}
+            min={birthdayBounds().min}
+            max={birthdayBounds().max}
+            onChange={(e) => setBirthday(e.target.value)}
+            autoComplete="bday"
+          />
+        </>
+      )}
       <label className="fl">Compete on</label>
       <div className="pills col" role="radiogroup" aria-label="Which board you compete on">
         {DIVISIONS.map((d) => (

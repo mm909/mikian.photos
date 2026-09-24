@@ -11,9 +11,10 @@ import {
   LOG_CLOSE_MS,
   fmtRowerNumber,
   nowMs,
+  parseBirthday,
   parseDisplayName,
   parseDivision,
-  parseInstagram,
+  parseInstagramOptional,
 } from "@/lib/row100k";
 
 export const runtime = "nodejs";
@@ -37,13 +38,16 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { displayName?: unknown; instagram?: unknown; division?: unknown };
+  let body: { displayName?: unknown; instagram?: unknown; division?: unknown; birthday?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
+  // TWO ROWERS MAY SHARE A NAME (owner, 2026-09-24: "if two people have the
+  // same name they go by the rower number, that's fine") — there is no
+  // uniqueness check on displayName here and none in the schema, on purpose.
   const displayName = parseDisplayName(body.displayName);
   if (!displayName) {
     return NextResponse.json(
@@ -51,10 +55,13 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const instagram = parseInstagram(body.instagram);
-  if (!instagram) {
+  // OPTIONAL (owner, 2026-09-24: "let users register without an Instagram
+  // handle"): blank is fine and stored as ""; only a typed-but-wrong handle
+  // is refused, so nobody loses what they meant to give.
+  const instagram = parseInstagramOptional(body.instagram);
+  if (instagram === null) {
     return NextResponse.json(
-      { ok: false, error: "Add your Instagram handle — letters, numbers, dots and underscores only." },
+      { ok: false, error: "That Instagram handle does not look right — letters, numbers, dots and underscores only." },
       { status: 400 },
     );
   }
@@ -64,6 +71,18 @@ export async function POST(req: Request) {
       { ok: false, error: "Pick which board you're competing on." },
       { status: 400 },
     );
+  }
+  // BIRTHDAY (owner, 2026-09-24): required to JOIN, and only then — this
+  // same POST is the settings page's name/handle/board save, which does not
+  // carry one (birthday is edited in the About you block through the
+  // participants API). So: absent means "leave it", present means "check
+  // it", and a FIRST join with none is turned away below, once we know it
+  // is a first join.
+  let birthday: Date | undefined;
+  if (body.birthday !== undefined && body.birthday !== null && body.birthday !== "") {
+    const checked = parseBirthday(body.birthday, nowMs());
+    if (!checked.ok) return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
+    birthday = checked.value;
   }
 
   const limit = await rateLimit({
@@ -82,13 +101,25 @@ export async function POST(req: Request) {
   // (lib/row100kJoin.ts): here, and race day, which since 2026-09-21 takes
   // a name from somebody who is not in Rowtember. An existing row comes
   // back untouched and is updated here — this POST is also the profile
-  // edit — with the same three fields it always took.
+  // edit — with the same three fields it always took (plus the birthday
+  // when one is sent).
   {
-    const created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division });
+    // A FIRST JOIN NEEDS A BIRTHDAY, and only a read can tell a first join
+    // from a settings save before the row exists. One extra findUnique;
+    // the create itself stays race-safe inside ensureParticipant.
+    if (birthday === undefined) {
+      const already = await db.rowParticipant.findUnique({
+        where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
+        select: { id: true },
+      });
+      if (!already) return NextResponse.json({ ok: false, error: "Add your birthday." }, { status: 400 });
+    }
+
+    const created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division, birthday });
     if (!created.created) {
       await db.rowParticipant.update({
         where: { id: created.id },
-        data: { displayName, instagram, division },
+        data: { displayName, instagram, division, ...(birthday ? { birthday } : {}) },
       });
       revalidateTag("row100k-boards");
       return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: true });
@@ -101,13 +132,16 @@ export async function POST(req: Request) {
       // but a failed send must never fail the join, so the result is logged
       // and dropped.
       if (CHALLENGE === CHALLENGE_LIVE) {
+        // No handle, no "@" (owner, 2026-09-24) — the subject and the line
+        // both fall silent rather than print an empty one. The birthday is
+        // deliberately NOT in this mail: nothing shows it anywhere yet.
         const sent = await sendOwnerNotification(
-          `Rowtember signup — ${fmtRowerNumber(created.rowerNumber)} ${displayName} (@${instagram})`,
+          `Rowtember signup — ${fmtRowerNumber(created.rowerNumber)} ${displayName}${instagram ? ` (@${instagram})` : ""}`,
           [
             `Rower ${fmtRowerNumber(created.rowerNumber)} just joined 100K September.`,
             ``,
             `Name on the board: ${displayName}`,
-            `Instagram: @${instagram} — https://instagram.com/${instagram}`,
+            instagram ? `Instagram: @${instagram} — https://instagram.com/${instagram}` : `Instagram: none given`,
             `Board: ${division === "F" ? "Women's" : "Men's"}`,
             `Account: ${actor.name} <${actor.email}>`,
             ``,

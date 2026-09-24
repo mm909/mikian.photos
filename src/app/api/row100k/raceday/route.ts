@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { sendOwnerNotification, type SendResult } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { CHALLENGE, CHALLENGE_LIVE, isRow100kAdmin, parseDisplayName, parseDivision, parseInstagram } from "@/lib/row100k";
+import { CHALLENGE, CHALLENGE_LIVE, isRow100kAdmin, parseDisplayName, parseDivision, parseInstagramOptional } from "@/lib/row100k";
 import { ensureParticipant } from "@/lib/row100kJoin";
 import { parseRole, raceOpenFor, racePhase } from "@/app/row100k/raceday";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
@@ -160,8 +160,9 @@ export async function POST(req: Request) {
     if (!displayName) return bad("Add the name you want on the start list (at least 2 characters).");
     const division = parseDivision(body.division) ?? (role === "spectator" ? "X" : null);
     if (!division) return bad("Pick a bracket — men's or women's.");
-    const handleRaw = typeof body.instagram === "string" ? body.instagram.trim() : "";
-    const instagram = handleRaw ? parseInstagram(handleRaw) : "";
+    /* The same optional read the join door uses since 2026-09-24 (the rule
+     * was born here on 09-21; now it lives in one place, lib/row100k). */
+    const instagram = parseInstagramOptional(body.instagram);
     if (instagram === null) return bad("That Instagram handle does not look right — letters, numbers, dots and underscores only.");
     const limitJoin = await rateLimit({ key: `row100k-join:${actor.photographerId}`, limit: 10, windowSec: 3600 });
     if (!limitJoin.ok) return bad("Too many changes at once — try again in a bit.", 429);

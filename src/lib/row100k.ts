@@ -152,12 +152,159 @@ export function parseDisplayName(v: unknown): string | null {
   return name.length >= 2 ? name : null;
 }
 
-/* Instagram handle, required at join. Accepts with or without the "@",
- * stores without it. IG allows letters, digits, dots, underscores, ≤30. */
+/* Instagram handle. Accepts with or without the "@", stores without it.
+ * IG allows letters, digits, dots, underscores, ≤30. Null means a handle
+ * was typed and it is not one — for "no handle at all" see the optional
+ * form below, which is what the join and race-day doors use now. */
 export function parseInstagram(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const handle = v.trim().replace(/^@+/, "").replace(/\/+$/, "");
   return /^[a-zA-Z0-9._]{1,30}$/.test(handle) ? handle : null;
+}
+
+/* THE HANDLE IS OPTIONAL (owner, 2026-09-24: "let users register without
+ * an Instagram handle"). Absent, blank, or a lone "@" is "" — no handle,
+ * stored as the empty string the column defaults to. A non-blank value
+ * must still be a real handle: null means it is not, so the caller can
+ * say so rather than quietly dropping what they typed. */
+export function parseInstagramOptional(v: unknown): string | null {
+  if (v === undefined || v === null) return "";
+  if (typeof v !== "string") return null;
+  const raw = v.trim().replace(/^@+/, "");
+  if (raw === "") return "";
+  return parseInstagram(raw);
+}
+
+/* ------------------------------------------------------------- about you */
+
+/* BIRTHDAY (owner, 2026-09-24: "collect their birthday — we don't have to
+ * display it anywhere right now"). A date-only value: the form sends
+ * "YYYY-MM-DD", the column holds that day at UTC midnight, and nothing
+ * ever reads the time part. The sanity range is an AGE, not a year, so it
+ * needs no yearly edit; "at least 10, at most 100" is the owner's shape of
+ * "a real person rowing", wide enough never to turn a real rower away. */
+export const AGE_MIN = 10;
+export const AGE_MAX = 100;
+
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/* Whole years between a birthday and an instant, both read as UTC calendar
+ * days — the same arithmetic a person does with two dates, never a divide
+ * by 365.25 that puts someone born on a leap day a year out. */
+export function ageOn(birthday: Date, atMs: number): number {
+  const at = new Date(atMs);
+  let years = at.getUTCFullYear() - birthday.getUTCFullYear();
+  const beforeThisYearsBirthday =
+    at.getUTCMonth() < birthday.getUTCMonth() ||
+    (at.getUTCMonth() === birthday.getUTCMonth() && at.getUTCDate() < birthday.getUTCDate());
+  if (beforeThisYearsBirthday) years -= 1;
+  return years;
+}
+
+export type BirthdayCheck = { ok: true; value: Date } | { ok: false; error: string };
+
+/* "YYYY-MM-DD" → the Date to store, or why not. A real calendar date only
+ * (Date.UTC would happily roll Feb 30 into March, so the parts are read
+ * back and compared), then the age band above against the injected clock. */
+export function parseBirthday(v: unknown, atMs: number = Date.now()): BirthdayCheck {
+  if (typeof v !== "string") return { ok: false, error: "Add your birthday." };
+  const m = DATE_ONLY.exec(v.trim());
+  if (!m) return { ok: false, error: "Add your birthday as a full date." };
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  const real = date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+  if (!real) return { ok: false, error: "That is not a real date." };
+  const age = ageOn(date, atMs);
+  if (age < AGE_MIN) return { ok: false, error: `You need to be at least ${AGE_MIN} to join.` };
+  if (age > AGE_MAX) return { ok: false, error: "Check the year on your birthday." };
+  return { ok: true, value: date };
+}
+
+/* The stored value back into what a date input wants. */
+export function birthdayInput(d: Date | null | undefined): string {
+  return d ? d.toISOString().slice(0, 10) : "";
+}
+
+/* The bounds a date input gets, so the picker itself stops at the band
+ * (the server checks again — this is the form being helpful, not the
+ * rule). */
+export function birthdayBounds(atMs: number = Date.now()): { min: string; max: string } {
+  const at = new Date(atMs);
+  const shift = (years: number) =>
+    new Date(Date.UTC(at.getUTCFullYear() - years, at.getUTCMonth(), at.getUTCDate())).toISOString().slice(0, 10);
+  return { min: shift(AGE_MAX), max: shift(AGE_MIN) };
+}
+
+/* HEIGHT AND WEIGHT, optional, metric in the column (owner, 2026-09-24:
+ * "height and weight optional, in the settings page"). The rower types
+ * whatever they know — "180", "180 cm", "1.80 m", "5'11", "5 ft 11 in",
+ * "71 in"; "75", "75 kg", "165 lb" — and these read it into cm and kg.
+ * Null means it could not be read; the EMPTY string is the caller's to
+ * handle (it means "clear", not "unreadable"). The bands are sanity, not
+ * policy: wide enough for any adult who rows, tight enough to catch a
+ * value typed in the wrong box. */
+export const HEIGHT_CM_MIN = 100;
+export const HEIGHT_CM_MAX = 250;
+export const WEIGHT_KG_MIN = 30;
+export const WEIGHT_KG_MAX = 250;
+
+const num = (s: string): number => Number(s.replace(",", "."));
+
+export function parseHeightCm(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? checkHeight(v) : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!t) return null;
+  // 5'11, 5' 11", 5ft 11in, 5 ft 11, 5 feet 11 inches, 6' (no inches)
+  const ftIn = /^(\d{1,2})\s*(?:'|ft|feet|foot)\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:"|''|in|inch|inches)?)?$/.exec(t);
+  if (ftIn) return checkHeight((num(ftIn[1]) * 12 + (ftIn[2] ? num(ftIn[2]) : 0)) * 2.54);
+  // 71 in / 71"
+  const inches = /^(\d{1,3}(?:\.\d+)?)\s*(?:"|in|inch|inches)$/.exec(t);
+  if (inches) return checkHeight(num(inches[1]) * 2.54);
+  // 1.80 m / 1,80m
+  const metres = /^(\d(?:[.,]\d{1,2})?)\s*m$/.exec(t);
+  if (metres) return checkHeight(num(metres[1]) * 100);
+  // 180 / 180 cm / 180.5cm
+  const cm = /^(\d{2,3}(?:[.,]\d+)?)\s*(?:cm)?$/.exec(t);
+  if (cm) return checkHeight(num(cm[1]));
+  return null;
+}
+
+function checkHeight(cm: number): number | null {
+  const r = Math.round(cm);
+  return r >= HEIGHT_CM_MIN && r <= HEIGHT_CM_MAX ? r : null;
+}
+
+export function parseWeightKg(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? checkWeight(v) : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!t) return null;
+  // 165 lb / 165lbs / 165 pounds
+  const lb = /^(\d{2,3}(?:[.,]\d+)?)\s*(?:lb|lbs|pound|pounds)$/.exec(t);
+  if (lb) return checkWeight(num(lb[1]) * 0.45359237);
+  // 12 st 4 / 12st 4lb
+  const stone = /^(\d{1,2})\s*(?:st|stone)\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:lb|lbs)?)?$/.exec(t);
+  if (stone) return checkWeight((num(stone[1]) * 14 + (stone[2] ? num(stone[2]) : 0)) * 0.45359237);
+  // 75 / 75 kg / 75.5kg
+  const kg = /^(\d{2,3}(?:[.,]\d+)?)\s*(?:kg|kgs|kilo|kilos)?$/.exec(t);
+  if (kg) return checkWeight(num(kg[1]));
+  return null;
+}
+
+function checkWeight(kg: number): number | null {
+  const r = Math.round(kg * 10) / 10;
+  return r >= WEIGHT_KG_MIN && r <= WEIGHT_KG_MAX ? r : null;
+}
+
+/* What the settings inputs show for a stored value — metric, plainly. */
+export function fmtHeightCm(cm: number | null | undefined): string {
+  return cm == null ? "" : `${cm} cm`;
+}
+export function fmtWeightKg(kg: number | null | undefined): string {
+  return kg == null ? "" : `${Number.isInteger(kg) ? kg : kg.toFixed(1)} kg`;
 }
 
 /* ---------------------------------------------------------------- entries */

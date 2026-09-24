@@ -20,6 +20,10 @@ export type ViewerParticipant = {
   displayName: string;
   instagram: string;
   division: string;
+  /* Birthday, height and weight (2026-09-24) are NOT here on purpose: this
+   * select runs on every /row100k page and a miss falls back to the
+   * anonymous view, so a column not yet pushed would sign everyone out.
+   * The settings page, the only reader, selects them itself. */
 };
 
 /* The admin's test blackout (owner, 2026-09-06). "elite": the site as it
