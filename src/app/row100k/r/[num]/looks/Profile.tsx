@@ -8,9 +8,9 @@ import {
   LogBlock,
   MetersUnit,
   MonthBlock,
-  MonthWord,
   Nameplate,
   coreLedger,
+  periodText,
 } from "./pieces";
 import { DogTagCard } from "./DogTag";
 import { ErgRows } from "./ErgRows";
@@ -46,18 +46,19 @@ export function Profile({ view }: { view: ProfileView }) {
             <Ledger items={coreLedger(view)} />
           </div>
           <div className="pf-side">
-            {/* EVERY DATE IS A MENU (owner, 2026-09-24: "anywhere we're
-                listing the dates, have it be a date selector"): the month
-                over the calendar and the month over the bests are the
-                same word-that-is-a-menu as the dateline (pieces.tsx
-                MonthWord). Over all time the calendar is still this
-                month's grid, so its descriptor says so. */}
+            {/* THE DATE SELECTION ONLY AT THE TOP (owner, 2026-09-25:
+                "remove the month menus on THE BESTS and THE MONTH
+                eyebrows"): the dateline under the name is the one month
+                control; these two eyebrows are plain text — THE MONTH
+                over the calendar with its descriptor, THE BESTS with the
+                month it covers as words. Over all time the calendar is
+                still this month's grid, so its descriptor says so. */}
             <div className="pf-month">
-              <Eyebrow left={<MonthWord view={view} />} right={view.period.kind === "all" ? "THIS MONTH · METERS PER DAY" : "METERS PER DAY"} />
+              <Eyebrow left="The month" right={view.period.kind === "all" ? "THIS MONTH · METERS PER DAY" : "METERS PER DAY"} />
               <MonthBlock view={view} />
             </div>
             <div className="pf-bests-sec">
-              <Eyebrow left="The bests" right={<MonthWord view={view} align="right" />} />
+              <Eyebrow left="The bests" right={periodText(view)} />
               <Bests view={view} />
             </div>
           </div>

@@ -308,35 +308,44 @@ export function MyRows({
               <tr className="lgt-edit" key={r.id}>
                 <td colSpan={cols}>
                   <div className="mlg-editor">
+                    {/* Each field under its own mono caps label (owner,
+                        2026-09-25: "on the edit screen, use labels for
+                        date, meters, time") — .lgt-fld / .lgt-lab in
+                        logTableCss.ts. The label wraps the input, so it
+                        is the accessible name and a tap on it focuses. */}
                     <div className="mlg-edit-line">
-                      <input
-                        type="date"
-                        aria-label="Day"
-                        value={draft.day}
-                        min={FIRST_DAY}
-                        /* The server refuses a future day (Pacific today is
-                           the line), so the picker stops there too. */
-                        max={clampDay(pacificDay(nowMs()))}
-                        onChange={(e) => setDraft((d) => ({ ...d, day: e.target.value }))}
-                      />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        aria-label="Meters"
-                        placeholder="Meters"
-                        value={draft.meters}
-                        style={{ width: 90 }}
-                        onChange={(e) => setDraft((d) => ({ ...d, meters: e.target.value }))}
-                      />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        aria-label="Time"
-                        placeholder="Time"
-                        value={draft.time}
-                        style={{ width: 90 }}
-                        onChange={(e) => setDraft((d) => ({ ...d, time: formatTimeDigits(e.target.value) }))}
-                      />
+                      <label className="lgt-fld">
+                        <span className="lgt-lab">Date</span>
+                        <input
+                          type="date"
+                          value={draft.day}
+                          min={FIRST_DAY}
+                          /* The server refuses a future day (Pacific today is
+                             the line), so the picker stops there too. */
+                          max={clampDay(pacificDay(nowMs()))}
+                          onChange={(e) => setDraft((d) => ({ ...d, day: e.target.value }))}
+                        />
+                      </label>
+                      <label className="lgt-fld">
+                        <span className="lgt-lab">Meters</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={draft.meters}
+                          style={{ width: 90 }}
+                          onChange={(e) => setDraft((d) => ({ ...d, meters: e.target.value }))}
+                        />
+                      </label>
+                      <label className="lgt-fld">
+                        <span className="lgt-lab">Time</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={draft.time}
+                          style={{ width: 90 }}
+                          onChange={(e) => setDraft((d) => ({ ...d, time: formatTimeDigits(e.target.value) }))}
+                        />
+                      </label>
                       <span className="mlg-edit-split">{draftSplit()}</span>
                     </div>
                     <input

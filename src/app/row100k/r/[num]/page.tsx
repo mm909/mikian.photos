@@ -40,6 +40,7 @@ import { buildField } from "../../stats/field";
 import type { PaceDot, PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
 import { paceCss } from "./looks/paceCss";
+import { profileCss } from "./looks/profileCss";
 import type { ProfileBest, ProfileErgRow, ProfileView, RosterRower } from "./looks/view";
 import { buildBests, buildShareData, getRower } from "./shareData";
 import { listRowerErgSessions } from "@/lib/pm5/store";
@@ -465,6 +466,7 @@ export default async function RowerProfilePage({ params, searchParams }: { param
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{paceCss}</style>
+      <style>{profileCss}</style>
       {/* The viewer is already resolved, so the bar skips its own lookup.
           No ROWER-number tag in it — the nameplate just below says whose
           page this is. */}

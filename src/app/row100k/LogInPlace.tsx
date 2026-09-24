@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FIRST_DAY, type SanityBand } from "@/lib/row100k";
 import { LogRow } from "./LogRow";
 import { OptIn } from "./OptIn";
@@ -18,6 +18,22 @@ import type { ShareData } from "./share/cards";
  * does on the dev preview, so the card shows the new meters before the refresh
  * catches up. Right after joining, the bib card pops instead (JoinPanel
  * leaves the one-shot sessionStorage note). */
+
+/* Scroll the LOG A ROW word (the #log element, whose top edge is the word)
+ * under the sticky bar. The bar is one row on desktop and two on a phone
+ * (taller still where the masthead wraps): measure it so the word lands
+ * under its rule instead of behind it. Desktop stays at the 72 the inline
+ * style starts from; a phone gets the bar's own height plus air. */
+function scrollToForm() {
+  window.requestAnimationFrame(() => {
+    const el = document.getElementById("log");
+    if (!el) return;
+    const bar = document.querySelector(".row100k .bar");
+    if (bar) el.style.scrollMarginTop = `${Math.round(bar.getBoundingClientRect().height) + 10}px`;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+}
+
 export function LogInPlace({
   share,
   defaultDay = FIRST_DAY,
@@ -28,6 +44,7 @@ export function LogInPlace({
   sanity,
   justJoined,
   bare,
+  noShare,
 }: {
   share: ShareData;
   /* Today clamped into September, from the server; LogRow adopts the
@@ -48,6 +65,11 @@ export function LogInPlace({
    * the words. Since 2026-09-25 the page mounts this UNDER the counter row
    * (owner: the form "should open BELOW the cells bar"). */
   bare?: boolean;
+  /* The profile since 2026-09-25 (owner: "move the SHARE button onto the
+   * same line as the DECEMBER 2026 date selection"): the act row keeps LOG
+   * A ROW and drops its SHARE word — the dateline's SHARE (looks/ShareWord)
+   * asks for the dialog by the row100k:share event instead. */
+  noShare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -79,39 +101,33 @@ export function LogInPlace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // LOG A ROW is a toggle wherever the word is — the counter row's cell on
+  // the front (LogCell.tsx, by event) and this component's own word on the
+  // profile: the form opens under it and the same word closes it again
+  // (owner, 2026-09-25: the arrow turns down while it is open "and back when
+  // closed"). Opening scrolls the word under the sticky bar (owner, same
+  // day, of the profile: clicking LOG A ROW "just moves my scroll and
+  // doesn't open any menu. It should open the form, the arrow should tilt
+  // down, and the scroll should put LOG A ROW at the top"); closing leaves
+  // the page where it is.
+  const toggleForm = useCallback(() => {
+    if (phase === "closed") return;
+    setOpen((v) => {
+      if (!v) scrollToForm();
+      return !v;
+    });
+  }, [phase]);
+
   // /row100k#log (the account menu's LOG A ROW) lands here with the form
   // already open — the browser scrolls to the id, this opens the seam. Also
   // answers a hash change on a page that is already up.
   useEffect(() => {
-    const scrollToForm = () =>
-      window.requestAnimationFrame(() => {
-        const el = document.getElementById("log");
-        if (!el) return;
-        // The sticky bar is one row on desktop and two on a phone (taller
-        // still where the masthead wraps), and this element's top edge IS
-        // the LOG A ROW heading: measure the bar so the heading lands under
-        // its rule instead of behind it. Desktop stays at the 72 the inline
-        // style starts from; a phone gets the bar's own height plus air.
-        const bar = document.querySelector(".row100k .bar");
-        if (bar) el.style.scrollMarginTop = `${Math.round(bar.getBoundingClientRect().height) + 10}px`;
-        el.scrollIntoView({ block: "start", behavior: "smooth" });
-      });
     const openNow = () => {
       if (phase === "closed") return;
       setOpen(true);
       scrollToForm();
     };
-    // LOG A ROW as the third cell of the counter row (LogCell.tsx) is a
-    // toggle: the form opens under the cells bar and the same word closes
-    // it again (owner, 2026-09-25: the arrow turns down while it is open
-    // "and back when closed").
-    const toggle = () => {
-      if (phase === "closed") return;
-      setOpen((v) => {
-        if (!v) scrollToForm();
-        return !v;
-      });
-    };
+    const toggle = toggleForm;
     const openIfAsked = () => {
       if (window.location.hash === "#log") openNow();
     };
@@ -137,7 +153,7 @@ export function LogInPlace({
       window.removeEventListener("row100k:log-toggle", toggle);
       window.removeEventListener("row100k:share", openShare);
     };
-  }, [phase]);
+  }, [phase, toggleForm]);
 
   // The word that opens the form lives in another component (LogCell.tsx,
   // in the counter row) and turns its arrow with the form: it is told each
@@ -172,20 +188,28 @@ export function LogInPlace({
     <div className="front-act" id="log" style={{ scrollMarginTop: 72 }}>
       {bare ? null : (
         <div className="act-row front">
+          {/* .open turns the arrow down while the form is open (the profile
+              rule is in looks/profileCss.ts; the front page draws its own
+              word in LogCell.tsx). The click is the same toggle the events
+              reach, so it scrolls the word under the bar as it opens. */}
           {phase !== "closed" && (
-            <OptIn onClick={() => setOpen((v) => !v)}>Log a row</OptIn>
+            <OptIn className={open ? "open" : undefined} onClick={toggleForm}>
+              Log a row
+            </OptIn>
           )}
-          <button
-            type="button"
-            className="front-share"
-            onClick={() => {
-              setShareRow(null);
-              setPreferredCardId(undefined);
-              setShareOpen(true);
-            }}
-          >
-            Share
-          </button>
+          {noShare ? null : (
+            <button
+              type="button"
+              className="front-share"
+              onClick={() => {
+                setShareRow(null);
+                setPreferredCardId(undefined);
+                setShareOpen(true);
+              }}
+            >
+              Share
+            </button>
+          )}
         </div>
       )}
 

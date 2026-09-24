@@ -1,9 +1,11 @@
 import { BlockClock, Blocks } from "../../../Blackout";
 import type { ProfileBest } from "./view";
 
-/* The four bests as two small boards — pace records (fastest 5k / 10k) and
- * distance records (longest row / biggest day) — in the front page's
- * top-three table voice instead of the 2px cards (owner call, 2026-09-05).
+/* The four bests as ONE small board — fastest 5k, fastest 10k, longest
+ * row, biggest day, in the front page's top-three table voice instead of
+ * the 2px cards (owner call, 2026-09-05). One list since 2026-09-25
+ * (owner: "condense into one list — no PACE RECORDS / DISTANCE RECORDS
+ * subheaders"); the two boards it used to be are gone with their titles.
  * Each label links to that record's leaderboard, filtered to the rower's
  * division so the board matches the place chip.
  *
@@ -20,31 +22,11 @@ export function BestsTables({
   bests: ProfileBest[];
   onShare?: (best: ProfileBest) => void;
 }) {
-  const pace = bests.filter((b) => b.key.startsWith("fastest"));
-  const dist = bests.filter((b) => !b.key.startsWith("fastest"));
-  return (
-    <div className="pf-bests">
-      <BestsBoard label="Pace records" rows={pace} onShare={onShare} />
-      <BestsBoard label="Distance records" rows={dist} onShare={onShare} />
-    </div>
-  );
-}
-
-function BestsBoard({
-  label,
-  rows,
-  onShare,
-}: {
-  label: string;
-  rows: ProfileBest[];
-  onShare?: (best: ProfileBest) => void;
-}) {
   return (
     <div className="pf-best">
-      <h3 className="mono">{label}</h3>
       <table className="board">
         <tbody>
-          {rows.map((r) => (
+          {bests.map((r) => (
             <tr key={r.key}>
               <td>
                 <a className="k" href={r.href} aria-label={`${r.label} — the leaderboard`}>

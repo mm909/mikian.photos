@@ -1111,24 +1111,15 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,130px)}
 .row100k .pf-big{margin-top:30px}
 /* LOG A ROW (LogInPlace) a step under the front page size, so it fits
- * one line on the 760 column. SHARE beside it is QUIET (owner, 2026-09-24:
- * LOG A ROW and SHARE looked out of place at the same level; keep LOG A
- * ROW as the prominent second item, the share button quieter): the month
- * word idiom (.tm-btn) — mono caps with a dotted rule under it — on LOG A
- * ROW baseline, at the right of the row. The front page keeps its big
- * SHARE; only the profile is restyled. */
-.row100k .pf-act .act-row.front{margin-top:clamp(18px,3vh,30px)}
+ * one line on the 760 column. It stands alone since 2026-09-25 (owner:
+ * SHARE moved up onto the dateline — looks/profileCss.ts .pf-share). The
+ * air above it sits on the .pf-act wrapper, not the act row inside it, so
+ * the #log element the form scrolls to starts AT the word: opening the
+ * form puts LOG A ROW just under the sticky bar (owner, same day), with no
+ * margin of its own between the bar and the word. */
+.row100k .pf-act{margin-top:clamp(18px,3vh,30px)}
+.row100k .pf-act .act-row.front{margin-top:0}
 .row100k .pf-act .optin{font-size:clamp(34px,7.2vw,72px)}
-.row100k .pf-act .front-share{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:1.3;letter-spacing:.16em;color:var(--ink);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
-.row100k .pf-act .front-share:hover{color:var(--water)}
-.row100k .pf-act .front-share:focus-visible{outline:2px solid var(--water);outline-offset:3px}
-/* An admin on someone else page: the same SHARE face, standing alone.
- * ProfileShare carries an inline 12px top margin on its button (inline
- * beats any rule here), so the wrapper gives those 12px back and the face
- * lands where LOG A ROW / SHARE lands on the rower own page. */
-.row100k .pf-adm{margin-top:calc(clamp(18px,3vh,30px) - 12px)}
-.row100k .pf-adm .outline-btn{margin-top:0;background:none;border:none;padding:0;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,3.4vw,30px);line-height:1;letter-spacing:-.01em;color:var(--ink);text-decoration:underline;text-decoration-color:var(--water);text-decoration-thickness:.09em;text-underline-offset:.12em;text-decoration-skip-ink:none}
-.row100k .pf-adm .outline-btn:hover{color:var(--water)}
 .row100k .pf-id{margin-top:22px}
 .row100k .pf-id a{color:var(--water);text-decoration:none}
 .row100k .pf-id a:hover{text-decoration:underline;text-underline-offset:3px}
@@ -1136,13 +1127,12 @@ html:has(.row100k){scroll-behavior:smooth}
  * the right. */
 .row100k .pf-eye{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:14px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
 .row100k .pf-eye .r{color:var(--gray);font-weight:400}
-/* The bests as two small boards, the front page top-three voice: a mono
- * title, the label bold with its date under it, the value on the right
- * with the place chip, SHARE in a narrow last cell for the rower. */
-.row100k .pf-bests{display:grid;grid-template-columns:1fr;gap:22px}
-@media(min-width:640px){.row100k .pf-bests{grid-template-columns:1fr 1fr}}
+/* The bests as ONE small board (owner, 2026-09-25: one list, no PACE
+ * RECORDS / DISTANCE RECORDS subheaders — the two-board grid and its mono
+ * titles went with them), the front page top-three voice: the label bold
+ * with its date under it, the value on the right with the place chip,
+ * SHARE in a narrow last cell for the rower. */
 .row100k .pf-best{min-width:0}
-.row100k .pf-best h3{font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gray);padding-bottom:6px}
 .row100k .pf-best table.board td{padding:9px 6px}
 .row100k .pf-best .k{font-family:var(--row-archivo),sans-serif;font-weight:700;text-decoration:none}
 .row100k .pf-best .k:hover{color:var(--water);text-decoration:underline;text-underline-offset:3px}
@@ -1178,7 +1168,6 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .pf-side{display:block;padding-top:26px}
   .row100k .pf-side .pf-bests-sec{margin-top:28px}
   .row100k .pf-two .bl{grid-template-columns:1fr}
-  .row100k .pf-two .pf-bests{grid-template-columns:1fr}
   /* From 720px the nameplate never wraps (owner, 2026-09-24): the fit
    * has no floor here, so the longest name still lands on one line. */
   .row100k .pf-two .pf-name{font-size:clamp(26px,4.6vw,52px);white-space:nowrap}
@@ -1186,8 +1175,6 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .pf-two .bhead-n{font-size:clamp(40px,7vw,76px)}
   .row100k .pf-two .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,90px)}
   .row100k .pf-two .pf-act .optin{font-size:clamp(30px,4.4vw,46px)}
-  .row100k .pf-two .pf-act .front-share{font-size:11px}
-  .row100k .pf-two .pf-adm .outline-btn{font-size:clamp(16px,2.2vw,24px)}
 }
 
 /* ----------------------------------------------------------------------
