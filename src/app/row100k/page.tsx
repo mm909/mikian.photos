@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
@@ -22,7 +23,6 @@ import {
 } from "@/lib/row100k";
 import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
-import { meterSnapshot, type MeterSnapshot } from "@/lib/homeStats";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
@@ -32,11 +32,11 @@ import { frontCss } from "./frontCss";
 import { RowBar } from "./RowBar";
 import { RowFooter } from "./RowFooter";
 import { JoinPanel } from "./JoinPanel";
-import { Dashboard } from "./Dashboard";
+import { Dashboard, Wheels } from "./Dashboard";
+import { LogInPlace } from "./LogInPlace";
 import { Who } from "./Boards";
 import { Blocks } from "./Blackout";
 import { EliteList, type EliteRow } from "./EliteList";
-import { LiveTogether } from "./LiveTogether";
 import { LogCell } from "./LogCell";
 import { OptIn } from "./OptIn";
 import {
@@ -136,25 +136,26 @@ function TopRows({ label, rows }: { label: string; rows: TotalRow[] }) {
   );
 }
 
-/* A snapshot for the wheels when the feed itself could not be read: the
- * board total, frozen (rate 0 holds the counter still, and the first poll
- * takes over once the feed answers). */
-function stillSnapshot(meters: number, now: number): MeterSnapshot {
-  return {
-    meters,
-    rowers: 0,
-    sessions: 0,
-    finished: 0,
-    rate: 0,
-    splitMean: 0,
-    splitSd: 0,
-    splitN: 0,
-    at: Date.now(),
-    phase: now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open",
-    daysLeft: 0,
-    day: 0,
-    ok: false,
-  };
+/* Meters per day and the longest row off the rower's month — what the
+ * share cards want beyond the totals (share/cards.ts). Computed here, on
+ * the server, because the form that carries the cards (LogInPlace) is
+ * mounted by this page under the counter row since 2026-09-25. */
+function shareSummary(rows: { day: string; meters: number }[]): { byDay: Record<string, number>; longest: number } {
+  const byDay: Record<string, number> = {};
+  let longest = 0;
+  for (const r of rows) {
+    byDay[r.day] = (byDay[r.day] ?? 0) + r.meters;
+    if (r.meters > longest) longest = r.meters;
+  }
+  return { byDay, longest };
+}
+
+/* "1,234" hours on the erg, everyone together — the visitor's first cell
+ * (owner, 2026-09-25: "HOURS where meters-together was"). Tenths while the
+ * month is young, whole hours once there are a hundred of them. */
+function fmtHours(seconds: number): string {
+  const h = seconds / 3600;
+  return h >= 100 ? Math.round(h).toLocaleString("en-US") : (Math.round(h * 10) / 10).toLocaleString("en-US");
 }
 
 export default async function Row100kPage() {
@@ -266,21 +267,12 @@ export default async function Row100kPage() {
   const today = daysElapsed(nowMs);
 
   // The together numbers come from the board's own sums, never a reduce
-  // over the rows: during a blackout the rows carry floors.
+  // over the rows: during a blackout the rows carry floors. Static, from
+  // this render (owner, 2026-09-25: "revert the meters-together number to
+  // a static number, not counting up"); the live odometer and its feed
+  // (/api/home/meters) are the root landing's, not this page's.
   const togetherMeters = boards.community.meters;
-
-  /* METERS TOGETHER, LIVE (owner, 2026-09-24): the first paint of the
-   * landing counter — the same snapshot the root page and /api/home/meters
-   * serve, for the month the clock is in. The wheels then poll the feed
-   * themselves (useLiveMeters). meterSnapshot never throws, but a page
-   * must not fall over a counter: the fallback is the board total, still. */
-  let snapshot: MeterSnapshot;
-  try {
-    snapshot = await meterSnapshot();
-  } catch (err) {
-    console.error("row100k: failed to build the meter snapshot", err);
-    snapshot = stillSnapshot(togetherMeters, nowMs);
-  }
+  const togetherSeconds = boards.community.seconds;
 
   // The PLACES half of the blackout rule (blackoutRules.ts): while a window
   // is open the elite come back unranked, and a page may not order
@@ -408,12 +400,15 @@ export default async function Row100kPage() {
         </header>
       )}
 
-      {/* A joined rower: their own number first, the seven wheels, then
-       * the id line. LOG A ROW moved down into the counter row; the form
-       * still opens here, under the number (LogInPlace, bare). */}
-      {me && (
-        <section className="fs">
-          <div className="wrap front">
+      {/* THE BIG NUMBER. A joined rower: their own month on seven wheels,
+       * one line under it saying whose (Dashboard, bare). Anyone else:
+       * everyone together on the landing's eight wheels, static (owner,
+       * 2026-09-25: "the big number is the month's total meters, like
+       * mikianmusser.com's counter head, dimmed leading wheels are fine but
+       * static"); tapping it opens the stats page. */}
+      <section className="fs">
+        <div className="wrap front">
+          {me ? (
             <Dashboard
               rowerNumber={me.rowerNumber}
               displayName={me.displayName}
@@ -423,32 +418,35 @@ export default async function Row100kPage() {
               sessions={monthRows.length}
               rows={monthRows}
               phase={earlyAdmin ? "open" : phase}
-              rank={elite ? null : myRank}
-              records={myRecords}
-              defaultDay={defaultDay}
-              defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${monthRows.length + 1}`}
-              earlyAdmin={earlyAdmin}
-              masked={elite}
-              digits={elite ? digitCount(myMeters) : undefined}
-              days={today}
-              sanity={sanity}
-              race={raceShare}
               bare
             />
-          </div>
-        </section>
-      )}
+          ) : (
+            <div className="mine eight">
+              <Wheels meters={togetherMeters} digits={8} href="/row100k/stats" label="the stats page" />
+              <p className="my-unit mono">
+                Meters · <b>everyone together</b>
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
-      {/* THE COUNTER ROW (owner, 2026-09-24): meters together, ticking, a
-       * link to the stats page; the latest row — meters, at this pace, by
-       * this person, this long ago; and OPT IN or LOG A ROW. */}
+      {/* THE COUNTER ROW (owner, 2026-09-24, reviewed 2026-09-25): a rower
+       * gets METERS TOGETHER, a visitor HOURS (their meters together are the
+       * big number already) — static ink, a link to the stats page; the
+       * latest row — meters, at this pace, this long ago, by this person,
+       * with no callout; and OPT IN or LOG A ROW. On a phone the last cell
+       * comes first, straight under the number (frontCss.ts). */}
       <section className="fs">
         <div className="wrap front">
           <div className="front-stats three big counter">
-            <div className="cell fc">
-              <LiveTogether snapshot={snapshot} />
+            <div className="cell fc tog">
+              <div className="n">
+                <Link href="/row100k/stats">{me ? fmtMeters(togetherMeters) : fmtHours(togetherSeconds)}</Link>
+              </div>
+              <div className="l mono">{me ? "meters together" : "hours together"}</div>
             </div>
-            <div className="cell fc">
+            <div className="cell fc latest">
               {latest && latestRow ? (
                 <>
                   <div className="n">
@@ -461,7 +459,8 @@ export default async function Row100kPage() {
                     )}
                   </div>
                   <div className="l mono">
-                    latest row{latestSplit ? ` · ${latestSplit}` : ""} · {ago(latest.createdAtMs, nowMs)}
+                    {latestSplit ? `${latestSplit} · ` : ""}
+                    {ago(latest.createdAtMs, nowMs)}
                   </div>
                   <div className="by">
                     <span className="num">{fmtRowerNumber(latestRow.rowerNumber)} · </span>
@@ -471,14 +470,47 @@ export default async function Row100kPage() {
               ) : (
                 <>
                   <div className="n">—</div>
-                  <div className="l mono">latest row · nobody has logged a meter yet</div>
+                  <div className="l mono">nobody has logged a meter yet</div>
                 </>
               )}
             </div>
-            <div className="cell fc">{thirdCell}</div>
+            <div className="cell fc cta">{thirdCell}</div>
           </div>
         </div>
       </section>
+
+      {/* THE LOG FORM, under the cells bar (owner, 2026-09-25: "when I
+       * click LOG A ROW the form opens ABOVE the button; it should open
+       * BELOW the cells bar, on desktop and mobile"). Nothing on the page
+       * until LOG A ROW is tapped; the share dialog it carries pops on the
+       * fresh row once one is saved. No SHARE word anywhere (owner). */}
+      {me && (
+        <div className="wrap front front-form">
+          <LogInPlace
+            share={{
+              displayName: me.displayName,
+              rowerNumber: me.rowerNumber,
+              instagram: me.instagram,
+              meters: myMeters,
+              sessions: monthRows.length,
+              ...shareSummary(monthRows),
+              division: me.division as Division,
+              rank: elite ? null : myRank,
+              records: myRecords,
+              days: today,
+              masked: elite,
+              digits: elite ? digitCount(myMeters) : undefined,
+              race: raceShare,
+            }}
+            defaultDay={defaultDay}
+            defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${monthRows.length + 1}`}
+            phase={earlyAdmin ? "open" : phase}
+            earlyAdmin={earlyAdmin}
+            sanity={sanity}
+            bare
+          />
+        </div>
+      )}
 
       <section className="fs">
         <div className="wrap front">

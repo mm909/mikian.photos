@@ -8,18 +8,76 @@ import { type MyRow } from "./MyRows";
 import { LogInPlace } from "./LogInPlace";
 import type { ShareData } from "./share/cards";
 
+/* THE BIG NUMBER of the front page: the landing counter's wheels (Home.tsx
+ * .od geometry, theme.ts .my-od), static, the leading zeros dimmed. Seven
+ * wheels for a rower's own month, eight for everyone together (owner,
+ * 2026-09-25, signed out: "the big number is the month's total meters,
+ * like mikianmusser.com's counter head, dimmed leading wheels are fine but
+ * static"). With `href` the number is a link with no chrome of its own. */
+export function Wheels({
+  meters,
+  digits,
+  href,
+  label,
+}: {
+  meters: number;
+  digits: 7 | 8;
+  href?: string;
+  /* The link's accessible name — where tapping the number goes. */
+  label?: string;
+}) {
+  const tokens = tokensFor(metersText(meters, digits));
+  const od = (
+    <div className="my-od" role="img" aria-label={`${meters.toLocaleString("en-US")} meters rowed`}>
+      {tokens.map((t, i) => (
+        <span key={i} className={`${t.sep ? "sep" : "cell"}${t.lead ? " lead" : ""}`} aria-hidden="true">
+          {t.ch}
+        </span>
+      ))}
+    </div>
+  );
+  return href ? (
+    <Link href={href} className="my-od-link" aria-label={label}>
+      {od}
+    </Link>
+  ) : (
+    od
+  );
+}
+
+/* Meters per day and the longest row, off a rower's month — what the share
+ * cards need beyond the totals (share/cards.ts). The front page computes
+ * the same on the server (page.tsx) for the form it mounts under the
+ * counter row; a client module cannot lend it a function. */
+function shareSummary(rows: MyRow[]): { byDay: Record<string, number>; longest: number } {
+  const byDay: Record<string, number> = {};
+  let longest = 0;
+  for (const r of rows) {
+    byDay[r.day] = (byDay[r.day] ?? 0) + r.meters;
+    if (r.meters > longest) longest = r.meters;
+  }
+  return { byDay, longest };
+}
+
 /* The signed-in rower's top of the front page (owner call, 2026-09-05:
  * "almost the same as mikianmusser.com"): their meters in the landing's
- * odometer look — eight digits with commas, room for ten million, the
- * leading zeros dimmed — tapping it opens their profile; then LOG A ROW
- * and SHARE (LogInPlace, the form opens right there); then who they are
- * as a line of newspaper text, not a bib card. The takeout-menu stats and
- * the progress bar moved to the profile. Still called Dashboard so the dev
- * preview and JoinSim keep their import.
+ * odometer look — seven digits with commas, the leading zeros dimmed —
+ * tapping it opens their profile; then one line saying whose number it is.
+ * Since the owner's review (2026-09-25) that line is the unit line itself,
+ * "METERS · ROWER 095 · MIKIAN MUSSER": no id line under it, no Instagram
+ * handle ("remove the @"), and no SHARE word anywhere on the landing. The
+ * takeout-menu stats and the progress bar moved to the profile. Still
+ * called Dashboard so the dev preview and JoinSim keep their import.
  *
  * The number is the rower's OWN total, summed from their fresh rows on the
  * server: a blackout never masks you from yourself. Static digits — the
- * landing rolls because it polls; this page refreshes on write. */
+ * landing rolls because it polls; this page refreshes on write.
+ *
+ * `bare` (the front page): the number and the line only. The log form and
+ * the share dialog (LogInPlace) are mounted by the page under the counter
+ * row — owner, 2026-09-25: "when I click LOG A ROW the form opens ABOVE the
+ * button; it should open BELOW the cells bar". Without `bare` (the dev
+ * preview) the form still opens right here. */
 export function Dashboard(props: {
   rowerNumber: number;
   displayName: string;
@@ -54,92 +112,52 @@ export function Dashboard(props: {
   /* Dev preview only. */
   simulate?: boolean;
   simulateJustJoined?: boolean;
-  /* The front page since 2026-09-24 (owner: "MY number of meters with the
-   * seven digits, then meters together / latest row / LOG A ROW"): the
-   * number and the id line only — LOG A ROW is a cell of the counter row
-   * under it (page.tsx), and SHARE is a word on the id line. The form and
-   * the share dialog still live in LogInPlace here, opened by event. */
+  /* The front page: the number and its line only (see above). */
   bare?: boolean;
 }) {
   const profileHref = `/row100k/r/${props.rowerNumber}`;
-
-  const { byDay, longest } = useMemo(() => {
-    const m: Record<string, number> = {};
-    let longest = 0;
-    for (const r of props.rows) {
-      m[r.day] = (m[r.day] ?? 0) + r.meters;
-      if (r.meters > longest) longest = r.meters;
-    }
-    return { byDay: m, longest };
-  }, [props.rows]);
-
-  // Seven wheels, not the landing's eight: nobody rows ten million meters
-  // in a month, and the empty ten-millions digit read as noise (owner,
-  // 2026-09-05). Room for 9,999,999 stays.
-  const tokens = tokensFor(metersText(props.meters, 7));
+  const { byDay, longest } = useMemo(() => shareSummary(props.rows), [props.rows]);
 
   return (
     <div className="mine">
-      <Link href={profileHref} className="my-od-link" aria-label="your stats">
-        <div className="my-od" role="img" aria-label={`${props.meters.toLocaleString("en-US")} meters rowed`}>
-          {tokens.map((t, i) => (
-            <span
-              key={i}
-              className={`${t.sep ? "sep" : "cell"}${t.lead ? " lead" : ""}`}
-              aria-hidden="true"
-            >
-              {t.ch}
-            </span>
-          ))}
-        </div>
-      </Link>
+      {/* Seven wheels, not the landing's eight: nobody rows ten million
+        * meters in a month, and the empty ten-millions digit read as noise
+        * (owner, 2026-09-05). Room for 9,999,999 stays. */}
+      <Wheels meters={props.meters} digits={7} href={profileHref} label="your stats" />
       <p className="my-unit mono">
-        Meters · <b>you</b>
+        Meters ·{" "}
+        <b>
+          rower {fmtRowerNumber(props.rowerNumber)} · {props.displayName}
+        </b>
       </p>
 
-      <LogInPlace
-        share={{
-          displayName: props.displayName,
-          rowerNumber: props.rowerNumber,
-          instagram: props.instagram,
-          meters: props.meters,
-          sessions: props.sessions,
-          byDay,
-          division: props.division,
-          longest,
-          rank: props.rank,
-          records: props.records,
-          days: props.days,
-          masked: props.masked,
-          digits: props.digits,
-          race: props.race,
-        }}
-        defaultDay={props.defaultDay}
-        defaultTitle={props.defaultTitle}
-        phase={props.phase}
-        earlyAdmin={props.earlyAdmin}
-        sanity={props.sanity}
-        simulate={props.simulate}
-        justJoined={props.simulateJustJoined}
-        bare={props.bare}
-      />
-
-      <p className="front-id mono">
-        ROWER {fmtRowerNumber(props.rowerNumber)} · {props.displayName.toUpperCase()}
-        {props.instagram ? ` · @${props.instagram.toUpperCase()}` : ""}
-        {props.bare ? (
-          <>
-            {" · "}
-            <button
-              type="button"
-              className="front-id-share"
-              onClick={() => window.dispatchEvent(new Event("row100k:share"))}
-            >
-              Share
-            </button>
-          </>
-        ) : null}
-      </p>
+      {props.bare ? null : (
+        <LogInPlace
+          share={{
+            displayName: props.displayName,
+            rowerNumber: props.rowerNumber,
+            instagram: props.instagram,
+            meters: props.meters,
+            sessions: props.sessions,
+            byDay,
+            division: props.division,
+            longest,
+            rank: props.rank,
+            records: props.records,
+            days: props.days,
+            masked: props.masked,
+            digits: props.digits,
+            race: props.race,
+          }}
+          defaultDay={props.defaultDay}
+          defaultTitle={props.defaultTitle}
+          phase={props.phase}
+          earlyAdmin={props.earlyAdmin}
+          sanity={props.sanity}
+          simulate={props.simulate}
+          justJoined={props.simulateJustJoined}
+        />
+      )}
     </div>
   );
 }

@@ -1,63 +1,99 @@
 /* THE FRONT AS THE COUNTER PAGE (owner, 2026-09-24: the landing should
- * look closer to mikianmusser.com — the month as the subtitle, then three
- * cells: METERS TOGETHER ticking live, THE LATEST ROW, OPT IN or LOG A ROW;
- * then the top five men and women; nothing else to click). The cells ride
- * on .front-stats in theme.ts; what is new is here. Prefix .front-.
+ * look closer to mikianmusser.com — the month as the subtitle, the big
+ * number, three cells, then the top five men and women; nothing else to
+ * click), reworked after his review of it (2026-09-25):
+ *   - the big number is static — a rower sees their own month, a visitor
+ *     sees everyone together, eight wheels like the landing counter;
+ *   - the cells: METERS TOGETHER (a rower) or HOURS (a visitor) as a static
+ *     ink number, THE LATEST ROW with no callout, then LOG A ROW or OPT IN;
+ *     everything centred in its box on desktop;
+ *   - on a phone the call to action comes straight after the number, the
+ *     landing way (Home.tsx .cta), and the two cells stack under it;
+ *   - the log form opens under the cells bar, and the LOG A ROW arrow turns
+ *     down while it is open.
+ * The cells ride on .front-stats in theme.ts; what is new is here. Prefix
+ * .front-.
  *
  * Rendered as the text child of a style tag, so no double quotes, no
  * apostrophes, no angle brackets and no ampersands anywhere in this
  * string, comments included (see the note in theme.ts). */
 export const frontCss = `
 /* Each outer cell is its own size container (.fc — the odometer digits are
- * .cell too, so the outer ones carry a class of their own), so the wheels
- * and OPT IN are sized off the cell and never off the viewport. */
+ * .cell too, so the outer ones carry a class of their own), so OPT IN is
+ * sized off the cell and never off the viewport. */
 .row100k .front-stats .fc{container-type:inline-size}
 
-/* METERS TOGETHER: the landing wheels (Home.tsx Odometer, class .od) in the
- * front-page water blue. Eight digits and two commas are 6.12em, so the
- * size is the cell over 6.12, capped where the other two numbers stop
- * (.front-stats.big .n). The digit cells are reset from the outer cell rule
- * — .cell is padded and ruled in theme.ts — by the element in the
- * selector. */
-.row100k .front-live-link{display:block;text-decoration:none;color:inherit}
-.row100k .front-live .od{--od-cw:.68em;--od-sw:.34em;display:flex;align-items:flex-start;font-family:var(--row-archivo-black),sans-serif;font-size:min(calc(100cqw / 6.12),30vh,56px);line-height:1;color:var(--water);letter-spacing:0;font-variant-numeric:tabular-nums;transition:color 160ms ease}
-@media(min-width:640px){.row100k .front-live .od{font-size:min(calc(100cqw / 6.12),30vh,52px)}}
-.row100k .front-live-link:hover .od{color:var(--ink)}
-.row100k .front-stats .front-live .od span.cell{position:relative;flex:none;width:var(--od-cw);height:1em;padding:0;border:0;overflow:hidden;transition:opacity 420ms ease}
-.row100k .front-live .od .strip{display:block;width:100%;transition:transform 170ms cubic-bezier(.2,.7,.2,1)}
-.row100k .front-live .od .g{display:block;height:1em;line-height:1;text-align:center}
-.row100k .front-live .od .sep{flex:none;width:var(--od-sw);height:1em;line-height:1;text-align:center;transition:opacity 420ms ease}
-.row100k .front-live .od .lead{opacity:.25}
-/* The dot in front of the label once the wheels are turning. */
-.row100k .front-stats .l .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--water);margin-right:8px;vertical-align:middle;position:relative;top:-1px;animation:front-pulse 1.6s ease-in-out infinite}
-@keyframes front-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+/* The visitor big number: eight wheels and two commas are 6.12em (the
+ * landing math in Home.tsx); 160px is the landing cap, where 979px fills
+ * the 1040 measure. The rower keeps seven wheels (theme.ts .mine .my-od). */
+.row100k .mine.eight .my-od{--od-size:min(calc(100cqw / 6.12),30vh,160px)}
+
+/* METERS TOGETHER (or HOURS): the same ink number as the latest row, static
+ * (owner, 2026-09-25: a static number, not counting up, black text,
+ * no blinking blue dot). The number is still the way to the stats
+ * page — a link with no chrome, water on hover. */
+.row100k .front-stats .tog .n{white-space:nowrap}
+.row100k .front-stats .tog a{color:inherit;text-decoration:none;transition:color 160ms ease}
+.row100k .front-stats .tog a:hover{color:var(--water)}
 
 /* THE LATEST ROW: the meters as the number, the split and how long ago on
- * the label line, the rower under it as a word with a dotted rule — the
- * link to their profile. */
+ * the label line — no LATEST ROW callout (owner, 2026-09-25) — the rower
+ * under it as a word with a dotted rule, the link to their profile. */
 .row100k .front-stats .by{margin-top:9px;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px;line-height:1.4;min-width:0;overflow-wrap:anywhere}
 .row100k .front-stats .by .num{color:var(--gray);font-family:var(--row-mono),monospace;font-weight:400;font-size:12px}
 .row100k .front-stats .by a{color:var(--ink);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
 .row100k .front-stats .by a:hover{color:var(--water)}
 .row100k .front-stats .nothing{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);padding:6px 0}
 
-/* OPT IN or LOG A ROW as the third cell (OptIn.tsx, the landing look,
- * sized to the cell: OPT IN plus the arrow is about 4.5em of Archivo
- * Black, LOG A ROW plus the arrow about 6.9em — .long says which). The
+/* OPT IN or LOG A ROW as the third cell (OptIn.tsx, the landing look). The
  * cell is the link when it links (a stranger, or a signed-in visitor who
- * has not joined); a joined rower gets the button that opens the form in
- * place. */
+ * has not joined); a joined rower gets the word that opens the form under
+ * the bar (LogCell.tsx). The arrow: right when shut, down when the form is
+ * open (owner, 2026-09-25: a small animation, and back when closed). */
 .row100k .front-stats .go{display:flex;align-items:center;min-height:1.2em}
-.row100k .front-stats .go .optin{font-size:min(calc(100cqw / 4.9),56px);line-height:1.1}
-.row100k .front-stats .go .optin.long{font-size:min(calc(100cqw / 7.1),56px)}
+.row100k .front-stats .go .optin .arr{transition:transform 220ms cubic-bezier(.2,.7,.2,1)}
+.row100k .front-stats .go .optin.open .arr{transform:rotate(90deg)}
+@media(prefers-reduced-motion:reduce){.row100k .front-stats .go .optin .arr{transition:none}}
+
+/* DESKTOP (from 640px, the seam of every front grid): three boxes with the
+ * number, the word and the name centred in each (owner, 2026-09-25: the
+ * LOG A ROW / OPT IN button is not centered in its box, and neither are
+ * the metrics — center them all). The boxes are padded the same on both
+ * sides so the centres sit between the rules, not off by the gutter.
+ * OPT IN plus the arrow is about 4.5em of Archivo Black and LOG A ROW plus
+ * the arrow about 6.9em (.long says which), so the size is the cell over
+ * that, capped where the ink numbers stop (theme.ts .front-stats.big .n). */
 @media(min-width:640px){
-  .row100k .front-stats .go .optin{font-size:min(calc(100cqw / 4.9),52px)}
+  .row100k .front-stats.counter .cell{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding-left:14px;padding-right:14px}
+  .row100k .front-stats.counter .cell+.cell{padding-left:14px}
+  .row100k .front-stats.counter .cell:last-child{padding-right:14px}
+  .row100k .front-stats.counter .go{justify-content:center;width:100%}
+  /* Seven digits, two commas, a space and the m are about 6.6em of Archivo
+   * Black: a month of everyone must stay on one line in a third of the
+   * measure, so the size is the cell over that, capped at the ink size. */
+  .row100k .front-stats.counter .tog .n{font-size:min(calc(100cqw / 6.8),52px)}
+  .row100k .front-stats .go .optin{font-size:min(calc(100cqw / 4.9),52px);line-height:1.1;text-align:center}
   .row100k .front-stats .go .optin.long{font-size:min(calc(100cqw / 7.1),52px)}
 }
 
-/* SHARE on the id line under the signed-in number: a word with a dotted
- * rule, no chrome. */
-.row100k .front-id-share{all:unset;cursor:pointer;color:var(--ink);font:inherit;letter-spacing:inherit;text-transform:inherit;border-bottom:1px dotted currentColor;padding-bottom:1px}
-.row100k .front-id-share:hover{color:var(--water)}
-.row100k .front-id-share:focus-visible{outline:2px solid var(--water);outline-offset:3px}
+/* A PHONE (owner, 2026-09-25: cluttered; the main call to action must be
+ * OPT IN or LOG A ROW. Get closer to the mikianmusser.com landing — the
+ * big number, then the call to action as the very next thing, then the
+ * cells stacked, then the top fives). The call-to-action cell is ordered
+ * first and loses its rules, so it reads as the landing .cta: the same air
+ * above it as the landing (clamp(30px,6vh,64px), less the 28px the section
+ * already carries) and the same poster size; the bar then
+ * starts on the first stat cell with the 2px rule the grid used to carry,
+ * and ends on the last one with the grid rule, no doubled line. */
+@media(max-width:639px){
+  .row100k .front-stats.counter{border-top:none}
+  .row100k .front-stats.counter .cell.cta{order:-1;border-bottom:none;padding:clamp(2px,calc(6vh - 28px),36px) 0 clamp(26px,5vh,40px)}
+  .row100k .front-stats.counter .cell.tog{border-top:2px solid var(--ink)}
+  .row100k .front-stats.counter .cell.latest{border-bottom:none}
+  .row100k .front-stats .go .optin{font-size:clamp(38px,8.6vw,96px)}
+}
+
+/* THE LOG FORM under the cells bar (LogRow, which carries its own flat
+ * panel): the bar already ends on a 2px rule, so the seam draws none. */
+.row100k .front-form .front-log{margin-top:6px;border-top:none;padding-top:0}
 `;
