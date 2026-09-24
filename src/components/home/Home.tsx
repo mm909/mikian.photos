@@ -14,6 +14,14 @@ import { metersText, tokensFor } from "./digits";
  * then a huge underlined OPT IN text link to /row100k and a thin mono
  * ledger with dotted leaders. No tiles, no box, no dark surface.
  *
+ * ALL TIME since 2026-09-25 (owner: "the CUMULATIVE count of meters for
+ * everyone (all time, every month), still incrementing live"). The
+ * dateline above the wheels stays the month the clock is in; the ledger
+ * under OPT IN carries the four figures the owner asked for, in his order
+ * — rowers in, rows, time rowed, 100K finishers — and nothing else ("keep
+ * it minimal … the page is just directing people to Rowtember"). The OPT
+ * IN callout and the phone spacing are untouched, as asked.
+ *
  * RULE (same as theme.ts): the css string must contain NO double quotes,
  * NO apostrophes and NO angle brackets anywhere, comments included — React
  * escapes them server-side only and the style tag hydration-mismatches. */
@@ -237,43 +245,53 @@ export function Odometer({ meters, tempo, digits = 8 }: { meters: number; tempo:
   );
 }
 
+/* "1,532 h 07 min" — every logged second, in a unit a ledger line can
+ * hold (h:mm:ss runs to five digits of hours). Under an hour, minutes. */
+const fmtTimeRowed = (seconds: number): string => {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h.toLocaleString("en-US")} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+};
+
 export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
   const m = useLiveMeters(snapshot);
-  // Oct 1–3 is still phase "open" (late logs), but the pace is 0 and the
-  // month is rowed — say so instead of a stale "day 30 of 30".
+  // The dateline is the month the clock is in (owner, 2026-09-25: "the
+  // month/day dateline can stay as the month it is in"). Under the
+  // month-based clock the phase is open for the life of the process; the
+  // other two survive for a process that lived across a boundary.
   const status =
     m.phase === "before"
       ? `${MONTH.label} · first stroke ${MONTH.short} 1`
       : m.phase === "closed"
         ? `${MONTH.label} · final`
-        : m.rate <= 0 && m.day >= 30
-          ? `${MONTH.label} · late logs open`
-          : `${MONTH.label} · day ${m.day} of ${MONTH_DAYS}`;
+        : `${MONTH.label} · day ${m.day} of ${MONTH_DAYS}`;
 
+  // The owner's four, in his order (2026-09-25). Always all four: a zero
+  // is a true figure on an all-time ledger, not a line to hide.
   const facts: Array<[string, string]> = [
     ["Rowers in", m.rowers.toLocaleString("en-US")],
-    ["Sessions logged", m.sessions.toLocaleString("en-US")],
-    m.phase === "before" ? ["Starts", `${MONTH.short} 1`] : ["Days left", String(m.daysLeft)],
+    ["Rows", m.sessions.toLocaleString("en-US")],
+    ["Time rowed", fmtTimeRowed(m.seconds)],
+    ["100K finishers", m.finished.toLocaleString("en-US")],
   ];
-  if (m.finished > 0) facts.push(["Finished 100K", m.finished.toLocaleString("en-US")]);
 
   return (
     <>
       <style>{css}</style>
       <section className="stage">
         <p className="side" aria-hidden="true">
-          {MONTH.month === 9 ? `Rowtember ${MONTH.year}` : MONTH.label} · every meter, live
+          Rowtember · every meter ever, live
         </p>
         <div className="wrap">
           <p className="status">
             {m.live && <span className="live-dot" aria-hidden="true" />}
             <span>{status}</span>
           </p>
-          <h1 className="sr">Meters rowed so far in {MONTH.label}</h1>
+          <h1 className="sr">Meters rowed, all time, everyone together</h1>
           <Odometer meters={m.meters} tempo={m.tempoMs} />
           <p className="unit">
-            Meters rowed · <b>everyone together</b>
-            {m.phase === "before" ? " · from Sep 1" : ""}
+            Meters rowed · <b>everyone together</b> · all time
           </p>
           <div className="cta">
             <a className="opt" href="/row100k">

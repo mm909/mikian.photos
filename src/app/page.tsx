@@ -10,7 +10,10 @@ import { Landing } from "@/components/home/Landing";
  * The Mikian.Photos storefront hub that used to live here is retired for
  * now (moved, unlinked, to /photos — the marketplace under /e/[slug] etc. is
  * untouched). The root is a Rowtember landing: one live counter of every
- * meter rowed this September, and one call to action — opt in.
+ * meter rowed, and one call to action — opt in. Since 2026-09-25 the
+ * counter is ALL TIME, every month (owner: "the CUMULATIVE count of
+ * meters for everyone … still incrementing live"), with four figures
+ * under it: rowers in, rows, time rowed, 100K finishers (homeStats.ts).
  *
  * The counter is an erg monitor, not a debt clock (owner's call,
  * 2026-09-05): it ticks one meter at a time at a split drawn from the
@@ -29,17 +32,16 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Mikian Musser",
-  description:
-    "Rowtember 2026 — every meter rowed this September, counted live. Opt in.",
+  description: "Rowtember — every meter everyone has ever rowed, counted live. Opt in.",
   openGraph: {
-    title: "Mikian Musser — Rowtember 2026",
-    description: "Every meter rowed this September, counted live. Opt in.",
+    title: "Mikian Musser — Rowtember",
+    description: "Every meter everyone has ever rowed, counted live. Opt in.",
     images: [{ url: "/row100k/og.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mikian Musser — Rowtember 2026",
-    description: "Every meter rowed this September, counted live. Opt in.",
+    title: "Mikian Musser — Rowtember",
+    description: "Every meter everyone has ever rowed, counted live. Opt in.",
     images: ["/row100k/og.png"],
   },
 };

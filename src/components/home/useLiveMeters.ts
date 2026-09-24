@@ -42,8 +42,10 @@ import type { MeterSnapshot } from "@/lib/homeStats";
  *     The only snap that rolls backwards. A board lowered while the display
  *     is still sprinting up to it has nothing to take back — the sprint
  *     simply ends at the new total instead of leaping there.
- *   - the pace is now 0 (before Sep 1, after the month): the counter is
- *     frozen, so it shows the real total, static.
+ *   - the pace is now 0 (nothing has ever been rowed — since 2026-09-25
+ *     the total is all time and the rate is this month's recent one, so a
+ *     month boundary no longer freezes it): the counter is frozen, so it
+ *     shows the real total, static.
  *   - the board is further ahead than SNAP_GAP_M: that is a tab that was
  *     hidden or asleep for hours, not a row that landed while you watched.
  *     Ten minutes of blurred wheels would be a stunt, so it snaps once.
@@ -342,9 +344,9 @@ export function useLiveMeters(
     meters: shown,
     rowers: snap.rowers,
     sessions: snap.sessions,
+    seconds: snap.seconds ?? 0,
     finished: snap.finished,
     phase: snap.phase,
-    daysLeft: snap.daysLeft,
     day: snap.day,
     rate: snap.rate,
     /* True once the client is ticking a moving number. */
