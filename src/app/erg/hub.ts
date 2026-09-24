@@ -14,6 +14,8 @@ import {
   parseForceCurve,
   parseGeneralStatus,
   parseHeartRateBelt,
+  isEnded,
+  WorkoutType,
   parseMultiplexed,
   parseSplitData,
   parseStrokeData,
@@ -217,6 +219,12 @@ export type Erg = {
   save: ErgSaveState;
   /* What a non-radio source is playing, when one is. */
   sourceLabel: string | null;
+  /* THE ROWER ON THIS ERG (owner, 2026-09-23: "let me assign a rower or a
+   * user on the monitors to an erg, optionally"). A Rowtember rower by
+   * number: the row heading and the save title fall back to their name,
+   * and a save is filed against their participant row. Null is the
+   * monitor on its own, as before. */
+  rower: { rowerNumber: number; name: string } | null;
   /* A saved row read back into this slot, or null while it is its own. */
   loaded: { id: string; title: string } | null;
   /* THE GOAL (owner, 2026-09-17: "infer the goal distance to be a five K
@@ -589,7 +597,9 @@ function apply(e: Erg, p: MuxPacket) {
     e.rec.pieceStartedAt = new Date().toISOString();
     e.rec.saved = false;
     e.save.savedId = null;
-    e.save.title = null;
+    /* THE TITLE STAYS (owner, 2026-09-23: "whenever the rower goes back to
+     * the main menu the title gets reset — keep the title the same"). A
+     * name typed for the erg is the erg's, not the piece's. */
     log(e, `new piece (${why}) — charts reset, recording continues`);
   };
   const lastN = m.strokes.length ? m.strokes[m.strokes.length - 1].n : 0;
@@ -599,6 +609,27 @@ function apply(e: Erg, p: MuxPacket) {
       const prev = m.general?.workoutState ?? null;
       if (isNewPiece(prev, p.data.workoutState) && (m.strokes.length || m.summary)) newPiece("monitor re-armed");
       m.general = p.data;
+      /* AUTO-SAVE AT THE LINE (owner, 2026-09-23: "when a row auto
+       * completes — the 5K or the 10K, whatever the selected workout is —
+       * auto save it"). A programmed piece (not a just-row) reaching its
+       * end state on a real monitor is saved without a press, a few
+       * seconds on so the summary packets are in the document. Only when
+       * an account is signed in (setAutoSave), and never twice. */
+      if (
+        autoSaveOn &&
+        e.source === "live" &&
+        p.data.workoutType >= WorkoutType.FIXEDDIST_NOSPLITS &&
+        (prev === null || !isEnded(prev)) &&
+        isEnded(p.data.workoutState) &&
+        !e.rec.saved &&
+        !e.save.busy
+      ) {
+        log(e, "piece complete — saving in a moment");
+        window.setTimeout(() => {
+          const still = ergs.get(e.id);
+          if (still && !still.rec.saved && !still.save.busy) void saveErg(still.id);
+        }, AUTO_SAVE_DELAY_MS);
+      }
       if (prev !== null && prev !== p.data.workoutState) log(e, `workout state: ${workoutStateWord(prev)} → ${workoutStateWord(p.data.workoutState)}`);
       return;
     }
@@ -780,6 +811,7 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     rec: freshRec(),
     save: { busy: false, note: null, savedId: null, title: null },
     sourceLabel: null,
+    rower: null,
     loaded: null,
     goalM: DEFAULT_GOAL_M,
     goalS: null,
@@ -1216,7 +1248,24 @@ export function clearErg(id: string) {
  * stands. */
 export function ergTitle(e: Erg): string {
   if (e.save.title !== null) return e.save.title;
+  if (e.rower) return e.rower.name;
   return quickTitle({ device: e.device, general: e.model.general, summary: e.model.summary, strokes: e.model.strokes });
+}
+
+/* THE ROWER ON AN ERG, set and cleared from the row's menu. */
+export function setErgRower(id: string, rower: { rowerNumber: number; name: string } | null) {
+  const e = ergs.get(id);
+  if (!e) return;
+  e.rower = rower;
+  log(e, rower ? `rower ${rower.rowerNumber} · ${rower.name}` : "no rower");
+  paint();
+}
+
+/* Auto-save is armed by the page that knows whether anyone is signed in. */
+let autoSaveOn = false;
+const AUTO_SAVE_DELAY_MS = 3_000;
+export function setAutoSave(on: boolean) {
+  autoSaveOn = on;
 }
 
 export function setErgTitle(id: string, title: string) {
@@ -1329,7 +1378,7 @@ export async function saveErg(id: string, title?: string): Promise<{ saved: Tele
     const res = await fetch(ERG_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doc, title: title ?? ergTitle(e) }),
+      body: JSON.stringify({ doc, title: title ?? ergTitle(e), rowerNumber: e.rower?.rowerNumber ?? null }),
       signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
     });
     if (!res.ok) {

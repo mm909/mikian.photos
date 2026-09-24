@@ -36,7 +36,7 @@
  * so the two artworks cannot drift a rung apart. */
 
 import { fmtRowerNumber } from "@/lib/row100k";
-import { RACE_TONES, raceBlocks, raceColOf, raceHeadMod, raceHouseMarks, raceInset, raceMod } from "./raceday";
+import { RACE_TONES, raceBlocks, raceCapOf, raceColOf, raceHeadMod, raceHouseMarks, raceInset, raceMod, racePieceLead } from "./raceday";
 import type {
   PosterBox,
   PosterLayout,
@@ -374,9 +374,23 @@ const fieldPlan = (key: PosterPlanKey, head: string): PosterPlan => ({
   shrink: ["cap"],
 });
 
+/* THE PIECE WITHOUT THE WAVE LINE (owner, 2026-09-23: "remove first wave
+ * at 6:15 PM on the field poster"): A TIMED 5,000 M TRIAL and nothing
+ * under it — the bill keeps its own. */
+const piece = raceMod("piece", 40, (ctx, box, d, paint) => {
+  const tk = paint.tk;
+  const { x, w } = raceColOf(box, paint);
+  const size = paint.fitSize(ctx, d.race.piece, "black", 400, 12, w, -0.02);
+  const f = paint.font("black", size);
+  let y = box.y + racePieceLead(tk);
+  y += raceCapOf(ctx, f, size);
+  paint.drawText(ctx, d.race.piece, x, y, f, WHITE, -0.02 * size);
+  return y + tk.small * 1.3 - box.y;
+});
+
 const modules: Record<string, Mod> = {
   mast: raceBlocks.mast,
-  piece: raceBlocks.piece,
+  piece,
   head: raceHeadMod("head", true, FIELD_HEAD_SHARE),
   "head.auto": raceHeadMod("head.auto", "auto", FIELD_HEAD_SHARE),
   "head.one": raceBlocks["head.one"],

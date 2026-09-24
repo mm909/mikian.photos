@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fmtRowerNumber } from "@/lib/row100k";
 import Link from "next/link";
 import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, workoutStateWord } from "@/lib/pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
@@ -13,6 +14,8 @@ import {
   LINK_WORD,
   addErg,
   addSimErg,
+  setAutoSave,
+  setErgRower,
   addSourceErg,
   anyUnsaved,
   bluetoothAvailable,
@@ -162,7 +165,9 @@ function stateWord(e: Erg): string | null {
  * setting goes behind the dots and the reading stays on the row. The
  * console head still carries the control in the open, because that is the
  * screen you are on when you are deciding what you are rowing. */
-function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void; signedIn: boolean }) {
+type Roster = { rowerNumber: number; name: string }[];
+
+function RowMenu({ erg, onChanged, signedIn, roster }: { erg: Erg; onChanged: () => void; signedIn: boolean; roster: Roster | null }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
@@ -249,6 +254,32 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
                * from lane 3 looked like it did something else). What is
                * typed here is the row heading AND the title the piece is
                * saved under. */}
+              {/* THE ROWER (owner, 2026-09-23): a Rowtember rower on this
+               * erg, optionally. The heading and the save title take their
+               * name unless one is typed below, and the save is filed
+               * against them. */}
+              <label className="eg-away" htmlFor={`rower-${erg.id}`}>
+                Rower on this erg
+              </label>
+              <select
+                id={`rower-${erg.id}`}
+                className="eg-select"
+                value={erg.rower ? String(erg.rower.rowerNumber) : ""}
+                disabled={!roster}
+                onChange={(ev) => {
+                  const n = Number(ev.target.value);
+                  const r = roster?.find((x) => x.rowerNumber === n) ?? null;
+                  setErgRower(erg.id, r);
+                  onChanged();
+                }}
+              >
+                <option value="">{roster ? "No rower — the monitor on its own" : signedIn ? "Loading the roster…" : "Sign in to assign a rower"}</option>
+                {(roster ?? []).map((r) => (
+                  <option key={r.rowerNumber} value={String(r.rowerNumber)}>
+                    {fmtRowerNumber(r.rowerNumber)} · {r.name}
+                  </option>
+                ))}
+              </select>
               <label className="eg-away" htmlFor={`title-${erg.id}`}>
                 Name this erg
               </label>
@@ -290,7 +321,7 @@ function RowMenu({ erg, onChanged, signedIn }: { erg: Erg; onChanged: () => void
   );
 }
 
-function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => void; onChanged: () => void; signedIn: boolean }) {
+function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen: () => void; onChanged: () => void; signedIn: boolean; roster: Roster | null }) {
   const g = erg.model.general;
   const a1 = erg.model.a1;
   const finish = expectedFinish(erg);
@@ -367,7 +398,7 @@ function ErgRow({ erg, onOpen, onChanged, signedIn }: { erg: Erg; onOpen: () => 
        * "I do not need the goal buttons here"). What is left is one quiet
        * button. */}
       <div className="eg-r-side">
-        <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} />
+        <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} roster={roster} />
       </div>
 
       {/* The monitor is on a different fixed distance. Said once, quietly;
@@ -480,6 +511,30 @@ export function MonitorList({ playId, ergId, board: boardParam = null, look: loo
     setErgs(listErgs());
     return subscribe(setErgs);
   }, []);
+
+  /* AUTO-SAVE is armed while an account is signed in (hub.ts). */
+  useEffect(() => {
+    setAutoSave(signedIn);
+    return () => setAutoSave(false);
+  }, [signedIn]);
+
+  /* THE ROSTER, once, for the rower pick in every row's menu. */
+  const [roster, setRoster] = useState<Roster | null>(null);
+  useEffect(() => {
+    if (!signedIn) return;
+    let gone = false;
+    fetch("/api/erg/rowers")
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; rowers?: Roster }) => {
+        if (!gone && j.ok && j.rowers) setRoster(j.rowers);
+      })
+      .catch(() => {
+        /* the pick stays disabled */
+      });
+    return () => {
+      gone = true;
+    };
+  }, [signedIn]);
 
   useEffect(() => {
     setSupport(bluetoothSupported() ? "yes" : "no");
@@ -632,7 +687,7 @@ export function MonitorList({ playId, ergId, board: boardParam = null, look: loo
       {ergs.length ? (
         <div className="eg-rows">
           {ergs.map((e) => (
-            <ErgRow key={e.id} erg={e} onOpen={() => setOpen(e.id)} onChanged={bump} signedIn={signedIn} />
+            <ErgRow key={e.id} erg={e} onOpen={() => setOpen(e.id)} onChanged={bump} signedIn={signedIn} roster={roster} />
           ))}
         </div>
       ) : (

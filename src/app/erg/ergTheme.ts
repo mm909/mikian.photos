@@ -281,6 +281,7 @@ export const ergCss = `
  * body no longer needs a screen of its own height — but it should still
  * hold the ground down a short page. */
 .row100k .eg{min-height:70vh}
+.eg .eg-menu .eg-select{width:100%;background:var(--eg-panel);color:var(--eg-fg);border:1px solid var(--eg-line);border-radius:3px;padding:8px 10px;font-family:var(--eg-mono),monospace;font-size:12px;margin-bottom:10px}
 /* The live pages are ink from the bar to the footer: the site root is
  * cream, and the strip of it between the bar and this sheet, and again
  * above the footer, read as two white bars on the television (owner,

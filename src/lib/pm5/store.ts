@@ -52,6 +52,7 @@ const ROW_SELECT = {
   dragFactor: true,
   title: true,
   entryId: true,
+  rowerNumber: true,
   createdAt: true,
 } satisfies Prisma.RowTelemetrySelect;
 
@@ -74,6 +75,7 @@ function toSaved(row: DbRow): TelemetrySavedRow {
     dragFactor: row.dragFactor,
     title: row.title,
     entryId: row.entryId,
+    rowerNumber: row.rowerNumber,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -111,11 +113,18 @@ async function scopeWhere(scope: ErgScope): Promise<Prisma.RowTelemetryWhereInpu
   return { OR: or };
 }
 
-export async function insertErgSession(args: { userId: string; doc: TelemetryDoc; title?: unknown }): Promise<TelemetrySavedRow> {
+export async function insertErgSession(args: {
+  userId: string;
+  doc: TelemetryDoc;
+  title?: unknown;
+  /* The Rowtember rower the erg was assigned to, if any. */
+  rower?: { participantId: string; rowerNumber: number } | null;
+}): Promise<TelemetrySavedRow> {
   const cols = columnsFrom(args.doc);
   const row = await db.rowTelemetry.create({
     data: {
       userId: args.userId,
+      ...(args.rower ? { participantId: args.rower.participantId, rowerNumber: args.rower.rowerNumber } : {}),
       ...cols,
       title: cleanTitle(args.title, defaultTitle(args.doc)),
       data: args.doc as unknown as Prisma.InputJsonValue,

@@ -1104,5 +1104,5 @@ export const raceLayoutFor = (ground: PosterGround): PosterLayout<RaceDayPoster>
  * and the same greys — exported here rather than copied there, so the two
  * artworks cannot drift a rung apart. Nothing else in this file is public. */
 export const RACE_TONES = { WHITE, BONE, KEY, QUIET, HAIR, FAINT } as const;
-export { MARK_SHARE, blocks as raceBlocks, capOf as raceCapOf, colOf as raceColOf, headMod as raceHeadMod };
+export { MARK_SHARE, PIECE_LEAD as racePieceLead, blocks as raceBlocks, capOf as raceCapOf, colOf as raceColOf, headMod as raceHeadMod };
 export { inset as raceInset, mod as raceMod };

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { CHALLENGE } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { CAPS, validateTelemetryDoc } from "@/lib/pm5/session";
 import { ErgStoreError, insertErgSession, listErgSessions } from "@/lib/pm5/store";
@@ -84,8 +86,20 @@ export async function POST(req: Request) {
   if (typeof doc === "string") return bad(`Can't save that session: ${doc}.`);
   if (!doc.strokes.length && !doc.samples.length) return bad("Nothing to save yet — row a stroke first.");
 
+  /* THE ROWER (owner, 2026-09-23): a Rowtember rower number the page had
+   * assigned to the erg. Looked up in the live challenge; a number that
+   * names nobody is refused rather than filed against the wrong person. */
+  let rower: { participantId: string; rowerNumber: number } | null = null;
+  if (body.rowerNumber !== null && body.rowerNumber !== undefined) {
+    const n = Number(body.rowerNumber);
+    if (!Number.isInteger(n) || n < 1) return bad("That rower number is not a rower.");
+    const p = await db.rowParticipant.findUnique({ where: { challenge_rowerNumber: { challenge: CHALLENGE, rowerNumber: n } }, select: { id: true } });
+    if (!p) return bad(`No rower ${n} in the challenge.`);
+    rower = { participantId: p.id, rowerNumber: n };
+  }
+
   try {
-    const saved = await insertErgSession({ userId, doc, title: body.title });
+    const saved = await insertErgSession({ userId, doc, title: body.title, rower });
     return NextResponse.json({ ok: true, id: saved.id, saved }, { headers: NO_STORE });
   } catch (err) {
     return failed(err, "save");

@@ -181,7 +181,8 @@ export function predictForErg(e: Erg): Prediction {
  * its piece are one gesture. */
 export function typedErgName(e: Erg): string | null {
   const t = e.save.title === null ? "" : e.save.title.trim();
-  return t ? t : null;
+  if (t) return t;
+  return e.rower ? e.rower.name : null;
 }
 
 export function pieceEnded(e: Erg): boolean {

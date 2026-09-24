@@ -137,6 +137,8 @@ export type TelemetrySavedRow = {
   /* LEGACY: the RowEntry a pre-move session was filed against. Null on
    * everything saved since. */
   entryId: string | null;
+  /* The Rowtember rower the erg was assigned to when it was saved. */
+  rowerNumber: number | null;
   createdAt: string;
 };
 
