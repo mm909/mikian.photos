@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
+  FIRST_DAY,
+  LAST_DAY,
   LOG_CLOSE_MS,
   START_MS,
   daysElapsed,
@@ -251,7 +253,12 @@ export default async function Row100kPage() {
 
   // The viewer's own stats come from their fresh rows, not the cached board,
   // so a just-logged session shows up immediately after router.refresh().
-  const myMeters = myRows.reduce((s, r) => s + r.meters, 0);
+  // THIS MONTH's rows only (owner, 2026-09-24: the MY number under the
+  // month was the all-time total; it must be the month's — the page is one
+  // month, and so is every other number on it). The all-time list is still
+  // what the query returned; nothing else on this page reads it.
+  const monthRows = myRows.filter((r) => r.day >= FIRST_DAY && r.day <= LAST_DAY);
+  const myMeters = monthRows.reduce((s, r) => s + r.meters, 0);
 
   const nowMs = clockNow();
   const phase: "before" | "open" | "closed" =
@@ -413,13 +420,13 @@ export default async function Row100kPage() {
               instagram={me.instagram}
               division={me.division as Division}
               meters={myMeters}
-              sessions={myRows.length}
-              rows={myRows}
+              sessions={monthRows.length}
+              rows={monthRows}
               phase={earlyAdmin ? "open" : phase}
               rank={elite ? null : myRank}
               records={myRecords}
               defaultDay={defaultDay}
-              defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${myRows.length + 1}`}
+              defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${monthRows.length + 1}`}
               earlyAdmin={earlyAdmin}
               masked={elite}
               digits={elite ? digitCount(myMeters) : undefined}

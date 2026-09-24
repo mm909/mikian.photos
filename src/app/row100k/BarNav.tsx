@@ -285,9 +285,11 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
   /* raceOpenFor(isAdmin), resolved by RowBar: open to everyone in local dev,
    * admin-only in production until the owner opens the race. Shut, and the
    * stamp is not in the markup at all. */
-  /* PARTNERS is September's (owner, 2026-09-24: "on October 1st we're
-   * going to hide the partner page"). The page stays at its address. */
-  const items = ITEMS.filter((it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || it.key !== "partners"));
+  /* PARTNERS and FEED are September's (owner, 2026-09-24: "on October 1st
+   * we're going to hide the partner page"; "hide the feed on October 1st,
+   * same as the partner page"). Both pages stay at their addresses. */
+  const SEPTEMBER_ONLY: NavKey[] = ["partners", "feed"];
+  const items = ITEMS.filter((it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)));
 
   const railClass = ["rail", live ? "live" : "", jump || placing ? "jump" : ""].filter(Boolean).join(" ");
   const pillStyle: React.CSSProperties | undefined =

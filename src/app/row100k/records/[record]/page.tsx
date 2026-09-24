@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { ELITE_LABEL, digitCount, maskStandings, partialShape, type BlackoutPolicy } from "@/lib/blackoutRules";
 import {
@@ -22,7 +23,9 @@ import { RowFooter } from "../../RowFooter";
 import { StatsShare } from "../../StatsShare";
 import { BOARD_CARD_IDS } from "../../share/cards";
 import { boardView, EMPTY_BOARDS } from "../../boardData";
-import { DIV_DEFS, RECORD_DEFS, divMatch, parseDiv, rankedRows, recordDef, type DivKey, type RecordKey } from "../defs";
+import { DIV_DEFS, RECORD_DEFS, divMatch, parseDiv, rankedRows, recordDef, type DivKey, type Ranked, type RecordKey } from "../defs";
+import { LeadBlock } from "../LeadBlock";
+import { leadCss } from "../leadCss";
 import { recordsCss } from "../recordsCss";
 
 export const dynamic = "force-dynamic";
@@ -37,12 +40,18 @@ export const dynamic = "force-dynamic";
  * that keeps rows under 10k off the list. The other four records keep
  * their flat ranking. /row100k/board redirects here.
  *
- * The head is the month word alone (PeriodSelect.tsx; owner, 2026-09-24:
+ * The head is the month word (PeriodSelect.tsx; owner, 2026-09-24:
  * "remove the FULL RANKINGS · EVERYONE heading; above the record chips
- * show the time period we're looking at"), then the five categories as
- * one row of equal chips, then All / Men's / Women's. The record key is
- * the URL segment; the month rides in ?m= and the division in ?d=, both
- * as plain links, so the whole page stays a server component.
+ * show the time period we're looking at") with the record's name on the
+ * same mono line, then the leader of the record for the period as the
+ * stats page's stat block draws them (records/LeadBlock.tsx; owner,
+ * 2026-09-24: "the header of the records page should be the current
+ * leader for the category, like the stats page's stat block: for fastest
+ * 10K — the time, who did it, what their pace was, when they did it"),
+ * then the five categories as one row of equal chips, then All / Men's /
+ * Women's, then the full table. The record key is the URL segment; the
+ * month rides in ?m= and the division in ?d=, both as plain links, so the
+ * whole page stays a server component.
  *
  * Blackout: the board is read as THIS viewer sees it (boardView), and a
  * rower in the masked set keeps their place and their name but draws
@@ -104,9 +113,39 @@ export default async function RecordRankingPage({ params, searchParams }: { para
   const started = now >= START_MS;
   const rows = rankedRows(boards, def.key).filter((r) => divMatch(div, r.row.division));
 
-  /* The month word: the whole head. One month so far and it is plain
-   * text, the way the board and stats heads did it. The division rides
-   * along on every line of the menu. */
+  /* THE LEADER (owner, 2026-09-24): the first row of the ranking as it
+   * stands for this division and period. TOTAL METERS while the elite are
+   * hidden has no leader — the row at the top is the fastest hidden rower
+   * by split, nobody's number one — so the block draws the longest hidden
+   * total in blocks over LIGHTS OUT, exactly as the stats page does. The
+   * masking is the table's own: a meters value a hidden rower owns is a
+   * digit run, a half-covered run-up total draws its tail as blocks, and
+   * a time is public for everyone (owner, 2026-09-08). */
+  const first = rows[0];
+  const eliteRows = def.key === "total" ? rows.filter((r) => r.unranked) : [];
+  const eliteDigits = eliteRows.reduce(
+    (n, r) => Math.max(n, ("digits" in r.row ? r.row.digits : undefined) ?? digitCount(r.value)),
+    1,
+  );
+  const leadValue = (r: Ranked): ReactNode => {
+    if (def.kind === "time") return fmtRecordTime(r.value);
+    const num = hidden.has(r.row.participantId) ? (
+      <Blocks digits={("digits" in r.row ? r.row.digits : undefined) ?? digitCount(r.value)} />
+    ) : "hideLow" in r.row && r.row.hideLow ? (
+      <BlockShape shape={partialShape(r.value, r.row.hideLow, r.row.digits)} label="partly hidden" />
+    ) : (
+      Math.round(r.value).toLocaleString("en-US")
+    );
+    return (
+      <>
+        {num} <span className="u">m</span>
+      </>
+    );
+  };
+
+  /* The month word: the first word of the head. One month so far and it
+   * is plain text, the way the board and stats heads did it. The division
+   * rides along on every line of the menu. */
   const divQuery = div === "all" ? undefined : `d=${div}`;
   const monthWord =
     months.length > 1 ? (
@@ -158,6 +197,7 @@ export default async function RecordRankingPage({ params, searchParams }: { para
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{recordsCss}</style>
+      <style>{leadCss}</style>
 
       {/* The rankings are the stats page's tables in full, so STATS is the
           lit tab (there is no THE BOARD on the rail any more). */}
@@ -165,9 +205,35 @@ export default async function RecordRankingPage({ params, searchParams }: { para
 
       <section>
         <div className="wrap">
+          {/* The two words the stats page has over its stat block: the
+              month (a menu) and the record, so the two heads read alike. */}
           <div className="rec-head">
-            <h1 className="rec-period">{monthWord}</h1>
+            <h1 className="rec-period">
+              {monthWord}
+              <span className="dot">·</span>
+              <span className="rec-title">{def.title}</span>
+            </h1>
           </div>
+
+          {/* THE LEADER, the stats page's stat block (owner, 2026-09-24). */}
+          {eliteRows.length > 0 ? (
+            <LeadBlock
+              value={
+                <>
+                  <Blocks digits={eliteDigits} /> <span className="u">m</span>
+                </>
+              }
+              label={ELITE_LABEL}
+            />
+          ) : first ? (
+            <LeadBlock
+              value={leadValue(first)}
+              holder={{ rowerNumber: first.row.rowerNumber, name: first.row.name }}
+              day={first.day}
+              sessions={first.sessions}
+              pace={def.dist ? fmtSplit(def.dist, first.value) : undefined}
+            />
+          ) : null}
 
           {/* The five categories, the only five, centered and equal — like
               1-2-3-4-5 (owner, 2026-09-24). */}
@@ -246,6 +312,11 @@ export default async function RecordRankingPage({ params, searchParams }: { para
                         <th className="rk">#</th>
                         <th>Rower</th>
                         <th style={{ textAlign: "right" }}>{def.kind === "time" ? "Time" : "Meters"}</th>
+                        {/* The pace is its own column, not a suffix on the
+                            time (owner, 2026-09-24: "remove the /500m on
+                            the time; just say their time and then their
+                            pace"). */}
+                        {def.dist ? <th style={{ textAlign: "right" }}>Pace</th> : null}
                         <th style={{ textAlign: "right" }}>Day</th>
                       </tr>
                     </thead>
@@ -271,10 +342,7 @@ export default async function RecordRankingPage({ params, searchParams }: { para
                             {def.kind === "time" ? (
                               /* A time is public for everyone, the elite
                                  included (owner, 2026-09-08). */
-                              <>
-                                {fmtRecordTime(r.value)}
-                                {def.dist ? <span style={{ color: "var(--gray)" }}> · {fmtSplit(def.dist, r.value)} /500m</span> : null}
-                              </>
+                              fmtRecordTime(r.value)
                             ) : hidden.has(r.row.participantId) ? (
                               /* The record rows still hold the real value
                                  here on the server, so count it and print
@@ -294,6 +362,7 @@ export default async function RecordRankingPage({ params, searchParams }: { para
                               fmtMeters(r.value)
                             )}
                           </td>
+                          {def.dist ? <td className="num">{fmtSplit(def.dist, r.value)}</td> : null}
                           <td className="num" style={{ color: "var(--gray)" }}>
                             {r.day ? fmtDay(r.day) : ""}
                           </td>
