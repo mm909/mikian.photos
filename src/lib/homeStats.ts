@@ -44,9 +44,12 @@ export type MeterSnapshot = {
    * snapshot built elsewhere (row100k/page.tsx) need not carry it; the
    * client reads it as 0 when absent. */
   seconds?: number;
-  /* Distinct rowers who reached 100,000 m in any single month. A rower who
-   * did it three times counts once; 100K spread over two months does not
-   * count — the month is the unit the site keeps score in. */
+  /* 100K FINISHES, counted PER MONTH: the number of rower-months at or
+   * over 100,000 m. A rower who did it in three months counts three times
+   * (owner, 2026-09-25: "the 100K finisher number should count finishers
+   * PER MONTH: if the same rower does it in two months, that counts
+   * twice"); 100K spread over two months does not count — the month is the
+   * unit the site keeps score in. */
   finished: number;
   /* Meters per second RECENTLY: this month's meters over the seconds the
    * month has run, so the tempo model keeps the feel it had when the
@@ -135,12 +138,14 @@ const getSplitStats = unstable_cache(loadSplitStats, ["row100k-split-stats"], {
  * reseeding happens outside the app, so nothing would revalidate it. */
 const splitStats = () => (CHALLENGE === CHALLENGE_DEMO ? loadSplitStats() : getSplitStats());
 
-/* 100K FINISHERS, all time: how many distinct rowers have closed a month
- * at 100,000 m or more. One pass over every row — participant and month
- * (the day key's YYYY-MM) sum to a per-month total, and a rower counts
- * once however many months they did it. Cheaper than a board per month
- * (monthsThrough × computeBoards) and it never grows with the calendar.
- * Only rows of rowers still on the list count, like the board. */
+/* 100K FINISHERS, all time, PER MONTH: how many rower-months closed at
+ * 100,000 m or more. One pass over every row — participant and month (the
+ * day key's YYYY-MM) sum to a per-month total, and every month over the
+ * line counts, so a rower who did it twice is two finishes (owner,
+ * 2026-09-25; until then a rower counted once however many months). Cheaper
+ * than a board per month (monthsThrough × computeBoards) and it never grows
+ * with the calendar. Only rows of rowers still on the list count, like the
+ * board. */
 const loadFinishers = async (): Promise<number> => {
   const [participants, entries] = await Promise.all([
     db.rowParticipant.findMany({ where: { challenge: CHALLENGE }, select: { id: true } }),
@@ -156,9 +161,9 @@ const loadFinishers = async (): Promise<number> => {
     const k = `${e.participantId}|${e.day.slice(0, 7)}`;
     perMonth.set(k, (perMonth.get(k) ?? 0) + e.meters);
   }
-  const done = new Set<string>();
-  for (const [k, m] of perMonth) if (m >= GOAL_METERS) done.add(k.slice(0, k.indexOf("|")));
-  return done.size;
+  let done = 0;
+  for (const m of perMonth.values()) if (m >= GOAL_METERS) done += 1;
+  return done;
 };
 
 /* Same tag as the board: a logged row that tips a month over 100K shows
