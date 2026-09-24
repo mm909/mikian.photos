@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { fmtMeters } from "@/lib/pm5/pm5";
 import { fmtTime, type Block } from "@/lib/pm5/predict";
 import { thinPoints, type XY } from "./chartGeom";
 import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
-import { DEFAULT_GOAL_M, type Erg, type ErgLink, LINK_WORD, boardErgs, boardRowersOnly, setBoardRowersOnly } from "./hub";
+import { boardHideCss } from "./boardHideCss";
+import { DEFAULT_GOAL_M, type Erg, type ErgLink, LINK_WORD, boardErgs, boardRowersOnly, setBoardRowersOnly, setErgHidden } from "./hub";
 
 /* THE RACE BOARD (owner, 2026-09-21: "a screen where it shows all the
  * rowers that are currently connected — a live race board. This would be
@@ -319,12 +321,59 @@ export function gapLine(l: Lane): string {
   return `+${Math.round(l.behindS)} s behind`;
 }
 
+/* THE NAME A HIDDEN ERG GOES BY in the list that brings it back — the
+ * same name its lane wore. */
+export function laneName(e: Erg): string {
+  return typedErgName(e) ?? shortErgName(e.name);
+}
+
+/* THE LIST OF HIDDEN ERGS, with a SHOW word on each and SHOW ALL under
+ * them. Opened from the head of the desk board; the wall has its own line
+ * in the control strip (RaceBoardTv.tsx). Everything goes through the hub,
+ * so the monitors page, the board and the wall agree. */
+export function HiddenList({ hidden }: { hidden: Erg[] }) {
+  return (
+    <div className="eg-hidden-list" role="region" aria-label="Hidden ergs">
+      <span className="eg-eyebrow">
+        {hidden.length} {hidden.length === 1 ? "ERG" : "ERGS"} HIDDEN FROM THE BOARD
+      </span>
+      {hidden.map((e) => (
+        <div className="eg-hidden-row" key={e.id}>
+          <span className="nm">{laneName(e)}</span>
+          <span className="sub">{LINK_WORD[e.link]}</span>
+          <button type="button" className="eg-word" onClick={() => setErgHidden(e.id, false)}>
+            Show
+          </button>
+        </div>
+      ))}
+      {hidden.length > 1 ? (
+        <div className="eg-hidden-all">
+          <button type="button" className="eg-word" onClick={() => hidden.forEach((e) => setErgHidden(e.id, false))}>
+            Show all
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack: () => void; onOpen: (id: string) => void; onTv: () => void }) {
   const goal = DEFAULT_GOAL_M;
   const lanes = laneRows(ergs, goal);
+  /* HIDDEN LIVE (owner, 2026-09-24: "give me the ability to hide ergs live
+   * on the race board if they are not being used"). The x beside each lane
+   * hides it through the hub; the head counts the hidden and opens the
+   * list that brings any of them back. ROWERS ONLY is a different thing —
+   * an erg with nobody on it is OFF THE BOARD, not hidden — and the eyebrow
+   * counts those separately. */
+  const hidden = ergs.filter((e) => e.hidden);
+  const [showHidden, setShowHidden] = useState(false);
+  const listOpen = showHidden && hidden.length > 0;
+  const offBoard = ergs.length - lanes.length - hidden.length;
 
   return (
     <div className="eg-board">
+      <style>{boardHideCss}</style>
       <div className="eg-board-head">
         <button type="button" className="eg-btn eg-btn-quiet" onClick={onBack}>
           Monitors
@@ -339,50 +388,71 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
         <button type="button" className={boardRowersOnly() ? "eg-btn on" : "eg-btn eg-btn-quiet"} aria-pressed={boardRowersOnly()} onClick={() => setBoardRowersOnly(!boardRowersOnly())}>
           Rowers only
         </button>
+        {hidden.length > 0 ? (
+          <button type="button" className="eg-word" aria-expanded={listOpen} onClick={() => setShowHidden((v) => !v)}>
+            {listOpen ? "Close" : "Show"} {hidden.length} hidden
+          </button>
+        ) : null}
         <span className="eg-eyebrow">
           {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"}
-          {ergs.length > lanes.length ? ` · ${ergs.length - lanes.length} OFF THE BOARD` : ""} · {fmtMeters(goal)} · LIVE
+          {offBoard > 0 ? ` · ${offBoard} OFF THE BOARD` : ""}
+          {hidden.length > 0 ? ` · ${hidden.length} HIDDEN` : ""} · {fmtMeters(goal)} · LIVE
         </span>
       </div>
 
+      {listOpen ? <HiddenList hidden={hidden} /> : null}
+
       {lanes.length === 0 ? (
-        <div className="eg-empty">No ergs paired yet — ADD AN ERG on the monitors page and they appear here as lanes.</div>
+        <div className="eg-empty">
+          {ergs.length === 0
+            ? "No ergs paired yet — ADD AN ERG on the monitors page and they appear here as lanes."
+            : hidden.length === ergs.length
+              ? "Every erg is hidden — SHOW one above and it is a lane again."
+              : "No lanes — every paired erg is hidden or has no rower (ROWERS ONLY)."}
+        </div>
       ) : (
         <div className="eg-lanes">
           {lanes.map((l) => (
-            <button type="button" className={l.rank === 0 ? "eg-lane eg-lane-lead" : "eg-lane"} key={l.id} onClick={() => onOpen(l.id)}>
-              <span className="eg-lane-place">{place(l.rank)}</span>
-              <span className="eg-lane-who">
-                <span className="eg-lane-name">{l.name}</span>
-                <span className="eg-lane-sub">
-                  {l.link === "live" ? "" : `${LINK_WORD[l.link]} · `}
-                  {l.done ? gapLine(l).toUpperCase() : l.rank === 0 ? "LEADER" : l.behindM >= 0 ? `${fmtMeters(Math.round(l.behindM))} BACK ON THE CLOCK` : `${fmtMeters(Math.round(-l.behindM))} UP ON THE CLOCK`}
+            /* The lane is a button that opens the console; the x beside it
+             * is ITS OWN button, so hiding never opens. */
+            <div className="eg-lane-row" key={l.id}>
+              <button type="button" className={l.rank === 0 ? "eg-lane eg-lane-lead" : "eg-lane"} onClick={() => onOpen(l.id)}>
+                <span className="eg-lane-place">{place(l.rank)}</span>
+                <span className="eg-lane-who">
+                  <span className="eg-lane-name">{l.name}</span>
+                  <span className="eg-lane-sub">
+                    {l.link === "live" ? "" : `${LINK_WORD[l.link]} · `}
+                    {l.done ? gapLine(l).toUpperCase() : l.rank === 0 ? "LEADER" : l.behindM >= 0 ? `${fmtMeters(Math.round(l.behindM))} BACK ON THE CLOCK` : `${fmtMeters(Math.round(-l.behindM))} UP ON THE CLOCK`}
+                  </span>
+                  <span className="eg-lane-bar" aria-hidden="true">
+                    <span style={{ width: `${l.pct}%` }} />
+                  </span>
                 </span>
-                <span className="eg-lane-bar" aria-hidden="true">
-                  <span style={{ width: `${l.pct}%` }} />
+                <span className="eg-lane-n">
+                  <span className="k">Distance</span>
+                  <span className="v">{l.hasData ? Math.floor(l.m).toLocaleString("en-US") : "—"}</span>
+                  <span className="s">OF {Math.round(goal).toLocaleString("en-US")}</span>
                 </span>
-              </span>
-              <span className="eg-lane-n">
-                <span className="k">Distance</span>
-                <span className="v">{l.hasData ? Math.floor(l.m).toLocaleString("en-US") : "—"}</span>
-                <span className="s">OF {Math.round(goal).toLocaleString("en-US")}</span>
-              </span>
-              <span className="eg-lane-n">
-                <span className="k">Pace /500m</span>
-                <span className="v">{l.pace ? fmtPaceWhole(l.pace) : "—"}</span>
-                <span className="s">{l.avgPace ? `AVG ${fmtPaceWhole(l.avgPace)}` : ""}</span>
-              </span>
-              <span className="eg-lane-n">
-                <span className="k">{l.done ? "Finish" : "Expected"}</span>
-                <span className="v">{l.expWord}</span>
-                <span className="s">{l.done ? "FINISH" : l.expectS !== null ? "TO THE SECOND" : l.fin.under}</span>
-              </span>
-              <span className="eg-lane-n eg-lane-gap">
-                <span className="k">Behind</span>
-                <span className="v">{l.aheadS !== null ? `${Math.round(l.aheadS)} s` : l.done || l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
-                <span className="s">{l.aheadS !== null ? "AHEAD" : l.done || l.rank === 0 ? "" : "ON EXPECTED FINISH"}</span>
-              </span>
-            </button>
+                <span className="eg-lane-n">
+                  <span className="k">Pace /500m</span>
+                  <span className="v">{l.pace ? fmtPaceWhole(l.pace) : "—"}</span>
+                  <span className="s">{l.avgPace ? `AVG ${fmtPaceWhole(l.avgPace)}` : ""}</span>
+                </span>
+                <span className="eg-lane-n">
+                  <span className="k">{l.done ? "Finish" : "Expected"}</span>
+                  <span className="v">{l.expWord}</span>
+                  <span className="s">{l.done ? "FINISH" : l.expectS !== null ? "TO THE SECOND" : l.fin.under}</span>
+                </span>
+                <span className="eg-lane-n eg-lane-gap">
+                  <span className="k">Behind</span>
+                  <span className="v">{l.aheadS !== null ? `${Math.round(l.aheadS)} s` : l.done || l.rank === 0 || gapWord(l) === "—" ? "—" : `${gapWord(l)} s`}</span>
+                  <span className="s">{l.aheadS !== null ? "AHEAD" : l.done || l.rank === 0 ? "" : "ON EXPECTED FINISH"}</span>
+                </span>
+              </button>
+              <button type="button" className="eg-lane-hide" onClick={() => setErgHidden(l.id, true)} aria-label={`Hide ${l.name} from the race board`} title="Hide from the race board">
+                ×
+              </button>
+            </div>
           ))}
         </div>
       )}

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { lockBody, unlockBody } from "./charts";
-import { DEFAULT_GOAL_M, type Erg, boardRowersOnly, setBoardRowersOnly } from "./hub";
-import { fmtPaceWhole, gapLine, laneRows, type Lane } from "./RaceBoard";
+import { boardHideCss } from "./boardHideCss";
+import { DEFAULT_GOAL_M, type Erg, boardRowersOnly, setBoardRowersOnly, setErgHidden } from "./hub";
+import { fmtPaceWhole, gapLine, laneName, laneRows, type Lane } from "./RaceBoard";
 import { tvCss } from "./tvCss";
 
 /* THE RACE BOARD ON THE TELEVISION (owner, 2026-09-21: "this will be on a
@@ -45,7 +46,15 @@ import { tvCss } from "./tvCss";
  * every twenty seconds; a key or a chip stops it on one look; A starts it
  * again. THE CONTROLS are hidden unless the pointer is at the foot of the
  * screen (owner: "default hidden unless my mouse is down there"); H
- * hides them at once. Escape leaves, F fills the screen. */
+ * hides them at once. Escape leaves, F fills the screen.
+ *
+ * A LANE CAN BE HIDDEN FROM THE WALL (owner, 2026-09-24: "give me the
+ * ability to hide ergs live on the race board if they are not being
+ * used"): an x that shows only while a row is under the pointer, its own
+ * button beside the row so a click-to-swap on the standings is never
+ * mistaken for it. The strip counts the hidden and brings any one, or all,
+ * back. It is the hub flag the desk board and the monitors page read, so
+ * the three never disagree. */
 
 export type TvLook = "a" | "b";
 
@@ -97,6 +106,7 @@ function clockWord(s: number): string {
 
 export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look: TvLook; onLook: (l: TvLook) => void; onExit: () => void }) {
   const lanes = laneRows(ergs, GOAL);
+  const hidden = ergs.filter((e) => e.hidden);
   const clockS = lanes.reduce((best, l) => Math.max(best, l.elapsedS), 0);
   const [auto, setAuto] = useState(true);
   const [ctl, setCtl] = useState(false);
@@ -164,10 +174,11 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
   return (
     <div className={cls} style={style} role="dialog" aria-modal="true" aria-label="Race board on the TV">
       <style>{tvCss}</style>
+      <style>{boardHideCss}</style>
       {lanes.length === 0 ? (
         <div className="tv-empty">
           <b>No lanes yet</b>
-          <span>Pair an erg on the monitors page and it appears here as a lane</span>
+          <span>{hidden.length > 0 ? "Every lane is hidden — the strip at the foot of the screen brings one back" : "Pair an erg on the monitors page and it appears here as a lane"}</span>
         </div>
       ) : look === "a" ? (
         <Broadcast lanes={lanes} clockS={clockS} />
@@ -176,6 +187,26 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
       )}
 
       <div className="eg-tv-ctl">
+        {/* THE HIDDEN LINE: the count, a SHOW word per hidden erg, SHOW ALL.
+          * It rides inside the strip so the pointer stays in the bottom
+          * slice that keeps the strip open. */}
+        {hidden.length > 0 ? (
+          <div className="eg-tv-ctl-hidden">
+            <span className="k">
+              {hidden.length} hidden
+            </span>
+            {hidden.map((e) => (
+              <button type="button" className="eg-word" key={e.id} onClick={() => setErgHidden(e.id, false)} title="Back on the wall">
+                <b>{laneName(e)}</b> show
+              </button>
+            ))}
+            {hidden.length > 1 ? (
+              <button type="button" className="eg-word" onClick={() => hidden.forEach((e) => setErgHidden(e.id, false))}>
+                Show all
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <button type="button" className="eg-btn eg-btn-quiet" onClick={onExit}>
           Back
         </button>
@@ -280,6 +311,25 @@ function RollingChart({ lane }: { lane: Lane }) {
   );
 }
 
+/* THE x ON A ROW: hover-only, its own button, and it stops the click there
+ * so the standings row under it does not also swap the chart. */
+function HideX({ lane }: { lane: Lane }) {
+  return (
+    <button
+      type="button"
+      className="tv-hide"
+      onClick={(ev) => {
+        ev.stopPropagation();
+        setErgHidden(lane.id, true);
+      }}
+      aria-label={`Hide ${lane.name} from the wall`}
+      title="Hide from the wall"
+    >
+      ×
+    </button>
+  );
+}
+
 /* ---- LOOK A — THE BROADCAST ---------------------------------------------- */
 
 function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
@@ -348,6 +398,7 @@ function Broadcast({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               <span className="tv-c-lbar" aria-hidden="true">
                 <span style={{ width: `${l.pct}%` }} />
               </span>
+              <HideX lane={l} />
             </li>
           ))}
         </ol>
@@ -387,6 +438,7 @@ function Tower({ lanes, clockS }: { lanes: Lane[]; clockS: number }) {
               * time in the big white letters"). */}
             <span className="gap">{l.expWord}</span>
             <span className="u">{gapLine(l)}</span>
+            <HideX lane={l} />
           </li>
         ))}
       </ol>
