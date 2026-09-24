@@ -90,11 +90,12 @@ export function BarAccount({
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>
-                {/* The studio on their own poster, roster picker still there
-                 * (owner opened it to rowers 2026-09-16); /row100k/r/N/poster
-                 * stays the fixed-subject deep link. */}
-                <Link className="acct-item" href={`/row100k/posters?r=${rowerNumber}`} onClick={close}>
-                  My poster →
+                {/* THE MASTER SHAREABLES PAGE (owner, 2026-09-24: "instead
+                 * of My poster, turn that into Shareables"): every card of
+                 * theirs, the bests, a row of their choosing, and the way to
+                 * the poster studio — r/[num]/share/page.tsx. */}
+                <Link className="acct-item" href={`/row100k/r/${rowerNumber}/share`} onClick={close}>
+                  Shareables →
                 </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
