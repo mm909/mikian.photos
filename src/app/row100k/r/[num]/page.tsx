@@ -38,8 +38,9 @@ import { DogTag } from "./looks/DogTag";
 import { fieldEntries } from "../../fieldData";
 import { buildDistanceKdes } from "../../stats/distances";
 import { buildField } from "../../stats/field";
-import type { PacePoint } from "./looks/PaceCurve";
+import type { PaceDot, PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
+import { paceCss } from "./looks/paceCss";
 import type { ProfileBest, ProfileErgRow, ProfileView, RosterRower } from "./looks/view";
 import { listRowerErgSessions } from "@/lib/pm5/store";
 import { inPeriod, parsePeriod, periodOptions } from "@/lib/rowPeriod";
@@ -418,7 +419,11 @@ export default async function RowerProfilePage({ params, searchParams }: { param
   // timed session, against the meters rowed so far. Untimed rows add no
   // point — a split needs both numbers. Not built for a masked view: the
   // dog tag replaces the page, and the points would be the truth.
+  // The dots ride along (owner ask, 2026-09-24): each timed row at the
+  // same x as its line point, y its own split, so the days that pulled
+  // the average one way or the other are on the chart.
   const paceCurve: PacePoint[] = [];
+  const paceDots: PaceDot[] = [];
   if (!masked) {
     let cm = 0;
     let cs = 0;
@@ -427,6 +432,7 @@ export default async function RowerProfilePage({ params, searchParams }: { param
       cm += e.meters;
       cs += e.seconds;
       paceCurve.push({ m: cm, s: cs / (cm / 500), dayStr: fmtDay(e.day) });
+      paceDots.push({ m: cm, s: e.seconds / (e.meters / 500), rowM: e.meters, dayStr: fmtDay(e.day) });
     }
   }
 
@@ -507,6 +513,7 @@ export default async function RowerProfilePage({ params, searchParams }: { param
     // seconds, and shipped as a string. It survives the mask on purpose.
     paceTag: me.meters > 0 && totalSeconds > 0 ? fmtPaceTag(me.meters, totalSeconds) : undefined,
     paceCurve,
+    paceDots,
     field,
     totals: {
       meters: me.meters,
@@ -533,6 +540,7 @@ export default async function RowerProfilePage({ params, searchParams }: { param
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{paceCss}</style>
       {/* The viewer is already resolved, so the bar skips its own lookup.
           No ROWER-number tag in it — the nameplate just below says whose
           page this is. */}
