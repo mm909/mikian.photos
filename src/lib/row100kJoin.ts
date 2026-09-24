@@ -19,9 +19,13 @@ export type ParticipantKey = { id: string; rowerNumber: number; division: string
 export async function ensureParticipant(o: {
   userId: string;
   displayName: string;
-  /* Empty is allowed here: a race-day entry does not ask for a handle. */
+  /* Empty is allowed: since 2026-09-24 neither door asks for a handle. */
   instagram: string;
   division: string;
+  /* Date-only, UTC midnight (parseBirthday). The join form asks for it;
+   * race day does not, so a walk-in is created without one and can add it
+   * on the settings page later. */
+  birthday?: Date | null;
 }): Promise<ParticipantKey> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const existing = await db.rowParticipant.findUnique({
@@ -43,6 +47,9 @@ export async function ensureParticipant(o: {
           displayName: o.displayName,
           instagram: o.instagram,
           division: o.division,
+          /* Only written when given, so a door that never asks (race day)
+           * keeps working on a database the column has not reached yet. */
+          ...(o.birthday ? { birthday: o.birthday } : {}),
         },
         select: { id: true, rowerNumber: true, division: true },
       });

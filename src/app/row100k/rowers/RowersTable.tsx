@@ -317,14 +317,20 @@ export function RowersTable({
                     </td>
                     <td>{boardOf(r.division)}</td>
                     <td className="rw-x">
-                      <a
-                        href={`https://instagram.com/${r.instagram}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={stop}
-                      >
-                        @{r.instagram}
-                      </a>
+                      {/* No handle prints a dash, never a bare "@" — the
+                       * handle is optional since 2026-09-24. */}
+                      {r.instagram ? (
+                        <a
+                          href={`https://instagram.com/${r.instagram}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={stop}
+                        >
+                          @{r.instagram}
+                        </a>
+                      ) : (
+                        <span style={{ color: "var(--gray)" }}>—</span>
+                      )}
                     </td>
                     <td className="rw-x">{r.joined}</td>
                     <td className="num">{fmtMeters(r.meters)}</td>
@@ -362,14 +368,16 @@ export function RowersTable({
                               <a href={`/row100k/r/${r.rowerNumber}`} onClick={closeMenu}>
                                 Profile →
                               </a>
-                              <a
-                                href={`https://instagram.com/${r.instagram}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={closeMenu}
-                              >
-                                Instagram →
-                              </a>
+                              {r.instagram && (
+                                <a
+                                  href={`https://instagram.com/${r.instagram}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={closeMenu}
+                                >
+                                  Instagram →
+                                </a>
+                              )}
                               <button type="button" disabled={!r.email} onClick={() => void copyEmail(r)}>
                                 {copied === r.id ? "Copied" : r.email ? "Copy email" : "No email"}
                               </button>
@@ -426,7 +434,8 @@ export function RowersTable({
                     <tr className="rw-open">
                       <td colSpan={COLS} className="rw-panel">
                         <p className="rw-head mono">
-                          <b>@{r.instagram}</b> · {r.email ?? "NO EMAIL"} · JOINED {r.joined} · {r.sessions}{" "}
+                          {r.instagram ? <><b>@{r.instagram}</b> · </> : null}
+                          {r.email ?? "NO EMAIL"} · JOINED {r.joined} · {r.sessions}{" "}
                           {r.sessions === 1 ? "SESSION" : "SESSIONS"} · {fmtDuration(r.seconds)} ON THE ERG
                         </p>
                         {r.rows.length === 0 ? (

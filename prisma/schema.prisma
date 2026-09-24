@@ -549,11 +549,22 @@ model RowParticipant {
   rowerNumber Int
   /// Public leaderboard name (defaults to their Google name; editable).
   displayName String
-  /// Instagram handle, stored without the "@". Required at join; board
-  /// names link to instagram.com/<handle>.
+  /// Instagram handle, stored without the "@". OPTIONAL since 2026-09-24
+  /// (owner: "let users register without an Instagram handle") — empty
+  /// means none, and every surface that prints one must print nothing.
   instagram   String   @default("")
   /// Leaderboard division: "M" | "F" | "X" (X = overall boards only).
   division    String   @default("X")
+  /// Birthday, a DATE-ONLY value stored at UTC midnight (owner, 2026-09-24:
+  /// "collect their birthday — we don't have to display it anywhere right
+  /// now"). Asked on the join form; nullable so the rows that joined
+  /// before it was asked, and race-day walk-ins, stand as they are.
+  birthday    DateTime?
+  /// Height and weight, optional, from the settings page (owner,
+  /// 2026-09-24). Stored METRIC whatever the rower typed — the form takes
+  /// ft/in and lb and converts. Nothing prints either yet.
+  heightCm    Int?
+  weightKg    Float?
   createdAt   DateTime @default(now())
 
   entries RowEntry[]
