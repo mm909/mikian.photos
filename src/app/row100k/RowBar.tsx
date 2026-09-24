@@ -14,8 +14,10 @@ import { openRaffle, raffleDismissCookie } from "./raffles";
 
 /* The one bar every /row100k page wears: the Mikian.Musser wordmark (kept,
  * blue dot and all — owner call, 2026-09-05), then the nav rail with its
- * sliding pill (ROWTEMBER, the RACE DAY stamp while the race is open, THE
- * BOARD, STATS, FEED, PARTNERS), then — for a joined rower — the LOG A ROW
+ * sliding pill (ROWTEMBER, the RACE DAY stamp while the race is open,
+ * STATS, FEED, PARTNERS in September — THE BOARD came off the rail
+ * 2026-09-24 when the board page was folded into the full rankings), then
+ * — for a joined rower — the LOG A ROW
  * button, then the sign-in / rower chip on the right. Server component: it
  * resolves the session itself unless the page already did and hands the
  * answer in.

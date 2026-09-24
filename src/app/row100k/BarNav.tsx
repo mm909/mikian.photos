@@ -45,7 +45,10 @@ import { trackClick } from "./TrackedLink";
  * raceOpenFor(isAdmin), resolved by RowBar on the server, so the link and the
  * page can never disagree about whether there is a race. */
 
-export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
+/* No "board" key since 2026-09-24 (owner: the board page is retired, its
+ * table is the total-meters view of the full rankings, which light STATS).
+ * A stale "board" in a stashed pill position fails isKey and is dropped. */
+export type NavKey = "home" | "raceday" | "stats" | "feed" | "gallery" | "partners";
 
 const ITEMS: { key: NavKey; href: string; label: string }[] = [
   { key: "home", href: "/row100k", label: "ROWTEMBER" },
@@ -54,7 +57,6 @@ const ITEMS: { key: NavKey; href: string; label: string }[] = [
    * scroll and not a navigation — so this is the leftmost LINK, and the rail
    * reads brand, then race, then sections. */
   { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
-  { key: "board", href: "/row100k/board", label: "THE BOARD" },
   { key: "stats", href: "/row100k/stats", label: "STATS" },
   { key: "feed", href: "/row100k/feed", label: "FEED" },
   { key: "partners", href: "/row100k/partners", label: "PARTNERS" },
