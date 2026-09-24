@@ -25,6 +25,7 @@ export function PageHead({
   digits = 8,
   wide = false,
   after,
+  aside,
 }: {
   /* "The board" — sentence case; the CSS sets the caps. */
   name: string;
@@ -48,6 +49,11 @@ export function PageHead({
    * rowers and sessions (owner, 2026-09-24: the headline stats for the
    * month in an order of importance, meters biggest). */
   after?: ReactNode;
+  /* Something on the dateline itself, far right — the stats page's SHARE A
+   * CARD (owner, 2026-09-25: "put it on the same line as the DECEMBER 2026
+   * word, on the right"). The line becomes a flex row (statsCss.ts
+   * .ph-line.has-aside) and the h1 keeps the left. */
+  aside?: ReactNode;
 }) {
   // Unreadable is all zeros, all dimmed — tokensFor keeps a lone zero lit
   // as the number zero, which this is not.
@@ -61,9 +67,10 @@ export function PageHead({
     <header className={`ph ph-${digits}${wide ? " ph-wide" : ""}`}>
       {/* A page with no name (owner, 2026-09-24: no THE BOARD, no THE
         * STATS) heads with its dateline alone. */}
-      <div className="ph-line">
+      <div className={aside ? "ph-line has-aside" : "ph-line"}>
         {name ? <h1>{name}</h1> : <h1>{dateline}</h1>}
         {name ? <span> · {dateline}</span> : null}
+        {aside ? <span className="ph-aside">{aside}</span> : null}
       </div>
 
       <div className="ph-od">
