@@ -18,14 +18,34 @@ export const statsCss = `
 
 /* THE STAT BLOCK: two words that are menus on one mono line — the month
  * and the stat (TextMenu.tsx) — above the big figure. Bold and ink, the
- * way chips are, the dotted rule under each word saying it opens. Far
- * right on the same line, the ONE link to the full rankings (owner,
- * 2026-09-25); on a phone it drops to its own line, still right. */
-.row100k .st-pick{display:flex;align-items:baseline;justify-content:space-between;gap:8px 20px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);line-height:1.8;margin:0}
+ * way chips are, the dotted rule under each word saying it opens. */
+.row100k .st-pick{display:flex;align-items:baseline;gap:8px 20px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);line-height:1.8;margin:0}
 .row100k .st-pick .dot{color:var(--gray);margin:0 6px}
 .row100k .st-pick .tm-list{min-width:220px}
-.row100k .st-pick .st-all{margin-left:auto;font-size:11px;letter-spacing:.12em;color:var(--water);text-decoration:none;border-bottom:2px solid var(--water);padding-bottom:2px;white-space:nowrap}
-.row100k .st-pick .st-all:hover{color:var(--ink);border-color:var(--ink)}
+
+/* THE ONE LINK TO THE FULL RANKINGS, in two places by width (owner,
+ * 2026-09-25: on desktop BELOW the two tables; on mobile just under the
+ * holder line, above the tables). Stats.tsx draws both lines and this
+ * shows one: the phone line up to 639px, the desktop line from 640px,
+ * the width at which the two top fives sit side by side (theme.ts
+ * .front-top). A small water word on a water rule, the way it was on the
+ * pick line; under the tables it sits at the right edge so it closes the
+ * block the way it used to close the line. */
+.row100k .st-all-line{margin:14px 0 0;line-height:1.8}
+.row100k .st-all-line .st-all{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--water);text-decoration:none;border-bottom:2px solid var(--water);padding-bottom:2px;white-space:nowrap}
+.row100k .st-all-line .st-all:hover{color:var(--ink);border-color:var(--ink)}
+.row100k .st-all-desk{display:none;text-align:right;margin-top:22px}
+@media(min-width:640px){
+  .row100k .st-all-phone{display:none}
+  .row100k .st-all-desk{display:block}
+}
+
+/* THE VIEWER APPENDED under a top five or the top ten — their own place
+ * when they are not in it — is a phone thing (owner, 2026-09-25: on
+ * desktop do not show it; on mobile DO show where the viewer is). The row
+ * (and the Overall block a division-X rower gets) is always drawn; from
+ * the desktop breakpoint up it is simply not displayed. */
+@media(min-width:640px){.row100k .st-me{display:none}}
 
 /* The leader block never changes height between stats (owner, 2026-09-25:
  * no jump): the pace rides on the holder line (LeadBlock paceInline), the

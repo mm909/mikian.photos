@@ -45,23 +45,30 @@ import {
  * THE STAT BLOCK (owner, 2026-09-24: "the big bold number shows the
  * selected stat, with a selector for the time period and a selector for
  * the stat; then the men's and women's top five"). The line of two words
- * above the figure is two TextMenus the shell builds, and the far right of
- * that same line is the ONE link to the full rankings for the stat over
- * the period (owner, 2026-09-25: "only ONE full rankings link, above the
- * two top-five tables … far right, going to the records page with ALL
- * selected"). Under the line, the leading value — for TOTAL METERS the
- * leader's total, big and blue, with the holder on the mono line; for a
- * record its number one, the day it was set and, for a 5k or 10k, the
- * pace ON that line (owner, 2026-09-25: the pace stays, the block never
- * changes height) — then the men's and women's top five. While the elite
- * are hidden nobody leads TOTAL METERS: the same head holds the longest
- * hidden total in blocks with THE ELITE on the holder line, and no
- * podiums under it. A signed-in rower outside a podium gets one more line
- * under it: their place, number, name and value (owner, 2026-09-08).
+ * above the figure is two TextMenus the shell builds. Under the line, the
+ * leading value — for TOTAL METERS the leader's total, big and blue, with
+ * the holder on the mono line; for a record its number one, the day it
+ * was set and, for a 5k or 10k, the pace ON that line (owner, 2026-09-25:
+ * the pace stays, the block never changes height) — then the men's and
+ * women's top five. While the elite are hidden nobody leads TOTAL METERS:
+ * the same head holds the longest hidden total in blocks with THE ELITE
+ * on the holder line, and no podiums under it.
+ *
+ * THE ONE LINK TO THE FULL RANKINGS sits in two places by width (owner,
+ * 2026-09-25: "on desktop move the FULL RANKINGS link to BELOW the two
+ * tables … on mobile put the FULL RANKINGS link just under the holder
+ * line, above the tables"): one element after the leader block, one after
+ * the podiums, and statsCss.ts shows the one the width calls for. The
+ * viewer's own appended row — the line under a top five for a signed-in
+ * rower placed deeper (owner, 2026-09-08), and the line under the top
+ * ten on the period boards — is a PHONE thing now (owner, 2026-09-25:
+ * "do not show the viewer's own row when they are not in the top five /
+ * top ten … on mobile, DO show where the viewer is"): it is still drawn,
+ * with .st-me, and the same css hides it from the desktop breakpoint up.
  *
  * METERS BY DAY / BY WEEK: the section head is the period, then one
- * table, the top ten and the viewer under them, for the day or the week
- * chosen. The day is a word with a CALENDAR under it (stats/DayCalendar.tsx;
+ * table, the top ten and — on a phone — the viewer under them, for the
+ * day or the week chosen. The day is a word with a CALENDAR under it (stats/DayCalendar.tsx;
  * owner, 2026-09-25) whose head arrows step the month — a change of period
  * the shell fetches in place; the week is a word that is a menu — Week 1,
  * Week 2, … The finish (owner, 2026-09-25: "instead of five chips, a word
@@ -84,6 +91,13 @@ type Hideable = { masked?: boolean; digits?: number; shape?: string; unranked?: 
 export type PeriodRow = Omit<WeeklyRow, "instagram"> & Hideable;
 
 const defOf = (key: RecordKey): RecordDef => RECORD_DEFS.find((d) => d.key === key)!;
+
+/* A board row's class: the viewer's own row wears the finisher tint
+ * (tr.fin), and the one APPENDED under a top five / top ten — their place
+ * when they are not in it — is .st-me as well, which statsCss.ts shows on
+ * a phone only (owner, 2026-09-25). */
+const rowClass = (me: boolean, appended: boolean): string | undefined =>
+  [me ? "fin" : null, appended ? "st-me" : null].filter(Boolean).join(" ") || undefined;
 
 /* "Sep 15–21" (both ends via fmtDay; the month drops off the second end
  * when it repeats — every week sits inside its month). */
@@ -113,7 +127,8 @@ export function StatsRecords({
    * — built by the shell, which owns both. */
   pick: ReactNode;
   /* The full rankings for this stat over the period, ALL selected — the
-   * one link, far right on the pick line (owner, 2026-09-25). */
+   * one link, under the holder line on a phone and under the two tables
+   * on a desktop (owner, 2026-09-25). */
   rankingsHref: string;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
@@ -160,16 +175,22 @@ export function StatsRecords({
    * included (owner, 2026-09-08), so the split always prints. */
   const pace = first && def.kind === "time" && def.dist ? fmtSplit(def.dist, first.value) : undefined;
 
+  /* The one link to the full rankings, drawn twice and shown once by
+   * width (owner, 2026-09-25): `phone` sits under the holder line, `desk`
+   * under the two tables. A real link: the records page is a page. */
+  const allLink = (where: "phone" | "desk") => (
+    <p className={`st-all-line st-all-${where}`}>
+      <a className="st-all" href={rankingsHref}>
+        Full rankings →
+      </a>
+    </p>
+  );
+
   return (
     <div>
-      {/* The two words: NOVEMBER 2026 · FASTEST 10K, each a menu — and,
-          far right on the same line, the one link to the full rankings
-          (owner, 2026-09-25). A real link: the records page is a page. */}
+      {/* The two words: NOVEMBER 2026 · FASTEST 10K, each a menu. */}
       <p className="st-pick">
         <span className="st-pick-words">{pick}</span>
-        <a className="st-all" href={rankingsHref}>
-          Full rankings →
-        </a>
       </p>
 
       {/* Same line the board prints: an admin (nothing hidden while a window
@@ -225,19 +246,28 @@ export function StatsRecords({
         </p>
       )}
 
+      {/* On a phone the link follows the holder line, above the tables
+          (owner, 2026-09-25). */}
+      {allLink("phone")}
+
       {/* The men's and women's top five under the figure (owner, 2026-09-08
           late, on the live page: "bring this table back"; 2026-09-24: the
           men and women brackets for the month). While the elite are hidden
           there is no TOTAL METERS ranking to draw them from — the box says
-          THE ELITE and the list is the board's. No line under either table
-          since 2026-09-25: the one rankings link is on the pick line. */}
+          THE ELITE and the list is the board's. */}
       {!unavailable && !(isTotal && hiddenRanking) && (
         <div className="front-top st-podiums">
           <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
           <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
         </div>
       )}
-      {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
+      {/* The Overall block is the viewer's own line and nothing else, so
+          it is a phone thing like every other appended row (.st-me). */}
+      {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall st-me" />}
+
+      {/* On a desktop the link closes the block, under the two tables
+          (owner, 2026-09-25). */}
+      {allLink("desk")}
     </div>
   );
 }
@@ -270,7 +300,10 @@ function Val({ r, def, unit }: { r: RecordRowLite; def: RecordDef; unit: "big" |
 /* One division's top five — the front page's compact board — and, for a
  * signed-in rower placed deeper, ONE more line: their place, number, name
  * and value, tinted, with no gap row and no neighbours (records/defs.ts
- * podiumWindow; owner, 2026-09-08). Five, not three, since 2026-09-06
+ * podiumWindow; owner, 2026-09-08). Since 2026-09-25 that line is for the
+ * phone only (.st-me, hidden from the desktop breakpoint up in
+ * statsCss.ts; owner: "do not show the viewer's own row when they are not
+ * in the top five"). Five, not three, since 2026-09-06
  * (owner: "show top five for each of the categories"); a rower sitting
  * sixth is the first line under the five. Places are within the rows given:
  * the division's for the two podiums, the whole ranking for the Overall
@@ -306,7 +339,7 @@ function Podium({
               <RecTr key={r.participantId} r={r} rank={i + 1} def={def} me={r.participantId === meId} />
             ))}
             {w.ctx.map((r, i) => (
-              <RecTr key={r.participantId} r={r} rank={w.ctxStart + i + 1} def={def} me={r.participantId === meId} />
+              <RecTr key={r.participantId} r={r} rank={w.ctxStart + i + 1} def={def} me={r.participantId === meId} appended />
             ))}
           </tbody>
         </table>
@@ -317,10 +350,11 @@ function Podium({
 
 /* One record row. A hidden rower on the TOTAL board carries no place, so
  * the # cell is empty wherever such a row can still appear (the cell keeps
- * the column). */
-function RecTr({ r, rank, def, me }: { r: RecordRowLite; rank: number; def: RecordDef; me: boolean }) {
+ * the column). `appended` marks the viewer's own line under the five —
+ * .st-me, a phone-only row since 2026-09-25. */
+function RecTr({ r, rank, def, me, appended = false }: { r: RecordRowLite; rank: number; def: RecordDef; me: boolean; appended?: boolean }) {
   return (
-    <tr className={me ? "fin" : undefined}>
+    <tr className={rowClass(me, appended)}>
       <td className="rk">{r.unranked ? "" : rank}</td>
       <td>
         <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} />
@@ -629,12 +663,15 @@ function BoardWindow({
               <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} masked={isMasked(r)} />
             ))}
             {showMe && (
+              /* The viewer under the ten: a phone-only row (.st-me) since
+                 2026-09-25 — on a desktop the ten stand alone. */
               <WeekTr
                 key={ranked[meIdx].participantId}
                 r={ranked[meIdx]}
                 rank={meIdx + 1}
                 me
                 masked={isMasked(ranked[meIdx])}
+                appended
               />
             )}
             {total && total.rowers > 0 && (
@@ -674,10 +711,11 @@ function BoardWindow({
  * finisher tint (tr.fin) and a YOU tag so they can spot themselves. The
  * elite are up in their own block (EliteTr); a row still masked down here
  * is the fail-closed path — blocks for the meters and no place, since a
- * place is a standing among rows this page cannot read. */
-function WeekTr({ r, rank, me, masked }: { r: PeriodRow; rank: number; me: boolean; masked: boolean }) {
+ * place is a standing among rows this page cannot read. `appended` is the
+ * viewer's own row under the ten — .st-me, a phone-only row. */
+function WeekTr({ r, rank, me, masked, appended = false }: { r: PeriodRow; rank: number; me: boolean; masked: boolean; appended?: boolean }) {
   return (
-    <tr className={me ? "fin" : undefined}>
+    <tr className={rowClass(me, appended)}>
       <td className="rk">{masked ? "" : rank}</td>
       <td>
         <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} badge={me ? <span className="tierbadge you">YOU</span> : undefined} />
