@@ -35,8 +35,10 @@ import {
   type HeartRateBelt,
   type MuxPacket,
   type WorkoutSummary,
+  fmtTenths,
 } from "@/lib/pm5/pm5";
 import { SIM_DEVICE_NAME, SIM_INFO, createPm5Sim } from "@/lib/pm5/simulate";
+import { currentRace } from "@/app/row100k/raceday";
 import {
   buildTelemetryDoc,
   fitTelemetryDoc,
@@ -200,6 +202,11 @@ export type ErgSaveState = {
   title: string | null;
 };
 
+/* THE RACE RESULT off this erg (owner, 2026-09-24): posted once per piece
+ * when a 5,000 ends with a rower on the erg. `posted` is the time that
+ * went, in tenths; the note is what the row and the console print. */
+export type ErgRaceState = { busy: boolean; posted: number | null; note: { ok: boolean; text: string } | null };
+
 export type Erg = {
   /* The Bluetooth device id for a real erg, a made-up one otherwise.
    * Stable for the life of the tab: it is what an erg page is addressed
@@ -217,6 +224,7 @@ export type Erg = {
   model: ErgModel;
   rec: ErgRec;
   save: ErgSaveState;
+  race: ErgRaceState;
   /* What a non-radio source is playing, when one is. */
   sourceLabel: string | null;
   /* THE ROWER ON THIS ERG (owner, 2026-09-23: "let me assign a rower or a
@@ -227,20 +235,12 @@ export type Erg = {
   rower: { rowerNumber: number; name: string } | null;
   /* A saved row read back into this slot, or null while it is its own. */
   loaded: { id: string; title: string } | null;
-  /* THE GOAL (owner, 2026-09-17: "infer the goal distance to be a five K
-   * always, but allow us to change it"). What the expected finish is
-   * measured against, whatever the monitor's own workout says. It starts
-   * at five thousand on every slot and lives as long as the tab does. */
+  /* THE GOAL the expected finish is read against. ZERO MEANS THE MONITOR'S
+   * OWN DISTANCE (owner, 2026-09-23: "remove the ability to specify goal
+   * and target") — a 5,000 on the PM5 is read as a 5,000, a just row as
+   * the five thousand every slot assumes. The race board sets it to the
+   * race distance on its own copy of the slot (ErgGoal.ts goalOf). */
   goalM: number;
-  /* THE TARGET TIME, in seconds, or null for no target (owner, 2026-09-17:
-   * "if I start this session and I say I want to do a 5K in 20 minutes and
-   * I am rowing at not that pace, I want to be notified, or if I can go a
-   * little slower I want to be notified"). The goal above is HOW FAR; this
-   * is HOW FAST, and predict.ts reads the two together. Null is the honest
-   * default: nobody should be told they are behind a number they never
-   * set. Like the distance, it belongs to the slot for the session and a
-   * CLEAR does not touch it. */
-  goalS: number | null;
   addedAt: number;
 };
 
@@ -252,19 +252,10 @@ export const RATE_KEYS: RateKey[] = ["s1", "ms500", "ms250", "ms100"];
 
 export const LINK_WORD: Record<ErgLink, string> = { idle: "NOT CONNECTED", connecting: "CONNECTING…", live: "LIVE", dropped: "DROPPED" };
 
-/* THE GOAL every slot starts at (owner, 2026-09-17: he rows fives and
- * wants the number without setting anything up). The monitor may be set to
- * anything at all — a just row, a 6 k, a timed twenty — and the expected
- * finish is still read against this until somebody changes it. */
+/* THE GOAL a slot falls back to when the monitor has no fixed distance
+ * (owner, 2026-09-17: he rows fives and wants the number without setting
+ * anything up). A just row or a timed twenty is read as a five thousand. */
 export const DEFAULT_GOAL_M = 5000;
-export const GOAL_MIN_M = 100;
-export const GOAL_MAX_M = 100_000;
-
-/* A target of a minute is not a target and one of ten hours is not either.
- * The band is wide on purpose: it exists to catch a typo, not to have an
- * opinion about what anybody should be rowing. */
-export const GOAL_MIN_S = 30;
-export const GOAL_MAX_S = 36_000;
 
 const FEED_LINES = 60;
 const LOG_LINES = 80;
@@ -280,6 +271,17 @@ const CONNECT_TIMEOUT_MS = 15_000;
 const SAVE_TIMEOUT_MS = 60_000;
 
 export const ERG_API = "/api/erg/sessions";
+const RACE_RESULTS_API = "/api/row100k/raceday/results";
+/* The race distance, off the race definition (raceday.ts): a piece of any
+ * other length ends without posting anything. */
+const RACE_M = currentRace().meters;
+/* Played-back rows may post too, outside production, so the whole path can
+ * be rehearsed at eight times speed with no erg in the room. */
+const PLAYBACK_POSTS = process.env.NODE_ENV !== "production";
+
+function freshRace(): ErgRaceState {
+  return { busy: false, posted: null, note: null };
+}
 
 /* ---- small helpers ---------------------------------------------------- */
 
@@ -458,20 +460,24 @@ function emit() {
   }
 }
 
+/* ONE PAINT PER FRAME — and a frame that never comes is not a reason to
+ * stop painting (2026-09-23: a tab in a hidden webview gets no animation
+ * frames at all while the state under it keeps moving, so the screen froze
+ * on whatever it last drew). The animation frame paints when there is one;
+ * a timer paints a moment later when there is not. Whichever fires first
+ * clears the flag, the other is a no-op. */
 function paint() {
   if (pending) return;
   pending = true;
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(() => {
-      pending = false;
-      emit();
-    });
-  } else {
-    setTimeout(() => {
-      pending = false;
-      emit();
-    }, 16);
-  }
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    pending = false;
+    emit();
+  };
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(go);
+  setTimeout(go, 100);
 }
 
 function log(e: Erg, text: string) {
@@ -600,6 +606,7 @@ function apply(e: Erg, p: MuxPacket) {
     /* THE TITLE STAYS (owner, 2026-09-23: "whenever the rower goes back to
      * the main menu the title gets reset — keep the title the same"). A
      * name typed for the erg is the erg's, not the piece's. */
+    e.race = freshRace();
     log(e, `new piece (${why}) — charts reset, recording continues`);
   };
   const lastN = m.strokes.length ? m.strokes[m.strokes.length - 1].n : 0;
@@ -629,6 +636,23 @@ function apply(e: Erg, p: MuxPacket) {
           const still = ergs.get(e.id);
           if (still && !still.rec.saved && !still.save.busy) void saveErg(still.id);
         }, AUTO_SAVE_DELAY_MS);
+      }
+      /* THE RACE RESULT (owner, 2026-09-24): the 5,000 just ended with a
+       * rower on this erg, so the finish the monitor shows goes to the race
+       * day board — once, and only for the race distance. The time is the
+       * monitor's own clock at WORKOUT END, to the tenth. */
+      if (
+        racePostOn &&
+        e.rower &&
+        (e.source === "live" || (PLAYBACK_POSTS && e.source === "playback")) &&
+        p.data.workoutType >= WorkoutType.FIXEDDIST_NOSPLITS &&
+        (prev === null || !isEnded(prev)) &&
+        isEnded(p.data.workoutState) &&
+        Math.abs(p.data.totalWorkDistanceM - RACE_M) < 1 &&
+        e.race.posted === null &&
+        !e.race.busy
+      ) {
+        void postRaceResult(e.id, Math.round(p.data.elapsedHundredths / 10));
       }
       if (prev !== null && prev !== p.data.workoutState) log(e, `workout state: ${workoutStateWord(prev)} → ${workoutStateWord(p.data.workoutState)}`);
       return;
@@ -810,11 +834,11 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     model: freshModel(),
     rec: freshRec(),
     save: { busy: false, note: null, savedId: null, title: null },
+    race: freshRace(),
     sourceLabel: null,
     rower: null,
     loaded: null,
-    goalM: DEFAULT_GOAL_M,
-    goalS: null,
+    goalM: 0,
     addedAt: Date.now() + ergs.size,
   };
   ergs.set(e.id, e);
@@ -1261,6 +1285,48 @@ export function setErgRower(id: string, rower: { rowerNumber: number; name: stri
   paint();
 }
 
+/* THE RACE POST is armed the same way as auto-save, by the page that knows
+ * someone is signed in; the route then insists on the owner. */
+let racePostOn = false;
+export function setRacePost(on: boolean) {
+  racePostOn = on;
+}
+
+/* POST A FINISH TO THE RACE DAY BOARD for the rower on this erg. One
+ * request, a note either way, and the log says what went. */
+export async function postRaceResult(id: string, tenths: number): Promise<void> {
+  const e = ergs.get(id);
+  if (!e || !e.rower || e.race.busy) return;
+  const who = `${e.rower.rowerNumber} · ${e.rower.name}`;
+  e.race.busy = true;
+  e.race.note = null;
+  paint();
+  try {
+    const res = await fetch(RACE_RESULTS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "erg", rowerNumber: e.rower.rowerNumber, tenths }),
+      signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const error = await readError(res);
+      e.race.note = { ok: false, text: `RESULT NOT POSTED — ${error}` };
+      log(e, `race result for ${who} refused — ${error}`);
+      return;
+    }
+    e.race.posted = tenths;
+    e.race.note = { ok: true, text: `RESULT POSTED · ${fmtTenths(tenths)}` };
+    log(e, `race result posted — ${fmtTenths(tenths)} for ${who}`);
+  } catch (err) {
+    const error = err instanceof Error && err.name === "TimeoutError" ? "the server did not answer in time" : errText(err);
+    e.race.note = { ok: false, text: `RESULT NOT POSTED — ${error}` };
+    log(e, `race result for ${who} failed — ${error}`);
+  } finally {
+    e.race.busy = false;
+    paint();
+  }
+}
+
 /* Auto-save is armed by the page that knows whether anyone is signed in. */
 let autoSaveOn = false;
 const AUTO_SAVE_DELAY_MS = 3_000;
@@ -1272,44 +1338,6 @@ export function setErgTitle(id: string, title: string) {
   const e = ergs.get(id);
   if (!e) return;
   e.save.title = title;
-  paint();
-}
-
-/* THE GOAL, read and written (owner, 2026-09-17: "infer the goal distance
- * to be a five K always. But allow us to change it").
- *
- * It is the slot's own number, not the monitor's: a rower on a 6 k who
- * wants his 5 k read gets it, and the screens say the two differ rather
- * than either one overruling the other. A CLEAR does not touch it — the
- * goal belongs to the erg for the session, not to the piece. */
-export function ergGoalMeters(id: string): number {
-  return ergs.get(id)?.goalM ?? DEFAULT_GOAL_M;
-}
-
-export function setErgGoal(id: string, meters: number) {
-  const e = ergs.get(id);
-  if (!e) return;
-  if (!Number.isFinite(meters)) return;
-  const m = Math.round(meters);
-  e.goalM = Math.min(GOAL_MAX_M, Math.max(GOAL_MIN_M, m));
-  paint();
-}
-
-/* THE TARGET TIME for this slot, or null to row without one. Out-of-range
- * is treated as no target rather than clamped: a rower who typed something
- * wrong should get no target line, not a target nobody chose. */
-export function ergGoalSeconds(id: string): number | null {
-  return ergs.get(id)?.goalS ?? null;
-}
-
-export function setErgGoalTime(id: string, seconds: number | null) {
-  const e = ergs.get(id);
-  if (!e) return;
-  if (seconds === null || !Number.isFinite(seconds) || seconds < GOAL_MIN_S || seconds > GOAL_MAX_S) {
-    e.goalS = null;
-  } else {
-    e.goalS = Math.round(seconds * 10) / 10;
-  }
   paint();
 }
 

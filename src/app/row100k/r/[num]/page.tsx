@@ -39,7 +39,35 @@ import { buildDistanceKdes } from "../../stats/distances";
 import { buildField } from "../../stats/field";
 import type { PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
-import type { ProfileBest, ProfileView, RosterRower } from "./looks/view";
+import type { ProfileBest, ProfileErgRow, ProfileView, RosterRower } from "./looks/view";
+import { listRowerErgSessions } from "@/lib/pm5/store";
+import { fmtTenths } from "@/lib/pm5/pm5";
+import { fmtTenthsClock } from "@/lib/pm5/session";
+
+/* THE ERG ROWS for the profile (owner, 2026-09-23), as strings. Fails
+ * open: a profile with no erg table is a profile, a profile that 500s is
+ * not. */
+async function profileErgRows(participantId: string): Promise<ProfileErgRow[]> {
+  try {
+    const rows = await listRowerErgSessions({ participantId });
+    return rows.map((r) => {
+      const d = new Date(r.startedAt);
+      return {
+        id: r.id,
+        when: Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }),
+        device: r.device,
+        simulated: r.simulated,
+        meters: `${r.meters.toLocaleString("en-US")} m`,
+        time: fmtTenthsClock(r.tenths),
+        split: r.avgPaceTenths ? fmtTenths(r.avgPaceTenths) : "—",
+        title: r.title,
+      };
+    });
+  } catch (err) {
+    console.error(`row100k: failed to read the erg rows for participant ${participantId}`, err);
+    return [];
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -444,6 +472,10 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
       ? { until: blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined }
       : null;
 
+  // THE ERG: read only when the page is going to print it. A masked page
+  // is the dog tag and carries no table.
+  const ergRows = masked ? [] : await profileErgRows(p.id);
+
   // One object for the layout (looks/view.ts): everything above, computed
   // once; Profile.tsx only lays it out.
   const view: ProfileView = {
@@ -475,6 +507,7 @@ export default async function RowerProfilePage({ params }: { params: { num: stri
     shareData,
     rows,
     logRows,
+    ergRows,
     log,
   };
 

@@ -172,19 +172,6 @@ export const ergCss = `
   font-family:var(--eg-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--eg-fg-4);
 }
 
-/* THE GOAL CONTROL (owner, 2026-09-17: infer the goal distance to be a
- * five K always, but allow us to change it). Three chips and a box, on the
- * row and in the console head. */
-.eg .eg-goal{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.eg .eg-goal-k{font-family:var(--eg-mono),monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--eg-fg-3)}
-.eg .eg-goal-box{
-  width:88px;min-width:0;
-  font-family:var(--eg-mono),monospace;font-size:12px;font-variant-numeric:tabular-nums;
-  padding:6px 8px;border:1px solid var(--eg-line);border-radius:2px;
-  background:transparent;color:var(--eg-fg);
-}
-.eg .eg-goal-box::placeholder{color:var(--eg-fg-4)}
-
 /* THE DOT MENU (owner, 2026-09-17: the save, remove, disconnect options
  * should be like in a dot dot dot menu). A panel hung off one button, and
  * every control in the panel at thumb size.
@@ -222,26 +209,43 @@ export const ergCss = `
 .eg .eg-menu input::placeholder{color:var(--eg-fg-4)}
 .eg .eg-menu .eg-btn{justify-content:center;min-height:44px}
 .eg .eg-menu .eg-note{word-break:break-word}
-/* THE GOAL, INSIDE THE PANEL, AT EVERY WIDTH (owner, 2026-09-17: he does
- * not want the goal buttons on the monitor row). It used to be displayed
- * only under 760px, with the row carrying an open copy above that; the row
- * carries nothing now, so this is the only copy on the monitors screen. A
- * rule under it separates setting the goal from the four things below that
- * act on the erg itself. */
-.eg .eg-menu-goal{
-  display:block;padding-bottom:10px;margin-bottom:2px;
-  border-bottom:1px solid var(--eg-line-soft);
+/* THE ROWER SEARCH BOX (RowerPick.tsx, owner 2026-09-23). One quiet input
+ * the width of a name, the list hung under it in the panel colours, the
+ * lit match in full white on ink. On the row it sits left of the dots; in
+ * the console head it sits under the name. */
+.eg .eg-rp{position:relative;width:200px;max-width:100%}
+.eg .eg-rp-in{
+  width:100%;min-height:32px;box-sizing:border-box;
+  font-family:var(--eg-mono),monospace;font-size:11px;letter-spacing:.06em;
+  padding:6px 26px 6px 10px;border:1px solid var(--eg-line);border-radius:2px;
+  background:transparent;color:var(--eg-fg);
 }
-.eg .eg-menu-goal .eg-goal{gap:6px 8px}
-.eg .eg-menu-goal .eg-chip{min-height:36px}
-.eg .eg-menu-goal .eg-goal-box{min-height:36px;width:76px}
-/* AND SO MUST THE TARGET BOX (review, 2026-09-17: .eg .eg-menu input is one
- * class plus an element, which outranks the two classes the rower sheet gives
- * .eg-tgt-box, so inside the dot menu the target went full width and a
- * different height from the goal box directly above it). Three classes
- * settles it. */
-.eg .eg-menu-goal .eg-tgt{gap:6px 8px}
-.eg .eg-menu-goal .eg-tgt-box{min-height:36px;width:76px;padding:6px 8px}
+.eg .eg-rp-in::placeholder{color:var(--eg-fg-4);text-transform:uppercase;letter-spacing:.12em}
+.eg .eg-rp-in:focus{outline:none;border-color:var(--eg-fg)}
+.eg .eg-rp-in:disabled{opacity:.55}
+.eg .eg-rp-x{
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  width:24px;height:24px;padding:0;border:0;background:transparent;color:var(--eg-fg-4);
+  font-family:var(--eg-mono),monospace;font-size:15px;line-height:1;cursor:pointer;
+}
+.eg .eg-rp-x:hover{color:var(--eg-fg)}
+.eg .eg-rp-list{
+  position:absolute;left:0;top:calc(100% + 4px);z-index:31;
+  width:100%;min-width:220px;margin:0;padding:4px 0;list-style:none;
+  border:1px solid var(--eg-fg);border-radius:3px;background:var(--eg-panel);
+  box-shadow:0 12px 34px rgba(0,0,0,.45);
+}
+.eg .eg-rp-row{
+  display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;
+  padding:8px 10px;border:0;background:transparent;color:var(--eg-fg);cursor:pointer;
+  font-family:var(--eg-mono),monospace;font-size:11.5px;
+}
+.eg .eg-rp-row .n{color:var(--eg-fg-3);letter-spacing:.1em;flex:0 0 auto}
+.eg .eg-rp-row .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eg .eg-rp-row:hover,.eg .eg-rp-row.hi{background:var(--eg-fg);color:var(--eg-bg)}
+.eg .eg-rp-row.hi .n,.eg .eg-rp-row:hover .n{color:var(--eg-bg)}
+.eg .eg-rp-note{padding:8px 10px;font-family:var(--eg-mono),monospace;font-size:9.5px;letter-spacing:.14em;color:var(--eg-fg-4)}
+.eg .eg-dwho .eg-rp{margin-top:8px}
 
 /* Said to a screen reader, never on screen. */
 .eg .eg-away{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -281,7 +285,6 @@ export const ergCss = `
  * body no longer needs a screen of its own height — but it should still
  * hold the ground down a short page. */
 .row100k .eg{min-height:70vh}
-.eg .eg-menu .eg-select{width:100%;background:var(--eg-panel);color:var(--eg-fg);border:1px solid var(--eg-line);border-radius:3px;padding:8px 10px;font-family:var(--eg-mono),monospace;font-size:12px;margin-bottom:10px}
 /* The live pages are ink from the bar to the footer: the site root is
  * cream, and the strip of it between the bar and this sheet, and again
  * above the footer, read as two white bars on the television (owner,
@@ -293,14 +296,8 @@ export const ergCss = `
  * starts being a miss. The box stays invisible until it is pressed. */
 @media (pointer:coarse){
   .eg .eg-dots{width:44px;height:44px;font-size:13px}
-  /* AND SO DOES THE GOAL, WHEREVER IT IS (review, 2026-09-17: moving the
-   * monitors copy into the dot menu narrowed these two rules to the menu,
-   * which quietly took the 44px off the OTHER copy — the one in the console
-   * head, which is the one a rower actually sets a piece up with). Three
-   * classes so they outrank the 36px the menu copy takes on a mouse, and
-   * keyed to the pointer rather than the width, so a tablet gets them too. */
-  .eg .eg-goal .eg-chip{min-height:44px;padding:5px 12px}
-  .eg .eg-goal .eg-goal-box{min-height:44px}
+  .eg .eg-rp-in{min-height:44px}
+  .eg .eg-rp-x{width:36px;height:36px}
 }
 
 /* ON A PHONE THE ROW STACKS (review, 2026-09-17: four numbers, a name and a
@@ -314,6 +311,7 @@ export const ergCss = `
   .eg .eg-r-who{flex:1 1 100%}
   .eg .eg-r-nums{flex:1 1 100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px}
   .eg .eg-r-side{width:100%;margin-left:0;justify-content:flex-end}
+  .eg .eg-r-side .eg-rp{flex:1 1 auto;width:auto}
 }
 @media (max-width:560px){
   .eg .eg-head h1{font-size:24px}

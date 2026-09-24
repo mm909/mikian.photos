@@ -17,7 +17,8 @@ import {
   workoutTypeWord,
 } from "@/lib/pm5/pm5";
 import { Chart, DistChart, ForceCurveChart, thinPoints, type Series, type SpanControl, type XY } from "./charts";
-import { GoalControl, TargetControl, blocksFor, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
+import { blocksFor, expectedFinish, goalOf, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
+import { RowerPick, type Roster } from "./RowerPick";
 import {
   LINK_WORD,
   RATE_KEYS,
@@ -156,7 +157,7 @@ function Kv({ k, v }: { k: string; v: string | number }) {
   );
 }
 
-export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack: () => void; signedIn?: boolean }) {
+export function ErgDetail({ erg, onBack, signedIn = false, roster = null }: { erg: Erg; onBack: () => void; signedIn?: boolean; roster?: Roster | null }) {
   const [showFeed, setShowFeed] = useState(false);
   /* Whether the charts hold the whole piece rather than the rolling
    * window. Here rather than in a chart, because all nine share it. */
@@ -279,7 +280,6 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
    * the monitor is set to a different fixed distance, the line under the
    * head says so and neither number is overruled. */
   const finish = expectedFinish(erg);
-  const mismatch = goalMismatch(erg);
 
   /* Before there are metres to work with there is no band to print, so the
    * tile falls back to the monitor's own number and says where it came
@@ -335,6 +335,9 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             aria-label="Name this erg"
           />
           <span className="eg-note">{typedErgName(erg) ? `${erg.name} · ` : ""}{erg.serial || "NO SERIAL"}</span>
+          {/* THE ROWER, under the name: the same search box the monitors
+            * row carries (RowerPick.tsx). */}
+          <RowerPick ergId={erg.id} rower={erg.rower} roster={roster} signedIn={signedIn} />
         </div>
 
         <div className="eg-dctl">
@@ -349,7 +352,6 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
             {g ? workoutStateWord(g.workoutState) : "NO STATUS PACKET YET"}
             {g ? <span>{strokeStateWord(g.strokeState)}</span> : null}
           </span>
-          {mismatch ? <span className="eg-note">{mismatch}</span> : null}
 
           <span className="eg-btns" style={{ margin: 0 }}>
             <button type="button" className="eg-btn eg-btn-quiet" aria-expanded={settings} onClick={() => setSettings((v) => !v)}>
@@ -390,20 +392,19 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
            * the button rather than by a 401 at the end of the piece. */}
           {!playback && !signedIn ? <span className="eg-note">Saving needs an account — sign in before you row, or this stays in the tab</span> : null}
           {!playback && erg.save.note ? <span className={erg.save.note.ok ? "eg-note" : "eg-note eg-bad"}>{erg.save.note.text}</span> : null}
+          {erg.race.note ? <span className={erg.race.note.ok ? "eg-note" : "eg-note eg-bad"}>{erg.race.note.text}</span> : null}
           {erg.loaded ? <span className="eg-loaded">Loaded · {erg.loaded.title}</span> : null}
         </div>
       </div>
 
       {/* ---- THE SETTINGS DRAWER: everything that is set once ------------
-        * (owner, 2026-09-21). The goal, the target, how often the monitor
-        * reports, and the facts about the monitor itself. None of it is
-        * read mid-piece, so none of it is on screen mid-piece. */}
+        * (owner, 2026-09-21). How often the monitor reports, and the facts
+        * about the monitor itself. The goal and the target are gone (owner,
+        * 2026-09-23): the piece is whatever the monitor is set to. */}
       {settings ? (
         <div className="eg-settings">
           <div className="eg-settings-col">
-            <span className="eg-eyebrow">The piece</span>
-            <GoalControl ergId={erg.id} goalM={erg.goalM} scope="head" />
-            <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="head" />
+            <span className="eg-eyebrow">Reporting</span>
             <span className="eg-chips">
               <span className="eg-pb-k">Status every</span>
               {RATE_KEYS.map((k) => (
@@ -458,7 +459,7 @@ export function ErgDetail({ erg, onBack, signedIn = false }: { erg: Erg; onBack:
         <Tile
           label={ended ? "Average /500m" : "Expected finish"}
           value={finishTile.value}
-          sub={ended ? finishTile.sub : [goalWord(erg.goalM), finishTile.sub].filter(Boolean).join(" · ")}
+          sub={ended ? finishTile.sub : [goalWord(goalOf(erg)), finishTile.sub].filter(Boolean).join(" · ")}
           hint={ended ? null : finish.hint}
         />
         <Tile

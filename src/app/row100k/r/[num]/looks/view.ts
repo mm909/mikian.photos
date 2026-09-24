@@ -38,6 +38,20 @@ export type ProfileBest = {
 
 export type ProfilePhase = "before" | "open" | "closed";
 
+/* One piece the monitor recorded against this rower (ErgRows.tsx), as
+ * display strings: the profile prints it, it does not compute it. Separate
+ * from the log on purpose — see ErgRows.tsx. */
+export type ProfileErgRow = {
+  id: string;
+  when: string;
+  device: string;
+  simulated: boolean;
+  meters: string;
+  time: string;
+  split: string;
+  title: string;
+};
+
 /* One line of the roster the nameplate search reads (RowerSearch.tsx) —
  * every rower in the challenge, by the two things that are ALWAYS public
  * (blackoutRules.ts): the number and the name. Division rides along because
@@ -147,6 +161,9 @@ export type ProfileView = {
   rows: MyRow[];
   /* The visitor's rows — display strings, blanked while masked. */
   logRows: ProfileLogRow[];
+  /* THE ERG (owner, 2026-09-23): the telemetry pieces saved with this
+   * rower on the erg, newest first. Only ever built for an unmasked page. */
+  ergRows: ProfileErgRow[];
   /* The logging station, on the rower's own page only. `phase` here is the
    * admin-adjusted one (open before Sep 1 for test rows). */
   log: {

@@ -13,6 +13,7 @@ import {
   parseStoredStatus,
   postOwnTime,
   resultBoard,
+  setErgResult,
   setFinal,
   setResult,
   setWaveStart,
@@ -32,6 +33,9 @@ export const dynamic = "force-dynamic";
  *      Signed in, opted in, a live racer with a wave, inside the posting
  *      window, sheet not posted. 30/h per participant.
  * POST { action: "set",   id, time?, status?, lane? }   admin only
+ * POST { action: "erg",   rowerNumber, tenths }         admin only — the
+ *      erg console posting the finish a PM5 showed (raceResults.ts
+ *      setErgResult)
  * POST { action: "wave",  wave, started }               admin only
  * POST { action: "final", on }                          admin only
  *
@@ -174,6 +178,19 @@ export async function POST(req: Request) {
       return answer(race);
     } catch (err) {
       return failed(err, "result set");
+    }
+  }
+
+  if (action === "erg") {
+    const n = Number(body.rowerNumber);
+    const tenths = Number(body.tenths);
+    if (!Number.isInteger(n) || n < 1) return bad("Which rower?");
+    if (!Number.isInteger(tenths) || tenths <= 0) return bad("A time, in tenths of a second.");
+    try {
+      const posted = await setErgResult({ race, rowerNumber: n, tenths, by });
+      return answer(race, { posted });
+    } catch (err) {
+      return failed(err, "erg result");
     }
   }
 

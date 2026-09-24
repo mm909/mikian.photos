@@ -89,13 +89,13 @@ export async function POST(req: Request) {
   /* THE ROWER (owner, 2026-09-23): a Rowtember rower number the page had
    * assigned to the erg. Looked up in the live challenge; a number that
    * names nobody is refused rather than filed against the wrong person. */
-  let rower: { participantId: string; rowerNumber: number } | null = null;
+  let rower: { participantId: string; rowerNumber: number; challenge: string } | null = null;
   if (body.rowerNumber !== null && body.rowerNumber !== undefined) {
     const n = Number(body.rowerNumber);
     if (!Number.isInteger(n) || n < 1) return bad("That rower number is not a rower.");
     const p = await db.rowParticipant.findUnique({ where: { challenge_rowerNumber: { challenge: CHALLENGE, rowerNumber: n } }, select: { id: true } });
     if (!p) return bad(`No rower ${n} in the challenge.`);
-    rower = { participantId: p.id, rowerNumber: n };
+    rower = { participantId: p.id, rowerNumber: n, challenge: CHALLENGE };
   }
 
   try {

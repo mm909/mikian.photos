@@ -1,35 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fmtRowerNumber } from "@/lib/row100k";
 import Link from "next/link";
-import { WorkoutState, fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths, workoutStateWord } from "@/lib/pm5/pm5";
+import { fmtElapsedHundredths, fmtMeters, fmtPace, fmtTenths } from "@/lib/pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { ErgDetail } from "./ErgDetail";
 import { RaceBoard } from "./RaceBoard";
 import { parseTvLook, RaceBoardTv, type TvLook } from "./RaceBoardTv";
-import { GoalControl, TargetControl, expectedFinish, goalMismatch, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
+import { expectedFinish, goalOf, goalWord, pieceEnded, typedErgName } from "./ErgGoal";
+import { RowerPick, type Roster } from "./RowerPick";
 import {
   ERG_API,
   LINK_WORD,
   addErg,
   addSimErg,
   setAutoSave,
-  setErgRower,
+  setRacePost,
   addSourceErg,
   anyUnsaved,
   bluetoothAvailable,
   bluetoothSupported,
   disconnect,
-  ergTitle,
   ergUnsaved,
   getErg,
   listErgs,
   markLoaded,
   reconnect,
   removeErg,
-  saveErg,
-  setErgTitle,
   subscribe,
   type Erg,
 } from "./hub";
@@ -57,10 +54,9 @@ import { createPlayback, forgetPlayback, rememberPlayback } from "./playback";
  *
  * WHAT THE LEFT OF A ROW SAYS (review, 2026-09-17): the name the owner gave
  * this erg when he has given it one, because three PM5s in a gym all
- * advertise the same thing; under it the link, whether the recording is
- * UNSAVED or SAVED, and then the advertised name and the serial. What the
- * monitor is DOING appears only when it is not the obvious thing — see
- * stateWord.
+ * advertise the same thing; under it the link and whether the recording is
+ * UNSAVED or SAVED, and nothing else (owner, 2026-09-23) — the state, the
+ * serial and the source are in the console head.
  *
  * THE WHOLE ROW IS A LINK into that erg console, so it opens in a tab like
  * any other link. A plain click does NOT navigate: it swaps this view in
@@ -129,47 +125,19 @@ function recWord(e: Erg): "SAVED" | "UNSAVED" | null {
   return e.rec.packets.length ? "UNSAVED" : null;
 }
 
-/* WHAT THE MONITOR IS DOING, on the rows where that is worth saying (owner,
- * 2026-09-17: "I do not know why we say ROWING on all these on the monitor,
- * because obviously we are rowing").
- *
- * ROWING is the state a piece is in for all but a few seconds of its life,
- * so printing it beside a green LIVE dot and four numbers that are visibly
- * moving says nothing the row has not already said. Every OTHER state is
- * news and stays: WAITING TO BEGIN, COUNTDOWN PAUSE, INTERVAL REST, WORKOUT
- * END, TERMINATED, RE-ARM. The console head still prints the state in full,
- * because that is a status line rather than a row. */
-function stateWord(e: Erg): string | null {
-  const g = e.model.general;
-  if (!g) return null;
-  if (g.workoutState === WorkoutState.WORKOUTROW) return null;
-  return workoutStateWord(g.workoutState);
-}
-
 /* THE DOT MENU (owner, 2026-09-17: "the save, remove, disconnect options
- * should be like in a dot dot dot menu"). It holds everything that acts on
- * this erg and nothing that reads it, so the row stays numbers.
+ * should be like in a dot dot dot menu"; and 2026-09-23: "keep the … menu
+ * just for disconnect/remove"). Two things that act on the link and the
+ * slot, and nothing that reads or sets the erg: the goal is the monitor's
+ * now (ErgGoal.ts goalOf), the rower is the search box beside the dots
+ * (RowerPick.tsx), the name and SAVE are in the console head, and a
+ * finished programmed piece saves itself (hub.ts).
  *
  * A real button with a real panel: ESCAPE closes it and hands focus back,
- * a press anywhere else closes it, and every control in it is reachable by
- * keyboard. SAVE is still per erg — its own name, its own button, its own
- * word — and the confirm before discarding an unsaved recording still
- * runs.
- *
- * THE GOAL LIVES IN HERE NOW, AT EVERY WIDTH (owner, 2026-09-17, after
- * using it: "on the monitor screen I do not need the goal buttons here,
- * it is too much going on"). A label, three chips and a number box on
- * every row was the widest thing on the sheet — 337px of the row at
- * 1440px, which is why the expected finish next to it was being clipped
- * mid-clock. The goal is set once a session and read every second, so the
- * setting goes behind the dots and the reading stays on the row. The
- * console head still carries the control in the open, because that is the
- * screen you are on when you are deciding what you are rowing. */
-type Roster = { rowerNumber: number; name: string }[];
-
-function RowMenu({ erg, onChanged, signedIn, roster }: { erg: Erg; onChanged: () => void; signedIn: boolean; roster: Roster | null }) {
+ * a press anywhere else closes it. The confirm before discarding an
+ * unsaved recording still runs. */
+function RowMenu({ erg }: { erg: Erg }) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
 
@@ -193,16 +161,6 @@ function RowMenu({ erg, onChanged, signedIn, roster }: { erg: Erg; onChanged: ()
     };
   }, [open]);
 
-  const playback = erg.source === "playback";
-  const savedWord = erg.rec.saved ? "SAVED" : erg.rec.packets.length ? "UNSAVED" : "NOTHING RECORDED YET";
-
-  const save = async () => {
-    setBusy(true);
-    await saveErg(erg.id, ergTitle(erg));
-    setBusy(false);
-    onChanged();
-  };
-
   const remove = () => {
     if (ergUnsaved(erg) && !window.confirm(`Remove ${typedName(erg) ?? erg.name}? ${erg.rec.packets.length.toLocaleString("en-US")} recorded packets go with it — SAVE first to keep them.`)) return;
     forgetPlayback(erg.id);
@@ -215,16 +173,15 @@ function RowMenu({ erg, onChanged, signedIn, roster }: { erg: Erg; onChanged: ()
        * little large, can be a little more discreet"). A small glyph and no
        * border until it is hovered, focused or open — and still a 44px
        * target under a finger, which the sheet gives it back on a coarse
-       * pointer. The label is what a screen reader gets instead of three
-       * full stops. */}
+       * pointer. */}
       <button
         type="button"
         className="eg-dots"
         ref={button}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`More for ${typedName(erg) ?? erg.name} — goal, name, save, remove`}
-        title={`Goal ${goalWord(erg.goalM)} · name, save, disconnect, remove`}
+        aria-label={`More for ${typedName(erg) ?? erg.name} — disconnect, remove`}
+        title="Disconnect · remove"
         onClick={() => setOpen((v) => !v)}
       >
         <span aria-hidden="true">•••</span>
@@ -232,76 +189,6 @@ function RowMenu({ erg, onChanged, signedIn, roster }: { erg: Erg; onChanged: ()
 
       {open ? (
         <div className="eg-menu" role="group" aria-label={`Actions for ${typedName(erg) ?? erg.name}`}>
-          {/* The goal, at every width now that the row no longer carries
-           * it. First in the panel because it is the one thing in here
-           * that changes what the numbers on the row mean. */}
-          <div className="eg-menu-goal">
-            <GoalControl ergId={erg.id} goalM={erg.goalM} scope="menu" />
-            {/* HOW FAST, beside HOW FAR (owner, 2026-09-17: "if I say I want
-              * to do a 5K in 20 minutes and I am rowing at not that pace, I
-              * want to be notified"). This is the primary door for it: you
-              * set it here, before you open the erg and before you sit
-              * down, and the rowing screen never has to ask. */}
-            <TargetControl ergId={erg.id} goalS={erg.goalS} goalM={erg.goalM} scope="menu" />
-          </div>
-
-          {playback ? (
-            <p className="eg-note">Playing back a saved row · nothing to save</p>
-          ) : (
-            <>
-              {/* ONE FIELD, TWO JOBS (review, 2026-09-17: it was labelled
-               * as the save title, so the one thing that could tell lane 1
-               * from lane 3 looked like it did something else). What is
-               * typed here is the row heading AND the title the piece is
-               * saved under. */}
-              {/* THE ROWER (owner, 2026-09-23): a Rowtember rower on this
-               * erg, optionally. The heading and the save title take their
-               * name unless one is typed below, and the save is filed
-               * against them. */}
-              <label className="eg-away" htmlFor={`rower-${erg.id}`}>
-                Rower on this erg
-              </label>
-              <select
-                id={`rower-${erg.id}`}
-                className="eg-select"
-                value={erg.rower ? String(erg.rower.rowerNumber) : ""}
-                disabled={!roster}
-                onChange={(ev) => {
-                  const n = Number(ev.target.value);
-                  const r = roster?.find((x) => x.rowerNumber === n) ?? null;
-                  setErgRower(erg.id, r);
-                  onChanged();
-                }}
-              >
-                <option value="">{roster ? "No rower — the monitor on its own" : signedIn ? "Loading the roster…" : "Sign in to assign a rower"}</option>
-                {(roster ?? []).map((r) => (
-                  <option key={r.rowerNumber} value={String(r.rowerNumber)}>
-                    {fmtRowerNumber(r.rowerNumber)} · {r.name}
-                  </option>
-                ))}
-              </select>
-              <label className="eg-away" htmlFor={`title-${erg.id}`}>
-                Name this erg
-              </label>
-              <input id={`title-${erg.id}`} value={ergTitle(erg)} onChange={(ev) => setErgTitle(erg.id, ev.target.value)} placeholder="Name this erg" />
-              {/* Saving is the one thing on this page that needs an
-               * account, so a signed-out viewer is told by the button
-               * itself, not by a 401 at the end of the piece. */}
-              <button
-                type="button"
-                className="eg-btn"
-                onClick={save}
-                disabled={busy || erg.save.busy || !erg.rec.packets.length || !signedIn}
-                title={signedIn ? undefined : "Saving needs an account — sign in first"}
-              >
-                {busy || erg.save.busy ? "Saving…" : "Save"}
-              </button>
-              <p className={erg.save.note && !erg.save.note.ok ? "eg-note eg-bad" : "eg-note"}>
-                {!signedIn ? "SIGN IN TO SAVE" : erg.save.note ? erg.save.note.text : savedWord}
-              </p>
-            </>
-          )}
-
           {erg.source === "live" && erg.link === "live" ? (
             <button type="button" className="eg-btn eg-btn-quiet" onClick={() => disconnect(erg.id)}>
               Disconnect
@@ -325,25 +212,14 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
   const g = erg.model.general;
   const a1 = erg.model.a1;
   const finish = expectedFinish(erg);
-  const mismatch = goalMismatch(erg);
   const named = typedName(erg);
   const rec = recWord(erg);
   const ended = pieceEnded(erg);
 
-  /* The sub line: what the monitor is DOING when that is worth saying, as
-   * well as whether the radio is up (review, 2026-09-17: the row carried
-   * the Bluetooth link and nothing else, so a piece that had finished still
-   * read LIVE — and then it read ROWING on every row that was, obviously,
-   * rowing; see stateWord). Then the advertised name when the owner has
-   * given this erg one of his own, the serial, where the packets come from,
-   * and OPEN. */
-  const bits = [
-    stateWord(erg),
-    named ? erg.name : null,
-    erg.serial || null,
-    erg.sourceLabel ?? (erg.source === "live" ? "BLUETOOTH" : erg.source.toUpperCase()),
-    "OPEN",
-  ].filter((b): b is string => Boolean(b));
+  /* THE SUB LINE IS THE LINK AND THE PIP, NOTHING ELSE (owner, 2026-09-23:
+   * "remove the text below the live status — workout logged, bluetooth,
+   * etc"). The state, the serial and where the packets come from are all
+   * in the console head, one click away. */
 
   /* A real href, so the row opens in a tab, is copyable and reads as a
    * link — but a plain click stays on this page and swaps the view, which
@@ -356,7 +232,7 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
 
   return (
     <article className="eg-r">
-      <a className="eg-r-open" href={`/erg?erg=${encodeURIComponent(erg.id)}`} onClick={follow}>
+      <a className="eg-r-open" href={`/erg?erg=${encodeURIComponent(erg.id)}`} onClick={follow} data-inplace="">
         <span className="eg-r-who">
           <span className="eg-r-name">{named ?? erg.name}</span>
           <span className="eg-r-sub">
@@ -365,7 +241,8 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
               {LINK_WORD[erg.link]}
             </span>
             {rec ? <span className={rec === "UNSAVED" ? "eg-pip eg-pip-on" : "eg-pip"}>{rec}</span> : null}
-            <span>{bits.join(" · ")}</span>
+            {/* THE RACE RESULT went, or did not (hub.ts postRaceResult). */}
+            {erg.race.note ? <span className={erg.race.note.ok ? "eg-pip" : "eg-pip eg-pip-on"}>{erg.race.note.ok ? "RESULT POSTED" : "RESULT NOT POSTED"}</span> : null}
           </span>
         </span>
 
@@ -386,24 +263,19 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
           {ended ? (
             <Num k="Average /500m" v={a1 && a1.averagePaceS > 0 ? fmtPace(a1.averagePaceS) : "—"} s={g ? `OVER ${fmtMeters(g.distanceM)}` : ""} />
           ) : (
-            <Num k={`Expected ${goalWord(erg.goalM)} finish`} v={finish.value} s={finish.under} hint={finish.hint} />
+            <Num k={`Expected ${goalWord(goalOf(erg))} finish`} v={finish.value} s={finish.under} hint={finish.hint} />
           )}
           <Num k="Elapsed" v={g ? fmtElapsedHundredths(g.elapsedHundredths) : "—"} s={ended ? "FINAL" : ""} />
         </span>
       </a>
 
       {/* Outside the link: a control inside an anchor is not a control. The
-       * goal used to sit here in the open and was the widest thing on the
-       * row; it lives in the dot menu now at every width (owner, 2026-09-17:
-       * "I do not need the goal buttons here"). What is left is one quiet
-       * button. */}
+       * rower search box (owner, 2026-09-23: "make the rower selection a
+       * search box") and one quiet button. */}
       <div className="eg-r-side">
-        <RowMenu erg={erg} onChanged={onChanged} signedIn={signedIn} roster={roster} />
+        <RowerPick ergId={erg.id} rower={erg.rower} roster={roster} signedIn={signedIn} onChanged={onChanged} />
+        <RowMenu erg={erg} />
       </div>
-
-      {/* The monitor is on a different fixed distance. Said once, quietly;
-       * neither number overrides the other. */}
-      {mismatch ? <p className="eg-r-note">{mismatch}</p> : null}
     </article>
   );
 }
@@ -515,10 +387,15 @@ export function MonitorList({ playId, ergId, board: boardParam = null, look: loo
   /* AUTO-SAVE is armed while an account is signed in (hub.ts). */
   useEffect(() => {
     setAutoSave(signedIn);
-    return () => setAutoSave(false);
+    setRacePost(signedIn);
+    return () => {
+      setAutoSave(false);
+      setRacePost(false);
+    };
   }, [signedIn]);
 
-  /* THE ROSTER, once, for the rower pick in every row's menu. */
+  /* THE ROSTER, once, for the rower search box on every row and in the
+   * console head (RowerPick.tsx). */
   const [roster, setRoster] = useState<Roster | null>(null);
   useEffect(() => {
     if (!signedIn) return;
@@ -615,7 +492,7 @@ export function MonitorList({ playId, ergId, board: boardParam = null, look: loo
    * from another tab of this view — or the row was opened in a NEW tab,
    * where this hub has never seen that id — fall back to the list. */
   const openErg = open ? getErg(open) : null;
-  if (open && openErg) return <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} />;
+  if (open && openErg) return <ErgDetail erg={openErg} onBack={() => setOpen(null)} signedIn={signedIn} roster={roster} />;
   if (tv) return <RaceBoardTv ergs={ergs} look={tv} onLook={setTv} onExit={() => setTv(null)} />;
   if (board) return <RaceBoard ergs={ergs} onBack={() => setBoard(false)} onOpen={(id) => setOpen(id)} onTv={() => setTv("a")} />;
 

@@ -6,6 +6,7 @@ import { CHALLENGE, LOG_CLOSE_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
 import { BarNav, type NavKey } from "./BarNav";
+import { NavProgress } from "./NavProgress";
 import { raceOpenFor } from "./raceday";
 import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
@@ -103,6 +104,8 @@ export async function RowBar({
   return (
     <>
       <div className="bar" style={sticky ? undefined : { position: "relative" }}>
+        {/* The line along the top that says a tap landed (NavProgress.tsx). */}
+        <NavProgress />
         <span className="bar-lead">
           {/* Mikian Musser, hosting Rowtember — the landing wordmark leads. */}
           <Link className="bar-brand" href="/">

@@ -12,6 +12,7 @@ import {
   coreLedger,
 } from "./pieces";
 import { DogTagCard } from "./DogTag";
+import { ErgRows } from "./ErgRows";
 import { PaceCurve } from "./PaceCurve";
 import { ProfileField } from "./ProfileField";
 import type { ProfileView } from "./view";
@@ -100,6 +101,20 @@ export function Profile({ view }: { view: ProfileView }) {
                 <ProfileField field={view.field.field} you={view.field.you} distances={view.field.distances} />
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* THE ERG (owner, 2026-09-23): what the monitor recorded against
+          this rower, above the log and apart from it — see ErgRows.tsx. Not
+          there at all until a piece has been saved with them on the erg. */}
+      {view.ergRows.length > 0 && (
+        <section className="pf-sec">
+          <div className="wrap front">
+            <div className="pf-block pf-erg">
+              <Eyebrow left="The erg" right={`${view.ergRows.length} ${view.ergRows.length === 1 ? "PIECE" : "PIECES"} · FROM THE MONITOR`} />
+              <ErgRows rows={view.ergRows} canOpen={view.isMe || view.isAdmin} />
+            </div>
           </div>
         </section>
       )}

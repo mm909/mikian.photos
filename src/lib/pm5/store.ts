@@ -13,13 +13,12 @@ import { cleanTitle, columnsFrom, defaultTitle, type TelemetryDoc, type Telemetr
  * and rowerNumber exactly as the schema left them (the default and two
  * nulls). A read matches on userId — plus the one legacy clause below.
  *
- * THE LEGACY CLAUSE. Two real sessions were saved from PM5 530724321
- * before the move: they carry a participantId and no userId, so a plain
- * userId match would hide the owner's own rows from him. A read therefore
- * also takes a row whose userId is null when its participantId is the
- * viewer's own RowParticipant. That is the ONLY tie to Rowtember left in
- * this file — one lookup, kept purely so two old rows stay reachable, and
- * it can go the day they are re-saved or dropped.
+ * AND THE ROWER'S OWN (2026-09-23). A piece saved with a Rowtember rower
+ * on the erg (hub.ts setErgRower) carries their participantId, and the
+ * rower can read it from their profile whoever's laptop saved it. So a
+ * read also takes any row whose participantId is one of the viewer's own
+ * RowParticipants — which is the same clause that kept two pre-move rows
+ * (a participantId and no userId) reachable to the owner.
  *
  * A refusal the caller should print is an ErgStoreError with a status;
  * anything else is the database and the route answers 503. */
@@ -109,7 +108,7 @@ async function scopeWhere(scope: ErgScope): Promise<Prisma.RowTelemetryWhereInpu
   if (scope.isAdmin) return {};
   const pids = await legacyParticipantIds(scope.userId);
   const or: Prisma.RowTelemetryWhereInput[] = [{ userId: scope.userId }];
-  if (pids.length > 0) or.push({ userId: null, participantId: { in: pids } });
+  if (pids.length > 0) or.push({ participantId: { in: pids } });
   return { OR: or };
 }
 
@@ -117,14 +116,15 @@ export async function insertErgSession(args: {
   userId: string;
   doc: TelemetryDoc;
   title?: unknown;
-  /* The Rowtember rower the erg was assigned to, if any. */
-  rower?: { participantId: string; rowerNumber: number } | null;
+  /* The Rowtember rower the erg was assigned to, if any — and the
+   * challenge they sit in, so the row's challenge column says the same. */
+  rower?: { participantId: string; rowerNumber: number; challenge: string } | null;
 }): Promise<TelemetrySavedRow> {
   const cols = columnsFrom(args.doc);
   const row = await db.rowTelemetry.create({
     data: {
       userId: args.userId,
-      ...(args.rower ? { participantId: args.rower.participantId, rowerNumber: args.rower.rowerNumber } : {}),
+      ...(args.rower ? { participantId: args.rower.participantId, rowerNumber: args.rower.rowerNumber, challenge: args.rower.challenge } : {}),
       ...cols,
       title: cleanTitle(args.title, defaultTitle(args.doc)),
       data: args.doc as unknown as Prisma.InputJsonValue,
@@ -140,6 +140,24 @@ export async function listErgSessions(scope: ErgScope & { limit?: number }): Pro
     where: await scopeWhere(scope),
     orderBy: { createdAt: "desc" },
     take: Math.min(500, Math.max(1, scope.limit ?? 200)),
+    select: ROW_SELECT,
+  });
+  return rows.map(toSaved);
+}
+
+/* THE PIECES FILED AGAINST ONE ROWER, for their profile (owner,
+ * 2026-09-23). No scope: the profile decides who sees the page, and the
+ * rows are distance, time and split — the same figures the log prints. The
+ * document itself is not read here. Newest first.
+ *
+ * Keyed on the PARTICIPANT, not the challenge and number: a save pins the
+ * participant id (insertErgSession) and leaves the challenge column at its
+ * default, so the number alone would miss under the demo namespace. */
+export async function listRowerErgSessions(args: { participantId: string; limit?: number }): Promise<TelemetrySavedRow[]> {
+  const rows = await db.rowTelemetry.findMany({
+    where: { participantId: args.participantId },
+    orderBy: { startedAt: "desc" },
+    take: Math.min(200, Math.max(1, args.limit ?? 50)),
     select: ROW_SELECT,
   });
   return rows.map(toSaved);

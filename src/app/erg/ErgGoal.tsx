@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { isEnded } from "@/lib/pm5/pm5";
-import { fmtBand, fmtPace as fmtPaceS, fmtTime, predictFinish, type Block, type PieceState, type Prediction } from "@/lib/pm5/predict";
-import { DEFAULT_GOAL_M, GOAL_MAX_M, GOAL_MIN_M, setErgGoal, setErgGoalTime, type Erg, type ErgSample } from "./hub";
+import { fmtBand, fmtTime, predictFinish, type Block, type PieceState, type Prediction } from "@/lib/pm5/predict";
+import { DEFAULT_GOAL_M, type Erg, type ErgSample } from "./hub";
 
 /* THE GOAL, AND WHAT IT PREDICTS (owner, 2026-09-17: "infer the goal
  * distance to be a five K always. But allow us to change it" — and, on the
@@ -15,16 +14,13 @@ import { DEFAULT_GOAL_M, GOAL_MAX_M, GOAL_MIN_M, setErgGoal, setErgGoalTime, typ
  * head both call these, so the two screens can never disagree about what
  * the five thousand is or what it is going to take.
  *
- * THE GOAL IS NOT THE WORKOUT. The monitor can be set to a just row, a
- * 6,000 or a timed twenty; the goal is the rower's question, and where the
- * two differ goalMismatch says so in one line rather than either one
- * quietly winning.
+ * THE GOAL IS THE WORKOUT (owner, 2026-09-23: "remove the ability to
+ * specify goal and target"). A fixed distance on the monitor is the goal;
+ * anything else — a just row, a timed piece — is read as the five thousand.
+ * Nothing on any screen sets it. The race board alone hands its own
+ * distance in on a copy of the slot.
  *
  * The maths is src/lib/pm5/predict.ts and nothing here duplicates it. */
-
-/* The three the owner actually rows, and then the box for everything
- * else. */
-export const GOAL_CHOICES = [2000, 5000, 10000];
 
 /* The block the prediction counts in when we are cutting them ourselves.
  * The monitor's own split may be any length, and when it is, THAT length is
@@ -153,12 +149,21 @@ export function blocksFor(e: Erg): BlockSet {
 /* Where this erg finishes the goal, and how sure. Safe on an empty slot:
  * predictFinish is handed zeroes and answers with a reason rather than a
  * number. */
+/* WHAT THIS ERG IS ROWING: the slot's own goal when one was handed in (the
+ * race board), else the fixed distance the monitor is set to, else the five
+ * thousand. */
+export function goalOf(e: Erg): number {
+  if (e.goalM > 0) return e.goalM;
+  const g = e.model.general;
+  return g && g.totalWorkDistanceM > 0 ? Math.round(g.totalWorkDistanceM) : DEFAULT_GOAL_M;
+}
+
 export function pieceStateFor(e: Erg): PieceState {
   const g = e.model.general;
   const a1 = e.model.a1;
   const { blocks, blockM } = blocksFor(e);
   return {
-    targetMeters: e.goalM > 0 ? e.goalM : DEFAULT_GOAL_M,
+    targetMeters: goalOf(e),
     distanceM: g ? g.distanceM : 0,
     elapsedS: g ? g.elapsedHundredths / 100 : 0,
     blocks,
@@ -228,205 +233,4 @@ export function readFinish(p: Prediction): FinishRead {
 
 export function expectedFinish(e: Erg): FinishRead {
   return readFinish(predictForErg(e));
-}
-
-/* One quiet line when the monitor is set to a fixed distance that is not
- * the goal (owner, 2026-09-17: say so rather than overriding either — the
- * rower may be rowing a 6 k and still want the 5 k read). Null when the
- * monitor is on a just row, a timed piece, or the same distance. */
-export function goalMismatch(e: Erg): string | null {
-  const g = e.model.general;
-  if (!g || !(g.totalWorkDistanceM > 0)) return null;
-  const workout = Math.round(g.totalWorkDistanceM);
-  if (workout === Math.round(e.goalM)) return null;
-  return `MONITOR IS SET TO ${goalWord(workout)} · READING THE ${goalWord(e.goalM)}`;
-}
-
-/* THE CONTROL. Three chips for the distances he rows and a box for
- * anything between a hundred metres and a hundred thousand. The box commits
- * on ENTER and on leaving it; a number outside the range snaps back to what
- * the slot already holds rather than silently clamping to something nobody
- * typed.
- *
- * SCOPE is there because a monitors row carries this control twice — once
- * on the row for a wide screen and once inside the dot menu for a phone,
- * where only one of the two is ever displayed — and two labels cannot point
- * at the same id. It is part of the box id, nothing more. */
-export function GoalControl({ ergId, goalM, scope = "row" }: { ergId: string; goalM: number; scope?: string }) {
-  const [draft, setDraft] = useState(String(goalM));
-  const boxId = `goal-${scope}-${ergId}`;
-
-  /* The chips write straight to the hub, so the box has to follow the slot
-   * rather than its own last keystroke. */
-  useEffect(() => {
-    setDraft(String(goalM));
-  }, [goalM]);
-
-  const commit = () => {
-    const n = Math.round(Number(draft.replace(/[,\s]/g, "")));
-    if (!Number.isFinite(n) || n < GOAL_MIN_M || n > GOAL_MAX_M) {
-      setDraft(String(goalM));
-      return;
-    }
-    setErgGoal(ergId, n);
-  };
-
-  return (
-    <div className="eg-goal">
-      <span className="eg-goal-k">Goal</span>
-      {GOAL_CHOICES.map((m) => (
-        <button
-          key={m}
-          type="button"
-          className={Math.round(goalM) === m ? "eg-chip on" : "eg-chip"}
-          aria-pressed={Math.round(goalM) === m}
-          onClick={() => setErgGoal(ergId, m)}
-        >
-          {m.toLocaleString("en-US")}
-        </button>
-      ))}
-      {/* The chips say what the box is for on screen; a reader that cannot
-       * see them still gets the label. */}
-      <label className="eg-away" htmlFor={boxId}>
-        Goal distance in metres
-      </label>
-      <input
-        id={boxId}
-        className="eg-goal-box"
-        type="number"
-        inputMode="numeric"
-        min={GOAL_MIN_M}
-        max={GOAL_MAX_M}
-        step={1}
-        value={draft}
-        placeholder="Metres"
-        onChange={(ev) => setDraft(ev.target.value)}
-        onBlur={commit}
-        onKeyDown={(ev) => {
-          if (ev.key === "Enter") {
-            ev.preventDefault();
-            commit();
-          }
-        }}
-      />
-      <span className="eg-goal-k">m</span>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------- the target time */
-
-/* THE OTHER HALF OF THE GOAL (owner, 2026-09-17: "if I start this session
- * and I say I want to do a 5K in 20 minutes and I'm rowing at not that pace,
- * I want to be notified, or if I can go a little slower I want to be
- * notified"). The goal above is HOW FAR. This is HOW FAST, and predict.ts
- * reads the two together through readTarget.
- *
- * NULL IS THE DEFAULT AND NULL IS FINE. Every screen is complete without a
- * target — the finish is still predicted, the band still closes — so nobody
- * is ever made to answer a question mid-piece. */
-
-/* MM:SS, H:MM:SS, M:SS.T, or a bare number of MINUTES. Bare is minutes
- * because the box says MM:SS and because twenty SECONDS is under the floor
- * anyway, so the minutes reading is the only one that could ever be meant.
- * Anything else is null, and setErgGoalTime stores null for out of range
- * too — a typo leaves no target rather than one nobody chose. */
-export function parseTargetTime(raw: string): number | null {
-  const t = raw.trim();
-  if (!t) return null;
-  if (/^\d{1,3}(\.\d+)?$/.test(t)) {
-    const mins = Number(t);
-    return Number.isFinite(mins) && mins > 0 ? mins * 60 : null;
-  }
-  const m = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{1,2}(?:\.\d)?)$/.exec(t);
-  if (!m) return null;
-  const h = m[1] === undefined ? 0 : Number(m[1]);
-  const mi = Number(m[2]);
-  const sec = Number(m[3]);
-  if (!Number.isFinite(h) || !Number.isFinite(mi) || !Number.isFinite(sec)) return null;
-  if (mi > 59 || sec >= 60) return null;
-  const total = h * 3600 + mi * 60 + sec;
-  return total > 0 ? total : null;
-}
-
-/* "20:00" from 1200. The box shows what it would parse back to. */
-export function targetWord(seconds: number): string {
-  const whole = Math.round(seconds * 10) / 10;
-  const h = Math.floor(whole / 3600);
-  const m = Math.floor((whole % 3600) / 60);
-  const s = whole % 60;
-  const ss = Number.isInteger(s) ? String(s).padStart(2, "0") : s.toFixed(1).padStart(4, "0");
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
-
-/* THE CHIPS ARE PACES, NOT CLOCKS. A 5 k at 2:00 is 20:00 and a 10 k at 2:00
- * is 40:00, so three hardcoded times would be wrong the moment the distance
- * changed. These stay right. */
-export const TARGET_PACES = [110, 120, 130];
-
-export function TargetControl({ ergId, goalS, goalM, scope = "row" }: { ergId: string; goalS: number | null; goalM: number; scope?: string }) {
-  const [draft, setDraft] = useState(goalS === null ? "" : targetWord(goalS));
-  const boxId = `target-${scope}-${ergId}`;
-
-  /* The chips write straight to the hub, so the box follows the slot rather
-   * than its own last keystroke. */
-  useEffect(() => {
-    setDraft(goalS === null ? "" : targetWord(goalS));
-  }, [goalS]);
-
-  const commit = () => {
-    const t = draft.trim();
-    if (!t) {
-      setErgGoalTime(ergId, null);
-      return;
-    }
-    const secs = parseTargetTime(t);
-    if (secs === null) {
-      setDraft(goalS === null ? "" : targetWord(goalS));
-      return;
-    }
-    setErgGoalTime(ergId, secs);
-  };
-
-  return (
-    <div className="eg-tgt">
-      <span className="eg-tgt-k">Target</span>
-      <label className="eg-away" htmlFor={boxId}>
-        Target time for the whole piece
-      </label>
-      <input
-        id={boxId}
-        className="eg-tgt-box"
-        inputMode="numeric"
-        value={draft}
-        placeholder="MM:SS"
-        onChange={(ev) => setDraft(ev.target.value)}
-        onBlur={commit}
-        onKeyDown={(ev) => {
-          if (ev.key === "Enter") {
-            ev.preventDefault();
-            commit();
-          }
-        }}
-      />
-      {TARGET_PACES.map((p) => {
-        const secs = (goalM / 500) * p;
-        const on = goalS !== null && Math.abs(goalS - secs) < 0.6;
-        return (
-          <button key={p} type="button" className={on ? "eg-chip on" : "eg-chip"} aria-pressed={on} onClick={() => setErgGoalTime(ergId, secs)}>
-            {fmtPaceS(p).replace(/\.0$/, "")}
-          </button>
-        );
-      })}
-      {goalS === null ? null : (
-        <button type="button" className="eg-chip" onClick={() => setErgGoalTime(ergId, null)}>
-          Clear
-        </button>
-      )}
-      {/* The two always travel together: a whole-piece time means nothing
-        * without the distance it is over, and changing either silently
-        * redefines the other. */}
-      <span className="eg-tgt-k">{goalS === null ? `NO TARGET · ${goalWord(goalM)}` : `${targetWord(goalS)} OVER ${goalWord(goalM)}`}</span>
-    </div>
-  );
 }

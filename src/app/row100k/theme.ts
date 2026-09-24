@@ -68,6 +68,12 @@ html:has(.row100k){scroll-behavior:smooth}
 
 .row100k .bar{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .row100k .bar .mono{font-size:12px;letter-spacing:.08em}
+/* THE TAP LANDED (NavProgress.tsx): a water line along the top edge of the
+ * viewport from the moment a link is pressed until the next page paints. */
+.row100k .bar-go{position:fixed;left:0;top:0;height:3px;width:0;background:var(--water);z-index:60;opacity:0;pointer-events:none}
+.row100k .bar-go.on{opacity:1;animation:row-go 9s cubic-bezier(.08,.6,.2,1) forwards}
+@keyframes row-go{from{width:0}to{width:94%}}
+@media (prefers-reduced-motion:reduce){.row100k .bar-go.on{animation:none;width:100%}}
 .row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
 /* Who is putting this on, then what it is: the Mikian.Musser wordmark from
  * the landing page leads (kept, blue dot and all — owner call 2026-09-05),
@@ -861,6 +867,17 @@ html:has(.row100k){scroll-behavior:smooth}
  * .pf-tag is the elite rower s own dog tag under their stats (owner,
  * 2026-09-08: what everyone else sees) — the eyebrow carries the gap. */
 .row100k .pf-block{margin-top:34px}
+/* THE ERG table on the profile (ErgRows.tsx): mono, ruled, scrolls
+ * sideways on a phone rather than squeezing six columns. */
+.row100k .pf-erg-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.row100k .pf-erg-tab{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:12px;color:var(--ink)}
+.row100k .pf-erg-tab th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);padding:0 14px 8px 0;border-bottom:1px solid var(--ink);white-space:nowrap}
+.row100k .pf-erg-tab td{padding:10px 14px 10px 0;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+.row100k .pf-erg-tab td.num{font-variant-numeric:tabular-nums}
+.row100k .pf-erg-tab td.tt{white-space:normal;min-width:140px}
+.row100k .pf-erg-act{display:inline-flex;gap:14px}
+.row100k .pf-erg-act a{color:var(--water);font-weight:700;letter-spacing:.12em;font-size:10px;text-decoration:none}
+.row100k .pf-erg-act a:hover{text-decoration:underline}
 .row100k .pf-block:first-child{margin-top:0}
 .row100k .pf-tag .dt{margin-top:0}
 .row100k .pf-pace{margin-top:0;padding-top:0;border-top:none;position:relative}

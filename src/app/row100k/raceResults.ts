@@ -369,6 +369,42 @@ export async function setResult(args: {
   await db.rowRaceSignup.update({ where: { id: row.id }, data });
 }
 
+/* A TIME OFF THE ERG (owner, 2026-09-24: "make the addition so that the
+ * race's result gets automatically published to the race results page when
+ * I assign a rower to the row"). The erg console posts the finish the PM5
+ * showed for the rower on that erg the moment a 5,000 m piece ends
+ * (hub.ts postRaceResult). Admin only, like setResult: the laptop on the
+ * wall is the owner's.
+ *
+ * The racer is found by ROWER NUMBER in this race. No entry is a refusal
+ * that says so (the console prints it), not a signup made on the fly. A
+ * racer with no wave yet is put in the wave that is on the ergs — the
+ * highest one stamped started — or wave 1, because a time with no wave
+ * would never reach the board (liveField). The timing console can still
+ * correct anything this wrote. */
+export async function setErgResult(args: { race: RaceDef; rowerNumber: number; tenths: number; by: string; nowMs?: number }): Promise<{ id: string; wave: number }> {
+  const { race } = args;
+  const nowMs = args.nowMs ?? challengeNow();
+  const rule = raceTimeRuleBreak(args.tenths);
+  if (rule) throw new ResultError(rule);
+  const row = await db.rowRaceSignup.findFirst({
+    where: { challenge: CHALLENGE, race: race.slug, rowerNumber: args.rowerNumber, withdrewAt: null },
+    select: { id: true, role: true, wave: true },
+  });
+  if (!row) throw new ResultError(`Rower ${args.rowerNumber} has no race day entry — opt them in on the race day page first.`, 404);
+  if (row.role !== "racer") throw new ResultError(`Rower ${args.rowerNumber} signed up as a spectator — nothing to post.`, 409);
+  let wave = row.wave;
+  if (wave === null) {
+    const started = (await readWaveStamps(race)).filter((s) => s.startedAt).map((s) => s.wave);
+    wave = started.length ? Math.max(...started) : 1;
+  }
+  await db.rowRaceSignup.update({
+    where: { id: row.id },
+    data: { tenths: args.tenths, status: "finished", wave, resultAt: new Date(nowMs), resultBy: args.by.slice(0, 200) },
+  });
+  return { id: row.id, wave };
+}
+
 /* START A WAVE (the stamp the elapsed clock runs off), or un-start it.
  * A START ON A WAVE ALREADY RUNNING KEEPS ITS STAMP (review, 2026-09-16):
  * two devices on the console, or one whose page loaded before the stamp,
