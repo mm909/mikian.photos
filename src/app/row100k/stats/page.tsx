@@ -396,6 +396,13 @@ export default async function StatsPage({
     meters: boards.community.meters,
     rowers: boards.community.people,
     sessions: boards.community.sessions,
+    /* WHICH MONTH the community cards draw (cards.ts ShareData.month —
+     * owner, 2026-09-24: a past month's calendar card came up empty because
+     * the cards spelled September into every key). A past month is drawn
+     * whole; this month stops at today (StatsShare fills the day count in);
+     * all time has no one month, so the calendar and day cards stay out. */
+    month: period.kind === "all" ? null : { key: pm.key, firstDow: pm.firstDow, days: pm.days },
+    days: thisMonth || period.kind === "all" ? undefined : pm.days,
   };
   /* Hours rowed: time on the erg over the period, everyone, the elite
    * included — an aggregate the blackout never masks. */

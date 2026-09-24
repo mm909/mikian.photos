@@ -1105,11 +1105,18 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pf-od{margin-top:22px;container-type:inline-size}
 .row100k .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,130px)}
 .row100k .pf-big{margin-top:22px}
-/* LOG A ROW / SHARE (LogInPlace) a step under the front page size, so
- * both fit one line on the 760 column. */
+/* LOG A ROW (LogInPlace) a step under the front page size, so it fits
+ * one line on the 760 column. SHARE beside it is QUIET (owner, 2026-09-24:
+ * LOG A ROW and SHARE looked out of place at the same level; keep LOG A
+ * ROW as the prominent second item, the share button quieter): the month
+ * word idiom (.tm-btn) — mono caps with a dotted rule under it — on LOG A
+ * ROW baseline, at the right of the row. The front page keeps its big
+ * SHARE; only the profile is restyled. */
 .row100k .pf-act .act-row.front{margin-top:clamp(18px,3vh,30px)}
 .row100k .pf-act .optin{font-size:clamp(34px,7.2vw,72px)}
-.row100k .pf-act .front-share{font-size:clamp(18px,3.4vw,30px)}
+.row100k .pf-act .front-share{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:1.3;letter-spacing:.16em;color:var(--ink);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
+.row100k .pf-act .front-share:hover{color:var(--water)}
+.row100k .pf-act .front-share:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 /* An admin on someone else page: the same SHARE face, standing alone.
  * ProfileShare carries an inline 12px top margin on its button (inline
  * beats any rule here), so the wrapper gives those 12px back and the face
@@ -1174,7 +1181,7 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .pf-two .bhead-n{font-size:clamp(40px,7vw,76px)}
   .row100k .pf-two .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,90px)}
   .row100k .pf-two .pf-act .optin{font-size:clamp(30px,4.4vw,46px)}
-  .row100k .pf-two .pf-act .front-share{font-size:clamp(16px,2.2vw,24px)}
+  .row100k .pf-two .pf-act .front-share{font-size:11px}
   .row100k .pf-two .pf-adm .outline-btn{font-size:clamp(16px,2.2vw,24px)}
 }
 
