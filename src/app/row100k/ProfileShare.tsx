@@ -7,15 +7,21 @@ import type { ShareData } from "./share/cards";
 /* The profile's own shareables entry — a button right in the header, so
  * making a card doesn't require scrolling to the log. Renders for the
  * rower themself and for admins (the cards carry the profile's name and
- * number either way). */
-export function ProfileShare({ data }: { data: ShareData }) {
+ * number either way).
+ *
+ * `quiet` (the profile since 2026-09-25, owner: "move the SHARE button
+ * onto the same line as the DECEMBER 2026 date selection"): the mono word
+ * with a dotted rule (.pf-share, looks/profileCss.ts) at the right of the
+ * dateline — the admin's SHARE on somebody else's page — instead of the
+ * big underlined button. */
+export function ProfileShare({ data, quiet }: { data: ShareData; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
-        className="outline-btn"
-        style={{ marginTop: 12 }}
+        className={quiet ? "pf-share" : "outline-btn"}
+        style={quiet ? undefined : { marginTop: 12 }}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}

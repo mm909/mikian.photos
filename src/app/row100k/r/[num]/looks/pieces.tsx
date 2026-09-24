@@ -1,13 +1,12 @@
 import { PeriodSelect } from "../../../PeriodSelect";
 import type { ReactNode } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
-import { ELITE_TAG, digitCount } from "@/lib/blackoutRules";
+import { digitCount } from "@/lib/blackoutRules";
 import {
   fmtDuration,
   fmtMeters,
   fmtRowerNumber,
   fmtSplit,
-  MONTH,
 } from "@/lib/row100k";
 import { BlockClock, Blocks } from "../../../Blackout";
 import { Heatmap } from "../../../Heatmap";
@@ -18,6 +17,7 @@ import { BestsTables } from "./BestsTables";
 import { BestsTablesShare } from "./BestsTablesShare";
 import { MyLog } from "./MyLog";
 import { RowerSearch } from "./RowerSearch";
+import { ShareWord } from "./ShareWord";
 import type { ProfileView } from "./view";
 
 /* The pieces the profile (Profile.tsx) is built from — server components,
@@ -59,30 +59,49 @@ export function Clock({ view, s }: { view: ProfileView; s: number }) {
 
 /* ------------------------------------------------------------ nameplate */
 
-/* THE MONTH AS A WORD THAT IS A MENU, wherever the profile names one
- * (owner, 2026-09-24: "anywhere we're listing the dates, have it be a date
- * selector"): the dateline under the name, THE MONTH eyebrow over the
- * calendar, THE BESTS eyebrow over the boards. One control, three places,
- * so a month picked in any of them is the same page with ?m= set
- * (PeriodSelect.tsx); `align` hangs the list off the right edge where the
- * word sits on the right. With only one month to choose from — the first
- * month, before the next one has begun — the word is plain text, since a
- * menu of one line is a menu of nothing. */
-export function MonthWord({ view, align = "left" }: { view: ProfileView; align?: "left" | "right" }) {
+/* THE MONTH AS A WORD THAT IS A MENU — the dateline under the name, and
+ * ONLY there (owner, 2026-09-25: "the date selection only at the top:
+ * remove the month menus on THE BESTS and THE MONTH eyebrows", which had
+ * carried the same word since the day before). A month picked here is the
+ * same page with ?m= set (PeriodSelect.tsx). With only one month to
+ * choose from — the first month, before the next one has begun — the word
+ * is plain text, since a menu of one line is a menu of nothing. */
+export function MonthWord({ view }: { view: ProfileView }) {
   const many = view.periodOptions.length > 2;
   return many ? (
-    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} align={align} />
+    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
   ) : (
-    <>{view.period.kind === "month" ? view.period.label : MONTH.label}</>
+    <>{periodText(view)}</>
   );
 }
 
-/* "DECEMBER 2026" — the dateline under the name. THE MONTH IS THE CONTROL
- * (owner, 2026-09-24: no MEN'S BOARD, the month there instead, as text you
- * can click to swap months). Just the month (owner, same day: no 100K
- * CLUB, no FINAL, no day). */
+/* The month as plain text — "December 2026", or "All time" (the eyebrow
+ * sets it in caps) — for the eyebrows that name it without offering a
+ * menu (Profile.tsx). */
+export function periodText(view: ProfileView): string {
+  return view.period.label;
+}
+
+/* "DECEMBER 2026 ....... SHARE" — the dateline under the name. THE MONTH
+ * IS THE CONTROL (owner, 2026-09-24: no MEN'S BOARD, the month there
+ * instead, as text you can click to swap months). Just the month (owner,
+ * same day: no 100K CLUB, no FINAL, no day) — and, since 2026-09-25, SHARE
+ * at the far right of the same line (owner: "move the SHARE button onto
+ * the same line as the DECEMBER 2026 date selection (right side); best on
+ * mobile"), in the quiet mono face it already wore beside LOG A ROW. The
+ * rower's own SHARE asks LogInPlace for its dialog (ShareWord.tsx); an
+ * admin on somebody else's page gets ProfileShare, which carries its own,
+ * in the same face. A visitor gets the month alone. */
 function Dateline({ view }: { view: ProfileView }) {
-  return <MonthWord view={view} />;
+  const share = view.isMe && view.log ? <ShareWord /> : view.isAdmin ? <ProfileShare data={view.shareData} quiet /> : null;
+  return (
+    <>
+      <span>
+        <MonthWord view={view} />
+      </span>
+      {share}
+    </>
+  );
 }
 
 /* The nameplate: number and name in the front page's masthead face, one
@@ -166,16 +185,16 @@ export function MetersUnit({ view }: { view: ProfileView }) {
 
 /* ------------------------------------------------------------- actions */
 
-/* LOG A ROW / SHARE on the rower's own page — the front page's
- * LogInPlace, so the form opens under the button instead of standing open
- * (owner call, 2026-09-05), the share dialog pops on the single-row card
- * once a row lands, and #log / row100k:log still open the seam. SHARE is
- * the quiet word at the right of LOG A ROW here — mono caps with a dotted
- * rule, the month word's face — not the front page's big underlined one
- * (owner, 2026-09-24: the two looked out of place at the same level; the
- * restyle is .pf-act .front-share in theme.ts, the markup is the front
- * page's). An admin on someone else's page keeps the share button (the
- * repost case) in the big face. Nothing for a visitor. */
+/* LOG A ROW on the rower's own page — the front page's LogInPlace, so the
+ * form opens under the word instead of standing open (owner call,
+ * 2026-09-05), the share dialog pops on the single-row card once a row
+ * lands, and #log / row100k:log still open the seam. The word is a toggle
+ * that turns its arrow down while the form is open and scrolls itself
+ * under the bar as it opens (owner, 2026-09-25 — see LogInPlace.tsx). It
+ * stands ALONE since the same day: SHARE moved up onto the dateline
+ * (Dateline above), so `noShare` drops the act row's own word. An admin on
+ * someone else's page has their SHARE on the dateline too, so there is
+ * nothing here for them, and nothing for a visitor. */
 export function Actions({ view }: { view: ProfileView }) {
   if (view.isMe && view.log) {
     return (
@@ -187,14 +206,8 @@ export function Actions({ view }: { view: ProfileView }) {
           phase={view.log.phase}
           earlyAdmin={view.log.earlyAdmin}
           sanity={view.log.sanity}
+          noShare
         />
-      </div>
-    );
-  }
-  if (view.isAdmin) {
-    return (
-      <div className="pf-adm">
-        <ProfileShare data={view.shareData} />
       </div>
     );
   }
@@ -243,40 +256,21 @@ export function Ledger({ items }: { items: LedgerItem[] }) {
   );
 }
 
-/* METERS A DAY — the total over the September days ELAPSED so far
- * (view.days, the day the month calendar stops at; never below 1), not
- * over the days rowed: it is the rower's pace toward the goal, so a rest
- * day counts against it (owner ask, 2026-09-05; to average over the days
- * they actually rowed instead, count the days in view.byDay — the view no
- * longer carries a days-rowed total). Rounded to the metre. */
-export function metersPerDay(view: ProfileView): number {
-  return Math.round(view.totals.meters / Math.max(1, view.days));
-}
-
-/* The six figures under the big number: TIME ROWED first (the owner's
- * ask), then sessions, the longest row, the average split, meters a day
- * and the rank. DAYS ROWED is gone (owner, 2026-09-05 evening) — and six
- * rows fill the two-column ledger (640-719px) evenly, where seven left the
- * rank orphaned.
+/* The three figures under the big number: TIME ROWED first (the owner's
+ * ask, 2026-09-05), then sessions, then the average split. Three, down
+ * from six (owner, 2026-09-25: "remove METERS A DAY, RANK and LONGEST
+ * ROW; keep TIME ROWED, SESSIONS, AVERAGE SPLIT") — the longest row is on
+ * THE BESTS already, the rank is the board's, and meters a day was a
+ * ratio of two things the page prints. DAYS ROWED went earlier (owner,
+ * 2026-09-05 evening).
  *
- * Two of the six are dropped WHOLE while masked rather than drawn as
- * blocks — the average split and meters a day. Both are the hidden total by
- * another route over something the page already prints: the split needs
- * only the time, and meters a day divides by the day count in the dateline
- * ("DAY 5 OF 30"), so a five-block per-day figure beside a five-block total
- * would cut the range the total's own blocks are allowed to admit (review,
- * 2026-09-05). One block per digit of the total and nothing sharper: the
- * longest row keeps its blocks because it is a figure of its own.
- *
- * The rank is the PLACES half of the blackout rule (blackoutRules.ts): one
- * of the hidden elite has no place to show — divisionRank hands back null
- * for them exactly as it does for a rower who has never rowed — so the row
- * says ELITE when `elite` and keeps the dash for the rower who genuinely
- * has no standing yet. An admin's board is ranked, so they see the place.
- * The key drops its division word in that state: the elite are cut off
- * the COMBINED board (blackoutRules.eliteIndexes walks boards.total), so
- * "Rank · women ... ELITE" would claim the elite of the women,
- * which is a different and stronger thing than the truth. */
+ * The split is dropped WHOLE while masked rather than drawn as blocks: it
+ * is the hidden total by another route over the time the page already
+ * prints, so blocks for it would cut the range the total's own blocks are
+ * allowed to admit (review, 2026-09-05). One block per digit of the total
+ * and nothing sharper. The view still carries `longest`, `rank` and
+ * `elite` for the share cards and the dog tag; the ledger simply no longer
+ * prints them. */
 export function coreLedger(view: ProfileView): LedgerItem[] {
   const t = view.totals;
   const rowed = t.sessions > 0;
@@ -288,28 +282,9 @@ export function coreLedger(view: ProfileView): LedgerItem[] {
     },
     { key: "sessions", k: "Sessions", v: String(t.sessions) },
     {
-      key: "longest",
-      k: "Longest row",
-      v: rowed ? <Num view={view} n={t.longest} /> : "—",
-    },
-    {
       key: "split",
       k: "Average split",
       v: rowed && !view.masked && t.seconds > 0 ? `${fmtSplit(t.meters, t.seconds)} /500m` : "—",
-    },
-    {
-      key: "perday",
-      k: "Meters a day",
-      v: rowed && !view.masked ? <Num view={view} n={metersPerDay(view)} /> : "—",
-    },
-    {
-      key: "rank",
-      k: view.elite
-        ? "Rank"
-        : view.rower.division === "F"
-          ? "Rank · women"
-          : "Rank · men",
-      v: view.elite ? ELITE_TAG : view.rank ? `#${view.rank.place} of ${view.rank.of}` : "—",
     },
   ];
 }
