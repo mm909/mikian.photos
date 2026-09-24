@@ -6,6 +6,7 @@ import { getErgSession, listErgSessions } from "@/lib/pm5/store";
 import type { TelemetryDoc, TelemetrySavedRow } from "@/lib/pm5/session";
 import { ergPageOpen, ergViewer } from "../../gate";
 import { reviewCss } from "../../reviewCss";
+import { reviewPlayCss } from "../reviewPlayCss";
 import { ErgShell } from "../../Shell";
 import { Review } from "./Review";
 
@@ -36,12 +37,19 @@ export const metadata: Metadata = {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <ErgShell ground="paper" sheet={reviewCss}>
+      {/* The playback block wears its own sheet (owner, 2026-09-24). */}
+      <style>{reviewPlayCss}</style>
       {children}
     </ErgShell>
   );
 }
 
-export default async function ErgSessionPage({ params }: { params: { id: string } }) {
+/* ?play=1 opens the playback block on load, ?at=SECONDS parks its playhead
+ * there, so a link lands on the row playing. */
+export default async function ErgSessionPage({ params, searchParams }: { params: { id: string }; searchParams?: { play?: string | string[]; at?: string | string[] } }) {
+  const one = (raw: string | string[] | undefined) => (Array.isArray(raw) ? raw[0] : raw) ?? null;
+  const atRaw = Number(one(searchParams?.at) ?? 0);
+  const play = { open: one(searchParams?.play) === "1", atS: Number.isFinite(atRaw) && atRaw > 0 ? atRaw : 0 };
   const v = await ergViewer();
   if (!ergPageOpen(v)) notFound();
 
@@ -108,7 +116,7 @@ export default async function ErgSessionPage({ params }: { params: { id: string 
 
   return (
     <Shell>
-      <Review row={found.row} a={a} />
+      <Review row={found.row} a={a} doc={found.doc} play={play} />
     </Shell>
   );
 }
