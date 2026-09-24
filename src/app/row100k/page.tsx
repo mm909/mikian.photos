@@ -434,9 +434,13 @@ export default async function Row100kPage() {
       {/* THE COUNTER ROW (owner, 2026-09-24, reviewed 2026-09-25): a rower
        * gets METERS TOGETHER, a visitor HOURS (their meters together are the
        * big number already) — static ink, a link to the stats page; the
-       * latest row — meters, at this pace, this long ago, by this person,
-       * with no callout; and OPT IN or LOG A ROW. On a phone the last cell
-       * comes first, straight under the number (frontCss.ts). */}
+       * latest row — by this person, the meters in bold, then at this pace
+       * this long ago (owner, 2026-09-25: "put the bib number and the
+       * rower's name ABOVE the meters, and the pace and how-long-ago BELOW
+       * it; the meters stay bold"), with no callout; and OPT IN or LOG A
+       * ROW. Every cell is a left-justified block, sat in the middle of its
+       * box on desktop (frontCss.ts). On a phone the last cell comes first,
+       * straight under the number. */}
       <section className="fs">
         <div className="wrap front">
           <div className="front-stats three big counter">
@@ -449,6 +453,10 @@ export default async function Row100kPage() {
             <div className="cell fc latest">
               {latest && latestRow ? (
                 <>
+                  <div className="by">
+                    <span className="num">{fmtRowerNumber(latestRow.rowerNumber)} · </span>
+                    <a href={`/row100k/r/${latestRow.rowerNumber}`}>{latestRow.name}</a>
+                  </div>
                   <div className="n">
                     {latestRow.masked ? (
                       <>
@@ -461,10 +469,6 @@ export default async function Row100kPage() {
                   <div className="l mono">
                     {latestSplit ? `${latestSplit} · ` : ""}
                     {ago(latest.createdAtMs, nowMs)}
-                  </div>
-                  <div className="by">
-                    <span className="num">{fmtRowerNumber(latestRow.rowerNumber)} · </span>
-                    <a href={`/row100k/r/${latestRow.rowerNumber}`}>{latestRow.name}</a>
                   </div>
                 </>
               ) : (

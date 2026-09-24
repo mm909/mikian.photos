@@ -11,16 +11,21 @@ import { metersText, tokensFor } from "./digits";
  * from five candidates). One colossal water-blue number set in Archivo
  * Black straight onto the paper, its digits rolling vertically like a
  * mechanical odometer; a mono status line above, a mono unit line below,
- * then a huge underlined OPT IN text link to /row100k and a thin mono
- * ledger with dotted leaders. No tiles, no box, no dark surface.
+ * then a huge underlined OPT IN text link to /row100k and four counter
+ * cells under it. No tiles, no box, no dark surface.
  *
  * ALL TIME since 2026-09-25 (owner: "the CUMULATIVE count of meters for
  * everyone (all time, every month), still incrementing live"). The
- * dateline above the wheels stays the month the clock is in; the ledger
- * under OPT IN carries the four figures the owner asked for, in his order
- * — rowers in, rows, time rowed, 100K finishers — and nothing else ("keep
- * it minimal … the page is just directing people to Rowtember"). The OPT
- * IN callout and the phone spacing are untouched, as asked.
+ * dateline above the wheels stays the month the clock is in; under OPT IN
+ * sit the four figures the owner asked for, in his order — rowers in,
+ * rows, time rowed, 100K finishers — and nothing else ("keep it minimal …
+ * the page is just directing people to Rowtember"). They were a one-row
+ * dotted ledger first; the owner asked for "a different way to display
+ * those four sub-stats" (2026-09-25), so they are now the Rowtember front
+ * page cells (theme.ts .front-stats): ink rules, the figure in Archivo
+ * Black, the mono label under it, two by two on a phone and four across
+ * on desktop, the text left-justified like the front cells. The OPT IN
+ * callout and the phone spacing are untouched, as asked.
  *
  * RULE (same as theme.ts): the css string must contain NO double quotes,
  * NO apostrophes and NO angle brackets anywhere, comments included — React
@@ -29,7 +34,7 @@ import { metersText, tokensFor } from "./digits";
 const css = `
 /* The ink look (.home-ink, theme.ts) needs nothing from this sheet: every
  * colour below is a variable, so when the palette flips the odometer, OPT
- * IN, its underline, the live dot and the ledger rule all go white — the
+ * IN, its underline, the live dot and the cell rules all go white — the
  * ink look is monochrome (owner, 2026-09-16). */
 .home .stage{position:relative;padding:clamp(34px,7vh,84px) 0 48px}
 .home .status{display:flex;align-items:center;flex-wrap:wrap;font-family:var(--home-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
@@ -62,18 +67,33 @@ const css = `
 .home .opt .arr{display:inline-block;width:.8em;height:.8em;margin-left:.14em;vertical-align:-.06em}
 .home .opt .arr svg{display:block;width:100%;height:100%}
 
-/* Thin mono ledger with dotted leaders. */
-.home .ledger{list-style:none;border-top:2px solid var(--ink);padding:20px 0 26px;display:grid;gap:12px 40px;font-family:var(--home-mono),monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
-.home .ledger li{display:flex;align-items:baseline;gap:10px;min-width:0}
-.home .ledger .k{color:var(--ink-soft);white-space:nowrap}
-.home .ledger .dots{flex:1 1 24px;min-width:24px;height:0;border-bottom:2px dotted var(--gray)}
-.home .ledger .v{font-weight:700;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* THE FOUR CELLS under OPT IN (owner, 2026-09-25: a different way to
+ * display those four sub-stats) — the Rowtember front page counter cells
+ * (theme.ts .front-stats, frontCss.ts): a 2px ink rule above and below,
+ * 1px rules between, the figure in Archivo Black, the mono label under it,
+ * everything left-justified. A phone gets them two by two: the odd cells
+ * carry the rule to their right, the first row the rule beneath it. The
+ * grid is the size container, so the figure is sized off a quarter of the
+ * measure from 720px up (the widest figure, TIME ROWED as 1,234 h, is
+ * about 4.7em of Archivo Black and must fit a cell less its padding) and
+ * never off the viewport. */
+.home .stats{container-type:inline-size;display:grid;grid-template-columns:1fr 1fr;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.home .stats .stat{padding:16px 0 15px;min-width:0;border-bottom:1px solid var(--ink)}
+.home .stats .stat:nth-child(odd){border-right:1px solid var(--ink);padding-right:14px}
+.home .stats .stat:nth-child(even){padding-left:14px}
+.home .stats .stat:nth-child(n+3){border-bottom:none}
+.home .stats .n{font-family:var(--home-archivo-black),sans-serif;font-size:min(clamp(26px,6.4vw,48px),calc(100cqw / 11));line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.home .stats .l{font-family:var(--home-mono),monospace;font-size:11px;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-top:7px;white-space:nowrap}
 
 /* Rotated mono tag in the left gutter, wide screens only. Hugs the wrap. */
 .home .side{display:none}
 
 @media(min-width:720px){
-  .home .ledger{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .home .stats{grid-template-columns:1fr 1fr 1fr 1fr}
+  .home .stats .stat{border-bottom:none;border-right:1px solid var(--ink);padding:16px 18px 15px}
+  .home .stats .stat:first-child{padding-left:0}
+  .home .stats .stat:last-child{border-right:none;padding-right:0}
+  .home .stats .n{font-size:min(clamp(28px,4.2vw,52px),calc(100cqw / 24))}
 }
 @media(min-width:1200px){
   .home .side{display:block;position:absolute;left:max(24px,calc(50% - 566px));bottom:48px;writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--home-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap}
@@ -245,13 +265,17 @@ export function Odometer({ meters, tempo, digits = 8 }: { meters: number; tempo:
   );
 }
 
-/* "1,532 h 07 min" — every logged second, in a unit a ledger line can
- * hold (h:mm:ss runs to five digits of hours). Under an hour, minutes. */
+/* "1,532 h" — every logged second as a figure a cell holds on one line
+ * (the Rowtember front prints HOURS the same way, row100k/page.tsx
+ * fmtHours): whole hours from a hundred up, tenths under that, and minutes
+ * under an hour. */
 const fmtTimeRowed = (seconds: number): string => {
   const s = Math.max(0, Math.round(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h > 0 ? `${h.toLocaleString("en-US")} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  const h = s / 3600;
+  return h >= 100
+    ? `${Math.round(h).toLocaleString("en-US")} h`
+    : `${(Math.round(h * 10) / 10).toLocaleString("en-US")} h`;
 };
 
 export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
@@ -268,7 +292,9 @@ export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
         : `${MONTH.label} · day ${m.day} of ${MONTH_DAYS}`;
 
   // The owner's four, in his order (2026-09-25). Always all four: a zero
-  // is a true figure on an all-time ledger, not a line to hide.
+  // is a true figure on an all-time count, not a cell to hide. 100K
+  // finishers is finishes per month — the same rower twice is two
+  // (homeStats.ts).
   const facts: Array<[string, string]> = [
     ["Rowers in", m.rowers.toLocaleString("en-US")],
     ["Rows", m.sessions.toLocaleString("en-US")],
@@ -314,15 +340,14 @@ export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
       </section>
 
       <section className="wrap">
-        <ul className="ledger">
+        <div className="stats">
           {facts.map(([k, v]) => (
-            <li key={k}>
-              <span className="k">{k}</span>
-              <span className="dots" aria-hidden="true" />
-              <span className="v">{v}</span>
-            </li>
+            <div className="stat" key={k}>
+              <div className="n">{v}</div>
+              <div className="l">{k}</div>
+            </div>
           ))}
-        </ul>
+        </div>
       </section>
     </>
   );

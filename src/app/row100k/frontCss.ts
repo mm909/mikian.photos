@@ -6,7 +6,12 @@
  *     sees everyone together, eight wheels like the landing counter;
  *   - the cells: METERS TOGETHER (a rower) or HOURS (a visitor) as a static
  *     ink number, THE LATEST ROW with no callout, then LOG A ROW or OPT IN;
- *     everything centred in its box on desktop;
+ *     each a left-justified block sitting in the middle of its box on
+ *     desktop (owner, 2026-09-25, second pass: not the text centred
+ *     horizontally, the item in the middle of the block);
+ *   - the latest cell reads who, then the meters in bold, then the pace
+ *     and how long ago (owner, same day: the bib number and the name ABOVE
+ *     the meters, the pace and how-long-ago BELOW it);
  *   - on a phone the call to action comes straight after the number, the
  *     landing way (Home.tsx .cta), and the two cells stack under it;
  *   - the log form opens under the cells bar, and the LOG A ROW arrow turns
@@ -36,10 +41,14 @@ export const frontCss = `
 .row100k .front-stats .tog a{color:inherit;text-decoration:none;transition:color 160ms ease}
 .row100k .front-stats .tog a:hover{color:var(--water)}
 
-/* THE LATEST ROW: the meters as the number, the split and how long ago on
- * the label line — no LATEST ROW callout (owner, 2026-09-25) — the rower
- * under it as a word with a dotted rule, the link to their profile. */
-.row100k .front-stats .by{margin-top:9px;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px;line-height:1.4;min-width:0;overflow-wrap:anywhere}
+/* THE LATEST ROW, top to bottom: the rower — bib number in gray mono, the
+ * name as a word with a dotted rule, the link to their profile — then the
+ * meters as the bold number, then the split and how long ago on the label
+ * line. No LATEST ROW callout (owner, 2026-09-25); the rower moved from
+ * under the number to over it the same day (owner: the bib number and the
+ * name ABOVE the meters, the pace and how-long-ago BELOW it, the meters
+ * stay bold). */
+.row100k .front-stats .by{margin:0 0 8px;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px;line-height:1.4;min-width:0;overflow-wrap:anywhere}
 .row100k .front-stats .by .num{color:var(--gray);font-family:var(--row-mono),monospace;font-weight:400;font-size:12px}
 .row100k .front-stats .by a{color:var(--ink);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
 .row100k .front-stats .by a:hover{color:var(--water)}
@@ -55,24 +64,26 @@ export const frontCss = `
 .row100k .front-stats .go .optin.open .arr{transform:rotate(90deg)}
 @media(prefers-reduced-motion:reduce){.row100k .front-stats .go .optin .arr{transition:none}}
 
-/* DESKTOP (from 640px, the seam of every front grid): three boxes with the
- * number, the word and the name centred in each (owner, 2026-09-25: the
- * LOG A ROW / OPT IN button is not centered in its box, and neither are
- * the metrics — center them all). The boxes are padded the same on both
- * sides so the centres sit between the rules, not off by the gutter.
+/* DESKTOP (from 640px, the seam of every front grid): three boxes, each a
+ * left-justified block sitting in the middle of its box — the grid
+ * stretches the three to the tallest (the latest row, three lines) and the
+ * other two centre themselves in that height. Owner, 2026-09-25, on the
+ * centred pass before this one: I do not want the text centered
+ * horizontally in the cells; the item can still sit in the middle of the
+ * block, but the text is LEFT-JUSTIFIED. So the padding is the house
+ * idiom again (theme.ts: none on the outer edges, 18px either side of a
+ * rule), which puts the first figure on the measure, under the big number.
  * OPT IN plus the arrow is about 4.5em of Archivo Black and LOG A ROW plus
  * the arrow about 6.9em (.long says which), so the size is the cell over
  * that, capped where the ink numbers stop (theme.ts .front-stats.big .n). */
 @media(min-width:640px){
-  .row100k .front-stats.counter .cell{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding-left:14px;padding-right:14px}
-  .row100k .front-stats.counter .cell+.cell{padding-left:14px}
-  .row100k .front-stats.counter .cell:last-child{padding-right:14px}
-  .row100k .front-stats.counter .go{justify-content:center;width:100%}
+  .row100k .front-stats.counter .cell{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left}
+  .row100k .front-stats.counter .go{justify-content:flex-start;width:100%}
   /* Seven digits, two commas, a space and the m are about 6.6em of Archivo
    * Black: a month of everyone must stay on one line in a third of the
    * measure, so the size is the cell over that, capped at the ink size. */
   .row100k .front-stats.counter .tog .n{font-size:min(calc(100cqw / 6.8),52px)}
-  .row100k .front-stats .go .optin{font-size:min(calc(100cqw / 4.9),52px);line-height:1.1;text-align:center}
+  .row100k .front-stats .go .optin{font-size:min(calc(100cqw / 4.9),52px);line-height:1.1;text-align:left}
   .row100k .front-stats .go .optin.long{font-size:min(calc(100cqw / 7.1),52px)}
 }
 
