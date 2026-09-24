@@ -16,7 +16,7 @@ import { monthsThrough, parsePeriod, periodOptions, type Period } from "@/lib/ro
 import { barProps, maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { BlockShape, Blocks } from "../../Blackout";
-import { Boards, Who, type Tab } from "../../Boards";
+import { Who, type Tab } from "../../Boards";
 import { PeriodSelect } from "../../PeriodSelect";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
@@ -24,6 +24,7 @@ import { StatsShare } from "../../StatsShare";
 import { BOARD_CARD_IDS } from "../../share/cards";
 import { boardView, EMPTY_BOARDS } from "../../boardData";
 import { DIV_DEFS, RECORD_DEFS, divMatch, parseDiv, rankedRows, recordDef, type DivKey, type Ranked, type RecordKey } from "../defs";
+import { BoardFind } from "../BoardFind";
 import { LeadBlock } from "../LeadBlock";
 import { leadCss } from "../leadCss";
 import { recordsCss } from "../recordsCss";
@@ -49,7 +50,10 @@ export const dynamic = "force-dynamic";
  * leader for the category, like the stats page's stat block: for fastest
  * 10K — the time, who did it, what their pace was, when they did it"),
  * then the five categories as one row of equal chips, then All / Men's /
- * Women's, then the full table. The record key is the URL segment; the
+ * Women's (with FIND A ROWER at the far right of that line on TOTAL
+ * METERS — records/BoardFind.tsx; owner, 2026-09-25 — and no ledger over
+ * the board any more, same day), then the full table. THE BOARD on the
+ * rail lands here, plain URL (owner, 2026-09-25). The record key is the URL segment; the
  * month rides in ?m= and the division in ?d=, both as plain links, so the
  * whole page stays a server component.
  *
@@ -193,15 +197,29 @@ export default async function RecordRankingPage({ params, searchParams }: { para
     asOf: fmtDay(period.kind === "month" && !thisMonth ? period.lastDay : pacificDay(now)),
   };
 
+  /* ALL / MEN'S / WOMEN'S, plain links built once: on TOTAL METERS they go
+   * into BoardFind's line beside the search field; elsewhere the page draws
+   * the line itself. */
+  const divChips = DIV_DEFS.map((d) => (
+    <a
+      key={d.key}
+      className={d.key === div ? "on" : undefined}
+      aria-current={d.key === div ? "page" : undefined}
+      href={hrefFor(def.key, d.key, period)}
+    >
+      {d.label}
+    </a>
+  ));
+
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{recordsCss}</style>
       <style>{leadCss}</style>
 
-      {/* The rankings are the stats page's tables in full, so STATS is the
-          lit tab (there is no THE BOARD on the rail any more). */}
-      <RowBar active="stats" {...barProps(viewer)} />
+      {/* THE BOARD is the lit tab on every record (owner, 2026-09-25: a
+          header link for the board that lands here, on total meters). */}
+      <RowBar active="board" {...barProps(viewer)} />
 
       <section>
         <div className="wrap">
@@ -250,35 +268,24 @@ export default async function RecordRankingPage({ params, searchParams }: { para
             ))}
           </nav>
 
-          <nav className="tabs rec-div" aria-label="Division">
-            {DIV_DEFS.map((d) => (
-              <a
-                key={d.key}
-                className={d.key === div ? "on" : undefined}
-                aria-current={d.key === div ? "page" : undefined}
-                href={hrefFor(def.key, d.key, period)}
-              >
-                {d.label}
-              </a>
-            ))}
-          </nav>
-
           {def.key === "total" ? (
-            /* THE BOARD. Only the slices it reads: Boards is a client
-             * component, so whatever is handed in is serialized into the
-             * page source — and boardView masks only `total`; the record
-             * boards still hold every elite rower's real seconds and
-             * meters, which the board never prints (review, 2026-09-05).
-             * The division is this page's ?d=, so the board draws no tabs
-             * of its own; no head number (the stats page and the front
-             * carry the community total). A finished month draws no
-             * arrows: there is no last logged day it moved since. */
+            /* THE BOARD, under the chips line with FIND A ROWER at its far
+             * right (records/BoardFind.tsx; owner, 2026-09-25). Only the
+             * slices it reads: Boards is a client component, so whatever is
+             * handed in is serialized into the page source — and boardView
+             * masks only `total`; the record boards still hold every elite
+             * rower's real seconds and meters, which the board never prints
+             * (review, 2026-09-05). The division is this page's ?d=, so the
+             * board draws no tabs of its own; no head number and no ledger
+             * (owner, 2026-09-25: the stats page carries the community
+             * figures). A finished month draws no arrows: there is no last
+             * logged day it moved since. */
             <>
-              <Boards
+              <BoardFind
+                chips={divChips}
                 boards={{ total: boards.total, community: boards.community }}
                 started={started}
                 blackout={blackout}
-                head={false}
                 tab={div.toUpperCase() as Tab}
                 movement={thisMonth || period.kind === "all"}
                 statsHref={thisMonth ? "/row100k/stats" : `/row100k/stats?m=${period.key}`}
@@ -289,6 +296,11 @@ export default async function RecordRankingPage({ params, searchParams }: { para
             </>
           ) : (
             <>
+              {/* The chips line alone: no board to search on a flat ranking. */}
+              <nav className="tabs rec-div" aria-label="Division">
+                {divChips}
+              </nav>
+
               {/* Same line the board prints; an admin sees nothing hidden
                   and is told so. The meters boards hide the elite; a time
                   board says its times are shown. */}

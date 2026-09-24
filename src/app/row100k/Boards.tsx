@@ -92,6 +92,30 @@ function sectionOf(r: TotalRow): Tier["key"] | null {
   return tierFor(r.meters)?.key ?? (r.masked ? TIERS[0].key : null);
 }
 
+/* Case- and accent-insensitive, the fold the profile's roster search uses
+ * (r/[num]/looks/RowerSearch.tsx): NFD splits an accent off its letter and
+ * the combining marks are dropped, so JOSE finds José and José finds Jose.
+ * Kept here rather than imported so the board does not pull a page's
+ * client module in for six lines. */
+function fold(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/* Does a folded query find this row: anywhere in the name, or in the
+ * rower's number as it prints (045 and 45 are the same rower). `q` is
+ * already folded and non-empty. */
+function rowMatches(r: { name: string; rowerNumber: number }, q: string): boolean {
+  if (/^[0-9]+$/.test(q)) {
+    if (Number(q) === r.rowerNumber) return true;
+    if (fmtRowerNumber(r.rowerNumber).includes(q)) return true;
+  }
+  return fold(r.name).includes(q);
+}
+
 /* THE BOARD — the total-meters view of the full rankings since 2026-09-24
  * (owner: the board page is retired, its features brought over to
  * /row100k/records/total): the community strip and the standings — total
@@ -121,13 +145,16 @@ export function Boards({
   tab: controlled,
   movement = true,
   statsHref = "/row100k/stats",
+  query = "",
 }: {
   boards: BoardsProp;
   started: boolean;
   blackout?: BlackoutProp;
-  /* Off: no .bhead number — the board page prints the community total in
-   * its PageHead (owner, 2026-09-16) and must not print it twice. The
-   * ledger and the tabs stay. */
+  /* Off: no .bhead number — the full rankings print the month word and the
+   * leader above the board (records/[record]/page.tsx) and must not print
+   * the community total twice. No ledger either way since 2026-09-25
+   * (owner: "remove the ROWERS IN / SESSIONS / 100K CLUB / TIME ROWED
+   * ledger"); the stats page carries those figures. */
   head?: boolean;
   /* THE BOARD ON THE FULL RANKINGS (owner, 2026-09-24: the board page is
    * retired; its table lives on /row100k/records/total). There the
@@ -140,6 +167,12 @@ export function Boards({
   /* Where the line under the table goes — the stats page, for the month the
    * board is showing. */
   statsHref?: string;
+  /* FIND A ROWER (owner, 2026-09-25: "I want to be able to search for a
+   * rower on this page"): a number or a name, typed on the full rankings
+   * (records/BoardFind.tsx). The board keeps only the rows it matches —
+   * each one at its true place, under its own tier heading — and the tiers
+   * nobody matched are not drawn. Empty: the whole board, as ever. */
+  query?: string;
 }) {
   const [own, setOwn] = useState<Tab>("ALL");
   const tab = controlled ?? own;
@@ -199,6 +232,16 @@ export function Boards({
   const warming = listed.filter((r) => sectionOf(r) === null);
   const warmingMeters = warming.reduce((s, r) => s + r.meters, 0);
 
+  // FIND A ROWER (owner, 2026-09-25). Decided AFTER places and movement, so
+  // a row found by name keeps the place and the arrow it holds on the whole
+  // board: the search narrows what is drawn, never what is counted. The
+  // elite block is searched the same way — a hidden rower's number and
+  // name are public, and that is all a match gives away.
+  const q = fold(query);
+  const finding = q !== "";
+  const eliteShown = finding ? eliteRows.filter((r) => rowMatches(r, q)) : eliteRows;
+  const listedShown = finding ? listed.filter((r) => rowMatches(r, q)) : listed;
+
   // The rows themselves carry the mask, so a blacked-out board reads as one
   // even if a caller forgot the flag. Checked on the whole board, not the
   // tab: a Women's tab with no woman in the elite is still blacked out.
@@ -214,44 +257,24 @@ export function Boards({
   // women's board it is that board's figures. Real sums from the server,
   // never a total over masked rows. No TODAY line (owner, 2026-09-08): the
   // day's meters and hours came off the board head; the front page has them.
+  // No ledger under it since 2026-09-25 (owner: "remove the ROWERS IN /
+  // SESSIONS / 100K CLUB / TIME ROWED ledger") — the number, when a caller
+  // wants it, and then straight to the standings.
   const comm = tab === "ALL" ? boards.community : boards.community.divisions[tab];
-  const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
-  const ledger: [string, string][] = [
-    ["Rowers in", comm.people.toLocaleString("en-US")],
-    ["Sessions", comm.sessions.toLocaleString("en-US")],
-    /* "100K club", not "finished" — the tier's own name (owner, 2026-09-05). */
-    ["100K club", comm.finished.toLocaleString("en-US")],
-    ["Time rowed", hours(comm.seconds)],
-  ];
 
   return (
     <div>
       {/* The newspaper head: one big blue number, the way the landing does
-       * it, then a thin ledger with dotted leaders (owner call, 2026-09-05).
-       * The board page hands `head` off and prints the number itself. */}
-      {head ? (
+       * it (owner call, 2026-09-05). The full rankings hand `head` off: the
+       * month word and the leader are their head. */}
+      {head && (
         <div className="bhead">
           <div className="bhead-n">{comm.meters.toLocaleString("en-US")}</div>
           <p className="bhead-l mono">
             Meters combined · <b>{tab === "ALL" ? "everyone" : `${TAB_LABEL[tab]} board`}</b>
           </p>
         </div>
-      ) : (
-        /* Head off, division tab: the ledger under here is the men's or
-         * women's figures while the PageHead number above stays everyone's,
-         * so the old label line still names them (review, 2026-09-16). On
-         * Everyone the PageHead unit line already says so. */
-        tab !== "ALL" && <p className="bhead-l mono">{TAB_LABEL[tab]} board</p>
       )}
-      <ul className="bl">
-        {ledger.map(([k, v]) => (
-          <li key={k}>
-            <span className="k">{k}</span>
-            <span className="dots" aria-hidden="true" />
-            <span className="v">{v}</span>
-          </li>
-        ))}
-      </ul>
 
       {controlled === undefined && (
         <div className="tabs">
@@ -282,6 +305,11 @@ export function Boards({
             ? "NOBODY ON THIS BOARD YET — BE FIRST."
             : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
         </p>
+      ) : finding && eliteShown.length === 0 && listedShown.length === 0 ? (
+        /* The search found nobody on this board. A rower under 10k is not
+         * listed by name (warming up), so they are not found here either;
+         * the roster on any profile page finds everyone. */
+        <p className="board-empty">NOBODY ON THIS BOARD MATCHES.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="board">
@@ -294,7 +322,7 @@ export function Boards({
               </tr>
             </thead>
             <tbody>
-              {eliteRows.length > 0 && (
+              {eliteShown.length > 0 && (
                 <>
                   {/* One block, no tier, no places — the list the note above
                       promises. It leads the table: they are the top of the
@@ -310,7 +338,7 @@ export function Boards({
                       <span className="by">BY AVERAGE SPLIT</span>
                     </td>
                   </tr>
-                  {eliteRows.map((r) => (
+                  {eliteShown.map((r) => (
                     <TotalRowTr key={r.participantId} r={r} rank={0} movement={movement} />
                   ))}
                 </>
@@ -320,14 +348,15 @@ export function Boards({
                 // Only the rung past the goal is a secret; the ladder up to
                 // 100k is the challenge's own pitch.
                 const hidden = locked && t.meters > GOAL_METERS;
-                const members = listed.filter((r) => sectionOf(r) === t.key);
+                const members = listedShown.filter((r) => sectionOf(r) === t.key);
                 // While the elite lead the table an empty tier is not drawn
                 // at all — no heading, no line (owner, 2026-09-08): the
                 // elite may well be standing in it, so the board has nothing
                 // true to say there. A tier with somebody listed still
                 // shows, elite or not. Outside a window the empty rungs stay:
-                // the ladder is the pitch.
-                if (members.length === 0 && eliteRows.length > 0) return null;
+                // the ladder is the pitch — unless a search is on, when the
+                // tiers collapse to the matches (owner, 2026-09-25).
+                if (members.length === 0 && (eliteRows.length > 0 || finding)) return null;
                 return (
                   <Fragment key={t.key}>
                     <tr className={`divrow ${locked ? "locked" : t.rarity}`}>
@@ -368,7 +397,9 @@ export function Boards({
                   </Fragment>
                 );
               })}
-              {warming.length > 0 && (
+              {/* Not while searching: the warming-up count is a line about
+                  everybody under 10k, not about anyone the search found. */}
+              {warming.length > 0 && !finding && (
                 <>
                   <tr className="divrow rest">
                     <td colSpan={4}>Warming up</td>
