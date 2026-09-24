@@ -8,7 +8,6 @@ import {
   fmtRowerNumber,
   fmtSplit,
   MONTH,
-  MONTH_DAYS,
 } from "@/lib/row100k";
 import { BlockClock, Blocks } from "../../../Blackout";
 import { Heatmap } from "../../../Heatmap";
@@ -60,18 +59,30 @@ export function Clock({ view, s }: { view: ProfileView; s: number }) {
 
 /* ------------------------------------------------------------ nameplate */
 
-/* "DECEMBER 2026 · 100K CLUB · DAY 15 OF 31" — the dateline under the
- * name. THE MONTH IS THE CONTROL (owner, 2026-09-24: no MEN'S BOARD, the
- * month there instead, as text you can click to swap months). */
-function Dateline({ view }: { view: ProfileView }) {
+/* THE MONTH AS A WORD THAT IS A MENU, wherever the profile names one
+ * (owner, 2026-09-24: "anywhere we're listing the dates, have it be a date
+ * selector"): the dateline under the name, THE MONTH eyebrow over the
+ * calendar, THE BESTS eyebrow over the boards. One control, three places,
+ * so a month picked in any of them is the same page with ?m= set
+ * (PeriodSelect.tsx); `align` hangs the list off the right edge where the
+ * word sits on the right. With only one month to choose from — the first
+ * month, before the next one has begun — the word is plain text, since a
+ * menu of one line is a menu of nothing. */
+export function MonthWord({ view, align = "left" }: { view: ProfileView; align?: "left" | "right" }) {
   const many = view.periodOptions.length > 2;
-  const month = many ? (
-    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
+  return many ? (
+    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} align={align} />
   ) : (
-    MONTH.label
+    <>{view.period.kind === "month" ? view.period.label : MONTH.label}</>
   );
-  /* Just the month (owner, 2026-09-24: no 100K CLUB, no FINAL, no day). */
-  return <>{month}</>;
+}
+
+/* "DECEMBER 2026" — the dateline under the name. THE MONTH IS THE CONTROL
+ * (owner, 2026-09-24: no MEN'S BOARD, the month there instead, as text you
+ * can click to swap months). Just the month (owner, same day: no 100K
+ * CLUB, no FINAL, no day). */
+function Dateline({ view }: { view: ProfileView }) {
+  return <MonthWord view={view} />;
 }
 
 /* The nameplate: number and name in the front page's masthead face, one
@@ -79,9 +90,10 @@ function Dateline({ view }: { view: ProfileView }) {
  *
  * The NAME is also the way off this page (owner ask, 2026-09-06: tap the
  * name and search for someone) — so the head itself is RowerSearch, a
- * client component: the number stays plain text, the name carries the
- * caret and drops the search panel under the dateline. The dateline is
- * still computed and rendered here, on the server, and handed in. */
+ * client component: the number stays plain text, the name wears a dotted
+ * rule (no caret — owner, 2026-09-24) and drops the search panel under the
+ * dateline. The dateline is still computed and rendered here, on the
+ * server, and handed in. */
 export function Nameplate({ view }: { view: ProfileView }) {
   return (
     <RowerSearch
