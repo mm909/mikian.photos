@@ -17,13 +17,13 @@ import {
   fmtDay,
   fmtMeters,
   fmtRecordTime,
-  fmtRowerNumber,
   fmtSplit,
   nowMs,
   type Week,
   type WeeklyRow,
 } from "@/lib/row100k";
 import { TextMenu, type TextMenuOption } from "./TextMenu";
+import { LeadBlock } from "./records/LeadBlock";
 import {
   RECORD_DEFS,
   podiumWindow,
@@ -158,19 +158,10 @@ export function StatsRecords({
   const overall =
     !(isTotal && hiddenRanking) && meRow !== undefined && meRow.division !== "M" && meRow.division !== "F";
 
-  /* The holder line under the headline: number · NAME · day, plus the
-   * split for a pace record. Times are public for everyone, the elite
+  /* The split for a pace record, its own figure under the holder line
+   * (records/LeadBlock.tsx). Times are public for everyone, the elite
    * included (owner, 2026-09-08), so the split always prints. */
-  const meta = first
-    ? [
-        first.day ? fmtDay(first.day) : null,
-        def.kind === "time" && def.dist ? `${fmtSplit(def.dist, first.value)} /500m` : null,
-        first.sessions != null ? `${first.sessions} sessions` : null,
-      ]
-        .filter(Boolean)
-        .map((s) => ` · ${s}`)
-        .join("")
-    : "";
+  const pace = first && def.kind === "time" && def.dist ? fmtSplit(def.dist, first.value) : undefined;
 
   const foot = (div: "m" | "f") => (
     <p className="st-foot">
@@ -201,7 +192,9 @@ export function StatsRecords({
           states — the leader, or the elite in blocks while a window is open.
           The other four: the newspaper head, the record's number one big and
           blue, the holder on the mono line (the board head, one size down).
-          One descriptor line, no extra title (owner call, 2026-09-05). */}
+          One descriptor line, no extra title (owner call, 2026-09-05). The
+          block itself is records/LeadBlock.tsx, the same one the head of a
+          full-ranking page draws (owner, 2026-09-24). */}
       {isTotal && hiddenRanking ? (
         /* The elite are hidden: nobody leads, and the row at the top of the
            list is the fastest hidden rower by split, nobody's number one.
@@ -209,26 +202,24 @@ export function StatsRecords({
            the words: the longest hidden total in blocks, big and blue,
            THE ELITE on the holder line (the list of the elite is the
            board's, one link away). */
-        <div className="bhead st-rec">
-          <div className="bhead-n">
-            <Blocks digits={eliteDigits} /> <span className="u">m</span>
-          </div>
-          <p className="bhead-l mono">
-            <b>{ELITE_LABEL}</b>
-          </p>
-        </div>
+        <LeadBlock
+          value={
+            <>
+              <Blocks digits={eliteDigits} /> <span className="u">m</span>
+            </>
+          }
+          label={ELITE_LABEL}
+        />
       ) : first ? (
-        <div className="bhead st-rec">
-          <div className="bhead-n">
-            <Val r={first} def={def} unit="big" />
-          </div>
-          <p className="bhead-l mono">
-            {/* Just the holder: the words above the number name the stat
-                (owner, 2026-09-05: this line, not the titled one). */}
-            {fmtRowerNumber(first.rowerNumber)} · <b>{first.name}</b>
-            {meta}
-          </p>
-        </div>
+        /* Just the holder: the words above the number name the stat
+           (owner, 2026-09-05: this line, not the titled one). */
+        <LeadBlock
+          value={<Val r={first} def={def} unit="big" />}
+          holder={{ rowerNumber: first.rowerNumber, name: first.name }}
+          day={first.day}
+          sessions={first.sessions}
+          pace={pace}
+        />
       ) : (
         <p className="board-empty">
           {unavailable ? "THE RECORDS COULD NOT BE READ JUST NOW — RELOAD IN A MOMENT." : def.emptyHint(started)}

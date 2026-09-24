@@ -33,6 +33,7 @@ import { buildDistanceKdes, type DistanceKde } from "./distances";
 import { FieldSection } from "./FieldSection";
 import { PerfectAttendance, perfectAttendance } from "./PerfectAttendance";
 import { statsCss } from "./statsCss";
+import { leadCss } from "../records/leadCss";
 
 export const metadata: Metadata = {
   title: "The stats — Rowtember",
@@ -414,6 +415,7 @@ export default async function StatsPage({
       <style>{css}</style>
       <style>{headCss}</style>
       <style>{statsCss}</style>
+      <style>{leadCss}</style>
 
       <RowBar active="stats" {...barProps(viewer)} />
 
@@ -430,11 +432,9 @@ export default async function StatsPage({
             name=""
             dateline={dateline}
             meters={boardUnreadable ? null : community.meters}
-            unit={
-              <>
-                Meters · <b>everyone together</b>
-              </>
-            }
+            /* The word alone (owner, 2026-09-24: drop EVERYONE TOGETHER
+             * here — the month word above already says whose). */
+            unit="Meters"
             after={
               <>
                 <div className="st-figs">

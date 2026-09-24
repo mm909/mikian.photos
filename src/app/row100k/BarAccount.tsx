@@ -17,7 +17,11 @@ import { fmtRowerNumber } from "@/lib/row100k";
  * (the studio took it), Raffles, Shop administration, The shirt, Gallery
  * (retired), Dev stats (now Shareables), Race day (public, on the rail) and
  * the (dev) tags. New: My poster for a rower, Posters / Shareables / Look
- * under UTILITIES, Race waves under ADMINISTRATION. */
+ * under UTILITIES, Race waves under ADMINISTRATION.
+ *
+ * owner, 2026-09-24: "there is no reason for a Posters utility link now —
+ * remove it"; Shareables is called Share stats and sits under DEVELOPMENT;
+ * the Look page is retired (its route is gone). My poster stays. */
 
 /* A group heading inside the panel: mono, grey, letterspaced. */
 function Eyebrow({ children }: { children: string }) {
@@ -108,20 +112,6 @@ export function BarAccount({
                  * surfaces still in the shop. The item above each eyebrow
                  * already draws the dashed divider (border-bottom). */}
                 <Eyebrow>Utilities</Eyebrow>
-                {/* The poster studio — Rowtember and any rower, print and
-                 * Instagram formats, PNG / PDF / share. Public since
-                 * 2026-09-16; an admin also gets the community subjects. */}
-                <Link className="acct-item" href="/row100k/posters" onClick={close}>
-                  Posters →
-                </Link>
-                {/* The share cards: on/off switches and the recent shares. */}
-                <Link className="acct-item" href="/row100k/shareables" onClick={close}>
-                  Shareables →
-                </Link>
-                {/* Paper or ink, for this browser or for everyone. */}
-                <Link className="acct-item" href="/row100k/look" onClick={close}>
-                  Look →
-                </Link>
                 <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
                   The plan →
                 </Link>
@@ -177,6 +167,12 @@ export function BarAccount({
                  * (owner call, 2026-09-05): not ready to be a public tab. */}
                 <Link className="acct-item" href="/row100k/analysis" onClick={close}>
                   The numbers →
+                </Link>
+                {/* The share cards: on/off switches and the recent shares
+                 * (owner, 2026-09-24: call it Share stats, under
+                 * development). */}
+                <Link className="acct-item" href="/row100k/shareables" onClick={close}>
+                  Share stats →
                 </Link>
               </>
             )}
