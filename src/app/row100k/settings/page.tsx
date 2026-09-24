@@ -20,24 +20,41 @@ export const metadata: Metadata = {
  * their own page behind the account menu (owner call, 2026-09-05: "a
  * settings page, not on the profile"), and since 2026-09-24 an ABOUT YOU
  * block under it (birthday, height, weight — owner: "height and weight
- * optional, in the settings page"; none of it printed anywhere). Nothing
- * here 404s: signed out gets told to sign in (the chip in the bar does
- * it), signed in but not joined gets pointed at the join form, and a rower
- * gets the forms. */
+ * optional, in the settings page"; home gym since 2026-09-25; none of it
+ * printed anywhere). Nothing here 404s: signed out gets told to sign in
+ * (the chip in the bar does it), signed in but not joined gets pointed at
+ * the join form, and a rower gets the forms. */
+
+/* What the About you block needs, or ok:false while the columns are
+ * not in the database yet. */
+type About =
+  | { ok: true; birthday: Date | null; heightCm: number | null; weightKg: number | null; homeGym: string | null }
+  | { ok: false };
+
+/* ABOUT YOU, read here and only here (see ViewerParticipant for why the
+ * shared viewer select leaves these out). CAUGHT (owner, 2026-09-25: the
+ * page threw while the new columns were not in the database): a failed
+ * read — P2022, or anything else — drops the block and prints one quiet
+ * line in its place, and the rest of settings works. A form that would
+ * fail on save is worse than no form. */
+async function readAbout(id: string): Promise<About> {
+  try {
+    const row = await db.rowParticipant.findUnique({
+      where: { id },
+      select: { birthday: true, heightCm: true, weightKg: true, homeGym: true },
+    });
+    if (!row) return { ok: false };
+    return { ok: true, ...row };
+  } catch (err) {
+    console.error("row100k/settings: the About you columns could not be read (not pushed yet?)", err);
+    return { ok: false };
+  }
+}
+
 export default async function SettingsPage() {
   const viewer = await resolveViewer();
   const me = viewer.me;
-
-  /* ABOUT YOU, read here and only here (see ViewerParticipant for why the
-   * shared viewer select leaves these out). Not caught on purpose: until
-   * the columns are pushed this page errors rather than showing a form
-   * that would fail on save. */
-  const about = me
-    ? await db.rowParticipant.findUnique({
-        where: { id: me.id },
-        select: { birthday: true, heightCm: true, weightKg: true },
-      })
-    : null;
+  const about: About = me ? await readAbout(me.id) : { ok: false };
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -76,12 +93,19 @@ export default async function SettingsPage() {
                   MY PROFILE →
                 </a>
               </p>
-              <AboutYou
-                participantId={me.id}
-                birthday={birthdayInput(about?.birthday)}
-                heightCm={about?.heightCm ?? null}
-                weightKg={about?.weightKg ?? null}
-              />
+              {about.ok ? (
+                <AboutYou
+                  participantId={me.id}
+                  birthday={birthdayInput(about.birthday)}
+                  heightCm={about.heightCm}
+                  weightKg={about.weightKg}
+                  homeGym={about.homeGym ?? ""}
+                />
+              ) : (
+                <p className="board-empty" style={{ paddingBottom: 0 }}>
+                  THE PROFILE FIELDS — BIRTHDAY, HEIGHT, WEIGHT, HOME GYM — ARE NOT AVAILABLE YET.
+                </p>
+              )}
             </>
           )}
 

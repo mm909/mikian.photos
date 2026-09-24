@@ -24,18 +24,17 @@ import type { RosterRower } from "./view";
  * headline — and the dateline still comes in from the server as children,
  * so this component owns the control and the panel and nothing else.
  *
- * The affordance is the month word's (TextMenu.tsx): the name in ink with
- * a dotted rule under it, no box, no button chrome and no caret (owner,
- * 2026-09-24: "remove the down arrow, we can just click on the name to
- * open the search bar, have it underlined kind of like the November
- * 2026"), so the h1 still reads as the headline of the page and the whole
- * name is the control. It is an INLINE span carrying the button role, not
- * a button element: a real button is an atomic inline-block that cannot
- * share a line with the number, so nine of the ninety-seven names — Malaya
- * Isabella Santos, Edgar Rodriguez — wrapped onto a second line and grew
- * the nameplate the moment it became a control (review, 2026-09-06). A
- * span flows with the number exactly as the plain text did, and Enter and
- * Space are wired by hand as the role requires.
+ * The affordance: NO rule under it (owner, 2026-09-25: "Remove the dotted
+ * line under the name — too cluttered. I'll know it's clickable"), just
+ * the headline in ink that turns water on hover, no box, no button chrome
+ * and no caret (owner, 2026-09-24: "remove the down arrow"). The NUMBER is
+ * part of the control too (owner, 2026-09-25: "Give the bib number the
+ * same hover and click behaviour as the name"): one span wraps number and
+ * name, so a tap on either opens the search and both turn water together.
+ * It is an INLINE span carrying the button role, not a button element: a
+ * real button is an atomic inline-block, and the nameplate is sized as one
+ * line of flowing text (nameFit.ts) — a span flows exactly as the plain
+ * text did, and Enter and Space are wired by hand as the role requires.
  *
  * ONE LINE (owner, 2026-09-24: "fit my name on one line"): the h1 sits in
  * a container (.pf-fit) and carries its own width in ems (nameFit.ts) as
@@ -113,7 +112,7 @@ export function RowerSearch({
   roster,
   children,
 }: {
-  /** The rower whose page this is — their number stays plain text. */
+  /** The rower whose page this is — number and name are both the control. */
   rowerNumber: number;
   displayName: string;
   roster: RosterRower[];
@@ -215,7 +214,6 @@ export function RowerSearch({
     <div className="pf-head">
       <div className="pf-fit">
         <h1 className="pf-name" style={fit}>
-          <span className="num">{num}</span>{" "}
           <span
             ref={btn}
             role="button"
@@ -223,11 +221,11 @@ export function RowerSearch({
             className="pf-find-btn"
             aria-expanded={open}
             aria-controls={panelId}
-            aria-label={`${displayName} — find another rower`}
+            aria-label={`${num} ${displayName} — find another rower`}
             onClick={toggle}
             onKeyDown={onControlKey}
           >
-            {displayName}
+            <span className="num">{num}</span> {displayName}
           </span>
         </h1>
       </div>

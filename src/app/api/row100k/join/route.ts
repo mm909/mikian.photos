@@ -19,6 +19,12 @@ import {
 
 export const runtime = "nodejs";
 
+/* Prisma's "column does not exist" (P2022): the schema knows a column the
+ * database has not been pushed yet. */
+function isMissingColumn(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === "P2022";
+}
+
 /* Join the Row 100k challenge (or update your profile — same POST, upsert
  * semantics). Requires a Google session; the rower number is assigned once
  * at first join, in join order, and never changes. */
@@ -115,14 +121,31 @@ export async function POST(req: Request) {
       if (!already) return NextResponse.json({ ok: false, error: "Add your birthday." }, { status: 400 });
     }
 
-    const created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division, birthday });
-    if (!created.created) {
-      await db.rowParticipant.update({
-        where: { id: created.id },
-        data: { displayName, instagram, division, ...(birthday ? { birthday } : {}) },
-      });
-      revalidateTag("row100k-boards");
-      return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: true });
+    // The birthday column may not be in the database yet (owner,
+    // 2026-09-25: the first-join requirement must not 500 while it is
+    // missing): the create and the update both write it only when one was
+    // sent, so a P2022 here can only mean that column, and the answer is a
+    // refusal in plain words, not a stack trace. Nothing was written: the
+    // create is the statement that failed, so no rower number was spent.
+    let created;
+    try {
+      created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division, birthday });
+      if (!created.created) {
+        await db.rowParticipant.update({
+          where: { id: created.id },
+          data: { displayName, instagram, division, ...(birthday ? { birthday } : {}) },
+        });
+        revalidateTag("row100k-boards");
+        return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: true });
+      }
+    } catch (err) {
+      if (birthday && isMissingColumn(err)) {
+        return NextResponse.json(
+          { ok: false, error: "The birthday field is not ready yet — the site cannot take a join right now. Try again later." },
+          { status: 503 },
+        );
+      }
+      throw err;
     }
 
     {

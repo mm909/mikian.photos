@@ -11,7 +11,8 @@ import { DEFAULT_LOG_VIEW, applyLogView, type LogView } from "./logSort";
 /* The public log on a rower's profile: ONE TABLE (owner, 2026-09-24:
  * "Combine the ledger and the table on the profile: one log, keep the
  * table view, show the photos on the table") — the clean numbers table
- * with the photo pair as a strip of squares under the day. The TABLE /
+ * with the photo pair as a strip of squares beside the day (owner,
+ * 2026-09-25: on the same line as the date and title). The TABLE /
  * PHOTOS tabs and the card-per-session view are gone with it. The server
  * hands in display-ready strings; this component only lays them out.
  *
@@ -97,13 +98,20 @@ export function ProfileLog({ rows }: { rows: ProfileLogRow[] }) {
             {shown.map((r, ri) => (
               <tr key={r.id}>
                 <td className="lgt-day">
-                  {r.dayStr}
-                  {r.title ? <div className="lgt-title">{r.title}</div> : null}
-                  <LogPics
-                    media={r.photos}
-                    onOpen={(i) => setLightbox(offsets[ri] + i)}
-                    altFor={(i) => photoAlt(r, i)}
-                  />
+                  {/* Date and title stacked, the photo pair beside them
+                      (owner, 2026-09-25: same line, so the row stays
+                      short) — .lgt-dayc in logTableCss.ts. */}
+                  <span className="lgt-dayc">
+                    <span className="lgt-when">
+                      {r.dayStr}
+                      {r.title ? <span className="lgt-title">{r.title}</span> : null}
+                    </span>
+                    <LogPics
+                      media={r.photos}
+                      onOpen={(i) => setLightbox(offsets[ri] + i)}
+                      altFor={(i) => photoAlt(r, i)}
+                    />
+                  </span>
                 </td>
                 <td className="num">
                   {r.masked ? (

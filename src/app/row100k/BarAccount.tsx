@@ -21,7 +21,9 @@ import { fmtRowerNumber } from "@/lib/row100k";
  *
  * owner, 2026-09-24: "there is no reason for a Posters utility link now —
  * remove it"; Shareables is called Share stats and sits under DEVELOPMENT;
- * the Look page is retired (its route is gone). My poster stays. */
+ * the Look page is retired (its route is gone). My poster stays — it was
+ * briefly a Shareables page and went back (owner, 2026-09-25: "did not
+ * land — revert to just the poster"). */
 
 /* A group heading inside the panel: mono, grey, letterspaced. */
 function Eyebrow({ children }: { children: string }) {
@@ -90,12 +92,11 @@ export function BarAccount({
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
                   My profile →
                 </Link>
-                {/* THE MASTER SHAREABLES PAGE (owner, 2026-09-24: "instead
-                 * of My poster, turn that into Shareables"): every card of
-                 * theirs, the bests, a row of their choosing, and the way to
-                 * the poster studio — r/[num]/share/page.tsx. */}
-                <Link className="acct-item" href={`/row100k/r/${rowerNumber}/share`} onClick={close}>
-                  Shareables →
+                {/* MY POSTER, back (owner, 2026-09-25: "The shareables page
+                 * did not land — revert to just the poster"): the studio
+                 * with this rower as the subject (posters/page.tsx ?r=N). */}
+                <Link className="acct-item" href={`/row100k/posters?r=${rowerNumber}`} onClick={close}>
+                  My poster →
                 </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →

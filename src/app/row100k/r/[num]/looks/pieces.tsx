@@ -90,8 +90,9 @@ function Dateline({ view }: { view: ProfileView }) {
  *
  * The NAME is also the way off this page (owner ask, 2026-09-06: tap the
  * name and search for someone) — so the head itself is RowerSearch, a
- * client component: the number stays plain text, the name wears a dotted
- * rule (no caret — owner, 2026-09-24) and drops the search panel under the
+ * client component: number and name together are the control (owner,
+ * 2026-09-25: the bib number gets the same hover and click as the name;
+ * no rule under it, no caret) and drop the search panel under the
  * dateline. The dateline is still computed and rendered here, on the
  * server, and handed in. */
 export function Nameplate({ view }: { view: ProfileView }) {

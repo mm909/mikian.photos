@@ -1086,8 +1086,13 @@ html:has(.row100k){scroll-behavior:smooth}
  * the stats page spent too much room on titles). No 2px boxes here; the
  * blackout line is a pair of dashed hairlines, not a frame. Sections sit
  * tighter than the inside pages (30px) — the eyebrows carry the spacing. */
+/* THE HEAD SITS CLOSE UNDER THE BAR and the dateline and big number sit
+ * further under the name (owner, 2026-09-25: less space between the name
+ * and the header; more between the big number / the date selection and
+ * the name): the first section keeps its 30px, the head adds none, the
+ * dateline and the odometer each take a step more air. */
 .row100k section.pf-sec{padding:30px 0 0}
-.row100k .pf-head{padding:26px 0 0}
+.row100k .pf-head{padding:0}
 .row100k .pf-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em;overflow-wrap:anywhere}
 /* THE NAME ON ONE LINE (owner, 2026-09-24: fit my name on one line). The
  * h1 carries its own width in ems as --pf-w (looks/nameFit.ts) and sits in
@@ -1098,13 +1103,13 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pf-fit{container-type:inline-size}
 .row100k .pf-name{font-size:max(22px,min(clamp(26px,6.6vw,64px),calc(100cqw / var(--pf-w,12))))}
 .row100k .pf-name .num{color:var(--gray)}
-.row100k .pf-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px}
+.row100k .pf-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:18px}
 /* The odometer on the profile: seven digits and two commas (5.44em) sized
  * off its own column (cqw), so it fits the 760 measure and the narrower
  * left column of the two-column layout alike. */
-.row100k .pf-od{margin-top:22px;container-type:inline-size}
+.row100k .pf-od{margin-top:30px;container-type:inline-size}
 .row100k .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,130px)}
-.row100k .pf-big{margin-top:22px}
+.row100k .pf-big{margin-top:30px}
 /* LOG A ROW (LogInPlace) a step under the front page size, so it fits
  * one line on the 760 column. SHARE beside it is QUIET (owner, 2026-09-24:
  * LOG A ROW and SHARE looked out of place at the same level; keep LOG A
@@ -1187,14 +1192,13 @@ html:has(.row100k){scroll-behavior:smooth}
 
 /* ----------------------------------------------------------------------
  * FIND A ROWER, off the nameplate (looks/RowerSearch.tsx — owner ask,
- * 2026-09-06: tap the name and search for someone). The NAME is the
- * control, in the headline face it already had: no box, no button chrome,
- * a dotted rule under it — the month word idiom (.tm-btn) at masthead
- * size, drawn as a dotted underline so it sits on the baseline at any
- * size — and water on hover. No caret (owner, 2026-09-24: remove the down
- * arrow, we can just click on the name to open the search bar, have it
- * underlined kind of like the November 2026). The number beside it stays
- * plain text.
+ * 2026-09-06: tap the name and search for someone). The NUMBER AND THE
+ * NAME are the control, in the headline face they already had: no box, no
+ * button chrome, no rule under them (owner, 2026-09-25: remove the dotted
+ * line under the name, too cluttered, I will know it is clickable) — just
+ * water on hover, the grey number turning with the name (owner, same day:
+ * give the bib number the same hover and click behaviour as the name).
+ * No caret (owner, 2026-09-24: remove the down arrow).
  *
  * The panel is the account menu (BarAccount.tsx) hung under the head:
  * paper, a 2px ink border, over a full-screen overlay so a click anywhere
@@ -1211,8 +1215,8 @@ html:has(.row100k){scroll-behavior:smooth}
  * focus, and this field focuses itself — then the matches as board rows:
  * grey mono number, name in bold sans, dashed hairlines. */
 .row100k .pf-head{position:relative}
-.row100k .pf-find-btn{cursor:pointer;overflow-wrap:anywhere;text-decoration:underline dotted currentColor;text-decoration-thickness:max(2px,.05em);text-underline-offset:.1em;text-decoration-skip-ink:none}
-.row100k .pf-find-btn:hover{color:var(--water)}
+.row100k .pf-find-btn{cursor:pointer;overflow-wrap:anywhere}
+.row100k .pf-find-btn:hover,.row100k .pf-find-btn:hover .num{color:var(--water)}
 .row100k .pf-find-btn:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .row100k .pf-find-overlay{position:fixed;inset:0;z-index:30}
 .row100k .pf-find{position:absolute;top:100%;left:0;width:100%;max-width:420px;margin-top:12px;padding:14px 16px 8px;background:var(--paper);border:2px solid var(--ink);max-height:min(460px,max(180px,calc(100vh - 260px)));overflow-y:auto;z-index:40}
