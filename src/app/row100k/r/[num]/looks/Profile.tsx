@@ -8,6 +8,7 @@ import {
   LogBlock,
   MetersUnit,
   MonthBlock,
+  MonthWord,
   Nameplate,
   coreLedger,
 } from "./pieces";
@@ -45,19 +46,18 @@ export function Profile({ view }: { view: ProfileView }) {
             <Ledger items={coreLedger(view)} />
           </div>
           <div className="pf-side">
+            {/* EVERY DATE IS A MENU (owner, 2026-09-24: "anywhere we're
+                listing the dates, have it be a date selector"): the month
+                over the calendar and the month over the bests are the
+                same word-that-is-a-menu as the dateline (pieces.tsx
+                MonthWord). Over all time the calendar is still this
+                month's grid, so its descriptor says so. */}
             <div className="pf-month">
-              <Eyebrow left={view.period.kind === "month" ? view.period.label : "This month"} right="METERS PER DAY" />
+              <Eyebrow left={<MonthWord view={view} />} right={view.period.kind === "all" ? "THIS MONTH · METERS PER DAY" : "METERS PER DAY"} />
               <MonthBlock view={view} />
             </div>
             <div className="pf-bests-sec">
-              <Eyebrow
-                left="The bests"
-                right={
-                  <>
-                    <span className="pf-ph">PERSONAL — </span>{view.period.label.toUpperCase()}
-                  </>
-                }
-              />
+              <Eyebrow left="The bests" right={<MonthWord view={view} align="right" />} />
               <Bests view={view} />
             </div>
           </div>

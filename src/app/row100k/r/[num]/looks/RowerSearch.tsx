@@ -6,12 +6,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyEvent,
   type ReactNode,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fmtRowerNumber } from "@/lib/row100k";
+import { nameplateEm } from "./nameFit";
 import type { RosterRower } from "./view";
 
 /* The nameplate, with the NAME as the way to find another rower (owner
@@ -22,15 +24,24 @@ import type { RosterRower } from "./view";
  * headline — and the dateline still comes in from the server as children,
  * so this component owns the control and the panel and nothing else.
  *
- * The affordance is the account chip's, one size up: the name in ink with
- * a small water caret after it, no box and no button chrome, so the h1
- * still reads as the headline of the page. It is an INLINE span carrying
- * the button role, not a button element: a real button is an atomic
- * inline-block that cannot share a line with the number, so nine of the
- * ninety-seven names — Malaya Isabella Santos, Edgar Rodriguez — wrapped
- * onto a second line and grew the nameplate the moment it became a control
- * (review, 2026-09-06). A span flows with the number exactly as the plain
- * text did, and Enter and Space are wired by hand as the role requires.
+ * The affordance is the month word's (TextMenu.tsx): the name in ink with
+ * a dotted rule under it, no box, no button chrome and no caret (owner,
+ * 2026-09-24: "remove the down arrow, we can just click on the name to
+ * open the search bar, have it underlined kind of like the November
+ * 2026"), so the h1 still reads as the headline of the page and the whole
+ * name is the control. It is an INLINE span carrying the button role, not
+ * a button element: a real button is an atomic inline-block that cannot
+ * share a line with the number, so nine of the ninety-seven names — Malaya
+ * Isabella Santos, Edgar Rodriguez — wrapped onto a second line and grew
+ * the nameplate the moment it became a control (review, 2026-09-06). A
+ * span flows with the number exactly as the plain text did, and Enter and
+ * Space are wired by hand as the role requires.
+ *
+ * ONE LINE (owner, 2026-09-24: "fit my name on one line"): the h1 sits in
+ * a container (.pf-fit) and carries its own width in ems (nameFit.ts) as
+ * a custom property, so the stylesheet can size the type to the column —
+ * number and name on one line at any width from 720px up, and on a phone
+ * shrunk first and wrapped only under a floor.
  *
  * The panel is the account menu's (BarAccount.tsx): paper, a 2px ink
  * border, hung under its control, with a full-screen overlay behind it so
@@ -193,27 +204,33 @@ export function RowerSearch({
         ? `${shown.length} of ${hits.length} rowers`
         : `${hits.length} rower${hits.length === 1 ? "" : "s"}`;
 
+  // The headline's width in ems — number, space, name — for the fit
+  // (theme.ts .pf-name reads --pf-w). The wrapper is the query container;
+  // it is a wrapper and not .pf-head itself so the fixed overlay below is
+  // not caught inside a contained box.
+  const num = fmtRowerNumber(rowerNumber);
+  const fit = { "--pf-w": String(nameplateEm(`${num} ${displayName}`)) } as CSSProperties;
+
   return (
     <div className="pf-head">
-      <h1 className="pf-name">
-        <span className="num">{fmtRowerNumber(rowerNumber)}</span>{" "}
-        <span
-          ref={btn}
-          role="button"
-          tabIndex={0}
-          className="pf-find-btn"
-          aria-expanded={open}
-          aria-controls={panelId}
-          aria-label={`${displayName} — find another rower`}
-          onClick={toggle}
-          onKeyDown={onControlKey}
-        >
-          {displayName}
-          <span className="pf-find-caret" aria-hidden="true">
-            ▾
+      <div className="pf-fit">
+        <h1 className="pf-name" style={fit}>
+          <span className="num">{num}</span>{" "}
+          <span
+            ref={btn}
+            role="button"
+            tabIndex={0}
+            className="pf-find-btn"
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={`${displayName} — find another rower`}
+            onClick={toggle}
+            onKeyDown={onControlKey}
+          >
+            {displayName}
           </span>
-        </span>
-      </h1>
+        </h1>
+      </div>
       {children}
       {open ? (
         <div className="pf-find-overlay" onClick={close} aria-hidden="true" />

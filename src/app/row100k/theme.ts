@@ -1089,6 +1089,14 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k section.pf-sec{padding:30px 0 0}
 .row100k .pf-head{padding:26px 0 0}
 .row100k .pf-name{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6.6vw,64px);line-height:.95;letter-spacing:-.02em;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:.14em;overflow-wrap:anywhere}
+/* THE NAME ON ONE LINE (owner, 2026-09-24: fit my name on one line). The
+ * h1 carries its own width in ems as --pf-w (looks/nameFit.ts) and sits in
+ * a query container, so the size is the column divided by the name — never
+ * larger than the viewport size above, and on a phone never under 22px,
+ * where a long name is allowed to wrap instead. A browser without cqw
+ * drops this line and keeps the size above. */
+.row100k .pf-fit{container-type:inline-size}
+.row100k .pf-name{font-size:max(22px,min(clamp(26px,6.6vw,64px),calc(100cqw / var(--pf-w,12))))}
 .row100k .pf-name .num{color:var(--gray)}
 .row100k .pf-date{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);padding-top:8px}
 /* The odometer on the profile: seven digits and two commas (5.44em) sized
@@ -1096,9 +1104,6 @@ html:has(.row100k){scroll-behavior:smooth}
  * left column of the two-column layout alike. */
 .row100k .pf-od{margin-top:22px;container-type:inline-size}
 .row100k .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,130px)}
-/* THE BESTS descriptor: PERSONAL — only on the phone (look A wording),
- * where the eyebrow has the room. */
-.row100k .pf-ph{display:inline}
 .row100k .pf-big{margin-top:22px}
 /* LOG A ROW / SHARE (LogInPlace) a step under the front page size, so
  * both fit one line on the 760 column. */
@@ -1162,10 +1167,12 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .pf-side .pf-bests-sec{margin-top:28px}
   .row100k .pf-two .bl{grid-template-columns:1fr}
   .row100k .pf-two .pf-bests{grid-template-columns:1fr}
-  .row100k .pf-two .pf-name{font-size:clamp(26px,4.6vw,52px)}
+  /* From 720px the nameplate never wraps (owner, 2026-09-24): the fit
+   * has no floor here, so the longest name still lands on one line. */
+  .row100k .pf-two .pf-name{font-size:clamp(26px,4.6vw,52px);white-space:nowrap}
+  .row100k .pf-two .pf-name{font-size:min(clamp(26px,4.6vw,52px),calc(100cqw / var(--pf-w,12)))}
   .row100k .pf-two .bhead-n{font-size:clamp(40px,7vw,76px)}
   .row100k .pf-two .pf-od .my-od{--od-size:min(calc(100cqw / 5.44),30vh,90px)}
-  .row100k .pf-ph{display:none}
   .row100k .pf-two .pf-act .optin{font-size:clamp(30px,4.4vw,46px)}
   .row100k .pf-two .pf-act .front-share{font-size:clamp(16px,2.2vw,24px)}
   .row100k .pf-two .pf-adm .outline-btn{font-size:clamp(16px,2.2vw,24px)}
@@ -1175,8 +1182,12 @@ html:has(.row100k){scroll-behavior:smooth}
  * FIND A ROWER, off the nameplate (looks/RowerSearch.tsx — owner ask,
  * 2026-09-06: tap the name and search for someone). The NAME is the
  * control, in the headline face it already had: no box, no button chrome,
- * only a small water caret after it — the account chip idiom at masthead
- * size — and water on hover. The number beside it stays plain text.
+ * a dotted rule under it — the month word idiom (.tm-btn) at masthead
+ * size, drawn as a dotted underline so it sits on the baseline at any
+ * size — and water on hover. No caret (owner, 2026-09-24: remove the down
+ * arrow, we can just click on the name to open the search bar, have it
+ * underlined kind of like the November 2026). The number beside it stays
+ * plain text.
  *
  * The panel is the account menu (BarAccount.tsx) hung under the head:
  * paper, a 2px ink border, over a full-screen overlay so a click anywhere
@@ -1193,10 +1204,9 @@ html:has(.row100k){scroll-behavior:smooth}
  * focus, and this field focuses itself — then the matches as board rows:
  * grey mono number, name in bold sans, dashed hairlines. */
 .row100k .pf-head{position:relative}
-.row100k .pf-find-btn{cursor:pointer;overflow-wrap:anywhere}
+.row100k .pf-find-btn{cursor:pointer;overflow-wrap:anywhere;text-decoration:underline dotted currentColor;text-decoration-thickness:max(2px,.05em);text-underline-offset:.1em;text-decoration-skip-ink:none}
 .row100k .pf-find-btn:hover{color:var(--water)}
 .row100k .pf-find-btn:focus-visible{outline:2px solid var(--water);outline-offset:3px}
-.row100k .pf-find-caret{font-family:var(--row-mono),monospace;font-size:max(15px,.4em);line-height:1;letter-spacing:0;color:var(--water);margin-left:.28em;vertical-align:.3em}
 .row100k .pf-find-overlay{position:fixed;inset:0;z-index:30}
 .row100k .pf-find{position:absolute;top:100%;left:0;width:100%;max-width:420px;margin-top:12px;padding:14px 16px 8px;background:var(--paper);border:2px solid var(--ink);max-height:min(460px,max(180px,calc(100vh - 260px)));overflow-y:auto;z-index:40}
 .row100k .pf-find[hidden]{display:none}
