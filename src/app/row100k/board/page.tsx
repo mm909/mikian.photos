@@ -92,18 +92,30 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
   const started = nowMs >= START_MS;
   const west = new Date(nowMs - 7 * 3_600_000);
   const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
+  /* THE MONTH IS THE CONTROL (owner, 2026-09-24): the dateline reads THE
+   * BOARD · DECEMBER 2026 · DAY 15 OF 31, and the month is a select in
+   * text clothing once there is more than one month (PeriodSelect.tsx). */
+  const monthWord =
+    months.length > 1 ? <PeriodSelect options={periodOptions(clockNow())} value={period.key} base="/row100k/board" current={MONTH.key} /> : MONTH.label;
   const dateline =
-    period.kind === "all"
-      ? `${stamp} · ALL TIME · SINCE ${monthsThrough(clockNow())[0].short} ${monthsThrough(clockNow())[0].year}`
-      : !thisMonth
-        ? `${period.label.toUpperCase()} · FINAL`
-        : phase === "before"
-          ? `${stamp} · FIRST STROKE ${MONTH.short} 1`
+    period.kind === "all" ? (
+      <>
+        {monthWord} · SINCE {months[0].short} {months[0].year}
+      </>
+    ) : !thisMonth ? (
+      <>{monthWord} · FINAL</>
+    ) : (
+      <>
+        {monthWord} ·{" "}
+        {phase === "before"
+          ? `FIRST STROKE ${MONTH.short} 1`
           : phase === "closed"
-            ? `${stamp} · FINAL`
+            ? "FINAL"
             : nowMs >= END_MS
-              ? `${stamp} · LATE LOGS FOR ${MONTH.label.toUpperCase()}`
-              : `${stamp} · DAY ${daysElapsed(nowMs)} OF ${MONTH.days}`;
+              ? "LATE LOGS OPEN"
+              : `${stamp} · DAY ${daysElapsed(nowMs)} OF ${MONTH.days}`}
+      </>
+    );
 
   // The board stickers (ten places to a card) share the community card
   // plumbing, which wants per-day totals too; the curve carries cumulative
@@ -172,11 +184,7 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
             }
             wide
           />
-          {/* THE MONTH (owner, 2026-09-24): this month, any month before
-            * it, all time — one select with arrows (PeriodSelect.tsx), the
-            * same page filled with other rows. Not there while there is
-            * only the one month. */}
-          {months.length > 1 ? <PeriodSelect options={periodOptions(clockNow())} value={period.key} base="/row100k/board" current={MONTH.key} /> : null}
+
           {/* Only the slices the board reads. Boards is a client
            * component, so whatever is handed in is serialized into the
            * page source — and boardView masks only `total`; the record

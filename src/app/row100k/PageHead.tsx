@@ -28,7 +28,7 @@ export function PageHead({
   /* "The board" — sentence case; the CSS sets the caps. */
   name: string;
   /* "SEP 16 · DAY 16 OF 30" — the page's own dateline, as it computes it. */
-  dateline: string;
+  dateline: ReactNode;
   /* Null when the figure could not be read: every zero dimmed. */
   meters: number | null;
   /* The unit line, the front page way: Meters · <b>everyone together</b>. */

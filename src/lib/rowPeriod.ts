@@ -151,5 +151,5 @@ export function weeksOf(m: Month): Week[] {
 /* THE OPTIONS a month control offers (PeriodSelect.tsx): every month so
  * far, oldest first, then all time. */
 export function periodOptions(atMs: number): { key: string; label: string }[] {
-  return [...monthsThrough(atMs).map((m) => ({ key: m.key, label: `${m.short} ${m.year}` })), { key: "all", label: "All time" }];
+  return [...monthsThrough(atMs).map((m) => ({ key: m.key, label: m.label })), { key: "all", label: "All time" }];
 }

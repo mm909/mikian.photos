@@ -1,3 +1,4 @@
+import { PeriodSelect } from "../../../PeriodSelect";
 import type { ReactNode } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
 import { ELITE_TAG, digitCount } from "@/lib/blackoutRules";
@@ -59,16 +60,32 @@ export function Clock({ view, s }: { view: ProfileView; s: number }) {
 
 /* ------------------------------------------------------------ nameplate */
 
-/* "MEN'S BOARD · 100K CLUB · DAY 5 OF 30" — the dateline under the name. */
-function dateline(view: ProfileView): string {
-  const board = view.rower.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD";
+/* "DECEMBER 2026 · 100K CLUB · DAY 15 OF 31" — the dateline under the
+ * name. THE MONTH IS THE CONTROL (owner, 2026-09-24: no MEN'S BOARD, the
+ * month there instead, as text you can click to swap months). */
+function Dateline({ view }: { view: ProfileView }) {
+  const many = view.periodOptions.length > 2;
+  const month = many ? (
+    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
+  ) : (
+    MONTH.label
+  );
   const day =
-    view.phase === "before"
-      ? `FIRST STROKE ${MONTH.short} 1`
-      : view.phase === "closed"
+    view.period.kind === "all"
+      ? `SINCE ${view.periodOptions[0]?.label ?? ""}`
+      : view.period.key !== view.thisMonthKey
         ? "FINAL"
-        : `DAY ${view.days} OF ${MONTH_DAYS}`;
-  return `${board}${view.club ? " · 100K CLUB" : ""} · ${day}`;
+        : view.phase === "before"
+          ? `FIRST STROKE ${MONTH.short} 1`
+          : view.phase === "closed"
+            ? "FINAL"
+            : `DAY ${view.days} OF ${MONTH_DAYS}`;
+  return (
+    <>
+      {month}
+      {view.club ? " · 100K CLUB" : ""} · {day}
+    </>
+  );
 }
 
 /* The nameplate: number and name in the front page's masthead face, one
@@ -86,7 +103,9 @@ export function Nameplate({ view }: { view: ProfileView }) {
       displayName={view.rower.displayName}
       roster={view.roster}
     >
-      <p className="pf-date mono">{dateline(view)}</p>
+      <p className="pf-date mono">
+        <Dateline view={view} />
+      </p>
     </RowerSearch>
   );
 }

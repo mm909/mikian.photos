@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { nowMs } from "@/lib/row100k";
+import {
+  nowMs,
+  MONTH,
+} from "@/lib/row100k";
 import { trackClick } from "./TrackedLink";
 
 /* The nav rail: ROWTEMBER (the brand mark, Archivo Black) then the section
@@ -280,7 +283,9 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
   /* raceOpenFor(isAdmin), resolved by RowBar: open to everyone in local dev,
    * admin-only in production until the owner opens the race. Shut, and the
    * stamp is not in the markup at all. */
-  const items = raceOpen ? ITEMS : ITEMS.filter((it) => it.key !== STAMP);
+  /* PARTNERS is September's (owner, 2026-09-24: "on October 1st we're
+   * going to hide the partner page"). The page stays at its address. */
+  const items = ITEMS.filter((it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || it.key !== "partners"));
 
   const railClass = ["rail", live ? "live" : "", jump || placing ? "jump" : ""].filter(Boolean).join(" ");
   const pillStyle: React.CSSProperties | undefined =

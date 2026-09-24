@@ -394,8 +394,6 @@ export default async function Row100kPage() {
         </header>
       )}
 
-      {/* A stranger in the off-season meets OPT IN before the numbers. */}
-      {!me && !rowtember ? cta : null}
 
       {me && (
         <section className="fs">
@@ -446,6 +444,14 @@ export default async function Row100kPage() {
         </div>
       </section>
 
+      {/* A stranger in the off-season meets OPT IN right under the three
+        * numbers (owner, 2026-09-24). */}
+      {!me && !rowtember ? cta : null}
+
+      {/* The leader and the clock: Rowtember only (owner, 2026-09-24: no
+        * leader box in the off-season, the top fives say it). */}
+      {rowtember ? (
+        <>
       {/* The first headline, and the clock in the corner beside it. */}
       <section className="fs">
         <div className="wrap front">
@@ -501,6 +507,8 @@ export default async function Row100kPage() {
           </div>
         </div>
       </section>
+        </>
+      ) : null}
 
       <section className="fs">
         <div className="wrap front">

@@ -867,14 +867,13 @@ html:has(.row100k){scroll-behavior:smooth}
  * .pf-tag is the elite rower s own dog tag under their stats (owner,
  * 2026-09-08: what everyone else sees) — the eyebrow carries the gap. */
 .row100k .pf-block{margin-top:34px}
-/* THE MONTH CONTROL (PeriodSelect.tsx): a select between two arrows. */
-.row100k .pd-nav{display:flex;align-items:center;gap:6px;margin:18px 0 6px}
-.row100k .pd-nav a{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--ink);border-radius:2px;color:var(--ink);text-decoration:none;font-family:var(--row-mono),monospace;font-size:18px;font-weight:700;background:var(--paper);line-height:1}
-.row100k .pd-nav a:hover{background:var(--water-pale)}
-.row100k .pd-nav a.off{opacity:.3;pointer-events:none}
-.row100k .pd-nav .sel{position:relative;display:inline-block}
-.row100k .pd-nav select{height:36px;padding:0 32px 0 12px;border:1px solid var(--ink);border-radius:2px;background:var(--paper);color:var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;appearance:none;-webkit-appearance:none;cursor:pointer}
-.row100k .pd-nav .pd-caret{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;font-size:11px;color:var(--ink)}
+/* THE MONTH AS A WORD (PeriodSelect.tsx): the label inherits the dateline
+ * it sits in, a caret after it, and the native select laid over it
+ * unseen so a tap opens the picker. */
+.row100k .pd-text{position:relative;display:inline-block;color:var(--ink);cursor:pointer}
+.row100k .pd-text .lbl{border-bottom:1px dotted var(--ink)}
+.row100k .pd-text .caret{font-size:.85em;margin-left:.35em}
+.row100k .pd-text select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
 /* THE OFF-SEASON FRONT (owner, 2026-09-24): the month as a subtitle, the
  * stats as the main object. */
 .row100k .front-head.off{padding:22px 0 0}

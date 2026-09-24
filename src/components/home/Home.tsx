@@ -1,5 +1,7 @@
 "use client";
 
+import { MONTH, MONTH_DAYS } from "@/lib/row100k";
+
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type TransitionEvent } from "react";
 import type { MeterSnapshot } from "@/lib/homeStats";
 import { useLiveMeters } from "./useLiveMeters";
@@ -237,17 +239,17 @@ export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
   // month is rowed — say so instead of a stale "day 30 of 30".
   const status =
     m.phase === "before"
-      ? "Rowtember 2026 · first stroke Sep 1"
+      ? `${MONTH.label} · first stroke ${MONTH.short} 1`
       : m.phase === "closed"
-        ? "Rowtember 2026 · final"
+        ? `${MONTH.label} · final`
         : m.rate <= 0 && m.day >= 30
-          ? "Rowtember 2026 · late logs through Oct 3"
-          : `Rowtember 2026 · day ${m.day} of 30`;
+          ? `${MONTH.label} · late logs open`
+          : `${MONTH.label} · day ${m.day} of ${MONTH_DAYS}`;
 
   const facts: Array<[string, string]> = [
     ["Rowers in", m.rowers.toLocaleString("en-US")],
     ["Sessions logged", m.sessions.toLocaleString("en-US")],
-    m.phase === "before" ? ["Starts", "Sep 1"] : ["Days left", String(m.daysLeft)],
+    m.phase === "before" ? ["Starts", `${MONTH.short} 1`] : ["Days left", String(m.daysLeft)],
   ];
   if (m.finished > 0) facts.push(["Finished 100K", m.finished.toLocaleString("en-US")]);
 
@@ -256,14 +258,14 @@ export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
       <style>{css}</style>
       <section className="stage">
         <p className="side" aria-hidden="true">
-          Rowtember 2026 · every meter, live
+          {MONTH.month === 9 ? `Rowtember ${MONTH.year}` : MONTH.label} · every meter, live
         </p>
         <div className="wrap">
           <p className="status">
             {m.live && <span className="live-dot" aria-hidden="true" />}
             <span>{status}</span>
           </p>
-          <h1 className="sr">Meters rowed so far in Rowtember 2026</h1>
+          <h1 className="sr">Meters rowed so far in {MONTH.label}</h1>
           <Odometer meters={m.meters} tempo={m.tempoMs} />
           <p className="unit">
             Meters rowed · <b>everyone together</b>
