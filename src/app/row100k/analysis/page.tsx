@@ -4,7 +4,8 @@ import { DEFAULT_POLICY, policyMax, type BlackoutPolicy } from "@/lib/blackoutRu
 import { siteSettings } from "@/lib/rowSettings";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
-import { CHALLENGE, daysElapsed } from "@/lib/row100k";
+import { CHALLENGE, daysElapsed, nowMs } from "@/lib/row100k";
+import { buildMonths, type MonthsModel } from "./months";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -115,6 +116,18 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
   }
   const kind: ViewerKind =
     viewer.kind === "joined" ? (model.you && model.you.sessions > 0 ? "ready" : "empty") : viewer.kind;
+
+  /* THE MONTHS (owner ask, 2026-09-25): month against month at the same
+   * day. Folded from the same cached load as everything else — every
+   * entry in the challenge, not only this month's — on the challenge
+   * clock. Its own try, so a bad row here costs the section, not the page. */
+  let months: MonthsModel;
+  try {
+    months = buildMonths(raw.entries, nowMs());
+  } catch (err) {
+    console.error("row100k/analysis: buildMonths failed", err);
+    months = buildMonths([], nowMs());
+  }
   /* ?you=1 is the sign-in return trip: land with the blue layer already on. */
   const initialYou = searchParams?.you === "1" && kind === "ready";
 
@@ -125,7 +138,7 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
 
       <RowBar active="stats" />
 
-      <AnalysisView model={model} viewer={kind} initialYou={initialYou} />
+      <AnalysisView model={model} months={months} viewer={kind} initialYou={initialYou} />
 
       <RowFooter />
     </div>
