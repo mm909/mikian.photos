@@ -1,6 +1,8 @@
+"use client";
+
 import type { CSSProperties } from "react";
 import { fmtClock } from "../analysis/fmt";
-import { KdeSvg } from "../analysis/charts";
+import { KdeScrub } from "./KdeScrub";
 import type { DistanceKde } from "./distances";
 
 /* THE 5K AND THE 10K (owner ask, 2026-09-11): one chart per distance, two
@@ -17,10 +19,14 @@ import type { DistanceKde } from "./distances";
  * where they cost nothing to serialise (r/[num]/page.tsx), so the filter
  * below is a guard rather than the thing doing the work.
  *
- * No scrub here, unlike the two above (KdeScrub): that readout names one
- * curve and one share of the field, and over a chart carrying two curves it
- * would quietly answer about the wrong one. The marks and the tags say what
- * this chart is for. */
+ * THE SCRUB (owner, 2026-09-24: "the 5K and 10K time distributions must be
+ * interactable like the split-per-500 and length-of-every-row ones"): the
+ * same KdeScrub the two densities above wear, in its `time` kind — a
+ * finger, the mouse or the arrow keys read a time and its share of the
+ * field off the curve. The worry that kept the scrub off before (a chart
+ * carrying two curves, a readout that could answer about the wrong one) is
+ * met in the readout itself: it says OF THE FIELD, and the field curve is
+ * the one it integrates. */
 
 const ENDS: [string, string] = ["← FASTER", "SLOWER →"];
 
@@ -41,12 +47,10 @@ const FOOT: CSSProperties = {
   marginTop: 6,
 };
 
-/* THE FIGURES, IN WORDS, for the accessible label. The two densities above
- * these are scrubbable (KdeScrub) and speak their readout through role
- * slider and aria-valuetext; dropping the scrub here was right — it names
- * one curve, and this chart carries two — but it took the spoken numbers
- * with it, and the MED / YOU / BEST tags live inside the SVG where a screen
- * reader cannot reach them. So the label says what the marks say. */
+/* THE FIGURES, IN WORDS, for the accessible label. The scrub speaks its
+ * readout through role slider and aria-valuetext, but the MED / YOU / BEST
+ * tags live inside the SVG where a screen reader cannot reach them, so the
+ * label says what the marks say. */
 function figures(d: DistanceKde, you: DistanceKde["you"]): string {
   const field = `field median ${FMT(d.field.median)} over ${d.fieldN} attempts by ${d.fieldRowers} rowers`;
   if (!you) return field;
@@ -61,16 +65,10 @@ export function DistanceKdes({ charts, mine = false }: { charts: DistanceKde[]; 
     <>
       {shown.map((d) => {
         const you = mine ? d.you : null;
-        /* What the height means, said where it is true: with two curves the
-         * point is that each peaks at its own 1, and with one it is still a
-         * density and not a tally of rows. Either way the y axis is never a
-         * count, and the chart should not let anyone think it is. */
-        /* The height clause came off the foot (owner, 2026-09-11: "we can
-         * remove the this curve is a density, not a count of rows"). Each
-         * curve is still scaled to its own peak — that is what lets a
-         * rower with four attempts show up against a field of a hundred —
-         * the chart simply no longer explains itself in a sentence. */
-        /* Under three attempts there is no second curve — say so, rather
+        /* Each curve is scaled to its own peak — that is what lets a rower
+         * with four attempts show up against a field of a hundred — and the
+         * chart no longer explains itself in a sentence (owner, 2026-09-11).
+         * Under three attempts there is no second curve — say so, rather
          * than let a reader hunt for a blue hill that was never drawn. */
         const marksOnly =
           you && !you.ys
@@ -81,9 +79,10 @@ export function DistanceKdes({ charts, mine = false }: { charts: DistanceKde[]; 
             <div className="t">
               {d.label} times · {mine ? "everyone in grey, you in blue" : "everyone who has rowed one"}
             </div>
-            <KdeSvg
+            <KdeScrub
               c={d.field}
               you={you}
+              kind="time"
               fmt={FMT}
               ends={ENDS}
               label={`Kernel density of ${d.label} times across every rower who has rowed one${

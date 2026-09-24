@@ -14,9 +14,30 @@ import Link from "next/link";
  *
  * The month word (PeriodSelect.tsx) is one of these; the stat word on the
  * stats page is another. Anything that lists a month can be one. */
-export type TextMenuOption = { key: string; label: string; href: string };
+/* `soft` (the stats page's day word, 2026-09-24): the line keeps a real
+ * href — a middle click or a long press still opens the page it names —
+ * but a plain tap is handed to `onPick` instead of navigating, so a menu
+ * of the month's days can swap a board in place while its first and last
+ * lines (the months either side) stay ordinary links. */
+export type TextMenuOption = { key: string; label: string; href: string; soft?: boolean };
 
-export function TextMenu({ options, value, ariaLabel, align = "left" }: { options: TextMenuOption[]; value: string; ariaLabel: string; align?: "left" | "right" }) {
+export function TextMenu({
+  options,
+  value,
+  ariaLabel,
+  align = "left",
+  onPick,
+  className,
+}: {
+  options: TextMenuOption[];
+  value: string;
+  ariaLabel: string;
+  align?: "left" | "right";
+  /* Called with a soft line's key on a plain tap (see TextMenuOption). */
+  onPick?: (key: string) => void;
+  /* An extra class on the wrapper, for a page that sizes its own list. */
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement | null>(null);
   const btn = useRef<HTMLButtonElement | null>(null);
@@ -58,7 +79,7 @@ export function TextMenu({ options, value, ariaLabel, align = "left" }: { option
   };
 
   return (
-    <span className="tm" ref={wrap}>
+    <span className={className ? `tm ${className}` : "tm"} ref={wrap}>
       <button type="button" ref={btn} className="tm-btn" aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={ariaLabel} onClick={() => setOpen((v) => !v)}>
         {current?.label ?? value}
       </button>
@@ -66,7 +87,20 @@ export function TextMenu({ options, value, ariaLabel, align = "left" }: { option
         <ul className={align === "right" ? "tm-list right" : "tm-list"} id={id} role="listbox" ref={list} onKeyDown={onListKey}>
           {options.map((o) => (
             <li key={o.key} role="option" aria-selected={o.key === value}>
-              <Link href={o.href} className={o.key === value ? "on" : ""} onClick={() => setOpen(false)}>
+              <Link
+                href={o.href}
+                className={o.key === value ? "on" : ""}
+                onClick={(ev) => {
+                  setOpen(false);
+                  /* A plain tap on a soft line is a pick, not a page load;
+                   * a modified click keeps the browser's own meaning. */
+                  if (o.soft && onPick && ev.button === 0 && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey && !ev.altKey) {
+                    ev.preventDefault();
+                    onPick(o.key);
+                    btn.current?.focus();
+                  }
+                }}
+              >
                 {o.label}
               </Link>
             </li>

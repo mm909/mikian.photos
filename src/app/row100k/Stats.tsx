@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   ELITE_LABEL,
   ELITE_TAG,
   clockShape,
   digitCount,
   eliteOrder,
-  fmtPacificDay,
   partialShape,
 } from "@/lib/blackoutRules";
 import { BlockClock, BlockShape, Blocks } from "./Blackout";
@@ -23,6 +23,7 @@ import {
   type Week,
   type WeeklyRow,
 } from "@/lib/row100k";
+import { TextMenu, type TextMenuOption } from "./TextMenu";
 import {
   RECORD_DEFS,
   podiumWindow,
@@ -33,30 +34,37 @@ import {
 } from "./records/defs";
 
 /* The two client sections of the stats page (owner review, 2026-09-05,
- * the second look the same night, and the 2026-09-08 pass).
+ * the second look the same night, the 2026-09-08 pass and the 2026-09-24
+ * month pass).
  *
- * THE RECORDS: TOTAL METERS prints the way the other four do (owner,
- * 2026-09-09: "like the other leaderboards — the blue text"): the leader's
- * meters big and blue with the holder on the mono line, then the men's
- * and women's top five (back by owner call, 2026-09-08 late) and one mono
- * link to the board. While the elite are hidden nobody leads: the same
- * head holds the longest hidden total in blocks with THE ELITE on the
- * holder line, and no podiums under it (the list of the elite is the
- * board's, one link away). The other four
- * records print the way the front page prints the board — the overall
- * number one as a big blue headline with the holder on a mono line, then
- * the men's and women's top five
- * side by side — with FULL RANKING after. The control that picks the
- * record is a submenu of small mono links (.st-sub) right under the
- * headline. A signed-in rower outside a podium gets one more line under
- * it: their place, number, name and value — no gap row, no neighbours
- * (owner, 2026-09-08).
+ * THE STAT BLOCK (owner, 2026-09-24: "the big bold number shows the
+ * selected stat, with a selector for the time period and a selector for
+ * the stat; then the men's and women's top five. For example November
+ * 2026 · Fastest 10K shows the person who did it and when, and the men and
+ * women brackets for November"). The page owns the pick: the month is
+ * ?m= and the stat is ?s=, and the line of two words above the figure is
+ * two TextMenus the page builds (stats/page.tsx). Under the line, the
+ * leading value of the stat for the period — for TOTAL METERS the
+ * leader's total, big and blue, with the holder on the mono line (owner,
+ * 2026-09-09: "like the other leaderboards — the blue text"); for a
+ * record its number one and the day it was set — then the men's and
+ * women's top five, each with one line under it to the whole ranking for
+ * the period (/row100k/records/[record]?m=). While the elite are hidden
+ * nobody leads TOTAL METERS: the same head holds the longest hidden total
+ * in blocks with THE ELITE on the holder line, and no podiums under it. A
+ * signed-in rower outside a podium gets one more line under it: their
+ * place, number, name and value — no gap row, no neighbours (owner,
+ * 2026-09-08).
  *
  * METERS BY DAY / BY WEEK: the section head is the period, so it lives
- * here where the pick is known — the same .st-sub submenu swaps it — then
- * one table, the top ten plus the viewer's neighbourhood, for the day or
- * the week chosen. The elite lead it in their own block, by average split,
- * and the ranked rows under them count from 1 (owner, 2026-09-08).
+ * here where the pick is known — the .st-sub submenu swaps it — then one
+ * table, the top ten and the viewer under them, for the day or the week
+ * chosen. The day is a word that is a menu (TextMenu.tsx) of the days of
+ * the month that have happened, with the months either side as its first
+ * and last lines (owner, 2026-09-24: "if I pick a date outside the
+ * selected month it swaps to that month"). The elite lead the table in
+ * their own block, by average split, and the ranked rows under them count
+ * from 1 (owner, 2026-09-08).
  *
  * Blackout: the page blanks every METERS number a hidden rower owns before
  * it gets here (records/defs.ts liteRecords for the records, the weekly
@@ -73,17 +81,29 @@ type Hideable = { masked?: boolean; digits?: number; shape?: string; unranked?: 
 const defOf = (key: RecordKey): RecordDef => RECORD_DEFS.find((d) => d.key === key)!;
 
 /* "Sep 15–21" (both ends via fmtDay; the month drops off the second end
- * when it repeats — all challenge weeks sit inside September). */
+ * when it repeats — every week sits inside its month). */
 function weekDates(w: Week): string {
   return w.first.slice(0, 7) === w.last.slice(0, 7)
     ? `${fmtDay(w.first)}–${Number(w.last.slice(8, 10))}`
     : `${fmtDay(w.first)}–${fmtDay(w.last)}`;
 }
 
+/* The whole ranking for a stat over the period: the records page, with
+ * the month carried (owner, 2026-09-24: every footer link goes to the
+ * full ranking page, not the board) and the division the table was. */
+function rankingHref(key: RecordKey, periodKey: string, div?: "m" | "f"): string {
+  const q = new URLSearchParams({ m: periodKey });
+  if (div) q.set("d", div);
+  return `/row100k/records/${key}?${q.toString()}`;
+}
+
 /* ------------------------------------------------------------- records */
 
 export function StatsRecords({
   records,
+  statKey,
+  periodKey,
+  pick,
   started,
   meId,
   anyHidden,
@@ -91,6 +111,13 @@ export function StatsRecords({
   blackout = { active: false },
 }: {
   records: RecordsProp;
+  /* The stat the page is showing (?s=), one of records/defs.ts. */
+  statKey: RecordKey;
+  /* The period the records are over (?m=), for the ranking links. */
+  periodKey: string;
+  /* The line of two words above the figure — the month and the stat, each
+   * a menu — built by the page, which owns both URLs. */
+  pick: ReactNode;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
   meId: string | null;
@@ -101,7 +128,7 @@ export function StatsRecords({
   unavailable?: boolean;
   blackout?: { active: boolean; endsAt?: string };
 }) {
-  const [key, setKey] = useState<RecordKey>("total");
+  const key = statKey;
   const def = defOf(key);
   const rows = records[key] ?? [];
   const first = rows[0];
@@ -145,13 +172,22 @@ export function StatsRecords({
         .join("")
     : "";
 
+  const foot = (div: "m" | "f") => (
+    <p className="st-foot">
+      <Link href={rankingHref(key, periodKey, div)}>Full ranking →</Link>
+    </p>
+  );
+
   return (
     <div>
+      {/* The two words: NOVEMBER 2026 · FASTEST 10K, each a menu. */}
+      {pick}
+
       {/* Same line the board prints: an admin (nothing hidden while a window
           is open) is told what they are looking at rather than about rows
           that are not hidden for them. */}
       {(blackout.active || anyHidden) && (
-        <p className="bo-note">
+        <p className="bo-note" style={{ marginTop: 12 }}>
           {anyHidden
             ? /* Times are public for the elite (owner, 2026-09-08) — said on
                  the two records that print one, the way the full-ranking
@@ -170,7 +206,7 @@ export function StatsRecords({
         /* The elite are hidden: nobody leads, and the row at the top of the
            list is the fastest hidden rower by split, nobody's number one.
            The same head as every other record, so picking one never moves
-           the submenu: the longest hidden total in blocks, big and blue,
+           the words: the longest hidden total in blocks, big and blue,
            THE ELITE on the holder line (the list of the elite is the
            board's, one link away). */
         <div className="bhead st-rec">
@@ -187,8 +223,8 @@ export function StatsRecords({
             <Val r={first} def={def} unit="big" />
           </div>
           <p className="bhead-l mono">
-            {/* Just the holder: the submenu under the number names the
-                record (owner, 2026-09-05: this line, not the titled one). */}
+            {/* Just the holder: the words above the number name the stat
+                (owner, 2026-09-05: this line, not the titled one). */}
             {fmtRowerNumber(first.rowerNumber)} · <b>{first.name}</b>
             {meta}
           </p>
@@ -199,62 +235,19 @@ export function StatsRecords({
         </p>
       )}
 
-      {/* The record submenu, right under the headline ("underneath the first
-          callout, under the 150,046 for Frankie" — owner, 2026-09-05): small
-          mono links, the picked one in ink with a water underline — a
-          submenu, not a main menu. Buttons, since they change state on this
-          page; the full-ranking pages keep their own links. */}
-      <div className="st-sub tight" role="group" aria-label="Record">
-        {RECORD_DEFS.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            aria-pressed={key === d.key}
-            className={key === d.key ? "on" : undefined}
-            onClick={() => setKey(d.key)}
-          >
-            {d.title}
-          </button>
-        ))}
-      </div>
-
-      {isTotal ? (
-        /* The men's and women's top five under the leader box (owner,
-           2026-09-08 late, on the live page: "bring this table back"). While
-           the elite are hidden there is no ranking to draw them from — the
-           box says THE ELITE and the list is the board's. The whole ranking
-           lives on the board, so the one link goes there (the front page's
-           line under the latest row) and FULL RANKING stays off this record
-           — two links to the same list is one too many. */
-        <>
-          {!unavailable && !hiddenRanking && (
-            <div className="front-top st-podiums">
-              <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
-              <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
-            </div>
-          )}
-          {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
-          <p className="front-more mono">
-            <a href="/row100k/board">See the whole board →</a>
-          </p>
-        </>
-      ) : (
-        <>
-          {!unavailable && (
-            <div className="front-top st-podiums">
-              <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} />
-              <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} />
-            </div>
-          )}
-          {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
-
-          <div className="ms-actions">
-            <a className="quiet-btn" href={`/row100k/records/${key}?d=all`}>
-              FULL RANKING →
-            </a>
-          </div>
-        </>
+      {/* The men's and women's top five under the figure (owner, 2026-09-08
+          late, on the live page: "bring this table back"; 2026-09-24: the
+          men and women brackets for the month). While the elite are hidden
+          there is no TOTAL METERS ranking to draw them from — the box says
+          THE ELITE and the list is the board's. Each table ends in one line
+          to the whole ranking for the period. */}
+      {!unavailable && !(isTotal && hiddenRanking) && (
+        <div className="front-top st-podiums">
+          <Podium label="Men" rows={rows.filter((r) => r.division === "M")} def={def} meId={meId} foot={foot("m")} />
+          <Podium label="Women" rows={rows.filter((r) => r.division === "F")} def={def} meId={meId} foot={foot("f")} />
+        </div>
       )}
+      {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall" />}
     </div>
   );
 }
@@ -292,7 +285,8 @@ function Val({ r, def, unit }: { r: RecordRowLite; def: RecordDef; unit: "big" |
  * sixth is the first line under the five. Places are within the rows given:
  * the division's for the two podiums, the whole ranking for the Overall
  * block, which takes top=0 and so draws the viewer's line alone (nothing at
- * all when the viewer is not on the list). */
+ * all when the viewer is not on the list). `foot` is the line under the
+ * table — the whole ranking, one link. */
 function Podium({
   label,
   rows,
@@ -300,6 +294,7 @@ function Podium({
   meId,
   top = 5,
   className,
+  foot,
 }: {
   label: string;
   rows: RecordRowLite[];
@@ -307,6 +302,7 @@ function Podium({
   meId: string | null;
   top?: number;
   className?: string;
+  foot?: ReactNode;
 }) {
   const meIdx = meId ? rows.findIndex((r) => r.participantId === meId) : -1;
   const w = podiumWindow(rows, meIdx, top);
@@ -328,6 +324,7 @@ function Podium({
           </tbody>
         </table>
       )}
+      {rows.length > 0 && foot}
     </div>
   );
 }
@@ -358,6 +355,10 @@ function RecTr({ r, rank, def, me }: { r: RecordRowLite; rank: number; def: Reco
  * carry 0 for a masked rower, so a client-side sum would be a lie. */
 export type PeriodTotal = { meters: number; sessions: number; rowers: number };
 
+/* A month either side of the one on the page, as the first or last line
+ * of the day menu: its word and its ?m= key. */
+export type MonthStep = { key: string; label: string };
+
 export function StatsBoards({
   weekly,
   daily,
@@ -367,9 +368,13 @@ export function StatsBoards({
   weekTotals,
   defaultWeek,
   defaultDay,
+  dayPinned = false,
   started,
   meId,
   maskedIds,
+  query = {},
+  prev,
+  next,
 }: {
   weekly: (WeeklyRow & Hideable)[][];
   /* The weeks `weekly` is filed by — this month's unless the page is over
@@ -377,19 +382,30 @@ export function StatsBoards({
   weeks?: Week[];
   /* False when the page is over a past month: no day is today. */
   live?: boolean;
-  /* One board per September day, index = day-of-month − 1. */
+  /* One board per day of the month, index = day-of-month − 1. */
   daily: (WeeklyRow & Hideable)[][];
   /* One total per day / per week, same indexes as `daily` / `weekly`. */
   dayTotals?: PeriodTotal[];
   weekTotals?: PeriodTotal[];
   defaultWeek: number;
-  /* Today's index into `daily` (clamped into the challenge). */
+  /* Today's index into `daily` (clamped into the month), or the day the
+   * URL named. */
   defaultDay: number;
+  /* True when the URL named the day (?day=), so the browser's own idea of
+   * today does not move the board off it after mount. */
+  dayPinned?: boolean;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
   meId: string | null;
   /* Participant ids hidden from this viewer (empty outside a blackout). */
   maskedIds: string[];
+  /* The query this page is already carrying (m, s) — every day line and
+   * the month steps keep it. */
+  query?: Record<string, string>;
+  /* The month before this one and the month after, when there is one
+   * (owner, 2026-09-24: a date outside the month swaps to that month). */
+  prev?: MonthStep;
+  next?: MonthStep;
 }) {
   const weeks = weeksProp ?? WEEKS;
   const [period, setPeriod] = useState<"day" | "week">("day");
@@ -401,9 +417,10 @@ export function StatsBoards({
   // The server's "today" is UTC — an evening viewer in the US would land on
   // tomorrow's empty board. After mount the browser knows the local date, so
   // re-derive today's index (it also caps the picker) and move the selection
-  // there unless the viewer already stepped somewhere themselves.
+  // there unless the viewer already stepped somewhere themselves, or the
+  // URL named the day.
   const [todayIdx, setTodayIdx] = useState(defaultDay);
-  const dayTouched = useRef(false);
+  const dayTouched = useRef(dayPinned);
   useEffect(() => {
     if (!live) return;
     const d = new Date(nowMs());
@@ -420,29 +437,57 @@ export function StatsBoards({
 
   /* Only weeks that have started get a chip — a week exists once its first
    * day arrives (same clock as the server's default-week pick). Before
-   * Sep 1 that's nothing, so Week 1 stands in with the empty-state copy. */
+   * the 1st that's nothing, so Week 1 stands in with the empty-state copy. */
   const today = new Date(nowMs()).toISOString().slice(0, 10);
   const startedWeeks = weeks.filter((w) => w.first <= today);
   const shownWeeks: Week[] = startedWeeks.length > 0 ? startedWeeks : [weeks[0]];
   const wk = Math.min(week, shownWeeks.length - 1);
   const weekRows = weekly[wk] ?? [];
 
-  /* Days: 30 chips would swamp the row, so the picker is a stepper plus a
-   * dropdown — defaults to today, steps or jumps to any day that has
-   * started. (Owner call, cycle 7.) */
+  /* Days: the day is a word that is a menu — every day that has started,
+   * today marked, the months either side as the first and last lines
+   * (owner, 2026-09-24). The arrows step a day, and past either end they
+   * are links into the month next door. */
   const maxDay = Math.max(0, Math.min(todayIdx, daily.length - 1));
   const dy = Math.max(0, Math.min(day, maxDay));
-  const dayLabel = (i: number) => fmtDay(`${weeks[0].first.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
+  const monthKey = weeks[0].first.slice(0, 7);
+  const dayKey = (i: number) => `${monthKey}-${String(i + 1).padStart(2, "0")}`;
+  const dayLabel = (i: number) => fmtDay(dayKey(i));
   const dayRows = daily[dy] ?? [];
+
+  /* The hrefs keep whatever the page carries (?m=, ?s=), and a day line is
+   * a real address for the same board — soft, so a plain tap swaps the
+   * table in place instead of loading the page. */
+  const hrefWith = (extra: Record<string, string>) => {
+    const q = new URLSearchParams({ ...query, ...extra });
+    const qs = q.toString();
+    return qs ? `/row100k/stats?${qs}` : "/row100k/stats";
+  };
+  const dayOptions: TextMenuOption[] = [];
+  if (prev) dayOptions.push({ key: `m:${prev.key}`, label: `← ${prev.label}`, href: hrefWith({ m: prev.key, day: "31" }) });
+  for (let i = 0; i <= maxDay; i++) {
+    dayOptions.push({
+      key: String(i),
+      label: live && i === todayIdx ? `${dayLabel(i)} · today` : dayLabel(i),
+      href: hrefWith({ day: String(i + 1) }),
+      soft: true,
+    });
+  }
+  if (next) dayOptions.push({ key: `m:${next.key}`, label: `${next.label} →`, href: hrefWith({ m: next.key, day: "1" }) });
+  const pickDay = (k: string) => {
+    if (k.startsWith("m:")) return;
+    dayTouched.current = true;
+    setDay(Number(k));
+  };
 
   return (
     <div>
       {/* The section head is the period: the owner did not want a third
           "boards" title next to THE BOARD, so the h2 says which meters
-          these are and the submenu under it swaps the word. */}
+          these are and the submenu under it swaps the word. No tag after
+          it (owner, 2026-09-24: remove the TOP TEN tag). */}
       <div className="sec-head">
         <h2>{period === "day" ? "Meters by day" : "Meters by week"}</h2>
-        <span className="mono">{meId ? "TOP TEN · AND WHERE YOU ARE" : "TOP TEN"}</span>
       </div>
       <div className="st-sub lead" role="group" aria-label="Period">
         <button
@@ -464,47 +509,50 @@ export function StatsBoards({
       </div>
 
       {period === "day" ? (
-        <div className="tabs" role="group" aria-label="Day">
-          <button
-            type="button"
-            aria-label="Previous day"
-            disabled={dy === 0}
-            style={dy === 0 ? { opacity: 0.35, cursor: "default" } : undefined}
-            onClick={() => {
-              dayTouched.current = true;
-              setDay(Math.max(0, dy - 1));
-            }}
-          >
-            ‹
-          </button>
-          <select
-            aria-label="Day"
-            className="day-select"
-            value={dy}
-            onChange={(e) => {
-              dayTouched.current = true;
-              setDay(Number(e.target.value));
-            }}
-          >
-            {Array.from({ length: maxDay + 1 }, (_, i) => (
-              <option key={i} value={i}>
-                {dayLabel(i)}
-                {live && i === todayIdx ? " · today" : ""}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            aria-label="Next day"
-            disabled={dy >= maxDay}
-            style={dy >= maxDay ? { opacity: 0.35, cursor: "default" } : undefined}
-            onClick={() => {
-              dayTouched.current = true;
-              setDay(Math.min(maxDay, dy + 1));
-            }}
-          >
-            ›
-          </button>
+        <div className="st-day" role="group" aria-label="Day">
+          {dy > 0 ? (
+            <button
+              type="button"
+              className="st-arrow"
+              aria-label="Previous day"
+              onClick={() => {
+                dayTouched.current = true;
+                setDay(dy - 1);
+              }}
+            >
+              ‹
+            </button>
+          ) : prev ? (
+            <Link className="st-arrow" aria-label={`Last day of ${prev.label}`} href={hrefWith({ m: prev.key, day: "31" })}>
+              ‹
+            </Link>
+          ) : (
+            <span className="st-arrow off" aria-hidden="true">
+              ‹
+            </span>
+          )}
+          <TextMenu options={dayOptions} value={String(dy)} ariaLabel="Which day" onPick={pickDay} className="st-days" />
+          {dy < maxDay ? (
+            <button
+              type="button"
+              className="st-arrow"
+              aria-label="Next day"
+              onClick={() => {
+                dayTouched.current = true;
+                setDay(dy + 1);
+              }}
+            >
+              ›
+            </button>
+          ) : next ? (
+            <Link className="st-arrow" aria-label={`First day of ${next.label}`} href={hrefWith({ m: next.key, day: "1" })}>
+              ›
+            </Link>
+          ) : (
+            <span className="st-arrow off" aria-hidden="true">
+              ›
+            </span>
+          )}
         </div>
       ) : (
         <div className="tabs" role="group" aria-label="Week">
@@ -533,10 +581,12 @@ export function StatsBoards({
   );
 }
 
-/* Top 10 by default; a signed-in rower deeper on the board gets their
- * neighborhood — three above, themselves, three below — after a gap row.
- * Ranks are places among the VISIBLE rows, and WHOLE BOARD expands to every
- * one of them (owner call, cycle 8). One table for the day and the week.
+/* Top 10 by default; a signed-in rower deeper on the board gets ONE more
+ * row — their own, at its real place, straight under the ten, no gap row
+ * and no neighbours (owner, 2026-09-24: "top ten and then me on the next
+ * row if I am not in the top ten"). Ranks are places among the VISIBLE
+ * rows, and WHOLE BOARD expands to every one of them (owner call, cycle
+ * 8). One table for the day and the week.
  *
  * The elite (owner, 2026-09-08): a hidden row left in the ranking says how
  * its day compares to the row under it — "Ken is right underneath me but
@@ -577,16 +627,14 @@ function BoardWindow({
   const ranked = rows.filter((r) => !isElite(r));
   const meIdx = meId ? ranked.findIndex((r) => r.participantId === meId) : -1;
   const top = all ? ranked : ranked.slice(0, 10);
-  const showCtx = !all && meIdx >= 10;
-  const ctxStart = showCtx ? Math.max(10, meIdx - 3) : 0;
-  const ctx = showCtx ? ranked.slice(ctxStart, Math.min(ranked.length, meIdx + 4)) : [];
+  const showMe = !all && meIdx >= 10;
 
   if (rows.length === 0) {
     return (
       <p className="board-empty">
         {started
           ? "NOBODY ON THIS BOARD YET — BE FIRST."
-          : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
+          : "THE START LIST IS FILLING — METERS SHOW UP HERE ON THE 1ST."}
       </p>
     );
   }
@@ -625,20 +673,15 @@ function BoardWindow({
             {top.map((r, i) => (
               <WeekTr key={r.participantId} r={r} rank={i + 1} me={r.participantId === meId} masked={isMasked(r)} />
             ))}
-            {showCtx && ctxStart > 10 && (
-              <tr className="gaprow">
-                <td colSpan={4}>···</td>
-              </tr>
-            )}
-            {ctx.map((r, i) => (
+            {showMe && (
               <WeekTr
-                key={r.participantId}
-                r={r}
-                rank={ctxStart + i + 1}
-                me={r.participantId === meId}
-                masked={isMasked(r)}
+                key={ranked[meIdx].participantId}
+                r={ranked[meIdx]}
+                rank={meIdx + 1}
+                me
+                masked={isMasked(ranked[meIdx])}
               />
-            ))}
+            )}
             {total && total.rowers > 0 && (
               /* The ledger line: everyone in the period, hidden rowers
                  counted (the sum comes off the server's raw entries, never
@@ -673,16 +716,16 @@ function BoardWindow({
 }
 
 /* One ranked row of the period board; the signed-in rower's row wears the
- * finisher tint (tr.fin) so they can spot themselves. The elite are up in
- * their own block (EliteTr); a row still masked down here is the
- * fail-closed path — blocks for the meters and no place, since a place is
- * a standing among rows this page cannot read. */
+ * finisher tint (tr.fin) and a YOU tag so they can spot themselves. The
+ * elite are up in their own block (EliteTr); a row still masked down here
+ * is the fail-closed path — blocks for the meters and no place, since a
+ * place is a standing among rows this page cannot read. */
 function WeekTr({ r, rank, me, masked }: { r: WeeklyRow & Hideable; rank: number; me: boolean; masked: boolean }) {
   return (
     <tr className={me ? "fin" : undefined}>
       <td className="rk">{masked ? "" : rank}</td>
       <td>
-        <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} />
+        <Who row={{ name: r.name, rowerNumber: r.rowerNumber }} badge={me ? <span className="tierbadge you">YOU</span> : undefined} />
       </td>
       <td className="num">
         {masked ? (

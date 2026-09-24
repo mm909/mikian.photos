@@ -22,12 +22,17 @@ export function PeriodSelect({
   base: string;
   current: string;
   align?: "left" | "right";
-  /* Extra query the page is in, without the leading ?, kept on every line
-   * of the menu (the full rankings keep their ?d= division across months —
-   * owner, 2026-09-24: keep All / Men's / Women's). Empty or absent: none. */
-  query?: string;
+  /* Query the page is already carrying that a month change must keep —
+   * the full rankings keep their ?d= division across months, the stats
+   * page keeps its ?s= stat word (owner, 2026-09-24). A string without the
+   * leading ?, or a map. Empty or absent: none. */
+  query?: string | Record<string, string>;
 }) {
-  const tail = query ? `&${query}` : "";
-  const hrefOf = (k: string) => (k === current ? (query ? `${base}?${query}` : base) : `${base}?m=${encodeURIComponent(k)}${tail}`);
+  const hrefOf = (k: string) => {
+    const q = new URLSearchParams(typeof query === "string" ? query : (query ?? {}));
+    if (k !== current) q.set("m", k);
+    const qs = q.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
   return <TextMenu options={options.map((o) => ({ key: o.key, label: o.label, href: hrefOf(o.key) }))} value={value} ariaLabel="Which month" align={align} />;
 }

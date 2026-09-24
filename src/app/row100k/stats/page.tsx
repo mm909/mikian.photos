@@ -4,25 +4,19 @@ import { activeBlackout } from "@/lib/blackout";
 import { PACIFIC_SHIFT_MS, digitCount } from "@/lib/blackoutRules";
 import {
   CHALLENGE,
-  END_MS,
-  FIRST_DAY,
-  LAST_DAY,
-  LOG_CLOSE_MS,
   START_MS,
-  WEEKS,
   computeDaily,
   computeWeekly,
   daysElapsed,
   nowMs as clockNow,
   pacificDay,
-  weekIndexOf,
   type WeeklyRow,
-  MONTH_DAYS,
   MONTH,
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
-import { inPeriod, monthsThrough, parsePeriod, periodOptions, weeksOf } from "@/lib/rowPeriod";
+import { FIRST_MONTH_KEY, inPeriod, monthsThrough, nextMonth, parsePeriod, periodOptions, prevMonth, weeksOf } from "@/lib/rowPeriod";
 import { PeriodSelect } from "../PeriodSelect";
+import { TextMenu } from "../TextMenu";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { headCss } from "../headCss";
 import { HourGrid } from "../HourGrid";
@@ -31,37 +25,41 @@ import { PageHead } from "../PageHead";
 import { StatsShare } from "../StatsShare";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { StatsBoards, StatsRecords, type PeriodTotal } from "../Stats";
+import { StatsBoards, StatsRecords, type MonthStep, type PeriodTotal } from "../Stats";
 import { boardView, EMPTY_BOARDS } from "../boardData";
-import { liteRecords, type RecordsProp } from "../records/defs";
+import { RECORD_DEFS, liteRecords, recordDef, type RecordKey, type RecordsProp } from "../records/defs";
 import { buildField, buildHours, type FieldEntry, type FieldModel } from "./field";
 import { buildDistanceKdes, type DistanceKde } from "./distances";
 import { FieldSection } from "./FieldSection";
 import { PerfectAttendance, perfectAttendance } from "./PerfectAttendance";
+import { statsCss } from "./statsCss";
 
 export const metadata: Metadata = {
-  title: "The stats — 100K September",
+  title: "The stats — Rowtember",
   description:
-    "The records, meters by day and by week, the community calendar, the hours and the field for the Rowtember challenge.",
+    "The month's meters, hours, rowers and sessions, the records, meters by day and by week, the calendar, the hours and the field.",
 };
 
 export const dynamic = "force-dynamic";
 
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-
-/* THE STATS (owner review, 2026-09-05, second look): the head, then
- * the records straight under it — no section head of their own, the
- * owner found two titles in a row spent the screen on headers — then
- * meters by day or by week (the period IS that section's title, so the
- * head lives inside the client component that knows which is picked),
- * the month calendar, the hours grid and the field — every row's length
- * and pace as two densities. The cumulative and daily charts, the turnout
- * chart and the split-vs-distance scatter are the numbers page's. The
- * head is PageHead since 2026-09-16 (owner: no bold THE STATS; the
- * community total in the front page odometer; variant A picked for every
- * tab the same day, so no ?head query any more). No sign-in gate here,
- * ever: the anonymous view is the page. */
-export default async function StatsPage({ searchParams }: { searchParams?: { m?: string | string[] } }) {
+/* THE STATS (owner review, 2026-09-05, second look; the month pass,
+ * 2026-09-24): the head — the month word, then the four headline numbers
+ * in their order of importance, meters biggest, then hours, then rowers
+ * and sessions — and one SHARE A CARD for every card on the page; then
+ * the stat block, two words that are menus (the month and the stat) over
+ * the leading value and the men's and women's top five; then meters by
+ * day or by week (the period IS that section's title, so the head lives
+ * inside the client component that knows which is picked), the month
+ * calendar, the hours grid, the field — every row's length and pace as
+ * densities — and perfect attendance last. The cumulative and daily
+ * charts, the turnout chart and the split-vs-distance scatter are the
+ * numbers page's. No sign-in gate here, ever: the anonymous view is the
+ * page. */
+export default async function StatsPage({
+  searchParams,
+}: {
+  searchParams?: { m?: string | string[]; s?: string | string[]; day?: string | string[] };
+}) {
   /* Who is looking decides what the boards may print: the period boards
    * pull the signed-in rower into view below the top 10, and during a
    * blackout the elite are hidden from everyone but admins and the rower
@@ -80,6 +78,20 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
   const thisMonth = period.kind === "month" && period.key === MONTH.key;
   const weeks = weeksOf(pm);
   const weekIdx = (day: string) => weeks.findIndex((w) => day >= w.first && day <= w.last);
+
+  /* WHICH STAT (owner, 2026-09-24: a selector for the stat next to the
+   * one for the period): ?s= is a record key from records/defs.ts, and
+   * anything else is TOTAL METERS, the first word in the list. */
+  const one = (q: string | string[] | undefined) => (Array.isArray(q) ? q[0] : q);
+  const statKey: RecordKey = recordDef(one(searchParams?.s) ?? "")?.key ?? "total";
+
+  /* WHICH DAY (?day=, 1-based): the day menu's lines are real addresses,
+   * and the arrows past either end of a month land on the neighbour's
+   * first or last day. Out of range clamps into the month; the board
+   * then clamps again to the days that have happened. */
+  const dayQ = Number(one(searchParams?.day));
+  const dayPinned = Number.isFinite(dayQ) && dayQ >= 1;
+  const pinnedDay = dayPinned ? Math.min(pm.days, Math.floor(dayQ)) - 1 : -1;
 
   let boards = EMPTY_BOARDS;
   let blackout: { active: boolean; endsAt?: string } = { active: false };
@@ -138,7 +150,7 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
   /* Hour of the day each known rower's row was logged, on the challenge's
    * fixed UTC-7 clock, fractional — the field's hour chart (field.ts
    * buildHours). One per session, everyone, and the same rows the hour
-   * grid two sections up counts: logged on a September day, timed or not. */
+   * grid counts: logged on a day of the month, timed or not. */
   let loggedHours: number[] = [];
   /* The ledger total under each period board (owner ask, 2026-09-05: show a
    * total somewhere on the meters-by-day board). Summed HERE off the raw
@@ -184,9 +196,9 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
     }
 
     /* Same two buckets computeDaily / computeWeekly file a row into, so a
-     * total always matches the board under it: September days only, weeks
-     * by WEEKS, orphan rows dropped. Rowers are distinct loggers, not the
-     * start list. */
+     * total always matches the board under it: the month's days only,
+     * weeks by `weeks`, orphan rows dropped. Rowers are distinct loggers,
+     * not the start list. */
     const month = pm.key;
     const dayWho = Array.from({ length: dayTotals.length }, () => new Set<string>());
     const weekWho = weeks.map(() => new Set<string>());
@@ -268,23 +280,24 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
   const now = clockNow();
   const started = now >= START_MS;
 
-  /* Default to the week containing today, clamped to the challenge:
-   * before September shows Week 1, after it shows the finish. */
+  /* Default to the week containing today, clamped to the month: before
+   * the 1st shows Week 1, after it shows the finish. */
   // Pacific, like the dateline and the hour grid — a UTC date here put an
   // empty "tomorrow" board under a Sep 5 dateline every evening.
   const today = pacificDay(now);
   const wi = thisMonth ? weekIdx(today) : -1;
   const defaultWeek = thisMonth ? (wi >= 0 ? wi : today < pm.firstDay ? 0 : weeks.length - 1) : weeks.length - 1;
 
-  /* The daily board defaults to today, clamped into the month; a past
-   * month opens on its last day. */
-  const defaultDay = !thisMonth
+  /* The daily board opens on the day the URL named, else today, clamped
+   * into the month; a past month opens on its last day. */
+  const todayDay = !thisMonth
     ? pm.days - 1
     : today < pm.firstDay
       ? 0
       : today.slice(0, 7) === pm.key
         ? Number(today.slice(8, 10)) - 1
         : pm.days - 1;
+  const defaultDay = dayPinned ? Math.max(0, pinnedDay) : todayDay;
 
   // The curve carries cumulative meters; the calendar wants per-day totals.
   const communityByDay: Record<string, number> = {};
@@ -301,11 +314,11 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
 
   /* The hour grid reads createdAt — when a row was LOGGED, not rowed —
    * shifted to US-west wall clock per the repo convention (minus 7h Pacific shift).
-   * Late logs landing outside September are skipped, and the grid only
+   * Late logs landing outside the month are skipped, and the grid only
    * runs through today (US-west), clamped to the last day. */
   const SHIFT_MS = 7 * 3600_000;
-  /* Days of September that have actually happened — every chart on this page
-   * stops here rather than reserving space for the rest of the month. */
+  /* Days of the month that have actually happened — every chart on this
+   * page stops here rather than reserving space for the rest of the month. */
   const gridDayCount = thisMonth ? daysElapsed(now) : pm.days;
   const hourGrid: number[][] = Array.from(
     { length: gridDayCount },
@@ -324,19 +337,58 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
     hourGrid[di][shifted.getUTCHours()] += 1;
   }
 
-  /* The dateline in the head — the same line the front page prints: today
-   * in the rowers' day (Pacific, the UTC-7 shift every chart uses) and
-   * where the month stands. */
-  const phase: "before" | "open" | "closed" =
-    now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
-  const west = new Date(now - SHIFT_MS);
-  const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
-  /* THE MONTH IS THE CONTROL here too (PeriodSelect.tsx), and no day
-   * count: the stamp already says the day. */
+  /* THE QUERY this page carries: the month unless it is this one, the stat
+   * unless it is the first word. Every menu on the page keeps the other
+   * word (owner, 2026-09-24: a selector for the period and one for the
+   * stat, side by side). */
+  const carry: Record<string, string> = {};
+  if (!thisMonth) carry.m = period.key;
+  if (statKey !== "total") carry.s = statKey;
+  const statHref = (key: RecordKey) => {
+    const q = new URLSearchParams(carry);
+    if (key === "total") q.delete("s");
+    else q.set("s", key);
+    const qs = q.toString();
+    return qs ? `/row100k/stats?${qs}` : "/row100k/stats";
+  };
+  const monthQuery = statKey !== "total" ? { s: statKey } : undefined;
+
+  /* THE MONTH IS THE CONTROL here too (PeriodSelect.tsx), and the only
+   * thing in the dateline (owner, 2026-09-24: no FINAL, no DEC 15). */
   const monthWord =
-    months.length > 1 ? <PeriodSelect options={periodOptions(now)} value={period.key} base="/row100k/stats" current={MONTH.key} /> : MONTH.label;
-  /* Just the month (owner, 2026-09-24: no FINAL, no DEC 15). */
+    months.length > 1 ? (
+      <PeriodSelect options={periodOptions(now)} value={period.key} base="/row100k/stats" current={MONTH.key} query={monthQuery} />
+    ) : (
+      MONTH.label
+    );
   const dateline = monthWord;
+
+  /* The stat block's two words: the same month word again, and the stat
+   * (records/defs.ts titles, so a record is called the same thing
+   * everywhere). */
+  const pick = (
+    <p className="st-pick">
+      {months.length > 1 ? (
+        <PeriodSelect options={periodOptions(now)} value={period.key} base="/row100k/stats" current={MONTH.key} query={monthQuery} />
+      ) : (
+        MONTH.label
+      )}
+      <span className="dot">·</span>
+      <TextMenu
+        options={RECORD_DEFS.map((d) => ({ key: d.key, label: d.title, href: statHref(d.key) }))}
+        value={statKey}
+        ariaLabel="Which stat"
+      />
+    </p>
+  );
+
+  /* The months either side of the one the boards are over, for the day
+   * menu (owner, 2026-09-24: a date outside the month swaps to that
+   * month). Nothing before the first month; nothing after this one. */
+  const prevM = pm.key > FIRST_MONTH_KEY ? prevMonth(pm) : null;
+  const nextM = pm.key < MONTH.key ? nextMonth(pm) : null;
+  const stepOf = (m: { key: string; label: string } | null): MonthStep | undefined =>
+    m ? { key: m.key, label: m.label } : undefined;
 
   const attendance = perfectAttendance(daily, now, { through: thisMonth ? undefined : pm.days, short: pm.short });
 
@@ -345,17 +397,26 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
     rowers: boards.community.people,
     sessions: boards.community.sessions,
   };
+  /* Hours rowed: time on the erg over the period, everyone, the elite
+   * included — an aggregate the blackout never masks. */
+  const hoursRowed = Math.round(boards.community.seconds / 3600);
+  const monthWordShort = pm.label.slice(0, 3);
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <style>{headCss}</style>
+      <style>{statsCss}</style>
 
       <RowBar active="stats" {...barProps(viewer)} />
 
-      {/* The head (owner, 2026-09-16): the page name kept quiet, the
+      {/* The head (owner, 2026-09-24: "the headline stats for the month:
+       * total meters together (biggest), then hours rowed; also rowers and
+       * sessions, with an order of importance in the top fold"). The
        * community total in the odometer — a sum over everyone, the elite
-       * included, which the blackout never masks — and the dateline. */}
+       * included, which the blackout never masks — then the three under
+       * it, hours first and largest. One SHARE A CARD for every card on
+       * the page sits under them. */}
       <div className="ph-sec">
         <div className="wrap">
           <PageHead
@@ -367,14 +428,46 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
                 Meters · <b>everyone together</b>
               </>
             }
+            after={
+              <>
+                <div className="st-figs">
+                  <div className="st-fig hours">
+                    <div className="n">
+                      {boardUnreadable ? "—" : hoursRowed.toLocaleString("en-US")}
+                      <span className="u">h</span>
+                    </div>
+                    <div className="l">Hours rowed</div>
+                  </div>
+                  <div className="st-fig">
+                    <div className="n">{boardUnreadable ? "—" : community.rowers.toLocaleString("en-US")}</div>
+                    <div className="l">Rowers</div>
+                  </div>
+                  <div className="st-fig">
+                    <div className="n">{boardUnreadable ? "—" : community.sessions.toLocaleString("en-US")}</div>
+                    <div className="l">Sessions</div>
+                  </div>
+                </div>
+                <div className="st-share">
+                  <StatsShare
+                    community={{
+                      ...community,
+                      byDay: communityByDay,
+                      daily: boards.daily,
+                      hourGrid,
+                      days: gridDayCount,
+                    }}
+                    prefer="rowtember-community-month"
+                  />
+                </div>
+              </>
+            }
           />
         </div>
       </div>
 
-      {/* The records run straight off the head: the record's number
-          one as the first thing on the page, the podiums, then the small
-          record submenu (owner call, 2026-09-05 — the leaders and their
-          values carry the emphasis, not the controls). */}
+      {/* The stat block runs straight off the head: the two words, the
+          leading value, the podiums (owner call, 2026-09-05 — the leaders
+          and their values carry the emphasis, not the controls). */}
       <section>
         <div className="wrap">
           {/* anyHidden covers the fail-closed path too: with the board
@@ -382,6 +475,9 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
               viewer's own is blanked, and the note must say so. */}
           <StatsRecords
             records={records}
+            statKey={statKey}
+            periodKey={period.key}
+            pick={pick}
             started={started}
             meId={meId}
             anyHidden={hidden.size > 0 || hideAll}
@@ -396,67 +492,50 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
           owner call, 2026-09-05). */}
       <section>
         <div className="wrap">
-          <StatsBoards weeks={weeks} live={thisMonth}
+          <StatsBoards
+            weeks={weeks}
+            live={thisMonth}
             weekly={weekly}
             daily={daily}
             dayTotals={dayTotals}
             weekTotals={weekTotals}
             defaultWeek={defaultWeek}
             defaultDay={defaultDay}
+            dayPinned={dayPinned}
             started={started}
             meId={meId}
             maskedIds={[...hidden]}
+            query={carry}
+            prev={stepOf(prevM)}
+            next={stepOf(nextM)}
           />
         </div>
       </section>
 
+      {/* THE MONTH: the calendar alone under its title (owner, 2026-09-24:
+          no subtitle). */}
       <section>
         <div className="wrap">
           <div className="sec-head">
             <h2>The month</h2>
-            <span className="mono">EVERYONE&rsquo;S METERS, PER DAY</span>
           </div>
-          <MonthSection month={{ key: pm.key, firstDow: pm.firstDow, days: pm.days }}
+          <MonthSection
+            month={{ key: pm.key, firstDow: pm.firstDow, days: pm.days }}
             byDay={communityByDay}
             thresholds={thresholds}
-            daily={boards.daily}
-            community={community}
-            hourGrid={hourGrid}
             days={gridDayCount}
           />
         </div>
       </section>
 
-      {/* PERFECT ATTENDANCE (owner, 2026-09-21: "give me a section for
-        * perfect attendance — list people who have not missed a day"). A day
-        * is not missed until it is over, so the rule is every day through
-        * yesterday, and on day one it is everyone who has rowed. */}
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>Perfect attendance</h2>
-            <span className="mono">{attendance.note}</span>
-          </div>
-          <PerfectAttendance rows={attendance.rows} />
-        </div>
-      </section>
-
+      {/* THE HOURS: the grid alone (owner, 2026-09-24: no WHEN ROWS GET
+          LOGGED after the title, and the share button went to the top). */}
       <section>
         <div className="wrap">
           <div className="sec-head">
             <h2>The hours</h2>
-            <span className="mono">WHEN ROWS GET LOGGED</span>
           </div>
-          <HourGrid grid={hourGrid} />
-          <StatsShare
-            community={{
-              ...community,
-              byDay: communityByDay,
-              daily: boards.daily,
-              hourGrid,
-            }}
-            prefer="rowtember-community-hours"
-          />
+          <HourGrid grid={hourGrid} month={monthWordShort} />
         </div>
       </section>
 
@@ -471,6 +550,21 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
             </span>
           </div>
           <FieldSection field={field} hours={hours} distances={distances} />
+        </div>
+      </section>
+
+      {/* PERFECT ATTENDANCE (owner, 2026-09-21: "give me a section for
+        * perfect attendance — list people who have not missed a day"), last
+        * on the page since 2026-09-24 (owner: below THE FIELD). A day is
+        * not missed until it is over, so the rule is every day through
+        * yesterday, and on day one it is everyone who has rowed. */}
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>Perfect attendance</h2>
+            <span className="mono">{attendance.note}</span>
+          </div>
+          <PerfectAttendance rows={attendance.rows} />
         </div>
       </section>
 

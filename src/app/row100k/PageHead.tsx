@@ -24,6 +24,7 @@ export function PageHead({
   sub,
   digits = 8,
   wide = false,
+  after,
 }: {
   /* "The board" — sentence case; the CSS sets the caps. */
   name: string;
@@ -43,6 +44,10 @@ export function PageHead({
   digits?: number;
   /* The front measure (.wrap.front, 1040): the odometer may reach 160px. */
   wide?: boolean;
+  /* Anything the page hangs under the unit line — the stats page's hours,
+   * rowers and sessions (owner, 2026-09-24: the headline stats for the
+   * month in an order of importance, meters biggest). */
+  after?: ReactNode;
 }) {
   // Unreadable is all zeros, all dimmed — tokensFor keeps a lone zero lit
   // as the number zero, which this is not.
@@ -72,6 +77,7 @@ export function PageHead({
       </div>
       <p className="my-unit mono">{unit}</p>
       {sub && <p className="ph-sub">{sub}</p>}
+      {after}
     </header>
   );
 }

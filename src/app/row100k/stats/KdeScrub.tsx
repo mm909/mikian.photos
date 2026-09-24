@@ -28,10 +28,15 @@ import type { KdeChart, KdeYou } from "../analysis/model";
  * the arrow keys step from the median (Shift for ten steps, Home and End
  * for the ends), Escape clears. */
 
-type Kind = "length" | "split";
+/* `time` is the 5k and 10k charts (owner, 2026-09-24: the distance
+ * distributions must read a value on hover or tap the way the split and
+ * the length ones do): an axis of seconds, faster on the left, so its
+ * share reads the way the split does. */
+type Kind = "length" | "split" | "time";
 
-/* The hairline snaps: 50 m on the length axis, a second on the split. */
-const STEP: Record<Kind, number> = { length: 50, split: 1 };
+/* The hairline snaps: 50 m on the length axis, a second on the split and
+ * on a time. */
+const STEP: Record<Kind, number> = { length: 50, split: 1, time: 1 };
 
 /* F(v): the share of the curve's mass at or below v. */
 function cdfOf(c: KdeChart): (v: number) => number {
@@ -54,11 +59,15 @@ function cdfOf(c: KdeChart): (v: number) => number {
  * is capped at 99 — the grid ends at about the first and last percentile,
  * so its very edges would otherwise claim the whole field. */
 function readout(kind: Kind, v: number, F: number): string {
-  const share = kind === "split" ? 1 - F : F;
+  const share = kind === "length" ? F : 1 - F;
   const pct = Number.isFinite(share) ? Math.max(0, Math.min(99, Math.round(100 * share))) : 0;
+  /* A time chart may carry a second curve (the profile: YOU over the
+   * field), so the readout names the field out loud. */
   return kind === "split"
     ? `${fmtClock(v)} /500M · FASTER THAN ${pct}% OF ROWS`
-    : `${fmtInt(v)} M · LONGER THAN ${pct}% OF ROWS`;
+    : kind === "time"
+      ? `${fmtClock(v)} · FASTER THAN ${pct}% OF THE FIELD`
+      : `${fmtInt(v)} M · LONGER THAN ${pct}% OF ROWS`;
 }
 
 type Cur = { x: number; k: number };
