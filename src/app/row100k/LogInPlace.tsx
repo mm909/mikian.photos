@@ -43,8 +43,10 @@ export function LogInPlace({
   justJoined?: boolean;
   /* The front page since 2026-09-24 (owner: LOG A ROW is the third cell of
    * the counter row, "opt in becomes log a row"): no act row of its own —
-   * the form seam and the share dialog stay, opened by the row100k:log and
-   * row100k:share events from wherever the page put the words. */
+   * the form seam and the share dialog stay, opened by the row100k:log,
+   * row100k:log-toggle and row100k:share events from wherever the page put
+   * the words. Since 2026-09-25 the page mounts this UNDER the counter row
+   * (owner: the form "should open BELOW the cells bar"). */
   bare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -81,9 +83,7 @@ export function LogInPlace({
   // already open — the browser scrolls to the id, this opens the seam. Also
   // answers a hash change on a page that is already up.
   useEffect(() => {
-    const openNow = () => {
-      if (phase === "closed") return;
-      setOpen(true);
+    const scrollToForm = () =>
       window.requestAnimationFrame(() => {
         const el = document.getElementById("log");
         if (!el) return;
@@ -96,6 +96,21 @@ export function LogInPlace({
         if (bar) el.style.scrollMarginTop = `${Math.round(bar.getBoundingClientRect().height) + 10}px`;
         el.scrollIntoView({ block: "start", behavior: "smooth" });
       });
+    const openNow = () => {
+      if (phase === "closed") return;
+      setOpen(true);
+      scrollToForm();
+    };
+    // LOG A ROW as the third cell of the counter row (LogCell.tsx) is a
+    // toggle: the form opens under the cells bar and the same word closes
+    // it again (owner, 2026-09-25: the arrow turns down while it is open
+    // "and back when closed").
+    const toggle = () => {
+      if (phase === "closed") return;
+      setOpen((v) => {
+        if (!v) scrollToForm();
+        return !v;
+      });
     };
     const openIfAsked = () => {
       if (window.location.hash === "#log") openNow();
@@ -105,8 +120,11 @@ export function LogInPlace({
     // The account menu's LOG A ROW on a page that is already up: a
     // same-page hash push fires no hashchange, so it sends this instead.
     window.addEventListener("row100k:log", openNow);
-    // SHARE as a word somewhere else on the page (Dashboard.tsx, the id
-    // line) — the dialog is here, so it is asked for by event too.
+    window.addEventListener("row100k:log-toggle", toggle);
+    // SHARE asked for from somewhere else on the page — the dialog is
+    // here, so it is asked for by event. Nothing on the front page sends
+    // it since 2026-09-25 (owner: "remove the SHARE word on this landing
+    // page, everywhere"); the listener stays for any surface that does.
     const openShare = () => {
       setShareRow(null);
       setPreferredCardId(undefined);
@@ -116,9 +134,17 @@ export function LogInPlace({
     return () => {
       window.removeEventListener("hashchange", openIfAsked);
       window.removeEventListener("row100k:log", openNow);
+      window.removeEventListener("row100k:log-toggle", toggle);
       window.removeEventListener("row100k:share", openShare);
     };
   }, [phase]);
+
+  // The word that opens the form lives in another component (LogCell.tsx,
+  // in the counter row) and turns its arrow with the form: it is told each
+  // time the seam opens or closes.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<boolean>("row100k:log-open", { detail: open && phase !== "closed" }));
+  }, [open, phase]);
 
   const onLogged = (entry: { day: string; meters: number; seconds: number; title?: string }) => {
     // Fold into the previous fold-in, not the props — a second quick log
