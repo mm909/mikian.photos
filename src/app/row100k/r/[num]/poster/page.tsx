@@ -74,7 +74,8 @@ export default async function RowerPosterPage({ params }: { params: { num: strin
             <h2>
               {rower ? `${fmtRowerNumber(rower.rower.rowerNumber)} ${rower.rower.name}` : "The poster"}
             </h2>
-            <span className="mono">ONE ROWER · PRINT OR INSTAGRAM</span>
+            {/* No descriptor on the right (owner, 2026-09-25: remove the
+                commentary ONE ROWER · PRINT OR INSTAGRAM). */}
           </div>
           {before || !rower ? (
             <p className="po-first">FIRST STROKE SEP 1</p>

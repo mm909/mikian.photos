@@ -102,7 +102,8 @@ function Head({
  * rower's page) — ONE TABLE since 2026-09-24 (owner: "Combine the ledger
  * and the table on the profile: one log, keep the table view, show the
  * photos on the table"): the numbers table, sortable by its heads, the
- * photo pair as a strip under the day, and a ⋮ menu in the last column
+ * photo pair beside the day (owner, 2026-09-25: on the same line as the
+ * date and title so the row does not get tall), and a ⋮ menu in the last column
  * with SHARE / EDIT / DELETE. Delete keeps its two-tap confirm inside the
  * menu (SURE? / KEEP); EDIT opens the editor in place as a row of its own
  * — day, meters, time, the title, and a replacement photo pair (owner,
@@ -388,9 +389,17 @@ export function MyRows({
             ) : (
               <tr key={r.id}>
                 <td className="lgt-day">
-                  {fmtDay(r.day)}
-                  {r.title ? <div className="lgt-title">{r.title}</div> : null}
-                  <LogPics media={mediaOf(r)} onOpen={(i) => setLightbox(offsets[ri] + i)} />
+                  {/* Date and title stacked, the photo pair BESIDE them
+                      (owner, 2026-09-25: "put the pictures on the same
+                      line as the date and title so the row doesn't get
+                      tall") — .lgt-dayc in logTableCss.ts. */}
+                  <span className="lgt-dayc">
+                    <span className="lgt-when">
+                      {fmtDay(r.day)}
+                      {r.title ? <span className="lgt-title">{r.title}</span> : null}
+                    </span>
+                    <LogPics media={mediaOf(r)} onOpen={(i) => setLightbox(offsets[ri] + i)} />
+                  </span>
                 </td>
                 <td className="num">
                   {r.masked ? (

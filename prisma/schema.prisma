@@ -565,6 +565,10 @@ model RowParticipant {
   /// ft/in and lb and converts. Nothing prints either yet.
   heightCm    Int?
   weightKg    Float?
+  /// Home gym, free text, optional (owner, 2026-09-25: "give them the
+  /// option to enter their HOME GYM"). Settings page only; nothing prints
+  /// it yet. Capped at HOME_GYM_MAX characters by the participants API.
+  homeGym     String?
   createdAt   DateTime @default(now())
 
   entries RowEntry[]

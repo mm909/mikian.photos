@@ -28,12 +28,13 @@ import type { ProfileBest } from "./looks/view";
  * master shareables page ... the ones you'd have for your profile (meters
  * this month, meters this day, the bests) and also select a row and share
  * based on that row's stats"). The profile page (page.tsx) used to build
- * its share payload inline; the shareables page (share/page.tsx) needs the
- * same one, over the same ?m= month, so the pieces both pages share live
- * here: the rower read, the payload, and the bests the best card reads.
- * page.tsx keeps every decision about masking and rank that the rest of
- * the profile also needs and hands the answers in; rowerShareView() below
- * makes the same decisions for the page that only wants the cards. */
+ * its share payload inline; a shareables page needed the same one, over
+ * the same ?m= month, so the pieces moved here: the rower read, the
+ * payload, and the bests the best card reads. That page is gone (owner,
+ * 2026-09-25: "The shareables page did not land — revert to just the
+ * poster"), so page.tsx is the one reader; rowerShareView() below stays as
+ * the cards-only read for whatever next wants a rower's cards without the
+ * rest of the profile. */
 
 export const getRower = cache(async (num: number) => {
   const participant = await db.rowParticipant.findUnique({
@@ -194,8 +195,9 @@ export type RowerShareView = {
 
 /* THE SHAREABLES PAGE's read: the same rower, month and mask decisions the
  * profile makes, without the rest of the profile. Null when there is no
- * such rower. The caller has already decided the viewer may see this page
- * (the rower themself or an admin — share/page.tsx). */
+ * such rower. The caller decides whether the viewer may see the cards
+ * (the rower themself or an admin). Unused since the shareables page was
+ * reverted (2026-09-25). */
 export async function rowerShareView(num: number, m: string | string[] | undefined, viewer: Viewer): Promise<RowerShareView | null> {
   const data = await getRower(num).catch(() => null);
   if (!data) return null;

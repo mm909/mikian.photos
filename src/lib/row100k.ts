@@ -299,6 +299,20 @@ function checkWeight(kg: number): number | null {
   return r >= WEIGHT_KG_MIN && r <= WEIGHT_KG_MAX ? r : null;
 }
 
+/* HOME GYM, optional free text (owner, 2026-09-25: "give them the option
+ * to enter their HOME GYM"). One line, trimmed, inner runs of whitespace
+ * collapsed, capped at HOME_GYM_MAX characters — a name, not a paragraph.
+ * Null means too long or not a string; the EMPTY string is the caller's
+ * to read as "clear", the same contract as height and weight. Nothing
+ * prints it yet. */
+export const HOME_GYM_MAX = 60;
+
+export function parseHomeGym(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t.length <= HOME_GYM_MAX ? t : null;
+}
+
 /* What the settings inputs show for a stored value — metric, plainly. */
 export function fmtHeightCm(cm: number | null | undefined): string {
   return cm == null ? "" : `${cm} cm`;

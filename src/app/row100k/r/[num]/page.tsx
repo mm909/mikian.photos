@@ -96,8 +96,9 @@ export const dynamic = "force-dynamic";
  * would be and no card draws a #. */
 
 /* The rower read (getRower), the share payload and the bests live in
- * shareData.ts since 2026-09-24, shared with the shareables page
- * (share/page.tsx) so a card made there is the card made here. */
+ * shareData.ts since 2026-09-24. They were split out for a shareables page
+ * that has since gone (owner, 2026-09-25: "did not land — revert to just
+ * the poster"); this page is their one reader now. */
 
 /* The roster the nameplate search reads (looks/RowerSearch.tsx): every
  * rower in the challenge by number and name. A hundred rows of three
@@ -248,8 +249,8 @@ export default async function RowerProfilePage({ params, searchParams }: { param
   }
   const blackoutNote = ELITE_LABEL;
 
-  // Everything the share cards draw (shareData.ts buildShareData, shared
-  // with the shareables page). `masked`/`digits` ride along so a card of a
+  // Everything the share cards draw (shareData.ts buildShareData).
+  // `masked`/`digits` ride along so a card of a
   // hidden rower draws blocks (share/cards.ts); a masked page never mounts
   // a share surface, and the placement values — real meters off the record
   // boards — are blanked so they cannot ride into a client prop.

@@ -2,9 +2,10 @@
 
 import type { LightboxPhoto } from "./Lightbox";
 
-/* The photo pair on a log row, as 40px squares under the day (owner,
+/* The photo pair on a log row, as small squares beside the day (owner,
  * 2026-09-24: "show the photos on the table" — the ledger's strip, moved
- * into the table cell). The thumb renders, the full frame is the fallback
+ * into the table cell; 2026-09-25: "on the same line as the date and
+ * title so the row doesn't get tall"). The thumb renders, the full frame is the fallback
  * once if the thumb 404s (the server emits thumb URLs without an existence
  * check so it never has to list the bucket), and a tap hands the index up
  * so the caller opens the shared Lightbox over the whole log's reel.
