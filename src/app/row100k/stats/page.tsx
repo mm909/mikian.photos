@@ -18,8 +18,11 @@ import {
   weekIndexOf,
   type WeeklyRow,
   MONTH_DAYS,
+  MONTH,
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { inPeriod, monthsThrough, parsePeriod, periodOptions, weeksOf } from "@/lib/rowPeriod";
+import { PeriodSelect } from "../PeriodSelect";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { headCss } from "../headCss";
 import { HourGrid } from "../HourGrid";
@@ -58,13 +61,25 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
  * community total in the front page odometer; variant A picked for every
  * tab the same day, so no ?head query any more). No sign-in gate here,
  * ever: the anonymous view is the page. */
-export default async function StatsPage() {
+export default async function StatsPage({ searchParams }: { searchParams?: { m?: string | string[] } }) {
   /* Who is looking decides what the boards may print: the period boards
    * pull the signed-in rower into view below the top 10, and during a
    * blackout the elite are hidden from everyone but admins and the rower
    * themself (boardView, blackoutRules.ts). Cosmetic on failure — the
    * anonymous view renders. */
   const viewer = await resolveViewer();
+
+  /* WHICH MONTH (owner, 2026-09-24: the stats page takes the same month
+   * word as the board). `pm` is the month the period boards, the hour
+   * grid and the calendar count in — the period's own month, or this one
+   * for all time, where a week or a day board has no meaning of its own. */
+  const now0 = clockNow();
+  const period = parsePeriod(searchParams?.m, now0);
+  const months = monthsThrough(now0);
+  const pm = period.kind === "month" ? period : MONTH;
+  const thisMonth = period.kind === "month" && period.key === MONTH.key;
+  const weeks = weeksOf(pm);
+  const weekIdx = (day: string) => weeks.findIndex((w) => day >= w.first && day <= w.last);
 
   let boards = EMPTY_BOARDS;
   let blackout: { active: boolean; endsAt?: string } = { active: false };
@@ -79,7 +94,7 @@ export default async function StatsPage() {
    * empty for a reason the section should say, not the pre-start hint. */
   let boardUnreadable = false;
   try {
-    const view = await boardView(viewOpts(viewer));
+    const view = await boardView({ ...viewOpts(viewer), period });
     boards = view.boards;
     blackout = view.blackout;
   } catch (err) {
@@ -116,8 +131,8 @@ export default async function StatsPage() {
   /* The period boards, the hour grid and the field need per-entry data
    * that boardData() doesn't carry, so this page pulls the raw rows itself
    * (same selects as boardData, plus createdAt for the hours). */
-  let weekly: WeeklyRow[][] = WEEKS.map(() => []);
-  let daily: WeeklyRow[][] = Array.from({ length: MONTH_DAYS }, () => []);
+  let weekly: WeeklyRow[][] = weeks.map(() => []);
+  let daily: WeeklyRow[][] = Array.from({ length: pm.days }, () => []);
   let gridEntries: { meters: number; createdAt: Date }[] = [];
   let fieldEntries: FieldEntry[] = [];
   /* Hour of the day each known rower's row was logged, on the challenge's
@@ -131,10 +146,10 @@ export default async function StatsPage() {
    * aggregate, and the rows handed to the client carry 0 for them. */
   const emptyTotals = (n: number): PeriodTotal[] =>
     Array.from({ length: n }, () => ({ meters: 0, sessions: 0, rowers: 0 }));
-  let dayTotals: PeriodTotal[] = emptyTotals(30);
-  let weekTotals: PeriodTotal[] = emptyTotals(WEEKS.length);
+  let dayTotals: PeriodTotal[] = emptyTotals(pm.days);
+  let weekTotals: PeriodTotal[] = emptyTotals(weeks.length);
   try {
-    const [participants, entries] = await Promise.all([
+    const [participants, entriesRaw] = await Promise.all([
       db.rowParticipant.findMany({
         where: { challenge: CHALLENGE },
         select: { id: true, displayName: true, instagram: true, division: true, rowerNumber: true },
@@ -146,21 +161,25 @@ export default async function StatsPage() {
         orderBy: [{ day: "asc" }, { createdAt: "asc" }],
       }),
     ]);
-    weekly = computeWeekly(participants, entries);
-    daily = computeDaily(participants, entries);
-    gridEntries = entries;
+    /* The period's rows for the records and the field; the month's rows
+     * for the week and day boards, the hours and the calendar. */
+    const entries = entriesRaw.filter((e) => inPeriod(e.day, period));
+    const monthEntries = entriesRaw.filter((e) => e.day >= pm.firstDay && e.day <= pm.lastDay);
+    weekly = computeWeekly(participants, monthEntries, weeks);
+    daily = computeDaily(participants, monthEntries, pm);
+    gridEntries = monthEntries;
     /* Only a known participant's rows reach the field, the way computeBoards
      * drops orphans — and nothing but the three numbers it needs. */
     const known = new Set(participants.map((p) => p.id));
     fieldEntries = entries
       .filter((e) => known.has(e.participantId))
       .map((e) => ({ participantId: e.participantId, meters: e.meters, seconds: e.seconds }));
-    for (const e of entries) {
+    for (const e of monthEntries) {
       if (!known.has(e.participantId)) continue;
       const west = new Date(e.createdAt.getTime() - PACIFIC_SHIFT_MS);
-      // A late log landing outside September is skipped, as on the grid.
+      // A late log landing outside the month is skipped, as on the grid.
       const westDay = west.toISOString().slice(0, 10);
-      if (westDay < FIRST_DAY || westDay > LAST_DAY) continue;
+      if (westDay < pm.firstDay || westDay > pm.lastDay) continue;
       loggedHours.push(west.getUTCHours() + west.getUTCMinutes() / 60);
     }
 
@@ -168,10 +187,10 @@ export default async function StatsPage() {
      * total always matches the board under it: September days only, weeks
      * by WEEKS, orphan rows dropped. Rowers are distinct loggers, not the
      * start list. */
-    const month = FIRST_DAY.slice(0, 7);
+    const month = pm.key;
     const dayWho = Array.from({ length: dayTotals.length }, () => new Set<string>());
-    const weekWho = WEEKS.map(() => new Set<string>());
-    for (const e of entries) {
+    const weekWho = weeks.map(() => new Set<string>());
+    for (const e of monthEntries) {
       if (!known.has(e.participantId)) continue;
       if (e.day.slice(0, 7) === month) {
         const di = Number(e.day.slice(8, 10)) - 1;
@@ -181,7 +200,7 @@ export default async function StatsPage() {
           dayWho[di].add(e.participantId);
         }
       }
-      const ewi = weekIndexOf(e.day);
+      const ewi = weekIdx(e.day);
       if (ewi >= 0) {
         weekTotals[ewi].meters += e.meters;
         weekTotals[ewi].sessions += 1;
@@ -254,16 +273,18 @@ export default async function StatsPage() {
   // Pacific, like the dateline and the hour grid — a UTC date here put an
   // empty "tomorrow" board under a Sep 5 dateline every evening.
   const today = pacificDay(now);
-  const wi = weekIndexOf(today);
-  const defaultWeek = wi >= 0 ? wi : today < FIRST_DAY ? 0 : WEEKS.length - 1;
+  const wi = thisMonth ? weekIdx(today) : -1;
+  const defaultWeek = thisMonth ? (wi >= 0 ? wi : today < pm.firstDay ? 0 : weeks.length - 1) : weeks.length - 1;
 
-  /* The daily board defaults to today, clamped into September. */
-  const defaultDay =
-    today < FIRST_DAY
+  /* The daily board defaults to today, clamped into the month; a past
+   * month opens on its last day. */
+  const defaultDay = !thisMonth
+    ? pm.days - 1
+    : today < pm.firstDay
       ? 0
-      : today.slice(0, 7) === FIRST_DAY.slice(0, 7)
+      : today.slice(0, 7) === pm.key
         ? Number(today.slice(8, 10)) - 1
-        : 29;
+        : pm.days - 1;
 
   // The curve carries cumulative meters; the calendar wants per-day totals.
   const communityByDay: Record<string, number> = {};
@@ -285,7 +306,7 @@ export default async function StatsPage() {
   const SHIFT_MS = 7 * 3600_000;
   /* Days of September that have actually happened — every chart on this page
    * stops here rather than reserving space for the rest of the month. */
-  const gridDayCount = daysElapsed(now);
+  const gridDayCount = thisMonth ? daysElapsed(now) : pm.days;
   const hourGrid: number[][] = Array.from(
     { length: gridDayCount },
     () => Array(24).fill(0) as number[],
@@ -293,7 +314,7 @@ export default async function StatsPage() {
   for (const e of gridEntries) {
     const shifted = new Date(e.createdAt.getTime() - SHIFT_MS);
     const day = shifted.toISOString().slice(0, 10);
-    if (day < FIRST_DAY || day > LAST_DAY) continue;
+    if (day < pm.firstDay || day > pm.lastDay) continue;
     const di = Number(day.slice(8, 10)) - 1;
     if (di >= gridDayCount) continue;
     // Sessions, not meters: the section is WHEN rows get logged, and a
@@ -310,16 +331,24 @@ export default async function StatsPage() {
     now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
   const west = new Date(now - SHIFT_MS);
   const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
+  /* THE MONTH IS THE CONTROL here too (PeriodSelect.tsx), and no day
+   * count: the stamp already says the day. */
+  const monthWord =
+    months.length > 1 ? <PeriodSelect options={periodOptions(now)} value={period.key} base="/row100k/stats" current={MONTH.key} /> : MONTH.label;
   const dateline =
-    phase === "before"
-      ? `${stamp} · FIRST STROKE SEP 1`
-      : phase === "closed"
-        ? `${stamp} · FINAL`
-        : now >= END_MS
-          ? `${stamp} · LATE LOGS THROUGH OCT 3`
-          : `${stamp} · DAY ${gridDayCount} OF 30`;
+    period.kind === "all" ? (
+      <>
+        {monthWord} · SINCE {months[0].short} {months[0].year}
+      </>
+    ) : !thisMonth ? (
+      <>{monthWord} · FINAL</>
+    ) : (
+      <>
+        {monthWord} · {phase === "before" ? `FIRST STROKE ${MONTH.short} 1` : phase === "closed" ? "FINAL" : stamp}
+      </>
+    );
 
-  const attendance = perfectAttendance(daily, now);
+  const attendance = perfectAttendance(daily, now, { through: thisMonth ? undefined : pm.days, short: pm.short });
 
   const community = {
     meters: boards.community.meters,
@@ -340,7 +369,7 @@ export default async function StatsPage() {
       <div className="ph-sec">
         <div className="wrap">
           <PageHead
-            name="The stats"
+            name=""
             dateline={dateline}
             meters={boardUnreadable ? null : community.meters}
             unit={
@@ -377,7 +406,7 @@ export default async function StatsPage() {
           owner call, 2026-09-05). */}
       <section>
         <div className="wrap">
-          <StatsBoards
+          <StatsBoards weeks={weeks} live={thisMonth}
             weekly={weekly}
             daily={daily}
             dayTotals={dayTotals}
@@ -397,7 +426,7 @@ export default async function StatsPage() {
             <h2>The month</h2>
             <span className="mono">EVERYONE&rsquo;S METERS, PER DAY</span>
           </div>
-          <MonthSection
+          <MonthSection month={{ key: pm.key, firstDow: pm.firstDow, days: pm.days }}
             byDay={communityByDay}
             thresholds={thresholds}
             daily={boards.daily}

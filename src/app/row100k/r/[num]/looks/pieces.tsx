@@ -70,6 +70,8 @@ function Dateline({ view }: { view: ProfileView }) {
   ) : (
     MONTH.label
   );
+  /* No day count (owner, 2026-09-24): the month, the club, and only a
+   * word when the month is not the one under way. */
   const day =
     view.period.kind === "all"
       ? `SINCE ${view.periodOptions[0]?.label ?? ""}`
@@ -79,11 +81,12 @@ function Dateline({ view }: { view: ProfileView }) {
           ? `FIRST STROKE ${MONTH.short} 1`
           : view.phase === "closed"
             ? "FINAL"
-            : `DAY ${view.days} OF ${MONTH_DAYS}`;
+            : "";
   return (
     <>
       {month}
-      {view.club ? " · 100K CLUB" : ""} · {day}
+      {view.club ? " · 100K CLUB" : ""}
+      {day ? ` · ${day}` : ""}
     </>
   );
 }

@@ -17,9 +17,12 @@ export function MonthSection({
   community,
   hourGrid,
   days = MONTH_DAYS,
+  month,
 }: {
   byDay: Record<string, number>;
   thresholds: [number, number, number];
+  /* Which month the calendar draws (rowPeriod.ts); this one when absent. */
+  month?: { key: string; firstDow: number; days: number };
   daily: { day: string; cum: number }[];
   community: { meters: number; rowers: number; sessions: number };
   hourGrid?: number[][];
@@ -37,7 +40,7 @@ export function MonthSection({
 
   return (
     <div>
-      <Heatmap byDay={byDay} thresholds={thresholds} days={days} />
+      <Heatmap byDay={byDay} thresholds={thresholds} days={days} month={month} />
       <StatsShare community={share} prefer="rowtember-community-month" />
     </div>
   );

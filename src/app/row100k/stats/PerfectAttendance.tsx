@@ -1,4 +1,4 @@
-import { daysElapsed, fmtRowerNumber, type WeeklyRow } from "@/lib/row100k";
+import { daysElapsed, fmtRowerNumber, type WeeklyRow, MONTH } from "@/lib/row100k";
 
 /* PERFECT ATTENDANCE (owner, 2026-09-21: "on the stats give me a section for
  * perfect attendance — list people who have not missed a day").
@@ -9,8 +9,10 @@ import { daysElapsed, fmtRowerNumber, type WeeklyRow } from "@/lib/row100k";
  * has rowed. Names only, A to Z — no metres, so lights out has nothing to
  * hide here and nobody is ranked. */
 
-export function perfectAttendance(daily: WeeklyRow[][], now: number): { rows: WeeklyRow[]; note: string; days: number } {
-  const done = Math.max(1, Math.min(daily.length, daysElapsed(now) - 1));
+/* `through` is the last day to count when the month is not the one under
+ * way (a past month counts every day); `short` is that month's word. */
+export function perfectAttendance(daily: WeeklyRow[][], now: number, opts: { through?: number; short?: string } = {}): { rows: WeeklyRow[]; note: string; days: number } {
+  const done = Math.max(1, Math.min(daily.length, opts.through ?? daysElapsed(now) - 1));
   const byId = new Map<string, WeeklyRow>();
   const days: Set<string>[] = [];
   for (let i = 0; i < done; i++) {
@@ -26,7 +28,7 @@ export function perfectAttendance(daily: WeeklyRow[][], now: number): { rows: We
     .map((id) => byId.get(id))
     .filter((r): r is WeeklyRow => r !== undefined)
     .sort((a, b) => a.name.localeCompare(b.name));
-  const note = `${rows.length} ${rows.length === 1 ? "ROWER" : "ROWERS"} · EVERY DAY THROUGH SEP ${done}`;
+  const note = `${rows.length} ${rows.length === 1 ? "ROWER" : "ROWERS"} · EVERY DAY THROUGH ${opts.short ?? MONTH.short} ${done}`;
   return { rows, note, days: done };
 }
 

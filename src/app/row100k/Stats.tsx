@@ -361,6 +361,8 @@ export type PeriodTotal = { meters: number; sessions: number; rowers: number };
 export function StatsBoards({
   weekly,
   daily,
+  weeks: weeksProp,
+  live = true,
   dayTotals,
   weekTotals,
   defaultWeek,
@@ -370,6 +372,11 @@ export function StatsBoards({
   maskedIds,
 }: {
   weekly: (WeeklyRow & Hideable)[][];
+  /* The weeks `weekly` is filed by — this month's unless the page is over
+   * another month (rowPeriod.ts weeksOf). */
+  weeks?: Week[];
+  /* False when the page is over a past month: no day is today. */
+  live?: boolean;
   /* One board per September day, index = day-of-month − 1. */
   daily: (WeeklyRow & Hideable)[][];
   /* One total per day / per week, same indexes as `daily` / `weekly`. */
@@ -384,6 +391,7 @@ export function StatsBoards({
   /* Participant ids hidden from this viewer (empty outside a blackout). */
   maskedIds: string[];
 }) {
+  const weeks = weeksProp ?? WEEKS;
   const [period, setPeriod] = useState<"day" | "week">("day");
   const [week, setWeek] = useState(defaultWeek);
   const [day, setDay] = useState(defaultDay);
@@ -397,24 +405,25 @@ export function StatsBoards({
   const [todayIdx, setTodayIdx] = useState(defaultDay);
   const dayTouched = useRef(false);
   useEffect(() => {
+    if (!live) return;
     const d = new Date(nowMs());
     const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
       d.getDate(),
     ).padStart(2, "0")}`;
-    const month = WEEKS[0].first.slice(0, 7);
+    const month = weeks[0].first.slice(0, 7);
     const idx =
-      local < WEEKS[0].first ? 0 : local.slice(0, 7) > month ? daily.length - 1 : Number(local.slice(8, 10)) - 1;
+      local < weeks[0].first ? 0 : local.slice(0, 7) > month ? daily.length - 1 : Number(local.slice(8, 10)) - 1;
     const clamped = Math.max(0, Math.min(idx, daily.length - 1));
     setTodayIdx(clamped);
     if (!dayTouched.current) setDay(clamped);
-  }, [daily.length]);
+  }, [daily.length, live]);
 
   /* Only weeks that have started get a chip — a week exists once its first
    * day arrives (same clock as the server's default-week pick). Before
    * Sep 1 that's nothing, so Week 1 stands in with the empty-state copy. */
   const today = new Date(nowMs()).toISOString().slice(0, 10);
-  const startedWeeks = WEEKS.filter((w) => w.first <= today);
-  const shownWeeks: Week[] = startedWeeks.length > 0 ? startedWeeks : [WEEKS[0]];
+  const startedWeeks = weeks.filter((w) => w.first <= today);
+  const shownWeeks: Week[] = startedWeeks.length > 0 ? startedWeeks : [weeks[0]];
   const wk = Math.min(week, shownWeeks.length - 1);
   const weekRows = weekly[wk] ?? [];
 
@@ -423,7 +432,7 @@ export function StatsBoards({
    * started. (Owner call, cycle 7.) */
   const maxDay = Math.max(0, Math.min(todayIdx, daily.length - 1));
   const dy = Math.max(0, Math.min(day, maxDay));
-  const dayLabel = (i: number) => fmtDay(`${WEEKS[0].first.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
+  const dayLabel = (i: number) => fmtDay(`${weeks[0].first.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`);
   const dayRows = daily[dy] ?? [];
 
   return (
@@ -480,7 +489,7 @@ export function StatsBoards({
             {Array.from({ length: maxDay + 1 }, (_, i) => (
               <option key={i} value={i}>
                 {dayLabel(i)}
-                {i === todayIdx ? " · today" : ""}
+                {live && i === todayIdx ? " · today" : ""}
               </option>
             ))}
           </select>

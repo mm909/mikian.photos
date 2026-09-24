@@ -388,7 +388,7 @@ export default async function Row100kPage() {
         <header className="front-head off">
           <div className="wrap front">
             <p className="front-kicker mono">
-              {MONTH.label} <span className="dim">· {dateline}</span>
+              {MONTH.label} <span className="dim">· {phase === "open" && nowMs < END_MS ? stamp : dateline}</span>
             </p>
           </div>
         </header>

@@ -113,7 +113,7 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
             ? "FINAL"
             : nowMs >= END_MS
               ? "LATE LOGS OPEN"
-              : `${stamp} · DAY ${daysElapsed(nowMs)} OF ${MONTH.days}`}
+              : stamp}
       </>
     );
 
@@ -174,7 +174,7 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
            * say. The number is the community total — a sum, nobody's own
            * figure, so the blackout never touches it. */}
           <PageHead
-            name="The board"
+            name=""
             dateline={dateline}
             meters={boards.community.meters}
             unit={

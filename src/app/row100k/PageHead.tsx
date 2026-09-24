@@ -54,9 +54,11 @@ export function PageHead({
 
   return (
     <header className={`ph ph-${digits}${wide ? " ph-wide" : ""}`}>
+      {/* A page with no name (owner, 2026-09-24: no THE BOARD, no THE
+        * STATS) heads with its dateline alone. */}
       <div className="ph-line">
-        <h1>{name}</h1>
-        <span> · {dateline}</span>
+        {name ? <h1>{name}</h1> : <h1>{dateline}</h1>}
+        {name ? <span> · {dateline}</span> : null}
       </div>
 
       <div className="ph-od">

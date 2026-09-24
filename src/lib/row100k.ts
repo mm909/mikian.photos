@@ -758,13 +758,16 @@ export type WeeklyRow = {
 export function computeWeekly(
   participants: ParticipantLite[],
   entries: Pick<EntryLite, "participantId" | "day" | "meters">[],
+  /* The weeks to file into — this month's unless a page asks for another
+   * month's (rowPeriod.ts weeksOf). */
+  weekDefs: PeriodWeek[] = WEEKS,
 ): WeeklyRow[][] {
   const byId = new Map(participants.map((p) => [p.id, p]));
-  const weeks: Map<string, WeeklyRow>[] = WEEKS.map(() => new Map());
+  const weeks: Map<string, WeeklyRow>[] = weekDefs.map(() => new Map());
   for (const e of entries) {
     const p = byId.get(e.participantId);
     if (!p) continue;
-    const wi = weekIndexOf(e.day);
+    const wi = weekDefs.findIndex((w) => e.day >= w.first && e.day <= w.last);
     if (wi === -1) continue;
     const m = weeks[wi];
     const row = m.get(p.id) ?? {
@@ -791,10 +794,12 @@ export function computeWeekly(
 export function computeDaily(
   participants: ParticipantLite[],
   entries: Pick<EntryLite, "participantId" | "day" | "meters">[],
+  /* The month to file into — this one unless a page asks for another. */
+  monthDef: { key: string; days: number } = MONTH,
 ): WeeklyRow[][] {
   const byId = new Map(participants.map((p) => [p.id, p]));
-  const month = FIRST_DAY.slice(0, 7);
-  const days: Map<string, WeeklyRow>[] = Array.from({ length: MONTH_DAYS }, () => new Map());
+  const month = monthDef.key;
+  const days: Map<string, WeeklyRow>[] = Array.from({ length: monthDef.days }, () => new Map());
   for (const e of entries) {
     if (e.day.slice(0, 7) !== month) continue;
     const di = Number(e.day.slice(8, 10)) - 1;
