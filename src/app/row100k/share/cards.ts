@@ -1,5 +1,8 @@
 import {
   END_MS,
+  MONTH_DAYS,
+  MONTH_FIRST_DOW,
+  MONTH_KEY,
   dayTicks,
   daysElapsed,
   fmtDay,
@@ -27,6 +30,11 @@ import { ELITE_LABEL, clockShape, digitCount, shapeOf } from "@/lib/blackoutRule
  * live DOM (see ShareMenu) and hands them over.
  */
 
+/* WHICH MONTH a calendar card draws (rowPeriod.ts Month, the three fields
+ * a grid needs): the key its byDay is keyed under, the weekday of the 1st
+ * and how many days it has. */
+export type ShareMonth = { key: string; firstDow: number; days: number };
+
 export type ShareData = {
   displayName: string;
   rowerNumber: number;
@@ -35,6 +43,14 @@ export type ShareData = {
   sessions: number;
   /* Meters per "YYYY-MM-DD" day — feeds the month-calendar card. */
   byDay: Record<string, number>;
+  /* THE MONTH the calendar and day cards draw (owner, 2026-09-24: "the
+   * month share card, when looking at previous months, is not populated:
+   * the total is right but the calendar squares are empty" — the cards
+   * spelled September into every byDay key). A page that filtered byDay to
+   * a month says which one here. Absent = the month the clock is in (the
+   * front page, the dev preview); null = no month at all (an all-time
+   * view), and the cards that draw days stay out of the menu. */
+  month?: ShareMonth | null;
   /* One highlighted session — set when sharing straight from a logged row;
    * unlocks the single-row cards. Real numbers even for a hidden rower (it
    * is their own dialog): under `masked` the row cards draw blocks for the
@@ -82,9 +98,12 @@ export type ShareData = {
     byDay: Record<string, number>;
     /* Cumulative combined meters, ascending. */
     daily: { day: string; cum: number }[];
-    /* September days elapsed — same meaning as the top-level `days`, for
-     * the community calendar and curves. Falls back to the top-level one. */
+    /* Days elapsed — same meaning as the top-level `days`, for the
+     * community calendar and curves. Falls back to the top-level one. */
     days?: number;
+    /* The month the community byDay is keyed under — same meaning as the
+     * top-level `month`; StatsShare lifts it there. */
+    month?: ShareMonth | null;
     /* Meters logged per hour of day (24 slots), one row per September day
      * elapsed so far — the stats page's hour grid. Unlocks the hours card. */
     hourGrid?: number[][];
@@ -466,21 +485,51 @@ export function drawBlockClock(
   });
 }
 
-/* How many September days a chart draws: the caller's day count, clamped to
- * the month — or today's day number off the challenge clock when the caller
- * did not say. The fallback is the clock, not the whole month, because the
- * personal pages hand the cards no `days` at all, and the whole point was
- * to stop framing thirty days (owner, 2026-09-05). daysElapsed() is DOM-free
- * and runs off nowMs(), so the server-side import of this file stays safe. */
-function spanFor(days: number | undefined): number {
-  return Math.min(30, Math.max(1, Math.round(days ?? daysElapsed())));
+/* The month the clock is in, as the calendar cards need it — the fallback
+ * for a payload that names no month (the front page, the dev preview). */
+const THIS_MONTH: ShareMonth = { key: MONTH_KEY, firstDow: MONTH_FIRST_DOW, days: MONTH_DAYS };
+
+/* Which month a card draws: the payload's, or this one. A payload that says
+ * `month: null` (an all-time view) has no calendar to draw — the cards that
+ * draw days check hasMonth() in their menu predicate and never get here
+ * with it. */
+function monthFor(data: { month?: ShareMonth | null }): ShareMonth {
+  return data.month ?? THIS_MONTH;
+}
+
+function hasMonth(data: { month?: ShareMonth | null }): boolean {
+  return data.month !== null;
+}
+
+/* Is the payload's month the one the clock is in? TODAY is only a claim
+ * about this month: a past month's card (owner, 2026-09-24: the profile
+ * over any month) must not offer its last day as today. */
+function isThisMonth(data: { month?: ShareMonth | null }): boolean {
+  return data.month == null || data.month.key === MONTH_KEY;
+}
+
+/* "2026-10-06" — the byDay key of day `d` in a month. */
+function dayKeyOf(mon: ShareMonth, d: number): string {
+  return `${mon.key}-${String(d).padStart(2, "0")}`;
+}
+
+/* How many days of the month a chart draws: the caller's day count, clamped
+ * to the month — or today's day number off the challenge clock when the
+ * caller did not say. The fallback is the clock, not the whole month,
+ * because the personal pages hand the cards no `days` at all, and the whole
+ * point was to stop framing thirty days (owner, 2026-09-05). daysElapsed()
+ * is DOM-free and runs off nowMs(), so the server-side import of this file
+ * stays safe. */
+function spanFor(days: number | undefined, mon: ShareMonth = THIS_MONTH): number {
+  return Math.min(mon.days, Math.max(1, Math.round(days ?? daysElapsed())));
 }
 
 /* Which byDay key a card means by "today". The day count the page already
  * handed over IS the clock: `days` is daysElapsed() read once by the page
- * (1..30), so day 6 is "2026-09-06" and the drawing stays pure — two cards
- * painted from one payload can never disagree about what day it is, and a
- * card saved at 11:59 says the same thing as the page behind it.
+ * (1..days in the month), so day 6 is "2026-09-06" and the drawing stays
+ * pure — two cards painted from one payload can never disagree about what
+ * day it is, and a card saved at 11:59 says the same thing as the page
+ * behind it.
  *
  * With no `days` at all the card falls back to the LAST day byDay actually
  * carries. That is the most recent day with meters on it, which is only
@@ -488,10 +537,9 @@ function spanFor(days: number | undefined): number {
  * that never says what day it is. Every surface that matters passes `days`
  * (page.tsx -> Dashboard, r/[num]/page.tsx, StatsShare); the dev preview
  * does not, and there the card names its mock month's last logged day. */
-function todayKey(byDay: Record<string, number>, days: number | undefined): string | null {
+function todayKey(byDay: Record<string, number>, days: number | undefined, mon: ShareMonth = THIS_MONTH): string | null {
   if (typeof days === "number" && Number.isFinite(days)) {
-    const d = Math.min(30, Math.max(1, Math.round(days)));
-    return `2026-09-${String(d).padStart(2, "0")}`;
+    return dayKeyOf(mon, spanFor(days, mon));
   }
   // "YYYY-MM-DD" sorts lexically, so the last key is the latest day.
   const logged = Object.keys(byDay).sort();
@@ -500,17 +548,17 @@ function todayKey(byDay: Record<string, number>, days: number | undefined): stri
 
 /* Meters logged on that day — 0 when the day is empty or unknown, which is
  * what keeps a card reading "0 METERS TODAY" out of the menu. */
-function metersToday(byDay: Record<string, number>, days: number | undefined): number {
-  const key = todayKey(byDay, days);
+function metersToday(byDay: Record<string, number>, days: number | undefined, mon: ShareMonth = THIS_MONTH): number {
+  const key = todayKey(byDay, days, mon);
   return key ? Math.max(0, byDay[key] ?? 0) : 0;
 }
 
-/* Is September still running? The word TODAY is the one claim in this family
- * that expires. daysElapsed() pins to 30 from Sep 30 onward and stays there
- * forever, so without this gate both day cards would go on offering Sep 30's
- * meters under "METERS TODAY" through the Oct 1–3 late-log window and every
- * archive view after it — the rest of the family are September statements
- * that stay true for good (review, 2026-09-06).
+/* Is the month still running? The word TODAY is the one claim in this
+ * family that expires. daysElapsed() pins to the last day from then on and
+ * stays there forever, so without this gate both day cards would go on
+ * offering the last day's meters under "METERS TODAY" through the late-log
+ * window and every archive view after it — the rest of the family are
+ * statements that stay true for good (review, 2026-09-06).
  *
  * The clock lives HERE, in the menu predicate, and never in a draw: a card
  * that is offered paints the same picture whenever it is painted. Safe for
@@ -545,9 +593,9 @@ function roundRectPath(
   ctx.closePath();
 }
 
-/* Sep 1, 2026 is a Tuesday; the grids run Sunday-first like the profile
- * heatmap, so day 1 sits under T. */
-const SEP_FIRST_DOW = 2;
+/* The grids run Sunday-first like the profile heatmap; the month's own
+ * firstDow (rowPeriod.ts) says how many blanks lead day 1 — Sep 1, 2026
+ * was a Tuesday, two in. */
 const DOW_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
 /* Room for the weekday header above the first row of cells — shared by the
  * grid and its height estimate so the centring stays honest. */
@@ -564,6 +612,8 @@ function drawMonthGrid(
   fonts: ShareFonts,
   opts: {
     byDay: Record<string, number>;
+    /* Which month the keys belong to, and where its 1st falls. */
+    month: ShareMonth;
     span: number;
     top: number;
     width: number;
@@ -579,6 +629,7 @@ function drawMonthGrid(
   const left = (opts.width - gridW) / 2;
   const headH = MONTH_HEAD_H;
   const top = opts.top + headH;
+  const firstDow = opts.month.firstDow;
 
   // The weekday letters are the one thing the owner asked for by name, so
   // they get the board sticker's soft shadow and near-white bold mono: a
@@ -595,10 +646,10 @@ function drawMonthGrid(
   ctx.restore();
 
   for (let d = 1; d <= opts.span; d++) {
-    const idx = SEP_FIRST_DOW + (d - 1);
+    const idx = firstDow + (d - 1);
     const x = left + (idx % cols) * (cell + gap);
     const y = top + Math.floor(idx / cols) * (cell + gap);
-    const m = opts.byDay[`2026-09-${String(d).padStart(2, "0")}`] ?? 0;
+    const m = opts.byDay[dayKeyOf(opts.month, d)] ?? 0;
     const a = opts.alphaFor(m);
     if (a === 0) {
       // Rest day: an outline, so the month's shape stays legible.
@@ -618,14 +669,14 @@ function drawMonthGrid(
     }
   }
 
-  const rows = Math.ceil((SEP_FIRST_DOW + opts.span) / cols);
+  const rows = Math.ceil((firstDow + opts.span) / cols);
   return top + rows * (cell + gap) - gap;
 }
 
 /* How tall drawMonthGrid will be, so a short month can be centred on the
  * card instead of hugging the top. */
-function monthGridHeight(span: number): number {
-  const rows = Math.ceil((SEP_FIRST_DOW + span) / 7);
+function monthGridHeight(span: number, mon: ShareMonth): number {
+  const rows = Math.ceil((mon.firstDow + span) / 7);
   return MONTH_HEAD_H + rows * 126 - 14;
 }
 
@@ -725,10 +776,12 @@ const rowtemberToday: ShareCard = {
   width: 1080,
   height: 620,
   light: true,
-  available: (d) => monthIsRunning() && metersToday(d.byDay, d.days) > 0,
+  // Only over the month the clock is in (isThisMonth): a past month has no
+  // today, however many days it hands over.
+  available: (d) => monthIsRunning() && isThisMonth(d) && metersToday(d.byDay, d.days, monthFor(d)) > 0,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
-    const meters = metersToday(data.byDay, data.days);
+    const meters = metersToday(data.byDay, data.days, monthFor(data));
     if (meters <= 0) return;
 
     // Blackout: blocks for the figure, exactly as the total card draws them
@@ -881,16 +934,18 @@ const rowtemberMonth: ShareCard = {
   width: 1080,
   height: 1080,
   light: true,
-  available: (d) => !d.masked,
+  // And out of it over all time (hasMonth): there is no one month to draw.
+  available: (d) => !d.masked && hasMonth(d),
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
-    const span = spanFor(data.days);
+    const mon = monthFor(data);
+    const span = spanFor(data.days, mon);
 
     // Mark, grid and total stack as one block, centred on the card, so a
     // one-row month sits in the middle instead of leaving the bottom bare.
     const markH = 120;
     const totalH = 150;
-    const blockH = markH + monthGridHeight(span) + totalH;
+    const blockH = markH + monthGridHeight(span, mon) + totalH;
     const top = Math.max(40, (this.height - blockH) / 2);
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
@@ -903,6 +958,7 @@ const rowtemberMonth: ShareCard = {
 
     const gridBottom = drawMonthGrid(ctx, fonts, {
       byDay: data.byDay,
+      month: mon,
       span,
       top: top + markH,
       width: this.width,
@@ -2177,18 +2233,19 @@ const rowtemberCommunityMonth: ShareCard = {
   width: 1080,
   height: 1080,
   light: true,
-  available: (d) => !!d.community,
+  available: (d) => !!d.community && hasMonth(d),
   draw(ctx, data, fonts) {
     const community = data.community;
     if (!community) return;
     const cx = this.width / 2;
-    const span = spanFor(community.days ?? data.days);
+    const mon = monthFor(data);
+    const span = spanFor(community.days ?? data.days, mon);
 
     // Centred as one block, like the personal month card, with room for the
     // extra ROWERS TOGETHER line under the total.
     const markH = 120;
     const totalH = 190;
-    const blockH = markH + monthGridHeight(span) + totalH;
+    const blockH = markH + monthGridHeight(span, mon) + totalH;
     const top = Math.max(40, (this.height - blockH) / 2);
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
@@ -2201,6 +2258,7 @@ const rowtemberCommunityMonth: ShareCard = {
     const biggest = Math.max(0, ...Object.values(community.byDay));
     const gridBottom = drawMonthGrid(ctx, fonts, {
       byDay: community.byDay,
+      month: mon,
       span,
       top: top + markH,
       width: this.width,
@@ -2308,13 +2366,14 @@ const rowtemberCommunityToday: ShareCard = {
   light: true,
   available: (d) =>
     monthIsRunning() &&
+    isThisMonth(d) &&
     !!d.community &&
-    metersToday(d.community.byDay, d.community.days ?? d.days) > 0,
+    metersToday(d.community.byDay, d.community.days ?? d.days, monthFor(d)) > 0,
   draw(ctx, data, fonts) {
     const community = data.community;
     if (!community) return;
     const cx = this.width / 2;
-    const key = todayKey(community.byDay, community.days ?? data.days);
+    const key = todayKey(community.byDay, community.days ?? data.days, monthFor(data));
     if (!key) return;
     const meters = Math.max(0, community.byDay[key] ?? 0);
     if (meters <= 0) return;
@@ -2371,11 +2430,12 @@ const rowtemberCommunityCurve: ShareCard = {
   light: true,
   // Same Sep 1 rule as the personal curve: one point is not a line.
   available: (d) =>
-    !!d.community && d.community.daily.length > 0 && spanFor(d.community.days ?? d.days) > 1,
+    !!d.community && hasMonth(d) && d.community.daily.length > 0 && spanFor(d.community.days ?? d.days, monthFor(d)) > 1,
   draw(ctx, data, fonts) {
     const community = data.community;
     if (!community || community.daily.length === 0) return;
     const cx = this.width / 2;
+    const mon = monthFor(data);
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
@@ -2385,9 +2445,9 @@ const rowtemberCommunityCurve: ShareCard = {
     });
 
     // The frame ends at today (owner call, 2026-09-05).
-    const span = spanFor(community.days ?? data.days);
+    const span = spanFor(community.days ?? data.days, mon);
     const pts = community.daily
-      .filter((p) => p.day.startsWith("2026-09-"))
+      .filter((p) => p.day.startsWith(`${mon.key}-`))
       .map((p) => ({ dayNum: Number(p.day.slice(8, 10)), cum: p.cum }))
       .filter((p) => p.dayNum <= span);
     if (pts.length === 0) return;
@@ -2460,11 +2520,12 @@ const rowtemberCommunityDaily: ShareCard = {
   width: 1080,
   height: 1080,
   light: true,
-  available: (d) => !!d.community,
+  available: (d) => !!d.community && hasMonth(d),
   draw(ctx, data, fonts) {
     const community = data.community;
     if (!community) return;
     const cx = this.width / 2;
+    const mon = monthFor(data);
 
     drawMark(ctx, [{ text: "ROWTEMBER" }], {
       cx,
@@ -2476,11 +2537,8 @@ const rowtemberCommunityDaily: ShareCard = {
     // One bar per day elapsed (owner call, 2026-09-05). Early in the month
     // the slots are wide, so the bars are capped rather than turning into
     // slabs.
-    const span = spanFor(community.days ?? data.days);
-    const vals = Array.from(
-      { length: span },
-      (_, i) => community.byDay[`2026-09-${String(i + 1).padStart(2, "0")}`] ?? 0,
-    );
+    const span = spanFor(community.days ?? data.days, mon);
+    const vals = Array.from({ length: span }, (_, i) => community.byDay[dayKeyOf(mon, i + 1)] ?? 0);
     const biggest = Math.max(...vals);
 
     const L = 90;

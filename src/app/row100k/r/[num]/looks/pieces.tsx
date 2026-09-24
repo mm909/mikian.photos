@@ -156,9 +156,13 @@ export function MetersUnit({ view }: { view: ProfileView }) {
 /* LOG A ROW / SHARE on the rower's own page — the front page's
  * LogInPlace, so the form opens under the button instead of standing open
  * (owner call, 2026-09-05), the share dialog pops on the single-row card
- * once a row lands, and #log / row100k:log still open the seam. An admin
- * on someone else's page keeps the share button (the repost case) in the
- * same face. Nothing for a visitor. */
+ * once a row lands, and #log / row100k:log still open the seam. SHARE is
+ * the quiet word at the right of LOG A ROW here — mono caps with a dotted
+ * rule, the month word's face — not the front page's big underlined one
+ * (owner, 2026-09-24: the two looked out of place at the same level; the
+ * restyle is .pf-act .front-share in theme.ts, the markup is the front
+ * page's). An admin on someone else's page keeps the share button (the
+ * repost case) in the big face. Nothing for a visitor. */
 export function Actions({ view }: { view: ProfileView }) {
   if (view.isMe && view.log) {
     return (
@@ -332,8 +336,11 @@ export function Bests({ view }: { view: ProfileView }) {
   return <BestsTables bests={view.bests} />;
 }
 
-/* The log: the rower's own editable ledger (share / fix / delete on every
- * row), or the visitor's read-only TABLE / PHOTOS view. */
+/* The log: ONE TABLE either way (owner, 2026-09-24: "Combine the ledger
+ * and the table on the profile: one log, keep the table view, show the
+ * photos on the table") — the rower's own with share / edit / delete on
+ * every row (MyLog), or the visitor's read-only one (ProfileLog). Both
+ * carry the photo pair under the day, the distance chips and the sort. */
 export function LogBlock({ view }: { view: ProfileView }) {
   const n = view.rows.length;
   return (

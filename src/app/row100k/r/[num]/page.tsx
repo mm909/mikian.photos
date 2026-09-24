@@ -285,8 +285,15 @@ export default async function RowerProfilePage({ params, searchParams }: { param
     // rule). For everyone else this is the rank the page prints.
     rank: shareElite ? null : rank,
     records: masked ? records?.map((r) => ({ ...r, value: "" })) : records,
-    // The cards stop at today like the page calendar does.
+    // The cards stop at today like the page calendar does — and draw THE
+    // SELECTED month (owner, 2026-09-24: "the month share card, when
+    // looking at previous months, is not populated: the total is right but
+    // the calendar squares are empty"): byDay above is already this
+    // period's, so the card only needed telling which month its keys are
+    // in. Null over all time — no one month to draw, the month card stays
+    // out of the menu.
     days: periodDays,
+    month: periodMonth,
     masked: shareElite,
     digits: shareElite ? digits : undefined,
     // MY WAVE (owner, 2026-09-16): this rower's own told wave, for their

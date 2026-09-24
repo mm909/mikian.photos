@@ -51,6 +51,9 @@ export function StatsShare({
     sessions: community.sessions,
     byDay: community.byDay,
     days,
+    // The month the byDay is keyed under (cards.ts ShareData.month): the
+    // stats page over a past month hands it in; absent means this month.
+    month: community.month,
     community: { ...community, days },
   };
 
