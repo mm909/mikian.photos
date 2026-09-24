@@ -19,6 +19,8 @@ import {
   type Division,
   type RecordBadge,
   type TotalRow,
+  MONTH,
+  MONTH_DAYS,
 } from "@/lib/row100k";
 import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
@@ -238,12 +240,12 @@ export default async function Row100kPage() {
   const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
   const dateline =
     phase === "before"
-      ? `${stamp} · FIRST STROKE SEP 1`
+      ? `${stamp} · FIRST STROKE ${MONTH.short} 1`
       : phase === "closed"
         ? `${stamp} · FINAL`
         : nowMs >= END_MS
           ? `${stamp} · LATE LOGS THROUGH OCT 3`
-          : `${stamp} · DAY ${today} OF 30`;
+          : `${stamp} · DAY ${today} OF ${MONTH_DAYS}`;
 
   // The PLACES half of the blackout rule (blackoutRules.ts): while a window
   // is open the elite come back unranked, and a page may not order
@@ -426,7 +428,7 @@ export default async function Row100kPage() {
                 </>
               ) : (
                 <div className="head mono">
-                  {phase === "before" ? "FIRST STROKE SEP 1" : "NOBODY HAS LOGGED A METER YET"}
+                  {phase === "before" ? `FIRST STROKE ${MONTH.short} 1` : "NOBODY HAS LOGGED A METER YET"}
                 </div>
               )}
             </div>

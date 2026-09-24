@@ -1,4 +1,4 @@
-import { fmtDay } from "@/lib/row100k";
+import { fmtDay, MONTH_DAYS, MONTH_FIRST_DOW, MONTH_KEY } from "@/lib/row100k";
 
 /* September as a GitHub-style intensity calendar: one cell per day, shaded
  * by meters rowed. Pure server markup — tooltips via title. The default
@@ -19,7 +19,7 @@ function bucket(m: number, t: [number, number, number]): string {
 export function Heatmap({
   byDay,
   thresholds = ONE_ROWER,
-  days = 30,
+  days = MONTH_DAYS,
 }: {
   byDay: Record<string, number>;
   thresholds?: [number, number, number];
@@ -27,13 +27,13 @@ export function Heatmap({
    * than trailing a fortnight of empty cells (owner call, day 4). */
   days?: number;
 }) {
-  const shown = Math.min(30, Math.max(1, days));
-  // Sep 1, 2026 — leading blanks align day 1 under its weekday.
-  const firstDow = new Date(Date.UTC(2026, 8, 1)).getUTCDay();
+  const shown = Math.min(MONTH_DAYS, Math.max(1, days));
+  // Leading blanks align day 1 under its weekday (rowPeriod.ts).
+  const firstDow = MONTH_FIRST_DOW;
 
   return (
     <div>
-      <div className="hm" role="img" aria-label="Meters rowed per day in September">
+      <div className="hm" role="img" aria-label="Meters rowed per day this month">
         {DOW.map((d, i) => (
           <div className="dow" key={`${d}${i}`}>
             {d}
@@ -43,7 +43,7 @@ export function Heatmap({
           <div key={`blank${i}`} />
         ))}
         {Array.from({ length: shown }, (_, i) => {
-          const day = `2026-09-${String(i + 1).padStart(2, "0")}`;
+          const day = `${MONTH_KEY}-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);
           return (

@@ -1,3 +1,4 @@
+import { MONTH_DAYS } from "@/lib/row100k";
 import { Heatmap } from "./Heatmap";
 import { StatsShare, type CommunityShare } from "./StatsShare";
 
@@ -15,7 +16,7 @@ export function MonthSection({
   daily,
   community,
   hourGrid,
-  days = 30,
+  days = MONTH_DAYS,
 }: {
   byDay: Record<string, number>;
   thresholds: [number, number, number];

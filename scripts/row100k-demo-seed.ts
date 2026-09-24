@@ -46,7 +46,33 @@ const flag = (name: string) => argv.includes(`--${name}`);
 const opt = (name: string, fallback: string) =>
   argv.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=") ?? fallback;
 
-const THROUGH_DAY = Math.min(30, Math.max(1, Number(opt("through", "20"))));
+const THROUGH_DAY = Math.min(31, Math.max(1, Number(opt("through", "20"))));
+/* HOW MANY MONTHS (owner, 2026-09-24: "a way to view what the site is going
+ * to look like in December after users continue to use it for multiple
+ * months … months of history, months of gaps, become inactive"). 1 is
+ * September alone, as before; 4 is September through December, with the
+ * LAST month the one in progress (--through) and every earlier month whole.
+ * Each rower rolls a life: most keep rowing, some fade after a month or
+ * two, some skip a month and come back, a few never row again. */
+const MONTHS_N = Math.min(24, Math.max(1, Number(opt("months", "1"))));
+const FIRST_KEY = "2026-09";
+function monthKey(i: number): string {
+  const y = 2026 + Math.floor((8 + i) / 12);
+  const m = ((8 + i) % 12) + 1;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+function daysIn(key: string): number {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+const LAST_KEY = monthKey(MONTHS_N - 1);
+const LIVES = [
+  { key: "steady", weight: 52 },
+  { key: "waning", weight: 18 },
+  { key: "skipper", weight: 15 },
+  { key: "gone", weight: 10 },
+  { key: "late", weight: 5 },
+] as const;
 const ROWERS = Math.min(999, Math.max(1, Number(opt("rowers", "100"))));
 /* Comma-separated: every account listed gets its own rower, so signing in as
  * any of them lands on a populated dashboard instead of the join form. */
@@ -73,7 +99,8 @@ const rand = rng(SEED);
 const pick = <T,>(list: readonly T[]): T => list[Math.floor(rand() * list.length)];
 const between = (lo: number, hi: number) => lo + rand() * (hi - lo);
 const intBetween = (lo: number, hi: number) => Math.floor(between(lo, hi + 1));
-const day = (n: number) => `2026-09-${String(n).padStart(2, "0")}`;
+const dayOf = (key: string, n: number) => `${key}-${String(n).padStart(2, "0")}`;
+const day = (n: number) => dayOf(LAST_KEY, n);
 
 /* ---------------------------------------------------------------- people */
 
@@ -106,7 +133,7 @@ const FEMININE = new Set([
 /* Where the field sits at two-thirds of the month. `share` is a fraction of
  * the pace line (66,667 m by day 20), so the mix stays honest if --through
  * moves. Counts are scaled to --rowers. */
-const PACE_METERS = (THROUGH_DAY / 30) * GOAL_METERS;
+const PACE_METERS = (THROUGH_DAY / daysIn(LAST_KEY)) * GOAL_METERS;
 
 const ARCHETYPES = [
   /* Out front — two or three already past 100k, which lights up the
@@ -190,8 +217,39 @@ function buildField(): Participant[] {
     usedHandles.add(handle);
 
     const division: "M" | "F" = FEMININE.has(first) ? "F" : "M";
-    const target = PACE_METERS * between(a.share[0], a.share[1]);
-    const entries = buildMonth(target, a);
+    /* THE LIFE across the months (MONTHS_N): September is always rowed
+     * as the archetype says; the months after follow the life rolled. */
+    const life = (() => {
+      const total = LIVES.reduce((s, l) => s + l.weight, 0);
+      let r = rand() * total;
+      for (const l of LIVES) {
+        r -= l.weight;
+        if (r <= 0) return l.key;
+      }
+      return "steady";
+    })();
+    const skipAt = intBetween(1, Math.max(1, MONTHS_N - 1));
+    const fadeAt = intBetween(1, Math.max(1, MONTHS_N - 1));
+    const share = between(a.share[0], a.share[1]);
+    const entries: ReturnType<typeof buildMonth> = [];
+    for (let mi = 0; mi < MONTHS_N; mi++) {
+      const key = monthKey(mi);
+      const isLast = mi === MONTHS_N - 1;
+      const through = isLast ? Math.min(THROUGH_DAY, daysIn(key)) : daysIn(key);
+      const full = (through / daysIn(key)) * GOAL_METERS * share;
+      let scale = 1;
+      if (mi > 0) {
+        if (life === "gone") scale = 0;
+        else if (life === "waning") scale = mi >= fadeAt + 1 ? 0 : mi >= fadeAt ? between(0.15, 0.4) : between(0.6, 0.9);
+        else if (life === "skipper") scale = mi === skipAt ? 0 : between(0.7, 1.1);
+        else if (life === "late") scale = mi < skipAt ? 0 : between(0.8, 1.2);
+        else scale = between(0.75, 1.2);
+      } else if (life === "late" && MONTHS_N > 1) {
+        scale = rand() < 0.5 ? 0 : between(0.2, 0.5);
+      }
+      if (scale === 0) continue;
+      entries.push(...buildMonth(full * scale, a, key, through));
+    }
 
     return {
       rowerNumber: i + 1,
@@ -207,14 +265,14 @@ function buildField(): Participant[] {
 
 /* One rower's September: sessions drawn until they reach their target, laid
  * onto days with rest days between and the odd doubled-up day. */
-function buildMonth(target: number, a: (typeof ARCHETYPES)[number]) {
+function buildMonth(target: number, a: (typeof ARCHETYPES)[number], key: string = LAST_KEY, through: number = THROUGH_DAY) {
   const entries: { day: string; meters: number; seconds: number; note: string; title: string; photos: string[] }[] = [];
   // Half the ghosts never log anything — a signed-up rower sitting on zero
   // meters has to render everywhere (board, profile, records) without a hole.
   if (target < 500 || (a.key === "ghost" && rand() < 0.5)) return entries;
 
   const baseSplit = between(a.split[0], a.split[1]);
-  const lastDay = a.key === "faded" ? Math.min(THROUGH_DAY, intBetween(5, 9)) : THROUGH_DAY;
+  const lastDay = a.key === "faded" ? Math.min(through, intBetween(5, 9)) : through;
   const perDay = new Map<number, number>();
 
   let total = 0;
@@ -263,7 +321,7 @@ function buildMonth(target: number, a: (typeof ARCHETYPES)[number]) {
      * presigned; they exist only in the demo namespace. */
     const photos =
       rand() < 0.35 ? [`demo:${pick(PHOTO_COLORS)}`, `demo:${pick(PHOTO_COLORS)}`] : [];
-    entries.push({ day: day(d), meters, seconds, note, title, photos });
+    entries.push({ day: dayOf(key, d), meters, seconds, note, title, photos });
     total += meters;
   }
 
@@ -393,7 +451,7 @@ async function main() {
 
   console.log("");
   console.log(`seeded ${field.length} rowers · ${entryData.length} sessions · ${fmtMeters(totalMeters)}`);
-  console.log(`through Sep ${THROUGH_DAY} · ${finished} past 100k · ${silent} yet to log a meter`);
+  console.log(`${MONTHS_N} month${MONTHS_N === 1 ? "" : "s"} (${FIRST_KEY} → ${LAST_KEY}) · through day ${THROUGH_DAY} of ${LAST_KEY} · ${finished} past 100k · ${silent} yet to log a meter`);
 
   const after = await liveCounts();
   console.log(`live rows after:  ${after.participants} participants / ${after.entries} entries`);

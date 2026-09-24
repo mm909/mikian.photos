@@ -10,6 +10,7 @@ import {
   nowMs,
   splitSeconds,
   type Boards,
+  MONTH_DAYS,
 } from "@/lib/row100k";
 
 /* The landing page counter: how many meters everyone has rowed in
@@ -137,7 +138,7 @@ export async function meterSnapshot(): Promise<MeterSnapshot> {
   const elapsedSec = Math.max(3600, (Math.min(now, END_MS) - START_MS) / 1000);
   const rate = rowing && community.meters > 0 ? community.meters / elapsedSec : 0;
 
-  const day = Math.min(30, Math.max(0, Math.floor((now - START_MS) / DAY_MS) + 1));
+  const day = Math.min(MONTH_DAYS, Math.max(0, Math.floor((now - START_MS) / DAY_MS) + 1));
 
   return {
     meters: community.meters,
@@ -148,7 +149,7 @@ export async function meterSnapshot(): Promise<MeterSnapshot> {
     ...lastGoodSplit,
     at: Date.now(),
     phase,
-    daysLeft: Math.max(0, 30 - day),
+    daysLeft: Math.max(0, MONTH_DAYS - day),
     day,
     ok,
   };

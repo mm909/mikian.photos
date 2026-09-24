@@ -4,21 +4,40 @@
     {
       "name": "mikian-photos-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000,
       "autoPort": true
     },
     {
       "name": "mikian-photos-live",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:live"],
+      "runtimeArgs": [
+        "run",
+        "dev:live"
+      ],
       "port": 3000,
       "autoPort": true
     },
     {
       "name": "row100k-demo",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:row100k"],
+      "runtimeArgs": [
+        "run",
+        "dev:row100k"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "row100k-dec",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:row100k:dec"
+      ],
       "port": 3000,
       "autoPort": true
     }

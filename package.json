@@ -9,6 +9,7 @@
     "db:status": "node scripts/db-status.mjs",
     "dev:row100k": "npm run dev",
     "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
+    "dev:row100k:dec": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-12-15T19:00:00Z -- next dev",
     "prebuild": "node scripts/gallery-manifest.mjs",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
@@ -23,6 +24,7 @@
     "row100k:thumbs": "dotenv -e .env.local -- tsx scripts/row100k-thumbs.ts",
     "row100k:demo": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts",
     "row100k:demo:clear": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --clear",
+    "row100k:demo:dec": "dotenv -e .env.local -- tsx scripts/row100k-demo-seed.ts --months=4 --through=15",
     "db:backup": "dotenv -e .env.local -- tsx scripts/db-backup.ts",
     "db:restore": "dotenv -e .env.local -- tsx scripts/db-restore.ts"
   },

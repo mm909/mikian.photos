@@ -17,6 +17,7 @@ import {
   pacificDay,
   weekIndexOf,
   type WeeklyRow,
+  MONTH_DAYS,
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -116,7 +117,7 @@ export default async function StatsPage() {
    * that boardData() doesn't carry, so this page pulls the raw rows itself
    * (same selects as boardData, plus createdAt for the hours). */
   let weekly: WeeklyRow[][] = WEEKS.map(() => []);
-  let daily: WeeklyRow[][] = Array.from({ length: 30 }, () => []);
+  let daily: WeeklyRow[][] = Array.from({ length: MONTH_DAYS }, () => []);
   let gridEntries: { meters: number; createdAt: Date }[] = [];
   let fieldEntries: FieldEntry[] = [];
   /* Hour of the day each known rower's row was logged, on the challenge's

@@ -1,3 +1,4 @@
+import { monthOf, prevMonth, weeksOf, FIRST_MONTH_KEY, type Month, type Week as PeriodWeek } from "./rowPeriod";
 /* Row 100k — September 2026 challenge (/row100k).
  *
  * All the challenge's rules live here as pure functions so the API routes,
@@ -40,17 +41,10 @@ export function isRow100kAdmin(email: string, roles: string[]): boolean {
   return roles.includes("owner") || ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }
 
-/* The window. Days are plain "YYYY-MM-DD" strings (what the participant
- * picked in the date input) — never Date objects, so server timezone can't
- * shift a row onto the wrong day. */
-export const FIRST_DAY = "2026-09-01";
-export const LAST_DAY = "2026-09-30";
-/* Sept 1, 00:00 Pacific — what the countdown ticks toward. */
-export const START_MS = Date.UTC(2026, 8, 1, 7, 0, 0);
-/* Sept 30, midnight Pacific — when the clock runs out. */
-export const END_MS = Date.UTC(2026, 9, 1, 7, 0, 0);
-/* Grace: late-logging a September row is allowed through Oct 3 (Pacific). */
-export const LOG_CLOSE_MS = Date.UTC(2026, 9, 4, 7, 0, 0);
+/* THE WINDOW is the month the clock is in — see below nowMs(), where it
+ * is derived (rowPeriod.ts). Days are plain "YYYY-MM-DD" strings (what the
+ * participant picked in the date input) — never Date objects, so server
+ * timezone can't shift a row onto the wrong day. */
 
 /* Demo-only clock shift, so a seeded mid-challenge board can be seen in the
  * state it belongs to instead of behind a "starts Sep 1" countdown. Set
@@ -73,6 +67,28 @@ export function nowMs(): number {
   return Date.now() + CLOCK_OFFSET_MS;
 }
 
+/* THE MONTH THE SITE IS IN (owner, 2026-09-24: a Strava-like platform with
+ * monthly boards, not a September challenge). Every September-shaped
+ * constant the site grew up with is now read off the month the clock is
+ * in, once per process: FIRST_DAY, LAST_DAY, the start and end instants,
+ * the grace close, how many days the calendars draw and which weekday the
+ * 1st falls on. A process that lives across a month boundary keeps the
+ * month it started in until it is restarted; serverless does not live that
+ * long. The demo clock (NEXT_PUBLIC_ROW100K_NOW) moves the month with it,
+ * which is how December is previewed. */
+export const MONTH: Month = monthOf(nowMs());
+export const MONTH_KEY = MONTH.key;
+export const MONTH_DAYS = MONTH.days;
+export const MONTH_FIRST_DOW = MONTH.firstDow;
+export const FIRST_DAY = MONTH.firstDay;
+export const LAST_DAY = MONTH.lastDay;
+/* The 1st, 00:00 Pacific — what the countdown ticks toward. */
+export const START_MS = MONTH.startMs;
+/* The last day, midnight Pacific — when the clock runs out. */
+export const END_MS = MONTH.endMs;
+/* Grace: late-logging a row for this month is allowed for three days after. */
+export const LOG_CLOSE_MS = MONTH.logCloseMs;
+
 /* How many September days the charts should draw: 1 on Sep 1, 30 from Sep 30
  * onward. Every calendar, curve and bar chart stops at TODAY rather than
  * reserving empty space for days nobody has rowed yet (owner call, day 4) —
@@ -82,8 +98,8 @@ export function nowMs(): number {
 export function daysElapsed(atMs = nowMs()): number {
   const west = new Date(atMs - 7 * 3_600_000).toISOString().slice(0, 10);
   if (west < FIRST_DAY) return 1;
-  if (west > LAST_DAY) return 30;
-  return Math.min(30, Math.max(1, Number(west.slice(8, 10))));
+  if (west > LAST_DAY) return MONTH_DAYS;
+  return Math.min(MONTH_DAYS, Math.max(1, Number(west.slice(8, 10))));
 }
 
 /* Which day numbers get an x-axis label for a chart `days` wide. Keeps the
@@ -177,15 +193,21 @@ export function validateEntry(
 ): EntryCheck {
   const admin = opts?.admin === true;
   if (!admin && atMs >= LOG_CLOSE_MS) {
-    return { ok: false, error: "The challenge is closed — logging ended Oct 3." };
+    return { ok: false, error: `Logging for ${MONTH.label} has closed.` };
   }
 
   const day = typeof body.day === "string" ? body.day.trim() : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     return { ok: false, error: "Pick the day you rowed." };
   }
-  if (day < FIRST_DAY || day > LAST_DAY) {
-    return { ok: false, error: "That day is outside September — the challenge runs Sep 1–30." };
+  /* This month, or LAST month inside its grace days (owner, 2026-09-24:
+   * the months run on; a row from the 30th logged on the 1st is still
+   * last month's row). */
+  const prev = prevMonth(MONTH);
+  const inThis = day >= FIRST_DAY && day <= LAST_DAY;
+  const inPrev = prev.key >= FIRST_MONTH_KEY && day >= prev.firstDay && day <= prev.lastDay && atMs < prev.logCloseMs;
+  if (!inThis && !inPrev) {
+    return { ok: false, error: `That day is outside ${MONTH.label} — log a row from this month.` };
   }
   // Past days are fine, the future is not (owner call, 2026-09-05): today
   // means the Pacific day, which is what the form offers as its latest
@@ -711,16 +733,11 @@ export function tierFloor(meters: number): number {
 
 /* ----------------------------------------------------------------- weeks */
 
-/* Challenge weeks, cut on calendar sevens from Sep 1 (W5 is the two-day
- * sprint finish). Day strings in, so timezone can't shift a row's week. */
-export const WEEKS = [
-  { key: "w1", label: "Week 1", first: "2026-09-01", last: "2026-09-07" },
-  { key: "w2", label: "Week 2", first: "2026-09-08", last: "2026-09-14" },
-  { key: "w3", label: "Week 3", first: "2026-09-15", last: "2026-09-21" },
-  { key: "w4", label: "Week 4", first: "2026-09-22", last: "2026-09-28" },
-  { key: "w5", label: "The finish", first: "2026-09-29", last: "2026-09-30" },
-] as const;
-export type Week = (typeof WEEKS)[number];
+/* The month's weeks, cut on calendar sevens from the 1st (the short last
+ * one is the finish). Day strings in, so timezone can't shift a row's
+ * week. */
+export const WEEKS: PeriodWeek[] = weeksOf(MONTH);
+export type Week = PeriodWeek;
 
 export function weekIndexOf(day: string): number {
   return WEEKS.findIndex((w) => day >= w.first && day <= w.last);
@@ -777,7 +794,7 @@ export function computeDaily(
 ): WeeklyRow[][] {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const month = FIRST_DAY.slice(0, 7);
-  const days: Map<string, WeeklyRow>[] = Array.from({ length: 30 }, () => new Map());
+  const days: Map<string, WeeklyRow>[] = Array.from({ length: MONTH_DAYS }, () => new Map());
   for (const e of entries) {
     if (e.day.slice(0, 7) !== month) continue;
     const di = Number(e.day.slice(8, 10)) - 1;

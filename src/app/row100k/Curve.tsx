@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { dayTicks, fmtDay, fmtMeters } from "@/lib/row100k";
+import { dayTicks, fmtDay, fmtMeters, MONTH_DAYS } from "@/lib/row100k";
 
 /* Cumulative meters as a poster-styled SVG line with a nearest-day hover
  * readout. Single series — the title names it, no legend. Used twice: the
@@ -14,7 +14,7 @@ export function Curve({
   daily,
   title,
   goal,
-  days = 30,
+  days = MONTH_DAYS,
 }: {
   daily: { day: string; cum: number }[];
   title: string;
@@ -41,11 +41,11 @@ export function Curve({
 
   if (pts.length < 2) return null;
 
-  const span = Math.min(30, Math.max(2, days));
+  const span = Math.min(MONTH_DAYS, Math.max(2, days));
   /* The finish-on-time line is drawn only as far as today, so the axis is
    * scaled to the pace mark for TODAY — not the full-month goal, which would
    * flatten three days of real rowing into nothing. */
-  const goalHere = goal ? (goal * (span - 1)) / 29 : 0;
+  const goalHere = goal ? (goal * (span - 1)) / (MONTH_DAYS - 1) : 0;
   const maxCum = Math.max(pts[pts.length - 1].cum, goalHere);
   const niceMax = (() => {
     const pow = Math.pow(10, Math.floor(Math.log10(maxCum)));

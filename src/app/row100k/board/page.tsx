@@ -11,6 +11,7 @@ import {
   fmtDay,
   isRow100kAdmin,
   nowMs as clockNow,
+  MONTH,
 } from "@/lib/row100k";
 import { maskStandings, type BlackoutPolicy } from "@/lib/blackoutRules";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -22,6 +23,7 @@ import { StatsShare } from "../StatsShare";
 import { PageHead } from "../PageHead";
 import { BOARD_CARD_IDS } from "../share/cards";
 import { EMPTY_BOARDS, boardView } from "../boardData";
+import { monthsThrough, parsePeriod } from "@/lib/rowPeriod";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 
 export const metadata: Metadata = {
@@ -44,7 +46,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
  * the site is masked for all. The head is PageHead (owner, 2026-09-16: no
  * bold THE BOARD; the community total in the front page odometer; variant
  * A picked for every tab the same day, so no ?head query any more). */
-export default async function BoardPage() {
+export default async function BoardPage({ searchParams }: { searchParams?: { m?: string | string[] } }) {
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
 
@@ -66,11 +68,16 @@ export default async function BoardPage() {
   // Signed out: no viewer, no admin — the public board, elite masked while
   // a window is open.
   const preview = readBlackoutPreview(isAdmin);
+  /* WHICH MONTH (owner, 2026-09-24): this one unless ?m= says a past one
+   * or all time. The same page, the same boards, other rows. */
+  const period = parsePeriod(searchParams?.m, clockNow());
+  const months = monthsThrough(clockNow());
+  const thisMonth = period.kind === "month" && period.key === MONTH.key;
   let boards = EMPTY_BOARDS;
   let blackout: { active: boolean; endsAt?: string } = { active: false };
   let policy: BlackoutPolicy | undefined;
   try {
-    const view = await boardView(previewViewOpts(preview, me?.id ?? null, isAdmin));
+    const view = await boardView({ ...previewViewOpts(preview, me?.id ?? null, isAdmin), period });
     boards = view.boards;
     blackout = view.blackout;
     policy = view.policy;
@@ -85,13 +92,17 @@ export default async function BoardPage() {
   const west = new Date(nowMs - 7 * 3_600_000);
   const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
   const dateline =
-    phase === "before"
-      ? `${stamp} · FIRST STROKE SEP 1`
-      : phase === "closed"
-        ? `${stamp} · FINAL`
-        : nowMs >= END_MS
-          ? `${stamp} · LATE LOGS THROUGH OCT 3`
-          : `${stamp} · DAY ${daysElapsed(nowMs)} OF 30`;
+    period.kind === "all"
+      ? `${stamp} · ALL TIME · SINCE ${monthsThrough(clockNow())[0].short} ${monthsThrough(clockNow())[0].year}`
+      : !thisMonth
+        ? `${period.label.toUpperCase()} · FINAL`
+        : phase === "before"
+          ? `${stamp} · FIRST STROKE ${MONTH.short} 1`
+          : phase === "closed"
+            ? `${stamp} · FINAL`
+            : nowMs >= END_MS
+              ? `${stamp} · LATE LOGS FOR ${MONTH.label.toUpperCase()}`
+              : `${stamp} · DAY ${daysElapsed(nowMs)} OF ${MONTH.days}`;
 
   // The board stickers (ten places to a card) share the community card
   // plumbing, which wants per-day totals too; the curve carries cumulative
@@ -160,6 +171,21 @@ export default async function BoardPage() {
             }
             wide
           />
+          {/* THE MONTH SELECTOR (owner, 2026-09-24): this month, each month
+            * before it, all time — the same page filled with other rows.
+            * Not there while there is only the one month. */}
+          {months.length > 1 ? (
+            <nav className="pd-sel" aria-label="Which month">
+              {months.map((m) => (
+                <Link key={m.key} className={period.kind === "month" && period.key === m.key ? "on" : ""} href={m.key === MONTH.key ? "/row100k/board" : `/row100k/board?m=${m.key}`}>
+                  {m.short} {m.year}
+                </Link>
+              ))}
+              <Link className={period.kind === "all" ? "on" : ""} href="/row100k/board?m=all">
+                All time
+              </Link>
+            </nav>
+          ) : null}
           {/* Only the slices the board reads. Boards is a client
            * component, so whatever is handed in is serialized into the
            * page source — and boardView masks only `total`; the record

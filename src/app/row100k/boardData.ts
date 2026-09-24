@@ -6,15 +6,24 @@ import { siteSettings, type BlackoutPolicy } from "@/lib/rowSettings";
 import {
   CHALLENGE,
   CHALLENGE_DEMO,
+  MONTH,
+  MONTH_DAYS,
+  MONTH_KEY,
   computeBoards,
+  nowMs,
+  pacificDay,
   type Boards as BoardData,
 } from "@/lib/row100k";
+import { inPeriod, type Period } from "@/lib/rowPeriod";
 
 /* Board data, shared by /row100k and /row100k/stats. The public board is
  * identical for every visitor, so it's computed once and cached; every write
  * route revalidates the tag, so it's fresh-on-write with a time backstop. */
 
-const loadBoardData = async (): Promise<BoardData> => {
+/* EVERY ROW THERE IS, once, cached: the board for any month or for all
+ * time is a filter over the same rows (owner, 2026-09-24: one page, this
+ * month by default, any month, all time). */
+const loadRows = async () => {
   const [participants, entries] = await Promise.all([
     db.rowParticipant.findMany({
       where: { challenge: CHALLENGE },
@@ -33,13 +42,24 @@ const loadBoardData = async (): Promise<BoardData> => {
       orderBy: [{ day: "asc" }, { createdAt: "asc" }],
     }),
   ]);
-  return computeBoards(participants, entries);
+  return { participants, entries };
 };
 
-const getBoardData = unstable_cache(loadBoardData, ["row100k-boards"], {
+const getRows = unstable_cache(loadRows, ["row100k-rows"], {
   revalidate: 300,
   tags: ["row100k-boards"],
 });
+
+/* THE BOARD FOR A PERIOD: this month unless asked otherwise. A past month
+ * is read as of its last day, so its "today" figures are its final day;
+ * all time is read as of today. */
+const loadBoardData = async (period?: Period): Promise<BoardData> => {
+  const rows = CHALLENGE === CHALLENGE_DEMO ? await loadRows() : await getRows();
+  const p: Period = period ?? MONTH;
+  const entries = p.kind === "all" ? rows.entries : rows.entries.filter((e) => inPeriod(e.day, p));
+  const today = p.kind === "month" && p.key !== MONTH.key ? p.lastDay : pacificDay(nowMs());
+  return computeBoards(rows.participants, entries, today);
+};
 
 /* The board with every real number — the cached truth. Only boardView and
  * admin-only surfaces should read this directly; everything public goes
@@ -47,8 +67,7 @@ const getBoardData = unstable_cache(loadBoardData, ["row100k-boards"], {
  * reseeding happens outside the app, so nothing revalidates the tag and a
  * stale board survives even a dev-server restart (unstable_cache persists
  * to .next/cache). */
-export const boardDataRaw = () =>
-  CHALLENGE === CHALLENGE_DEMO ? loadBoardData() : getBoardData();
+export const boardDataRaw = (period?: Period) => loadBoardData(period);
 
 /* The board as the PUBLIC sees it: during a blackout the elite are
  * already masked (blackoutRules.ts). This is the default on purpose — a
@@ -59,9 +78,9 @@ export const boardDataRaw = () =>
  * needs them. Identical to boardDataRaw while no window is open. Who
  * counts as elite is the policy in siteSettings() (owner, 2026-09-16),
  * which fails open to ten per division. */
-export async function boardData(): Promise<BoardData> {
+export async function boardData(period?: Period): Promise<BoardData> {
   const [boards, blackout, settings] = await Promise.all([
-    boardDataRaw(),
+    boardDataRaw(period),
     activeBlackout(),
     siteSettings(),
   ]);
@@ -85,6 +104,8 @@ export async function boardView(opts: {
   /* The admin's test blackout (row100kViewer.viewOpts): treat the window as
    * open for this request only. */
   forceBlackout?: boolean;
+  /* Which month, or all time (rowPeriod.ts). This month when absent. */
+  period?: Period;
 }): Promise<{
   boards: BoardData;
   blackout: BlackoutState;
@@ -93,7 +114,7 @@ export async function boardView(opts: {
   policy: BlackoutPolicy;
 }> {
   const [boards, real, settings] = await Promise.all([
-    boardDataRaw(),
+    boardDataRaw(opts.period),
     activeBlackout(),
     siteSettings(),
   ]);
@@ -187,8 +208,8 @@ const loadFrontExtras = async (): Promise<FrontExtras> => {
   // One pass per day over the entries is thirty passes at most — fine for
   // a board this size, and it stays inside the cache.
   const leaderByDay: (string | null)[] = [];
-  for (let d = 1; d <= 30; d++) {
-    const cutoff = `2026-09-${String(d).padStart(2, "0")}`;
+  for (let d = 1; d <= MONTH_DAYS; d++) {
+    const cutoff = `${MONTH_KEY}-${String(d).padStart(2, "0")}`;
     const cum = new Map<string, number>();
     for (const e of known) {
       if (e.day > cutoff) continue;

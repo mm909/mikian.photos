@@ -1,7 +1,14 @@
 import type { ReactNode } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
 import { ELITE_TAG, digitCount } from "@/lib/blackoutRules";
-import { fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit } from "@/lib/row100k";
+import {
+  fmtDuration,
+  fmtMeters,
+  fmtRowerNumber,
+  fmtSplit,
+  MONTH,
+  MONTH_DAYS,
+} from "@/lib/row100k";
 import { BlockClock, Blocks } from "../../../Blackout";
 import { Heatmap } from "../../../Heatmap";
 import { LogInPlace } from "../../../LogInPlace";
@@ -57,10 +64,10 @@ function dateline(view: ProfileView): string {
   const board = view.rower.division === "F" ? "WOMEN'S BOARD" : "MEN'S BOARD";
   const day =
     view.phase === "before"
-      ? "FIRST STROKE SEP 1"
+      ? `FIRST STROKE ${MONTH.short} 1`
       : view.phase === "closed"
         ? "FINAL"
-        : `DAY ${view.days} OF 30`;
+        : `DAY ${view.days} OF ${MONTH_DAYS}`;
   return `${board}${view.club ? " · 100K CLUB" : ""} · ${day}`;
 }
 

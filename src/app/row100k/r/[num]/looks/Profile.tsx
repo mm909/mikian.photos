@@ -1,3 +1,4 @@
+import { MONTH } from "@/lib/row100k";
 import {
   Actions,
   Bests,
@@ -54,7 +55,7 @@ export function Profile({ view }: { view: ProfileView }) {
                 left="The bests"
                 right={
                   <>
-                    <span className="pf-ph">PERSONAL — </span>THIS SEPTEMBER
+                    <span className="pf-ph">PERSONAL — </span>{MONTH.label.toUpperCase()}
                   </>
                 }
               />
