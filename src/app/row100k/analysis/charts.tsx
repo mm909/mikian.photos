@@ -30,6 +30,7 @@ import type {
   ResidChart,
   ResidYou,
 } from "./model";
+import type { MonthLine, MonthsModel } from "./months";
 
 /* Hand-drawn SVG, the /row100k frame throughout (660×250, L56 R16 T14 B30,
  * mono 10px axis text, ink baseline, dashed gridlines). No hooks, no
@@ -1190,6 +1191,92 @@ export function FanSvg({ c, you }: { c: FanChart; you: FanYou | null }) {
       {dayTicks(span).map((d) => (
         <Lbl key={d} x={x(d)} y={H - 8}>
           {d === 1 ? "SEP 1" : d}
+        </Lbl>
+      ))}
+    </svg>
+  );
+}
+
+/* --------------------------------------------------------- 14 · months */
+/* One line per month on a day-of-month axis (owner, 2026-09-25: "a
+ * comparison between months — on the third day of the month we had this
+ * many meters, but this month we have this many … graphed on the month
+ * scale"). The current month is the water blue and stops at TODAY; the
+ * months before it are greys, the older the fainter, each tagged with its
+ * name at its end so the legend is on the line. `pick` chooses the series
+ * — cumulative meters, cumulative sessions or that day's distinct rowers —
+ * so the three charts are one drawing. Nothing per rower is in the data,
+ * so no mask applies. */
+export function MonthsSvg({
+  m,
+  pick,
+  yMax,
+  fmt,
+  label,
+}: {
+  m: MonthsModel;
+  pick: (l: MonthLine) => number[];
+  yMax: number;
+  fmt: (v: number) => string;
+  label: string;
+}) {
+  if (!(yMax > 0) || m.span < 2 || !m.lines.length) return null;
+  const span = m.span;
+  const x = (d: number) => L + ((d - 1) / (span - 1)) * PW;
+  const y = (v: number) => T + (1 - Math.min(v, yMax) / yMax) * PH;
+  const y0 = y(0);
+  const past = m.lines.filter((l) => !l.current);
+  const now = m.lines.find((l) => l.current) ?? null;
+  const path = (xs: number[]) => xs.map((v, i) => `${i ? "L" : "M"}${r(x(i + 1))},${r(y(v))}`).join("");
+  /* The end tags, nudged apart so two months that finished close together
+   * both stay readable: sorted by y, each pushed below the one before it
+   * when they would overprint. A tag sits to the right of its line's end
+   * where there is room and flips to the left of it at the frame's edge. */
+  const tags = m.lines
+    .map((l) => {
+      const xs = pick(l);
+      return { l, xs, yy: xs.length ? y(xs[xs.length - 1]) + 3 : y0, xx: x(xs.length || 1) };
+    })
+    .filter((t) => t.xs.length)
+    .sort((a, b) => a.yy - b.yy);
+  for (let i = 1; i < tags.length; i++) if (tags[i].yy - tags[i - 1].yy < 11) tags[i].yy = tags[i - 1].yy + 11;
+  const shade = (i: number) => 0.35 + (past.length > 1 ? (0.65 * i) / (past.length - 1) : 0.65);
+  const nowXs = now ? pick(now) : [];
+  const nowLast = nowXs.length ? nowXs[nowXs.length - 1] : 0;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label} by day of the month, one line per month`}>
+      <GridY yMax={yMax} fmt={fmt} />
+      {past.map((l, i) => {
+        const xs = pick(l);
+        if (!xs.length) return null;
+        return <path key={l.key} d={path(xs)} fill="none" stroke={GRAY} strokeWidth="1.5" strokeLinejoin="round" opacity={shade(i)} />;
+      })}
+      {m.today < span && (
+        <g>
+          <line x1={r(x(m.today))} x2={r(x(m.today))} y1={T} y2={r(y0)} stroke={INK} strokeWidth="1" strokeDasharray="2 3" />
+          <Lbl x={x(m.today) - 4} y={T + 10} a="end" size={9}>
+            TODAY
+          </Lbl>
+        </g>
+      )}
+      {now && nowXs.length > 0 && (
+        <g className="now">
+          <path d={path(nowXs)} fill="none" stroke={WATER} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <circle cx={r(x(nowXs.length))} cy={r(y(nowLast))} r="4.5" fill={WATER} />
+        </g>
+      )}
+      {tags.map((t) => {
+        const flip = t.xx > W - R - 34;
+        return (
+          <Lbl key={t.l.key} x={flip ? t.xx - 8 : t.xx + 7} y={t.yy} a={flip ? "end" : "start"} size={9} bold={t.l.current} fill={t.l.current ? WATER : GRAY}>
+            {t.l.current ? `${t.l.short} ${fmt(nowLast)}` : t.l.short}
+          </Lbl>
+        );
+      })}
+      <Base />
+      {dayTicks(span).map((d) => (
+        <Lbl key={d} x={x(d)} y={H - 8} a={d === span ? "end" : d === 1 ? "start" : "middle"}>
+          {d === 1 ? "DAY 1" : d}
         </Lbl>
       ))}
     </svg>

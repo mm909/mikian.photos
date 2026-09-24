@@ -42,4 +42,19 @@ export const analysisCss = `
 .row100k .an-fc td.an-tier .tierbadge{margin-right:0}
 .row100k .an-fc tr.you td{background:var(--water-pale)}
 .row100k .an-fc tr.you .who{color:var(--water)}
+/* THE MONTHS (owner, 2026-09-25: month against month at the same day).
+ * The key under the section head: a short stroke in the line colour and
+ * the month in mono caps; the current month is the blue, the months
+ * before it the grey, faded with age inline to match their lines. The
+ * table row for this month takes the same pale wash the viewer row does
+ * elsewhere on the page, since here it is the one row that is still
+ * moving. */
+.row100k .an-mo-key{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-6px 0 4px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray)}
+.row100k .an-mo-key span{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.row100k .an-mo-key i{display:inline-block;width:18px;height:0;border-top:2px solid var(--gray)}
+.row100k .an-mo-key span.now{color:var(--water);font-weight:700}
+.row100k .an-mo-key span.now i{border-top-width:3px;border-color:var(--water)}
+.row100k .an-mo td.who{white-space:nowrap}
+.row100k .an-mo tr.now td{background:var(--water-pale)}
+.row100k .an-mo tr.now .who{color:var(--water)}
 `;

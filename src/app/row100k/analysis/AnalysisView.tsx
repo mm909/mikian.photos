@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { Blocks, BlockText } from "../Blackout";
 import type { Forecast, ForecastRow, Model, Section, Tile } from "./model";
+import type { MonthsModel } from "./months";
+import { MonthsSection } from "./MonthsSection";
 import { fmtInt, fmtK, fmtM } from "./fmt";
 import {
   ChartBox,
@@ -31,7 +33,17 @@ import {
 
 export type ViewerKind = "anon" | "unjoined" | "empty" | "ready";
 
-export function AnalysisView({ model: m, viewer, initialYou }: { model: Model; viewer: ViewerKind; initialYou: boolean }) {
+export function AnalysisView({
+  model: m,
+  months,
+  viewer,
+  initialYou,
+}: {
+  model: Model;
+  months: MonthsModel;
+  viewer: ViewerKind;
+  initialYou: boolean;
+}) {
   const [on, setOn] = useState(initialYou && viewer === "ready");
   const you = on && viewer === "ready";
 
@@ -77,6 +89,12 @@ export function AnalysisView({ model: m, viewer, initialYou }: { model: Model; v
           ) : null}
         </div>
       </div>
+
+      {/* THE MONTHS (owner ask, 2026-09-25): this month against the months
+        * before it at the same day of the month — meters, sessions, rowers
+        * a day. First on the page: it is the platform-scale view, and the
+        * forecast and the distributions below it are this month only. */}
+      <MonthsSection m={months} />
 
       {/* THE FORECAST (owner ask, 2026-09-16): where everyone ends up on
         * Sep 30 — the field tiles, the spread of projected finals, then
