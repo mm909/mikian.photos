@@ -92,7 +92,9 @@ function sectionOf(r: TotalRow): Tier["key"] | null {
   return tierFor(r.meters)?.key ?? (r.masked ? TIERS[0].key : null);
 }
 
-/* THE BOARD on the main page: the community strip and the standings — total
+/* THE BOARD — the total-meters view of the full rankings since 2026-09-24
+ * (owner: the board page is retired, its features brought over to
+ * /row100k/records/total): the community strip and the standings — total
  * meters, sectioned into tiers (visibleTiers: every tier reached plus the
  * next locked one, highest first). Section headers say the tier's title
  * ("Rowtember Athlete", "The 100K Club"…) — rarity stays a color key only,
@@ -116,6 +118,9 @@ export function Boards({
   started,
   blackout = { active: false },
   head = true,
+  tab: controlled,
+  movement = true,
+  statsHref = "/row100k/stats",
 }: {
   boards: BoardsProp;
   started: boolean;
@@ -124,8 +129,20 @@ export function Boards({
    * its PageHead (owner, 2026-09-16) and must not print it twice. The
    * ledger and the tabs stay. */
   head?: boolean;
+  /* THE BOARD ON THE FULL RANKINGS (owner, 2026-09-24: the board page is
+   * retired; its table lives on /row100k/records/total). There the
+   * division is the page's own ?d= links, so the page hands the tab in and
+   * the buttons here are not drawn. Absent: the board keeps its own tabs. */
+  tab?: Tab;
+  /* Off: no up/down arrows. A finished month has no last logged day to
+   * have moved since; its board is final and says nothing about movement. */
+  movement?: boolean;
+  /* Where the line under the table goes — the stats page, for the month the
+   * board is showing. */
+  statsHref?: string;
 }) {
-  const [tab, setTab] = useState<Tab>("ALL");
+  const [own, setOwn] = useState<Tab>("ALL");
+  const tab = controlled ?? own;
   const filtered = boards.total.filter((r) => tab === "ALL" || r.division === tab);
 
   // THE ELITE come OUT of the tier ladder while they are hidden (review,
@@ -236,18 +253,20 @@ export function Boards({
         ))}
       </ul>
 
-      <div className="tabs">
-        {(["ALL", "M", "F"] as const).map((t) => (
-          <button
-            key={t}
-            aria-pressed={tab === t}
-            className={tab === t ? "on" : undefined}
-            onClick={() => setTab(t)}
-          >
-            {TAB_LABEL[t]}
-          </button>
-        ))}
-      </div>
+      {controlled === undefined && (
+        <div className="tabs">
+          {(["ALL", "M", "F"] as const).map((t) => (
+            <button
+              key={t}
+              aria-pressed={tab === t}
+              className={tab === t ? "on" : undefined}
+              onClick={() => setOwn(t)}
+            >
+              {TAB_LABEL[t]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {blackedOut && (
         <p className="bo-note">
@@ -292,7 +311,7 @@ export function Boards({
                     </td>
                   </tr>
                   {eliteRows.map((r) => (
-                    <TotalRowTr key={r.participantId} r={r} rank={0} />
+                    <TotalRowTr key={r.participantId} r={r} rank={0} movement={movement} />
                   ))}
                 </>
               )}
@@ -321,6 +340,7 @@ export function Boards({
                           r={r}
                           rank={rankOf.get(r.participantId) ?? 0}
                           tier={t}
+                          movement={movement}
                         />
                       ))
                     ) : locked ? (
@@ -366,7 +386,7 @@ export function Boards({
         </div>
       )}
 
-      <a className="big-act stats-link" href="/row100k/stats">
+      <a className="big-act stats-link" href={statsHref}>
         Records, the boards &amp; the field →
       </a>
     </div>
@@ -389,7 +409,7 @@ export function Boards({
  * in the elite block, outside the ladder (the viewer's own row keeps its
  * meters, but it is in the same block and reads the same). The elite-row
  * class only closes the block: the last of them draws the solid rule. */
-function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier }) {
+function TotalRowTr({ r, rank, tier, movement = true }: { r: TotalRow; rank: number; tier?: Tier; movement?: boolean }) {
   // Past PACE_TAG_FROM the tag is the rower's average split, to the second —
   // pace as identity, the way a marathoner is a 3:10 (owner, 2026-09-05).
   // While hidden, the tag is their average split too (owner, 2026-09-05:
@@ -410,7 +430,7 @@ function TotalRowTr({ r, rank, tier }: { r: TotalRow; rank: number; tier?: Tier 
       <td>
         <Who row={r} badge={badge} />
       </td>
-      <td>{r.unranked ? null : <Movement delta={r.delta} />}</td>
+      <td>{r.unranked || !movement ? null : <Movement delta={r.delta} />}</td>
       <td className="num">
         {r.masked ? (
           <>

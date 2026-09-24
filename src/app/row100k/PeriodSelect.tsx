@@ -9,7 +9,25 @@ import { TextMenu } from "./TextMenu";
  * with no query. */
 export type PeriodOption = { key: string; label: string };
 
-export function PeriodSelect({ options, value, base, current, align = "left" }: { options: PeriodOption[]; value: string; base: string; current: string; align?: "left" | "right" }) {
-  const hrefOf = (k: string) => (k === current ? base : `${base}?m=${encodeURIComponent(k)}`);
+export function PeriodSelect({
+  options,
+  value,
+  base,
+  current,
+  align = "left",
+  query,
+}: {
+  options: PeriodOption[];
+  value: string;
+  base: string;
+  current: string;
+  align?: "left" | "right";
+  /* Extra query the page is in, without the leading ?, kept on every line
+   * of the menu (the full rankings keep their ?d= division across months —
+   * owner, 2026-09-24: keep All / Men's / Women's). Empty or absent: none. */
+  query?: string;
+}) {
+  const tail = query ? `&${query}` : "";
+  const hrefOf = (k: string) => (k === current ? (query ? `${base}?${query}` : base) : `${base}?m=${encodeURIComponent(k)}${tail}`);
   return <TextMenu options={options.map((o) => ({ key: o.key, label: o.label, href: hrefOf(o.key) }))} value={value} ariaLabel="Which month" align={align} />;
 }
