@@ -23,6 +23,7 @@ export function LeadBlock({
   day,
   sessions,
   pace,
+  paceInline = false,
 }: {
   /* The big figure, unit included (a small grey .u for meters). */
   value: ReactNode;
@@ -39,6 +40,12 @@ export function LeadBlock({
    * not a suffix on the time (owner, 2026-09-24: "remove the /500m on the
    * time; just say their time and then their pace"). */
   pace?: ReactNode;
+  /* The pace ON the holder line instead — "042 · NADIA DUVAL · NOV 30 ·
+   * 1:35.4 PACE" — so the block is the same height whichever stat is up
+   * (owner, 2026-09-25: "when I select fastest 5K the PACE figure appears
+   * below and the UI jumps. I still want to see the pace, but no jump").
+   * The stats page sets it; the full-ranking pages keep the figure. */
+  paceInline?: boolean;
 }) {
   const tail = [day ? fmtDay(day) : null, sessions != null ? `${sessions} sessions` : null]
     .filter(Boolean)
@@ -59,8 +66,14 @@ export function LeadBlock({
           <b>{label}</b>
         )}
         {tail}
+        {paceInline && pace != null ? (
+          <>
+            {" · "}
+            <span className="lead-pace-in">{pace} pace</span>
+          </>
+        ) : null}
       </p>
-      {pace != null && (
+      {!paceInline && pace != null && (
         <div className="lead-pace">
           <span className="n">{pace}</span>
           <span className="l mono">Pace</span>

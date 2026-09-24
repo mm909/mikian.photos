@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyEvent, type ReactNode } from "react";
 import Link from "next/link";
 
 /* A WORD THAT IS A MENU (owner, 2026-09-24: the native select looked like
@@ -28,6 +28,8 @@ export function TextMenu({
   align = "left",
   onPick,
   className,
+  label,
+  panel,
 }: {
   options: TextMenuOption[];
   value: string;
@@ -37,11 +39,21 @@ export function TextMenu({
   onPick?: (key: string) => void;
   /* An extra class on the wrapper, for a page that sizes its own list. */
   className?: string;
+  /* The word itself, when it is not one of the options (a panel menu). */
+  label?: string;
+  /* A PANEL instead of the list (owner, 2026-09-25: "the by-day picker must
+   * be a CALENDAR picker"): the same house panel drops from the word, and
+   * what is in it is the caller's — a month grid, say. The callback gets a
+   * function that closes the panel, for a pick made inside it. `options`
+   * may then be empty; the word is `label`. Escape and a tap outside still
+   * close it. */
+  panel?: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement | null>(null);
   const btn = useRef<HTMLButtonElement | null>(null);
   const list = useRef<HTMLUListElement | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
   const id = useId();
   const current = options.find((o) => o.key === value);
 
@@ -60,8 +72,10 @@ export function TextMenu({
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onDown);
-    /* The current line takes focus so the arrows start from it. */
-    const on = list.current?.querySelector<HTMLAnchorElement>("a.on") ?? list.current?.querySelector<HTMLAnchorElement>("a");
+    /* The current line takes focus so the arrows start from it (in a
+     * panel, the cell marked on, else its first link). */
+    const root: HTMLElement | null = list.current ?? box.current;
+    const on = root?.querySelector<HTMLAnchorElement>("a.on") ?? root?.querySelector<HTMLAnchorElement>("a");
     on?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
@@ -80,16 +94,27 @@ export function TextMenu({
 
   return (
     <span className={className ? `tm ${className}` : "tm"} ref={wrap}>
-      <button type="button" ref={btn} className="tm-btn" aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-label={ariaLabel} onClick={() => setOpen((v) => !v)}>
-        {current?.label ?? value}
+      <button type="button" ref={btn} className="tm-btn" aria-haspopup={panel ? "dialog" : "listbox"} aria-expanded={open} aria-controls={id} aria-label={ariaLabel} onClick={() => setOpen((v) => !v)}>
+        {label ?? current?.label ?? value}
       </button>
-      {open ? (
+      {open && panel ? (
+        <div className={align === "right" ? "tm-list tm-panel right" : "tm-list tm-panel"} id={id} role="dialog" aria-label={ariaLabel} ref={box}>
+          {panel(() => {
+            setOpen(false);
+            btn.current?.focus();
+          })}
+        </div>
+      ) : open ? (
         <ul className={align === "right" ? "tm-list right" : "tm-list"} id={id} role="listbox" ref={list} onKeyDown={onListKey}>
           {options.map((o) => (
             <li key={o.key} role="option" aria-selected={o.key === value}>
               <Link
                 href={o.href}
                 className={o.key === value ? "on" : ""}
+                /* A soft line swaps something in place, so the tap line
+                 * (NavProgress.tsx) must not start for it: no page is
+                 * coming (owner, 2026-09-25: no loading bar on a swap). */
+                {...(o.soft && onPick ? { "data-inplace": "" } : {})}
                 onClick={(ev) => {
                   setOpen(false);
                   /* A plain tap on a soft line is a pick, not a page load;

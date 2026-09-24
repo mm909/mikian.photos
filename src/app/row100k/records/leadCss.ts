@@ -21,4 +21,10 @@ export const leadCss = `
 .row100k .lead-pace{display:flex;align-items:baseline;gap:12px;margin-top:14px}
 .row100k .lead-pace .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,5vw,36px);line-height:1;letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums}
 .row100k .lead-pace .l{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* The pace on the holder line instead (LeadBlock paceInline — the stats
+ * page, owner 2026-09-25: the pace stays, the block never changes height).
+ * Ink, the way the holder is: the split is the figure that matters on a
+ * time record, not a footnote. */
+.row100k .lead .bhead-l .lead-pace-in{color:var(--ink);white-space:nowrap}
 `;

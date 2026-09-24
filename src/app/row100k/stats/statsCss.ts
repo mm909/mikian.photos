@@ -1,53 +1,75 @@
-/* THE STATS PAGE, its own rules (owner review, 2026-09-24). Kept out of
- * theme.ts so the packages working the site tonight do not collide there:
- * rendered as one more style child under the theme on stats/page.tsx.
+/* THE STATS PAGE, its own rules (owner review, 2026-09-24; the swap-in-place
+ * pass, 2026-09-25). Kept out of theme.ts so the packages working the site
+ * tonight do not collide there: rendered as one more style child under the
+ * theme on stats/page.tsx.
  *
  * Rendered as the text child of a style tag, so no double quotes, no
  * apostrophes, no angle brackets and no ampersands anywhere in this
  * string, comments included (see the note in theme.ts). Prefix .st-. */
 export const statsCss = `
-/* THE HEADLINE FIGURES under the odometer (owner, 2026-09-24: total meters
- * biggest, then hours rowed, then rowers and sessions, in that order of
- * importance). A dotted rule, then hours in the display face at the size
- * of a section title, then the two smaller numbers on the same baseline
- * row. On a phone the three stack two and one. */
-.row100k .st-figs{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 34px;margin-top:22px;padding-top:16px;border-top:1px dotted var(--ink)}
-.row100k .st-fig{min-width:0}
-.row100k .st-fig .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,6vw,40px);line-height:1;letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums}
-.row100k .st-fig.hours .n{font-size:clamp(34px,8vw,56px);color:var(--water)}
-.row100k .st-fig .n .u{font-size:.42em;color:var(--gray);font-family:var(--row-archivo),sans-serif;font-weight:700;margin-left:.1em}
-.row100k .st-fig .l{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin-top:8px}
-.row100k .st-fig.hours .l{color:var(--ink)}
-
-/* ONE share button for every card on the page, near the top (owner,
- * 2026-09-24): right-aligned on the same line as the figures end. */
-.row100k .st-share{margin-top:14px}
+/* SHARE A CARD on the dateline (owner, 2026-09-25: same line as the
+ * DECEMBER 2026 word, on the right). The line becomes a flex row with the
+ * month word left and the button right, both on the mono baseline; the
+ * share button keeps its own quiet look and loses the margin it wears
+ * under a chart. */
+.row100k .ph-line.has-aside{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.row100k .ph-aside{margin-left:auto}
+.row100k .ph-aside .ms-actions{margin:0}
 
 /* THE STAT BLOCK: two words that are menus on one mono line — the month
  * and the stat (TextMenu.tsx) — above the big figure. Bold and ink, the
- * way chips are, the dotted rule under each word saying it opens. */
-.row100k .st-pick{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);line-height:1.8;margin:0}
+ * way chips are, the dotted rule under each word saying it opens. Far
+ * right on the same line, the ONE link to the full rankings (owner,
+ * 2026-09-25); on a phone it drops to its own line, still right. */
+.row100k .st-pick{display:flex;align-items:baseline;justify-content:space-between;gap:8px 20px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);line-height:1.8;margin:0}
 .row100k .st-pick .dot{color:var(--gray);margin:0 6px}
 .row100k .st-pick .tm-list{min-width:220px}
+.row100k .st-pick .st-all{margin-left:auto;font-size:11px;letter-spacing:.12em;color:var(--water);text-decoration:none;border-bottom:2px solid var(--water);padding-bottom:2px;white-space:nowrap}
+.row100k .st-pick .st-all:hover{color:var(--ink);border-color:var(--ink)}
 
-/* The line under each top five: the whole ranking, one link. */
-.row100k .st-foot{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:12px 0 0}
-.row100k .st-foot a{color:var(--water);text-decoration:none;border-bottom:2px solid var(--water);padding-bottom:2px}
-.row100k .st-foot a:hover{color:var(--ink);border-color:var(--ink)}
+/* The leader block never changes height between stats (owner, 2026-09-25:
+ * no jump): the pace rides on the holder line (LeadBlock paceInline), the
+ * figure keeps one line, and on a phone the holder line reserves two so
+ * a long name with a pace and a short one without sit the same. */
+.row100k .st-rec .bhead-n{min-height:1em}
+.row100k .st-rec .bhead-l{line-height:1.7}
+@media(max-width:560px){.row100k .st-rec .bhead-l{min-height:3.4em}}
 
-/* THE DAY WORD on meters by day: the arrows either side are plain glyphs
- * in the same type, no box; the list of days scrolls inside the panel
- * when a month has more days than the screen has room for. */
+/* THE DAY WORD and THE WEEK WORD on the period boards: the arrows either
+ * side of the day are plain glyphs in the same type, no box. */
 .row100k .st-day{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);line-height:1.8;margin:0 0 18px;display:flex;align-items:center;gap:14px}
 .row100k .st-day .st-arrow{all:unset;cursor:pointer;color:var(--ink);font:inherit;padding:0 4px;line-height:1}
 .row100k .st-day .st-arrow:hover{color:var(--water)}
 .row100k .st-day .st-arrow:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .row100k .st-day .st-arrow.off{opacity:.3;cursor:default}
 .row100k .st-day .st-arrow.off:hover{color:var(--ink)}
-.row100k .st-days .tm-list{max-height:min(60vh,440px);overflow-y:auto;min-width:220px}
-.row100k .st-days .tm-list a.step{color:var(--gray);border-bottom:1px dotted var(--line)}
-.row100k .st-days .tm-list a.step.last{border-bottom:0;border-top:1px dotted var(--line)}
-.row100k .st-days .tm-list a.step:hover{color:var(--water)}
+.row100k .st-weeks .tm-list{min-width:240px}
+
+/* THE CALENDAR under the day word (owner, 2026-09-25: a calendar picker,
+ * not a list). The house panel holds a month grid in the heatmap idiom:
+ * weekday letters, dashed cells, the picked day filled ink, today ringed
+ * water, the days still to come dim. Sized to sit inside a 375 phone
+ * from where the word starts. The head is the month word between two
+ * arrows that step the month. */
+.row100k .tm-panel{padding:0}
+.row100k .st-cal{padding:12px 14px 14px;width:min(300px,calc(100vw - 64px));box-sizing:border-box}
+.row100k .st-cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dotted var(--ink)}
+.row100k .st-cal-month{font-size:11px;letter-spacing:.14em;color:var(--ink)}
+.row100k .tm-list .st-cal-arrow{display:inline-block;padding:0 6px;font-size:16px;line-height:1;color:var(--ink);text-decoration:none;white-space:nowrap}
+.row100k .tm-list a.st-cal-arrow:hover,.row100k .tm-list a.st-cal-arrow:focus-visible{background:none;color:var(--water);outline:none}
+.row100k .st-cal-arrow.off{opacity:.3}
+.row100k .st-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.row100k .st-cal-grid .dow{font-size:9px;letter-spacing:.1em;color:var(--gray);text-align:center;padding-bottom:2px}
+.row100k .tm-list .st-cal-cell{display:flex;align-items:center;justify-content:center;aspect-ratio:1;padding:0;border:1px dashed var(--line);font-size:11px;font-weight:700;letter-spacing:0;color:var(--ink);text-decoration:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.row100k .tm-list a.st-cal-cell:hover,.row100k .tm-list a.st-cal-cell:focus-visible{background:var(--water-pale);border-style:solid;border-color:var(--water);outline:none}
+.row100k .tm-list .st-cal-cell.today{border:1px solid var(--water);color:var(--water)}
+.row100k .tm-list .st-cal-cell.on,.row100k .tm-list a.st-cal-cell.on:hover{background:var(--ink);border:1px solid var(--ink);color:var(--paper)}
+.row100k .tm-list .st-cal-cell.off{color:var(--gray);opacity:.45;cursor:default}
+
+/* A month on its way (StatsShell.tsx): the page dims a touch so the tap is
+ * seen to land — no bar, no page (owner, 2026-09-25). */
+.row100k .st-swap{transition:opacity .15s ease}
+.row100k .st-swap[aria-busy=true]{opacity:.55}
 
 /* The viewer on a period board, appended under the ten (owner,
  * 2026-09-24: top ten and then me on the next row): the fin tint marks
