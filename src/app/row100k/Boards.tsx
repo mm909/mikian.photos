@@ -96,8 +96,11 @@ function sectionOf(r: TotalRow): Tier["key"] | null {
  * (r/[num]/looks/RowerSearch.tsx): NFD splits an accent off its letter and
  * the combining marks are dropped, so JOSE finds José and José finds Jose.
  * Kept here rather than imported so the board does not pull a page's
- * client module in for six lines. */
-function fold(s: string): string {
+ * client module in for six lines. Exported since 2026-09-25 so the four
+ * flat rankings (records/RecordsShell.tsx) find a rower the same way the
+ * board does (owner: "search on ALL the categories, not just total
+ * meters"). */
+export function fold(s: string): string {
   return s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -108,7 +111,7 @@ function fold(s: string): string {
 /* Does a folded query find this row: anywhere in the name, or in the
  * rower's number as it prints (045 and 45 are the same rower). `q` is
  * already folded and non-empty. */
-function rowMatches(r: { name: string; rowerNumber: number }, q: string): boolean {
+export function rowMatches(r: { name: string; rowerNumber: number }, q: string): boolean {
   if (/^[0-9]+$/.test(q)) {
     if (Number(q) === r.rowerNumber) return true;
     if (fmtRowerNumber(r.rowerNumber).includes(q)) return true;
@@ -146,6 +149,7 @@ export function Boards({
   movement = true,
   statsHref = "/row100k/stats",
   query = "",
+  foot = true,
 }: {
   boards: BoardsProp;
   started: boolean;
@@ -173,6 +177,10 @@ export function Boards({
    * each one at its true place, under its own tier heading — and the tiers
    * nobody matched are not drawn. Empty: the whole board, as ever. */
   query?: string;
+  /* Off: no line under the table. The full rankings print one line under
+   * every category themselves (records/RecordsShell.tsx), so the board
+   * must not print a second. */
+  foot?: boolean;
 }) {
   const [own, setOwn] = useState<Tab>("ALL");
   const tab = controlled ?? own;
@@ -417,9 +425,14 @@ export function Boards({
         </div>
       )}
 
-      <a className="big-act stats-link" href={statsHref}>
-        Records, the boards &amp; the field →
-      </a>
+      {/* The one line under the board goes to the stats page for the
+          period the board is showing, and says so (owner, 2026-09-25: "at
+          the bottom of the board, have the callout be to the STATS page"). */}
+      {foot && (
+        <a className="big-act stats-link" href={statsHref}>
+          The stats →
+        </a>
+      )}
     </div>
   );
 }
@@ -458,7 +471,10 @@ function TotalRowTr({ r, rank, tier, movement = true }: { r: TotalRow; rank: num
   return (
     <tr className={r.unranked ? "elite-row" : undefined}>
       <td className="rk">{r.unranked ? "" : rank}</td>
-      <td>
+      {/* .wc marks the name cell so a page can hold it to one line
+          (records/recordsCss.ts; owner, 2026-09-25: "some names get split
+          over two lines — make them a single line"). */}
+      <td className="wc">
         <Who row={r} badge={badge} />
       </td>
       <td>{r.unranked || !movement ? null : <Movement delta={r.delta} />}</td>
