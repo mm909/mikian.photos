@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /* THE LINE THAT SAYS THE TAP LANDED (owner, 2026-09-24: "it takes a couple
@@ -31,8 +31,26 @@ export function NavProgress() {
     setOn(false);
   }, [pathname, search]);
 
+  /* LOG A ROW on the bar opens the form in place and says so with a
+   * row100k:log event (BarLog.tsx) before its click reaches the document,
+   * so the line must not start for it (owner, 2026-09-24: "the loading bar
+   * comes up and never goes away"). */
+  const skip = useRef(false);
+  useEffect(() => {
+    const onLog = () => {
+      skip.current = true;
+      setOn(false);
+      window.setTimeout(() => {
+        skip.current = false;
+      }, 0);
+    };
+    window.addEventListener("row100k:log", onLog);
+    return () => window.removeEventListener("row100k:log", onLog);
+  }, []);
+
   useEffect(() => {
     const onClick = (ev: MouseEvent) => {
+      if (skip.current) return;
       if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
       const t = ev.target as Element | null;
       const a = t && typeof t.closest === "function" ? (t.closest("a[href]") as HTMLAnchorElement | null) : null;

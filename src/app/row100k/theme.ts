@@ -867,13 +867,17 @@ html:has(.row100k){scroll-behavior:smooth}
  * .pf-tag is the elite rower s own dog tag under their stats (owner,
  * 2026-09-08: what everyone else sees) — the eyebrow carries the gap. */
 .row100k .pf-block{margin-top:34px}
-/* THE MONTH AS A WORD (PeriodSelect.tsx): the label inherits the dateline
- * it sits in, a caret after it, and the native select laid over it
- * unseen so a tap opens the picker. */
-.row100k .pd-text{position:relative;display:inline-block;color:var(--ink);cursor:pointer}
-.row100k .pd-text .lbl{border-bottom:1px dotted var(--ink)}
-.row100k .pd-text .caret{font-size:.85em;margin-left:.35em}
-.row100k .pd-text select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+/* A WORD THAT IS A MENU (TextMenu.tsx): the label in the type it sits in
+ * with a dotted rule under it, the list in the house panel. */
+.row100k .tm{position:relative;display:inline-block}
+.row100k .tm-btn{all:unset;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;border-bottom:1px dotted currentColor;padding-bottom:1px}
+.row100k .tm-btn:hover{color:var(--water)}
+.row100k .tm-btn:focus-visible{outline:2px solid var(--water);outline-offset:3px}
+.row100k .tm-list{position:absolute;left:0;top:calc(100% + 8px);z-index:45;min-width:200px;margin:0;padding:6px 0;list-style:none;background:var(--paper);border:2px solid var(--ink);box-shadow:0 10px 30px rgba(0,0,0,.12);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;line-height:1.3;text-align:left}
+.row100k .tm-list.right{left:auto;right:0}
+.row100k .tm-list a{display:block;padding:9px 14px;color:var(--ink);text-decoration:none;white-space:nowrap}
+.row100k .tm-list a:hover,.row100k .tm-list a:focus-visible{background:var(--water-pale);outline:none}
+.row100k .tm-list a.on{color:var(--water)}
 /* THE OFF-SEASON FRONT (owner, 2026-09-24): the month as a subtitle, the
  * stats as the main object. */
 .row100k .front-head.off{padding:22px 0 0}

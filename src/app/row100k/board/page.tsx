@@ -97,25 +97,8 @@ export default async function BoardPage({ searchParams }: { searchParams?: { m?:
    * text clothing once there is more than one month (PeriodSelect.tsx). */
   const monthWord =
     months.length > 1 ? <PeriodSelect options={periodOptions(clockNow())} value={period.key} base="/row100k/board" current={MONTH.key} /> : MONTH.label;
-  const dateline =
-    period.kind === "all" ? (
-      <>
-        {monthWord} · SINCE {months[0].short} {months[0].year}
-      </>
-    ) : !thisMonth ? (
-      <>{monthWord} · FINAL</>
-    ) : (
-      <>
-        {monthWord} ·{" "}
-        {phase === "before"
-          ? `FIRST STROKE ${MONTH.short} 1`
-          : phase === "closed"
-            ? "FINAL"
-            : nowMs >= END_MS
-              ? "LATE LOGS OPEN"
-              : stamp}
-      </>
-    );
+  /* Just the month (owner, 2026-09-24: no FINAL, no DEC 15). */
+  const dateline = monthWord;
 
   // The board stickers (ten places to a card) share the community card
   // plumbing, which wants per-day totals too; the curve carries cumulative

@@ -70,25 +70,8 @@ function Dateline({ view }: { view: ProfileView }) {
   ) : (
     MONTH.label
   );
-  /* No day count (owner, 2026-09-24): the month, the club, and only a
-   * word when the month is not the one under way. */
-  const day =
-    view.period.kind === "all"
-      ? `SINCE ${view.periodOptions[0]?.label ?? ""}`
-      : view.period.key !== view.thisMonthKey
-        ? "FINAL"
-        : view.phase === "before"
-          ? `FIRST STROKE ${MONTH.short} 1`
-          : view.phase === "closed"
-            ? "FINAL"
-            : "";
-  return (
-    <>
-      {month}
-      {view.club ? " · 100K CLUB" : ""}
-      {day ? ` · ${day}` : ""}
-    </>
-  );
+  /* Just the month (owner, 2026-09-24: no 100K CLUB, no FINAL, no day). */
+  return <>{month}</>;
 }
 
 /* The nameplate: number and name in the front page's masthead face, one

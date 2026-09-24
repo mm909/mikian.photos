@@ -335,18 +335,8 @@ export default async function StatsPage({ searchParams }: { searchParams?: { m?:
    * count: the stamp already says the day. */
   const monthWord =
     months.length > 1 ? <PeriodSelect options={periodOptions(now)} value={period.key} base="/row100k/stats" current={MONTH.key} /> : MONTH.label;
-  const dateline =
-    period.kind === "all" ? (
-      <>
-        {monthWord} · SINCE {months[0].short} {months[0].year}
-      </>
-    ) : !thisMonth ? (
-      <>{monthWord} · FINAL</>
-    ) : (
-      <>
-        {monthWord} · {phase === "before" ? `FIRST STROKE ${MONTH.short} 1` : phase === "closed" ? "FINAL" : stamp}
-      </>
-    );
+  /* Just the month (owner, 2026-09-24: no FINAL, no DEC 15). */
+  const dateline = monthWord;
 
   const attendance = perfectAttendance(daily, now, { through: thisMonth ? undefined : pm.days, short: pm.short });
 
