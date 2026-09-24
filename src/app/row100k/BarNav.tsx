@@ -42,13 +42,17 @@ import { trackClick } from "./TrackedLink";
  * ref — with nothing in itemRefs it gets no Box, and the pill can only move to
  * a box it has measured. It cannot land there by hover, by pin, by carry, or
  * by being the active page. Whether it is on the rail at all is
- * raceOpenFor(isAdmin), resolved by RowBar on the server, so the link and the
- * page can never disagree about whether there is a race. */
+ * raceOpenFor(isAdmin) AND raceAnnounced() (raceday.ts), resolved by RowBar
+ * on the server, so the link and the page can never disagree about whether
+ * there is a race, and a month with no race coming wears no stamp (owner,
+ * 2026-09-25: "RACE DAY should be hidden when no race day is announced"). */
 
-/* No "board" key since 2026-09-24 (owner: the board page is retired, its
- * table is the total-meters view of the full rankings, which light STATS).
- * A stale "board" in a stashed pill position fails isKey and is dropped. */
-export type NavKey = "home" | "raceday" | "stats" | "feed" | "gallery" | "partners";
+/* THE BOARD is back on the rail (owner, 2026-09-25: "add a link in the
+ * header for the board — it goes to the records page with total meters and
+ * ALL selected for the current month"). It went off on 2026-09-24 when the
+ * board page was folded into the full rankings; the key now points at that
+ * total-meters view, plain URL, and lights on every records page. */
+export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
 
 const ITEMS: { key: NavKey; href: string; label: string }[] = [
   { key: "home", href: "/row100k", label: "ROWTEMBER" },
@@ -57,6 +61,9 @@ const ITEMS: { key: NavKey; href: string; label: string }[] = [
    * scroll and not a navigation — so this is the leftmost LINK, and the rail
    * reads brand, then race, then sections. */
   { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
+  /* No ?m= and no ?d=: the records page reads the plain URL as this month,
+   * All (records/[record]/page.tsx hrefFor). */
+  { key: "board", href: "/row100k/records/total", label: "THE BOARD" },
   { key: "stats", href: "/row100k/stats", label: "STATS" },
   { key: "feed", href: "/row100k/feed", label: "FEED" },
   { key: "partners", href: "/row100k/partners", label: "PARTNERS" },
@@ -282,9 +289,9 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
     tickStash();
   };
 
-  /* raceOpenFor(isAdmin), resolved by RowBar: open to everyone in local dev,
-   * admin-only in production until the owner opens the race. Shut, and the
-   * stamp is not in the markup at all. */
+  /* raceOpenFor(isAdmin) and raceAnnounced(), resolved by RowBar: the gate
+   * the race wears, and whether a race is in its window at all. Shut, or no
+   * race announced, and the stamp is not in the markup at all. */
   /* PARTNERS and FEED are September's (owner, 2026-09-24: "on October 1st
    * we're going to hide the partner page"; "hide the feed on October 1st,
    * same as the partner page"). Both pages stay at their addresses. */

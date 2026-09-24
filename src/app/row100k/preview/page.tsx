@@ -91,7 +91,7 @@ export default function Row100kPreview({
             * would be a picture of a bar no page actually renders — and the
             * band is the thing that changed the bar most. */}
           <BarNav active="home" raceOpen />
-          <BarLog />
+          <BarLog rowerNumber={23} />
           <span className="bar-right">
             <BarAccount signedIn rowerNumber={23} admin defaultOpen={searchParams.menu === "1"} />
           </span>

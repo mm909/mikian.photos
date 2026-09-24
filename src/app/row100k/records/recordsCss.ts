@@ -30,5 +30,19 @@ export const recordsCss = `
 }
 
 /* The division chips stay the house chips: left, bold, wrapping. */
-.row100k .rec-div{margin-bottom:22px}
+.row100k .rec-div{margin-bottom:22px;align-items:center}
+
+/* FIND A ROWER (owner, 2026-09-25: a search field on the far right of the
+ * ALL / MEN S / WOMEN S line, not ugly). Text, not a box: the house mono
+ * caps on a dotted rule, the same rule a menu word wears (.tm-btn), pushed
+ * to the far edge by the auto margin, water blue when it has focus. No
+ * button — typing is the search. Under 560px the chips line is full at
+ * 375 with the three chips alone, so the field drops to a line of its own
+ * beneath them and runs the measure, the rule now a full-width baseline. */
+.row100k .rec-find{margin-left:auto;flex:0 1 210px;width:210px;min-width:0;background:transparent;border:0;border-bottom:2px dotted var(--ink);border-radius:0;appearance:none;padding:7px 0 5px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);line-height:16px}
+.row100k .rec-find::placeholder{color:var(--gray);font-weight:400;letter-spacing:.12em;text-transform:uppercase;opacity:1}
+.row100k .rec-find:focus{outline:0;border-bottom-color:var(--water)}
+@media(max-width:560px){
+  .row100k .rec-find{flex:1 1 100%;width:auto;margin:6px 0 0}
+}
 `;

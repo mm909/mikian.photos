@@ -26,6 +26,12 @@ export type RaceDef = {
   day: string;
   /* "Sunday, Sep 27" — the day, as a stub line. */
   when: string;
+  /* WHEN THE RACE WAS ANNOUNCED, as an instant. The RACE DAY stamp on the
+   * rail is on from here until a day after the doors shut (raceInWindow;
+   * owner, 2026-09-25: "RACE DAY should be hidden when no race day is
+   * announced"), so a month with no race coming, December say, wears no
+   * stamp at all. The page itself keeps its address either way. */
+  announcedAt: number;
   /* THE DOORS, as instants (owner, 2026-09-11: "let us make the start time
    * and end time and first wave time all changeable in the settings
    * menu"). They are instants and not a typed string so that changing one
@@ -112,6 +118,9 @@ export const RACES: RaceDef[] = [
     meters: 5000,
     day: "2026-09-27",
     when: "Sunday, Sep 27",
+    /* The day the race went up on the site (raceday.ts, 2026-09-10),
+     * midnight Pacific. */
+    announcedAt: Date.UTC(2026, 8, 10, 7, 0, 0),
     /* EVENING (owner, 2026-09-11: "6-9pm on the 27th"). The first telling
      * of it was "six to nine, first wave six thirty" with no half named,
      * and it was built as a morning; this is the correction. 6 PM and 9 PM
@@ -198,6 +207,27 @@ export function raceBySlug(slug: string): RaceDef | null {
  * while RACES has an entry. */
 export function currentRace(at: number = nowMs()): RaceDef {
   return RACES.find((r) => at < r.closesAt) ?? RACES[RACES.length - 1];
+}
+
+/* IS THERE A RACE TO POINT AT (owner, 2026-09-25: "RACE DAY should be
+ * hidden when no race day is announced"): a race is in its window from the
+ * moment it is announced until a day after its doors shut, so the results
+ * are still one tap away the morning after and the stamp is gone by the
+ * time the next month starts. The rail (RowBar) draws RACE DAY only while
+ * some race is in window; the sign-up page and the POST keep raceOpenFor
+ * as their gate, so a race that has come and gone still answers at its
+ * address the way a past month does. The code defaults are read here, not
+ * the console overrides (racedaySettings.ts): those move the doors by
+ * hours and the day of slack covers them, and the bar must not cost every
+ * page a settings read. */
+const DAY_MS = 86_400_000;
+
+export function raceInWindow(r: RaceDef, at: number = nowMs()): boolean {
+  return at >= r.announcedAt && at <= r.endsAt + DAY_MS;
+}
+
+export function raceAnnounced(at: number = nowMs()): boolean {
+  return RACES.some((r) => raceInWindow(r, at));
 }
 
 /* Where a race stands on the clock. */

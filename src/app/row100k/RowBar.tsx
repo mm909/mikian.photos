@@ -7,16 +7,16 @@ import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
 import { BarNav, type NavKey } from "./BarNav";
 import { NavProgress } from "./NavProgress";
-import { raceOpenFor } from "./raceday";
+import { raceAnnounced, raceOpenFor } from "./raceday";
 import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
 import { openRaffle, raffleDismissCookie } from "./raffles";
 
 /* The one bar every /row100k page wears: the Mikian.Musser wordmark (kept,
  * blue dot and all — owner call, 2026-09-05), then the nav rail with its
- * sliding pill (ROWTEMBER, the RACE DAY stamp while the race is open,
- * STATS, FEED, PARTNERS in September — THE BOARD came off the rail
- * 2026-09-24 when the board page was folded into the full rankings), then
+ * sliding pill (ROWTEMBER, the RACE DAY stamp while a race is announced
+ * and open, THE BOARD — back on the rail 2026-09-25, pointing at the
+ * total-meters rankings — STATS, FEED, PARTNERS in September), then
  * — for a joined rower — the LOG A ROW
  * button, then the sign-in / rower chip on the right. Server component: it
  * resolves the session itself unless the page already did and hands the
@@ -117,15 +117,20 @@ export async function RowBar({
         {/* RACE DAY on the rail rides the same switch as the race itself
          * (raceday.ts raceOpenFor): everyone in local dev, the owner alone in
          * production until he opens it — so the link is there for him today
-         * and for the world the hour he flips it. Resolved here, where isAdmin
-         * already is, so the server markup and the first client render agree. */}
-        <BarNav active={active} raceOpen={raceOpenFor(isAdmin)} />
+         * and for the world the hour he flips it. AND only while a race is
+         * announced (raceday.ts raceAnnounced; owner, 2026-09-25: "RACE DAY
+         * should be hidden when no race day is announced"): from the day it
+         * goes up until a day after its doors shut, so December, with no
+         * race coming, has no stamp. Resolved here, where isAdmin already
+         * is, so the server markup and the first client render agree. */}
+        <BarNav active={active} raceOpen={raceOpenFor(isAdmin) && raceAnnounced(nowMs())} />
         {/* Joined rowers only (owner call, 2026-09-05): the account menu's
-         * "Log a row", made obvious. Signed out, not yet joined, or the log
-         * window closed: nothing — the join CTA is on the front page. A direct
-         * child of the bar so the phone media query can drop it onto the link
-         * row under the chip. */}
-        {rower !== null && logOpen && <BarLog />}
+         * "Log a row", made obvious; it goes to the rower's own profile with
+         * the form open (owner, 2026-09-25). Signed out, not yet joined, or
+         * the log window closed: nothing — the join CTA is on the front page.
+         * A direct child of the bar so the phone media query can drop it onto
+         * the link row under the chip. */}
+        {rower !== null && logOpen && <BarLog rowerNumber={rower} />}
         <span className="bar-right">
           {children}
           <BarAccount signedIn={isSignedIn} rowerNumber={rower} admin={isAdmin} />
