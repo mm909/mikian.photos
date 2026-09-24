@@ -22,6 +22,22 @@ export type PacePoint = {
   dayStr: string;
 };
 
+/* A DOT (owner ask, 2026-09-24: "I want to see a dot where the average
+ * pace of that row was — if my month average is 1:57 and going down, that
+ * is because I had rows at 1:55, and I want to see those dots"). One per
+ * timed row, at the meters rowed so far and that row's OWN split, so the
+ * line can be read against the days that moved it. */
+export type PaceDot = {
+  /* cumulative meters after this row — the same x as the line's point */
+  m: number;
+  /* this row's own split, seconds per 500 m */
+  s: number;
+  /* the row's own meters, for the readout */
+  rowM: number;
+  /* "Sep 4", for the readout */
+  dayStr: string;
+};
+
 const W = 660;
 const H = 220;
 const L = 54;
@@ -35,12 +51,19 @@ const clock = (s: number) => {
 };
 const abbr = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : String(n));
 
-export function PaceCurve({ pts }: { pts: PacePoint[] }) {
+/* `dots` is optional so the plan page (another package) can keep calling
+ * this with the line alone. */
+export function PaceCurve({ pts, dots = [] }: { pts: PacePoint[]; dots?: PaceDot[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  /* A dot under the pointer or the keyboard: it wins the readout over the
+   * line's nearest point, because it is what the hand is on. */
+  const [dotHover, setDotHover] = useState<number | null>(null);
   if (pts.length < 2) return null;
 
   const maxM = pts[pts.length - 1].m;
-  const splits = pts.map((p) => p.s);
+  /* The axis holds the dots too: a 1:45 row on a 1:55 average has to be on
+   * the chart, not clipped off its top (owner, 2026-09-24). */
+  const splits = pts.map((p) => p.s).concat(dots.map((d) => d.s));
   const lo = Math.min(...splits);
   const hi = Math.max(...splits);
   /* A few seconds of air either side, and never a flat band: a rower whose
@@ -76,7 +99,11 @@ export function PaceCurve({ pts }: { pts: PacePoint[] }) {
   };
 
   const last = pts[pts.length - 1];
-  const h = hover !== null ? pts[hover] : null;
+  const dh = dotHover !== null ? dots[dotHover] : null;
+  const h = dh ? null : hover !== null ? pts[hover] : null;
+  /* Where the hairline sits: the dot if one is held, else the line's
+   * nearest point. */
+  const at = dh ?? h;
 
   return (
     <div className="st-kde pf-pace">
@@ -106,15 +133,43 @@ export function PaceCurve({ pts }: { pts: PacePoint[] }) {
           <text x={L} y={H - 8} textAnchor="start" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
             0
           </text>
+          {/* The rows themselves, under the line: water blue with a paper
+              ring so they read as separate marks where they touch it.
+              Focusable, with a title, so the keyboard gets the same
+              readout as the pointer. */}
+          {dots.map((d, i) => (
+            <circle
+              key={`d${i}`}
+              className="dot"
+              cx={x(d.m)}
+              cy={y(d.s)}
+              r={dotHover === i ? 4 : 3}
+              fill="var(--water)"
+              stroke="var(--paper)"
+              strokeWidth="1.5"
+              tabIndex={0}
+              onPointerEnter={() => setDotHover(i)}
+              onPointerLeave={() => setDotHover(null)}
+              onFocus={() => setDotHover(i)}
+              onBlur={() => setDotHover(null)}
+            >
+              <title>{`${d.dayStr} · ${fmtMeters(d.rowM)} · ${clock(d.s)} /500m`}</title>
+            </circle>
+          ))}
           <path d={path} fill="none" stroke="var(--water)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {pts.map((p, i) => (
             <circle key={i} cx={x(p.m)} cy={y(p.s)} r={i === pts.length - 1 ? 4.5 : 2.2} fill="var(--water)" />
           ))}
-          {h && <line x1={x(h.m)} x2={x(h.m)} y1={T} y2={H - B} stroke="var(--ink)" strokeWidth="1" strokeDasharray="2 3" />}
+          {at && <line x1={x(at.m)} x2={x(at.m)} y1={T} y2={H - B} stroke="var(--ink)" strokeWidth="1" strokeDasharray="2 3" />}
           <text x={Math.min(x(last.m), W - R - 4)} y={Math.max(y(last.s) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--ink)" fontFamily="var(--row-mono), monospace">
             {clock(last.s)} /500M
           </text>
         </svg>
+        {dh && (
+          <div className="tip" style={{ left: `${(x(dh.m) / W) * 100}%`, top: `${(y(dh.s) / H) * 100}%` }}>
+            {dh.dayStr} · {fmtMeters(dh.rowM)} row · {clock(dh.s)}
+          </div>
+        )}
         {h && (
           <div className="tip" style={{ left: `${(x(h.m) / W) * 100}%`, top: `${(y(h.s) / H) * 100}%` }}>
             {h.dayStr} · {fmtMeters(h.m)} · {clock(h.s)}

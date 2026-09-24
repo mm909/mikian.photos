@@ -92,7 +92,7 @@ export function Profile({ view }: { view: ProfileView }) {
             {view.paceCurve.length >= 2 && (
               <div className="pf-block">
                 <Eyebrow left="The pace" right="AVERAGE SPLIT · METER BY METER" />
-                <PaceCurve pts={view.paceCurve} />
+                <PaceCurve pts={view.paceCurve} dots={view.paceDots} />
               </div>
             )}
             {view.field && (

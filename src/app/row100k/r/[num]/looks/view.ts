@@ -4,7 +4,7 @@ import type { ProfileLogRow } from "../../../ProfileLog";
 import type { ShareData } from "../../../share/cards";
 import type { DistanceKde } from "../../../stats/distances";
 import type { FieldModel, FieldYou } from "../../../stats/field";
-import type { PacePoint } from "./PaceCurve";
+import type { PaceDot, PacePoint } from "./PaceCurve";
 
 /* Everything the profile (Profile.tsx) renders, computed once by page.tsx.
  * The layout only lays it out — it runs no query and never decides who is
@@ -111,6 +111,10 @@ export type ProfileView = {
    * Empty for a rower with fewer than two timed rows. Never built for a
    * masked view (the dog tag replaces the page). */
   paceCurve: PacePoint[];
+  /* THE PACE dots (owner ask, 2026-09-24): every timed row as its own
+   * split at the meters rowed so far, the marks the line is read against.
+   * Built with the curve, so the same rules: nothing for a masked view. */
+  paceDots: PaceDot[];
   /* THE FIELD on the profile (same ask): everyone's two densities and this
    * rower's overlay with percentiles, off stats/field.ts. Null when the
    * field could not be read, when the rower has no session yet, or on a
