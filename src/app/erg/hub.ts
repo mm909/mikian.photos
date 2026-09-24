@@ -225,6 +225,11 @@ export type Erg = {
   rec: ErgRec;
   save: ErgSaveState;
   race: ErgRaceState;
+  /* OFF THE RACE BOARD (owner, 2026-09-24: "hide some ergs that are
+   * connected but do not have a rower rowing on them this round"). The
+   * link stays up and the row stays on the monitors page; the board and
+   * the wall leave it out. */
+  hidden: boolean;
   /* What a non-radio source is playing, when one is. */
   sourceLabel: string | null;
   /* THE ROWER ON THIS ERG (owner, 2026-09-23: "let me assign a rower or a
@@ -835,6 +840,7 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     rec: freshRec(),
     save: { busy: false, note: null, savedId: null, title: null },
     race: freshRace(),
+    hidden: false,
     sourceLabel: null,
     rower: null,
     loaded: null,
@@ -1283,6 +1289,34 @@ export function setErgRower(id: string, rower: { rowerNumber: number; name: stri
   e.rower = rower;
   log(e, rower ? `rower ${rower.rowerNumber} · ${rower.name}` : "no rower");
   paint();
+}
+
+/* HIDE AN ERG FROM THE BOARD, or show it again (owner, 2026-09-24). */
+export function setErgHidden(id: string, hidden: boolean) {
+  const e = ergs.get(id);
+  if (!e) return;
+  e.hidden = hidden;
+  log(e, hidden ? "hidden from the race board" : "back on the race board");
+  paint();
+}
+
+/* ROWERS ONLY (owner, 2026-09-24): the board and the wall show only the
+ * ergs with a rower assigned, so the ergs paired for the night but empty
+ * this round drop off without being hidden one by one. A hub flag so the
+ * desk board and the wall agree, and so it survives a view swap. */
+let rowersOnly = false;
+export function boardRowersOnly(): boolean {
+  return rowersOnly;
+}
+export function setBoardRowersOnly(on: boolean) {
+  rowersOnly = on;
+  paint();
+}
+
+/* THE ERGS THE BOARD SHOWS: not hidden, and with a rower when ROWERS ONLY
+ * is on. laneRows reads through this so every board agrees. */
+export function boardErgs(all: Erg[]): Erg[] {
+  return all.filter((e) => !e.hidden && (!rowersOnly || e.rower !== null));
 }
 
 /* THE RACE POST is armed the same way as auto-save, by the page that knows

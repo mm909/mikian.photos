@@ -4,7 +4,7 @@ import { fmtMeters } from "@/lib/pm5/pm5";
 import { fmtTime, type Block } from "@/lib/pm5/predict";
 import { thinPoints, type XY } from "./chartGeom";
 import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
-import { DEFAULT_GOAL_M, LINK_WORD, type Erg, type ErgLink } from "./hub";
+import { DEFAULT_GOAL_M, type Erg, type ErgLink, LINK_WORD, boardErgs, boardRowersOnly, setBoardRowersOnly } from "./hub";
 
 /* THE RACE BOARD (owner, 2026-09-21: "a screen where it shows all the
  * rowers that are currently connected — a live race board. This would be
@@ -170,7 +170,10 @@ export type Lane = {
   blocks: Block[];
 };
 
-export function laneRows(ergs: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
+export function laneRows(all: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
+  /* Hidden ergs and, under ROWERS ONLY, ergs with nobody on them are not
+   * lanes (hub.ts boardErgs). */
+  const ergs = boardErgs(all);
   const read = ergs.map((e) => {
     const g = e.model.general;
     const m = metres(e);
@@ -331,8 +334,14 @@ export function RaceBoard({ ergs, onBack, onOpen, onTv }: { ergs: Erg[]; onBack:
         <button type="button" className="eg-btn" onClick={onTv} disabled={lanes.length === 0}>
           On the TV
         </button>
+        {/* ROWERS ONLY (owner, 2026-09-24): ergs with nobody assigned this
+          * round drop off the board and the wall. */}
+        <button type="button" className={boardRowersOnly() ? "eg-btn on" : "eg-btn eg-btn-quiet"} aria-pressed={boardRowersOnly()} onClick={() => setBoardRowersOnly(!boardRowersOnly())}>
+          Rowers only
+        </button>
         <span className="eg-eyebrow">
-          {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"} · {fmtMeters(goal)} · LIVE
+          {lanes.length} {lanes.length === 1 ? "LANE" : "LANES"}
+          {ergs.length > lanes.length ? ` · ${ergs.length - lanes.length} OFF THE BOARD` : ""} · {fmtMeters(goal)} · LIVE
         </span>
       </div>
 

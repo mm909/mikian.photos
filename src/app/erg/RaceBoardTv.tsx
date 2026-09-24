@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { lockBody, unlockBody } from "./charts";
-import { DEFAULT_GOAL_M, type Erg } from "./hub";
+import { DEFAULT_GOAL_M, type Erg, boardRowersOnly, setBoardRowersOnly } from "./hub";
 import { fmtPaceWhole, gapLine, laneRows, type Lane } from "./RaceBoard";
 import { tvCss } from "./tvCss";
 
@@ -125,6 +125,8 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
         onLook(ev.key === "1" ? "a" : "b");
       } else if (ev.key === "a" || ev.key === "A") {
         setAuto((v) => !v);
+      } else if (ev.key === "r" || ev.key === "R") {
+        setBoardRowersOnly(!boardRowersOnly());
       } else if (ev.key === "f" || ev.key === "F") {
         fullScreen();
       } else if (ev.key === "h" || ev.key === "H") {
@@ -194,6 +196,9 @@ export function RaceBoardTv({ ergs, look, onLook, onExit }: { ergs: Erg[]; look:
         ))}
         <button type="button" className={auto ? "eg-btn on" : "eg-btn eg-btn-quiet"} onClick={() => setAuto((v) => !v)} aria-pressed={auto} title="A · turn the looks over every twenty seconds">
           Auto
+        </button>
+        <button type="button" className={boardRowersOnly() ? "eg-btn on" : "eg-btn eg-btn-quiet"} onClick={() => setBoardRowersOnly(!boardRowersOnly())} aria-pressed={boardRowersOnly()} title="R · only the ergs with a rower assigned">
+          Rowers only
         </button>
         <button type="button" className="eg-btn eg-btn-quiet" onClick={fullScreen} title="F">
           Full screen

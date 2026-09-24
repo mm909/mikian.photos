@@ -27,6 +27,7 @@ import {
   markLoaded,
   reconnect,
   removeErg,
+  setErgHidden,
   subscribe,
   type Erg,
 } from "./hub";
@@ -180,8 +181,8 @@ function RowMenu({ erg }: { erg: Erg }) {
         ref={button}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`More for ${typedName(erg) ?? erg.name} — disconnect, remove`}
-        title="Disconnect · remove"
+        aria-label={`More for ${typedName(erg) ?? erg.name} — disconnect, hide from the board, remove`}
+        title="Disconnect · hide from the board · remove"
         onClick={() => setOpen((v) => !v)}
       >
         <span aria-hidden="true">•••</span>
@@ -199,6 +200,11 @@ function RowMenu({ erg }: { erg: Erg }) {
               Reconnect
             </button>
           ) : null}
+          {/* OFF THE BOARD, ON THE BOARD (owner, 2026-09-24): an erg that
+           * is paired but has nobody on it this round. */}
+          <button type="button" className="eg-btn eg-btn-quiet" onClick={() => setErgHidden(erg.id, !erg.hidden)}>
+            {erg.hidden ? "Show on race board" : "Hide from race board"}
+          </button>
           <button type="button" className="eg-btn eg-btn-quiet" onClick={remove}>
             Remove
           </button>
@@ -241,6 +247,7 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
               {LINK_WORD[erg.link]}
             </span>
             {rec ? <span className={rec === "UNSAVED" ? "eg-pip eg-pip-on" : "eg-pip"}>{rec}</span> : null}
+            {erg.hidden ? <span className="eg-pip">OFF THE BOARD</span> : null}
             {/* THE RACE RESULT went, or did not (hub.ts postRaceResult). */}
             {erg.race.note ? <span className={erg.race.note.ok ? "eg-pip" : "eg-pip eg-pip-on"}>{erg.race.note.ok ? "RESULT POSTED" : "RESULT NOT POSTED"}</span> : null}
           </span>
