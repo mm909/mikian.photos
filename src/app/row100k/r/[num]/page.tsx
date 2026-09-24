@@ -16,7 +16,6 @@ import {
   fmtDay,
   fmtDuration,
   fmtMeters,
-  fmtRecordTime,
   fmtRowerNumber,
   fmtPaceTag,
   fmtSplit,
@@ -41,6 +40,7 @@ import { buildField } from "../../stats/field";
 import type { PacePoint } from "./looks/PaceCurve";
 import { Profile } from "./looks/Profile";
 import type { ProfileBest, ProfileErgRow, ProfileView, RosterRower } from "./looks/view";
+import { buildBests, buildShareData, getRower } from "./shareData";
 import { listRowerErgSessions } from "@/lib/pm5/store";
 import { inPeriod, parsePeriod, periodOptions } from "@/lib/rowPeriod";
 import { fmtTenths } from "@/lib/pm5/pm5";
@@ -94,27 +94,9 @@ export const dynamic = "force-dynamic";
  * themself included, so the ledger says ELITE (ELITE_TAG) where the rank
  * would be and no card draws a #. */
 
-const getRower = cache(async (num: number) => {
-  const participant = await db.rowParticipant.findUnique({
-    where: { challenge_rowerNumber: { challenge: CHALLENGE, rowerNumber: num } },
-    select: { id: true, rowerNumber: true, displayName: true, instagram: true, division: true },
-  });
-  if (!participant) return null;
-  const entries = await db.rowEntry.findMany({
-    where: { participantId: participant.id },
-    select: {
-      id: true,
-      participantId: true,
-      day: true,
-      meters: true,
-      seconds: true,
-      title: true,
-      photos: true,
-    },
-    orderBy: [{ day: "asc" }, { createdAt: "asc" }],
-  });
-  return { participant, entries };
-});
+/* The rower read (getRower), the share payload and the bests live in
+ * shareData.ts since 2026-09-24, shared with the shareables page
+ * (share/page.tsx) so a card made there is the card made here. */
 
 /* The roster the nameplate search reads (looks/RowerSearch.tsx): every
  * rower in the challenge by number and name. A hundred rows of three
@@ -248,7 +230,6 @@ export default async function RowerProfilePage({ params, searchParams }: { param
       console.warn(`row100k: board unreadable during a blackout window — rower ${num} masked whole`);
     }
   }
-  const digits = digitCount(me.meters);
 
   // Elite status for the SHARE payload comes off the PUBLIC board, not the
   // viewer's: the page may show a rower their own number, but a card leaves
@@ -266,93 +247,35 @@ export default async function RowerProfilePage({ params, searchParams }: { param
   }
   const blackoutNote = ELITE_LABEL;
 
-  // Everything the share cards draw. `masked`/`digits` ride along so a card
-  // of a hidden rower draws blocks (share/cards.ts); a masked page never
-  // mounts a share surface, and the placement values — real meters off the
-  // record boards — are blanked so they cannot ride into a client prop.
-  const shareData = {
-    displayName: p.displayName,
-    rowerNumber: p.rowerNumber,
-    instagram: p.instagram,
-    meters: me.meters,
-    sessions: me.sessions,
+  // Everything the share cards draw (shareData.ts buildShareData, shared
+  // with the shareables page). `masked`/`digits` ride along so a card of a
+  // hidden rower draws blocks (share/cards.ts); a masked page never mounts
+  // a share surface, and the placement values — real meters off the record
+  // boards — are blanked so they cannot ride into a client prop.
+  const shareData = buildShareData({
+    p,
+    boards: b,
     byDay,
-    division: p.division,
-    longest: longestM,
-    // No place on a card of one of the elite, ever: the page may show an
-    // admin (or the rower) the ranked board, but a card leaves the site,
-    // and "#3" is the number by another route (the PLACES half of the
-    // rule). For everyone else this is the rank the page prints.
-    rank: shareElite ? null : rank,
-    records: masked ? records?.map((r) => ({ ...r, value: "" })) : records,
-    // The cards stop at today like the page calendar does — and draw THE
-    // SELECTED month (owner, 2026-09-24: "the month share card, when
-    // looking at previous months, is not populated: the total is right but
-    // the calendar squares are empty"): byDay above is already this
-    // period's, so the card only needed telling which month its keys are
-    // in. Null over all time — no one month to draw, the month card stays
-    // out of the menu.
-    days: periodDays,
-    month: periodMonth,
-    masked: shareElite,
-    digits: shareElite ? digits : undefined,
+    period,
+    rank,
+    records,
+    masked,
+    shareElite,
     // MY WAVE (owner, 2026-09-16): this rower's own told wave, for their
     // own dialog and an admin's repost — never on a stranger's view of the
     // page, whose share surface does not mount anyway. Fails open.
     race: isMe || isAdmin ? await myWaveShare(p.id) : undefined,
-  };
+  });
 
   const now = clockNow();
   const phase: "before" | "open" | "closed" =
     now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open";
 
-  // Each best knows its record-board key so it can wear the rower's division
-  // ranking (top 10 only — that's as deep as `records` goes) as a chip, and
-  // links to that record's leaderboard filtered to the same division so the
-  // board you land on matches the chip.
-  const divQ = p.division === "F" ? "f" : p.division === "M" ? "m" : "all";
-  const boardHref = (board: string) => `/row100k/records/${board}?d=${divQ}`;
-  const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;
-  // A masked profile's bests carry no value string at all: the two meters
-  // bests keep only a digit count for the blocks, the two pace bests only
-  // the silhouette of the time (ProfileBest.shape, "##:##.#") and no split
-  // — and the prorated note stops naming the piece, since "pace from a
-  // 12,345 m row" is a row's meters by another route.
-  const metersBest = (
-    key: string,
-    label: string,
-    r: { value: number; day: string } | undefined,
-  ): ProfileBest => ({
-    key,
-    label,
-    value: r ? (masked ? "" : fmtMeters(r.value)) : "—",
-    sub: r ? fmtDay(r.day) : "not yet rowed",
-    href: boardHref(key),
-    place: placeOf(key),
-    digits: r && masked ? digitCount(r.value) : undefined,
-  });
-  const bests: ProfileBest[] = [
-    ...([5000, 10000] as const).map((d): ProfileBest => {
-      const r = b.fastest[d][0];
-      return {
-        key: `fastest${d}`,
-        label: `Fastest ${d / 1000}k`,
-        value: r ? (masked ? "" : fmtRecordTime(r.value)) : "—",
-        shape: r && masked ? clockShape(r.value, true) : undefined,
-        sub: r
-          ? r.prorated && r.meters
-            ? `${fmtDay(r.day)} · pace from a ${masked ? "longer" : fmtMeters(r.meters)} row`
-            : masked
-              ? fmtDay(r.day)
-              : `${fmtDay(r.day)} · ${fmtSplit(d, r.value)} /500m`
-          : "not yet rowed",
-        href: boardHref(String(d)),
-        place: placeOf(`fastest${d}`),
-      };
-    }),
-    metersBest("longest", "Longest row", b.longest[0]),
-    metersBest("bigday", "Biggest day", b.bigDay[0]),
-  ];
+  // The four bests, each wearing its division chip and linking to its
+  // record board (shareData.ts buildBests — the shareables page makes its
+  // best cards off the same list). A masked profile's bests carry no value
+  // string at all, only the blocks' digit count or the time's silhouette.
+  const bests: ProfileBest[] = buildBests({ p, boards: b, records, masked });
 
   // The log shows each row's photo pair — for everyone (the photos are the
   // honor system), and as the "current" pair in the owner's editor. One
