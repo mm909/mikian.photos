@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { fmtMeters } from "@/lib/pm5/pm5";
-import { fmtTenthsClock, type TelemetrySavedRow } from "@/lib/pm5/session";
+import { fmtTenthsClock, type TelemetryDoc, type TelemetrySavedRow } from "@/lib/pm5/session";
 import { fmtGap, fmtSplit, fmtWhen, type ErgAnalysis } from "@/lib/pm5/analysis";
 import { DeleteSession } from "../DeleteSession";
 import { ForceCurves, RateLength, SplitBars, WorkPerStroke } from "../ReviewCharts";
+import { ReviewPlayback } from "../ReviewPlayback";
 
 /* THE POST HOC ANALYSIS SCREEN (owner, 2026-09-17: "I really want to
  * emphasise the post hoc analysis screen — let us build it, and keep
@@ -35,7 +36,7 @@ function Cell({ k, v, u }: { k: string; v: string; u?: string }) {
   );
 }
 
-export function Review({ row, a }: { row: TelemetrySavedRow; a: ErgAnalysis }) {
+export function Review({ row, a, doc, play }: { row: TelemetrySavedRow; a: ErgAnalysis; doc: TelemetryDoc; play: { open: boolean; atS: number } }) {
   const dr = a.driveRecovery;
 
   return (
@@ -93,6 +94,13 @@ export function Review({ row, a }: { row: TelemetrySavedRow; a: ErgAnalysis }) {
         ) : null}
         {a.thinned ? <span className="rv-flag">{a.thinned}</span> : null}
       </p>
+
+      {/* PLAY IT BACK, up here under the head (owner, 2026-09-24: "I should
+       * have a button to play it back ... put the playback menu in this
+       * screen"). One word, closed; open, the live charts fed from this
+       * document with the transport over them. The analysis below is what
+       * it always was. */}
+      <ReviewPlayback doc={doc} rowId={row.id} title={row.title} startOpen={play.open} startAtS={play.atS} />
 
       {/* b. THE READ — the whole point of the screen. Every sentence is
        * computed in analysis.ts and says only what the numbers carry. */}
@@ -212,13 +220,13 @@ export function Review({ row, a }: { row: TelemetrySavedRow; a: ErgAnalysis }) {
         ))}
       </div>
 
-      {/* h. THE CONTROLS. PLAY IT BACK hands the id to the monitors
-       * screen, which builds a playback driver and feeds it to a card the
-       * way a monitor in the room feeds one. EXPORT is the document
-       * itself, straight off the route. */}
+      {/* h. THE CONTROLS. The playback lives on this screen now (owner,
+       * 2026-09-24); this button hands the id to the monitors screen
+       * instead, for a row that wants to sit beside live ergs on the ink
+       * ground. EXPORT is the document itself, straight off the route. */}
       <div className="rv-acts">
-        <Link className="eg-btn" href={`/erg?play=${encodeURIComponent(row.id)}`}>
-          Play it back
+        <Link className="eg-btn eg-btn-quiet" href={`/erg?play=${encodeURIComponent(row.id)}`}>
+          Play it back on the monitors
         </Link>
         <a className="eg-btn eg-btn-quiet" href={`/api/erg/sessions/${encodeURIComponent(row.id)}`} download={`${row.id}.json`}>
           Export the document
@@ -237,8 +245,10 @@ export function Review({ row, a }: { row: TelemetrySavedRow; a: ErgAnalysis }) {
           monitor sent no splits they are cut from the tick stream and labelled as derived.
         </p>
         <p>
-          PLAY IT BACK hands this document to the monitors screen, which feeds it to a row the way a monitor in
-          the room feeds one. EXPORT THE DOCUMENT is the saved file itself, exactly as it went into the database.
+          PLAY IT BACK, under the head, feeds this document to the live charts on this page and lets you scrub
+          through it. PLAY IT BACK ON THE MONITORS hands it to the monitors screen instead, where it plays as a
+          row beside any erg in the room. EXPORT THE DOCUMENT is the saved file itself, exactly as it went into
+          the database.
         </p>
       </div>
 
