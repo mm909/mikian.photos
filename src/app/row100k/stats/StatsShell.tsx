@@ -33,7 +33,14 @@ import { rankingsHref, statsHref } from "./statsUrl";
  * (NavProgress.tsx) never runs: no page is coming. While a month is on its
  * way the page dims a touch (aria-busy) so the tap is seen to land; a fetch
  * that fails falls back to loading the page the old way rather than
- * leaving the wrong month on screen. */
+ * leaving the wrong month on screen.
+ *
+ * ALL TIME is a shorter page (owner, 2026-09-25: "when ALL TIME is
+ * selected, hide METERS BY DAY / BY WEEK, THE MONTH, THE HOURS and PERFECT
+ * ATTENDANCE"): the head, the stat block and the field. The four month
+ * sections are drawn only while the period is a month — the payload
+ * still carries the current month for them, so the way back to a month
+ * is the same swap. */
 
 type Land = "first" | "last" | "today";
 
@@ -181,6 +188,9 @@ export function StatsShell({
   );
 
   const m = data.month;
+  /* Which sections the period gets: a month has its boards, calendar,
+   * hours and attendance; all time has none of them (owner, 2026-09-25). */
+  const isMonth = data.period.kind === "month";
   const community = {
     ...data.community,
     byDay: data.communityByDay,
@@ -233,70 +243,76 @@ export function StatsShell({
         </div>
       </section>
 
-      {/* Meters by day / by week — the section head is the period itself,
-          so StatsBoards prints it. */}
-      <section>
-        <div className="wrap">
-          <StatsBoards
-            month={m}
-            weeks={data.weeks}
-            live={data.liveMonth}
-            weekly={data.weekly}
-            daily={data.daily}
-            dayTotals={data.dayTotals}
-            weekTotals={data.weekTotals}
-            todayDay={data.todayDay}
-            mode={mode}
-            day={day}
-            week={week}
-            onMode={setMode}
-            onDay={setDay}
-            onWeek={setWeek}
-            onStepMonth={(dir) => {
-              const to = dir === "prev" ? data.prev : data.next;
-              if (to) void goPeriod(to.key, dir === "prev" ? "last" : "first");
-            }}
-            hrefDay={(i) => href({ day: i + 1 })}
-            hrefWeek={(i) => href({ w: i + 1 })}
-            hrefStep={(dir) =>
-              dir === "prev"
-                ? statsHref({ m: data.prev?.key, s: statKey, day: 31 }, cur)
-                : statsHref({ m: data.next?.key, s: statKey, day: 1 }, cur)
-            }
-            started={data.started}
-            meId={data.meId}
-            maskedIds={data.maskedIds}
-            prev={data.prev}
-            next={data.next}
-          />
-        </div>
-      </section>
+      {/* METERS BY DAY / BY WEEK, THE MONTH and THE HOURS: a month's
+          sections, not drawn for all time (owner, 2026-09-25). */}
+      {isMonth && (
+        <>
+          {/* Meters by day / by week — the section head is the period itself,
+              so StatsBoards prints it. */}
+          <section>
+            <div className="wrap">
+              <StatsBoards
+                month={m}
+                weeks={data.weeks}
+                live={data.liveMonth}
+                weekly={data.weekly}
+                daily={data.daily}
+                dayTotals={data.dayTotals}
+                weekTotals={data.weekTotals}
+                todayDay={data.todayDay}
+                mode={mode}
+                day={day}
+                week={week}
+                onMode={setMode}
+                onDay={setDay}
+                onWeek={setWeek}
+                onStepMonth={(dir) => {
+                  const to = dir === "prev" ? data.prev : data.next;
+                  if (to) void goPeriod(to.key, dir === "prev" ? "last" : "first");
+                }}
+                hrefDay={(i) => href({ day: i + 1 })}
+                hrefWeek={(i) => href({ w: i + 1 })}
+                hrefStep={(dir) =>
+                  dir === "prev"
+                    ? statsHref({ m: data.prev?.key, s: statKey, day: 31 }, cur)
+                    : statsHref({ m: data.next?.key, s: statKey, day: 1 }, cur)
+                }
+                started={data.started}
+                meId={data.meId}
+                maskedIds={data.maskedIds}
+                prev={data.prev}
+                next={data.next}
+              />
+            </div>
+          </section>
 
-      {/* THE MONTH: the calendar alone under its title (owner, 2026-09-24:
-          no subtitle). */}
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>The month</h2>
-          </div>
-          <MonthSection
-            month={{ key: m.key, firstDow: m.firstDow, days: m.days }}
-            byDay={data.communityByDay}
-            thresholds={data.thresholds}
-            days={data.gridDayCount}
-          />
-        </div>
-      </section>
+          {/* THE MONTH: the calendar alone under its title (owner, 2026-09-24:
+              no subtitle). */}
+          <section>
+            <div className="wrap">
+              <div className="sec-head">
+                <h2>The month</h2>
+              </div>
+              <MonthSection
+                month={{ key: m.key, firstDow: m.firstDow, days: m.days }}
+                byDay={data.communityByDay}
+                thresholds={data.thresholds}
+                days={data.gridDayCount}
+              />
+            </div>
+          </section>
 
-      {/* THE HOURS: the grid alone (owner, 2026-09-24). */}
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>The hours</h2>
-          </div>
-          <HourGrid grid={data.hourGrid} month={m.label.slice(0, 3)} />
-        </div>
-      </section>
+          {/* THE HOURS: the grid alone (owner, 2026-09-24). */}
+          <section>
+            <div className="wrap">
+              <div className="sec-head">
+                <h2>The hours</h2>
+              </div>
+              <HourGrid grid={data.hourGrid} month={m.label.slice(0, 3)} />
+            </div>
+          </section>
+        </>
+      )}
 
       <section>
         <div className="wrap">
@@ -311,16 +327,19 @@ export function StatsShell({
       </section>
 
       {/* PERFECT ATTENDANCE (owner, 2026-09-21), last on the page since
-          2026-09-24 (owner: below THE FIELD). */}
-      <section>
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>Perfect attendance</h2>
-            <span className="mono">{data.attendance.note}</span>
+          2026-09-24 (owner: below THE FIELD); a month's section, not drawn
+          for all time (owner, 2026-09-25). */}
+      {isMonth && (
+        <section>
+          <div className="wrap">
+            <div className="sec-head">
+              <h2>Perfect attendance</h2>
+              <span className="mono">{data.attendance.note}</span>
+            </div>
+            <PerfectAttendance rows={data.attendance.rows} />
           </div>
-          <PerfectAttendance rows={data.attendance.rows} />
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
