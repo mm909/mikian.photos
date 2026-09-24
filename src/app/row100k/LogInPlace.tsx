@@ -27,6 +27,7 @@ export function LogInPlace({
   simulate,
   sanity,
   justJoined,
+  bare,
 }: {
   share: ShareData;
   /* Today clamped into September, from the server; LogRow adopts the
@@ -40,6 +41,11 @@ export function LogInPlace({
   sanity?: SanityBand;
   /* Dev preview only: behave as if the join JUST happened. */
   justJoined?: boolean;
+  /* The front page since 2026-09-24 (owner: LOG A ROW is the third cell of
+   * the counter row, "opt in becomes log a row"): no act row of its own —
+   * the form seam and the share dialog stay, opened by the row100k:log and
+   * row100k:share events from wherever the page put the words. */
+  bare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -99,9 +105,18 @@ export function LogInPlace({
     // The account menu's LOG A ROW on a page that is already up: a
     // same-page hash push fires no hashchange, so it sends this instead.
     window.addEventListener("row100k:log", openNow);
+    // SHARE as a word somewhere else on the page (Dashboard.tsx, the id
+    // line) — the dialog is here, so it is asked for by event too.
+    const openShare = () => {
+      setShareRow(null);
+      setPreferredCardId(undefined);
+      setShareOpen(true);
+    };
+    window.addEventListener("row100k:share", openShare);
     return () => {
       window.removeEventListener("hashchange", openIfAsked);
       window.removeEventListener("row100k:log", openNow);
+      window.removeEventListener("row100k:share", openShare);
     };
   }, [phase]);
 
@@ -129,22 +144,24 @@ export function LogInPlace({
 
   return (
     <div className="front-act" id="log" style={{ scrollMarginTop: 72 }}>
-      <div className="act-row front">
-        {phase !== "closed" && (
-          <OptIn onClick={() => setOpen((v) => !v)}>Log a row</OptIn>
-        )}
-        <button
-          type="button"
-          className="front-share"
-          onClick={() => {
-            setShareRow(null);
-            setPreferredCardId(undefined);
-            setShareOpen(true);
-          }}
-        >
-          Share
-        </button>
-      </div>
+      {bare ? null : (
+        <div className="act-row front">
+          {phase !== "closed" && (
+            <OptIn onClick={() => setOpen((v) => !v)}>Log a row</OptIn>
+          )}
+          <button
+            type="button"
+            className="front-share"
+            onClick={() => {
+              setShareRow(null);
+              setPreferredCardId(undefined);
+              setShareOpen(true);
+            }}
+          >
+            Share
+          </button>
+        </div>
+      )}
 
       {/* LogRow brings its own flat panel (no box) — this is just the seam. */}
       {open && phase !== "closed" && (

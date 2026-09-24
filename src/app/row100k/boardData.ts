@@ -175,7 +175,7 @@ export type FrontExtras = {
   seconds: number;
   /* The newest row by createdAt, flattened to ms (unstable_cache round-trips
    * through JSON, so a Date would come back as a string on a hit). */
-  latest: { participantId: string; meters: number; createdAtMs: number } | null;
+  latest: { participantId: string; meters: number; seconds: number; createdAtMs: number } | null;
   /* Index d-1 = the participant leading on total meters after day d's rows
    * (Sep 1 .. Sep 30), null on a day nobody had a meter yet. Ties break by
    * name, the same order computeBoards uses, so day thirty agrees with the
@@ -229,7 +229,15 @@ const loadFrontExtras = async (): Promise<FrontExtras> => {
   return {
     seconds,
     latest: newest
-      ? { participantId: newest.participantId, meters: newest.meters, createdAtMs: newest.createdAt.getTime() }
+      ? {
+          participantId: newest.participantId,
+          meters: newest.meters,
+          /* The row's own seconds ride along since 2026-09-24: the front
+           * page prints the latest row AT ITS PACE (owner: "number of
+           * meters, at this pace, by this person, this long ago"). */
+          seconds: newest.seconds,
+          createdAtMs: newest.createdAt.getTime(),
+        }
       : null,
     leaderByDay,
   };

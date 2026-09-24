@@ -54,6 +54,12 @@ export function Dashboard(props: {
   /* Dev preview only. */
   simulate?: boolean;
   simulateJustJoined?: boolean;
+  /* The front page since 2026-09-24 (owner: "MY number of meters with the
+   * seven digits, then meters together / latest row / LOG A ROW"): the
+   * number and the id line only — LOG A ROW is a cell of the counter row
+   * under it (page.tsx), and SHARE is a word on the id line. The form and
+   * the share dialog still live in LogInPlace here, opened by event. */
+  bare?: boolean;
 }) {
   const profileHref = `/row100k/r/${props.rowerNumber}`;
 
@@ -115,11 +121,24 @@ export function Dashboard(props: {
         sanity={props.sanity}
         simulate={props.simulate}
         justJoined={props.simulateJustJoined}
+        bare={props.bare}
       />
 
       <p className="front-id mono">
         ROWER {fmtRowerNumber(props.rowerNumber)} · {props.displayName.toUpperCase()}
         {props.instagram ? ` · @${props.instagram.toUpperCase()}` : ""}
+        {props.bare ? (
+          <>
+            {" · "}
+            <button
+              type="button"
+              className="front-id-share"
+              onClick={() => window.dispatchEvent(new Event("row100k:share"))}
+            >
+              Share
+            </button>
+          </>
+        ) : null}
       </p>
     </div>
   );

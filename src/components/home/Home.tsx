@@ -214,8 +214,12 @@ function Digit({ d, lead, tempo }: { d: number; lead: boolean; tempo: number }) 
   );
 }
 
-function Odometer({ meters, tempo }: { meters: number; tempo: number }) {
-  const tokens = tokensFor(metersText(meters, 8));
+/* Exported since 2026-09-24: the Rowtember front page ticks the same
+ * wheels in its METERS TOGETHER cell (row100k/LiveTogether.tsx, owner:
+ * "the meters together starts incrementing live on the active month").
+ * `digits` is how many wheels to pad to; the landing keeps its eight. */
+export function Odometer({ meters, tempo, digits = 8 }: { meters: number; tempo: number; digits?: number }) {
+  const tokens = tokensFor(metersText(meters, digits));
   // Keyed from the right so each wheel keeps its identity if a ninth digit
   // ever appears on the left.
   return (

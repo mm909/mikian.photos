@@ -1,18 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import {
   CHALLENGE,
-  END_MS,
-  FIRST_DAY,
-  LAST_DAY,
   LOG_CLOSE_MS,
   START_MS,
   daysElapsed,
   divisionRank,
   fmtMeters,
   fmtRowerNumber,
+  fmtSplit,
   isRow100kAdmin,
   nowMs as clockNow,
   recordPlacements,
@@ -20,44 +17,52 @@ import {
   type RecordBadge,
   type TotalRow,
   MONTH,
-  MONTH_DAYS,
 } from "@/lib/row100k";
-import { ELITE_LABEL, digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
+import { meterSnapshot, type MeterSnapshot } from "@/lib/homeStats";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
 import { sanityBandForForm } from "./sanity";
 import { myWaveShare } from "./shareables/waveShare";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
+import { frontCss } from "./frontCss";
 import { RowBar } from "./RowBar";
 import { RowFooter } from "./RowFooter";
-import { Countdown } from "./Countdown";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard } from "./Dashboard";
 import { Who } from "./Boards";
 import { Blocks } from "./Blackout";
 import { EliteList, type EliteRow } from "./EliteList";
+import { LiveTogether } from "./LiveTogether";
+import { LogCell } from "./LogCell";
+import { OptIn } from "./OptIn";
 import {
   EMPTY_BOARDS,
   EMPTY_FRONT,
   boardView,
   frontExtras,
-  leaderStreak,
   type FrontExtras,
 } from "./boardData";
 
+/* The nameplate is Rowtember in September and the month itself any other
+ * time (owner, 2026-09-24), and the metadata says the same. */
+const ROWTEMBER = MONTH.month === 9;
+const PAGE_TITLE = ROWTEMBER ? `Rowtember ${MONTH.year}` : MONTH.label;
+const PAGE_BLURB = `Every meter rowed in ${MONTH.label}, counted live.`;
+
 export const metadata: Metadata = {
-  title: "Rowtember 2026",
-  description: "Every meter rowed this September, counted live.",
+  title: PAGE_TITLE,
+  description: PAGE_BLURB,
   openGraph: {
-    title: "Rowtember 2026",
-    description: "Every meter rowed this September, counted live.",
+    title: PAGE_TITLE,
+    description: PAGE_BLURB,
     images: [{ url: "/row100k/og.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Rowtember 2026",
-    description: "Every meter rowed this September, counted live.",
+    title: PAGE_TITLE,
+    description: PAGE_BLURB,
     images: ["/row100k/og.png"],
   },
 };
@@ -69,9 +74,7 @@ export const viewport: Viewport = {
 // Session-driven top block + live numbers — never render statically.
 export const dynamic = "force-dynamic";
 
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-
-/* "12 MIN AGO" — for the latest-row line. Server-rendered against nowMs(),
+/* "12 MIN AGO" — for the latest-row cell. Server-rendered against nowMs(),
  * so there is nothing to hydrate. */
 function ago(thenMs: number, now: number): string {
   const s = Math.max(0, Math.floor((now - thenMs) / 1000));
@@ -131,6 +134,27 @@ function TopRows({ label, rows }: { label: string; rows: TotalRow[] }) {
   );
 }
 
+/* A snapshot for the wheels when the feed itself could not be read: the
+ * board total, frozen (rate 0 holds the counter still, and the first poll
+ * takes over once the feed answers). */
+function stillSnapshot(meters: number, now: number): MeterSnapshot {
+  return {
+    meters,
+    rowers: 0,
+    sessions: 0,
+    finished: 0,
+    rate: 0,
+    splitMean: 0,
+    splitSd: 0,
+    splitN: 0,
+    at: Date.now(),
+    phase: now < START_MS ? "before" : now >= LOG_CLOSE_MS ? "closed" : "open",
+    daysLeft: 0,
+    day: 0,
+    ok: false,
+  };
+}
+
 export default async function Row100kPage() {
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
@@ -176,8 +200,8 @@ export default async function Row100kPage() {
   // off the board's own rows (`unranked`), never off the window, so an
   // admin — whose board is never masked — sees the ordinary page.
   // The admin's test blackout (row100kViewer): while it is on, the admin
-   // stops being an admin for the mask, and under "public" stops being
-   // themself as well, so the page is the one everybody else is getting.
+  // stops being an admin for the mask, and under "public" stops being
+  // themself as well, so the page is the one everybody else is getting.
   const preview = readBlackoutPreview(isAdmin);
   let boards = EMPTY_BOARDS;
   let blackoutEndsAt: string | undefined;
@@ -216,8 +240,8 @@ export default async function Row100kPage() {
   // the signed-in rower's own told wave on it, or nothing. Fails open.
   const raceShare = me ? await myWaveShare(me.id) : undefined;
 
-  // Time rowed, the latest row, the day-by-day leader — the newspaper's
-  // extras. Cached alongside the board; a miss just blanks those lines.
+  // The latest row — the newspaper's extras. Cached alongside the board; a
+  // miss just blanks the cell.
   let extras: FrontExtras = EMPTY_FRONT;
   try {
     extras = await frontExtras();
@@ -233,32 +257,31 @@ export default async function Row100kPage() {
   const phase: "before" | "open" | "closed" =
     nowMs < START_MS ? "before" : nowMs >= LOG_CLOSE_MS ? "closed" : "open";
   const today = daysElapsed(nowMs);
-  /* ROWTEMBER, OR THE OFF-SEASON (owner, 2026-09-24): September keeps the
-   * giant nameplate and the clock; any other month is the evergreen front
-   * — the month as a subtitle, the totals as the main object, OPT IN first
-   * for a stranger, no clock, no latest row. */
-  const rowtember = MONTH.month === 9;
 
-  // The dateline: today in the rowers' day (Pacific, the UTC-7 shift every
-  // chart uses) and where the month stands.
-  const west = new Date(nowMs - 7 * 3_600_000);
-  const stamp = `${MONTHS[west.getUTCMonth()]} ${west.getUTCDate()}`;
-  const dateline =
-    phase === "before"
-      ? `${stamp} · FIRST STROKE ${MONTH.short} 1`
-      : phase === "closed"
-        ? `${stamp} · FINAL`
-        : nowMs >= END_MS
-          ? `${stamp} · LATE LOGS FOR ${MONTH.label.toUpperCase()}`
-          : `${stamp} · DAY ${today} OF ${MONTH_DAYS}`;
+  // The together numbers come from the board's own sums, never a reduce
+  // over the rows: during a blackout the rows carry floors.
+  const togetherMeters = boards.community.meters;
+
+  /* METERS TOGETHER, LIVE (owner, 2026-09-24): the first paint of the
+   * landing counter — the same snapshot the root page and /api/home/meters
+   * serve, for the month the clock is in. The wheels then poll the feed
+   * themselves (useLiveMeters). meterSnapshot never throws, but a page
+   * must not fall over a counter: the fallback is the board total, still. */
+  let snapshot: MeterSnapshot;
+  try {
+    snapshot = await meterSnapshot();
+  } catch (err) {
+    console.error("row100k: failed to build the meter snapshot", err);
+    snapshot = stillSnapshot(togetherMeters, nowMs);
+  }
 
   // The PLACES half of the blackout rule (blackoutRules.ts): while a window
   // is open the elite come back unranked, and a page may not order
-  // them at all. So this page stops naming a leader and stops printing two
-  // podiums — it prints THE ELITE as a list, in the order the board
-  // already put them (digit count, then name). Rows sixteen and down keep
-  // their real places, on the board page. Admins and any board with no
-  // window open carry no `unranked` row, so nothing below changes for them.
+  // them at all. So this page stops printing two podiums — it prints THE
+  // ELITE as a list, in the order the board already put them (digit count,
+  // then name). Rows sixteen and down keep their real places, on the board
+  // page. Admins and any board with no window open carry no `unranked` row,
+  // so nothing below changes for them.
   const hidden = boards.total.some((r) => r.unranked);
   const eliteRows: EliteRow[] = hidden
     ? boards.total
@@ -279,26 +302,7 @@ export default async function Row100kPage() {
           meters: r.masked ? undefined : r.meters,
         }))
     : [];
-  // The one thing the owner keeps visible: "if I have another digit than
-  // everyone else, that is visible". The headline draws the longest total in
-  // the elite, so the list below it can never be the only place it shows.
-  const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? 1), 1);
   const eliteUntil = blackoutEndsAt ? fmtPacificDay(blackoutEndsAt) : "";
-
-  // A masked leader carries a tier floor (0 under 10k), so the mask itself
-  // has to count as "has meters" or the headline would name the wrong rower.
-  // Nobody leads while the elite are hidden: no leader is looked up and the
-  // streak is not even computed — how many days a rower has led is a place.
-  const leader = hidden ? undefined : boards.total.find((r) => r.meters > 0 || r.masked);
-  const streak = leader ? leaderStreak(extras, leader.participantId, today) : 0;
-
-  // The together numbers come from the board's own sums, never a reduce
-  // over the rows: during a blackout the rows carry floors.
-  const togetherMeters = boards.community.meters;
-  const hoursText = (extras.seconds / 3600).toLocaleString("en-US", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
 
   // Empty while the elite are hidden — the podiums are not rendered then,
   // and an empty list is one less way for an order to leak.
@@ -307,10 +311,17 @@ export default async function Row100kPage() {
   const topWomen = onBoard.filter((r) => r.division === "F").slice(0, FRONT_TOP);
 
   // The latest row: the board row tells us the name and whether the rower
-  // is blacked out; the row's own meters are printed only when they are not.
-  const latestRow = extras.latest
-    ? (boards.total.find((r) => r.participantId === extras.latest?.participantId) ?? null)
+  // is blacked out; the row's own meters (and its split) are printed only
+  // when they are not — a split is a ratio of two hidden numbers, but a
+  // masked rower gives nothing away here at all.
+  const latest = extras.latest;
+  const latestRow = latest
+    ? (boards.total.find((r) => r.participantId === latest.participantId) ?? null)
     : null;
+  const latestSplit =
+    latest && latestRow && !latestRow.masked && latest.seconds > 0 && latest.meters > 0
+      ? `${fmtSplit(latest.meters, latest.seconds)} /500M`
+      : null;
 
   // Standing + record placements for the signed-in rower's share cards —
   // best-effort off the cached board (fails to undefined, cards just hide).
@@ -335,53 +346,51 @@ export default async function Row100kPage() {
   }
 
   // Prefills for the in-place log form — the same ones the profile computes:
-  // Pacific today clamped into September (the day the rower actually rowed,
+  // Pacific today clamped into the month (the day the rower actually rowed,
   // not the UTC date that has rolled over by a Californian evening) and the
-  // next session number. Admins may log before Sep 1.
+  // next session number. Admins may log before the 1st.
   const defaultDay = clampDay(pacificDay(nowMs));
   const earlyAdmin = isAdmin && phase === "before";
 
-  /* The call to action, in one place: after the news in Rowtember, first
-   * thing in the off-season. Sign-in callbacks land on #join either way. */
-  const cta = (
-        <section id="join" className="fs front-cta">
-          <div className="wrap front">
-            {phase === "closed" ? (
-              <p className="board-empty">{MONTH.label.toUpperCase()} IS WRAPPED — THE BOARD IS FINAL.</p>
-            ) : actor ? (
-              /* No 2px box around the form — the owner found that chrome
-                 hard on the log form and this one sits on the same page. */
-              <div className="panel flat">
-                <JoinPanel
-                  mode="form"
-                  signedInAs={actor.email}
-                  initialName={actor.name}
-                  initialInstagram=""
-                  initialDivision={null}
-                />
-              </div>
-            ) : (
-              <JoinPanel mode="signedOut" />
-            )}
-          </div>
-        </section>
+  /* THE THIRD CELL (owner, 2026-09-24: "the rowers-this-month cell becomes
+   * the OPT IN button", "opt in becomes log a row" once signed in). Three
+   * states, one place:
+   *   a stranger — the landing OPT IN, which signs in with Google and lands
+   *     back on #join; the cell IS #join, so the account menu lands here too;
+   *   signed in, not on the board — OPT IN as a link down to the join form
+   *     (#join, under the top fives), the flow JoinPanel always had;
+   *   a joined rower — LOG A ROW, which opens the form in place (LogCell). */
+  const thirdCell = me ? (
+    <LogCell />
+  ) : phase === "closed" ? (
+    <p className="nothing">{MONTH.label.toUpperCase()} IS WRAPPED</p>
+  ) : actor ? (
+    <div className="go">
+      <OptIn href="#join">Opt in</OptIn>
+    </div>
+  ) : (
+    <div className="go" id="join">
+      <JoinPanel mode="signedOut" />
+    </div>
   );
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{frontCss}</style>
 
       <RowBar active="home" signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} admin={isAdmin} />
 
-      {/* The nameplate. Just the title, like a newspaper (owner call,
-       * 2026-09-05) — the pitch that used to sit here is in pitch.ts. */}
-      {rowtember ? (
+      {/* The nameplate: ROWTEMBER in September, like a newspaper (owner
+       * call, 2026-09-05); any other month the month itself, alone — no
+       * date, no day count (owner, 2026-09-24: "the subtitle is just the
+       * month: December 2026"). */}
+      {ROWTEMBER ? (
         <header className="front-head">
           <div className="wrap front">
             <h1>
               Rowtember <span className="yr">{MONTH.year}</span>
             </h1>
-            <p className="front-date mono">{dateline}</p>
           </div>
         </header>
       ) : (
@@ -392,7 +401,9 @@ export default async function Row100kPage() {
         </header>
       )}
 
-
+      {/* A joined rower: their own number first, the seven wheels, then
+       * the id line. LOG A ROW moved down into the counter row; the form
+       * still opens here, under the number (LogInPlace, bare). */}
       {me && (
         <section className="fs">
           <div className="wrap front">
@@ -408,105 +419,59 @@ export default async function Row100kPage() {
               rank={elite ? null : myRank}
               records={myRecords}
               defaultDay={defaultDay}
-              defaultTitle={`${rowtember ? "Rowtember" : MONTH.label.split(" ")[0]} #${myRows.length + 1}`}
+              defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${myRows.length + 1}`}
               earlyAdmin={earlyAdmin}
               masked={elite}
               digits={elite ? digitCount(myMeters) : undefined}
               days={today}
               sanity={sanity}
               race={raceShare}
+              bare
             />
           </div>
         </section>
       )}
 
-      {/* Everyone together: bold number over a lighter descriptor. */}
+      {/* THE COUNTER ROW (owner, 2026-09-24): meters together, ticking, a
+       * link to the stats page; the latest row — meters, at this pace, by
+       * this person, this long ago; and OPT IN or LOG A ROW. */}
       <section className="fs">
         <div className="wrap front">
-          <div className={rowtember ? "front-stats" : "front-stats three big"}>
-            <div className="cell">
-              <div className="n">{togetherMeters.toLocaleString("en-US")}</div>
-              <div className="l mono">meters together</div>
+          <div className="front-stats three big counter">
+            <div className="cell fc">
+              <LiveTogether snapshot={snapshot} />
             </div>
-            <div className="cell">
-              <div className="n">{hoursText} h</div>
-              <div className="l mono">time rowed</div>
-            </div>
-            {rowtember ? null : (
-              <div className="cell">
-                <div className="n">{boards.community.people.toLocaleString("en-US")}</div>
-                <div className="l mono">rowers this month</div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* A stranger in the off-season meets OPT IN right under the three
-        * numbers (owner, 2026-09-24). */}
-      {!me && !rowtember ? cta : null}
-
-      {/* The leader and the clock: Rowtember only (owner, 2026-09-24: no
-        * leader box in the off-season, the top fives say it). */}
-      {rowtember ? (
-        <>
-      {/* The first headline, and the clock in the corner beside it. */}
-      <section className="fs">
-        <div className="wrap front">
-          <div className="front-duo">
-            <div className="front-box">
-              <div className="eyebrow mono">The leader</div>
-              {hidden ? (
-                /* No name, no streak, no place: the box says the elite are
-                 * hidden and draws the longest total among them in blocks. */
+            <div className="cell fc">
+              {latest && latestRow ? (
                 <>
-                  <div className="head mono">
-                    {ELITE_LABEL}
+                  <div className="n">
+                    {latestRow.masked ? (
+                      <>
+                        <Blocks digits={digitCount(latest.meters)} /> m
+                      </>
+                    ) : (
+                      fmtMeters(latest.meters)
+                    )}
                   </div>
-                  <div className="v">
-                    <Blocks digits={eliteDigits} /> m
+                  <div className="l mono">
+                    latest row{latestSplit ? ` · ${latestSplit}` : ""} · {ago(latest.createdAtMs, nowMs)}
                   </div>
-                  <div className="nm">{ELITE_LABEL}</div>
-                </>
-              ) : leader ? (
-                <>
-                  <div className="head mono">
-                    {streak <= 1 ? "NEW LEADER" : `IN THE LEAD FOR ${streak} DAYS`}
-                  </div>
-                  <div className="v">
-                    <Meters r={leader} />
-                  </div>
-                  <div className="nm">
-                    <Who row={{ name: leader.name, rowerNumber: leader.rowerNumber }} />
+                  <div className="by">
+                    <span className="num">{fmtRowerNumber(latestRow.rowerNumber)} · </span>
+                    <a href={`/row100k/r/${latestRow.rowerNumber}`}>{latestRow.name}</a>
                   </div>
                 </>
               ) : (
-                <div className="head mono">
-                  {phase === "before" ? `FIRST STROKE ${MONTH.short} 1` : "NOBODY HAS LOGGED A METER YET"}
-                </div>
+                <>
+                  <div className="n">—</div>
+                  <div className="l mono">latest row · nobody has logged a meter yet</div>
+                </>
               )}
             </div>
-            {rowtember ? (
-              <div className="front-box clock">
-                <div className="eyebrow mono">{hidden && blackoutEndsAt ? "Lights out ends in" : "The clock"}</div>
-                <Countdown size="small" lightsOutEndsAt={hidden ? blackoutEndsAt : null} />
-              </div>
-            ) : (
-              /* No clock in the off-season (owner, 2026-09-24): the month's
-               * milestones instead. */
-              <div className="front-box">
-                <div className="eyebrow mono">{MONTH.label}</div>
-                <div className="v">{boards.community.sessions.toLocaleString("en-US")}</div>
-                <div className="nm">
-                  sessions · {boards.community.finished} in the 100K club · {today} of {MONTH_DAYS} days
-                </div>
-              </div>
-            )}
+            <div className="cell fc">{thirdCell}</div>
           </div>
         </div>
       </section>
-        </>
-      ) : null}
 
       <section className="fs">
         <div className="wrap front">
@@ -529,52 +494,27 @@ export default async function Row100kPage() {
         </div>
       </section>
 
-      {!rowtember ? (
-        <section className="fs">
+      {/* The join form, for a signed-in visitor who is not on the board
+       * yet: OPT IN in the counter row links here, and the sign-in callback
+       * and the account menu land on #join. A stranger has no form yet —
+       * their #join is the OPT IN cell itself. */}
+      {actor && !me && phase !== "closed" ? (
+        <section id="join" className="fs front-cta">
           <div className="wrap front">
-            <p className="front-more mono">
-              <Link href="/row100k/board">See the whole board →</Link>
-            </p>
+            {/* No 2px box around the form — the owner found that chrome
+               hard on the log form and this one sits on the same page. */}
+            <div className="panel flat">
+              <JoinPanel
+                mode="form"
+                signedInAs={actor.email}
+                initialName={actor.name}
+                initialInstagram=""
+                initialDivision={null}
+              />
+            </div>
           </div>
         </section>
       ) : null}
-
-      {rowtember && latestRow && extras.latest && (
-        <section className="fs">
-          <div className="wrap front">
-            {/* Two lines, not one (owner, 2026-09-05): the label and when it
-             * landed on top, the rower and the length under it — on a phone
-             * the single line wrapped mid-number and put a lone M on its own
-             * row. */}
-            <p className="front-latest mono">
-              <span className="k">
-                LATEST ROW — {ago(extras.latest.createdAtMs, nowMs)}
-              </span>
-              <span className="v">
-                {fmtRowerNumber(latestRow.rowerNumber)} · <b>{latestRow.name}</b> ·{" "}
-                <b>
-                  {latestRow.masked ? (
-                    <>
-                      <Blocks digits={digitCount(extras.latest.meters)} /> m
-                    </>
-                  ) : (
-                    fmtMeters(extras.latest.meters)
-                  )}
-                </b>
-              </span>
-            </p>
-            {/* The board is a tab away, but the news column should offer it
-             * where the reader has just met the names (owner, 2026-09-05). */}
-            <p className="front-more mono">
-              <Link href="/row100k/board">See the whole board →</Link>
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* The call to action comes after the news. Sign-in callbacks and the
-       * account menu land on #join, so the anchor stays. */}
-      {!me && rowtember ? cta : null}
 
       <RowFooter />
     </div>
