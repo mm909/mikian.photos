@@ -21,6 +21,7 @@ export function Heatmap({
   thresholds = ONE_ROWER,
   days = MONTH_DAYS,
   month,
+  fullMonth = false,
 }: {
   byDay: Record<string, number>;
   /* Which month to draw (rowPeriod.ts); this one when absent. */
@@ -29,9 +30,16 @@ export function Heatmap({
   /* Draw only this many September days — the month stops at today rather
    * than trailing a fortnight of empty cells (owner call, day 4). */
   days?: number;
+  /* Draw EVERY day of the month (owner, 2026-09-25, of the profile: "give
+   * THE MONTH calendar all its boxes back for the whole month"): the days
+   * past `days` are still drawn, as empty dashed cells wearing .hm-todo,
+   * so the grid is the month's shape from the first day. Off by default —
+   * the stats page still stops at today. */
+  fullMonth?: boolean;
 }) {
   const mon = month ?? { key: MONTH_KEY, firstDow: MONTH_FIRST_DOW, days: MONTH_DAYS };
-  const shown = Math.min(mon.days, Math.max(1, days));
+  const elapsed = Math.min(mon.days, Math.max(1, days));
+  const shown = fullMonth ? mon.days : elapsed;
   // Leading blanks align day 1 under its weekday (rowPeriod.ts).
   const firstDow = mon.firstDow;
 
@@ -50,12 +58,15 @@ export function Heatmap({
           const day = `${mon.key}-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);
+          // A day still to come: no figure to name in the title, and a
+          // class the profile sheet dims.
+          const todo = i >= elapsed;
           return (
             <div
               key={day}
-              className={`hm-cell${b}`}
+              className={`hm-cell${b}${todo ? " hm-todo" : ""}`}
               style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-              title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
+              title={todo ? fmtDay(day) : `${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
             >
               {m > 0 && (
                 /* Sizing + the ink-vs-white contrast rule live on .hm-num

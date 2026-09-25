@@ -27,4 +27,28 @@ export const profileCss = `
 .row100k .pf-act .optin .arr{transition:transform 220ms cubic-bezier(.2,.7,.2,1)}
 .row100k .pf-act .optin.open .arr{transform:rotate(90deg)}
 @media(prefers-reduced-motion:reduce){.row100k .pf-act .optin .arr{transition:none}}
+/* THE THREE CELLS under the identity line (pieces.tsx Cells; owner,
+ * 2026-09-25: TIME ROWED, SESSIONS and AVERAGE SPLIT in box cells like the
+ * landing stats, not the dotted receipt lines): the landing sheet (Home.tsx
+ * .stats) and the front page counter cells (theme.ts .front-stats) once
+ * more — a 2px ink rule above and below, 1px rules between, the figure in
+ * Archivo Black, the mono label under it, everything left-justified. Three
+ * across at every width, so the block is one line of cells on a phone
+ * too; each cell is its own size container and the figure is sized off
+ * the cell, never the viewport: the widest figure (123.4 h, or 2:07 with
+ * its /500m) is about four em of Archivo Black and must fit the cell less
+ * its padding. The unit after the split is set small in Archivo, the
+ * stats tiles way (theme.ts .st-tile .u). */
+.row100k .pf-cells{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);margin-top:22px}
+.row100k .pf-cells .cell{container-type:inline-size;min-width:0;padding:14px 12px 13px;border-right:1px solid var(--ink)}
+.row100k .pf-cells .cell:first-child{padding-left:0}
+.row100k .pf-cells .cell:last-child{border-right:none;padding-right:0}
+.row100k .pf-cells .n{font-family:var(--row-archivo-black),sans-serif;font-size:min(clamp(20px,5.6vw,40px),calc(100cqw / 4.3));line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row100k .pf-cells .n .u{font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:.42em;color:var(--gray);margin-left:.3em}
+.row100k .pf-cells .l{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;color:var(--gray);text-transform:uppercase;margin-top:7px;white-space:nowrap}
+/* THE WHOLE MONTH (owner, 2026-09-25: all its boxes back): the days still
+ * to come are drawn by Heatmap.tsx as empty dashed cells wearing .hm-todo,
+ * faded a step so the month reads as a shape and the rest days that have
+ * passed keep the full dash. */
+.row100k .pf-month .hm-cell.hm-todo{opacity:.45}
 `;

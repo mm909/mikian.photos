@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   }
   // BIRTHDAY (owner, 2026-09-24): required to JOIN, and only then — this
   // same POST is the settings page's name/handle/board save, which does not
-  // carry one (birthday is edited in the About you block through the
+  // carry one (the settings form edits the birthday through the
   // participants API). So: absent means "leave it", present means "check
   // it", and a FIRST join with none is turned away below, once we know it
   // is a first join.
@@ -91,9 +91,13 @@ export async function POST(req: Request) {
     birthday = checked.value;
   }
 
+  // THIRTY AN HOUR, up from ten (2026-09-25): the settings page saves each
+  // field the moment it changes (owner: "no SAVE CHANGES button"), so one
+  // sitting of edits is several of these where it used to be one. Still
+  // one rower's own row, still nothing anyone else can spend.
   const limit = await rateLimit({
     key: `row100k-join:${actor.photographerId}`,
-    limit: 10,
+    limit: 30,
     windowSec: 3600,
   });
   if (!limit.ok) {

@@ -20,10 +20,10 @@ export type ViewerParticipant = {
   displayName: string;
   instagram: string;
   division: string;
-  /* Birthday, height and weight (2026-09-24) are NOT here on purpose: this
-   * select runs on every /row100k page and a miss falls back to the
-   * anonymous view, so a column not yet pushed would sign everyone out.
-   * The settings page, the only reader, selects them itself. */
+  /* Birthday, height, weight and home gym (2026-09-24) are NOT here on
+   * purpose: this select runs on every /row100k page and a miss falls back
+   * to the anonymous view, so a column not yet pushed would sign everyone
+   * out. The settings page, the only reader, selects them itself. */
 };
 
 /* The admin's test blackout (owner, 2026-09-06). "elite": the site as it
@@ -43,8 +43,9 @@ export const BO_PREVIEW_COOKIE = "row100k_bo_preview";
  * settings, just for my user"). A third preview, "rower": the REAL rules,
  * with the admin exemption off and nothing forced — the page any rower in
  * the admin's position gets. It is what an admin gets when no other
- * preview is set, unless this cookie says "all", which is the settings
- * page's SHOW ME EVERYTHING and lasts the browser session. */
+ * preview is set, unless this cookie says "all", which is SHOW ME
+ * EVERYTHING (on /row100k/blackout since 2026-09-25, the settings page
+ * before) and lasts the browser session. */
 export const BO_ADMIN_COOKIE = "row100k_bo_admin";
 
 export function parsePreview(v: unknown): BlackoutPreview | null {

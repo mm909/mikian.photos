@@ -11,6 +11,7 @@ import { RowFooter } from "../RowFooter";
 import { Blocks } from "../Blackout";
 import { readBlackoutPreview } from "@/lib/row100kViewer";
 import { BlackoutAdmin, type AdminWindow } from "./BlackoutAdmin";
+import { LightsOutView } from "./LightsOutView";
 import { PolicyPanel } from "./PolicyPanel";
 import { PreviewSwitch } from "./PreviewSwitch";
 
@@ -36,6 +37,7 @@ const boCss = `
 .row100k .bo-state.next{border-color:var(--water);color:var(--water)}
 .row100k .bo-prev-note{font-size:11px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase;line-height:1.7;margin:0 0 12px}
 .row100k .bo-prev .tabs{margin:0 0 12px}
+.row100k .bo-view{margin-top:24px}
 .row100k .bo-policy{margin:24px 0}
 .row100k .bo-policy .tabs{margin:0 0 12px}
 .row100k .bo-policy .send{margin-top:26px;font-size:18px;padding:16px}
@@ -51,7 +53,10 @@ const boCss = `
  *
  * Order (owner, 2026-09-16): the state line, the test switch, the policy,
  * the window form, the windows, and the explanation LAST — he knows how
- * it works; the controls come first. */
+ * it works; the controls come first. The admin's OWN VIEW switch (AS
+ * EVERYONE SEES IT / SHOW ME EVERYTHING, LightsOutView.tsx) sits under the
+ * test switch since 2026-09-25 (owner: "move the lights-out setting to the
+ * lights-out page") — it was on /row100k/settings. */
 export default async function BlackoutPage() {
   const actor = await getEffectiveActor();
   if (!actor || !isRow100kAdmin(actor.email, actor.roles)) notFound();
@@ -84,6 +89,10 @@ export default async function BlackoutPage() {
     };
   });
   const current = rows.find((w) => w.state === "active");
+  // The admin's cookies, read once for both switches: the test preview
+  // (elite / public) and the SHOW ME EVERYTHING flag (null = the exemption
+  // on; "rower" = the everyday default).
+  const preview = readBlackoutPreview(true);
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -102,7 +111,9 @@ export default async function BlackoutPage() {
             </span>
           </div>
 
-          <PreviewSwitch active={readBlackoutPreview(true)} />
+          <PreviewSwitch active={preview} />
+
+          <LightsOutView all={preview === null} testing={preview === "elite" || preview === "public"} />
 
           <PolicyPanel policy={settings.blackout} />
 

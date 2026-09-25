@@ -33,7 +33,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Send JSON." }, { status: 400 });
   }
 
-  /* SHOW ME EVERYTHING (settings page, owner 2026-09-21): { all: true }
+  /* SHOW ME EVERYTHING (owner 2026-09-21; on the lights out page since
+   * 2026-09-25, the settings page before): { all: true }
    * turns the admin exemption back on for this browser session, { all:
    * false } returns to the rower's view. Same cookie rules as the test:
    * session-scoped, admin-only, read by nobody else. */
