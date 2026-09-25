@@ -6,11 +6,12 @@ import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { headCss } from "../headCss";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { recordDef, type RecordKey } from "../records/defs";
+import { recordDef } from "../records/defs";
 import { leadCss } from "../records/leadCss";
 import { buildStatsPayload } from "./statsData";
-import { StatsShell } from "./StatsShell";
+import { StatsShell, type StatKey } from "./StatsShell";
 import { statsCss } from "./statsCss";
+import { isPeriodStat } from "./statsUrl";
 
 export const metadata: Metadata = {
   title: "The stats — Rowtember",
@@ -49,17 +50,22 @@ export default async function StatsPage({
 
   const one = (q: string | string[] | undefined) => (Array.isArray(q) ? q[0] : q);
   const period = parsePeriod(searchParams?.m, clockNow());
-  /* ?s= is a record key from records/defs.ts; anything else is TOTAL
-   * METERS, the first word in the list. */
-  const statKey: RecordKey = recordDef(one(searchParams?.s) ?? "")?.key ?? "total";
-  /* ?day= / ?w= (1-based): the board the URL had open. The shell clamps
-   * them into the days that have happened. */
+  /* ?day= / ?w= (1-based): the day or week on the period board. The shell
+   * clamps them into the days that have happened. */
   const num = (q: string | string[] | undefined) => {
     const n = Number(one(q));
     return Number.isFinite(n) && n >= 1 ? Math.floor(n) : null;
   };
   const day0 = num(searchParams?.day);
   const week0 = num(searchParams?.w);
+  /* ?s= is a record key from records/defs.ts or one of the two period
+   * stats (statsUrl.ts); anything else is TOTAL METERS, the first word in
+   * the list. A link from before 2026-09-25 named the day board with a
+   * bare ?day= or ?w= and no stat — it still lands on that board. */
+  const sRaw = one(searchParams?.s) ?? "";
+  const statKey: StatKey = isPeriodStat(sRaw)
+    ? sRaw
+    : (recordDef(sRaw)?.key ?? (!sRaw && week0 != null ? "week" : !sRaw && day0 != null ? "day" : "total"));
 
   const initial = await buildStatsPayload(viewer, period);
 

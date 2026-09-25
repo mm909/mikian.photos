@@ -21,17 +21,24 @@ export function Heatmap({
   thresholds = ONE_ROWER,
   days = MONTH_DAYS,
   month,
+  whole = false,
 }: {
   byDay: Record<string, number>;
   /* Which month to draw (rowPeriod.ts); this one when absent. */
   month?: { key: string; firstDow: number; days: number };
   thresholds?: [number, number, number];
-  /* Draw only this many September days — the month stops at today rather
-   * than trailing a fortnight of empty cells (owner call, day 4). */
+  /* Draw only this many days — the month stops at today rather than
+   * trailing a fortnight of empty cells (owner call, day 4). */
   days?: number;
+  /* The whole month instead: every day drawn, and the days past `days`
+   * — still to come — as dim empty cells (.todo; the stats page since
+   * 2026-09-25, owner: "give THE MONTH calendar all its squares back for
+   * the whole month"). The profile keeps stopping at today. */
+  whole?: boolean;
 }) {
   const mon = month ?? { key: MONTH_KEY, firstDow: MONTH_FIRST_DOW, days: MONTH_DAYS };
-  const shown = Math.min(mon.days, Math.max(1, days));
+  const elapsed = Math.min(mon.days, Math.max(1, days));
+  const shown = whole ? mon.days : elapsed;
   // Leading blanks align day 1 under its weekday (rowPeriod.ts).
   const firstDow = mon.firstDow;
 
@@ -50,10 +57,11 @@ export function Heatmap({
           const day = `${mon.key}-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);
+          const todo = whole && i >= elapsed ? " todo" : "";
           return (
             <div
               key={day}
-              className={`hm-cell${b}`}
+              className={`hm-cell${b}${todo}`}
               style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
               title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
             >

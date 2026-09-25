@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
 import { StatsShare } from "../StatsShare";
 import { StatsBoards, StatsRecords, type BoardMode } from "../Stats";
-import { TextMenu } from "../TextMenu";
+import { TextMenu, type TextMenuOption } from "../TextMenu";
 import { RECORD_DEFS, recordDef, type RecordKey } from "../records/defs";
 import { FieldSection } from "./FieldSection";
 import { PerfectAttendance } from "./PerfectAttendance";
 import type { StatsPayload } from "./statsData";
-import { rankingsHref, statsHref } from "./statsUrl";
+import { isPeriodStat, rankingsHref, statsHref, type PeriodStatKey } from "./statsUrl";
 
 /* THE STATS PAGE, below the bar, as one client shell (owner, 2026-09-25:
  * "every time I click fastest 5K / 10K / a month / a day there's a loading
@@ -19,13 +19,16 @@ import { rankingsHref, statsHref } from "./statsUrl";
  *
  * The server renders this once with the period the URL named
  * (stats/page.tsx → statsData.ts). From then on nothing navigates:
- *   - the STAT word swaps between the five boards already in hand;
+ *   - the STAT word swaps between the seven boards already in hand — the
+ *     five records and, since the third look (owner, 2026-09-25:
+ *     "combine METERS BY DAY and BY WEEK with the headline stat: add them
+ *     as categories on the stat word"), METERS BY DAY and METERS BY WEEK;
  *   - the MONTH word — and the calendar's arrows — fetch the period as
  *     JSON from /api/row100k/stats?m= (the same builder, masked for this
  *     viewer the same way) and swap it in, remembering every period seen
  *     so the way back is instant;
- *   - the DAY (a calendar) and the WEEK (a word menu) are picks into the
- *     boards already here.
+ *   - the DAY and the WEEK (one calendar, stats/DayCalendar.tsx, in two
+ *     modes) are picks into the boards already here.
  * The URL follows with history.replaceState, so a reload or a shared link
  * lands on the same view (statsUrl.ts spells it; the server reads it), and
  * every soft line keeps a real href for a middle click. The tap line
@@ -36,12 +39,37 @@ import { rankingsHref, statsHref } from "./statsUrl";
  *
  * ALL TIME is a shorter page (owner, 2026-09-25: "when ALL TIME is
  * selected, hide METERS BY DAY / BY WEEK, THE MONTH, THE HOURS and PERFECT
- * ATTENDANCE"): the head, the stat block and the field. The four month
- * sections are drawn only while the period is a month — the payload
- * still carries the current month for them, so the way back to a month
- * is the same swap. */
+ * ATTENDANCE"): the head, the stat block and the field. The month
+ * sections are drawn only while the period is a month, and the two period
+ * stats are offered only then — the payload still carries the current
+ * month for them, so the way back to a month is the same swap.
+ *
+ * The section titles are mono eyebrows in the profile idiom (pieces.tsx
+ * Eyebrow, .pf-eye): a left word and a right word on a hairline (owner,
+ * 2026-09-25: "I don't like the big bold black section titles"). */
 
 type Land = "first" | "last" | "today";
+
+/* A stat on the stat word: one of the five records (records/defs.ts) or
+ * one of the two period boards (statsUrl.ts). */
+export type StatKey = RecordKey | PeriodStatKey;
+
+const PERIOD_STATS: { key: PeriodStatKey; title: string }[] = [
+  { key: "day", title: "Meters by day" },
+  { key: "week", title: "Meters by week" },
+];
+
+/* A block heading kept to one mono line over a hairline, the profile's
+ * (pieces.tsx Eyebrow) — a plain element here so the client shell does
+ * not pull the profile's pieces in. */
+function Eyebrow({ left, right }: { left: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="pf-eye st-eye">
+      <span>{left}</span>
+      {right ? <span className="r">{right}</span> : null}
+    </div>
+  );
+}
 
 export function StatsShell({
   initial,
@@ -51,15 +79,16 @@ export function StatsShell({
 }: {
   initial: StatsPayload;
   /* From ?s=, validated by the page. */
-  statKey: RecordKey;
-  /* From ?day= / ?w= (1-based), when the URL named one; a named week opens
-   * the week board. */
+  statKey: StatKey;
+  /* From ?day= / ?w= (1-based), when the URL named one. */
   day0: number | null;
   week0: number | null;
 }) {
   const [data, setData] = useState<StatsPayload>(initial);
-  const [statKey, setStatKey] = useState<RecordKey>(statKey0);
-  const [mode, setMode] = useState<BoardMode>(week0 != null ? "week" : "day");
+  /* A period stat over all time is nothing: TOTAL METERS instead. */
+  const [statKey, setStatKeyState] = useState<StatKey>(
+    initial.period.kind === "all" && isPeriodStat(statKey0) ? "total" : statKey0,
+  );
   const [day, setDayState] = useState<number>(day0 != null ? Math.max(0, Math.min(initial.todayDay, day0 - 1)) : initial.todayDay);
   const [week, setWeekState] = useState<number>(week0 != null ? Math.max(0, week0 - 1) : initial.defaultWeek);
   /* Whether the day / week in the URL is the viewer's own pick (kept on a
@@ -73,6 +102,10 @@ export function StatsShell({
   /* The latest request wins; an older answer landing late is dropped. */
   const seq = useRef(0);
 
+  const setStatKey = (k: string) => {
+    if (isPeriodStat(k)) setStatKeyState(k);
+    else setStatKeyState((recordDef(k) ?? RECORD_DEFS[0]).key);
+  };
   const setDay = (i: number) => {
     setDayState(i);
     setDayPicked(true);
@@ -84,16 +117,18 @@ export function StatsShell({
 
   const land = useCallback((p: StatsPayload, where: Land) => {
     setData(p);
+    /* All time has no day board and no week board (owner, 2026-09-25). */
+    if (p.period.kind === "all") setStatKeyState((k) => (isPeriodStat(k) ? "total" : k));
     if (where === "first") {
       setDayState(0);
       setWeekState(0);
       setDayPicked(true);
-      setWeekPicked(false);
+      setWeekPicked(true);
     } else if (where === "last") {
       setDayState(p.todayDay);
       setWeekState(p.defaultWeek);
       setDayPicked(true);
-      setWeekPicked(false);
+      setWeekPicked(true);
     } else {
       setDayState(p.todayDay);
       setWeekState(p.defaultWeek);
@@ -145,8 +180,8 @@ export function StatsShell({
       {
         m: periodKey,
         s: statKey,
-        day: mode === "day" && dayPicked ? day + 1 : undefined,
-        w: mode === "week" && weekPicked ? week + 1 : undefined,
+        day: statKey === "day" && dayPicked ? day + 1 : undefined,
+        w: statKey === "week" && weekPicked ? week + 1 : undefined,
       },
       cur,
     );
@@ -157,11 +192,15 @@ export function StatsShell({
     } catch {
       /* A browser that refuses is a browser that keeps the old address. */
     }
-  }, [periodKey, statKey, mode, day, week, dayPicked, weekPicked, cur]);
+  }, [periodKey, statKey, day, week, dayPicked, weekPicked, cur]);
 
-  const def = recordDef(statKey) ?? RECORD_DEFS[0];
   const href = (q: { m?: string; s?: string; day?: number; w?: number }) =>
     statsHref({ m: periodKey, s: statKey, ...q }, cur);
+
+  const m = data.month;
+  /* Which sections the period gets: a month has its boards, calendar,
+   * hours and attendance; all time has none of them (owner, 2026-09-25). */
+  const isMonth = data.period.kind === "month";
 
   /* THE MONTH WORD — every month so far and all time, each a soft line:
    * a plain tap swaps the period in place, a middle click opens the page. */
@@ -176,20 +215,22 @@ export function StatsShell({
     />
   );
 
-  /* THE STAT WORD: the five boards are already here, so this is a swap. */
-  const statWord = (
-    <TextMenu
-      options={RECORD_DEFS.map((d) => ({ key: d.key, label: d.title, href: href({ s: d.key }), soft: true }))}
-      value={statKey}
-      ariaLabel="Which stat"
-      onPick={(k) => setStatKey((recordDef(k) ?? RECORD_DEFS[0]).key)}
-    />
+  /* THE STAT WORD: the five records and, over a month, the two period
+   * boards — all already here, so this is a swap. */
+  const statOptions: TextMenuOption[] = [
+    ...RECORD_DEFS.map((d) => ({ key: d.key, label: d.title, href: href({ s: d.key }), soft: true })),
+    ...(isMonth ? PERIOD_STATS.map((d) => ({ key: d.key, label: d.title, href: href({ s: d.key }), soft: true })) : []),
+  ];
+  const statWord = <TextMenu options={statOptions} value={statKey} ariaLabel="Which stat" onPick={setStatKey} />;
+
+  const pick = (
+    <>
+      {monthWord}
+      <span className="dot">·</span>
+      {statWord}
+    </>
   );
 
-  const m = data.month;
-  /* Which sections the period gets: a month has its boards, calendar,
-   * hours and attendance; all time has none of them (owner, 2026-09-25). */
-  const isMonth = data.period.kind === "month";
   const community = {
     ...data.community,
     byDay: data.communityByDay,
@@ -197,6 +238,9 @@ export function StatsShell({
     hourGrid: data.hourGrid,
     days: data.gridDayCount,
   };
+
+  const periodStat = isMonth && isPeriodStat(statKey) ? statKey : null;
+  const recordKey: RecordKey = periodStat ? "total" : (recordDef(statKey)?.key ?? "total");
 
   return (
     <div className="st-swap" aria-busy={busy || undefined}>
@@ -224,123 +268,118 @@ export function StatsShell({
       </div>
 
       {/* The stat block runs straight off the head: the two words, the
-          leading value, the podiums (owner call, 2026-09-05 — the leaders
-          and their values carry the emphasis, not the controls). */}
+          leading value, the tables (owner call, 2026-09-05 — the leaders
+          and their values carry the emphasis, not the controls). On
+          METERS BY DAY / BY WEEK it is the period board in the same shape
+          (owner, 2026-09-25, third look). */}
       <section>
         <div className="wrap">
-          <StatsRecords
-            records={data.records}
-            statKey={def.key}
-            pick={
-              <>
-                {monthWord}
-                <span className="dot">·</span>
-                {statWord}
-              </>
-            }
-            rankingsHref={rankingsHref(def.key, periodKey)}
-            started={data.started}
-            meId={data.meId}
-            anyHidden={data.anyHidden}
-            unavailable={data.unavailable}
-            blackout={data.blackout}
-          />
+          {periodStat ? (
+            <StatsBoards
+              month={m}
+              weeks={data.weeks}
+              live={data.liveMonth}
+              weekly={data.weekly}
+              daily={data.daily}
+              dayTotals={data.dayTotals}
+              weekTotals={data.weekTotals}
+              todayDay={data.todayDay}
+              mode={periodStat}
+              day={day}
+              week={week}
+              onMode={(k: BoardMode) => setStatKeyState(k)}
+              onDay={setDay}
+              onWeek={setWeek}
+              onStepMonth={(dir) => {
+                const to = dir === "prev" ? data.prev : data.next;
+                if (to) void goPeriod(to.key, dir === "prev" ? "last" : "first");
+              }}
+              hrefMode={(k) => href({ s: k })}
+              hrefDay={(i) => href({ day: i + 1 })}
+              hrefWeek={(i) => href({ w: i + 1 })}
+              hrefStep={(dir) =>
+                /* The last day or week of the month before, the first of
+                   the month after; the shell clamps a week past the end. */
+                periodStat === "week"
+                  ? statsHref({ m: dir === "prev" ? data.prev?.key : data.next?.key, s: statKey, w: dir === "prev" ? 9 : 1 }, cur)
+                  : statsHref({ m: dir === "prev" ? data.prev?.key : data.next?.key, s: statKey, day: dir === "prev" ? 31 : 1 }, cur)
+              }
+              pick={pick}
+              rankingsHref={rankingsHref(periodStat, periodKey, periodStat === "week" ? { w: week + 1 } : { day: day + 1 })}
+              started={data.started}
+              meId={data.meId}
+              maskedIds={data.maskedIds}
+              prev={data.prev}
+              next={data.next}
+              anyHidden={data.anyHidden}
+              blackout={data.blackout}
+            />
+          ) : (
+            <StatsRecords
+              records={data.records}
+              statKey={recordKey}
+              pick={pick}
+              rankingsHref={rankingsHref(recordKey, periodKey)}
+              started={data.started}
+              meId={data.meId}
+              anyHidden={data.anyHidden}
+              unavailable={data.unavailable}
+              blackout={data.blackout}
+            />
+          )}
         </div>
       </section>
 
-      {/* METERS BY DAY / BY WEEK, THE MONTH and THE HOURS: a month's
-          sections, not drawn for all time (owner, 2026-09-25). */}
+      {/* THE MONTH and THE HOURS: a month's sections, not drawn for all
+          time (owner, 2026-09-25). */}
       {isMonth && (
         <>
-          {/* Meters by day / by week — the section head is the period itself,
-              so StatsBoards prints it. */}
-          <section>
+          {/* THE MONTH: the calendar alone under its eyebrow (owner,
+              2026-09-24: no subtitle), every day of the month drawn — the
+              days to come as empty dashed cells (owner, 2026-09-25: "give
+              THE MONTH calendar all its squares back for the whole
+              month"). */}
+          <section className="st-sec">
             <div className="wrap">
-              <StatsBoards
-                month={m}
-                weeks={data.weeks}
-                live={data.liveMonth}
-                weekly={data.weekly}
-                daily={data.daily}
-                dayTotals={data.dayTotals}
-                weekTotals={data.weekTotals}
-                todayDay={data.todayDay}
-                mode={mode}
-                day={day}
-                week={week}
-                onMode={setMode}
-                onDay={setDay}
-                onWeek={setWeek}
-                onStepMonth={(dir) => {
-                  const to = dir === "prev" ? data.prev : data.next;
-                  if (to) void goPeriod(to.key, dir === "prev" ? "last" : "first");
-                }}
-                hrefDay={(i) => href({ day: i + 1 })}
-                hrefWeek={(i) => href({ w: i + 1 })}
-                hrefStep={(dir) =>
-                  dir === "prev"
-                    ? statsHref({ m: data.prev?.key, s: statKey, day: 31 }, cur)
-                    : statsHref({ m: data.next?.key, s: statKey, day: 1 }, cur)
-                }
-                started={data.started}
-                meId={data.meId}
-                maskedIds={data.maskedIds}
-                prev={data.prev}
-                next={data.next}
-              />
-            </div>
-          </section>
-
-          {/* THE MONTH: the calendar alone under its title (owner, 2026-09-24:
-              no subtitle). */}
-          <section>
-            <div className="wrap">
-              <div className="sec-head">
-                <h2>The month</h2>
-              </div>
+              <Eyebrow left="The month" right={m.label} />
               <MonthSection
                 month={{ key: m.key, firstDow: m.firstDow, days: m.days }}
                 byDay={data.communityByDay}
                 thresholds={data.thresholds}
                 days={data.gridDayCount}
+                whole
               />
             </div>
           </section>
 
           {/* THE HOURS: the grid alone (owner, 2026-09-24). */}
-          <section>
+          <section className="st-sec">
             <div className="wrap">
-              <div className="sec-head">
-                <h2>The hours</h2>
-              </div>
+              <Eyebrow left="The hours" />
               <HourGrid grid={data.hourGrid} month={m.label.slice(0, 3)} />
             </div>
           </section>
         </>
       )}
 
-      <section>
+      {/* THE FIELD, with no line after the word (owner, 2026-09-25:
+          "remove the copy at the end of the field"). */}
+      <section className="st-sec">
         <div className="wrap">
-          <div className="sec-head">
-            <h2>The field</h2>
-            <span className="mono">
-              EVERY ROW · LENGTH AND PACE{data.field && data.field.rowers > 0 ? ` · ${data.field.rowers} ROWERS` : ""}
-            </span>
-          </div>
+          <Eyebrow left="The field" />
           <FieldSection field={data.field} hours={data.hours} distances={data.distances} />
         </div>
       </section>
 
       {/* PERFECT ATTENDANCE (owner, 2026-09-21), last on the page since
           2026-09-24 (owner: below THE FIELD); a month's section, not drawn
-          for all time (owner, 2026-09-25). */}
-      {isMonth && (
-        <section>
+          for all time, and not drawn at all when nobody has it (owner,
+          2026-09-25: "if nobody has perfect attendance, hide the
+          section"). */}
+      {isMonth && data.attendance.rows.length > 0 && (
+        <section className="st-sec">
           <div className="wrap">
-            <div className="sec-head">
-              <h2>Perfect attendance</h2>
-              <span className="mono">{data.attendance.note}</span>
-            </div>
+            <Eyebrow left="Perfect attendance" right={data.attendance.note} />
             <PerfectAttendance rows={data.attendance.rows} />
           </div>
         </section>
