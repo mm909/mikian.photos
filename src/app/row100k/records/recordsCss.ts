@@ -42,6 +42,7 @@ export const recordsCss = `
  * the header and the first item). */
 .row100k .rec-shell .st-rec{margin-bottom:22px}
 .row100k .rec-find-w{all:unset;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;border-bottom:1px dotted currentColor;padding-bottom:1px}
+.row100k .rec-find-i{display:inline-block;vertical-align:-1px;margin-left:5px}
 .row100k .rec-find-w:hover{color:var(--water)}
 .row100k .rec-find-w:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .row100k .rec-find{display:block;width:100%;min-width:0;box-sizing:border-box;background:transparent;border:0;border-bottom:1px dotted var(--water);border-radius:0;appearance:none;margin:0;padding:0 0 1px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ink);line-height:inherit}
