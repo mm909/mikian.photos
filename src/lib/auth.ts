@@ -132,7 +132,12 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  // Rowtember owns sign-in now (owner, 2026-09-25: a failed or cancelled
+  // Google sign-in "strands the stranger on a race-photo page ... It looks
+  // like the wrong website"). Both the sign-in and the error page are
+  // /row100k/sign-in, which prints ?error= as one quiet line.
   pages: {
-    signIn: "/photographer/sign-in",
+    signIn: "/row100k/sign-in",
+    error: "/row100k/sign-in",
   },
 };

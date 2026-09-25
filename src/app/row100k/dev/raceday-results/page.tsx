@@ -14,7 +14,7 @@ import { fmtClock } from "../../raceresults/types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Race day results (dev) — 100K September",
+  title: "Race day results (dev) — Rowtember",
   robots: { index: false, follow: false },
 };
 

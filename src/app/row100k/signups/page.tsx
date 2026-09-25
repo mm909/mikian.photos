@@ -11,7 +11,7 @@ import { RowersTable, type AdminRower } from "../rowers/RowersTable";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Rowers — 100K September",
+  title: "Rowers — Rowtember",
   robots: { index: false, follow: false },
 };
 

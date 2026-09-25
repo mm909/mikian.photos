@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 const RETIRED = true;
 
 export const metadata: Metadata = {
-  title: "The gallery — 100K September",
+  title: "The gallery — Rowtember",
   description: "The month in photos — Rowtember, shot by Mikian.",
 };
 

@@ -11,7 +11,7 @@ import { settingsCss } from "./settingsCss";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Settings — 100K September",
+  title: "Settings — Rowtember",
   robots: { index: false, follow: false },
 };
 

@@ -14,7 +14,7 @@ import { ShareablesAdmin } from "./ShareablesAdmin";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Shareables — 100K September",
+  title: "Shareables — Rowtember",
   robots: { index: false, follow: false },
 };
 

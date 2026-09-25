@@ -18,7 +18,7 @@ import { PreviewSwitch } from "./PreviewSwitch";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Lights out — 100K September",
+  title: "Lights out — Rowtember",
   robots: { index: false, follow: false },
 };
 

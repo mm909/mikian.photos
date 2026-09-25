@@ -1,5 +1,5 @@
 /**
- * Seed a fake 100K September board — 100 rowers, two-thirds of the way
+ * Seed a fake Rowtember board — 100 rowers, two-thirds of the way
  * through the month — so the boards, records, curve, heatmap and profile
  * pages can be worked on with realistic data instead of an empty table.
  *

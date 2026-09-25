@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const RETIRED = true;
 
 export const metadata: Metadata = {
-  title: "Raffles — 100K September",
+  title: "Raffles — Rowtember",
   robots: { index: false, follow: false },
 };
 
