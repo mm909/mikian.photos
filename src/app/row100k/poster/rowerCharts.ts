@@ -17,7 +17,8 @@
  * r/[num]/looks/PaceCurve.tsx on paper, rule for rule. */
 
 /* NO COLOUR NAMES HERE — see charts.ts. Geometry and formatting only. */
-import { DOW_LETTERS, SEP_FIRST_DOW, kLabel } from "./paint";
+import { DOW_LETTERS, FIRST_DOW, kLabel } from "./paint";
+import { MONTH_DAYS } from "@/lib/row100k";
 import type { PosterBox, PosterPaint, PosterTokens, RowerLogRow } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
@@ -32,7 +33,7 @@ type Ctx = CanvasRenderingContext2D;
  *
  * The September calendar constants and the cell label are paint.ts's
  * (share/cards.ts originals); re-exported for the rower modules. */
-export { DOW_LETTERS, SEP_FIRST_DOW, kLabel };
+export { DOW_LETTERS, FIRST_DOW, kLabel };
 
 /* Heatmap.tsx ONE_ROWER thresholds — a rower's day, not a community's. */
 const ROWER_BUCKETS = [2500, 5000, 10000];
@@ -93,8 +94,8 @@ function cellFor(tk: PosterTokens, w: number, opts: MonthOpts): number {
  * module's measure() reports (eyebrow excluded). */
 export function monthLayout(tk: PosterTokens, w: number, dayNumber: number, opts: MonthOpts): MonthLayout {
   const gap = tk.small * 0.7;
-  const days = opts.full ? 30 : Math.min(30, Math.max(1, dayNumber));
-  const rows = Math.ceil((days + SEP_FIRST_DOW) / 7);
+  const days = opts.full ? MONTH_DAYS : Math.min(MONTH_DAYS, Math.max(1, dayNumber));
+  const rows = Math.ceil((days + FIRST_DOW) / 7);
   const axisH = tk.small * 1.9;
   let cell = cellFor(tk, w, opts);
   if (opts.maxH !== undefined) {
@@ -166,7 +167,7 @@ export function drawMonth(
   const labelSize = cell * 0.28;
   const labelFont = paint.font("monoBold", labelSize);
   for (let i = 0; i < L.days; i++) {
-    const idx = i + SEP_FIRST_DOW;
+    const idx = i + FIRST_DOW;
     const cx = x0 + (idx % 7) * (cell + gap);
     const cy = top + Math.floor(idx / 7) * (cell + gap);
     // A day after the as-of day is paper: the month is not over yet.

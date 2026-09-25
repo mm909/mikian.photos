@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ELITE_LABEL, ELITE_TAG, digitCount, eliteOrder, partialShape } from "@/lib/blackoutRules";
-import { fmtDay, fmtMeters, fmtRecordTime, fmtSplit, type Week } from "@/lib/row100k";
+import { FIRST_DAY_TAG, fmtDay, fmtMeters, fmtRecordTime, fmtSplit, type Week } from "@/lib/row100k";
 import { BlockShape, Blocks } from "../Blackout";
 import { Boards, Who, fold, rowMatches, type Tab } from "../Boards";
 import type { PeriodRow, PeriodTotal } from "../Stats";
@@ -302,7 +302,7 @@ export function RecordsShell({
     ? "THE RECORDS COULD NOT BE READ JUST NOW — RELOAD IN A MOMENT."
     : data.started
       ? "NOTHING ON THIS ONE YET."
-      : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1.";
+      : `THE START LIST IS FILLING — METERS SHOW UP HERE ${FIRST_DAY_TAG}.`;
 
   /* THE PICKER LINE on a period board: the day word with the stats page's
    * calendar under it (stats/DayCalendar.tsx), or the week word with the
@@ -602,7 +602,7 @@ function FlatTable({
           ? "THE RECORDS COULD NOT BE READ JUST NOW — RELOAD IN A MOMENT."
           : started
             ? "NOTHING ON THIS ONE YET."
-            : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
+            : `THE START LIST IS FILLING — METERS SHOW UP HERE ${FIRST_DAY_TAG}.`}
       </p>
     );
   }

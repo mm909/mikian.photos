@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SanityBand } from "@/lib/row100k";
+import { FIRST_DAY_TAG, MONTH_NAME, type SanityBand } from "@/lib/row100k";
 import { LogRow } from "./LogRow";
 import { MyRows, type MyRow } from "./MyRows";
 import { ShareDialog } from "./ShareMenu";
@@ -94,8 +94,8 @@ export function LogPanel({
                 : phase === "open"
                   ? "EVERY SESSION COUNTS"
                   : phase === "before"
-                    ? "OPENS SEP 1"
-                    : "SEPTEMBER'S WRAPPED"}
+                    ? `OPENS ${FIRST_DAY_TAG}`
+                    : `${MONTH_NAME.toUpperCase()}'S WRAPPED`}
             </span>
           </div>
           {/* No panel box around the form any more — LogRow brings its own

@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   FIRST_DAY,
   LAST_DAY,
+  DEFAULT_TITLE_RE,
+  FIRST_DAY_TAG,
   LOG_CLOSE_MS,
+  MONTH_NAME,
   SANITY_FALLBACK,
   START_MS,
   TITLE_MAX,
@@ -129,7 +132,7 @@ export function LogRow({
   // When a log lands the server recomputes the default ("Rowtember #5") —
   // adopt it unless the rower typed their own title over the prefill.
   useEffect(() => {
-    setTitle((t) => (t === "" || /^Rowtember #\d+$/.test(t) ? (defaultTitle ?? "") : t));
+    setTitle((t) => (t === "" || DEFAULT_TITLE_RE.test(t) ? (defaultTitle ?? "") : t));
   }, [defaultTitle]);
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -152,12 +155,12 @@ export function LogRow({
   if (livePhase === "before") {
     return (
       <p className="board-empty">
-        LOGGING OPENS SEP 1. YOU&rsquo;RE IN — SHOW UP, ROW, COME BACK.
+        LOGGING OPENS {FIRST_DAY_TAG}. YOU&rsquo;RE IN — SHOW UP, ROW, COME BACK.
       </p>
     );
   }
   if (livePhase === "closed") {
-    return <p className="board-empty">LOGGING IS CLOSED — SEPTEMBER&rsquo;S IN THE BOOKS.</p>;
+    return <p className="board-empty">LOGGING IS CLOSED — {MONTH_NAME.toUpperCase()}&rsquo;S IN THE BOOKS.</p>;
   }
 
   const meters = Math.round(Number(metersText.replace(/[,\s]/g, "")));

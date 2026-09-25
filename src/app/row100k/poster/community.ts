@@ -60,7 +60,8 @@ import {
 } from "./charts";
 /* NO COLOUR NAMES HERE — see charts.ts; the two run colours below come off
  * `paint.c` so both stocks draw one masthead. */
-import { SEP_FIRST_DOW } from "./paint";
+import { FIRST_DOW } from "./paint";
+import { MONTH_DAYS } from "@/lib/row100k";
 import type {
   CommunityPoster,
   PosterBox,
@@ -214,7 +215,7 @@ const curve = chart(
 const PHONE_CELL = 34;
 const monthModule = (id: string, full: boolean): Mod => {
   const rowsOf = (d: CommunityPoster) =>
-    Math.ceil(((full ? 30 : Math.max(1, Math.min(30, d.asOf.dayNumber))) + SEP_FIRST_DOW) / 7);
+    Math.ceil(((full ? MONTH_DAYS : Math.max(1, Math.min(MONTH_DAYS, d.asOf.dayNumber))) + FIRST_DOW) / 7);
   /* The eyebrow plus the S M T W T F S row — measured off paint.eyebrow
    * itself, never guessed, because drawMonth lays the grid under it. */
   const head = (ctx: Ctx, paint: PosterPaint, w: number) =>

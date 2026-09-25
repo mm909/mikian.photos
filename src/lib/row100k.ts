@@ -89,6 +89,33 @@ export const END_MS = MONTH.endMs;
 /* Grace: late-logging a row for this month is allowed for three days after. */
 export const LOG_CLOSE_MS = MONTH.logCloseMs;
 
+/* THE MONTH'S NAME as the site says it (owner, 2026-09-25: no ROWTEMBER
+ * nameplate outside September). "Rowtember" in September, the bare month
+ * word any other month — row titles, the default log title and every
+ * caps label that used to say SEP 1 or OCT 3 read off these, so October
+ * arrives without a rewrite. */
+export const ROWTEMBER = MONTH.month === 9;
+/* "September", "October" */
+export const MONTH_WORD = MONTH.label.split(" ")[0];
+/* "Rowtember", "October" */
+export const MONTH_NAME = ROWTEMBER ? "Rowtember" : MONTH_WORD;
+/* "SEP 1", "OCT 1" — the first-day tag in the caps labels. */
+export const FIRST_DAY_TAG = `${MONTH.short} 1`;
+/* "2026-10-03": the last day a late log for this month is taken, and its
+ * caps tag, "OCT 3". Read off LOG_CLOSE_MS so the grace rule lives once. */
+export const LATE_LOGS_THROUGH = pacificDay(LOG_CLOSE_MS - 1);
+export const LATE_LOGS_TAG = fmtDay(LATE_LOGS_THROUGH).toUpperCase();
+
+/* "Rowtember #7" / "October #7" — the title a row gets when none is typed,
+ * numbered by how many rows the rower will then have. */
+export function defaultRowTitle(n: number): string {
+  return `${MONTH_NAME} #${n}`;
+}
+/* Every default title the site ever handed out, so the log form can swap a
+ * stale one for the recomputed default without touching a typed title. */
+export const DEFAULT_TITLE_RE =
+  /^(Rowtember|January|February|March|April|May|June|July|August|September|October|November|December) #\d+$/;
+
 /* How many September days the charts should draw: 1 on Sep 1, 30 from Sep 30
  * onward. Every calendar, curve and bar chart stops at TODAY rather than
  * reserving empty space for days nobody has rowed yet (owner call, day 4) —

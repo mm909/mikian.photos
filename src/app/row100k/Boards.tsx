@@ -13,6 +13,7 @@ import {
   type Boards as BoardData,
   type Tier,
   type TotalRow,
+  FIRST_DAY_TAG,
 } from "@/lib/row100k";
 import { ELITE_LABEL, ELITE_TAG, digitCount, fmtPacificDay, partialShape } from "@/lib/blackoutRules";
 import { BlockShape, BlockText, Blocks } from "./Blackout";
@@ -325,7 +326,7 @@ export function Boards({
         <p className="board-empty">
           {started
             ? "NOBODY ON THIS BOARD YET — BE FIRST."
-            : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
+            : `THE START LIST IS FILLING — METERS SHOW UP HERE ${FIRST_DAY_TAG}.`}
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>

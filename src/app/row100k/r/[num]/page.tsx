@@ -24,6 +24,7 @@ import {
   recordPlacements,
   type RecordBadge,
   MONTH,
+  defaultRowTitle,
 } from "@/lib/row100k";
 import { barProps, maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
@@ -331,7 +332,7 @@ export default async function RowerProfilePage({ params, searchParams }: { param
         phase: isAdmin && phase === "before" ? "open" : phase,
         earlyAdmin: isAdmin && phase === "before",
         defaultDay: clampDay(pacificDay(now)),
-        defaultTitle: `Rowtember #${entries.length + 1}`,
+        defaultTitle: defaultRowTitle(entries.length + 1),
         sanity: await sanityBandForForm(),
       }
     : null;

@@ -35,11 +35,11 @@
  * data they read still ships; community.ts registers them as modules and
  * names them in no plan, so putting one back is one line there. */
 
-import { dayTicks, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { FIRST_DAY_TAG, MONTH_DAYS, MONTH_WORD, dayTicks, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 /* NO COLOUR NAMES HERE — that is the point. Every colour comes off
  * `paint.c` (SPEC.md §4, THE BLACK STOCK), so one drawing serves both
  * stocks; what is left is geometry and formatting. */
-import { DOW_LETTERS, SEP_FIRST_DOW, kLabel } from "./paint";
+import { DOW_LETTERS, FIRST_DOW, kLabel } from "./paint";
 import type {
   Figure,
   PosterBox,
@@ -385,7 +385,7 @@ export function drawCurve(
     box.y,
     box.w,
     "THE CURVE",
-    `METERS TOGETHER · SEP 1 → ${asOfDay.toUpperCase()}`,
+    `METERS TOGETHER · ${FIRST_DAY_TAG} → ${asOfDay.toUpperCase()}`,
     "METERS TOGETHER",
   );
   const days = Math.max(1, Math.min(dayNumber, byDay.length));
@@ -421,7 +421,7 @@ export function drawCurve(
   }
   paint.rule(ctx, L, B, R - L, tk.hair * 1.4, C.ink);
   for (const d of dayTicks(days)) {
-    paint.drawCentered(ctx, d === 1 ? "SEP 1" : String(d), X(d), B + tk.axis * 1.7, aFont, C.gray);
+    paint.drawCentered(ctx, d === 1 ? FIRST_DAY_TAG : String(d), X(d), B + tk.axis * 1.7, aFont, C.gray);
   }
   ctx.save();
   ctx.beginPath();
@@ -501,9 +501,9 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
     paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
   );
   y += tk.small * 1.9;
-  const dayN = Math.max(1, Math.min(30, o.dayNumber));
-  const shown = o.full ? 30 : dayN;
-  const rows = Math.ceil((shown + SEP_FIRST_DOW) / 7);
+  const dayN = Math.max(1, Math.min(MONTH_DAYS, o.dayNumber));
+  const shown = o.full ? MONTH_DAYS : dayN;
+  const rows = Math.ceil((shown + FIRST_DOW) / 7);
   let th: [number, number, number];
   if (o.buckets === "quartile") {
     const sorted = (o.meters ?? [])
@@ -525,7 +525,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const showLabel = labelSize >= tk.small * 0.8;
   const showNum = cell >= tk.axis * 1.8;
   for (let i = 0; i < shown; i++) {
-    const idx = i + SEP_FIRST_DOW;
+    const idx = i + FIRST_DOW;
     const x = box.x + (idx % 7) * (cellW + gap);
     const cy = y + Math.floor(idx / 7) * (cellH + gap);
     if (i >= dayN) {
@@ -735,7 +735,7 @@ export function drawRecords(
     box.y,
     box.w,
     "THE RECORDS",
-    blackout ? "TIMES ARE SHOWN, HIDDEN METERS ARE NOT" : "THIS SEPTEMBER",
+    blackout ? "TIMES ARE SHOWN, HIDDEN METERS ARE NOT" : `THIS ${MONTH_WORD.toUpperCase()}`,
     blackout ? "TIMES SHOWN" : undefined,
   );
   const labelH = tk.small * 1.5;

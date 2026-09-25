@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { forcedBlackout } from "@/lib/blackoutRules";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { CHALLENGE, START_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
+import { CHALLENGE, FIRST_DAY_TAG, START_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../../theme";
 import { RowBar } from "../../../RowBar";
@@ -78,7 +78,7 @@ export default async function RowerPosterPage({ params }: { params: { num: strin
                 commentary ONE ROWER · PRINT OR INSTAGRAM). */}
           </div>
           {before || !rower ? (
-            <p className="po-first">FIRST STROKE SEP 1</p>
+            <p className="po-first">FIRST STROKE {FIRST_DAY_TAG}</p>
           ) : (
             <PosterStudio rower={rower} community={null} roster={null} fixed />
           )}

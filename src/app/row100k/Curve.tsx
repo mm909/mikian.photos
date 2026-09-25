@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { dayTicks, fmtDay, fmtMeters, MONTH_DAYS } from "@/lib/row100k";
+import { dayTicks, fmtDay, fmtMeters, FIRST_DAY_TAG, MONTH_DAYS } from "@/lib/row100k";
 
 /* Cumulative meters as a poster-styled SVG line with a nearest-day hover
  * readout. Single series — the title names it, no legend. Used twice: the
@@ -99,7 +99,7 @@ export function Curve({
           <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="var(--ink)" strokeWidth="2" />
           {dayTicks(span).map((d) => (
             <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--gray)" fontFamily="var(--row-mono), monospace">
-              {d === 1 ? "SEP 1" : d}
+              {d === 1 ? FIRST_DAY_TAG : d}
             </text>
           ))}
           {goal ? (
