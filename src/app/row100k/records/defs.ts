@@ -47,6 +47,33 @@ export function recordDef(key: string): RecordDef | undefined {
   return RECORD_DEFS.find((d) => d.key === key);
 }
 
+/* THE TWO PERIOD BOARDS on the full rankings (owner, 2026-09-25: "add
+ * METERS BY DAY and METERS BY WEEK to the category menu, with the same day
+ * and week picker as the stats page"): every rower with meters on one day
+ * or in one week of the period's month, ranked. Their own list, NOT two
+ * more RECORD_DEFS — the stats page's stat word and liteRecords iterate
+ * that list, and a day is not a record. A URL segment each, after BIGGEST
+ * DAY in the menu; hidden on ALL TIME, which has no month to cut. */
+export type PeriodKey = "day" | "week";
+
+export type PeriodDef = { key: PeriodKey; title: string };
+
+export const PERIOD_DEFS: PeriodDef[] = [
+  { key: "day", title: "Meters by day" },
+  { key: "week", title: "Meters by week" },
+];
+
+/* Everything the category word offers: a record, or a period board. */
+export type BoardKey = RecordKey | PeriodKey;
+
+export function periodDef(key: string): PeriodDef | undefined {
+  return PERIOD_DEFS.find((d) => d.key === key);
+}
+
+export function isPeriodKey(key: string): key is PeriodKey {
+  return periodDef(key) !== undefined;
+}
+
 /* Division filter, carried in the URL (?d=all|m|f) on the ranking pages.
  * "all" is one combined ranking across both divisions. */
 export type DivKey = "all" | "m" | "f";

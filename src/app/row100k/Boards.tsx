@@ -150,6 +150,8 @@ export function Boards({
   statsHref = "/row100k/stats",
   query = "",
   foot = true,
+  final = false,
+  rowerHead,
 }: {
   boards: BoardsProp;
   started: boolean;
@@ -181,6 +183,18 @@ export function Boards({
    * every category themselves (records/RecordsShell.tsx), so the board
    * must not print a second. */
   foot?: boolean;
+  /* A FINISHED MONTH (owner, 2026-09-25: "on finished months don't show
+   * UNLOCKS AT 100,000 M — NOBODY HERE YET, nobody can unlock it any
+   * more"): a tier nobody is listed in is not drawn at all — no heading,
+   * no line. The tiers with rows keep their labels. Off for this month and
+   * all time, where the ladder is still the pitch. */
+  final?: boolean;
+  /* THE ROWER HEAD as a control (owner, 2026-09-25: "make the NAME the
+   * search: click on the name and search a rower from there"): what the
+   * full rankings hand in for the Rower column head — a word that turns
+   * into the search field in place (records/BoardFind.tsx). Absent: the
+   * plain word. */
+  rowerHead?: ReactNode;
 }) {
   const [own, setOwn] = useState<Tab>("ALL");
   const tab = controlled ?? own;
@@ -313,23 +327,29 @@ export function Boards({
             ? "NOBODY ON THIS BOARD YET — BE FIRST."
             : "THE START LIST IS FILLING — METERS SHOW UP HERE SEP 1."}
         </p>
-      ) : finding && eliteShown.length === 0 && listedShown.length === 0 ? (
-        /* The search found nobody on this board. A rower under 10k is not
-         * listed by name (warming up), so they are not found here either;
-         * the roster on any profile page finds everyone. */
-        <p className="board-empty">NOBODY ON THIS BOARD MATCHES.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="board">
             <thead>
               <tr>
                 <th className="rk">#</th>
-                <th>Rower</th>
+                <th>{rowerHead ?? "Rower"}</th>
                 <th aria-label="Movement" />
                 <th style={{ textAlign: "right" }}>Meters</th>
               </tr>
             </thead>
             <tbody>
+              {finding && eliteShown.length === 0 && listedShown.length === 0 && (
+                /* The search found nobody on this board. A rower under 10k
+                 * is not listed by name (warming up), so they are not found
+                 * here either; the roster on any profile page finds
+                 * everyone. Said inside the table since 2026-09-25: the
+                 * head is the search (rowerHead), and must stay mounted
+                 * under the fingers typing into it. */
+                <tr className="lockrow">
+                  <td colSpan={4}>NOBODY ON THIS BOARD MATCHES.</td>
+                </tr>
+              )}
               {eliteShown.length > 0 && (
                 <>
                   {/* One block, no tier, no places — the list the note above
@@ -363,8 +383,11 @@ export function Boards({
                 // true to say there. A tier with somebody listed still
                 // shows, elite or not. Outside a window the empty rungs stay:
                 // the ladder is the pitch — unless a search is on, when the
-                // tiers collapse to the matches (owner, 2026-09-25).
-                if (members.length === 0 && (eliteRows.length > 0 || finding)) return null;
+                // tiers collapse to the matches, or the month is over, when
+                // nobody can unlock anything any more (owner, 2026-09-25:
+                // "on finished months don't show UNLOCKS AT 100,000 M —
+                // NOBODY HERE YET").
+                if (members.length === 0 && (eliteRows.length > 0 || finding || final)) return null;
                 return (
                   <Fragment key={t.key}>
                     <tr className={`divrow ${locked ? "locked" : t.rarity}`}>
