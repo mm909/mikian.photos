@@ -22,7 +22,7 @@ export const metadata: Metadata = {
  * board with sample data so I can take a look at it).
  *
  * ADMIN ONLY in production, open to anyone in local dev — the gate the
- * other dev pages wear (dev/plan, dev/shirts, dev/stats). It used to be a
+ * other dev pages wear (dev/shirts, dev/stats). It used to be a
  * bare NODE_ENV 404 with no escape, so the one man the menu item exists for
  * was the one man it shut out; owner, 2026-09-11: "Race day results 404s.
  * Fix and deploy." A stranger still gets nothing, which is the point — every
@@ -164,7 +164,7 @@ export default async function DevRaceDayResultsPage({
       <style>{rrCss}</style>
 
       {/* Hardcoded signed out even though the gate has a viewer in scope —
-        * do NOT spread barProps(viewer) in here the way dev/plan does. The
+        * do NOT spread barProps(viewer) in here the way row100k/plan does. The
         * owner's rower chip and LOG A ROW two inches from a chip reading
         * PREVIEW would make the page look half real. The viewer is read to
         * decide whether this page may be drawn, never what it draws. */}

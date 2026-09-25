@@ -97,7 +97,7 @@ export default async function SettingsPage() {
                 about={about}
               />
               <p className="se-foot">
-                <a href={`/row100k/r/${me.rowerNumber}`}>My profile →</a>
+                <a href={`/row100k/r/${me.rowerNumber}`}>Profile →</a>
               </p>
             </>
           )}
