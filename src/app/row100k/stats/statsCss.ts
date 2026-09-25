@@ -12,6 +12,13 @@ export const statsCss = `
  * month word left and the button right, both on the mono baseline; the
  * share button keeps its own quiet look and loses the margin it wears
  * under a chart. */
+/* THE STAMP at the head of the stats (owner, 2026-09-25): a newspaper
+ * dateline, not a headline. The word is the month menu, the figure is the
+ * community total in ink, the rest grey. */
+.row100k .st-stamp{display:flex;align-items:baseline;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;margin:0;padding:22px 0 8px;border-bottom:1px solid var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:var(--gray);line-height:1.7}
+.row100k .st-stamp-l{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:0 6px}
+.row100k .st-stamp .dot{color:var(--gray);margin:0 4px}
+.row100k .st-stamp-n{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
 .row100k .ph-line.has-aside{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .row100k .ph-aside{margin-left:auto}
 .row100k .ph-aside .ms-actions{margin:0}

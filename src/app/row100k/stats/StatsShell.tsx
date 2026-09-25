@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
-import { PageHead } from "../PageHead";
 import { StatsShare } from "../StatsShare";
 import { StatsBoards, StatsRecords, type BoardMode } from "../Stats";
 import { TextMenu } from "../TextMenu";
@@ -201,20 +200,26 @@ export function StatsShell({
 
   return (
     <div className="st-swap" aria-busy={busy || undefined}>
-      {/* THE HEAD: the month word as the dateline, the community total in
-          the odometer, and SHARE A CARD on the dateline's right (owner,
-          2026-09-25: "put it on the same line as the DECEMBER 2026 word, on
-          the right"). The three figures that sat under the odometer are
-          gone (owner, 2026-09-25: "remove them for now"). */}
+      {/* THE STAMP (owner, 2026-09-25: "make that big cumulative number
+          more like a timestamp — like the date on a newspaper: the month
+          and then the total; a certification of the stats, a lot less
+          important"). On this page the community total is a dateline, not
+          a headline: the month word, then the metres, small and grey with
+          the figure in ink. ALL TIME keeps its word because the word is the
+          control. Everywhere else the number stays the head. SHARE A CARD
+          keeps the right of the line. */}
       <div className="ph-sec">
         <div className="wrap">
-          <PageHead
-            name=""
-            dateline={monthWord}
-            meters={data.unavailable ? null : data.community.meters}
-            unit="Meters"
-            aside={<StatsShare community={community} prefer="rowtember-community-month" />}
-          />
+          <div className="st-stamp">
+            <span className="st-stamp-l">
+              {monthWord}
+              <span className="dot">·</span>
+              <span className="st-stamp-n">{data.unavailable ? "—" : `${data.community.meters.toLocaleString("en-US")} m`}</span>
+            </span>
+            <span className="ph-aside">
+              <StatsShare community={community} prefer="rowtember-community-month" />
+            </span>
+          </div>
         </div>
       </div>
 
