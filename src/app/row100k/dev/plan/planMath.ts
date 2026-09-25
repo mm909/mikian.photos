@@ -1,45 +1,36 @@
-/* THE PLAN, as arithmetic (owner, 2026-09-24: "default the target to
- * 100,000 meters and remember whatever the user puts in … show how many
- * meters are needed and how many days are left … a calendar of the
- * remaining days with the meters split among them … let me change the
- * number for each day … click a day to turn it off … do NOT redistribute
- * the removed meters automatically: note that 3K is unallocated and needs
- * a home, and give me an AUTO DISTRIBUTE button").
+/* THE PLAN, as arithmetic (owner, 2026-09-25: "Simplify the calendar:
+ * days are ON or OFF, plus what was actually done. Past days show what I
+ * rowed. Going forward, clicking a day turns it off, clicking again turns
+ * it on, and the remaining meters are redistributed automatically across
+ * the on days. That's it." — which retired the 2026-09-24 model of
+ * per-day numbers, pinned days, an UNALLOCATED line and AUTO DISTRIBUTE).
  *
  * Pure functions over plain data, no React and no clock, so the tool and a
  * unit run (planMath.test.ts, npx tsx) agree by construction. Days are the
  * challenge's "YYYY-MM-DD" strings, never Date objects.
  *
- * The one rule that everything else follows from: a day holds the number
- * it has until somebody changes THAT day. Editing one day pins it and
- * moves nobody else; turning a day off keeps its number for when it comes
- * back and moves nobody else; what the plan then fails to cover is the
- * UNALLOCATED line, and AUTO DISTRIBUTE is the only thing that spreads it
- * — over the open days that were not set by hand. Changing the target is
- * the one exception (see setTarget), because a target moved by 400,000 m
- * with every day left where it was would be a plan for nothing. */
+ * The one rule: nothing is stored per day but whether it is off. What a
+ * day holds is always the need split evenly over the days that are on,
+ * so every toggle, every row logged and every change of target
+ * redistributes by itself. */
 
 export const DEFAULT_TARGET = 100_000;
-export const PLAN_VERSION = 1;
-
-export type DayCell = {
-  /* Planned meters for the day. Kept while the day is off. */
-  m: number;
-  /* True once the rower typed this day; AUTO DISTRIBUTE leaves it alone. */
-  pinned: boolean;
-  /* An off day counts for nothing and is drawn as such. */
-  off: boolean;
-};
+/* v2: the on/off model. A v1 blob (per-day cells) is read for its target,
+ * pace and off days and nothing else. */
+export const PLAN_VERSION = 2;
 
 export type Plan = {
   v: number;
   /* "2026-12" — a plan belongs to one month. */
   monthKey: string;
   target: number;
-  /* The pace goal as typed ("1:59.9"); empty when none (owner: do not
-   * prefill the average pace). */
-  pace: string;
-  days: Record<string, DayCell>;
+  /* The pace goal as typed ("1:59.9"). NULL means the rower never touched
+   * it and the field shows their current average split (owner,
+   * 2026-09-25: "fill the pace goal in with their current average pace,
+   * still optional"); "" means they cleared it, and no goal is drawn. */
+  pace: string | null;
+  /* The days turned off, "YYYY-MM-DD", any order. */
+  off: string[];
 };
 
 export function dayKey(monthKey: string, n: number): string {
@@ -68,132 +59,81 @@ export function evenSplit(total: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
 }
 
-/* A plan nobody has touched: the need spread evenly over every remaining
- * day, nothing pinned, nothing off. */
-export function freshPlan(opts: {
-  monthKey: string;
-  monthDays: number;
-  today: number;
-  target: number;
-  rowed: number;
-  pace?: string;
-}): Plan {
-  const target = opts.target > 0 ? Math.round(opts.target) : DEFAULT_TARGET;
-  const days = remainingDays(opts.monthKey, opts.monthDays, opts.today);
-  const parts = evenSplit(needOf(target, opts.rowed), days.length);
-  const cells: Record<string, DayCell> = {};
-  days.forEach((d, i) => {
-    cells[d] = { m: parts[i], pinned: false, off: false };
+export function isOff(plan: Plan, day: string): boolean {
+  return plan.off.includes(day);
+}
+
+/* The remaining days that are on, in order. */
+export function onDays(plan: Plan, remaining: string[]): string[] {
+  return remaining.filter((d) => !isOff(plan, d));
+}
+
+/* What each on day holds: the need over the on days, even to the meter.
+ * Off days are absent from the result. */
+export function planned(plan: Plan, remaining: string[], need: number): Record<string, number> {
+  const on = onDays(plan, remaining);
+  const parts = evenSplit(need, on.length);
+  const out: Record<string, number> = {};
+  on.forEach((d, i) => {
+    out[d] = parts[i];
   });
-  return { v: PLAN_VERSION, monthKey: opts.monthKey, target, pace: opts.pace ?? "", days: cells };
+  return out;
 }
 
-const cellOf = (plan: Plan, day: string): DayCell => plan.days[day] ?? { m: 0, pinned: false, off: false };
-
-/* Meters the open remaining days add up to. */
-export function plannedSum(plan: Plan, remaining: string[]): number {
-  let s = 0;
-  for (const d of remaining) {
-    const c = cellOf(plan, d);
-    if (!c.off) s += c.m;
-  }
-  return s;
-}
-
-/* Positive: meters the plan does not yet cover (needs a home). Negative:
- * the plan overshoots the need by that much. Zero: every meter placed. */
-export function unallocated(plan: Plan, remaining: string[], need: number): number {
-  return need - plannedSum(plan, remaining);
-}
-
-/* Days AUTO DISTRIBUTE may write: remaining, open, not set by hand. */
-export function autoDays(plan: Plan, remaining: string[]): string[] {
-  return remaining.filter((d) => {
-    const c = cellOf(plan, d);
-    return !c.off && !c.pinned;
-  });
-}
-
-/* Spread what the pinned days do not cover evenly over the auto days. With
- * no auto day left there is nowhere to put it, and the plan is returned
- * as it was — the tool says so rather than moving a number the rower
- * typed. */
-export function autoDistribute(plan: Plan, remaining: string[], need: number): Plan {
-  const free = autoDays(plan, remaining);
-  if (free.length === 0) return plan;
-  let pinnedSum = 0;
-  for (const d of remaining) {
-    const c = cellOf(plan, d);
-    if (!c.off && c.pinned) pinnedSum += c.m;
-  }
-  const parts = evenSplit(Math.max(0, need - pinnedSum), free.length);
-  const days = { ...plan.days };
-  free.forEach((d, i) => {
-    days[d] = { ...cellOf(plan, d), m: parts[i] };
-  });
-  return { ...plan, days };
-}
-
-/* The rower typed a number for a day: it is pinned and on. Nobody else
- * moves (owner, 2026-09-24). */
-export function setDay(plan: Plan, day: string, meters: number): Plan {
-  const m = Math.max(0, Math.round(Number.isFinite(meters) ? meters : 0));
-  return { ...plan, days: { ...plan.days, [day]: { m, pinned: true, off: false } } };
-}
-
-/* Off keeps its number (so on brings it back) and drops out of the sum. */
+/* Click a day: off, or on again. Days outside the month are ignored. */
 export function toggleOff(plan: Plan, day: string): Plan {
-  const c = cellOf(plan, day);
-  return { ...plan, days: { ...plan.days, [day]: { ...c, off: !c.off } } };
+  if (!day.startsWith(plan.monthKey + "-")) return plan;
+  const off = isOff(plan, day) ? plan.off.filter((d) => d !== day) : [...plan.off, day].sort();
+  return { ...plan, off };
 }
 
-/* Hand a pinned day back to AUTO DISTRIBUTE. Its number stays until then. */
-export function releaseDay(plan: Plan, day: string): Plan {
-  const c = cellOf(plan, day);
-  return { ...plan, days: { ...plan.days, [day]: { ...c, pinned: false } } };
+/* A new target: remembered; the split follows it by construction. */
+export function setTarget(plan: Plan, target: number): Plan {
+  return { ...plan, target: target > 0 ? Math.round(target) : DEFAULT_TARGET };
 }
 
-/* A new target: remembered, and the auto days follow it. Pinned days and
- * off days stay exactly as typed. */
-export function setTarget(plan: Plan, target: number, remaining: string[], rowed: number): Plan {
-  const t = target > 0 ? Math.round(target) : DEFAULT_TARGET;
-  const next = { ...plan, target: t };
-  return autoDistribute(next, remaining, needOf(t, rowed));
+export function setPace(plan: Plan, pace: string): Plan {
+  return { ...plan, pace };
+}
+
+/* A plan nobody has touched: every day on, the pace following the
+ * average. */
+export function freshPlan(opts: { monthKey: string; target?: number; pace?: string | null }): Plan {
+  const target = opts.target !== undefined && opts.target > 0 ? Math.round(opts.target) : DEFAULT_TARGET;
+  return { v: PLAN_VERSION, monthKey: opts.monthKey, target, pace: opts.pace === undefined ? null : opts.pace, off: [] };
 }
 
 /* Storage: one JSON blob per rower per browser. A saved plan for another
  * month is not this month's plan, but its target and pace goal carry over
  * (they are the rower's, not the month's). Anything unreadable is a fresh
- * plan. Remaining days a saved plan does not know about start at zero,
- * unpinned, so AUTO DISTRIBUTE can reach them. */
-export function revivePlan(
-  raw: string | null | undefined,
-  ctx: { monthKey: string; monthDays: number; today: number; rowed: number },
-): Plan {
-  const fresh = (target: number, pace: string) =>
-    freshPlan({ monthKey: ctx.monthKey, monthDays: ctx.monthDays, today: ctx.today, target, rowed: ctx.rowed, pace });
-  if (!raw) return fresh(DEFAULT_TARGET, "");
+ * plan. Off days that have already passed are dropped, so the list does
+ * not grow all month. */
+export function revivePlan(raw: string | null | undefined, ctx: { monthKey: string; monthDays: number; today: number }): Plan {
+  if (!raw) return freshPlan({ monthKey: ctx.monthKey });
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return fresh(DEFAULT_TARGET, "");
+    return freshPlan({ monthKey: ctx.monthKey });
   }
-  if (!parsed || typeof parsed !== "object") return fresh(DEFAULT_TARGET, "");
-  const p = parsed as Partial<Plan>;
+  if (!parsed || typeof parsed !== "object") return freshPlan({ monthKey: ctx.monthKey });
+  const p = parsed as { v?: unknown; monthKey?: unknown; target?: unknown; pace?: unknown; off?: unknown; days?: unknown };
   const target = typeof p.target === "number" && p.target > 0 ? Math.round(p.target) : DEFAULT_TARGET;
-  const pace = typeof p.pace === "string" ? p.pace : "";
-  if (p.monthKey !== ctx.monthKey || !p.days || typeof p.days !== "object") return fresh(target, pace);
-  const days: Record<string, DayCell> = {};
-  for (const d of remainingDays(ctx.monthKey, ctx.monthDays, ctx.today)) {
-    const c = (p.days as Record<string, Partial<DayCell> | undefined>)[d];
-    days[d] = {
-      m: c && typeof c.m === "number" && c.m >= 0 ? Math.round(c.m) : 0,
-      pinned: c?.pinned === true,
-      off: c?.off === true,
-    };
+  /* A v1 plan never prefilled the pace, so its "" is untouched, not
+   * cleared. */
+  const pace = typeof p.pace === "string" ? (p.pace === "" && p.v !== PLAN_VERSION ? null : p.pace) : null;
+  if (p.monthKey !== ctx.monthKey) return freshPlan({ monthKey: ctx.monthKey, target, pace });
+  const remaining = new Set(remainingDays(ctx.monthKey, ctx.monthDays, ctx.today));
+  let off: string[] = [];
+  if (Array.isArray(p.off)) {
+    off = p.off.filter((d): d is string => typeof d === "string" && remaining.has(d));
+  } else if (p.days && typeof p.days === "object") {
+    /* v1 kept a cell per day with an off flag. */
+    for (const [d, c] of Object.entries(p.days as Record<string, { off?: unknown } | null>)) {
+      if (c && c.off === true && remaining.has(d)) off.push(d);
+    }
   }
-  return { v: PLAN_VERSION, monthKey: ctx.monthKey, target, pace, days };
+  return { v: PLAN_VERSION, monthKey: ctx.monthKey, target, pace, off: off.sort() };
 }
 
 /* ------------------------------------------------------------- the pace */
@@ -229,7 +169,8 @@ export function projectedAvg(rowedM: number, rowedS: number, split: number, m: n
 }
 
 /* The rower's running average, one point per timed row, in the order the
- * rows were done. */
+ * rows were done. The last point is the month's average split — what the
+ * pace goal is filled in with. */
 export function runningAverage(rows: { day: string; meters: number; seconds: number }[]): { m: number; s: number; day: string }[] {
   let m = 0;
   let s = 0;
@@ -243,8 +184,8 @@ export function runningAverage(rows: { day: string; meters: number; seconds: num
   return out;
 }
 
-/* What a rower types into a day: "5000", "5,000", "5k", "7.5k". Null for
- * anything that is not a number of meters. */
+/* What a rower types for the target: "100000", "100,000", "100k",
+ * "7.5k". Null for anything that is not a number of meters. */
 export function parseMetersText(text: string): number | null {
   const t = text.trim().replace(/,/g, "").toLowerCase();
   if (t === "") return null;
