@@ -241,7 +241,8 @@ export type CellItem = {
   l: ReactNode;
   /* The figure, in Archivo Black. */
   n: ReactNode;
-  /* A unit set small after the figure (the split wears /500m). */
+  /* A unit set small after the figure (none today: the split's /500m came
+   * off, owner 2026-09-25 pm). */
   u?: ReactNode;
 };
 
@@ -298,7 +299,6 @@ export function coreCells(view: ProfileView): CellItem[] {
       key: "split",
       l: "Average split",
       n: rowed && !view.masked && t.seconds > 0 ? fmtSplit(t.meters, t.seconds) : "—",
-      u: rowed && !view.masked && t.seconds > 0 ? "/500m" : undefined,
     },
   ];
 }

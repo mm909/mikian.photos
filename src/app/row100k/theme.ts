@@ -973,9 +973,11 @@ html:has(.row100k){scroll-behavior:smooth}
  * bracketed by two solid rules, one under the heading and one under its
  * last row, where every other section has a dashed hairline. The closing
  * rule is two rules, not one list: a browser without :has() drops a whole
- * list, and the :last-child half must survive on its own. */
+ * list, and the :last-child half must survive on its own. The heading
+ * keeps the 14px of top air every tier divider has (owner, 2026-09-25 pm:
+ * missing margin between the rule and LIGHTS OUT). */
 .row100k tr.divrow.elite{scroll-margin-top:64px}
-.row100k tr.divrow.elite td{color:var(--ink);border-bottom:1px solid var(--ink);padding-top:0}
+.row100k tr.divrow.elite td{color:var(--ink);border-bottom:1px solid var(--ink);padding-top:14px}
 .row100k tr.divrow.elite .by{color:var(--gray);letter-spacing:.14em;margin-left:10px}
 .row100k tr.elite-row:last-child td{border-bottom:1px solid var(--ink)}
 .row100k tr.elite-row:has(+ tr:not(.elite-row)) td{border-bottom:1px solid var(--ink)}

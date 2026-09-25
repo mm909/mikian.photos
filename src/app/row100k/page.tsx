@@ -485,15 +485,21 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
        * it; the meters stay bold"), with no callout; and OPT IN or LOG A
        * ROW. Every cell is a left-justified block, sat in the middle of its
        * box on desktop (frontCss.ts). On a phone the last cell comes first,
-       * straight under the number. */}
+       * straight under the number.
+       *
+       * The first two cells are the same three rows — a small line, the
+       * number, a small line — so the two numbers sit level (owner,
+       * 2026-09-25 pm: "i dont like that these numbers arent level"): the
+       * label goes OVER the meters together, the way the rower goes over
+       * the latest row's meters, and its third row stays empty. */}
       <section className="fs">
         <div className="wrap front">
           <div className="front-stats three big counter">
             <div className="cell fc tog">
+              <div className="l mono">{me ? "meters together" : "hours together"}</div>
               <div className="n">
                 <Link href="/row100k/stats">{me ? fmtMeters(togetherMeters) : fmtHours(togetherSeconds)}</Link>
               </div>
-              <div className="l mono">{me ? "meters together" : "hours together"}</div>
             </div>
             <div className="cell fc latest">
               {latest && latestRow ? (
@@ -518,8 +524,8 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
                 </>
               ) : (
                 <>
-                  <div className="n">—</div>
                   <div className="l mono">nobody has logged a meter yet</div>
+                  <div className="n">—</div>
                 </>
               )}
             </div>

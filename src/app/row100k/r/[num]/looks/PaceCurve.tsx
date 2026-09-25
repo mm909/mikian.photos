@@ -9,7 +9,9 @@ import { fmtMeters } from "@/lib/row100k";
  * far, y the running average split over all of them, so the line is the
  * identity settling: a fast day pulls it down, a long slow one pulls it
  * up, and the right-hand end is the number the ledger prints as AVERAGE
- * SPLIT. Faster is UP, the way a pace chart is read.
+ * SPLIT. Faster is UP, the way a pace chart is read. The clock stands
+ * alone, no /500m after it (owner, 2026-09-25 pm: remove the /500m unit on
+ * the avg split section of the profile).
  *
  * Nothing here reaches a hidden rower's page — the profile shows the dog
  * tag instead while a window is open — so the points can be the truth. */
@@ -153,7 +155,7 @@ export function PaceCurve({ pts, dots = [] }: { pts: PacePoint[]; dots?: PaceDot
               onFocus={() => setDotHover(i)}
               onBlur={() => setDotHover(null)}
             >
-              <title>{`${d.dayStr} · ${fmtMeters(d.rowM)} · ${clock(d.s)} /500m`}</title>
+              <title>{`${d.dayStr} · ${fmtMeters(d.rowM)} · ${clock(d.s)}`}</title>
             </circle>
           ))}
           <path d={path} fill="none" stroke="var(--water)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
@@ -162,7 +164,7 @@ export function PaceCurve({ pts, dots = [] }: { pts: PacePoint[]; dots?: PaceDot
           ))}
           {at && <line x1={x(at.m)} x2={x(at.m)} y1={T} y2={H - B} stroke="var(--ink)" strokeWidth="1" strokeDasharray="2 3" />}
           <text x={Math.min(x(last.m), W - R - 4)} y={Math.max(y(last.s) - 10, 12)} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--ink)" fontFamily="var(--row-mono), monospace">
-            {clock(last.s)} /500M
+            {clock(last.s)}
           </text>
         </svg>
         {dh && (
