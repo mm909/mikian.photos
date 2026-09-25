@@ -132,8 +132,8 @@ export async function generateMetadata({ params }: { params: { num: string } }):
   const num = parseNum(params.num);
   const data = num ? await getRower(num).catch(() => null) : null;
   const title = data
-    ? `Rower ${fmtRowerNumber(data.participant.rowerNumber)} · ${data.participant.displayName} — 100K September`
-    : "Rower — 100K September";
+    ? `Rower ${fmtRowerNumber(data.participant.rowerNumber)} · ${data.participant.displayName} — Rowtember`
+    : "Rower — Rowtember";
   return { title };
 }
 

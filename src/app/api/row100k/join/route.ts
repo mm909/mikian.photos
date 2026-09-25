@@ -165,7 +165,7 @@ export async function POST(req: Request) {
         const sent = await sendOwnerNotification(
           `Rowtember signup — ${fmtRowerNumber(created.rowerNumber)} ${displayName}${instagram ? ` (@${instagram})` : ""}`,
           [
-            `Rower ${fmtRowerNumber(created.rowerNumber)} just joined 100K September.`,
+            `Rower ${fmtRowerNumber(created.rowerNumber)} just joined Rowtember.`,
             ``,
             `Name on the board: ${displayName}`,
             instagram ? `Instagram: @${instagram} — https://instagram.com/${instagram}` : `Instagram: none given`,

@@ -64,7 +64,7 @@ export default async function ErgSessionsPage({ searchParams }: { searchParams: 
           Monitors and SIMULATE work signed out; SAVE does not.
         </div>
         <p className="eg-btns">
-          <a className="eg-btn" href={`/api/auth/signin?callbackUrl=${encodeURIComponent("/erg/sessions")}`}>
+          <a className="eg-btn" href={`/row100k/sign-in?callbackUrl=${encodeURIComponent("/erg/sessions")}`}>
             Sign in
           </a>
         </p>

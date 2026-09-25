@@ -65,7 +65,7 @@ export default async function ErgSessionPage({ params, searchParams }: { params:
           saved under.
         </div>
         <p className="eg-btns">
-          <a className="eg-btn" href={`/api/auth/signin?callbackUrl=${encodeURIComponent(`/erg/s/${params.id}`)}`}>
+          <a className="eg-btn" href={`/row100k/sign-in?callbackUrl=${encodeURIComponent(`/erg/s/${params.id}`)}`}>
             Sign in
           </a>
         </p>

@@ -379,7 +379,7 @@ export function fieldStats(boards: Boards): LlmFieldStats {
 function challengeBlock(now: number): LlmRowerExport["challenge"] {
   const dayOfChallenge = daysElapsed(now);
   return {
-    name: "Rowtember — 100K September 2026",
+    name: "Rowtember 2026",
     firstDay: FIRST_DAY,
     lastDay: LAST_DAY,
     goalMeters: GOAL_METERS,
@@ -476,7 +476,7 @@ function guideText(scope: "rower" | "field", raceDay: string): string {
       ? "This JSON describes ONE rower in the challenge."
       : "This JSON describes EVERY rower in the challenge, one object each under `rowers`; the field-wide figures sit once at the top.";
   return [
-    "Rowtember (100K September) is a community rowing-machine (erg) challenge: row 100,000 metres between Sep 1 and Sep 30, 2026, logging each session on a shared site. Tiers are reached at 10K, 50K, 100K, 250K and 500K metres.",
+    "Rowtember is a community rowing-machine (erg) challenge: row 100,000 metres between Sep 1 and Sep 30, 2026, logging each session on a shared site. Tiers are reached at 10K, 50K, 100K, 250K and 500K metres.",
     who,
     "A split is the standard rowing pace: seconds per 500 metres, and LOWER is faster (2:00.0 = 120 s). Every key carries its unit in its name; see `units`.",
     "All times and distances are self-reported on an honour system, entered from the machine's monitor after the session, so treat outliers with some doubt. Session `title` and `note` are the rower's own words. A `prorated` record time is a pace conversion from a piece more than 2% longer than the board distance, not a rowed test piece.",

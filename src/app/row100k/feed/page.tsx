@@ -46,7 +46,7 @@ import {
  * tab the same day). */
 
 export const metadata: Metadata = {
-  title: "The feed — 100K September",
+  title: "The feed — Rowtember",
   description: "The live ticker — every row as it comes in, for the Rowtember challenge.",
 };
 

@@ -15,7 +15,7 @@ import { PosterStudio } from "./PosterStudio";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "The poster — 100K September",
+  title: "The poster — Rowtember",
   robots: { index: false, follow: false },
 };
 

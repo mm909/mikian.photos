@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 const RETIRED = true;
 
 export const metadata: Metadata = {
-  title: "Shop administration — 100K September",
+  title: "Shop administration — Rowtember",
   robots: { index: false, follow: false },
 };
 
