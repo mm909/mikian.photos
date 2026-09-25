@@ -12,6 +12,10 @@
  *   - the latest cell reads who, then the meters in bold, then the pace
  *     and how long ago (owner, same day: the bib number and the name ABOVE
  *     the meters, the pace and how-long-ago BELOW it);
+ *   - the first two cells are the same three rows, a small line, the
+ *     number, a small line, so the two numbers sit level (owner, same day,
+ *     pm: i dont like that these numbers arent level) — the label rides
+ *     OVER the meters together and that third row is empty;
  *   - on a phone the call to action comes straight after the number, the
  *     landing way (Home.tsx .cta), and the two cells stack under it;
  *   - the log form opens under the cells bar, and the LOG A ROW arrow turns
@@ -54,6 +58,23 @@ export const frontCss = `
 .row100k .front-stats .by a:hover{color:var(--water)}
 .row100k .front-stats .nothing{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);padding:6px 0}
 
+/* LEVEL NUMBERS (owner, 2026-09-25 pm: i dont like that these numbers
+ * arent level). METERS TOGETHER and THE LATEST ROW are the same grid of
+ * three rows — a small line, the number, a small line — so the number is
+ * the same row in each: the label over the meters together, the rower over
+ * the latest meters, the pace line under it, and nothing under the meters
+ * together. The small rows are 20px: .by is 14px Archivo at 1.4 (19.6px)
+ * and .l 11px mono at the body 1.55 (17px), both set to a 20px line here
+ * with no margins, so the rows are exact; the air either side of the number
+ * is the row gap, the 8px the .by margin used to give. The rows are fixed
+ * only from 640px, where the cells sit side by side; stacked on a phone the
+ * tog cell carries no empty third row. */
+.row100k .front-stats.counter .cell.tog,.row100k .front-stats.counter .cell.latest{display:grid;grid-template-columns:minmax(0,1fr);row-gap:8px;align-content:center;justify-content:start;justify-items:start}
+.row100k .front-stats.counter .tog .l,.row100k .front-stats.counter .latest .l,.row100k .front-stats.counter .latest .by{margin:0;line-height:20px}
+@media(min-width:640px){
+  .row100k .front-stats.counter .cell.tog,.row100k .front-stats.counter .cell.latest{grid-template-rows:20px auto 20px}
+}
+
 /* OPT IN or LOG A ROW as the third cell (OptIn.tsx, the landing look). The
  * cell is the link when it links (a stranger, or a signed-in visitor who
  * has not joined); a joined rower gets the word that opens the form under
@@ -66,8 +87,8 @@ export const frontCss = `
 
 /* DESKTOP (from 640px, the seam of every front grid): three boxes, each a
  * left-justified block sitting in the middle of its box — the grid
- * stretches the three to the tallest (the latest row, three lines) and the
- * other two centre themselves in that height. Owner, 2026-09-25, on the
+ * stretches the three to the tallest (the two three-row cells) and the
+ * third centres itself in that height. Owner, 2026-09-25, on the
  * centred pass before this one: I do not want the text centered
  * horizontally in the cells; the item can still sit in the middle of the
  * block, but the text is LEFT-JUSTIFIED. So the padding is the house
