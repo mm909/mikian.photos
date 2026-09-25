@@ -27,21 +27,32 @@ export const recordsCss = `
  * pace and a short one without sit the same. */
 .row100k .rec-shell .st-rec .bhead-n{min-height:1em}
 .row100k .rec-shell .st-rec .bhead-l{line-height:1.7}
-.row100k .rec-shell .rec-lead-empty{margin:14px 0 0;padding:12px 0}
-.row100k .rec-shell .rec-note{margin:14px 0 0}
+.row100k .rec-shell .rec-lead-empty{margin:14px 0 14px;padding:12px 0}
+.row100k .rec-shell .rec-note{margin:0 0 14px}
 
-/* FIND A ROWER (owner, 2026-09-25: a search field, not ugly; on every
- * category). Text, not a box: the house mono caps on a dotted rule, the
- * same rule a menu word wears (.tm-btn), on the far right of its own line
- * over the table, water blue when it has focus. No button — typing is the
- * search. This line is the whole gap between the leader and the first row
- * (owner, 2026-09-25: reduce the gap between the header and the first
- * item). Under 560px the field runs the measure, its rule a full-width
- * baseline. */
-.row100k .rec-findline{display:flex;justify-content:flex-end;margin:22px 0 10px}
-.row100k .rec-find{flex:0 1 210px;width:210px;min-width:0;background:transparent;border:0;border-bottom:2px dotted var(--ink);border-radius:0;appearance:none;padding:7px 0 5px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);line-height:16px}
-.row100k .rec-find::placeholder{color:var(--gray);font-weight:400;letter-spacing:.12em;text-transform:uppercase;opacity:1}
-.row100k .rec-find:focus{outline:0;border-bottom-color:var(--water)}
+/* THE ROWER HEAD IS THE SEARCH (owner, 2026-09-25: the FIND A ROWER field
+ * looked out of place; make the NAME the search — click on the name and
+ * search a rower from there; BoardFind.tsx). Idle, the head is its word in
+ * the type every column head wears — 10px mono caps, grey — on the dotted
+ * rule a word that opens something wears (.tm-btn), water on hover. Open,
+ * the same cell holds the input in the same type, ink for what is typed,
+ * the rule under it water, the column as wide as it was. No box, no
+ * button: typing is the search. The table sits 22px under the leader,
+ * the gap the field used to be (owner, 2026-09-25: reduce the gap between
+ * the header and the first item). */
+.row100k .rec-shell .st-rec{margin-bottom:22px}
+.row100k .rec-find-w{all:unset;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;border-bottom:1px dotted currentColor;padding-bottom:1px}
+.row100k .rec-find-w:hover{color:var(--water)}
+.row100k .rec-find-w:focus-visible{outline:2px solid var(--water);outline-offset:3px}
+.row100k .rec-find{display:block;width:100%;min-width:0;box-sizing:border-box;background:transparent;border:0;border-bottom:1px dotted var(--water);border-radius:0;appearance:none;margin:0;padding:0 0 1px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ink);line-height:inherit}
+.row100k .rec-find::placeholder{color:var(--gray);opacity:1}
+.row100k .rec-find:focus{outline:0}
+
+/* THE DAY OR THE WEEK on a period board (owner, 2026-09-25: the same day
+ * and week picker as the stats page): the stats page line (.st-day,
+ * statsCss.ts) under the three words, a little air over it and none
+ * under — the leader block keeps its own distance. */
+.row100k .rec-head .rec-when{margin:10px 0 0}
 
 /* A NAME IS ONE LINE (owner, 2026-09-25: some names get split over two
  * lines, first name then last name). The name cell (.wc, Boards.tsx and
@@ -77,8 +88,7 @@ export const recordsCss = `
   .row100k .rec-shell .st-rec .bhead-l{min-height:3.4em}
   /* Less air under the head (owner, 2026-09-25: the board looks cramped;
    * reduce the gap between the header and the first item). */
-  .row100k .rec-findline{margin:14px 0 6px}
-  .row100k .rec-find{flex:1 1 100%;width:auto}
+  .row100k .rec-shell .st-rec{margin-bottom:14px}
   /* The table, tighter: a narrower place column and less cell padding buy
    * the name its line. */
   .row100k .rec-shell table.board th,.row100k .rec-shell table.board td{padding-left:4px;padding-right:4px}
