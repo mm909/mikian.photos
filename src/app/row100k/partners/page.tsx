@@ -18,7 +18,7 @@ import { Raffle, raffleCss } from "./Raffle";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "The partners — 100K September",
+  title: "The partners — Rowtember",
   description: "Partners back Rowtember with real prizes on the line.",
 };
 

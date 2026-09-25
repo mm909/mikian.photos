@@ -6,7 +6,10 @@ import { resolvePhotoMedia } from "../photoUrls";
 import {
   CHALLENGE,
   END_MS,
+  FIRST_DAY_TAG,
+  LATE_LOGS_TAG,
   LOG_CLOSE_MS,
+  MONTH_DAYS,
   START_MS,
   daysElapsed,
   fmtDay,
@@ -46,7 +49,7 @@ import {
  * tab the same day). */
 
 export const metadata: Metadata = {
-  title: "The feed — 100K September",
+  title: "The feed — Rowtember",
   description: "The live ticker — every row as it comes in, for the Rowtember challenge.",
 };
 
@@ -80,12 +83,12 @@ function feedHref(beforeCursor: string | null): string {
 function feedDateline(now: number, todayStr: string, eyebrow: string): string {
   const where =
     now < START_MS
-      ? "FIRST STROKE SEP 1"
+      ? `FIRST STROKE ${FIRST_DAY_TAG}`
       : now >= LOG_CLOSE_MS
         ? "FINAL"
         : now >= END_MS
-          ? "LATE LOGS THROUGH OCT 3"
-          : `DAY ${daysElapsed(now)} OF 30`;
+          ? `LATE LOGS THROUGH ${LATE_LOGS_TAG}`
+          : `DAY ${daysElapsed(now)} OF ${MONTH_DAYS}`;
   return `${todayStr} · ${where} · ${eyebrow}`;
 }
 

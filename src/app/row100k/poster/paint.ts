@@ -28,6 +28,7 @@
  * fillText's maxWidth — it condenses glyphs, which shows on a 24x36. */
 
 import { clockShape } from "@/lib/blackoutRules";
+import { MONTH_FIRST_DOW } from "@/lib/row100k";
 import { drawBlockClock, drawBlockDigits } from "../share/cards";
 import type {
   Figure,
@@ -277,8 +278,10 @@ export const paletteOf = (stock: PosterStock | undefined): PosterPalette =>
 export const kLabel = (m: number): string =>
   m >= 999_500 ? `${(m / 1_000_000).toFixed(1)}M` : `${Math.max(1, Math.round(m / 1000))}k`;
 
-/* share/cards.ts: Sep 1, 2026 is a Tuesday; grids run Sunday-first. */
-export const SEP_FIRST_DOW = 2;
+/* Which weekday the 1st falls on (0 = Sunday); grids run Sunday-first. Was
+ * a hard 2 for Sep 1, 2026 — read off the month now (owner, 2026-09-25:
+ * ready for the October rollover). */
+export const FIRST_DOW = MONTH_FIRST_DOW;
 export const DOW_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
 /* ------------------------------------------------------------ type box */

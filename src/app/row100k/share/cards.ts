@@ -2,6 +2,7 @@ import {
   END_MS,
   MONTH_DAYS,
   MONTH_FIRST_DOW,
+  MONTH,
   MONTH_KEY,
   dayTicks,
   daysElapsed,
@@ -13,6 +14,7 @@ import {
   nowMs,
   type RecordBadge,
 } from "@/lib/row100k";
+import { monthFromKey } from "@/lib/rowPeriod";
 import { ELITE_LABEL, clockShape, digitCount, shapeOf } from "@/lib/blackoutRules";
 
 /* Shareable cards for /row100k — the images themselves.
@@ -506,6 +508,12 @@ function hasMonth(data: { month?: ShareMonth | null }): boolean {
  * over any month) must not offer its last day as today. */
 function isThisMonth(data: { month?: ShareMonth | null }): boolean {
   return data.month == null || data.month.key === MONTH_KEY;
+}
+
+/* "SEP", "OCT" — the axis tag of a month, off its key (owner, 2026-09-25:
+ * ready for the October rollover; the tag was a hard SEP). */
+function monthTag(mon: ShareMonth): string {
+  return monthFromKey(mon.key)?.short ?? MONTH.short;
 }
 
 /* "2026-10-06" — the byDay key of day `d` in a month. */
@@ -2473,9 +2481,9 @@ const rowtemberCommunityCurve: ShareCard = {
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
-    ctx.fillText("SEP 1", L, B + 40);
+    ctx.fillText(`${monthTag(mon)} 1`, L, B + 40);
     ctx.textAlign = "right";
-    ctx.fillText(`SEP ${span}`, R, B + 40);
+    ctx.fillText(`${monthTag(mon)} ${span}`, R, B + 40);
 
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 7;
@@ -2560,9 +2568,9 @@ const rowtemberCommunityDaily: ShareCard = {
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
-    ctx.fillText("SEP 1", L, B + 40);
+    ctx.fillText(`${monthTag(mon)} 1`, L, B + 40);
     ctx.textAlign = "right";
-    ctx.fillText(`SEP ${span}`, R, B + 40);
+    ctx.fillText(`${monthTag(mon)} ${span}`, R, B + 40);
 
     for (let i = 0; i < span; i++) {
       const x0 = L + i * slot + (slot - barW) / 2;
@@ -2926,7 +2934,7 @@ function boardCard(page: number): ShareCard {
       ctx.fillStyle = "#ffffff";
       ctx.font = `bold 46px ${fonts.mono}`;
       const asOf = data.community?.asOf;
-      ctx.fillText(asOf ? `Rowtember · ${asOf}` : "Rowtember 2026", L, 118);
+      ctx.fillText(asOf ? `Rowtember · ${asOf}` : `Rowtember ${MONTH.year}`, L, 118);
 
       // Section label, dim: which ten places this is — or the elite's
       // name when the page has no places to give.

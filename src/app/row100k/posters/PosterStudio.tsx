@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { END_MS, LOG_CLOSE_MS, fmtRowerNumber, nowMs } from "@/lib/row100k";
+import { END_MS, LATE_LOGS_THROUGH, LOG_CLOSE_MS, fmtDay, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout, TOP_TEN_BOARDS, topTenMenLayout, topTenWomenLayout, type TopTenBoard } from "../poster/layouts";
@@ -1071,7 +1071,7 @@ export function PosterStudio({
           <li>Rendered at {files.target.ppi} ppi — this device could not allocate the 150 ppi canvas</li>
         ) : null}
         {masked ? <li>Lights out — this poster prints with blocks</li> : null}
-        {lateLogs ? <li>Late logs through Oct 3 — the poster reads final</li> : null}
+        {lateLogs ? <li>Late logs through {fmtDay(LATE_LOGS_THROUGH)} — the poster reads final</li> : null}
         {/* The one thing that blocks posting rather than building: the mark
             is OUR key of the gym logo, not a file they gave us. */}
         {race ? <li>Show {race.race.venue} these frames before anything is posted</li> : null}

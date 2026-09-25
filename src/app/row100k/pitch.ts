@@ -82,7 +82,7 @@ export const DASHBOARD = {
 
 /* Page metadata and the OG / Twitter card descriptions. */
 export const META = {
-  title: "100K September — the rowing challenge",
+  title: "Rowtember — the rowing challenge",
   description:
     "One month. 100,000 meters. Sign in, claim your rower number, log every session, climb the board. Open to everyone.",
   ogDescription: "One month. Row 100,000 meters. Get on the board.",

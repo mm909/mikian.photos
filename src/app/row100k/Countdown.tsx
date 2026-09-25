@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { START_MS, END_MS, LOG_CLOSE_MS, nowMs } from "@/lib/row100k";
+import { START_MS, END_MS, FIRST_DAY_TAG, LATE_LOGS_TAG, LOG_CLOSE_MS, MONTH_NAME, nowMs } from "@/lib/row100k";
 
 function parts(msLeft: number) {
   const s = Math.max(0, Math.floor(msLeft / 1000));
@@ -44,7 +44,7 @@ export function Countdown({ size, lightsOutEndsAt }: { size?: "small"; lightsOut
   if (now !== null && now >= END_MS) {
     return (
       <div className={`count-done mono${small}`}>
-        SEPTEMBER&rsquo;S DONE — LATE LOGS CLOSE OCT 3.
+        {MONTH_NAME.toUpperCase()}&rsquo;S DONE — LATE LOGS CLOSE {LATE_LOGS_TAG}.
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function Countdown({ size, lightsOutEndsAt }: { size?: "small"; lightsOut
     <div
       className={`count${small}`}
       role="timer"
-      aria-label={lightsOut ? "Time left in lights out" : started ? "Time left in September" : "Countdown to September 1"}
+      aria-label={lightsOut ? "Time left in lights out" : started ? `Time left in ${MONTH_NAME}` : `Countdown to ${FIRST_DAY_TAG}`}
     >
       {cells.map((c) => (
         <div className="c" key={c.l}>

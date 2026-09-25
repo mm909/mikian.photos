@@ -12,7 +12,7 @@ import { Pm5Live } from "./Pm5Live";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "PM5 live — 100K September",
+  title: "PM5 live — Rowtember",
   robots: { index: false, follow: false },
 };
 

@@ -20,6 +20,7 @@ import {
   type RecordBadge,
   type TotalRow,
   MONTH,
+  defaultRowTitle,
 } from "@/lib/row100k";
 import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
 import { activeBlackout } from "@/lib/blackout";
@@ -399,7 +400,7 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
         race: raceShare,
       }}
       defaultDay={defaultDay}
-      defaultTitle={`${ROWTEMBER ? "Rowtember" : MONTH.label.split(" ")[0]} #${monthRows.length + 1}`}
+      defaultTitle={defaultRowTitle(monthRows.length + 1)}
       phase={earlyAdmin ? "open" : phase}
       earlyAdmin={earlyAdmin}
       sanity={sanity}

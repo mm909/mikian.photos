@@ -16,7 +16,7 @@ import { RaceTiming } from "./RaceTiming";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Race waves — 100K September",
+  title: "Race waves — Rowtember",
   robots: { index: false, follow: false },
 };
 

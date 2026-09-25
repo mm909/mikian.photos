@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const RETIRED = true;
 
 export const metadata: Metadata = {
-  title: "The shirt (dev) — 100K September",
+  title: "The shirt (dev) — Rowtember",
   robots: { index: false, follow: false },
 };
 

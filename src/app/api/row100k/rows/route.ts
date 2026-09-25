@@ -11,6 +11,7 @@ import {
   MAX_ENTRIES_PER_DAY,
   MAX_ENTRIES_TOTAL,
   daysElapsed,
+  defaultRowTitle,
   isRow100kAdmin,
   nowMs,
   validateEntry,
@@ -119,10 +120,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // No title typed → "Rowtember #7", numbered by how many rows they'll have.
+  // No title typed → "Rowtember #7" ("October #7" outside September),
+  // numbered by how many rows they'll have.
   const value = check.value.title
     ? check.value
-    : { ...check.value, title: `Rowtember #${totalCount + 1}` };
+    : { ...check.value, title: defaultRowTitle(totalCount + 1) };
 
   const entry = await db.rowEntry.create({
     data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },

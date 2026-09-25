@@ -30,7 +30,7 @@
  * `measure()` is the same draw under an empty clip (see `measureByDraw`),
  * so the two can never disagree by a unit. */
 
-import { fmtDuration, fmtRowerNumber } from "@/lib/row100k";
+import { MONTH_WORD, fmtDuration, fmtRowerNumber } from "@/lib/row100k";
 import type {
   Figure,
   PosterBox,
@@ -626,7 +626,7 @@ const bests: Mod = {
   draw(ctx, box, d, _fonts, paint) {
     const PAL = paint.c;
     const tk = paint.tk;
-    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", "THIS SEPTEMBER");
+    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
     const pitch = tk.rowPitch * 1.4;
     const lfont = paint.font("archivoBold", tk.row);
     const sfont = paint.font("mono", tk.small);
@@ -661,12 +661,12 @@ const bestsCompact: Mod = {
   draw(ctx, box, d, _fonts, paint) {
     const PAL = paint.c;
     const tk = paint.tk;
-    const eyeH = eyebrowHeight(ctx, paint, box.w, "THE BESTS", "THIS SEPTEMBER");
+    const eyeH = eyebrowHeight(ctx, paint, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
     // Half a unit of tolerance: a box handed back at exactly the measured
     // height read as 3.9999 lines and drew three (Integrate, the square).
     const lines = Math.min(d.bests.length, Math.floor((box.h + 0.5 - eyeH) / tk.rowPitch));
     if (lines < Math.min(2, d.bests.length)) return 0;
-    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", "THIS SEPTEMBER");
+    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
     const lfont = paint.font("archivoBold", tk.row);
     const rm = paint.metricsOf(ctx, paint.font("mono", tk.row), tk.row);
     for (let i = 0; i < lines; i++) {

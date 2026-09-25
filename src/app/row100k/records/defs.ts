@@ -1,5 +1,5 @@
 import { digitCount } from "@/lib/blackoutRules";
-import type { Boards, RecordRow, TotalRow } from "@/lib/row100k";
+import { FIRST_DAY, fmtDay, type Boards, type RecordRow, type TotalRow } from "@/lib/row100k";
 
 /* The five record boards, shared by the stats page's records section and
  * the full-ranking pages under /row100k/records/[record]. Keys double as
@@ -23,21 +23,21 @@ export const RECORD_DEFS: RecordDef[] = [
     key: "total",
     title: "Total meters",
     kind: "meters",
-    emptyHint: (s) => (s ? "Every meter counts — log the first one." : "Claimed Sep 1 by whoever shows up."),
+    emptyHint: (s) => (s ? "Every meter counts — log the first one." : `Claimed ${fmtDay(FIRST_DAY)} by whoever shows up.`),
   },
   {
     key: "5000",
     title: "Fastest 5k",
     kind: "time",
     dist: 5000,
-    emptyHint: (s) => (s ? "Log a 5,000m row to claim this." : "Claimed Sep 1 by whoever shows up."),
+    emptyHint: (s) => (s ? "Log a 5,000m row to claim this." : `Claimed ${fmtDay(FIRST_DAY)} by whoever shows up.`),
   },
   {
     key: "10000",
     title: "Fastest 10k",
     kind: "time",
     dist: 10000,
-    emptyHint: (s) => (s ? "Log a 10,000m row to claim this." : "Claimed Sep 1 by whoever shows up."),
+    emptyHint: (s) => (s ? "Log a 10,000m row to claim this." : `Claimed ${fmtDay(FIRST_DAY)} by whoever shows up.`),
   },
   { key: "longest", title: "Longest row", kind: "meters", emptyHint: () => "One sitting, most meters." },
   { key: "bigday", title: "Biggest day", kind: "meters", emptyHint: () => "Most meters inside one calendar day." },

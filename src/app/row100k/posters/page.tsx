@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { forcedBlackout } from "@/lib/blackoutRules";
 import { notFound } from "next/navigation";
-import { START_MS, nowMs } from "@/lib/row100k";
+import { FIRST_DAY_TAG, START_MS, nowMs } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
@@ -15,7 +15,7 @@ import { PosterStudio } from "./PosterStudio";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "The poster — 100K September",
+  title: "The poster — Rowtember",
   robots: { index: false, follow: false },
 };
 
@@ -119,7 +119,7 @@ export default async function PostersPage({
             <span className="mono">ONE ROWER · PRINT OR INSTAGRAM</span>
           </div>
           {before ? (
-            <p className="po-first">FIRST STROKE SEP 1</p>
+            <p className="po-first">FIRST STROKE {FIRST_DAY_TAG}</p>
           ) : (
             <PosterStudio
               community={community}
