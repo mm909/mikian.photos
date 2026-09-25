@@ -521,8 +521,9 @@ const waves = mod("waves", 40, (ctx, box, d, paint) => {
 /* THE FACTS — the monitor design's split rows: key mono grey flush left,
  * value mono white flush right, a hairline under each. It carried the
  * closing minute until the owner took the deadline off the artwork
- * (2026-09-11); closesAt still refuses a late entry, it just no longer
- * announces itself. What is left is the fact no other module carries — the
+ * (2026-09-11); since 2026-09-25 names are taken through race night
+ * (raceday.signupClosesAt), so there is no deadline left to print. What
+ * is left is the fact no other module carries — the
  * waiver is signed at the gym, before you row — and the field, once enough
  * names are in to be worth printing. A fit:"lines" slot: it draws the rows
  * that fit, one at least, or nothing at all when the race has neither. */

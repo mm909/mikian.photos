@@ -64,6 +64,13 @@ export function BoardFind({ children }: { children: (query: string, head: ReactN
   ) : (
     <button type="button" className="rec-find-w" aria-label="Find a rower by number or name" onClick={() => setOpen(true)}>
       Rower
+      {/* A magnifier after the word, so the head reads as a search before
+          it is tapped (owner, 2026-09-25: "add a search icon to the ROWER
+          label on the board"). Ink of the head, on the same dotted rule. */}
+      <svg className="rec-find-i" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+        <circle cx="5" cy="5" r="3.5" />
+        <path d="M7.6 7.6 11 11" />
+      </svg>
     </button>
   );
 

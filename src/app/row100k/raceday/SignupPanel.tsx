@@ -22,8 +22,9 @@ import { RaceShare, type RaceFacts } from "./RaceShare";
  * words; the bill above says both, off the race.
  *
  * WHAT CAME OFF (owner, same message): the registration-closes line, which
- * this block printed in three of its states. closesAt still refuses a late
- * entry — the rule stays, it just no longer announces itself.
+ * this block printed in three of its states. Names are taken through race
+ * night now (raceday.signupClosesAt; owner, 2026-09-25), so there is no
+ * deadline to print.
  *
  * TWO WAYS IN (owner, 2026-09-11: "we need there to be a way to sign up as
  * a spectator versus as just a racer"). They are the same act with a role

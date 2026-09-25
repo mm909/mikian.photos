@@ -71,12 +71,6 @@ export type RaceDef = {
   venueMark: { src: string; alt: string; ratio: number } | null;
   venueUrl: string;
   venueInstagram: string;
-  /* Registration closes — the last moment a rower can put their name in
-   * (Pacific). Signing up after this is refused. The SENTENCE that used to
-   * ride with it is gone (owner, 2026-09-11: "remove registration closes
-   * Saturday, September twenty sixth"); the rule stays, it just no longer
-   * announces itself on the page. */
-  closesAt: number;
   /* The first wave goes off here; each one after it is WAVE_MINUTES later.
    * The rowers are not told the grid, only their own wave (owner: "they do
    * not need to know when the wave starts"), but the console prints it. */
@@ -138,9 +132,6 @@ export const RACES: RaceDef[] = [
     },
     venueUrl: "https://thestripbarbell.com",
     venueInstagram: "thestripbarbell",
-    /* Midnight Pacific on race morning: the list has to be final before the
-     * first wave is called. */
-    closesAt: Date.UTC(2026, 8, 27, 7, 0, 0),
     /* 6:15 PM Pacific on the 27th — 01:15Z on the 28th (owner, 2026-09-11:
      * "let us keep the first wave there, but let us change the time to six
      * fifteen"). A default: the console can move it. */
@@ -206,7 +197,24 @@ export function raceBySlug(slug: string): RaceDef | null {
  * names, else the next one on the calendar, else the last. Never null
  * while RACES has an entry. */
 export function currentRace(at: number = nowMs()): RaceDef {
-  return RACES.find((r) => at < r.closesAt) ?? RACES[RACES.length - 1];
+  return RACES.find((r) => at < signupClosesAt(r)) ?? RACES[RACES.length - 1];
+}
+
+/* WHEN NAMES STOP BEING TAKEN: an hour after the doors shut, not the
+ * night before (owner, 2026-09-25: "Do not close that page for
+ * registration on race day. Let people sign up all the way through the
+ * night"). It used to be a fixed closesAt on the race — midnight Pacific
+ * on race morning, so the list was final before the first wave — and the
+ * console's door list took only what was in by then. Now it is derived
+ * from endsAt, so a race whose doors the console moves keeps taking names
+ * until an hour after the new close, and a walk-in during the last wave
+ * still gets a row. The door list (race-admin) reads the rows live, so a
+ * late name shows up there the moment it is in. The SENTENCE that used to
+ * announce a deadline is gone (owner, 2026-09-11) and stays gone. */
+export const SIGNUP_GRACE_MS = 3_600_000;
+
+export function signupClosesAt(r: RaceDef): number {
+  return r.endsAt + SIGNUP_GRACE_MS;
 }
 
 /* IS THERE A RACE TO POINT AT (owner, 2026-09-25: "RACE DAY should be
@@ -234,8 +242,10 @@ export function raceAnnounced(at: number = nowMs()): boolean {
 export type RacePhase = "open" | "closed" | "raced";
 
 export function racePhase(r: RaceDef, at: number = nowMs()): RacePhase {
-  if (at < r.closesAt) return "open";
-  /* The morning itself: names are shut, the waves are running. */
+  if (at < signupClosesAt(r)) return "open";
+  /* Names are shut but the room may still be rowing: only when the close
+   * lands before the last wave could have gone off (a first wave moved late
+   * in the console). Otherwise the race is run. */
   if (at < r.firstWaveAt + 6 * 3_600_000) return "closed";
   return "raced";
 }

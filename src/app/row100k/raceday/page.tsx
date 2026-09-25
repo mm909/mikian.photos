@@ -80,9 +80,10 @@ export const metadata: Metadata = {
  *
  * WHAT CAME OFF (owner, 2026-09-11, the same message): no ROWED IN WAVES OF
  * EIGHT, no NEW THIS SEPTEMBER, no MEN AND WOMEN SCORED APART, no SIGN UP BY
- * SAT SEP 26, and no registration-closes line anywhere. The rule still
- * refuses a late entry (raceday.closesAt); it simply no longer announces
- * itself. Later the same day, the THE HOUSE label over the venue mark went
+ * SAT SEP 26, and no registration-closes line anywhere. Names are taken
+ * through race night (raceday.signupClosesAt; owner, 2026-09-25: "Let
+ * people sign up all the way through the night"), so there is no deadline
+ * to announce. Later the same day, the THE HOUSE label over the venue mark went
  * too ("Remove the house on race day ads") — off the ads and off this page
  * in one pass, because the mark is the credit and naming it twice was the
  * only sentence that block ever spent on itself.

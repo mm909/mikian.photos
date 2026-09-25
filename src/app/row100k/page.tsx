@@ -46,10 +46,6 @@ import {
   frontExtras,
   type FrontExtras,
 } from "./boardData";
-import { LookPage } from "./looks/LookPage";
-import { parseLook } from "./looks/view";
-
-type SearchParams = { [key: string]: string | string[] | undefined };
 
 /* The nameplate is Rowtember in September and the month itself any other
  * time (owner, 2026-09-24), and the metadata says the same. */
@@ -162,7 +158,7 @@ function fmtHours(seconds: number): string {
   return h >= 100 ? Math.round(h).toLocaleString("en-US") : (Math.round(h * 10) / 10).toLocaleString("en-US");
 }
 
-export default async function Row100kPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function Row100kPage() {
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
 
@@ -379,8 +375,8 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
 
   /* THE LOG FORM (LogInPlace, bare): nothing on the page until LOG A ROW
    * is tapped; the share dialog it carries pops on the fresh row once one
-   * is saved. Built once here, so the counter page and the feed looks
-   * below mount the same form. No SHARE word anywhere (owner). */
+   * is saved. Built once here, above the page. No SHARE word anywhere
+   * (owner). */
   const logForm = me ? (
     <LogInPlace
       share={{
@@ -406,27 +402,6 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
       bare
     />
   ) : null;
-
-  /* THE LANDING AS A SOCIAL FEED, five looks behind ?look=a..e (owner,
-   * 2026-09-25: "the landing page could be a social feed, like Strava") —
-   * only for a joined rower who asked for one; anyone else, and any URL
-   * without the query, gets the counter page below untouched. The look
-   * page carries its own bar, head, form and footer (looks/LookPage.tsx). */
-  const look = parseLook(searchParams?.look);
-  if (look && me) {
-    return (
-      <LookPage
-        look={look}
-        me={{ id: me.id, rowerNumber: me.rowerNumber, displayName: me.displayName }}
-        myMonth={{ meters: myMeters, seconds: monthRows.reduce((s, r) => s + r.seconds, 0), sessions: monthRows.length }}
-        view={previewViewOpts(preview, me.id, isAdmin)}
-        isAdmin={isAdmin}
-        previewOn={preview !== null}
-        bar={{ signedIn: true, rowerNumber: me.rowerNumber, admin: isAdmin }}
-        form={logForm}
-      />
-    );
-  }
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>

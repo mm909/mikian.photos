@@ -188,8 +188,9 @@ export function raceDayPoster(
    * "write the caption at the same time as the art"). Sentence case: this
    * one is typed by a person into Instagram, not drawn on ink.
    *
-   * The DEADLINE is not here either. closesAt still refuses a late entry,
-   * but it no longer announces itself anywhere (owner: "remove
+   * The DEADLINE is not here either: there is none to speak of — names are
+   * taken through race night (raceday.signupClosesAt; owner, 2026-09-25),
+   * and the line came off the ads before that (owner: "remove
    * registration closes Saturday, September twenty sixth").
    *
    * MEN AND WOMEN ARE SCORED APART is gone from here too. A stream kept it

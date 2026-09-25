@@ -217,15 +217,15 @@ export function StatsRecords({
            list is the fastest hidden rower by split, nobody's number one.
            The same head as every other record, so picking one never moves
            the words: the longest hidden total in blocks, big and blue,
-           THE ELITE on the holder line (the list of the elite is the
-           board's, one link away). */
+           the holder line empty — the note above already says LIGHTS OUT
+           (owner, 2026-09-25: it printed twice, above and below the
+           figure; once, above). */
         <LeadBlock
           value={
             <>
               <Blocks digits={eliteDigits} /> <span className="u">m</span>
             </>
           }
-          label={ELITE_LABEL}
         />
       ) : first ? (
         /* Just the holder: the words above the number name the stat
@@ -622,13 +622,14 @@ export function StatsBoards({
       )}
 
       {eliteRows.length > 0 ? (
+        /* No label: the note above already says LIGHTS OUT (owner,
+           2026-09-25: once, above the figure). */
         <LeadBlock
           value={
             <>
               <Blocks digits={eliteDigits} /> <span className="u">m</span>
             </>
           }
-          label={ELITE_LABEL}
         />
       ) : first ? (
         <LeadBlock

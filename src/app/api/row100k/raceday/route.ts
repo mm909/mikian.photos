@@ -182,9 +182,11 @@ export async function POST(req: Request) {
   // moved in the console has to move this too, or the button and the page
   // it sits on would disagree about whether the race has been run.
   const race = await resolvedRace();
-  // Shut is shut, both ways: after the close nobody can slip a name in, and
-  // nobody can quietly disappear off a list the owner has already called
-  // waves from. That is an email, not a button.
+  // Shut is shut, both ways: after the close — an hour past the doors, so
+  // a walk-in on race night gets a row (owner, 2026-09-25: "Let people
+  // sign up all the way through the night") — nobody can slip a name in,
+  // and nobody can quietly disappear off a list the owner has already
+  // called waves from. That is an email, not a button.
   if (racePhase(race) !== "open") return bad("Registration for race day is closed.", 409);
 
   /* WHAT THE OWNER GETS TOLD ABOUT, set below and acted on at the foot of

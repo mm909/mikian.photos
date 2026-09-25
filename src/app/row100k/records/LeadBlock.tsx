@@ -30,7 +30,10 @@ export function LeadBlock({
   /* Who holds it: number and name, the name a link to their profile. */
   holder?: { rowerNumber: number; name: string };
   /* With no holder, the bold word on the line instead — LIGHTS OUT while
-   * the elite are hidden and nobody leads TOTAL METERS. */
+   * the elite are hidden and nobody leads TOTAL METERS on a full-ranking
+   * head. The stats page passes neither: its note already says LIGHTS OUT
+   * above the figure, and the line is kept, empty, so the block is the
+   * same height either way (owner, 2026-09-25: print it once, above). */
   label?: string;
   /* When it was set (a record), YYYY-MM-DD. */
   day?: string;
