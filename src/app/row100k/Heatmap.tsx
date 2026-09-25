@@ -22,6 +22,7 @@ export function Heatmap({
   days = MONTH_DAYS,
   month,
   whole = false,
+  fullMonth = false,
 }: {
   byDay: Record<string, number>;
   /* Which month to draw (rowPeriod.ts); this one when absent. */
@@ -30,15 +31,19 @@ export function Heatmap({
   /* Draw only this many days — the month stops at today rather than
    * trailing a fortnight of empty cells (owner call, day 4). */
   days?: number;
-  /* The whole month instead: every day drawn, and the days past `days`
-   * — still to come — as dim empty cells (.todo; the stats page since
-   * 2026-09-25, owner: "give THE MONTH calendar all its squares back for
-   * the whole month"). The profile keeps stopping at today. */
+  /* THE WHOLE MONTH (owner, 2026-09-25, of the stats page and the profile:
+   * "give THE MONTH calendar all its squares back for the whole month"):
+   * every day drawn, the days past `days` — still to come — as dim empty
+   * cells wearing .todo and .hm-todo (the stats sheet and the profile
+   * sheet each dim their own). Two prop names, one meaning: the two pages
+   * were built side by side. Off by default. */
   whole?: boolean;
+  fullMonth?: boolean;
 }) {
   const mon = month ?? { key: MONTH_KEY, firstDow: MONTH_FIRST_DOW, days: MONTH_DAYS };
   const elapsed = Math.min(mon.days, Math.max(1, days));
-  const shown = whole ? mon.days : elapsed;
+  const all = whole || fullMonth;
+  const shown = all ? mon.days : elapsed;
   // Leading blanks align day 1 under its weekday (rowPeriod.ts).
   const firstDow = mon.firstDow;
 
@@ -57,13 +62,15 @@ export function Heatmap({
           const day = `${mon.key}-${String(i + 1).padStart(2, "0")}`;
           const m = byDay[day] ?? 0;
           const b = bucket(m, thresholds);
-          const todo = whole && i >= elapsed ? " todo" : "";
+          // A day still to come: no figure to name in the title, and the
+          // classes each sheet dims.
+          const todo = all && i >= elapsed;
           return (
             <div
               key={day}
-              className={`hm-cell${b}${todo}`}
+              className={`hm-cell${b}${todo ? " todo hm-todo" : ""}`}
               style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-              title={`${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
+              title={todo ? fmtDay(day) : `${fmtDay(day)} — ${m.toLocaleString("en-US")} m`}
             >
               {m > 0 && (
                 /* Sizing + the ink-vs-white contrast rule live on .hm-num

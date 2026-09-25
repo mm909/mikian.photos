@@ -12,9 +12,16 @@ import { useRouter } from "next/navigation";
  * Admin only — the panel is not rendered for anyone else and the route
  * refuses anyone else. The default is the rower's view; SHOW ME EVERYTHING
  * sets a session cookie (row100kViewer BO_ADMIN_COOKIE) that puts the admin
- * exemption back until the browser closes. The test previews on the lights
- * out page (IN LIGHTS OUT / OUTSIDE IT) override both while they are on,
- * and the status line says so. */
+ * exemption back until the browser closes. The test previews above it
+ * (IN LIGHTS OUT / OUTSIDE IT) override both while they are on, and the
+ * status line says so.
+ *
+ * ON THE LIGHTS OUT PAGE since 2026-09-25 (owner: "move the lights-out
+ * setting to the lights-out page"): it sat on /row100k/settings under the
+ * rower's own fields, which are nobody else's business, while the switch
+ * is the admin's — so it lives with the other admin switch now. The
+ * paragraph that explained it went the same day (owner: no explanatory
+ * copy); the status line says what state it is in. */
 export function LightsOutView({ all, testing }: { all: boolean; testing: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -40,16 +47,12 @@ export function LightsOutView({ all, testing }: { all: boolean; testing: boolean
   const status = testing ? "TEST PREVIEW ON — SET ON THE LIGHTS OUT PAGE" : all ? "SHOWING YOU EVERYTHING" : "AS EVERYONE SEES IT";
 
   return (
-    <div className="panel" style={{ marginTop: 26 }}>
+    <div className="panel bo-view">
       <div className="p-head">
         <h3>Lights out</h3>
         <span className="mono">{status}</span>
       </div>
-      <p className="mono" style={{ fontSize: 11, letterSpacing: ".1em", lineHeight: 1.8, color: "var(--ink-3, #666)", margin: "10px 0 16px" }}>
-        YOUR ACCOUNT CAN SEE THROUGH LIGHTS OUT. BY DEFAULT IT DOES NOT — YOU GET THE SITE EVERY OTHER ROWER GETS. FLIP
-        IT TO SEE EVERY NUMBER; IT LASTS UNTIL YOU CLOSE THE BROWSER. ONLY YOUR VIEW CHANGES.
-      </p>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
         <button
           type="button"
           className={all ? "quiet-btn" : "outline-btn"}

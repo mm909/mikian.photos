@@ -94,9 +94,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ ok: false, error: "Nothing to save." }, { status: 400 });
   }
 
+  // FORTY AN HOUR, up from twenty (2026-09-25): the settings form saves
+  // one field per request the moment it changes (owner: "no SAVE CHANGES
+  // button"), four fields through this door.
   const limit = await rateLimit({
     key: `row100k-about:${actor.photographerId}`,
-    limit: 20,
+    limit: 40,
     windowSec: 3600,
   });
   if (!limit.ok) {

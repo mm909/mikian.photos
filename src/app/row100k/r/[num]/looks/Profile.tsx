@@ -2,14 +2,14 @@ import {
   Actions,
   Bests,
   BigMeters,
+  Cells,
   Eyebrow,
   Identity,
-  Ledger,
   LogBlock,
   MetersUnit,
   MonthBlock,
   Nameplate,
-  coreLedger,
+  coreCells,
   periodText,
 } from "./pieces";
 import { DogTagCard } from "./DogTag";
@@ -24,9 +24,9 @@ import type { ProfileView } from "./view";
  *
  * Wide (from 720px, .pf-two in theme.ts): two columns on the landing
  * measure. Left, the rower — nameplate, the big blue meters with TIME
- * ROWED under it, LOG A ROW / SHARE, the identity line, the dotted
- * ledger. Right, the month calendar over the bests boards. The log runs
- * full width below.
+ * ROWED under it, LOG A ROW / SHARE, the identity line, the three box
+ * cells (the dotted ledger until 2026-09-25). Right, the month calendar
+ * over the bests boards. The log runs full width below.
  *
  * Phone: the same nodes stacked in look A's order — the rower, THE BESTS,
  * THE MONTH, THE LOG. The right-hand column is display:contents there, so
@@ -43,7 +43,7 @@ export function Profile({ view }: { view: ProfileView }) {
             <BigMeters view={view} unit={<MetersUnit view={view} />} />
             <Actions view={view} />
             <Identity view={view} />
-            <Ledger items={coreLedger(view)} />
+            <Cells items={coreCells(view)} />
           </div>
           <div className="pf-side">
             {/* THE DATE SELECTION ONLY AT THE TOP (owner, 2026-09-25:

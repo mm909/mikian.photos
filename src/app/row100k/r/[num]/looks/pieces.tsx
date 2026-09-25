@@ -233,26 +233,38 @@ export function Identity({ view }: { view: ProfileView }) {
   );
 }
 
-/* -------------------------------------------------------------- ledger */
+/* --------------------------------------------------------------- cells */
 
-export type LedgerItem = {
+export type CellItem = {
   key: string;
-  k: ReactNode;
-  v: ReactNode;
+  /* The mono label under the figure. */
+  l: ReactNode;
+  /* The figure, in Archivo Black. */
+  n: ReactNode;
+  /* A unit set small after the figure (the split wears /500m). */
+  u?: ReactNode;
 };
 
-/* The board's dotted ledger (.bl): key, leaders, bold value. */
-export function Ledger({ items }: { items: LedgerItem[] }) {
+/* BOX CELLS, not a receipt (owner, 2026-09-25: "put TIME ROWED, SESSIONS
+ * and AVERAGE SPLIT in box cells like the stats on the mikianmusser.com
+ * landing … ink rules, figure in Archivo Black, mono label under it, not
+ * the dotted receipt lines"): the landing sheet (Home.tsx .stats) and the
+ * front page counter cells (theme.ts .front-stats) drawn once more here,
+ * three across at every width — .pf-cells in profileCss.ts. The dotted
+ * ledger (.bl) this replaced is still in theme.ts for the board. */
+export function Cells({ items }: { items: CellItem[] }) {
   return (
-    <ul className="bl">
+    <div className="pf-cells">
       {items.map((it) => (
-        <li key={it.key}>
-          <span className="k">{it.k}</span>
-          <span className="dots" aria-hidden="true" />
-          <span className="v">{it.v}</span>
-        </li>
+        <div className="cell" key={it.key}>
+          <div className="n">
+            {it.n}
+            {it.u ? <span className="u">{it.u}</span> : null}
+          </div>
+          <div className="l">{it.l}</div>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -269,22 +281,24 @@ export function Ledger({ items }: { items: LedgerItem[] }) {
  * prints, so blocks for it would cut the range the total's own blocks are
  * allowed to admit (review, 2026-09-05). One block per digit of the total
  * and nothing sharper. The view still carries `longest`, `rank` and
- * `elite` for the share cards and the dog tag; the ledger simply no longer
- * prints them. */
-export function coreLedger(view: ProfileView): LedgerItem[] {
+ * `elite` for the share cards and the dog tag; the cells simply do not
+ * print them. TIME ROWED is the landing's hours voice (hoursText) rather
+ * than the clock, so a cell holds it on one line. */
+export function coreCells(view: ProfileView): CellItem[] {
   const t = view.totals;
   const rowed = t.sessions > 0;
   return [
     {
       key: "time",
-      k: "Time rowed",
-      v: rowed ? <Clock view={view} s={t.seconds} /> : "—",
+      l: "Time rowed",
+      n: !rowed ? "—" : view.masked ? <Clock view={view} s={t.seconds} /> : hoursText(t.seconds),
     },
-    { key: "sessions", k: "Sessions", v: String(t.sessions) },
+    { key: "sessions", l: "Sessions", n: String(t.sessions) },
     {
       key: "split",
-      k: "Average split",
-      v: rowed && !view.masked && t.seconds > 0 ? `${fmtSplit(t.meters, t.seconds)} /500m` : "—",
+      l: "Average split",
+      n: rowed && !view.masked && t.seconds > 0 ? fmtSplit(t.meters, t.seconds) : "—",
+      u: rowed && !view.masked && t.seconds > 0 ? "/500m" : undefined,
     },
   ];
 }
@@ -307,10 +321,13 @@ export function Eyebrow({ left, right }: { left: ReactNode; right?: ReactNode })
 /* The month calendar — or, while masked, the blackout line: the shading
  * is the numbers by another name, so it goes entirely. No curve on the
  * profile: the calendar is the month (the owner picked the two looks
- * without one, 2026-09-05). */
+ * without one, 2026-09-05). THE WHOLE MONTH since 2026-09-25 (owner:
+ * "give THE MONTH calendar all its boxes back for the whole month"): every
+ * day drawn, the days to come as empty dashed cells (Heatmap.tsx
+ * fullMonth); the stats page keeps stopping at today. */
 export function MonthBlock({ view }: { view: ProfileView }) {
   if (view.masked) return <p className="pf-bo">{view.blackoutNote}</p>;
-  return <Heatmap byDay={view.byDay} days={view.days} month={view.month ?? undefined} />;
+  return <Heatmap byDay={view.byDay} days={view.days} month={view.month ?? undefined} fullMonth />;
 }
 
 /* The bests boards: with SHARE for the rower and admins (a client

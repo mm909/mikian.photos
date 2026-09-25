@@ -103,8 +103,8 @@ export type ProfileView = {
   club: boolean;
   /* The challenge clock, for the dateline. */
   phase: ProfilePhase;
-  /* September days elapsed (never below 1) — the calendar stops here, and
-   * METERS A DAY in the ledger divides the total by it. */
+  /* Days of the month elapsed (never below 1) — where the calendar's
+   * days to come begin (Heatmap.tsx fullMonth draws the rest dashed). */
   days: number;
   /* THE PACE (owner ask, 2026-09-08): the running average split after each
    * timed session, over the meters rowed so far — the line on the profile.
