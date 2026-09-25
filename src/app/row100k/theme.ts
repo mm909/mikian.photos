@@ -714,7 +714,12 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .menu .val.blue{color:var(--water)}
 .row100k .menu .val.dim{color:var(--gray);font-weight:400}
 
-.row100k footer{padding:44px 20px 64px;border-top:2px solid var(--ink);margin-top:56px}
+/* No side padding of its own: the .wrap inside carries the page gutter, so
+ * the wordmark starts where the content above it starts (owner,
+ * 2026-09-25: the footer on the main page is a different width than the
+ * page — with 20px here AND the wrap stripped of its gutter, the footer
+ * sat 20px left of the measure on every desktop page). RowFooter.tsx. */
+.row100k footer{padding:44px 0 64px;border-top:2px solid var(--ink);margin-top:56px}
 .row100k footer .big{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.1em;margin-bottom:10px}
 .row100k footer .mono{font-size:11px;color:var(--gray);line-height:1.9}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
