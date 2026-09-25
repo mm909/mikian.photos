@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ELITE_LABEL,
   ELITE_TAG,
@@ -19,9 +19,10 @@ import {
   type Week,
   type WeeklyRow,
 } from "@/lib/row100k";
-import { TextMenu, type TextMenuOption } from "./TextMenu";
+import { TextMenu } from "./TextMenu";
 import { LeadBlock } from "./records/LeadBlock";
 import { DayCalendar } from "./stats/DayCalendar";
+import type { PeriodStatKey } from "./stats/statsUrl";
 import {
   RECORD_DEFS,
   podiumWindow,
@@ -54,26 +55,35 @@ import {
  * the same head holds the longest hidden total in blocks with THE ELITE
  * on the holder line, and no podiums under it.
  *
- * THE ONE LINK TO THE FULL RANKINGS sits in two places by width (owner,
- * 2026-09-25: "on desktop move the FULL RANKINGS link to BELOW the two
- * tables … on mobile put the FULL RANKINGS link just under the holder
- * line, above the tables"): one element after the leader block, one after
- * the podiums, and statsCss.ts shows the one the width calls for. The
- * viewer's own appended row — the line under a top five for a signed-in
- * rower placed deeper (owner, 2026-09-08), and the line under the top
- * ten on the period boards — is a PHONE thing now (owner, 2026-09-25:
- * "do not show the viewer's own row when they are not in the top five /
- * top ten … on mobile, DO show where the viewer is"): it is still drawn,
- * with .st-me, and the same css hides it from the desktop breakpoint up.
+ * THE ONE LINK TO THE FULL RANKINGS closes the block under the tables at
+ * every width (owner, 2026-09-25, third look: "on mobile put the FULL
+ * RANKINGS link below both tables again" — the phone placement under the
+ * holder line from earlier the same day is gone). The viewer's own
+ * appended row — the line under a top five for a signed-in rower placed
+ * deeper (owner, 2026-09-08), and the line under the top ten on the
+ * period board — is a PHONE thing (owner, 2026-09-25: "do not show the
+ * viewer's own row when they are not in the top five / top ten … on
+ * mobile, DO show where the viewer is"): it is still drawn, with .st-me,
+ * and statsCss.ts hides it from the desktop breakpoint up.
  *
- * METERS BY DAY / BY WEEK: the section head is the period, then one
- * table, the top ten and — on a phone — the viewer under them, for the
- * day or the week chosen. The day is a word with a CALENDAR under it (stats/DayCalendar.tsx;
- * owner, 2026-09-25) whose head arrows step the month — a change of period
- * the shell fetches in place; the week is a word that is a menu — Week 1,
- * Week 2, … The finish (owner, 2026-09-25: "instead of five chips, a word
- * menu like the by-day"). The elite lead the table in their own block, by
- * average split, and the ranked rows under them count from 1 (2026-09-08).
+ * METERS BY DAY / METERS BY WEEK are two more stats on the stat word
+ * since the third look (owner, 2026-09-25: "combine METERS BY DAY and BY
+ * WEEK with the headline stat: add them as categories on the stat word …
+ * the week or day is chosen with the same picker"), so StatsBoards is the
+ * stat block for those two, in the same shape as StatsRecords: the two
+ * words, then ONE reading line — BY DAY · BY WEEK · ‹ DEC 15 › (owner:
+ * "put BY DAY, BY WEEK and the picker on the same line — easier to read
+ * on mobile. Give BY WEEK the same arrows the day has") — then the
+ * leader of that day or week in the lead block, and ONE ranked table
+ * (everyone, the top ten, meters and sessions) where the men and women
+ * pair would be, closed by FULL RANKINGS. The word between the arrows
+ * drops the CALENDAR (stats/DayCalendar.tsx) in both modes: in week mode
+ * a hover lights the whole week and a tap picks it. The arrows step a day
+ * or a week; past either end of the month they step the month, a change
+ * of period the shell fetches in place. The elite lead the table in their
+ * own block, by average split, and the ranked rows under them count from
+ * 1 (2026-09-08). No WHOLE BOARD button any more: the full board is the
+ * rankings page.
  *
  * Blackout: the server blanks every METERS number a hidden rower owns
  * before it gets here (records/defs.ts liteRecords for the records,
@@ -127,8 +137,7 @@ export function StatsRecords({
    * — built by the shell, which owns both. */
   pick: ReactNode;
   /* The full rankings for this stat over the period, ALL selected — the
-   * one link, under the holder line on a phone and under the two tables
-   * on a desktop (owner, 2026-09-25). */
+   * one link, under the two tables (owner, 2026-09-25). */
   rankingsHref: string;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
@@ -174,17 +183,6 @@ export function StatsRecords({
    * (records/LeadBlock.tsx). Times are public for everyone, the elite
    * included (owner, 2026-09-08), so the split always prints. */
   const pace = first && def.kind === "time" && def.dist ? fmtSplit(def.dist, first.value) : undefined;
-
-  /* The one link to the full rankings, drawn twice and shown once by
-   * width (owner, 2026-09-25): `phone` sits under the holder line, `desk`
-   * under the two tables. A real link: the records page is a page. */
-  const allLink = (where: "phone" | "desk") => (
-    <p className={`st-all-line st-all-${where}`}>
-      <a className="st-all" href={rankingsHref}>
-        Full rankings →
-      </a>
-    </p>
-  );
 
   return (
     <div>
@@ -246,10 +244,6 @@ export function StatsRecords({
         </p>
       )}
 
-      {/* On a phone the link follows the holder line, above the tables
-          (owner, 2026-09-25). */}
-      {allLink("phone")}
-
       {/* The men's and women's top five under the figure (owner, 2026-09-08
           late, on the live page: "bring this table back"; 2026-09-24: the
           men and women brackets for the month). While the elite are hidden
@@ -265,10 +259,22 @@ export function StatsRecords({
           it is a phone thing like every other appended row (.st-me). */}
       {overall && <Podium label="Overall" rows={rows} def={def} meId={meId} top={0} className="st-overall st-me" />}
 
-      {/* On a desktop the link closes the block, under the two tables
-          (owner, 2026-09-25). */}
-      {allLink("desk")}
+      {/* The link closes the block, under the tables, at every width
+          (owner, 2026-09-25, third look). */}
+      <AllLink href={rankingsHref} />
     </div>
+  );
+}
+
+/* The one link to the full rankings, under the tables. A real link: the
+ * records page is a page. */
+function AllLink({ href }: { href: string }) {
+  return (
+    <p className="st-all-line">
+      <a className="st-all" href={href}>
+        Full rankings →
+      </a>
+    </p>
   );
 }
 
@@ -379,7 +385,8 @@ export type PeriodTotal = { meters: number; sessions: number; rowers: number };
  * its word and its ?m= key. */
 export type MonthStep = { key: string; label: string };
 
-export type BoardMode = "day" | "week";
+/* Which period board is up: the stat key itself since 2026-09-25. */
+export type BoardMode = PeriodStatKey;
 
 export function StatsBoards({
   month,
@@ -397,14 +404,19 @@ export function StatsBoards({
   onDay,
   onWeek,
   onStepMonth,
+  hrefMode,
   hrefDay,
   hrefWeek,
   hrefStep,
+  pick,
+  rankingsHref,
   started,
   meId,
   maskedIds,
   prev,
   next,
+  anyHidden = false,
+  blackout = { active: false },
 }: {
   /* The month the boards are over (rowPeriod.ts). */
   month: { key: string; label: string; firstDow: number; days: number };
@@ -421,21 +433,27 @@ export function StatsBoards({
   /* Index of the last day that has happened: the calendar allows nothing
    * past it, and it is today when `live`. */
   todayDay: number;
-  /* THE PICK, owned by the shell: by day or by week, which day (index),
-   * which week (index). */
+  /* THE PICK, owned by the shell: by day or by week (the stat), which day
+   * (index), which week (index). */
   mode: BoardMode;
   day: number;
   week: number;
   onMode: (m: BoardMode) => void;
   onDay: (i: number) => void;
   onWeek: (i: number) => void;
-  /* The calendar's arrows, and the day arrows past either end of the
-   * month: a change of period the shell fetches in place. */
+  /* The calendar's arrows, and the day / week arrows past either end of
+   * the month: a change of period the shell fetches in place. */
   onStepMonth: (dir: "prev" | "next") => void;
   /* Real addresses for the same board, for a middle click. */
+  hrefMode: (m: BoardMode) => string;
   hrefDay: (i: number) => string;
   hrefWeek: (i: number) => string;
   hrefStep: (dir: "prev" | "next") => string;
+  /* The two words above the block — the month and the stat, each a menu
+   * — built by the shell, which owns both. */
+  pick: ReactNode;
+  /* The full rankings for this day or week (statsUrl.ts rankingsHref). */
+  rankingsHref: string;
   started: boolean;
   /* Signed-in rower's participant id (resolved server-side), or null. */
   meId: string | null;
@@ -444,8 +462,12 @@ export function StatsBoards({
   /* The month before this one and the month after, when there is one. */
   prev?: MonthStep;
   next?: MonthStep;
+  /* The bo-note line, the same one the records block prints. */
+  anyHidden?: boolean;
+  blackout?: { active: boolean; endsAt?: string };
 }) {
   const hidden = new Set(maskedIds);
+  const isWeek = mode === "week";
 
   /* Only weeks that have started are offered — a week exists once its
    * first day arrives. Before the 1st that is nothing, so Week 1 stands in
@@ -453,35 +475,40 @@ export function StatsBoards({
   const lastDayKey = `${month.key}-${String(todayDay + 1).padStart(2, "0")}`;
   const startedWeeks = weeks.filter((w) => w.first <= lastDayKey);
   const shownWeeks: Week[] = startedWeeks.length > 0 ? startedWeeks : [weeks[0]];
-  const wk = Math.max(0, Math.min(week, shownWeeks.length - 1));
+  const maxWeek = shownWeeks.length - 1;
+  const wk = Math.max(0, Math.min(week, maxWeek));
   const weekRows = weekly[wk] ?? [];
 
   const maxDay = Math.max(0, Math.min(todayDay, daily.length - 1));
   const dy = Math.max(0, Math.min(day, maxDay));
   const dayKey = (i: number) => `${month.key}-${String(i + 1).padStart(2, "0")}`;
   const dayRows = daily[dy] ?? [];
-  const dayWord = live && dy === todayDay ? `${fmtDay(dayKey(dy))} · today` : fmtDay(dayKey(dy));
 
-  /* THE WEEK WORD (owner, 2026-09-25): Week 1 · Dec 1–7 … The finish. */
-  const weekOptions: TextMenuOption[] = shownWeeks.map((w, i) => ({
-    key: String(i),
-    label: `${w.label} · ${weekDates(w)}`,
-    href: hrefWeek(i),
-    soft: true,
-  }));
+  /* THE WORD between the arrows: the day, or the week as its dates —
+   * DEC 15, DEC 15–21 (owner, 2026-09-25: one reading line). */
+  const word = isWeek ? (shownWeeks[wk] ? weekDates(shownWeeks[wk]) : "Week 1") : fmtDay(dayKey(dy));
 
-  const stepPrev = prev ? { label: `Last day of ${prev.label}`, href: hrefStep("prev"), onStep: () => onStepMonth("prev") } : undefined;
-  const stepNext = next ? { label: `First day of ${next.label}`, href: hrefStep("next"), onStep: () => onStepMonth("next") } : undefined;
+  const stepPrev = prev
+    ? { label: isWeek ? `Last week of ${prev.label}` : `Last day of ${prev.label}`, href: hrefStep("prev"), onStep: () => onStepMonth("prev") }
+    : undefined;
+  const stepNext = next
+    ? { label: isWeek ? `First week of ${next.label}` : `First day of ${next.label}`, href: hrefStep("next"), onStep: () => onStepMonth("next") }
+    : undefined;
 
-  /* The arrows either side of the day word step a day; past either end of
-   * the month they step the month, the way the calendar's arrows do. */
+  /* The arrows either side of the word step a day or a week; past either
+   * end of the month they step the month, the way the calendar's arrows
+   * do. */
   const arrow = (dir: "prev" | "next") => {
-    const can = dir === "prev" ? dy > 0 : dy < maxDay;
+    const at = isWeek ? wk : dy;
+    const max = isWeek ? maxWeek : maxDay;
+    const can = dir === "prev" ? at > 0 : at < max;
     const glyph = dir === "prev" ? "‹" : "›";
     const step = dir === "prev" ? stepPrev : stepNext;
+    const unit = isWeek ? "week" : "day";
     if (can) {
+      const to = dir === "prev" ? at - 1 : at + 1;
       return (
-        <button type="button" className="st-arrow" aria-label={dir === "prev" ? "Previous day" : "Next day"} onClick={() => onDay(dir === "prev" ? dy - 1 : dy + 1)}>
+        <button type="button" className="st-arrow" aria-label={dir === "prev" ? `Previous ${unit}` : `Next ${unit}`} onClick={() => (isWeek ? onWeek(to) : onDay(to))}>
           {glyph}
         </button>
       );
@@ -510,41 +537,74 @@ export function StatsBoards({
     );
   };
 
+  /* BY DAY and BY WEEK as words: the one up is ink, the other is the
+   * control, grey on a dotted rule. Each is a real link to the same block
+   * (?s=day / ?s=week) that a plain tap swaps in place. */
+  const modeWord = (m: BoardMode, label: string) => {
+    const on = m === mode;
+    return (
+      <a
+        className={on ? "st-mode on" : "st-mode"}
+        href={hrefMode(m)}
+        data-inplace=""
+        aria-current={on ? "true" : undefined}
+        onClick={(ev) => {
+          if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+          ev.preventDefault();
+          if (!on) onMode(m);
+        }}
+      >
+        {label}
+      </a>
+    );
+  };
+
+  const rows = isWeek ? weekRows : dayRows;
+  const total = isWeek ? weekTotals?.[wk] : dayTotals?.[dy];
+
+  /* THE LEADER of the day or the week, in the lead block the records
+   * wear, so the stat word never moves the page: while the elite are up
+   * in their block nobody leads, and the longest hidden total draws in
+   * blocks over LIGHTS OUT the way TOTAL METERS does; else the first
+   * ranked row, its meters big and blue, the holder and the session count
+   * on the mono line. */
+  const eliteRows = rows.filter((r) => r.unranked);
+  const first = rows.find((r) => !r.unranked);
+  const firstMasked = first ? !!first.masked || hidden.has(first.participantId) : false;
+  const eliteDigits = eliteRows.reduce((n, r) => Math.max(n, r.digits ?? digitCount(r.meters)), 1);
+
   return (
     <div>
-      {/* The section head is the period: the owner did not want a third
-          "boards" title next to THE BOARD, so the h2 says which meters
-          these are and the submenu under it swaps the word. */}
-      <div className="sec-head">
-        <h2>{mode === "day" ? "Meters by day" : "Meters by week"}</h2>
-      </div>
-      <div className="st-sub lead" role="group" aria-label="Period">
-        <button type="button" aria-pressed={mode === "day"} className={mode === "day" ? "on" : undefined} onClick={() => onMode("day")}>
-          By day
-        </button>
-        <button type="button" aria-pressed={mode === "week"} className={mode === "week" ? "on" : undefined} onClick={() => onMode("week")}>
-          By week
-        </button>
-      </div>
+      {/* The two words: DECEMBER 2026 · METERS BY DAY, each a menu. */}
+      <p className="st-pick">
+        <span className="st-pick-words">{pick}</span>
+      </p>
 
-      {mode === "day" ? (
-        <div className="st-day" role="group" aria-label="Day">
+      {/* ONE reading line: BY DAY · BY WEEK · ‹ DEC 15 › (owner, 2026-09-25). */}
+      <div className="st-day" role="group" aria-label="Day or week">
+        {modeWord("day", "By day")}
+        <span className="dot">·</span>
+        {modeWord("week", "By week")}
+        <span className="dot">·</span>
+        <span className="st-step">
           {arrow("prev")}
-          {/* The day word drops a calendar (DayCalendar.tsx), not a list. */}
+          {/* The word drops the calendar (DayCalendar.tsx), in both modes. */}
           <TextMenu
             options={[]}
-            value={String(dy)}
-            label={dayWord}
-            ariaLabel="Which day"
+            value={String(isWeek ? wk : dy)}
+            label={word}
+            ariaLabel={isWeek ? "Which week" : "Which day"}
             className="st-days"
             panel={(close) => (
               <DayCalendar
+                mode={mode}
                 month={month}
+                weeks={shownWeeks}
                 maxDay={maxDay}
-                value={dy}
+                value={isWeek ? wk : dy}
                 today={live ? todayDay : null}
-                hrefFor={hrefDay}
-                onPick={onDay}
+                hrefFor={isWeek ? hrefWeek : hrefDay}
+                onPick={isWeek ? onWeek : onDay}
                 prev={stepPrev}
                 next={stepNext}
                 close={close}
@@ -552,30 +612,53 @@ export function StatsBoards({
             )}
           />
           {arrow("next")}
-        </div>
-      ) : (
-        <div className="st-day" role="group" aria-label="Week">
-          <TextMenu options={weekOptions} value={String(wk)} ariaLabel="Which week" onPick={(k) => onWeek(Number(k))} className="st-weeks" />
-        </div>
+        </span>
+      </div>
+
+      {(blackout.active || anyHidden) && (
+        <p className="bo-note" style={{ marginTop: 12 }}>
+          {anyHidden ? ELITE_LABEL : `${ELITE_LABEL} IS ON — YOU SEE EVERYTHING`}
+        </p>
       )}
 
-      <BoardWindow
-        rows={mode === "day" ? dayRows : weekRows}
-        meId={meId}
-        started={started}
-        hidden={hidden}
-        total={mode === "day" ? dayTotals?.[dy] : weekTotals?.[wk]}
-      />
+      {eliteRows.length > 0 ? (
+        <LeadBlock
+          value={
+            <>
+              <Blocks digits={eliteDigits} /> <span className="u">m</span>
+            </>
+          }
+          label={ELITE_LABEL}
+        />
+      ) : first ? (
+        <LeadBlock
+          value={
+            <>
+              {firstMasked ? <Blocks digits={first.digits ?? digitCount(first.meters)} /> : Math.round(first.meters).toLocaleString("en-US")}{" "}
+              <span className="u">m</span>
+            </>
+          }
+          holder={{ rowerNumber: first.rowerNumber, name: first.name }}
+          sessions={first.sessions}
+        />
+      ) : null}
+
+      <div className="st-period">
+        <BoardWindow rows={rows} meId={meId} started={started} hidden={hidden} total={total} />
+      </div>
+
+      <AllLink href={rankingsHref} />
     </div>
   );
 }
 
-/* Top 10 by default; a signed-in rower deeper on the board gets ONE more
- * row — their own, at its real place, straight under the ten, no gap row
- * and no neighbours (owner, 2026-09-24: "top ten and then me on the next
- * row if I am not in the top ten"). Ranks are places among the VISIBLE
- * rows, and WHOLE BOARD expands to every one of them (owner call, cycle
- * 8). One table for the day and the week.
+/* The top ten; a signed-in rower deeper on the board gets ONE more row —
+ * their own, at its real place, straight under the ten, no gap row and
+ * no neighbours (owner, 2026-09-24: "top ten and then me on the next row
+ * if I am not in the top ten"). Ranks are places among the VISIBLE rows.
+ * The WHOLE BOARD button is gone (owner, 2026-09-25, third look: FULL
+ * RANKINGS under the table is the way to the rest). One table for the day
+ * and the week.
  *
  * The elite (owner, 2026-09-08): a hidden row left in the ranking says how
  * its day compares to the row under it — "Ken is right underneath me but
@@ -609,14 +692,13 @@ function BoardWindow({
    * nobody logged, and then no total row prints. */
   total?: PeriodTotal;
 }) {
-  const [all, setAll] = useState(false);
   const isElite = (r: PeriodRow) => !!r.unranked;
   const isMasked = (r: PeriodRow) => !!r.masked || hidden.has(r.participantId);
   const elite = rows.filter(isElite).sort(eliteOrder);
   const ranked = rows.filter((r) => !isElite(r));
   const meIdx = meId ? ranked.findIndex((r) => r.participantId === meId) : -1;
-  const top = all ? ranked : ranked.slice(0, 10);
-  const showMe = !all && meIdx >= 10;
+  const top = ranked.slice(0, 10);
+  const showMe = meIdx >= 10;
 
   if (rows.length === 0) {
     return (
@@ -692,17 +774,6 @@ function BoardWindow({
           </tbody>
         </table>
       </div>
-      {ranked.length > 10 && (
-        <button
-          type="button"
-          className="quiet-btn"
-          style={{ marginTop: 12 }}
-          aria-expanded={all}
-          onClick={() => setAll((a) => !a)}
-        >
-          {all ? "TOP 10 ONLY" : `WHOLE BOARD — ALL ${ranked.length}`}
-        </button>
-      )}
     </div>
   );
 }

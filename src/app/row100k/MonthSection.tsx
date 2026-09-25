@@ -15,17 +15,23 @@ export function MonthSection({
   thresholds,
   days = MONTH_DAYS,
   month,
+  whole = false,
 }: {
   byDay: Record<string, number>;
   thresholds: [number, number, number];
   /* Which month the calendar draws (rowPeriod.ts); this one when absent. */
   month?: { key: string; firstDow: number; days: number };
-  /* Days of the month elapsed — the calendar stops at today. */
+  /* Days of the month elapsed — the calendar stops at today, unless
+   * `whole`. */
   days?: number;
+  /* Every day of the month drawn, the days to come as empty dashed cells
+   * (the stats page since 2026-09-25 — owner: "give THE MONTH calendar
+   * all its squares back for the whole month"). */
+  whole?: boolean;
 }) {
   return (
     <div>
-      <Heatmap byDay={byDay} thresholds={thresholds} days={days} month={month} />
+      <Heatmap byDay={byDay} thresholds={thresholds} days={days} month={month} whole={whole} />
     </div>
   );
 }
