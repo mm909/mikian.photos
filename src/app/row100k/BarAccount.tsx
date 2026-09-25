@@ -6,11 +6,11 @@ import { signIn, signOut } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 
 /* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
- * chip opening the account menu — profile, poster, then settings (owner
- * call, 2026-09-05: settings live behind this menu, not on the page), then
- * sign out. Signed in but not joined: join link + sign out. Admins also get
- * three eyebrowed groups above Sign out — UTILITIES, ADMINISTRATION,
- * DEVELOPMENT (owner call, 2026-09-08). Items are next/link so the bar
+ * chip opening the account menu — profile, poster, plan, then settings
+ * (owner call, 2026-09-05: settings live behind this menu, not on the
+ * page), then sign out. Signed in but not joined: join link + sign out.
+ * Admins also get eyebrowed groups above Sign out — ADMINISTRATION, RACE
+ * DAY, DEVELOPMENT (owner call, 2026-09-08). Items are next/link so the bar
  * pill (BarNav) can carry across the hop.
  *
  * owner, 2026-09-16: the menu was cut down with the pages. Gone: Post pack
@@ -23,7 +23,11 @@ import { fmtRowerNumber } from "@/lib/row100k";
  * remove it"; Shareables is called Share stats and sits under DEVELOPMENT;
  * the Look page is retired (its route is gone). My poster stays — it was
  * briefly a Shareables page and went back (owner, 2026-09-25: "did not
- * land — revert to just the poster"). */
+ * land — revert to just the poster").
+ *
+ * owner, 2026-09-25: the plan is live (/row100k/plan) and sits in the rower
+ * group as Plan →; UTILITIES, which held only the plan, is gone. The rower
+ * items lost their "My": Profile, Poster, Plan, Settings. */
 
 /* A group heading inside the panel: mono, grey, letterspaced. */
 function Eyebrow({ children }: { children: string }) {
@@ -52,7 +56,7 @@ export function BarAccount({
 }: {
   signedIn: boolean;
   rowerNumber: number | null;
-  /** Row100k admin — shows the UTILITIES / ADMINISTRATION / DEVELOPMENT groups. */
+  /** Row100k admin — shows the ADMINISTRATION / RACE DAY / DEVELOPMENT groups. */
   admin?: boolean;
   /** Dev preview only — render with the menu already open. */
   defaultOpen?: boolean;
@@ -90,13 +94,17 @@ export function BarAccount({
             {rowerNumber !== null ? (
               <>
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
-                  My profile →
+                  Profile →
                 </Link>
-                {/* MY POSTER, back (owner, 2026-09-25: "The shareables page
+                {/* POSTER, back (owner, 2026-09-25: "The shareables page
                  * did not land — revert to just the poster"): the studio
                  * with this rower as the subject (posters/page.tsx ?r=N). */}
                 <Link className="acct-item" href={`/row100k/posters?r=${rowerNumber}`} onClick={close}>
-                  My poster →
+                  Poster →
+                </Link>
+                {/* THE PLAN, live (owner, 2026-09-25): plan/page.tsx. */}
+                <Link className="acct-item" href="/row100k/plan" onClick={close}>
+                  Plan →
                 </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
@@ -109,15 +117,11 @@ export function BarAccount({
             )}
             {admin && (
               <>
-                {/* Three eyebrowed groups (owner call, 2026-09-08): the
-                 * things an admin uses, the things an admin runs, and the
-                 * surfaces still in the shop. The item above each eyebrow
-                 * already draws the dashed divider (border-bottom). */}
-                <Eyebrow>Utilities</Eyebrow>
-                <Link className="acct-item" href="/row100k/dev/plan" onClick={close}>
-                  The plan →
-                </Link>
-
+                {/* Eyebrowed groups (owner call, 2026-09-08): the things an
+                 * admin runs, race day, and the surfaces still in the shop.
+                 * UTILITIES went with the plan (live, 2026-09-25). The item
+                 * above each eyebrow already draws the dashed divider
+                 * (border-bottom). */}
                 <Eyebrow>Administration</Eyebrow>
                 <Link className="acct-item" href="/row100k/blackout" onClick={close}>
                   Lights out →

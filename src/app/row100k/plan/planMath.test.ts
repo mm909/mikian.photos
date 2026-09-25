@@ -1,4 +1,4 @@
-/* The plan arithmetic, checked by hand: npx tsx src/app/row100k/dev/plan/planMath.test.ts
+/* The plan arithmetic, checked by hand: npx tsx src/app/row100k/plan/planMath.test.ts
  * (no test runner in the repo; plain asserts, exit 1 on the first miss).
  * The cases are the owner's own words from 2026-09-25: days are on or
  * off, the remaining meters redistribute across the on days by
