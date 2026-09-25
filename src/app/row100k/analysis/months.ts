@@ -69,8 +69,8 @@ const SHORT_LONG: Record<string, string> = {
  * whole gridline labels (8 M reads 2, 4, 6, 8) and sit close enough to the
  * data that a six-million-meter month does not live in the bottom half of
  * a ten-million frame. Counts under ten get a top of ten so a two-session
- * day is not drawn as a mountain. */
-function top(max: number, floor: number): number {
+ * day is not drawn as a mountain. Shared with active.ts (2026-09-25). */
+export function top(max: number, floor: number): number {
   if (!(max > 0)) return 0;
   const m = Math.max(max, floor);
   const pow = Math.pow(10, Math.floor(Math.log10(m)));

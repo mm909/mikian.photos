@@ -22,6 +22,11 @@ export const analysisCss = `
 .row100k .an-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
 @media(max-width:640px){.row100k .an-tiles{grid-template-columns:1fr 1fr}}
 @media(max-width:420px){.row100k .an-tiles{grid-template-columns:1fr}}
+/* DAILY ACTIVE ROWERS (owner, 2026-09-25): four tiles in one row, two by
+ * two on a phone. */
+.row100k .an-tiles.an-four{grid-template-columns:repeat(4,1fr)}
+@media(max-width:640px){.row100k .an-tiles.an-four{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.row100k .an-tiles.an-four{grid-template-columns:1fr}}
 .row100k .an-tile{border:2px solid var(--ink);padding:14px 14px 12px;min-width:0}
 .row100k .an-tile .n{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(19px,4.6vw,27px);line-height:1.08;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .row100k .an-tile .d{font-size:12px;line-height:1.5;color:var(--ink-soft);margin-top:7px}

@@ -31,6 +31,7 @@ import type {
   ResidYou,
 } from "./model";
 import type { MonthLine, MonthsModel } from "./months";
+import type { ActiveModel } from "./active";
 
 /* Hand-drawn SVG, the /row100k frame throughout (660×250, L56 R16 T14 B30,
  * mono 10px axis text, ink baseline, dashed gridlines). No hooks, no
@@ -1277,6 +1278,88 @@ export function MonthsSvg({
       {dayTicks(span).map((d) => (
         <Lbl key={d} x={x(d)} y={H - 8} a={d === span ? "end" : d === 1 ? "start" : "middle"}>
           {d === 1 ? "DAY 1" : d}
+        </Lbl>
+      ))}
+    </svg>
+  );
+}
+
+/* --------------------------------------------------------- 15 · active */
+/* Distinct rowers a day, every day since the start (owner, 2026-09-25: "a
+ * daily active rower chart"). One bar per calendar day in the quiet grid
+ * grey, today's in ink, and the trailing seven-day mean over them as the
+ * water line — the one live thing. The x labels sit on the 1st of each
+ * month and every seven days after it; as the days pile up the seven-day
+ * marks give way first and the month firsts thin to every other one, so
+ * no two labels overprint. Nothing per rower is in the data, so no mask
+ * applies. */
+/* A six-glyph label is ~37 units in 10 px mono; this leaves a gap. */
+const ACTIVE_LABEL_GAP = 50;
+
+export function ActiveSvg({ a }: { a: ActiveModel }) {
+  const n = a.days.length;
+  if (!n || !(a.yMax > 0) || a.avg7.length !== n) return null;
+  const slot = PW / n;
+  const xc = (i: number) => L + i * slot + slot / 2;
+  /* A day is a bar with air either side while there is room; past a few
+   * hundred days the bars touch and the line carries the chart. */
+  const barW = slot > 3 ? slot * 0.7 : slot;
+  const y = (v: number) => T + (1 - Math.min(v, a.yMax) / a.yMax) * PH;
+  const y0 = y(0);
+  /* Gridlines at the quarters when those are whole counts (20 reads 5,
+   * 10, 15, 20), else at the halves (10 reads 5, 10). */
+  const step = Number.isInteger(a.yMax / 4) ? a.yMax / 4 : a.yMax / 2;
+  const grid: number[] = [];
+  for (let v = step; v <= a.yMax; v += step) grid.push(v);
+  let peak = 0;
+  for (let i = 1; i < n; i++) if (a.days[i].active > a.days[peak].active) peak = i;
+  const line = n > 1 ? a.avg7.map((v, i) => `${i ? "L" : "M"}${r(xc(i))},${r(y(v))}`).join("") : null;
+  /* The x labels: month firsts first, each kept while it clears the one
+   * before; then, only while every month first fit, the 8th, 15th, 22nd
+   * and 29th, kept where they clear every label already placed — so a
+   * long axis reads in months alone, not months with one stray 8th. */
+  const dom = (i: number) => Number(a.days[i].key.slice(8, 10));
+  const kept: number[] = [];
+  const clear = (i: number) => kept.every((k) => Math.abs(xc(k) - xc(i)) >= ACTIVE_LABEL_GAP);
+  let firsts = 0;
+  for (let i = 0; i < n; i++) if (dom(i) === 1 && ++firsts && clear(i)) kept.push(i);
+  if (kept.length === firsts) for (let i = 0; i < n; i++) if (dom(i) !== 1 && (dom(i) - 1) % 7 === 0 && clear(i)) kept.push(i);
+  kept.sort((p, q) => p - q);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Distinct rowers who logged a row each day, with a trailing seven-day mean">
+      {grid.map((v) => (
+        <g key={v}>
+          <line x1={L} x2={W - R} y1={r(y(v))} y2={r(y(v))} stroke={GRID} strokeWidth="1" strokeDasharray={v === a.yMax ? undefined : "3 4"} />
+          <Lbl x={L - 8} y={y(v) + 3} a="end">
+            {v}
+          </Lbl>
+        </g>
+      ))}
+      {a.days.map((d, i) => {
+        if (d.active <= 0) return null;
+        const bh = Math.max(y0 - y(d.active), 2);
+        return (
+          <rect key={d.key} x={r(xc(i) - barW / 2)} y={r(y0 - bh)} width={r(barW)} height={r(bh)} fill={i === n - 1 ? INK : GRID}>
+            <title>{`${d.label} · ${d.active} ${d.active === 1 ? "rower" : "rowers"} · ${d.sessions} ${d.sessions === 1 ? "row" : "rows"}`}</title>
+          </rect>
+        );
+      })}
+      {line && <path d={line} fill="none" stroke={WATER} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+      <circle cx={r(xc(n - 1))} cy={r(y(a.avg7[n - 1]))} r="3.5" fill={WATER} />
+      {a.days[peak].active > 0 && (
+        <Lbl x={xc(peak)} y={Math.max(y(a.days[peak].active) - 5, 10)} a={peak === n - 1 ? "end" : "middle"} size={11} bold fill={INK}>
+          {a.days[peak].active}
+        </Lbl>
+      )}
+      {peak !== n - 1 && (
+        <Lbl x={W - R - 4} y={T + 10} a="end" size={9}>
+          TODAY
+        </Lbl>
+      )}
+      <Base />
+      {kept.map((i) => (
+        <Lbl key={a.days[i].key} x={xc(i)} y={H - 8} a={xc(i) > W - R - 18 ? "end" : "middle"}>
+          {a.days[i].label.toUpperCase()}
         </Lbl>
       ))}
     </svg>

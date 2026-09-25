@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, daysElapsed, nowMs } from "@/lib/row100k";
 import { buildMonths, type MonthsModel } from "./months";
+import { buildActive, type ActiveModel } from "./active";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -128,6 +129,15 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
     console.error("row100k/analysis: buildMonths failed", err);
     months = buildMonths([], nowMs());
   }
+  /* DAILY ACTIVE ROWERS (owner ask, 2026-09-25): distinct rowers a day,
+   * every day since the start. Same cached load, its own try. */
+  let active: ActiveModel;
+  try {
+    active = buildActive(raw.entries, nowMs());
+  } catch (err) {
+    console.error("row100k/analysis: buildActive failed", err);
+    active = buildActive([], nowMs());
+  }
   /* ?you=1 is the sign-in return trip: land with the blue layer already on. */
   const initialYou = searchParams?.you === "1" && kind === "ready";
 
@@ -138,7 +148,7 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
 
       <RowBar active="stats" />
 
-      <AnalysisView model={model} months={months} viewer={kind} initialYou={initialYou} />
+      <AnalysisView model={model} months={months} active={active} viewer={kind} initialYou={initialYou} />
 
       <RowFooter />
     </div>

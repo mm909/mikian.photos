@@ -7,6 +7,8 @@ import { Blocks, BlockText } from "../Blackout";
 import type { Forecast, ForecastRow, Model, Section, Tile } from "./model";
 import type { MonthsModel } from "./months";
 import { MonthsSection } from "./MonthsSection";
+import type { ActiveModel } from "./active";
+import { ActiveSection } from "./ActiveSection";
 import { fmtInt, fmtK, fmtM } from "./fmt";
 import {
   ChartBox,
@@ -36,11 +38,13 @@ export type ViewerKind = "anon" | "unjoined" | "empty" | "ready";
 export function AnalysisView({
   model: m,
   months,
+  active,
   viewer,
   initialYou,
 }: {
   model: Model;
   months: MonthsModel;
+  active: ActiveModel;
   viewer: ViewerKind;
   initialYou: boolean;
 }) {
@@ -90,10 +94,15 @@ export function AnalysisView({
         </div>
       </div>
 
+      {/* DAILY ACTIVE ROWERS (owner ask, 2026-09-25): distinct rowers a
+        * day, every day since the start, with a seven-day mean. First on
+        * the page: the one product number. */}
+      <ActiveSection a={active} />
+
       {/* THE MONTHS (owner ask, 2026-09-25): this month against the months
         * before it at the same day of the month — meters, sessions, rowers
-        * a day. First on the page: it is the platform-scale view, and the
-        * forecast and the distributions below it are this month only. */}
+        * a day. Second: it is the platform-scale view, and the forecast
+        * and the distributions below it are this month only. */}
       <MonthsSection m={months} />
 
       {/* THE FORECAST (owner ask, 2026-09-16): where everyone ends up on
