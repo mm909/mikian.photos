@@ -16,16 +16,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/* THE PLAN, dev for now (owner ask, 2026-09-08; rebuilt 2026-09-24 as a
- * calendar: "show a calendar of the remaining days with the meters split
- * among them … let me change the number for each day … remember the plan
- * when I come back"). Given a target in meters, what does the rest of the
- * month have to look like, day by day — and, with a pace goal, where the
- * average split is and where it has to go. The rower's own rows this
- * month feed the need and the past days of the calendar; everything
- * planned is kept in the browser per rower (PlanTool.tsx). Admin-only in
- * production, open in local dev, the same gate as /row100k/shareables;
- * reached from the account menu (BarAccount.tsx). */
+/* THE PLAN, dev for now (owner ask, 2026-09-08; a calendar since
+ * 2026-09-24; simplified 2026-09-25: "it's just THE PLAN, and the calendar
+ * gets a date like December 2026 … days are ON or OFF, plus what was
+ * actually done"). Given a target in meters, what the rest of the month
+ * has to look like, day by day — and, with a pace goal, where the average
+ * split is and where it has to go. The rower's own rows this month feed
+ * the need, the past days of the calendar and the pace goal's default;
+ * the target, the pace goal and the off days are kept in the browser per
+ * rower (PlanTool.tsx). Admin-only in production, open in local dev, the
+ * same gate as /row100k/shareables; reached from the account menu
+ * (BarAccount.tsx). */
 export default async function DevPlanPage() {
   const viewer = await resolveViewer();
   if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
@@ -47,7 +48,6 @@ export default async function DevPlanPage() {
     }
   }
   const today = daysElapsed();
-  const daysLeft = Math.max(1, MONTH.days - today + 1);
   /* One plan per rower per browser; a signed-in viewer who has not joined
    * still gets a plan, under "anon", so the tool can be tried. */
   const storageKey = `${CHALLENGE}:${viewer.me?.rowerNumber ?? "anon"}`;
@@ -58,13 +58,13 @@ export default async function DevPlanPage() {
       <style>{planCss}</style>
       <RowBar {...barProps(viewer)} />
 
+      {/* One section, one mono eyebrow (owner, 2026-09-25: no separation
+          between the plan and the calendar). The eyebrow is the profile
+          one (.pf-eye, theme.ts). */}
       <section>
         <div className="wrap">
-          <div className="sec-head">
-            <h2>The plan</h2>
-            <span className="mono">
-              DEV · {MONTH.label.toUpperCase()} · {daysLeft} {daysLeft === 1 ? "DAY" : "DAYS"} LEFT
-            </span>
+          <div className="pf-eye">
+            <span>The plan · {MONTH.label}</span>
           </div>
           <PlanTool
             storageKey={storageKey}
