@@ -48,6 +48,9 @@ import {
 } from "./boardData";
 import { LookPage } from "./looks/LookPage";
 import { parseLook } from "./looks/view";
+import { Landing } from "./landing/Landing";
+import { loadLanding } from "./landing/data";
+import { parseLand } from "./landing/view";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -165,6 +168,15 @@ function fmtHours(seconds: number): string {
 export default async function Row100kPage({ searchParams }: { searchParams?: SearchParams }) {
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
+
+  /* THE SIGNED-OUT LANDINGS behind ?land=a|b|c (owner, 2026-09-25: "three
+   * different landing pages designed at getting user sign ups") — only a
+   * stranger who asked for one; anyone signed in, and any URL without the
+   * query, gets the page below untouched (landing/Landing.tsx). */
+  const land = parseLand(searchParams?.land);
+  if (land && !actor) {
+    return <Landing land={land} data={await loadLanding()} />;
+  }
 
   let me: {
     id: string;
