@@ -36,6 +36,12 @@ function replyTo(): string {
   return process.env.MAIL_REPLY_TO || DEFAULT_REPLY_TO;
 }
 
+/* The envelope every send here uses, for a page that shows a mail the way
+ * it arrives (row100k/emails, 2026-09-27). Addresses only — never the key. */
+export function mailEnvelope(): { from: string; replyTo: string; owner: string } {
+  return { from: fromAddr(), replyTo: replyTo(), owner: process.env.OWNER_EMAIL || DEFAULT_REPLY_TO };
+}
+
 function getClient(): Resend | null {
   const key = process.env.RESEND_API_KEY;
   if (!key) return null;

@@ -162,18 +162,23 @@ export function waveEmail(o: {
 }): RaceMail {
   const r = o.race;
   const go = waveTime(r, o.wave);
-  const arrive = arriveTime(r, o.wave);
   const who = `${o.name} · rower ${NUM(o.rowerNumber)}`;
   /* THE TAIL CAME OFF THIS, 2026-09-12 ("we can remove the rest of it, so
    * you can warm up, find your erg and set your monitor. Remove that last
    * part"). He kept the instruction and cut the reasoning: a rower does not
    * need to be told why fifteen minutes is fifteen minutes. */
-  const arriveLine = `Be here by ${arrive} — fifteen minutes before your wave.`;
+  /* THE OWNER'S LINE, 2026-09-27 (race day): "Arrive at least 15 min
+   * before your wave. First wave starts at 6:15." The first wave is the
+   * console's, not typed, and printed the way he wrote it — the clock with
+   * no AM or PM, since the letter's own big line already says PM. */
+  const firstWave = waveTime(r, 1).replace(/\s?[AP]M$/, "");
+  const arriveLine = `Arrive at least ${ARRIVE_EARLY_MIN} min before your wave. First wave starts at ${firstWave}.`;
   /* The waiver: the gym's, signed on the gym's own system. In every note a
-   * race with a waiver sends, and never a threat — it takes a minute. */
+   * race with a waiver sends, and never a threat. "It takes a minute"
+   * came off on 2026-09-27 (owner). */
   const waiver = r.waiver ?? null;
   const waiverLine = waiver
-    ? `The gym needs a signed waiver before you pull. It takes a minute: ${waiver.url}`
+    ? `The gym needs a signed waiver before you pull: ${waiver.url}`
     : null;
 
   return {
@@ -203,7 +208,7 @@ export function waveEmail(o: {
           ? [
               block(
                 eyebrow("One thing first") +
-                  body("The gym needs a signed waiver before you pull. It takes a minute.") +
+                  body("The gym needs a signed waiver before you pull.") +
                   `<p style="margin:14px 0 0;"><a href="${escape(waiver.url)}" style="color:${INK};font-weight:700;text-decoration:underline;">Sign the waiver</a></p>`,
               ),
             ]

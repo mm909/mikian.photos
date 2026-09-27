@@ -131,6 +131,11 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/signups" onClick={close}>
                   Rowers →
                 </Link>
+                {/* Every mail the site sends, as it arrives (owner,
+                 * 2026-09-27) — the wave note first (emails/page.tsx). */}
+                <Link className="acct-item" href="/row100k/emails" onClick={close}>
+                  Emails →
+                </Link>
 
                 {/* RACE DAY, ITS OWN GROUP (owner, 2026-09-21: "I need all my
                  * race day menus under a special race day section in the

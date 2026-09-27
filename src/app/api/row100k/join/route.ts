@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
+import { joinNote } from "@/app/row100k/joinMail";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { ensureParticipant } from "@/lib/row100kJoin";
@@ -9,7 +10,6 @@ import {
   CHALLENGE,
   CHALLENGE_LIVE,
   LOG_CLOSE_MS,
-  fmtRowerNumber,
   nowMs,
   parseBirthday,
   parseDisplayName,
@@ -159,23 +159,17 @@ export async function POST(req: Request) {
       // but a failed send must never fail the join, so the result is logged
       // and dropped.
       if (CHALLENGE === CHALLENGE_LIVE) {
-        // No handle, no "@" (owner, 2026-09-24) — the subject and the line
-        // both fall silent rather than print an empty one. The birthday is
-        // deliberately NOT in this mail: nothing shows it anywhere yet.
-        const sent = await sendOwnerNotification(
-          `Rowtember signup — ${fmtRowerNumber(created.rowerNumber)} ${displayName}${instagram ? ` (@${instagram})` : ""}`,
-          [
-            `Rower ${fmtRowerNumber(created.rowerNumber)} just joined Rowtember.`,
-            ``,
-            `Name on the board: ${displayName}`,
-            instagram ? `Instagram: @${instagram} — https://instagram.com/${instagram}` : `Instagram: none given`,
-            `Board: ${division === "F" ? "Women's" : "Men's"}`,
-            `Account: ${actor.name} <${actor.email}>`,
-            ``,
-            `The board: https://mikianmusser.com/row100k#board`,
-          ].join("\n"),
-          actor.email,
-        );
+        // The words live in joinMail.ts (2026-09-27) so the emails page
+        // shows exactly this mail.
+        const note = joinNote({
+          rowerNumber: created.rowerNumber,
+          displayName,
+          instagram,
+          division,
+          accountName: actor.name ?? "",
+          accountEmail: actor.email,
+        });
+        const sent = await sendOwnerNotification(note.subject, note.text, actor.email);
         if (!sent.ok) console.error("row100k: signup email failed", sent.error);
       }
 
