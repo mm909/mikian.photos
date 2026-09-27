@@ -21,7 +21,7 @@ import { compose } from "./engine";
 import { tokensFor } from "./formats";
 import { makePaint } from "./paint";
 import { RACE_INK, raceLayoutFor } from "./raceday";
-import { raceDayFieldLayout } from "./raceField";
+import { raceDayFieldLayout, raceDayWavesLayout } from "./raceField";
 import type {
   CommunityPoster,
   PosterAssets,
@@ -47,6 +47,10 @@ export const RACE_GROUNDS: { key: PosterGround; label: string }[] = [
 export const RACE_ARTWORKS: { key: RaceArtwork; label: string }[] = [
   { key: "bill", label: "The bill" },
   { key: "field", label: "The field" },
+  /* The start list under each wave and its time (owner, 2026-09-27: "a
+   * poster w/ wave info for race day"). The field stays names only for
+   * the partners; this one is for the room and the racers. */
+  { key: "waves", label: "The waves" },
 ];
 
 export const isGround = (v: unknown): v is PosterGround =>
@@ -91,7 +95,8 @@ export function renderRaceDay(input: RaceRenderInput): { canvas: HTMLCanvasEleme
   // this is the belt and not the braces.
   const drawn: PosterGround = ground === "photo" && !assets.photo ? "ink" : ground;
   // The start list takes no ground: solid ink, its own plans.
-  const layout = artwork === "field" ? raceDayFieldLayout : raceLayoutFor(drawn);
+  const layout =
+    artwork === "field" ? raceDayFieldLayout : artwork === "waves" ? raceDayWavesLayout : raceLayoutFor(drawn);
 
   // Full bleed, no gaps: the modules tile the frame. The format's REAL
   // margins are still what the type is inset by — poster/raceday.ts reads
@@ -150,8 +155,8 @@ export function raceFileName(
   ext: "png" | "pdf",
   opts: { ground: PosterGround; bleed?: boolean; artwork?: RaceArtwork },
 ): string {
-  const field = opts.artwork === "field";
-  let suffix = field ? "" : opts.ground === "overlay" ? "-overlay" : opts.ground === "photo" ? "-photo" : "";
+  const list = opts.artwork === "field" || opts.artwork === "waves";
+  let suffix = list ? "" : opts.ground === "overlay" ? "-overlay" : opts.ground === "photo" ? "-photo" : "";
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";
-  return `${data.race.slug}-${field ? "field-" : ""}${format.stem}${suffix}.${ext}`;
+  return `${data.race.slug}-${list ? `${opts.artwork}-` : ""}${format.stem}${suffix}.${ext}`;
 }

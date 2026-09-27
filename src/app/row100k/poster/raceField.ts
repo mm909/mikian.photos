@@ -78,14 +78,19 @@ type Item = { kind: "eye"; text: string } | { kind: "row"; r: RaceDayFieldRow } 
 /* The list as slots, in the order the payload put it. A wave eyebrow opens
  * each group; a racer still without a wave (the console has assigned some
  * but not all) sits last under his own eyebrow rather than in nobody's. */
-function itemsOf(d: RaceDayPoster): { items: Item[]; rows: number; byWave: boolean } {
+function itemsOf(d: RaceDayPoster, waves: boolean): { items: Item[]; rows: number; byWave: boolean } {
   const f = d.field;
   if (!f) return { items: [], rows: 0, byWave: false };
-  /* NO WAVES ON THE FRAME (owner, 2026-09-21: "for the race day partners
+  /* NO WAVES ON THE FIELD (owner, 2026-09-21: "for the race day partners
    * exclude info about assigned waves"). The payload still groups by wave
-   * once the console has assigned them; this artwork lists the field A to
-   * Z regardless, so the gym never sees who is in which wave here. */
-  const byWave = false;
+   * once the console has assigned them; THE FIELD lists it A to Z
+   * regardless, so the gym never sees who is in which wave there.
+   *
+   * THE WAVES is the other artwork (owner, 2026-09-27, race day: "Give me
+   * a poster w/ wave info for race day"): the same list, grouped under
+   * each wave and its start. With no wave assigned yet it falls back to A
+   * to Z rather than print one NO WAVE YET heading over everybody. */
+  const byWave = waves && f.waves.length > 0;
   if (!byWave) {
     const list = [...f.list].sort((a, b) => a.name.localeCompare(b.name));
     return { items: list.map((r) => ({ kind: "row", r })), rows: list.length, byWave };
@@ -133,17 +138,55 @@ function place(items: Item[], cols: number, perCol: number): { columns: Item[][]
   return { columns, over };
 }
 
+/* WHOLE WAVES INTO COLUMNS: each wave keeps its heading and every name
+ * under it in one column, as few slots a column as that allows, up to
+ * `hard`. Null when the waves cannot be kept whole in `cols` columns — the
+ * caller then flows them like the field. */
+function packGroups(groups: Item[][], cols: number, hard: number): { columns: Item[][]; perCol: number } | null {
+  const tallest = Math.max(...groups.map((g) => g.length));
+  const total = groups.reduce((n, g) => n + g.length, 0);
+  const top = Math.min(hard, total);
+  for (let perCol = tallest; perCol <= top; perCol++) {
+    const columns: Item[][] = Array.from({ length: cols }, () => []);
+    let c = 0;
+    let ok = true;
+    for (const g of groups) {
+      if (columns[c].length > 0 && columns[c].length + g.length > perCol) c++;
+      if (c >= cols) {
+        ok = false;
+        break;
+      }
+      columns[c].push(...g);
+    }
+    if (ok) return { columns, perCol };
+  }
+  return null;
+}
+
 /* ----------------------------------------------------------- the type */
 
 /* The two steps a list may set in. `pitch` is the slot; nothing here goes
  * under the family's small token (10 on both), which is the floor the
  * owner's brief drew. */
-type Step = { name: number; mono: number; pitch: number };
+type Step = { name: number; mono: number; pitch: number; big?: boolean };
 
 const stepsOf = (tk: PosterPaint["tk"]): Step[] => [
   { name: tk.row, mono: Math.max(tk.small, tk.row * 0.86), pitch: tk.rowPitch * 0.82 },
   { name: Math.max(tk.small, tk.small * 1.15), mono: tk.small, pitch: tk.rowPitch * 0.66 },
 ];
+
+/* THE WAVES SET LARGER when the sheet has the room (2026-09-27): it is
+ * read off a gym wall by somebody finding their own name, so the list is
+ * the picture and RACE DAY gives some of its surplus back. Tried largest
+ * first, and only as whole waves (a board or packed columns) — a big step
+ * never flows a wave across columns. */
+const bigStepsOf = (tk: PosterPaint["tk"]): Step[] =>
+  [2, 1.6, 1.3].map((k) => ({
+    name: tk.row * k,
+    mono: Math.max(tk.small, tk.row * 0.86) * k,
+    pitch: tk.rowPitch * 0.82 * k,
+    big: true,
+  }));
 
 type Geom = {
   step: Step;
@@ -169,6 +212,9 @@ function geomOf(
   w: number,
   gutter: number,
   list: RaceDayFieldRow[],
+  /* The waves board asks for one column per wave; it gets them only when
+   * the measure holds that many, and the caller checks. */
+  wantCols?: number,
 ): Geom {
   const tk = paint.tk;
   const fName = paint.font("archivoBold", step.name);
@@ -183,7 +229,8 @@ function geomOf(
   const need = numW + nameW + tk.small * 0.6 + rightW;
   const fit = Math.floor((w + gutter) / (need + gutter));
   const most = Math.max(1, Math.min(COLS_MAX[paint.format.family] ?? 2, fit));
-  const cols = Math.max(1, Math.min(most, Math.ceil(list.length / ROWS_MIN)));
+  const cols =
+    wantCols && wantCols <= most ? wantCols : Math.max(1, Math.min(most, Math.ceil(list.length / ROWS_MIN)));
   const colW = (w - gutter * (cols - 1)) / cols;
   return { step, cols, colW, fName, fMono, fMonoB, lh: metN.lh, metN, numW };
 }
@@ -213,10 +260,10 @@ function drawItem(ctx: Ctx, paint: PosterPaint, g: Geom, it: Item, x: number, to
   paint.drawText(ctx, paint.ellipsize(ctx, r.name, room, g.fName, 0), x + g.numW, base, g.fName, WHITE, 0);
 }
 
-function drawField(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPaint): number {
+function drawField(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPaint, grouped = false): number {
   const tk = paint.tk;
   const { x, w } = raceColOf(box, paint);
-  const { items, rows, byWave } = itemsOf(d);
+  const { items, rows, byWave } = itemsOf(d, grouped);
   const list = d.field?.list ?? [];
 
   // The section head: the ways table's eyebrow, with a quiet descriptor
@@ -252,19 +299,60 @@ function drawField(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPain
   // slots each as hold everything, and one more when an eyebrow was pushed
   // on — up to what the box can take.
   let chosen: { g: Geom; columns: Item[][]; perCol: number } | null = null;
-  for (const step of stepsOf(tk)) {
-    const g = geomOf(ctx, paint, step, w, gutter, list);
-    const hard = finite ? Math.floor(avail / step.pitch + 1e-6) : Number.POSITIVE_INFINITY;
-    if (hard < 1) continue;
-    let perCol = Math.min(hard, Math.ceil(items.length / g.cols));
-    let p = place(items, g.cols, perCol);
-    while (p.over > 0 && perCol < hard) {
-      perCol++;
-      p = place(items, g.cols, perCol);
+  /* THE WAVES AS A BOARD: one wave to a column, its heading on top, when
+   * the measure holds every wave side by side — a wall sheet reads across
+   * as wave 1, wave 2, wave 3. A phone frame, or more waves than columns,
+   * flows them like the field. */
+  const groups: Item[][] | null = byWave
+    ? items.reduce<Item[][]>((acc, it) => {
+        if (it.kind === "eye" || acc.length === 0) acc.push([]);
+        acc[acc.length - 1].push(it);
+        return acc;
+      }, [])
+    : null;
+  const hardAt = (step: Step) => (finite ? Math.floor(avail / step.pitch + 1e-6) : Number.POSITIVE_INFINITY);
+  if (groups) {
+    const steps = [...bigStepsOf(tk), ...stepsOf(tk)];
+    const tallest = Math.max(...groups.map((c) => c.length));
+    // First choice: a wave to a column, at the largest step that holds it.
+    for (const step of steps) {
+      const hard = hardAt(step);
+      if (hard < 1) continue;
+      const gw = geomOf(ctx, paint, step, w, gutter, list, groups.length);
+      if (gw.cols === groups.length && tallest <= hard) {
+        chosen = { g: gw, columns: groups, perCol: tallest };
+        break;
+      }
     }
-    if (p.over === 0) {
-      chosen = { g, columns: p.columns, perCol };
-      break;
+    // Then: every wave kept whole, more than one to a column.
+    if (!chosen) {
+      for (const step of steps) {
+        const hard = hardAt(step);
+        if (hard < 1) continue;
+        const gp = geomOf(ctx, paint, step, w, gutter, list);
+        const packed = packGroups(groups, gp.cols, hard);
+        if (packed) {
+          chosen = { g: gp, columns: packed.columns, perCol: packed.perCol };
+          break;
+        }
+      }
+    }
+  }
+  if (!chosen) {
+    for (const step of stepsOf(tk)) {
+      const g = geomOf(ctx, paint, step, w, gutter, list);
+      const hard = hardAt(step);
+      if (hard < 1) continue;
+      let perCol = Math.min(hard, Math.ceil(items.length / g.cols));
+      let p = place(items, g.cols, perCol);
+      while (p.over > 0 && perCol < hard) {
+        perCol++;
+        p = place(items, g.cols, perCol);
+      }
+      if (p.over === 0) {
+        chosen = { g, columns: p.columns, perCol };
+        break;
+      }
     }
   }
   if (!chosen) {
@@ -297,7 +385,8 @@ function drawField(ctx: Ctx, box: PosterBox, d: RaceDayPoster, paint: PosterPain
  * what fits (drawField prints the count) rather than pushing the foot.
  * minH is the head and three slots in the widest family metric — the
  * floor the cap step may cut it to. */
-const field = raceMod("field", 40 + 3 * 22, drawField);
+const field = raceMod("field", 40 + 3 * 22, (ctx, box, d, paint) => drawField(ctx, box, d, paint, false));
+const wavesList = raceMod("field", 40 + 3 * 22, (ctx, box, d, paint) => drawField(ctx, box, d, paint, true));
 
 /* THE FOOT, pinned: the count strip over a thick rule, the venue mark
  * flush left as the credit — the bill's host block — with the room and the
@@ -398,16 +487,27 @@ const modules: Record<string, Mod> = {
   foot,
 };
 
+const plans = {
+  tall: fieldPlan("tall", "head"),
+  short: fieldPlan("short", "head"),
+  squat: fieldPlan("squat", "head"),
+  core: fieldPlan("core", "head"),
+  story: fieldPlan("story", "head.auto"),
+  post: fieldPlan("post", "head.auto"),
+  square: fieldPlan("square", "head.one"),
+};
+
 export const raceDayFieldLayout: PosterLayout<RaceDayPoster> = {
   subject: "raceday",
   modules,
-  plans: {
-    tall: fieldPlan("tall", "head"),
-    short: fieldPlan("short", "head"),
-    squat: fieldPlan("squat", "head"),
-    core: fieldPlan("core", "head"),
-    story: fieldPlan("story", "head.auto"),
-    post: fieldPlan("post", "head.auto"),
-    square: fieldPlan("square", "head.one"),
-  },
+  plans,
+};
+
+/* THE WAVES (owner, 2026-09-27): the field's frame and plans, with the
+ * list grouped under each wave and its start time. Same modules but the
+ * list, so the two sheets cannot drift a rung apart. */
+export const raceDayWavesLayout: PosterLayout<RaceDayPoster> = {
+  subject: "raceday",
+  modules: { ...modules, field: wavesList },
+  plans,
 };

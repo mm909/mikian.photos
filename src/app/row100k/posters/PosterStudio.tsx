@@ -294,7 +294,15 @@ export function PosterStudio({
   const race = raceOn ? (raceday ?? null) : null;
   /* The field is drawn only when the list could be read: a failed read
    * still renders the bill and the field chip is disabled. */
-  const fieldOn = race !== null && artwork === "field" && race.field !== null;
+  const fieldOn = race !== null && (artwork === "field" || artwork === "waves") && race.field !== null;
+  /* Which artwork is actually drawn: the waves only once the console has
+   * assigned a wave (the chip is disabled until then), else the field or
+   * the bill as before. */
+  const drawnArt: RaceArtwork = !fieldOn
+    ? "bill"
+    : artwork === "waves" && (race?.field?.waves.length ?? 0) > 0
+      ? "waves"
+      : "field";
   /* The PAYLOAD decides, not the chip: without a race day payload there is
    * nothing to draw as an ad, so the studio stays on the sheet it has. */
   const subject: Subject = race ? "raceday" : topOn && community ? "top10" : rower ? "rower" : "community";
@@ -459,7 +467,7 @@ export function PosterStudio({
             // The start list is ink only; the ground chips are hidden while
             // it is up, and the ground they last held does not reach it.
             ground: fieldOn ? "ink" : ground,
-            artwork: fieldOn ? "field" : "bill",
+            artwork: drawnArt,
           })
         : subject === "top10"
           ? render({
@@ -577,7 +585,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, race, ground, fieldOn, stock, subject, topBoard, format, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, fieldOn, drawnArt, stock, subject, topBoard, format, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -599,7 +607,7 @@ export function PosterStudio({
    * -overlay.png — the way the other two stem off the year and the rower. */
   const nameFor = (ext: "png" | "pdf", target: PosterRenderTarget): string => {
     const opts = { bleed: target.bleedIn > 0 };
-    if (race) return raceFileName(race, format, ext, { ground, artwork: fieldOn ? "field" : "bill", ...opts });
+    if (race) return raceFileName(race, format, ext, { ground, artwork: drawnArt, ...opts });
     // The stock leads the suffixes, so -bw is the first thing after the
     // format and two letters he would type into a search box.
     return data ? fileName(data, format, ext, { stock, ...opts }) : `rowtember.${ext}`;
@@ -614,7 +622,7 @@ export function PosterStudio({
     const name = nameFor("png", out.target);
     const file = new File([out.png], name, { type: "image/png" });
     const title = race
-      ? `${race.race.head.join(" ")} · ${race.race.date}${fieldOn ? " · the field" : ""}`
+      ? `${race.race.head.join(" ")} · ${race.race.date}${drawnArt === "bill" ? "" : ` · the ${drawnArt}`}`
       : data?.kind === "rower"
         ? `Rower ${fmtRowerNumber(data.rower.rowerNumber)} · poster`
         : `Rowtember ${data?.year ?? ""} · poster`;
@@ -923,10 +931,16 @@ export function PosterStudio({
             <button
               key={a.key}
               type="button"
-              className={(fieldOn ? "field" : "bill") === a.key ? "on" : undefined}
-              aria-pressed={(fieldOn ? "field" : "bill") === a.key}
-              disabled={a.key === "field" && !race.field}
-              title={a.key === "field" && !race.field ? "The field could not be read" : undefined}
+              className={drawnArt === a.key ? "on" : undefined}
+              aria-pressed={drawnArt === a.key}
+              disabled={(a.key !== "bill" && !race.field) || (a.key === "waves" && !race.field?.waves.length)}
+              title={
+                a.key !== "bill" && !race.field
+                  ? "The field could not be read"
+                  : a.key === "waves" && !race.field?.waves.length
+                    ? "No waves assigned yet"
+                    : undefined
+              }
               onClick={() => setArtwork(a.key)}
             >
               {a.label}
@@ -1079,8 +1093,11 @@ export function PosterStudio({
             waves and lanes — no meters, no times — and who is counted but
             not listed. The list is public data; the reminder is that the
             frame prints as many as fit and says how many it did not. */}
-        {fieldOn && race?.field ? (
+        {drawnArt === "field" && race?.field ? (
           <li>The field — the racers A to Z, nothing else: no waves, no counts, no meters, no times</li>
+        ) : null}
+        {drawnArt === "waves" && race?.field ? (
+          <li>The waves — every racer under their wave and its start time; no meters, no times</li>
         ) : null}
         {overlay ? <li>Overlay — PNG only, a PDF has no alpha</li> : null}
         {overlay ? <li>Put the subject in the open band and keep other brands out of it</li> : null}

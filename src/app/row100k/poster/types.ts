@@ -588,7 +588,7 @@ export type PosterGround = "ink" | "overlay" | "photo";
  * on solid ink, then the names by wave, and it takes no ground because a
  * list over a photograph was never asked for. poster/raceField.ts draws
  * it; poster/raceGround.ts picks the layout. */
-export type RaceArtwork = "bill" | "field";
+export type RaceArtwork = "bill" | "field" | "waves";
 
 /* THE STOCK a paper sheet is printed on (owner, 2026-09-12: "we also need
  * black and white shareable versions of all the posters to match the race
