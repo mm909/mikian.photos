@@ -1,4 +1,5 @@
-import { GOAL_METERS } from "@/lib/row100k";
+import { GOAL_METERS, MONTH } from "@/lib/row100k";
+import { FIRST_MONTH_KEY, prevMonth, type Month } from "@/lib/rowPeriod";
 
 /* THE SHIRT — pure rules and copy, safe in client components.
  *
@@ -94,4 +95,14 @@ export function shirtDue(meters: number): { free: boolean; line: string } {
     free: false,
     line: `${left.toLocaleString("en-US")} M FROM FREE — OTHERWISE $${SHIRT_PRICE_USD} AT THE END OF THE MONTH`,
   };
+}
+
+/* THE MONTH THE SHOP SETTLES (2026-09-28, the October rollover): the
+ * previous month, once there is one — the site is in October when
+ * September's shirts are settled. In the first month it is that month
+ * itself, so the settle route refuses until the 1st, as it always did.
+ * The settle route, its preview and the emails page all read this. */
+export function settleMonthDefault(): Month {
+  const prev = prevMonth(MONTH);
+  return prev.key >= FIRST_MONTH_KEY ? prev : MONTH;
 }

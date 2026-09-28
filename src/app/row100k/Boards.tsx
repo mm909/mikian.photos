@@ -250,9 +250,13 @@ export function Boards({
   const maxMeters = boards.total.reduce((m, r) => Math.max(m, r.meters), 0);
   const sections = [...visibleTiers(maxMeters)].reverse(); // highest first
 
-  // Warming up = under 10k. Joined-but-not-logged rowers count toward the
-  // number, not the meters; nobody here is listed by name until 10k.
-  const warming = listed.filter((r) => sectionOf(r) === null);
+  // Warming up = under 10k with a row in this period; nobody here is listed
+  // by name until 10k. A joined-but-not-logged rower is NOT counted
+  // (2026-09-28, the October rollover: on the 1st every rower is a row of
+  // zero, and the board said N ROWERS WARMING UP FOR 0 M instead of the
+  // empty line). A masked row keeps its place in the count.
+  const rowed = (r: TotalRow) => r.masked === true || r.sessions > 0;
+  const warming = listed.filter((r) => sectionOf(r) === null && rowed(r));
   const warmingMeters = warming.reduce((s, r) => s + r.meters, 0);
 
   // FIND A ROWER (owner, 2026-09-25). Decided AFTER places and movement, so
@@ -322,7 +326,9 @@ export function Boards({
         </p>
       )}
 
-      {filtered.length === 0 ? (
+      {/* Empty means nobody on this tab has rowed this period — a row of
+          zero is not on the board (2026-09-28). */}
+      {!filtered.some(rowed) ? (
         <p className="board-empty">
           {started
             ? "NOBODY ON THIS BOARD YET — BE FIRST."

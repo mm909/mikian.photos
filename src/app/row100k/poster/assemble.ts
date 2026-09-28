@@ -34,6 +34,7 @@ import {
   FIRST_DAY,
   GOAL_METERS,
   LAST_DAY,
+  MONTH_NAME,
   computeBoards,
   daysElapsed,
   divisionRank,
@@ -741,7 +742,9 @@ export function assembleRower(input: RowerInput): RowerPoster {
   const communityRowers = pub ? onBoard(pub).length : 0;
 
   const board = division === "M" ? " · MEN’S BOARD" : division === "F" ? " · WOMEN’S BOARD" : "";
-  const dateline = `ROWTEMBER ${asOf.year}${board}${club ? " · 100K CLUB" : ""} · ${asOf.stamp}`;
+  // The month's name in caps (2026-09-28): ROWTEMBER 2026 in September,
+  // OCTOBER 2026 after. The ROWTEMBER mark on the sheet itself stays.
+  const dateline = `${MONTH_NAME.toUpperCase()} ${asOf.year}${board}${club ? " · 100K CLUB" : ""} · ${asOf.stamp}`;
 
   return {
     kind: "rower",

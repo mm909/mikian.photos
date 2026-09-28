@@ -1,6 +1,7 @@
 import { digitCount, maskBoards, partialShape, type BlackoutPolicy } from "@/lib/blackoutRules";
 import {
   GOAL_METERS,
+  MONTH_DAYS,
   TIERS,
   fmtDay,
   fmtDuration,
@@ -238,7 +239,7 @@ export function milestoneMail(row: RowLogged, crossed: number[], dayN: number): 
       `${fmtMeters(row.meters)} in ${fmtDuration(row.seconds)} (${fmtSplit(row.meters, row.seconds)} /500m) · ${fmtDay(row.day)}${row.title ? ` · ${row.title}` : ""}`,
       ``,
       `NOW`,
-      `${fmtMeters(row.total)} · ${row.sessions} sessions · day ${dayN} of 30`,
+      `${fmtMeters(row.total)} · ${row.sessions} sessions · day ${dayN} of ${MONTH_DAYS}`,
       ...(rest.length ? [`Also crossed with this row: ${rest.map(headline).join(", ")}`] : []),
       ``,
       row.profileUrl,

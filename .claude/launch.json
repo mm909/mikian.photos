@@ -40,6 +40,16 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "row100k-oct",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:row100k:oct"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

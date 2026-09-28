@@ -4,6 +4,7 @@ import {
   MONTH_FIRST_DOW,
   MONTH,
   MONTH_KEY,
+  MONTH_NAME,
   dayTicks,
   daysElapsed,
   fmtDay,
@@ -696,7 +697,8 @@ function monthGridHeight(span: number, mon: ShareMonth): number {
  * caption); a podium place paints the mark's box in the medal metal. */
 const rowtemberTotal: ShareCard = {
   id: "rowtember-total",
-  label: "Rowtember total",
+  /* The month's name, not the brand (2026-09-28): OCTOBER TOTAL in October. */
+  label: `${MONTH_NAME} total`,
   width: 1080,
   height: 620,
   light: true,
@@ -2929,12 +2931,13 @@ function boardCard(page: number): ShareCard {
       ctx.shadowBlur = 16;
       ctx.shadowOffsetY = 3;
 
-      // Title: "Rowtember · Sep 3" — bold mono, like a date line.
+      // Title: "Rowtember · Sep 3" — bold mono, like a date line. The
+      // month's name ("October · Oct 3" after September, 2026-09-28).
       ctx.textAlign = "left";
       ctx.fillStyle = "#ffffff";
       ctx.font = `bold 46px ${fonts.mono}`;
       const asOf = data.community?.asOf;
-      ctx.fillText(asOf ? `Rowtember · ${asOf}` : `Rowtember ${MONTH.year}`, L, 118);
+      ctx.fillText(asOf ? `${MONTH_NAME} · ${asOf}` : `${MONTH_NAME} ${MONTH.year}`, L, 118);
 
       // Section label, dim: which ten places this is — or the elite's
       // name when the page has no places to give.

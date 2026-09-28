@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
-import { shopOpenFor } from "@/app/row100k/shirt";
+import { settleMonthDefault, shopOpenFor } from "@/app/row100k/shirt";
 import { receiptEmail, settledEmail, sizeChangedEmail } from "@/app/row100k/shirtEmail";
 
 export const runtime = "nodejs";
@@ -24,15 +24,16 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const kind = url.searchParams.get("kind") ?? "receipt";
   const payUrl = `${url.origin}/row100k/shirt/pay`;
+  const month = settleMonthDefault().label;
   const mail =
     kind === "preorder"
       ? receiptEmail({ ...SAMPLE, size: "S", kind: "preorder", meters: 104_210 })
       : kind === "changed"
         ? sizeChangedEmail({ ...SAMPLE, from: "L", size: "M", kind: "stock", meters: 52_340 })
         : kind === "free"
-          ? settledEmail({ ...SAMPLE, size: "M", meters: 104_210, free: true, payUrl })
+          ? settledEmail({ ...SAMPLE, size: "M", meters: 104_210, free: true, payUrl, month })
           : kind === "owed"
-            ? settledEmail({ ...SAMPLE, size: "M", meters: 52_340, free: false, payUrl })
+            ? settledEmail({ ...SAMPLE, size: "M", meters: 52_340, free: false, payUrl, month })
             : receiptEmail({ ...SAMPLE, size: "M", kind: "stock", meters: 52_340 });
 
   if (url.searchParams.get("text") === "1") {

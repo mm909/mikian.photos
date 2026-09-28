@@ -10,6 +10,7 @@
     "dev:row100k": "npm run dev",
     "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
     "dev:row100k:dec": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-12-15T19:00:00Z -- next dev",
+    "dev:row100k:oct": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-10-05T19:00:00Z -- next dev",
     "prebuild": "node scripts/gallery-manifest.mjs",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",

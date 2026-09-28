@@ -4,6 +4,7 @@ import type { RaceDef } from "../raceday";
 import { waveEmail } from "../raceEmail";
 import { signupNote } from "../raceSignupMail";
 import { milestoneMail, rowLoggedMail } from "../rowMail";
+import { settleMonthDefault } from "../shirt";
 import { receiptEmail, settledEmail, sizeChangedEmail } from "../shirtEmail";
 import { joinNote } from "../joinMail";
 
@@ -90,7 +91,7 @@ export function buildMail(o: {
       return { key: o.key, label, to: "The rower who ordered · bcc you", when: "A shirt changes size", ...m };
     }
     case "shirt-owed": {
-      const m = settledEmail({ ...SAMPLE, size: "M", meters: 52_340, free: false, payUrl });
+      const m = settledEmail({ ...SAMPLE, size: "M", meters: 52_340, free: false, payUrl, month: settleMonthDefault().label });
       return { key: o.key, label, to: "A rower short of the 100K · bcc you", when: "Settle the month, in the shop console", ...m };
     }
     case "race-signup": {

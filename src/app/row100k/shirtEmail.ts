@@ -1,3 +1,4 @@
+import { MONTH_WORD } from "@/lib/row100k";
 import { PICKUP_LINE, SHIRT_FREE_AT, SHIRT_PRICE_USD } from "./shirt";
 
 /* THE SHIRT EMAILS (owner, 2026-09-08: "formatted like Rowtember — formats
@@ -108,7 +109,9 @@ function standing(m: number): Standing {
 
 const kindLine = (kind: "stock" | "preorder") => (kind === "preorder" ? "PRE-ORDER — WITH THE NEXT RUN" : "ON THE SHELF");
 
-const PRICE_REMINDER = `Free if you have rowed ${M(SHIRT_FREE_AT)} by the end of September. $${SHIRT_PRICE_USD} if you have not. Nothing is charged today.`;
+/* The month word, not September (2026-09-28): a shirt bought in October
+ * is settled by October. */
+const PRICE_REMINDER = `Free if you have rowed ${M(SHIRT_FREE_AT)} by the end of ${MONTH_WORD}. $${SHIRT_PRICE_USD} if you have not. Nothing is charged today.`;
 const LATER_LINE = `The month settles it — no paying early, and the shirt never comes out of your total.`;
 
 function metersBlock(m: number): string {
@@ -212,7 +215,10 @@ export function sizeChangedEmail(o: {
   };
 }
 
-/* Month end, one of two: free, or $20 with the pay link. */
+/* Month end, one of two: free, or $20 with the pay link. `month` is the
+ * month that was settled, as its label ("September 2026") — the settle
+ * route names it (2026-09-28: the shop settles the PREVIOUS month, so the
+ * mail says which). */
 export function settledEmail(o: {
   name: string;
   rowerNumber: number;
@@ -220,29 +226,31 @@ export function settledEmail(o: {
   meters: number;
   free: boolean;
   payUrl: string;
+  month: string;
 }): ShirtMail {
   const num = NUM(o.rowerNumber);
   const who = `${o.name} · rower ${num} · size ${o.size}`;
+  const settledLine = `Settled · ${o.month}`;
   const shirtBlock = block(eyebrow("Your shirt") + big(`Size ${escape(o.size)}`) + small(`${o.name} · rower ${num}`));
   if (o.free) {
-    const verdict = `${M(o.meters)}. You got the ${K}. The shirt is yours, nothing owed.`;
+    const verdict = `${M(o.meters)} in ${o.month}. You got the ${K}. The shirt is yours, nothing owed.`;
     return {
       subject: `Your Rowtember shirt is free — ${M(o.meters)}`,
       html: shell("The shirt · Settled", [
-        block(eyebrow("Settled") + meters(o.meters) + small(`YOU GOT THE ${K}`, WATER) + body("The shirt is yours, nothing owed."), true),
+        block(eyebrow(settledLine) + meters(o.meters) + small(`YOU GOT THE ${K}`, WATER) + body("The shirt is yours, nothing owed."), true),
         shirtBlock,
         pickupBlock(),
       ]),
-      text: [`ROWTEMBER 2026 — THE SHIRT`, ``, `SETTLED`, who, verdict, ``, `PICK-UP`, PICKUP_LINE, ``, `Row on.`].join("\n"),
+      text: [`ROWTEMBER 2026 — THE SHIRT`, ``, settledLine.toUpperCase(), who, verdict, ``, `PICK-UP`, PICKUP_LINE, ``, `Row on.`].join("\n"),
     };
   }
   const short = SHIRT_FREE_AT - o.meters;
-  const verdict = `${M(o.meters)} — short of the ${K}, so the shirt is $${SHIRT_PRICE_USD}, as agreed.`;
+  const verdict = `${M(o.meters)} in ${o.month} — short of the ${K}, so the shirt is $${SHIRT_PRICE_USD}, as agreed.`;
   return {
     subject: `Your Rowtember shirt — $${SHIRT_PRICE_USD} due`,
     html: shell("The shirt · Settled", [
       block(
-        eyebrow("Settled") +
+        eyebrow(settledLine) +
           meters(o.meters) +
           small(`${Math.round(short).toLocaleString("en-US")} M SHORT OF THE ${K}`) +
           body(`So the shirt is $${SHIRT_PRICE_USD}, as agreed.`),
@@ -260,7 +268,7 @@ export function settledEmail(o: {
     text: [
       `ROWTEMBER 2026 — THE SHIRT`,
       ``,
-      `SETTLED`,
+      settledLine.toUpperCase(),
       who,
       verdict,
       ``,
