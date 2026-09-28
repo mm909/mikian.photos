@@ -5,19 +5,22 @@ import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
-  LOG_CLOSE_MS,
   MAX_ENTRIES_PER_DAY,
   isRow100kAdmin,
   nowMs,
   validateEntry,
 } from "@/lib/row100k";
+import { monthFromKey } from "@/lib/rowPeriod";
 
 export const runtime = "nodejs";
 
 /* Fix or delete one of your own logged rows (the platform owner can moderate
- * any). Once logging closes the board is final — non-owner edits and deletes
- * are refused so the archived standings can't quietly rewrite themselves in
- * December. Both verbs share the guard rail below. */
+ * any). Once a month's logging closes its board is final — non-owner edits
+ * and deletes of that month's rows are refused so the archived standings
+ * can't quietly rewrite themselves in December. The line is the ROW'S
+ * month's grace close, not the process month's (rollover review,
+ * 2026-09-28: the old gate never shut on a September row once October
+ * was the month). Both verbs share the guard rail below. */
 type Guarded =
   | { ok: true; entryId: string; participantId: string; day: string; note: string; isOwner: boolean }
   | { ok: false; res: NextResponse };
@@ -32,15 +35,6 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
   }
 
   const isOwner = isRow100kAdmin(actor.email, actor.roles);
-  if (!isOwner && nowMs() >= LOG_CLOSE_MS) {
-    return {
-      ok: false,
-      res: NextResponse.json(
-        { ok: false, error: "The challenge is closed — the board is final." },
-        { status: 400 },
-      ),
-    };
-  }
 
   const limit = await rateLimit({
     key: `row100k-${verb}:${actor.photographerId}`,
@@ -73,6 +67,17 @@ async function guard(id: string, verb: "edit" | "del"): Promise<Guarded> {
     return {
       ok: false,
       res: NextResponse.json({ ok: false, error: "Not your row." }, { status: 403 }),
+    };
+  }
+
+  const m = monthFromKey(entry.day.slice(0, 7));
+  if (!isOwner && m && nowMs() >= m.logCloseMs) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { ok: false, error: `${m.label} is closed — the board is final.` },
+        { status: 400 },
+      ),
     };
   }
 
@@ -130,11 +135,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     photos = valid;
   }
 
-  // The guard already decided who may edit after close (the owner, for
-  // moderation) — clamp the clock so validateEntry's own closed check can't
-  // re-refuse what the guard allowed.
-  const atMs = guarded.isOwner ? Math.min(nowMs(), LOG_CLOSE_MS - 1) : nowMs();
-  const check = validateEntry(body, atMs, { admin: guarded.isOwner });
+  // The guard already decided who may edit after a month's close (the
+  // owner, for moderation); validateEntry's admin reach takes any day back
+  // to the first month, so the clock goes in as it is — no clamp.
+  const check = validateEntry(body, nowMs(), { admin: guarded.isOwner });
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }

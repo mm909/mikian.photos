@@ -107,9 +107,12 @@ export const LATE_LOGS_THROUGH = pacificDay(LOG_CLOSE_MS - 1);
 export const LATE_LOGS_TAG = fmtDay(LATE_LOGS_THROUGH).toUpperCase();
 
 /* "Rowtember #7" / "October #7" — the title a row gets when none is typed,
- * numbered by how many rows the rower will then have. */
-export function defaultRowTitle(n: number): string {
-  return `${MONTH_NAME} #${n}`;
+ * numbered by how many rows the rower will then have. Named for the month
+ * of the row, which is this one unless given (rollover review, 2026-09-28:
+ * a Sep 30 row filed on Oct 1 is last month's row and is counted there). */
+export function defaultRowTitle(n: number, m: Month = MONTH): string {
+  const name = m.month === 9 ? "Rowtember" : m.label.split(" ")[0];
+  return `${name} #${n}`;
 }
 /* Every default title the site ever handed out, so the log form can swap a
  * stale one for the recomputed default without touching a typed title. */
@@ -369,20 +372,37 @@ export function clampDay(day: string): string {
   return day < FIRST_DAY ? FIRST_DAY : day > LAST_DAY ? LAST_DAY : day;
 }
 
+/* THE EARLIEST DAY A PICKER OFFERS (rollover review, 2026-09-28): last
+ * month's 1st while last month is still inside its grace days, so a row
+ * from the 30th can be filed on the 1st; this month's 1st otherwise. Read
+ * off the clock given, not the process month, so a tab left open across
+ * the boundary re-derives it. The server's rule is validateEntry below. */
+export function earliestLoggableDay(atMs = nowMs()): string {
+  const m = monthOf(atMs);
+  const prev = prevMonth(m);
+  return prev.key >= FIRST_MONTH_KEY && atMs < prev.logCloseMs ? prev.firstDay : m.firstDay;
+}
+
+/* The first day there was a row to log. */
+const FIRST_LOGGABLE_DAY = `${FIRST_MONTH_KEY}-01`;
+
 /* Validate a raw submission. The clock is injected for testability.
- * `admin` lifts only the TIMING gates — the window-closed check and the
- * can't-log-the-future check — so challenge admins can submit test rows
- * before Sep 1 (and moderate after close). Day bounds (Sep 1–30) and every
- * physical check (meters, time, split sanity) still apply to everyone. */
+ * `admin` lifts the TIMING gates — the can't-log-the-future check and the
+ * day floor, which drops back to the first month there was — so challenge
+ * admins can submit test rows and correct any month's row after its grace
+ * days. Every physical check (meters, time, split sanity) still applies to
+ * everyone.
+ *
+ * THE MONTH IS THE REQUEST'S, not the process's (rollover review,
+ * 2026-09-28): a warm instance born in September must take an Oct 1 row,
+ * so the write path reads the month off `atMs` rather than MONTH. */
 export function validateEntry(
   body: Record<string, unknown>,
   atMs: number,
   opts?: { admin?: boolean },
 ): EntryCheck {
   const admin = opts?.admin === true;
-  if (!admin && atMs >= LOG_CLOSE_MS) {
-    return { ok: false, error: `Logging for ${MONTH.label} has closed.` };
-  }
+  const M = monthOf(atMs);
 
   const day = typeof body.day === "string" ? body.day.trim() : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
@@ -390,12 +410,13 @@ export function validateEntry(
   }
   /* This month, or LAST month inside its grace days (owner, 2026-09-24:
    * the months run on; a row from the 30th logged on the 1st is still
-   * last month's row). */
-  const prev = prevMonth(MONTH);
-  const inThis = day >= FIRST_DAY && day <= LAST_DAY;
+   * last month's row). An admin reaches back to the first month. */
+  const prev = prevMonth(M);
+  const inThis = day >= M.firstDay && day <= M.lastDay;
   const inPrev = prev.key >= FIRST_MONTH_KEY && day >= prev.firstDay && day <= prev.lastDay && atMs < prev.logCloseMs;
-  if (!inThis && !inPrev) {
-    return { ok: false, error: `That day is outside ${MONTH.label} — log a row from this month.` };
+  const adminReach = admin && day >= FIRST_LOGGABLE_DAY && day <= M.lastDay;
+  if (!inThis && !inPrev && !adminReach) {
+    return { ok: false, error: `That day is outside ${M.label} — log a row from this month.` };
   }
   // Past days are fine, the future is not (owner call, 2026-09-05): today
   // means the Pacific day, which is what the form offers as its latest

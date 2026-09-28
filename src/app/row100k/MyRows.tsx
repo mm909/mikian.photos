@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FIRST_DAY,
   TITLE_MAX,
   clampDay,
+  earliestLoggableDay,
   fmtDay,
   nowMs,
   pacificDay,
@@ -319,7 +319,9 @@ export function MyRows({
                         <input
                           type="date"
                           value={draft.day}
-                          min={FIRST_DAY}
+                          /* Last month's 1st inside its grace days, this
+                             month's 1st after (rollover review, 2026-09-28). */
+                          min={earliestLoggableDay()}
                           /* The server refuses a future day (Pacific today is
                              the line), so the picker stops there too. */
                           max={clampDay(pacificDay(nowMs()))}
