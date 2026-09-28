@@ -128,4 +128,11 @@ export const frontCss = `
 /* THE LOG FORM under the cells bar (LogRow, which carries its own flat
  * panel): the bar already ends on a 2px rule, so the seam draws none. */
 .row100k .front-form .front-log{margin-top:6px;border-top:none;padding-top:0}
+
+/* THE PREVIOUS MONTH (2026-09-28, the October rollover): while this month
+ * has no rows, one gray mono line under the top fives goes to the final
+ * standings of the month that closed. Water on hover, like the numbers. */
+.row100k .front-prev{margin:22px 0 0;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}
+.row100k .front-prev a{color:inherit;text-decoration:none;transition:color 160ms ease}
+.row100k .front-prev a:hover{color:var(--water)}
 `;

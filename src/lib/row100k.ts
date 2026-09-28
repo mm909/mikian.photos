@@ -885,9 +885,12 @@ export function fmtPaceTag(meters: number, seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/* The two named rungs wear the month's name (2026-09-28, the October
+ * rollover): "Rowtember Participant" in September, "October Participant"
+ * after — MONTH_NAME, defined above. Nothing keys on the literal. */
 export const TIERS = [
-  { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: "Rowtember Participant" },
-  { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: "Rowtember Athlete" },
+  { meters: 10_000, key: "t10", label: "10K", rarity: "common", title: `${MONTH_NAME} Participant` },
+  { meters: 50_000, key: "t50", label: "50K", rarity: "rare", title: `${MONTH_NAME} Athlete` },
   { meters: 100_000, key: "t100", label: "100K", rarity: "epic", title: "The 100K Club" },
   { meters: 250_000, key: "t250", label: ".25M", rarity: "legend", title: ".25M" },
   /* ELITE, the top rung (owner, 2026-09-11). It lands exactly on

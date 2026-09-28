@@ -15,7 +15,9 @@ type Row = { rowerNumber: number; size: string; meters: number; outcome: "free" 
 export function SettlePanel({ inProduction }: { inProduction: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [out, setOut] = useState<{ dryRun: boolean; free: number; owed: number; results: Row[] } | null>(null);
+  /* `label` is the month the route settled ("September 2026") — the
+   * previous month by default since 2026-09-28. */
+  const [out, setOut] = useState<{ dryRun: boolean; label: string; free: number; owed: number; results: Row[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const run = async (dryRun: boolean) => {
@@ -29,7 +31,7 @@ export function SettlePanel({ inProduction }: { inProduction: boolean }) {
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string } & Partial<NonNullable<typeof out>>;
       if (res.ok && data.ok) {
-        setOut({ dryRun: !!data.dryRun, free: data.free ?? 0, owed: data.owed ?? 0, results: data.results ?? [] });
+        setOut({ dryRun: !!data.dryRun, label: data.label ?? "", free: data.free ?? 0, owed: data.owed ?? 0, results: data.results ?? [] });
         if (!dryRun) router.refresh();
       } else setError(data.error ?? "Couldn't settle.");
     } catch {
@@ -62,8 +64,8 @@ export function SettlePanel({ inProduction }: { inProduction: boolean }) {
       {out && (
         <>
           <p className="sh-buy-note" style={{ marginTop: 16 }}>
-            {out.dryRun ? "DRY RUN — " : "SETTLED — "}
-            {out.free} FREE · {out.owed} OWE ${SHIRT_PRICE_USD}
+            {out.dryRun ? "DRY RUN" : "SETTLED"}
+            {out.label ? ` · ${out.label.toUpperCase()}` : ""} — {out.free} FREE · {out.owed} OWE ${SHIRT_PRICE_USD}
           </p>
           {out.results.length > 0 && (
             <table className="board">

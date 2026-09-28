@@ -23,6 +23,7 @@ import {
   defaultRowTitle,
 } from "@/lib/row100k";
 import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { monthsThrough, prevMonth } from "@/lib/rowPeriod";
 import { activeBlackout } from "@/lib/blackout";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
 import { clampDay, pacificDay } from "@/lib/row100k";
@@ -50,6 +51,7 @@ import {
 import { Landing } from "./landing/Landing";
 import { loadLanding } from "./landing/data";
 import { parseLand } from "./landing/view";
+import { recordsHref } from "./records/recordsUrl";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -324,6 +326,12 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
   const topMen = onBoard.filter((r) => r.division === "M").slice(0, FRONT_TOP);
   const topWomen = onBoard.filter((r) => r.division === "F").slice(0, FRONT_TOP);
 
+  // THE MONTH THAT JUST CLOSED (2026-09-28, the October rollover): on the
+  // 1st, before anyone has logged, the top fives are empty, so one line
+  // under them goes to the previous month's final standings. Gone with
+  // the first row of the month; never in the first month there was.
+  const prevFinal = boards.community.sessions === 0 && monthsThrough(nowMs).length > 1 ? prevMonth(MONTH) : null;
+
   // The latest row: the board row tells us the name and whether the rower
   // is blacked out; the row's own meters (and its split) are printed only
   // when they are not — a split is a ratio of two hidden numbers, but a
@@ -558,6 +566,11 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
               <TopRows label="Men" rows={topMen} />
               <TopRows label="Women" rows={topWomen} />
             </div>
+          )}
+          {prevFinal && (
+            <p className="front-prev mono">
+              <a href={recordsHref({ key: "total", m: prevFinal.key }, MONTH.key)}>{prevFinal.label} · final standings →</a>
+            </p>
           )}
         </div>
       </section>
