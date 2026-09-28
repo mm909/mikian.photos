@@ -156,6 +156,8 @@ export type DayChart = {
   rolling: number[];
   weekend: boolean[];
   yMax: number;
+  /* "SEP" — the day-1 tick prints it */
+  short: string;
   take: string;
 };
 export type DayYou = { dots: { day: number; meters: number }[] };
@@ -166,6 +168,8 @@ export type DriftChart = {
   weekly: { x: number; med: number; sd: number }[];
   yr: number;
   days: number;
+  /* "SEP" — the day-1 tick prints it */
+  short: string;
   corner: string;
   take: string;
 };
@@ -181,6 +185,10 @@ export type LadderYou = { p: (number | null)[]; note: string | null };
 /* Chart 11 — cumulative meters fan. */
 export type FanChart = {
   days: number;
+  /* days in the month — the axis the projection runs out to */
+  span: number;
+  /* "SEP" — the day-1 tick prints it */
+  short: string;
   p10: number[];
   p25: number[];
   p50: number[];
@@ -250,6 +258,10 @@ export type Model = {
   sessions: number;
   rowers: number;
   day: number;
+  /* The month the page is about (THE MONTHS, 2026-09-28): its length and
+   * the tags the eyebrow, the note and the forecast table print —
+   * "September 2026", "SEP", "Sep 30". */
+  month: { key: string; label: string; short: string; days: number; last: string };
   /* the viewer's own headline, or null when signed out / not joined */
   you: { rowerNumber: number; sessions: number } | null;
   /* how many of the highest totals are kept off the per-rower charts: three

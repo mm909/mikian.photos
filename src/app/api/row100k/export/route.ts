@@ -5,12 +5,14 @@ import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
   CHALLENGE_DEMO,
+  MONTH,
   fmtDuration,
   fmtRowerNumber,
   fmtSplit,
   isRow100kAdmin,
   pacificDay,
 } from "@/lib/row100k";
+import { FIRST_MONTH_KEY, monthFromKey, type Month } from "@/lib/rowPeriod";
 import { llmExport } from "@/app/row100k/llmExport";
 
 export const runtime = "nodejs";
@@ -25,6 +27,9 @@ export const dynamic = "force-dynamic";
  *   GET /api/row100k/export?rower=19             that rower's rows only
  *   GET /api/row100k/export?kind=llm[&rower=19]  JSON for a model to read
  *                                                (row100k/llmExport.ts)
+ *   GET /api/row100k/export?kind=llm&m=2026-09   that month's file; this
+ *                                                month without m (THE
+ *                                                MONTHS, 2026-09-28; llm only)
  *
  * Real numbers always — this is the admin truth table, so the blackout
  * never touches it; that is also why nothing here is public. Namespaced by
@@ -282,15 +287,19 @@ function fileName(kind: "rows" | "rowers", rower: number | null): string {
 /* ----------------------------------------------------------------- llm */
 
 /* kind=llm (owner, 2026-09-16: "export my rows data to a json for eval from
- * an LLM"): rowtember-rower-019-llm.json for one rower, pretty-printed so
- * it pastes clean into a chat; rowtember-field-llm.json for everyone,
- * compact, because a hundred rowers indented ran to ~2 MB (owner review,
- * 2026-09-16) and that file is for attaching, not pasting. */
-async function llmResponse(rower: number | null): Promise<NextResponse> {
+ * an LLM"): rowtember-rower-019-llm-2026-09.json for one rower,
+ * pretty-printed so it pastes clean into a chat;
+ * rowtember-field-llm-2026-09.json for everyone, compact, because a
+ * hundred rowers indented ran to ~2 MB (owner review, 2026-09-16) and that
+ * file is for attaching, not pasting. The month is in the name since the
+ * file is one month (2026-09-28). */
+async function llmResponse(rower: number | null, month: Month): Promise<NextResponse> {
   const demo = CHALLENGE === CHALLENGE_DEMO ? "-demo" : "";
-  const data = rower === null ? await llmExport(null) : await llmExport(rower);
+  const data = rower === null ? await llmExport(null, month) : await llmExport(rower, month);
   if (!data) return bad("No such rower.", 404);
-  const name = rower ? `rowtember-rower-${fmtRowerNumber(rower)}-llm${demo}.json` : `rowtember-field-llm${demo}.json`;
+  const name = rower
+    ? `rowtember-rower-${fmtRowerNumber(rower)}-llm-${month.key}${demo}.json`
+    : `rowtember-field-llm-${month.key}${demo}.json`;
   const body = rower === null ? JSON.stringify(data) : JSON.stringify(data, null, 2);
   return new NextResponse(body, {
     status: 200,
@@ -318,8 +327,19 @@ export async function GET(req: Request) {
     rower = n;
   }
 
+  /* ?m=2026-09: a month from the first one through this one, llm only —
+   * the CSVs stay the whole challenge. */
+  const mRaw = url.searchParams.get("m");
+  let month: Month = MONTH;
+  if (mRaw !== null && mRaw !== "") {
+    if (kind !== "llm") return bad("m is for kind=llm.");
+    const m = monthFromKey(mRaw.trim());
+    if (!m || m.key < FIRST_MONTH_KEY || m.key > MONTH.key) return bad("m is a month like 2026-09, the first one through this one.");
+    month = m;
+  }
+
   try {
-    if (kind === "llm") return await llmResponse(rower);
+    if (kind === "llm") return await llmResponse(rower, month);
     const data = await load(rower);
     if (rower && data.participants.length === 0) return bad("No such rower.", 404);
     const lines = kind === "rows" ? rowsLines(data) : rowersLines(data);

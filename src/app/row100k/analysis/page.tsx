@@ -4,7 +4,7 @@ import { DEFAULT_POLICY, policyMax, type BlackoutPolicy } from "@/lib/blackoutRu
 import { siteSettings } from "@/lib/rowSettings";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
-import { CHALLENGE, daysElapsed, nowMs } from "@/lib/row100k";
+import { CHALLENGE, MONTH, daysElapsed, nowMs } from "@/lib/row100k";
 import { buildMonths, type MonthsModel } from "./months";
 import { buildActive, type ActiveModel } from "./active";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -19,7 +19,7 @@ import { notFound } from "next/navigation";
 import { isRow100kAdmin } from "@/lib/row100k";
 
 export const metadata: Metadata = {
-  title: "The numbers — Rowtember 2026",
+  title: `The numbers — ${MONTH.label}`,
   description:
     "Distributions, standard deviations and correlations across every Rowtember session — anonymised for everyone, with your own rows overlaid when you sign in.",
   // Not ready for the public yet (owner call, 2026-09-05): reachable from
@@ -110,10 +110,10 @@ export default async function AnalysisPage({ searchParams }: { searchParams?: { 
   const today = daysElapsed();
   let model: Model;
   try {
-    model = buildModel(raw.participants, raw.entries, viewer, today, hideTop, admin, policy);
+    model = buildModel(raw.participants, raw.entries, viewer, today, hideTop, admin, policy, MONTH);
   } catch (err) {
     console.error("row100k/analysis: buildModel failed", err);
-    model = buildModel([], [], { kind: "anon" }, today, hideTop, admin, policy);
+    model = buildModel([], [], { kind: "anon" }, today, hideTop, admin, policy, MONTH);
   }
   const kind: ViewerKind =
     viewer.kind === "joined" ? (model.you && model.you.sessions > 0 ? "ready" : "empty") : viewer.kind;

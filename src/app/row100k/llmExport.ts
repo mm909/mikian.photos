@@ -1,16 +1,10 @@
 import { db } from "@/lib/db";
 import {
   CHALLENGE,
-  FIRST_DAY,
   GOAL_METERS,
-  LAST_DAY,
-  LATE_LOGS_THROUGH,
   MONTH,
-  MONTH_DAYS,
   TIERS,
-  WEEKS,
   computeBoards,
-  daysElapsed,
   fmtDay,
   fmtDuration,
   fmtMeters,
@@ -25,6 +19,7 @@ import {
   type Boards,
   type RecordRow,
 } from "@/lib/row100k";
+import { inPeriod, weeksOf, type Month } from "@/lib/rowPeriod";
 import { projectRower } from "./analysis/compute";
 import { listRacers, type Racer } from "./racedayData";
 import { resolvedRace } from "./racedaySettings";
@@ -38,6 +33,12 @@ import { resolvedRace } from "./racedaySettings";
  * truth table, the blackout never touches it — which is why only the
  * admin-only export route (api/row100k/export?kind=llm) calls it. No email,
  * no instagram: a model does not need them.
+ *
+ * ONE MONTH per file (THE MONTHS, 2026-09-28): the rows are cut to the
+ * month before anything is computed, so the totals, records and boards
+ * agree with the byDay and byWeek that key on it and with the guide's
+ * "This file covers". This month unless the route asks for another
+ * (api/row100k/export?kind=llm&m=YYYY-MM).
  *
  * buildRowerExport is pure over what it is handed, so the shape can be
  * checked without the database; llmExport is the one loader around it. */
@@ -325,11 +326,20 @@ function weekdayOf(day: string): string {
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? "";
 }
 
-/* 1..MONTH_DAYS for a day of this month, 0 for anything else. */
-function dayNum(day: string): number {
-  if (day.slice(0, 7) !== FIRST_DAY.slice(0, 7)) return 0;
+/* 1..days for a day of the month given, 0 for anything else. */
+function dayNum(day: string, m: Month): number {
+  if (day.slice(0, 7) !== m.key) return 0;
   const n = Number(day.slice(8, 10));
-  return n >= 1 && n <= MONTH_DAYS ? n : 0;
+  return n >= 1 && n <= m.days ? n : 0;
+}
+
+/* Today's day number in the month given: 1 before it, its length once it
+ * is over — daysElapsed() for any month, not only the clock's. */
+function dayOfMonth(now: number, m: Month): number {
+  const west = pacificDay(now);
+  if (west < m.firstDay) return 1;
+  if (west > m.lastDay) return m.days;
+  return Math.min(m.days, Math.max(1, Number(west.slice(8, 10))));
 }
 
 const avgSplit = (meters: number, seconds: number): number | null =>
@@ -379,51 +389,55 @@ export function fieldStats(boards: Boards): LlmFieldStats {
   };
 }
 
-function challengeBlock(now: number): LlmRowerExport["challenge"] {
-  const dayOfChallenge = daysElapsed(now);
+function challengeBlock(now: number, m: Month): LlmRowerExport["challenge"] {
+  const dayOfChallenge = dayOfMonth(now, m);
   return {
-    name: `Rowtember — ${MONTH.label}`,
-    firstDay: FIRST_DAY,
-    lastDay: LAST_DAY,
+    name: `Rowtember — ${m.label}`,
+    firstDay: m.firstDay,
+    lastDay: m.lastDay,
     goalMeters: GOAL_METERS,
     tiers: TIERS.map((t) => ({ meters: t.meters, label: t.label, title: t.title })),
     today: pacificDay(now),
     dayOfChallenge,
-    daysLeft: MONTH_DAYS - dayOfChallenge,
-    lateLogsThrough: LATE_LOGS_THROUGH,
+    daysLeft: m.days - dayOfChallenge,
+    lateLogsThrough: pacificDay(m.logCloseMs - 1),
   };
 }
 
-const UNITS: Record<string, string> = {
-  meters: "metres rowed on the erg (the machine counts them)",
-  seconds: "elapsed time in seconds",
-  timeFormatted: "the same time as m:ss or h:mm:ss",
-  splitSecondsPer500m: "average pace as seconds per 500 metres; LOWER is faster; 120 = 2:00.0/500m",
-  splitFormatted: "the same split as m:ss.t per 500 m",
-  metersPerMinute: "metres per minute of rowing",
-  day: "calendar day, YYYY-MM-DD, Pacific time",
-  dayOfChallenge: `1 on ${fmtDay(FIRST_DAY)} ... ${MONTH_DAYS} on ${fmtDay(LAST_DAY)}; today's number`,
-  daysLeft: `challenge days after today (${MONTH_DAYS} minus dayOfChallenge)`,
-  loggedAtPacific: "when the row was entered on the site, Pacific time (not when it was rowed)",
-  hourLoggedPacific: "hour of day 0-23 the row was entered, Pacific",
-  place: "1 = best; of = how many rowers are on that board",
-  percentileOverall: "0-100, share of the logged field this rower is ahead of on total metres (leader = 100)",
-  goalPct: "percent of the 100,000 m goal, uncapped",
-  "records[].valueSeconds": "fastest5k / fastest10k boards: the time normalized to the board distance, seconds",
-  "records[].valueMeters": "longestRow / biggestDay boards: metres",
-  "byDay[].status":
-    "rowed | rest | today | future; today = the current day with nothing logged yet, NOT a rest day until it ends (daysRested and currentStreakDays leave it out); future = has not happened",
-  "byWeek[].daysElapsedInWeek": "days of that week up to and including today; 0 = the week has not started; complete = every day of it is over",
-  "byWeek[].metersPerElapsedDay": "meters / daysElapsedInWeek — compare THIS across weeks, not meters; the current week and the two-day finish are shorter, not weaker",
-  "trends.splitTrend":
-    "the sessions logged so far split in two by COUNT (not by calendar date), each half metre-weighted; splitChangeSecondsPer500m = second half minus first, POSITIVE = slower; check averageSessionMeters in each half first, longer easy rows read as slower without any loss of fitness",
-  "raceDay.racing": "true = signed up as a racer and not withdrawn: pulls the 5,000 m and gets a wave; a spectator signup has signedUp true and racing false, attends only, needs no race plan",
-  "raceDay.role": "racer | spectator | null (no signup)",
-  "raceDay.status": "to_come | finished | dnf | null (no signup)",
-  "raceDay.seed5kSeconds":
-    "the fastest average pace over any single row of at least 5,000 m this month, normalized to 5,000 m, whether or not it was an all-out effort; a floor for race pace, not a tested 5k",
-  tenths: "race result in tenths of a second (11323 = 18:52.3)",
-};
+/* Two of the units say the month's first, last and length, so the table
+ * is built for the month the file covers. */
+function unitsFor(m: Month): Record<string, string> {
+  return {
+    meters: "metres rowed on the erg (the machine counts them)",
+    seconds: "elapsed time in seconds",
+    timeFormatted: "the same time as m:ss or h:mm:ss",
+    splitSecondsPer500m: "average pace as seconds per 500 metres; LOWER is faster; 120 = 2:00.0/500m",
+    splitFormatted: "the same split as m:ss.t per 500 m",
+    metersPerMinute: "metres per minute of rowing",
+    day: "calendar day, YYYY-MM-DD, Pacific time",
+    dayOfChallenge: `1 on ${fmtDay(m.firstDay)} ... ${m.days} on ${fmtDay(m.lastDay)}; today's number`,
+    daysLeft: `challenge days after today (${m.days} minus dayOfChallenge)`,
+    loggedAtPacific: "when the row was entered on the site, Pacific time (not when it was rowed)",
+    hourLoggedPacific: "hour of day 0-23 the row was entered, Pacific",
+    place: "1 = best; of = how many rowers are on that board",
+    percentileOverall: "0-100, share of the logged field this rower is ahead of on total metres (leader = 100)",
+    goalPct: "percent of the 100,000 m goal, uncapped",
+    "records[].valueSeconds": "fastest5k / fastest10k boards: the time normalized to the board distance, seconds",
+    "records[].valueMeters": "longestRow / biggestDay boards: metres",
+    "byDay[].status":
+      "rowed | rest | today | future; today = the current day with nothing logged yet, NOT a rest day until it ends (daysRested and currentStreakDays leave it out); future = has not happened",
+    "byWeek[].daysElapsedInWeek": "days of that week up to and including today; 0 = the week has not started; complete = every day of it is over",
+    "byWeek[].metersPerElapsedDay": "meters / daysElapsedInWeek — compare THIS across weeks, not meters; the current week and the two-day finish are shorter, not weaker",
+    "trends.splitTrend":
+      "the sessions logged so far split in two by COUNT (not by calendar date), each half metre-weighted; splitChangeSecondsPer500m = second half minus first, POSITIVE = slower; check averageSessionMeters in each half first, longer easy rows read as slower without any loss of fitness",
+    "raceDay.racing": "true = signed up as a racer and not withdrawn: pulls the 5,000 m and gets a wave; a spectator signup has signedUp true and racing false, attends only, needs no race plan",
+    "raceDay.role": "racer | spectator | null (no signup)",
+    "raceDay.status": "to_come | finished | dnf | null (no signup)",
+    "raceDay.seed5kSeconds":
+      "the fastest average pace over any single row of at least 5,000 m this month, normalized to 5,000 m, whether or not it was an all-out effort; a floor for race pace, not a tested 5k",
+    tenths: "race result in tenths of a second (11323 = 18:52.3)",
+  };
+}
 
 function records(boards: Boards, participantId: string, division: string): LlmRecord[] {
   const out: LlmRecord[] = [];
@@ -473,22 +487,22 @@ function records(boards: Boards, participantId: string, division: string): LlmRe
 
 /* ----------------------------------------------------------------- guide */
 
-function guideText(scope: "rower" | "field", raceDay: string): string {
+function guideText(scope: "rower" | "field", raceDay: string, m: Month): string {
   const who =
     scope === "rower"
       ? "This JSON describes ONE rower in the challenge."
       : "This JSON describes EVERY rower in the challenge, one object each under `rowers`; the field-wide figures sit once at the top.";
   return [
-    `Rowtember is a community rowing-machine (erg) challenge with a fresh board every month: row 100,000 metres between ${fmtDay(FIRST_DAY)} and ${fmtDay(LAST_DAY)}, ${MONTH.year}, logging each session on a shared site. This file covers ${MONTH.label}. Tiers are reached at 10K, 50K, 100K, 250K and 500K metres.`,
+    `Rowtember is a community rowing-machine (erg) challenge with a fresh board every month: row 100,000 metres between ${fmtDay(m.firstDay)} and ${fmtDay(m.lastDay)}, ${m.year}, logging each session on a shared site. This file covers ${m.label}. Tiers are reached at 10K, 50K, 100K, 250K and 500K metres.`,
     who,
     "A split is the standard rowing pace: seconds per 500 metres, and LOWER is faster (2:00.0 = 120 s). Every key carries its unit in its name; see `units`.",
     "All times and distances are self-reported on an honour system, entered from the machine's monitor after the session, so treat outliers with some doubt. Session `title` and `note` are the rower's own words. A `prorated` record time is a pace conversion from a piece more than 2% longer than the board distance, not a rowed test piece.",
     "The field is mostly recreational rowers rowing at home or in a gym; a handful are club-level or better. No age, sex beyond division (M/F/X), weight, height, training history or health data is available — do not assume any.",
     scope === "rower"
-      ? "`byDay` has all " + MONTH_DAYS + " days of " + MONTH.label + ". Status `future` means the day has not happened yet and is not a rest day; status `today` means the current day has nothing logged YET — it is not a rest day until it ends, and `daysRested` and `currentStreakDays` leave it out."
+      ? "`byDay` has all " + m.days + " days of " + m.label + ". Status `future` means the day has not happened yet and is not a rest day; status `today` means the current day has nothing logged YET — it is not a rest day until it ends, and `daysRested` and `currentStreakDays` leave it out."
       : "There is no `byDay` in this file (it kept the field file small): `sessions` carries every row with its day and `byWeek` the weekly totals. A day of the month before `today` with no session was a rest day; `today` itself is still open, so nothing logged on it yet is not a rest day.",
-    `\`dayOfChallenge\` is today's number. Late logging of ${MONTH.label} rows is allowed through ${fmtDay(LATE_LOGS_THROUGH)}, so the latest day or two may be incomplete.`,
-    `\`byWeek\` cuts ${MONTH.label} into calendar weeks of seven days from the 1st; the short last one is the finish. \`daysElapsedInWeek\` and \`complete\` say how much of each week has happened, so compare \`metersPerElapsedDay\` across weeks, not \`meters\`: the current week and the short finish are shorter, not volume drops.`,
+    `\`dayOfChallenge\` is today's number. Late logging of ${m.label} rows is allowed through ${fmtDay(pacificDay(m.logCloseMs - 1))}, so the latest day or two may be incomplete.`,
+    `\`byWeek\` cuts ${m.label} into calendar weeks of seven days from the 1st; the short last one is the finish. \`daysElapsedInWeek\` and \`complete\` say how much of each week has happened, so compare \`metersPerElapsedDay\` across weeks, not \`meters\`: the current week and the short finish are shorter, not volume drops.`,
     "`trends.splitTrend` splits the sessions logged so far in two by COUNT, not by calendar date, and averages each half metre-weighted; `splitChangeSecondsPer500m` is the second half minus the first, so POSITIVE means slower. Check `averageSessionMeters` in each half before reading a change as fitness: longer easy rows in the second half read as slower.",
     "`projectedFinalMeters` blends the last seven days' rate (60%) with the month-to-date rate (40%) and runs it out over the remaining days; a rower idle seven or more days projects flat; it is never below the metres already logged.",
     `A timed 5,000 m race is held on ${raceDay}. \`raceDay.racing\` says whether this rower pulls it (role \`racer\`, not withdrawn); a \`spectator\` signup attends only, gets no wave and needs no race plan. \`status\` is to_come, finished or dnf. \`seed5kSeconds\` is the fastest average pace over any single row of at least 5,000 m this month, normalized to 5,000 m, whether or not it was an all-out effort — an easy 20k counts, and \`seed5kProrated\` true means that row was longer than 5,100 m. Treat the seed as a floor for race pace, not a tested 5k, and read that session's \`title\`, \`note\` and the record's \`pieceMeters\` before building target splits on it.`,
@@ -496,9 +510,9 @@ function guideText(scope: "rower" | "field", raceDay: string): string {
   ].join(" ");
 }
 
-function promptText(scope: "rower" | "field", raceDay: string): string {
+function promptText(scope: "rower" | "field", raceDay: string, m: Month): string {
   return scope === "rower"
-    ? `You are an experienced rowing coach. Below is a JSON export of one rower's ${MONTH.label} on the erg: totals, standing in the field, every logged session, daily and weekly volume, trends, a projection and their race-day signup. Read the \`guide\` first. Then give me (1) your read of this rower's level — beginner, recreational, club or competitive — with the numbers you based it on, (2) two or three strengths, (3) any risks you see in how they are training, and (4) a two-week training plan from today toward the 100,000 m goal and, if \`raceDay.racing\` is true, the 5,000 m race on ${raceDay}: sessions per week, distances, target splits per 500 m, and rest days. Be conservative, concrete and brief; use only the data given.`
+    ? `You are an experienced rowing coach. Below is a JSON export of one rower's ${m.label} on the erg: totals, standing in the field, every logged session, daily and weekly volume, trends, a projection and their race-day signup. Read the \`guide\` first. Then give me (1) your read of this rower's level — beginner, recreational, club or competitive — with the numbers you based it on, (2) two or three strengths, (3) any risks you see in how they are training, and (4) a two-week training plan from today toward the 100,000 m goal and, if \`raceDay.racing\` is true, the 5,000 m race on ${raceDay}: sessions per week, distances, target splits per 500 m, and rest days. Be conservative, concrete and brief; use only the data given.`
     : `You are an experienced rowing coach. Below is a JSON export of an entire erg challenge field: one object per rower with their totals, standing, sessions, trends and projection, plus field-wide figures at the top. Read the \`guide\` first. Then give me, for each rower or for the rowers I name, a short read of their level (beginner / recreational / club / competitive), the main risk you see, and one concrete recommendation for the next two weeks toward the 100,000 m goal and, for rowers whose \`raceDay.racing\` is true, the 5,000 m race on ${raceDay}. Be conservative and brief; use only the data given.`;
 }
 
@@ -513,10 +527,13 @@ export function buildRowerExport(input: {
   field: LlmFieldStats;
   race?: ExportRace | null;
   now: number;
+  /* The month the file covers; this one unless asked for another. */
+  month?: Month;
 }): LlmRowerExport {
   const { participant: p, boards, field, race } = input;
+  const m = input.month ?? MONTH;
   const today = pacificDay(input.now);
-  const dayOfChallenge = daysElapsed(input.now);
+  const dayOfChallenge = dayOfMonth(input.now, m);
 
   const entries = [...input.entries].sort(
     (a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.createdAt.getTime() - b.createdAt.getTime()),
@@ -551,7 +568,7 @@ export function buildRowerExport(input: {
   /* Every day of the month. */
   const dayAcc = new Map<number, { meters: number; sessions: number; seconds: number }>();
   for (const e of entries) {
-    const n = dayNum(e.day);
+    const n = dayNum(e.day, m);
     if (!n) continue;
     const a = dayAcc.get(n) ?? { meters: 0, sessions: 0, seconds: 0 };
     a.meters += e.meters;
@@ -559,9 +576,9 @@ export function buildRowerExport(input: {
     a.seconds += e.seconds;
     dayAcc.set(n, a);
   }
-  const byDay: LlmDay[] = Array.from({ length: MONTH_DAYS }, (_, i) => {
+  const byDay: LlmDay[] = Array.from({ length: m.days }, (_, i) => {
     const n = i + 1;
-    const day = `${FIRST_DAY.slice(0, 8)}${String(n).padStart(2, "0")}`;
+    const day = `${m.key}-${String(n).padStart(2, "0")}`;
     const a = dayAcc.get(n) ?? { meters: 0, sessions: 0, seconds: 0 };
     return {
       day,
@@ -574,12 +591,12 @@ export function buildRowerExport(input: {
     };
   });
 
-  const byWeek: LlmWeek[] = WEEKS.map((w) => {
+  const byWeek: LlmWeek[] = weeksOf(m).map((w) => {
     const rows = entries.filter((e) => e.day >= w.first && e.day <= w.last);
     const meters = rows.reduce((s, e) => s + e.meters, 0);
     const seconds = rows.reduce((s, e) => s + e.seconds, 0);
-    const daysInWeek = dayNum(w.last) - dayNum(w.first) + 1;
-    const daysElapsedInWeek = Math.min(daysInWeek, Math.max(0, dayOfChallenge - dayNum(w.first) + 1));
+    const daysInWeek = dayNum(w.last, m) - dayNum(w.first, m) + 1;
+    const daysElapsedInWeek = Math.min(daysInWeek, Math.max(0, dayOfChallenge - dayNum(w.first, m) + 1));
     return {
       week: w.label,
       from: w.first,
@@ -602,7 +619,7 @@ export function buildRowerExport(input: {
   const daysRowed = new Set(entries.map((e) => e.day)).size;
   let longestStreak = 0;
   let run = 0;
-  for (let n = 1; n <= MONTH_DAYS; n++) {
+  for (let n = 1; n <= m.days; n++) {
     run = dayAcc.has(n) ? run + 1 : 0;
     if (run > longestStreak) longestStreak = run;
   }
@@ -702,8 +719,9 @@ export function buildRowerExport(input: {
         b.rows > 0 && b.averageSplitSecondsPer500m !== null && b.averageSplitFormatted !== null,
     );
   const proj = projectRower(
-    entries.map((e) => ({ day: dayNum(e.day), meters: e.meters })),
+    entries.map((e) => ({ day: dayNum(e.day, m), meters: e.meters })),
     dayOfChallenge,
+    m.days,
   );
   const trends: LlmRowerExport["trends"] = {
     splitTrend,
@@ -767,8 +785,8 @@ export function buildRowerExport(input: {
   return {
     schema: LLM_ROWER_SCHEMA,
     exportedAt: new Date(input.now).toISOString(),
-    units: UNITS,
-    challenge: challengeBlock(input.now),
+    units: unitsFor(m),
+    challenge: challengeBlock(input.now, m),
     rower: {
       rowerNumber: p.rowerNumber,
       rowerNumberFormatted: fmtRowerNumber(p.rowerNumber),
@@ -784,8 +802,8 @@ export function buildRowerExport(input: {
     trends,
     fieldContext,
     raceDay,
-    guide: guideText("rower", raceLabel),
-    suggestedPrompt: promptText("rower", raceLabel),
+    guide: guideText("rower", raceLabel, m),
+    suggestedPrompt: promptText("rower", raceLabel, m),
   };
 }
 
@@ -850,11 +868,14 @@ async function loadRace(): Promise<{ day: string; meters: number; racers: Racer[
   }
 }
 
-export async function llmExport(rowerNumber: number): Promise<LlmRowerExport | null>;
-export async function llmExport(rowerNumber: null): Promise<LlmFieldExport>;
-export async function llmExport(rowerNumber: number | null): Promise<LlmRowerExport | LlmFieldExport | null> {
+export async function llmExport(rowerNumber: number, month?: Month): Promise<LlmRowerExport | null>;
+export async function llmExport(rowerNumber: null, month?: Month): Promise<LlmFieldExport>;
+export async function llmExport(rowerNumber: number | null, month: Month = MONTH): Promise<LlmRowerExport | LlmFieldExport | null> {
   const now = nowMs();
-  const [{ participants, entries }, race] = await Promise.all([loadAll(), loadRace()]);
+  const [all, race] = await Promise.all([loadAll(), loadRace()]);
+  /* One month: every figure below is over this month's rows only. */
+  const participants = all.participants;
+  const entries = all.entries.filter((e) => inPeriod(e.day, month));
   const boards = computeBoards(participants, entries, pacificDay(now));
   const field = fieldStats(boards);
 
@@ -875,6 +896,7 @@ export async function llmExport(rowerNumber: number | null): Promise<LlmRowerExp
       field,
       race: race ? { day: race.day, meters: race.meters, signup: signupOf.get(p.id) ?? null } : null,
       now,
+      month,
     });
 
   if (rowerNumber !== null) {
@@ -887,11 +909,11 @@ export async function llmExport(rowerNumber: number | null): Promise<LlmRowerExp
   return {
     schema: LLM_FIELD_SCHEMA,
     exportedAt: new Date(now).toISOString(),
-    units: UNITS,
-    challenge: challengeBlock(now),
+    units: unitsFor(month),
+    challenge: challengeBlock(now, month),
     field,
-    guide: guideText("field", raceLabel),
-    suggestedPrompt: promptText("field", raceLabel),
+    guide: guideText("field", raceLabel, month),
+    suggestedPrompt: promptText("field", raceLabel, month),
     rowers,
   };
 }

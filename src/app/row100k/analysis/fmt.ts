@@ -56,8 +56,6 @@ export function fmtHour(h: number): string {
 
 export const fmtMin = (s: number) => (Number.isFinite(s) ? `${Math.round(s / 60)} min` : "—");
 
-export const fmtDayN = (d: number) => `Sept ${d}`;
-
 /* Case-preserving: the eyebrows are set in mono caps with no CSS transform
  * to rescue a lowercase s, so SESSION pluralises to SESSIONS, not SESSIONs. */
 export const plural = (n: number, one: string, many = one === one.toUpperCase() ? `${one}S` : `${one}s`) =>
