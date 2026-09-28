@@ -54,7 +54,9 @@ export function AnalysisView({
   return (
     <>
       <div className="wrap an-mast">
-        <div className="an-eyebrow">ROWTEMBER 2026 · THE NUMBERS · DAY {m.day} OF 30</div>
+        <div className="an-eyebrow">
+          {m.month.label.toUpperCase()} · THE NUMBERS · DAY {m.day} OF {m.month.days}
+        </div>
         <h1>
           By the <span className="o">numbers</span>
         </h1>
@@ -106,9 +108,9 @@ export function AnalysisView({
       <MonthsSection m={months} />
 
       {/* THE FORECAST (owner ask, 2026-09-16): where everyone ends up on
-        * Sep 30 — the field tiles, the spread of projected finals, then
-        * every rower's own prediction. First on the page, ahead of the
-        * distributions. */}
+        * the month's last day — the field tiles, the spread of projected
+        * finals, then every rower's own prediction. First on the page,
+        * ahead of the distributions. */}
       <Sec s={m.forecast.s} you={you}>
         {m.forecast.dist ? (
           <ChartBox
@@ -121,10 +123,10 @@ export function AnalysisView({
         ) : (
           <Empty what="five rowers with a row logged" />
         )}
-        <ForecastTable f={m.forecast} you={you} />
+        <ForecastTable f={m.forecast} you={you} last={m.month.last} />
         <p className="an-note">
           Projected = today + rate × {m.forecast.daysLeft} days left · rate = 0.6 × last-7-day meters per day + 0.4 × the
-          month&rsquo;s meters per day · idle seven days or more projects flat · the small figure under Sep 30 is the band
+          month&rsquo;s meters per day · idle seven days or more projects flat · the small figure under {m.month.last} is the band
           from the two rates on their own
           {m.forecast.blackout ? " · the lights out rowers print blocks and sit unranked, A to Z, while it is on" : ""}.
         </p>
@@ -274,8 +276,8 @@ function Empty({ what = "a handful of sessions" }: { what?: string }) {
  * Blocks by digit count, the way the standings do it. The viewer's own row
  * carries the blue while the YOU chip is on. Names show only when the
  * model was built for an admin (they are null otherwise, and the column
- * goes with them). */
-function ForecastTable({ f, you }: { f: Forecast; you: boolean }) {
+ * goes with them). `last` heads the projected column: "Sep 30". */
+function ForecastTable({ f, you, last }: { f: Forecast; you: boolean; last: string }) {
   if (!f.rows.length) return <p className="board-empty">Nobody has joined yet — the table fills as rowers do.</p>;
   const named = f.rows.some((r) => r.name !== null);
   const cols = named ? 7 : 6;
@@ -329,7 +331,7 @@ function ForecastTable({ f, you }: { f: Forecast; you: boolean }) {
             <th className="rk">#</th>
             {named && <th>Rower</th>}
             <th className="num">Today</th>
-            <th className="num">Sep 30</th>
+            <th className="num">{last}</th>
             <th className="num">m/day · 7 d</th>
             <th className="num">Idle</th>
             <th>On pace for</th>

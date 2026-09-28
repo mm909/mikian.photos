@@ -869,7 +869,7 @@ export function DaysSvg({ c, you }: { c: DayChart; you: DayYou | null }) {
     else byDay.set(dot.day, [dot.meters]);
   }
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sessions logged per September day with a seven-day rolling mean">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Sessions logged per day of the month with a seven-day rolling mean">
       {c.weekend.map((w, i) =>
         w ? <rect key={i} x={r(L + i * slot)} y={T} width={r(slot)} height={PH} fill={BAND2} /> : null,
       )}
@@ -882,7 +882,7 @@ export function DaysSvg({ c, you }: { c: DayChart; you: DayYou | null }) {
           <rect key={i} x={bx} y={r(y0 - bh)} width={r(barW)} height={r(bh)} fill="none" stroke={FIELD_EDGE} strokeWidth="1" strokeDasharray="2 2" />
         ) : (
           <rect key={i} x={bx} y={r(y0 - bh)} width={r(barW)} height={r(bh)} fill={FIELD}>
-            <title>{`Sept ${i + 1} · ${v} sessions`}</title>
+            <title>{`${c.short} ${i + 1} · ${v} sessions`}</title>
           </rect>
         );
       })}
@@ -899,7 +899,7 @@ export function DaysSvg({ c, you }: { c: DayChart; you: DayYou | null }) {
       <Base />
       {dayTicks(span).map((d) => (
         <Lbl key={d} x={xc(d - 1)} y={H - 8}>
-          {d === 1 ? "SEP 1" : d}
+          {d === 1 ? `${c.short} 1` : d}
         </Lbl>
       ))}
       {you && (
@@ -994,7 +994,7 @@ export function DriftSvg({ c, you }: { c: DriftChart; you: DriftYou | null }) {
       <Base />
       {dayTicks(span).map((d) => (
         <Lbl key={d} x={xd(d)} y={H - 8}>
-          {d === 1 ? "SEP 1" : d}
+          {d === 1 ? `${c.short} 1` : d}
         </Lbl>
       ))}
     </svg>
@@ -1066,7 +1066,7 @@ export function LadderSvg({ c, you }: { c: LadderChart; you: LadderYou | null })
 }
 
 /* ------------------------------------------------------- 12 · forecast */
-/* Projected Sep 30 totals, one per rower, as the same bar frame as the
+/* Projected month-end totals, one per rower, as the same bar frame as the
  * session histogram — thin bins dashed and unlabelled — with the tier
  * thresholds drawn as the fan's dashed goal line, stood upright. The
  * viewer's own projection is the blue dashed line (owner ask, 2026-09-16). */
@@ -1077,7 +1077,7 @@ export function ForecastSvg({ c, you }: { c: ForecastDist; you: ForecastYou | nu
   const y0 = y(0);
   const abbr = (v: number) => fmtK(v).replace(" k", "K");
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Histogram of projected September totals, one per rower, with the tier lines">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Histogram of projected month-end totals, one per rower, with the tier lines">
       <GridY yMax={c.yMax} fmt={(v) => String(Math.round(v))} />
       {c.bins.map((bin, i) => {
         if (bin.n <= 0) return null;
@@ -1131,7 +1131,7 @@ export function ForecastSvg({ c, you }: { c: ForecastDist; you: ForecastYou | nu
 export function FanSvg({ c, you }: { c: FanChart; you: FanYou | null }) {
   const days = c.days;
   if (days < 2 || [c.p10, c.p25, c.p50, c.p75, c.p90].some((s) => s.length !== days)) return null;
-  const span = you?.proj ? 30 : days;
+  const span = you?.proj ? c.span : days;
   const x = (d: number) => L + ((d - 1) / (span - 1)) * PW;
   const youTop = you ? Math.max(...you.cum, you.proj ? you.proj[1][1] : 0) : 0;
   const yMax = niceMax(Math.max(c.p90[days - 1], youTop, 1000));
@@ -1160,7 +1160,7 @@ export function FanSvg({ c, you }: { c: FanChart; you: FanYou | null }) {
           </Lbl>
         </g>
       )}
-      {days < 30 && (
+      {days < c.span && (
         <g>
           <line x1={r(x(days))} x2={r(x(days))} y1={T} y2={r(y0)} stroke={INK} strokeWidth="1" strokeDasharray="2 3" />
           <Lbl x={span > days ? x(days) + 4 : x(days) - 4} y={T + 10} a={span > days ? "start" : "end"} size={9}>
@@ -1191,7 +1191,7 @@ export function FanSvg({ c, you }: { c: FanChart; you: FanYou | null }) {
       <Base />
       {dayTicks(span).map((d) => (
         <Lbl key={d} x={x(d)} y={H - 8}>
-          {d === 1 ? "SEP 1" : d}
+          {d === 1 ? `${c.short} 1` : d}
         </Lbl>
       ))}
     </svg>

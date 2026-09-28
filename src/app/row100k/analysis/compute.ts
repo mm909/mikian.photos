@@ -1,4 +1,5 @@
-import { GOAL_METERS, WEEKS, splitSeconds, tierFor } from "@/lib/row100k";
+import { GOAL_METERS, MONTH, MONTH_DAYS, fmtDay, splitSeconds, tierFor } from "@/lib/row100k";
+import { weeksOf, type Month } from "@/lib/rowPeriod";
 import { DEFAULT_POLICY, digitCount, type BlackoutPolicy } from "@/lib/blackoutRules";
 import {
   circularMean,
@@ -28,7 +29,7 @@ import {
   vonMisesKde,
 } from "@/lib/rowStats";
 import type { RawEntry, RawParticipant } from "./data";
-import { fmtClock, fmtDayN, fmtHour, fmtInt, fmtK, fmtM, fmtMin, fmtP, fmtPct, fmtR, plural, signed } from "./fmt";
+import { fmtClock, fmtHour, fmtInt, fmtK, fmtM, fmtMin, fmtP, fmtPct, fmtR, plural, signed } from "./fmt";
 import type {
   DayChart,
   DayYou,
@@ -96,8 +97,8 @@ export const HIDE_TOP_DEFAULT = 3;
 const MIN_SHOWN = 5;
 /* Log times are read on the US-west wall clock, the repo's 7h shift. */
 const PACIFIC_SHIFT_MS = 7 * 3_600_000;
-const MONTH = "2026-09-";
 const DASH = "—";
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 type Sess = {
   pid: string;
@@ -128,9 +129,9 @@ type Rower = {
   days: number[];
 };
 
-/* September 2026 weekends, from the calendar rather than the clock. */
-function weekendDay(d: number): boolean {
-  const dow = new Date(Date.UTC(2026, 8, d)).getUTCDay();
+/* The month's weekends, from the calendar rather than the clock. */
+function weekendDay(m: Month, d: number): boolean {
+  const dow = new Date(Date.UTC(m.year, m.month - 1, d)).getUTCDay();
   return dow === 0 || dow === 6;
 }
 
@@ -138,11 +139,13 @@ function dayNum(day: string): number {
   return Number(day.slice(8, 10));
 }
 
-function toSess(e: RawEntry): Sess | null {
+/* A row of the month given, or null: any other month's rows are not on
+ * this page (THE MONTHS, 2026-09-28: the page follows the clock). */
+function toSess(e: RawEntry, m: Month): Sess | null {
   if (!(e.meters > 0) || !(e.seconds > 0)) return null;
-  if (!e.day.startsWith(MONTH)) return null;
+  if (!e.day.startsWith(`${m.key}-`)) return null;
   const day = dayNum(e.day);
-  if (!(day >= 1 && day <= 30)) return null;
+  if (!(day >= 1 && day <= m.days)) return null;
   const shifted = new Date(e.createdAtMs - PACIFIC_SHIFT_MS);
   const hour = shifted.getUTCHours() + shifted.getUTCMinutes() / 60;
   return {
@@ -153,7 +156,7 @@ function toSess(e: RawEntry): Sess | null {
     split: splitSeconds(e.meters, e.seconds),
     lg: Math.log2(e.meters),
     hour,
-    weekend: weekendDay(day),
+    weekend: weekendDay(m, day),
   };
 }
 
@@ -233,11 +236,12 @@ const fin = (v: number, digits = 1) => (Number.isFinite(v) ? v.toFixed(digits) :
  *   rate      = 0.6 × recent + 0.4 × month
  *   recent    = meters per day over the last seven days (today included;
  *               the whole month while it is shorter than seven days)
- *   month     = meters per day since Sep 1 (current / today)
+ *   month     = meters per day since the 1st (current / today)
  *
- * daysLeft counts the days after today up to and including Sep 30, so on
- * Sep 16 it is 14: today is already an elapsed day in both rates and its
- * rows, if logged, are in `current`. A rower idle for IDLE_FLAT days or
+ * daysLeft counts the days after today up to and including the month's
+ * last day (`days`: 30 in September, so on Sep 16 it is 14): today is
+ * already an elapsed day in both rates and its rows, if logged, are in
+ * `current`. A rower idle for IDLE_FLAT days or
  * more (never rowed, or their last row was seven or more days ago)
  * projects flat: rate 0, band closed. The band is the two component rates
  * on their own — low from the smaller, high from the larger — so a rower
@@ -262,8 +266,8 @@ export type Projection = {
   high: number;
 };
 
-export function projectRower(sess: { day: number; meters: number }[], today: number): Projection {
-  const t = clamp(Math.round(today), 1, 30);
+export function projectRower(sess: { day: number; meters: number }[], today: number, days: number = MONTH_DAYS): Projection {
+  const t = clamp(Math.round(today), 1, days);
   let current = 0;
   let recentSum = 0;
   let last = 0;
@@ -278,7 +282,7 @@ export function projectRower(sess: { day: number; meters: number }[], today: num
   const recent = recentSum / Math.min(RECENT_DAYS, t);
   const flat = idle >= IDLE_FLAT;
   const rate = flat ? 0 : W_RECENT * recent + (1 - W_RECENT) * month;
-  const left = 30 - t;
+  const left = days - t;
   const lo = flat ? 0 : Math.min(recent, month);
   const hi = flat ? 0 : Math.max(recent, month);
   return {
@@ -310,12 +314,23 @@ export function buildModel(
    * EACH board, or the top `count` overall. Only read while a window is
    * open (hideTop above the podium); the podium cut is always overall. */
   policy: BlackoutPolicy = DEFAULT_POLICY,
+  /* The month the page is about (THE MONTHS, 2026-09-28): rows are filed
+   * by its key, the axes run to its length and the forecast runs out to
+   * its last day. This month unless a page asks for another. */
+  month: Month = MONTH,
 ): Model {
+  const days = month.days;
+  const weeks = weeksOf(month);
+  /* "Sep 30" / "SEP 30" — the last day as the copy and the eyebrows say it;
+   * dayTag is "Sep 12", a day of the month for the tiles. */
+  const lastTag = fmtDay(`${month.key}-${pad2(days)}`);
+  const lastCaps = `${month.short} ${days}`;
+  const dayTag = (d: number) => fmtDay(`${month.key}-${pad2(d)}`);
   const byId = new Map(participants.map((p) => [p.id, p]));
   const sess: Sess[] = [];
   for (const e of entries) {
     if (!byId.has(e.participantId)) continue;
-    const s = toSess(e);
+    const s = toSess(e, month);
     if (s) sess.push(s);
   }
   const n = sess.length;
@@ -326,7 +341,7 @@ export function buildModel(
    * against is everyone else. */
   const me = viewer.kind === "joined" ? viewer : null;
   const meDiv = me?.division ?? "";
-  const mine: Sess[] = me ? me.entries.map(toSess).filter((s): s is Sess => s !== null) : [];
+  const mine: Sess[] = me ? me.entries.map((e) => toSess(e, month)).filter((s): s is Sess => s !== null) : [];
   const isOther = (pid: string) => !me || pid !== me.id;
 
   /* The pacing model everything downstream reuses: split ~ log2 distance. */
@@ -396,7 +411,7 @@ export function buildModel(
   const publicSess = blackoutOn ? (s: Sess) => !elite.has(s.pid) : () => true;
 
   /* ------------------------------------------------ 0 · the forecast */
-  /* One row per joined rower, projectRower on their September days. The
+  /* One row per joined rower, projectRower on their days of the month. The
    * viewer's own row is built from their fresh sessions (mine), so a row
    * logged a minute ago is already in their projection. Blackout: the
    * elite (the same set the dot charts hide — the board's, per the policy)
@@ -404,14 +419,14 @@ export function buildModel(
    * and the tier they are on pace for — and sit unranked at the top, A to
    * Z, the board's own rule; the viewer keeps their own numbers. Outside a
    * window everyone prints. Names travel only on an admin build. */
-  const daysLeft = 30 - today;
+  const daysLeft = days - today;
   /* The working row keeps the real name (for the A-to-Z sort) and the full
    * projection beside the row that ships; only `row` leaves the function. */
   type FRow = { row: ForecastRow; p: Projection; nm: string };
   const fRows: FRow[] = participants.map((p) => {
     const self = !!me && p.id === me.id;
     const list = self ? mine : (perPid.get(p.id) ?? []);
-    const pr = projectRower(list, today);
+    const pr = projectRower(list, today, days);
     const inElite = blackoutOn && elite.has(p.id);
     const hide = inElite && !self;
     const tier = tierFor(pr.projected);
@@ -460,7 +475,7 @@ export function buildModel(
    * joined inside the field cache's five minutes — projectRower on their
    * fresh sessions directly. */
   const myF = me ? (fRows.find((r) => r.row.you) ?? null) : null;
-  const myProj: Projection | null = me ? (myF ? myF.p : projectRower(mine, today)) : null;
+  const myProj: Projection | null = me ? (myF ? myF.p : projectRower(mine, today, days)) : null;
   const myTier = myProj ? tierFor(myProj.projected) : null;
   const myPaceLine = myProj
     ? myProj.current >= GOAL_METERS
@@ -471,13 +486,13 @@ export function buildModel(
     : null;
   const fS: Section = {
     title: "Where everyone ends up",
-    eyebrow: `FORECAST · SEP 30 · ${daysLeft} ${plural(daysLeft, "DAY")} LEFT · ${fmtInt(fRows.length)} ${plural(fRows.length, "ROWER")}`,
+    eyebrow: `FORECAST · ${lastCaps} · ${daysLeft} ${plural(daysLeft, "DAY")} LEFT · ${fmtInt(fRows.length)} ${plural(fRows.length, "ROWER")}`,
     tiles: [
       {
         n: fRows.length ? fmtM(sumProj) : DASH,
         d: fRows.length
-          ? `expected community total on Sep 30 · ${fmtM(fSum((p) => p.current))} today · band ${fmtInt(fSum((p) => p.low))}–${fmtM(fSum((p) => p.high))}`
-          : "expected community total on Sep 30 · nobody has joined yet",
+          ? `expected community total on ${lastTag} · ${fmtM(fSum((p) => p.current))} today · band ${fmtInt(fSum((p) => p.low))}–${fmtM(fSum((p) => p.high))}`
+          : `expected community total on ${lastTag} · nobody has joined yet`,
         you: myProj ? `you: ${fmtM(myProj.projected)} (${fmtK(myProj.low)}–${fmtK(myProj.high)})${sumProj > 0 ? ` · ${fmtPct(myProj.projected / sumProj)} of it` : ""}` : null,
       },
       {
@@ -588,7 +603,7 @@ export function buildModel(
 
   const s1: Section = {
     title: "The shape of a session",
-    eyebrow: `DISTRIBUTIONS · ${fmtInt(n)} ${plural(n, "SESSION")} · ${fmtInt(rowersAll.length)} ${plural(rowersAll.length, "ROWER")} · DAY ${today} OF 30`,
+    eyebrow: `DISTRIBUTIONS · ${fmtInt(n)} ${plural(n, "SESSION")} · ${fmtInt(rowersAll.length)} ${plural(rowersAll.length, "ROWER")} · DAY ${today} OF ${days}`,
     tiles: [
       {
         n: has ? fmtM(medM) : DASH,
@@ -1048,11 +1063,11 @@ export function buildModel(
         you: mine.length ? `you: ${fmtHour(myCirc)} · earlier than ${fmtPct(earlierThan)}` : null,
       },
       {
-        n: has ? fmtDayN(busiestIdx + 1) : DASH,
+        n: has ? dayTag(busiestIdx + 1) : DASH,
         d: has
           ? `busiest day · ${dayCounts[busiestIdx]} ${plural(dayCounts[busiestIdx], "session")}; days average ${fin(mean(dayCounts), 0)} ± ${fin(sd(dayCounts), 0)}`
           : "busiest day",
-        you: myBusiest ? `you: busiest ${fmtDayN(myBusiest[0])} · ${fmtM(myBusiest[1])}` : null,
+        you: myBusiest ? `you: busiest ${dayTag(myBusiest[0])} · ${fmtM(myBusiest[1])}` : null,
       },
       {
         n: has ? fmtPct(weekendShare) : DASH,
@@ -1101,8 +1116,8 @@ export function buildModel(
     const roll = rollingMean(dayCounts, 7);
     const trend = today >= 8 ? roll[today - 1] - roll[today - 8] : NaN;
     const maxDay = Math.max(...dayCounts);
-    const wkDays = dayCounts.filter((_, i) => weekendDay(i + 1));
-    const wdDays = dayCounts.filter((_, i) => !weekendDay(i + 1));
+    const wkDays = dayCounts.filter((_, i) => weekendDay(month, i + 1));
+    const wdDays = dayCounts.filter((_, i) => !weekendDay(month, i + 1));
     const bump = wkDays.length && wdDays.length && mean(wkDays) > mean(wdDays) * 1.1;
     const holding = Number.isFinite(trend)
       ? trend > 0.5
@@ -1114,8 +1129,9 @@ export function buildModel(
     dayc = {
       counts: dayCounts,
       rolling: roll.map(r2),
-      weekend: dayCounts.map((_, i) => weekendDay(i + 1)),
+      weekend: dayCounts.map((_, i) => weekendDay(month, i + 1)),
       yMax: niceCount(maxDay),
+      short: month.short,
       take: `${dayCounts[0] === maxDay && today > 1 ? "DAY-1 SPIKE, " : ""}${bump ? "WEEKEND BUMPS, " : ""}${holding}`,
     };
   }
@@ -1145,10 +1161,10 @@ export function buildModel(
       : null;
   const faster = rowerSlopes.filter((v) => v < 0).length;
   const slower = rowerSlopes.filter((v) => v > 0).length;
-  const weekFirst = (wi: number) => dayNum(WEEKS[wi].first);
-  const weekLast = (wi: number) => dayNum(WEEKS[wi].last);
-  let thisWeek = WEEKS.findIndex((w) => dayNum(w.first) <= today && today <= dayNum(w.last));
-  if (thisWeek < 0) thisWeek = WEEKS.length - 1;
+  const weekFirst = (wi: number) => dayNum(weeks[wi].first);
+  const weekLast = (wi: number) => dayNum(weeks[wi].last);
+  let thisWeek = weeks.findIndex((w) => dayNum(w.first) <= today && today <= dayNum(w.last));
+  if (thisWeek < 0) thisWeek = weeks.length - 1;
   const inWeek = (wi: number, s: Sess) => s.day >= weekFirst(wi) && s.day <= weekLast(wi) && s.day <= today;
   const thisWeekMed = median(sess.filter((s) => inWeek(thisWeek, s)).map((s) => s.meters));
   const w1Med = median(sess.filter((s) => inWeek(0, s)).map((s) => s.meters));
@@ -1193,14 +1209,14 @@ export function buildModel(
         you: Number.isFinite(myThisWeek) && Number.isFinite(myW1) ? `you: ${fmtM(myThisWeek)} vs ${fmtM(myW1)}` : null,
       },
       {
-        /* Until Sept 8 the last seven days are the whole month, so the share
+        /* Until the 8th the last seven days are the whole month, so the share
          * is 100 % by construction and says nothing. */
         n: today >= 8 && rowers4.length ? fmtPct(bestRecent / rowers4.length) : DASH,
         d:
           today >= 8
             ? `of rowers set their best split in the last 7 days · ${bestRecent} ${plural(bestRecent, "rower")}`
-            : "of rowers set their best split in the last 7 days · from Sept 8",
-        you: my ? `you: best ${fmtClock(my.bestSplit)} on ${fmtDayN(my.bestDay)}` : null,
+            : `of rowers set their best split in the last 7 days · from ${dayTag(8)}`,
+        you: my ? `you: best ${fmtClock(my.bestSplit)} on ${dayTag(my.bestDay)}` : null,
       },
     ],
   };
@@ -1210,7 +1226,7 @@ export function buildModel(
     const absC = sortAsc(centred.map((p) => Math.abs(p.c)));
     const yr = Math.max(10, Math.min(30, Math.ceil(quantile(absC, 0.975) / 5) * 5));
     const weekly: DriftChart["weekly"] = [];
-    WEEKS.forEach((_, wi) => {
+    weeks.forEach((_, wi) => {
       const first = weekFirst(wi);
       const last = Math.min(weekLast(wi), today);
       if (first > today) return;
@@ -1223,6 +1239,7 @@ export function buildModel(
       weekly,
       yr,
       days: today,
+      short: month.short,
       corner: `SLOPE ${signed(driftFit.b)} ± ${fin(driftFit.seB)} s /WEEK`,
       take: `DISTANCE AND FITNESS REMOVED — WHAT IS LEFT IS THE FIELD ${
         driftFit.b < -driftFit.seB ? "GETTING FASTER" : driftFit.b > driftFit.seB ? "GETTING SLOWER" : "HOLDING STEADY"
@@ -1280,7 +1297,7 @@ export function buildModel(
       },
       {
         n: myDivOk ? `${fmtP(pMySpDiv)} ${meDiv} · ${fmtP(pMySpAll)} all` : `${fmtP(pMySpAll)} all`,
-        d: `median split ${fmtClock(my.medSplit)} · best ${fmtClock(my.bestSplit)} on ${fmtDayN(my.bestDay)}`,
+        d: `median split ${fmtClock(my.medSplit)} · best ${fmtClock(my.bestSplit)} on ${dayTag(my.bestDay)}`,
       },
       {
         n: fmtM(myProj.projected),
@@ -1385,6 +1402,8 @@ export function buildModel(
     const q = (p: number) => Array.from({ length: today }, (_, i) => Math.round(quantile(sortAsc(cums.map((c) => c[i])), p)));
     fan = {
       days: today,
+      span: days,
+      short: month.short,
       p10: q(0.1),
       p25: q(0.25),
       p50: q(0.5),
@@ -1402,7 +1421,7 @@ export function buildModel(
        * (projectRower — same rows, same today), not a second rate. */
       fanYou = {
         cum: myCum,
-        proj: today < 30 ? [[today, now], [30, myProj.projected]] : null,
+        proj: today < days ? [[today, now], [days, myProj.projected]] : null,
         label: `YOU · ${fmtP(p)} ON DAY ${today}`,
       };
     }
@@ -1412,6 +1431,7 @@ export function buildModel(
     sessions: n,
     rowers: rowersAll.length,
     day: today,
+    month: { key: month.key, label: month.label, short: month.short, days, last: lastTag },
     you: me ? { rowerNumber: me.rowerNumber, sessions: mine.length } : null,
     hideTop: Math.max(0, hideTop),
     forecast,
