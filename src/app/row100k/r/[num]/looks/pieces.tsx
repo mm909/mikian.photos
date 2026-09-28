@@ -7,7 +7,9 @@ import {
   fmtMeters,
   fmtRowerNumber,
   fmtSplit,
+  nowMs,
 } from "@/lib/row100k";
+import { monthFromKey } from "@/lib/rowPeriod";
 import { BlockClock, Blocks } from "../../../Blackout";
 import { Heatmap } from "../../../Heatmap";
 import { LogInPlace } from "../../../LogInPlace";
@@ -346,6 +348,17 @@ export function Bests({ view }: { view: ProfileView }) {
  * photos on the table") — the rower's own with share / edit / delete on
  * every row (MyLog), or the visitor's read-only one (ProfileLog). Both
  * carry the photo pair under the day, the distance chips and the sort. */
+/* EDIT and DELETE only on a month that can still take a row (rollover
+ * review, 2026-09-28): this month, or last month inside its grace days —
+ * the same line the API refuses past. All time and an older month read
+ * only; the current month's close is always ahead, so one check covers
+ * both. */
+function periodEditable(period: ProfileView["period"]): boolean {
+  if (period.kind !== "month") return false;
+  const m = monthFromKey(period.key);
+  return m !== null && nowMs() < m.logCloseMs;
+}
+
 export function LogBlock({ view }: { view: ProfileView }) {
   const n = view.rows.length;
   return (
@@ -354,7 +367,11 @@ export function LogBlock({ view }: { view: ProfileView }) {
       {n === 0 ? (
         <p className="board-empty">NOTHING LOGGED YET.</p>
       ) : view.isMe ? (
-        <MyLog data={view.shareData} rows={view.rows} canEdit={view.log?.phase !== "closed"} />
+        <MyLog
+          data={view.shareData}
+          rows={view.rows}
+          canEdit={view.log?.phase !== "closed" && periodEditable(view.period)}
+        />
       ) : (
         <ProfileLog rows={view.logRows} />
       )}

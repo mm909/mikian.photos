@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FIRST_DAY,
   LAST_DAY,
   DEFAULT_TITLE_RE,
   FIRST_DAY_TAG,
@@ -13,6 +12,7 @@ import {
   START_MS,
   TITLE_MAX,
   clampDay,
+  earliestLoggableDay,
   fmtMeters,
   fmtSplit,
   nowMs,
@@ -116,13 +116,19 @@ export function LogRow({
   // The latest day the picker offers. Admins testing before Sep 1 need the
   // whole month (the server waives the future rule for them too).
   const [maxDay, setMaxDay] = useState(earlyAdmin ? LAST_DAY : defaultDay);
-  // The server's day goes stale in a tab left open past midnight, so both
-  // the default and the ceiling are re-derived from the shared clock after
-  // mount (SSR and first client render still match) — unless the rower has
-  // already picked a day themselves.
+  // The earliest day the picker offers: last month's 1st inside its grace
+  // days, so a Sep 30 row can be filed on Oct 1 (rollover review,
+  // 2026-09-28), this month's 1st after.
+  const [minDay, setMinDay] = useState(() => earliestLoggableDay());
+  // The server's day goes stale in a tab left open past midnight, so the
+  // default, the floor and the ceiling are re-derived from the shared
+  // clock after mount (SSR and first client render still match) — unless
+  // the rower has already picked a day themselves.
   const dayTouched = useRef(false);
   useEffect(() => {
-    const today = clampDay(pacificDay(nowMs()));
+    const now = nowMs();
+    const today = clampDay(pacificDay(now));
+    setMinDay(earliestLoggableDay(now));
     setMaxDay(earlyAdmin ? LAST_DAY : today);
     if (!dayTouched.current) setDay(today);
   }, [earlyAdmin]);
@@ -303,7 +309,7 @@ export function LogRow({
             id="log-day"
             type="date"
             value={day}
-            min={FIRST_DAY}
+            min={minDay}
             max={maxDay}
             onChange={(e) => {
               dayTouched.current = true;

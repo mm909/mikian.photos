@@ -16,6 +16,7 @@ import {
   nowMs,
   validateEntry,
 } from "@/lib/row100k";
+import { monthFromKey, type Month } from "@/lib/rowPeriod";
 import { siteSettings } from "@/lib/rowSettings";
 import { boardDataRaw } from "@/app/row100k/boardData";
 import {
@@ -101,10 +102,16 @@ export async function POST(req: Request) {
   // guards on an honor-system board, not hard invariants. The meters BEFORE
   // this row ride along for the milestone note below (rowMail.ts): a
   // milestone is a line crossed, so it needs the total on both sides.
+  // THE MONTH OF THE ROW bounds all of it (rollover review, 2026-09-28):
+  // the boards are monthly, so the entry cap, the default title's number
+  // and the milestone line are this row's month's, not all time's — a Sep
+  // 30 row filed on Oct 1 counts among September's.
+  const rowMonth = monthFromKey(check.value.day.slice(0, 7)) as Month;
+  const inMonth = { participantId: participant.id, day: { gte: rowMonth.firstDay, lte: rowMonth.lastDay } };
   const [dayCount, totalCount, before] = await Promise.all([
     db.rowEntry.count({ where: { participantId: participant.id, day: check.value.day } }),
-    db.rowEntry.count({ where: { participantId: participant.id } }),
-    db.rowEntry.aggregate({ where: { participantId: participant.id }, _sum: { meters: true } }),
+    db.rowEntry.count({ where: inMonth }),
+    db.rowEntry.aggregate({ where: inMonth, _sum: { meters: true } }),
   ]);
   const prevTotal = before._sum.meters ?? 0;
   if (dayCount >= MAX_ENTRIES_PER_DAY) {
@@ -121,10 +128,10 @@ export async function POST(req: Request) {
   }
 
   // No title typed → "Rowtember #7" ("October #7" outside September),
-  // numbered by how many rows they'll have.
+  // numbered by how many rows they'll have in the row's month.
   const value = check.value.title
     ? check.value
-    : { ...check.value, title: defaultRowTitle(totalCount + 1) };
+    : { ...check.value, title: defaultRowTitle(totalCount + 1, rowMonth) };
 
   const entry = await db.rowEntry.create({
     data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
@@ -139,7 +146,7 @@ export async function POST(req: Request) {
    * and logged. */
   try {
     const totals = await db.rowEntry.aggregate({
-      where: { participantId: participant.id },
+      where: inMonth,
       _sum: { meters: true },
       _count: true,
     });

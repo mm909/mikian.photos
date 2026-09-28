@@ -381,12 +381,21 @@ export async function setResult(args: {
  * racer with no wave yet is put in the wave that is on the ergs — the
  * highest one stamped started — or wave 1, because a time with no wave
  * would never reach the board (liveField). The timing console can still
- * correct anything this wrote. */
+ * correct anything this wrote.
+ *
+ * NEVER OVER A POSTED SHEET, and only inside the posting window (rollover
+ * review, 2026-09-28): the erg used to write tenths over a final result.
+ * Same two gates as postOwnTime, strict on the switch — a read that
+ * hiccups refuses, never waves through. setResult (the owner's console)
+ * is untouched and still corrects a time on a posted sheet. */
 export async function setErgResult(args: { race: RaceDef; rowerNumber: number; tenths: number; by: string; nowMs?: number }): Promise<{ id: string; wave: number }> {
   const { race } = args;
   const nowMs = args.nowMs ?? challengeNow();
   const rule = raceTimeRuleBreak(args.tenths);
   if (rule) throw new ResultError(rule);
+  const window = postingWindow(race, nowMs);
+  if (!window.open) throw new ResultError(window.reason ?? "Posting is closed.", 409);
+  if ((await raceFinalAtStrict(race.slug)) !== null) throw new ResultError(SHEET_POSTED, 409);
   const row = await db.rowRaceSignup.findFirst({
     where: { challenge: CHALLENGE, race: race.slug, rowerNumber: args.rowerNumber, withdrewAt: null },
     select: { id: true, role: true, wave: true },

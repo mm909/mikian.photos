@@ -3,14 +3,15 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FIRST_DAY,
-  LAST_DAY,
   TITLE_MAX,
+  earliestLoggableDay,
   fmtDay,
   fmtDuration,
   fmtMeters,
   fmtRowerNumber,
   fmtSplit,
+  nowMs,
+  pacificDay,
   parseDurationText,
 } from "@/lib/row100k";
 import { formatTimeDigits } from "../LogRow";
@@ -462,8 +463,12 @@ export function RowersTable({
                                           type="date"
                                           aria-label="Day"
                                           value={draft.day}
-                                          min={FIRST_DAY}
-                                          max={LAST_DAY}
+                                          /* Last month's 1st inside its grace
+                                             days, this month's 1st after; up
+                                             to today (rollover review,
+                                             2026-09-28). */
+                                          min={earliestLoggableDay()}
+                                          max={pacificDay(nowMs())}
                                           onChange={(e) => setDraft((d) => ({ ...d, day: e.target.value }))}
                                         />
                                         <input
