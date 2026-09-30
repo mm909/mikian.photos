@@ -15,6 +15,8 @@ import { boardData } from "../boardData";
 export type L1Rung = {
   key: string;
   meters: number;
+  /* The board's short tag for the rung (10K, .25M). */
+  label: string;
   /* What the board calls the rung, or null when the name is only the
    * distance said another way (.25M). */
   title: string | null;
@@ -29,16 +31,23 @@ export type L1Extra = {
   rungs: L1Rung[];
   /* Rowers with a meter on the board this month. */
   active: number;
+  /* The same for the month that closed — the bars are drawn off it while
+   * this month's board is still empty (the 1st, when the link goes out). */
+  prevActive: number;
   /* "September" — the month the `prev` counts are for. */
   prevWord: string | null;
   /* The number the next rower gets (the join route hands out max + 1). */
   nextNumber: number | null;
 };
 
+const activeOf = (rows: { meters: number; masked?: boolean }[]): number =>
+  rows.filter((r) => r.meters > 0 || r.masked).length;
+
 const rungsOf = (now: number[] | null, prev: number[] | null): L1Rung[] =>
   TIERS.map((t, i) => ({
     key: t.key,
     meters: t.meters,
+    label: t.label,
     title: t.title === t.label ? null : t.title,
     now: now ? now[i] : 0,
     prev: prev ? prev[i] : null,
@@ -56,12 +65,13 @@ export async function loadL1(): Promise<L1Extra> {
     const top = cur.total.reduce((n, r) => Math.max(n, r.rowerNumber), 0);
     return {
       rungs: rungsOf(countRungs(cur.total), old ? countRungs(old.total) : null),
-      active: cur.total.filter((r) => r.meters > 0 || r.masked).length,
+      active: activeOf(cur.total),
+      prevActive: old ? activeOf(old.total) : 0,
       prevWord: old && last ? last.label.split(" ")[0] : null,
       nextNumber: top > 0 ? top + 1 : null,
     };
   } catch (err) {
     console.error("row100k landing 1: failed to load the rungs", err);
-    return { rungs: rungsOf(null, null), active: 0, prevWord: null, nextNumber: null };
+    return { rungs: rungsOf(null, null), active: 0, prevActive: 0, prevWord: null, nextNumber: null };
   }
 }

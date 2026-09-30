@@ -2,8 +2,6 @@ import type { CSSProperties } from "react";
 import { GOAL_METERS, MONTH, MONTH_DAYS, MONTH_WORD, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
 import { nextMonth } from "@/lib/rowPeriod";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
-import { paceCss } from "../r/[num]/looks/paceCss";
-import { PaceCurve } from "../r/[num]/looks/PaceCurve";
 import { Heatmap } from "../Heatmap";
 import { OptIn } from "../OptIn";
 import { RowBar } from "../RowBar";
@@ -27,7 +25,16 @@ import { loadL1, type L1Rung } from "./l1Data";
  *
  * It wears theme.ts .chrome-ink, so the bar and the footer are ink and
  * belong to the two ink ends of the page; the bar is NOT sticky here, so it
- * leaves with the poster and never hangs black over the cream. */
+ * leaves with the poster and never hangs black over the cream. The bar
+ * resolves the viewer itself; a joined rower never sees this page at all
+ * (p1/page.tsx sends them to the front page), and for everyone else the
+ * bar's SIGN IN chip is hidden (l1Css.ts) so OPT IN is the one door.
+ *
+ * Reviewed twice (2026-09-30) and cut to what the reviews asked: the day
+ * line on the fold, the empty rungs above the club folded into one line,
+ * the pace curve gone (5px axis labels on a phone), the cards leading
+ * WHAT YOU GET with the bests as one line of facts, and an empty-month
+ * state for the 1st, when the Instagram link goes out. */
 
 /* OPT IN goes to the Rowtember sign-in and lands back on the front page at
  * #join (the same place the front page OPT IN sends a stranger). */
@@ -90,6 +97,16 @@ const kl = (n: number): CSSProperties => ({ "--kl": n.toFixed(3) }) as CSSProper
 
 const num = (n: number) => n.toLocaleString("en-US");
 
+/* One fact of a mono line, kept whole: a number split from its unit is the
+ * one wrap the house never allows, so a line of these can only break on a
+ * dot. */
+function Nb({ children }: { children: React.ReactNode }) {
+  return <span className="l1-nb">{children}</span>;
+}
+
+/* The dots between facts, with a break allowed on either side. */
+const DOT = " · ";
+
 function Opt() {
   return (
     <div className="l1-go">
@@ -99,7 +116,57 @@ function Opt() {
 }
 
 function Facts() {
-  return <p className="l1-facts mono">Free · Any erg · A minute to join</p>;
+  return (
+    <p className="l1-facts mono">
+      <Nb>Free</Nb>
+      {DOT}
+      <Nb>Any erg</Nb>
+      {DOT}
+      <Nb>A minute to join</Nb>
+    </p>
+  );
+}
+
+/* What the 100K asks of a day from today, in one line: the meters, the
+ * minutes at the pace the board averages, the days. On the fold, under the
+ * dare, because it is the fact that makes the dare doable; on the 100K
+ * rung again, where it belongs. */
+function DayLine({
+  perDay,
+  minutes,
+  daysLeft,
+  className,
+  daysFirst,
+}: {
+  perDay: number;
+  minutes: number | null;
+  daysLeft: number;
+  className: string;
+  daysFirst?: boolean;
+}) {
+  const days = (
+    <Nb>
+      {daysLeft} {daysLeft === 1 ? "day" : "days"} left
+    </Nb>
+  );
+  const rate = (
+    <>
+      <Nb>{num(perDay)} m a day</Nb>
+      {minutes ? (
+        <>
+          {DOT}
+          <Nb>{num(minutes)} min</Nb>
+        </>
+      ) : null}
+    </>
+  );
+  return (
+    <p className={`${className} mono`}>
+      {daysFirst ? days : rate}
+      {DOT}
+      {daysFirst ? rate : days}
+    </p>
+  );
 }
 
 /* THE POSTER. Four lines on a phone, each its own size so each ends on the
@@ -146,7 +213,7 @@ function Head({ label, note }: { label: string; note?: string }) {
 /* HOW IT COUNTS: three verbs, a fact under each. */
 function Steps() {
   const steps = [
-    { h: "Row", p: "Any erg, any gym, any distance." },
+    { h: "Row", p: "Any rowing machine, any gym, any distance." },
     { h: "Log it", p: "Meters, time and two photos of the monitor." },
     { h: "It counts", p: "On your page and on the board, the minute you log it." },
   ];
@@ -169,51 +236,84 @@ function Steps() {
  * the board calls it, how many rowers are on or past it this month (the
  * bar is that count against every rower on the board), and the same count
  * for the month that closed. The 100K rung is the one in water, with what
- * it asks of a day from today. */
+ * it asks of a day from today.
+ *
+ * A rung above the club that nobody stood on this month or last is not a
+ * row of zeros: those fold into one grey line at the top of the ladder,
+ * so the first rung a stranger reads is the 100K. And while this month's
+ * board is still empty (the 1st), the big figure on each rung is last
+ * month's count and the bars are drawn off last month's board. */
 function Ladder({
   rungs,
   active,
+  prevActive,
   prevWord,
+  empty,
   perDay,
   minutes,
   daysLeft,
 }: {
   rungs: L1Rung[];
   active: number;
+  prevActive: number;
   prevWord: string | null;
+  empty: boolean;
   perDay: number;
   minutes: number | null;
   daysLeft: number;
 }) {
   const top = [...rungs].reverse();
+  const bare = (r: L1Rung) => r.meters > GOAL_METERS && r.now === 0 && !r.prev;
+  const above = top.filter(bare);
+  const shown = top.filter((r) => !bare(r));
+  const usePrev = empty && prevWord !== null;
+  const base = usePrev ? prevActive : active;
   return (
-    <ol className="l1-ladder" reversed>
-      {top.map((r) => {
+    <ol className="l1-ladder">
+      {above.length > 0 ? (
+        <li className="l1-rung above">
+          <p className="sub">
+            <Nb>Above the club</Nb>
+            {above
+              .slice()
+              .reverse()
+              .map((r) => (
+                <span key={r.key}>
+                  {DOT}
+                  <Nb>{num(r.meters)} m</Nb>
+                </span>
+              ))}
+          </p>
+        </li>
+      ) : null}
+      {shown.map((r) => {
         const goal = r.meters === GOAL_METERS;
-        const share = active > 0 ? Math.min(100, (r.now / active) * 100) : 0;
+        const count = usePrev ? (r.prev ?? 0) : r.now;
+        const share = base > 0 ? Math.min(100, (count / base) * 100) : 0;
         return (
           <li key={r.key} className={goal ? "l1-rung goal" : "l1-rung"}>
             <div className="top">
               <span className="m">
                 {num(r.meters)} <em>m</em>
               </span>
-              <span className="c">{num(r.now)}</span>
+              <span className="c">{num(count)}</span>
             </div>
             <div className="sub">
-              <span>{r.title ?? ""}</span>
+              <span>{r.title ?? r.label}</span>
               <span>
-                {r.prev !== null && prevWord ? `${num(r.prev)} in ${prevWord}` : r.now === 1 ? "rower" : "rowers"}
+                {usePrev
+                  ? `in ${prevWord}`
+                  : r.prev !== null && prevWord
+                    ? `${num(r.prev)} in ${prevWord}`
+                    : count === 1
+                      ? "rower"
+                      : "rowers"}
               </span>
             </div>
             <div className="fill">
               <i style={{ width: `${share.toFixed(1)}%` }} />
             </div>
-            {goal ? (
-              <p className="day">
-                {daysLeft} {daysLeft === 1 ? "day" : "days"} left · {num(perDay)} m a day
-                {minutes ? ` · about ${num(minutes)} min` : ""}
-              </p>
-            ) : null}
+            {goal ? <DayLine className="day" perDay={perDay} minutes={minutes} daysLeft={daysLeft} daysFirst /> : null}
           </li>
         );
       })}
@@ -221,66 +321,60 @@ function Ladder({
   );
 }
 
-/* WHAT YOU GET: four things off one real rower's month — the calendar, the
- * split line, the bests, the cards the share dialog draws for a story. */
+/* WHAT YOU GET, off one real rower's month: the cards the share dialog
+ * draws for a story (the Instagram reason, so they lead), the calendar,
+ * and the bests as one line of facts under it. Not the profile strip the
+ * three rejected landings carried, and no pace curve: its axis labels fall
+ * to 5px on a phone. */
 function Get({ eg, today }: { eg: LandingExample; today: number }) {
   return (
     <>
       <p className="l1-eg mono">
-        This is <b>{fmtRowerNumber(eg.rowerNumber)}</b> · <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a> ·{" "}
-        {fmtMeters(eg.meters)} in {eg.sessions} rows
+        <b>Rower {fmtRowerNumber(eg.rowerNumber)}</b>
+        {DOT}
+        <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a>
+        {DOT}
+        <Nb>
+          {fmtMeters(eg.meters)} in {eg.sessions} {eg.sessions === 1 ? "row" : "rows"}
+        </Nb>
       </p>
       <div className="l1-get">
         <figure className="l1-fig">
           <figcaption>
-            <b>A</b> The month, day by day
-          </figcaption>
-          <Heatmap byDay={eg.byDay} days={today} fullMonth />
-        </figure>
-        <figure className="l1-fig">
-          <figcaption>
-            <b>B</b> Your average split, meter by meter
-          </figcaption>
-          <PaceCurve pts={eg.paceCurve} dots={eg.paceDots} />
-        </figure>
-        <figure className="l1-fig">
-          <figcaption>
-            <b>C</b> Your bests
-          </figcaption>
-          <div className="l1-bests">
-            {eg.bests.map((b) => (
-              <div className="l1-best" key={b.key}>
-                <div className="k">{b.label}</div>
-                <div className="v">{b.value}</div>
-                <div className="s">{b.sub}</div>
-              </div>
-            ))}
-          </div>
-        </figure>
-        <figure className="l1-fig">
-          <figcaption>
-            <b>D</b> The cards you post
+            <b>A</b> The cards you post
           </figcaption>
           <LandingCards data={eg.share} />
+        </figure>
+        <figure className="l1-fig">
+          <figcaption>
+            <b>B</b> {MONTH_WORD}, day by day
+          </figcaption>
+          <Heatmap byDay={eg.byDay} days={today} fullMonth />
+          <p className="l1-bests mono">
+            {eg.bests.map((b) => (
+              <Nb key={b.key}>
+                {b.label} <b>{b.value}</b>
+              </Nb>
+            ))}
+          </p>
         </figure>
       </div>
     </>
   );
 }
 
-/* The same four, in words, for the day the example rower has no meters yet
- * (the 1st) or is hidden by a blackout. */
+/* The same, in words, for the day the example rower has no meters yet (the
+ * 1st) or is hidden by a blackout. */
 function GetWords() {
   return (
     <ol className="l1-steps">
       {[
-        { h: "The month", p: "A calendar of every day you row." },
-        { h: "The split", p: "Your average pace, meter by meter." },
-        { h: "The bests", p: "Fastest 5K and 10K, longest row, biggest day." },
         { h: "The cards", p: "Your month, drawn for a story." },
+        { h: "The month", p: "A calendar of every day you row." },
+        { h: "The bests", p: "Fastest 5K and 10K, longest row, biggest day." },
       ].map((s, i) => (
         <li key={s.h}>
-          <span className="n">{"ABCD"[i]}</span>
+          <span className="n">{"ABC"[i]}</span>
           <div>
             <h3>{s.h}</h3>
             <p>{s.p}</p>
@@ -312,20 +406,33 @@ export async function L1({ data }: { data: LandingData }) {
   const minutes =
     paced.meters > 0 && paced.seconds > 0 ? Math.max(1, Math.round((perDay * (paced.seconds / paced.meters)) / 60)) : null;
 
-  const total = num(data.month.meters);
+  /* THE EMPTY MONTH: on the 1st, when the link goes out, nobody has a
+   * meter on the board yet. The rungs then show the month that closed and
+   * the SO FAR block shows all time — everything the page has already
+   * loaded — rather than five zeros and an empty shop. */
+  const empty = extra.active === 0 && data.month.sessions === 0;
+  const rungWord = empty && extra.prevWord ? extra.prevWord : MONTH_WORD;
+  const sum = empty ? data.all : data.month;
+  const total = num(sum.meters);
+  /* The one cell that reads 0 through the first days of any month, when it
+   * is no failing of anybody's: swap it for the all-time count. */
+  const finished =
+    sum.finished > 0 || data.all.finished === 0
+      ? { n: sum.finished, l: empty ? "reached 100K" : "at 100K already" }
+      : { n: data.all.finished, l: "at 100K, all time" };
   const next = nextMonth(MONTH);
 
   return (
     <div className={`row100k chrome-ink l1 ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
-      <style>{paceCss}</style>
       <style>{l1Css}</style>
-      <RowBar active="home" sticky={false} signedIn={false} rowerNumber={null} admin={false} />
+      <RowBar active="home" sticky={false} />
 
       <header className="l1-fold">
         <div className="wrap front l1-poster">
           <p className="l1-eye mono">The monthly rowing machine challenge</p>
           <Dare />
+          <DayLine className="l1-day" perDay={perDay} minutes={minutes} daysLeft={daysLeft} />
           <div className="l1-act">
             <Opt />
             <Facts />
@@ -341,11 +448,13 @@ export async function L1({ data }: { data: LandingData }) {
           </section>
 
           <section className="l1-sec">
-            <Head label="The rungs" note={`Rowers on each · ${MONTH_WORD}`} />
+            <Head label="The rungs" note={`Rowers on each · ${rungWord}`} />
             <Ladder
               rungs={extra.rungs}
               active={extra.active}
+              prevActive={extra.prevActive}
               prevWord={extra.prevWord}
+              empty={empty}
               perDay={perDay}
               minutes={minutes}
               daysLeft={daysLeft}
@@ -358,15 +467,15 @@ export async function L1({ data }: { data: LandingData }) {
           </section>
 
           <section className="l1-sec l1-month">
-            <Head label={MONTH.label} note="So far" />
+            <Head label={empty ? "All time" : MONTH.label} note={empty ? "Every month" : "So far"} />
             <div className="l1-total" style={k(fitK(total))}>
               {total}
             </div>
             <p className="l1-total-l mono">Meters · everyone together</p>
             <div className="l1-cells">
-              <Cell n={num(extra.active)} l="rowers on the board" />
-              <Cell n={num(data.month.sessions)} l="rows logged" />
-              <Cell n={num(data.month.finished)} l="at 100K already" />
+              <Cell n={num(empty ? sum.rowers : extra.active)} l={empty ? "rowers" : "rowers on the board"} />
+              <Cell n={num(sum.sessions)} l="rows logged" />
+              <Cell n={num(finished.n)} l={finished.l} />
               <Cell n={num(daysLeft)} l={daysLeft === 1 ? "day left" : "days left"} />
             </div>
           </section>
