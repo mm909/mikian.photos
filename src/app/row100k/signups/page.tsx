@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { CHALLENGE } from "@/lib/row100k";
+import { CHALLENGE, ageOn, birthdayInput, nowMs, pacificDay } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { RowersTable, type AdminRower } from "../rowers/RowersTable";
+import { RowersTable, type AdminAbout, type AdminRower } from "../rowers/RowersTable";
+import { rowersCss } from "../rowers/rowersCss";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,11 @@ export const metadata: Metadata = {
  * table, so the blackout (and the admin test blackout) never touches it.
  * Two CSV links on the head line (owner, 2026-09-16: "download data to a
  * csv") — /api/row100k/export, admin only there too — and a third, the
- * whole field as JSON for a model (kind=llm, row100k/llmExport.ts). */
+ * whole field as JSON for a model (kind=llm, row100k/llmExport.ts).
+ * DETAILS per rower (owner, 2026-09-30: "a summary on the rowers panel, I
+ * can see more of their details, if they've entered their height and
+ * weight"): the About you columns are read here, guarded (readAbout), and
+ * the table prints them under the row (rowers/rowersCss.ts styles it). */
 
 /* Page-local styles — .sg- prefix, the blackout page idiom: no double
  * quotes, no angle brackets and no apostrophes anywhere in the string. The
@@ -50,8 +55,38 @@ function parseNum(raw: string | undefined): number | null {
   return Number.isInteger(n) && n >= 1 && n <= 999999 ? n : null;
 }
 
+/* ABOUT YOU for the details block, read in its own query and CAUGHT the
+ * way settings/page.tsx reads it: if those columns cannot be read — P2022
+ * or anything else — every rower gets about: null (the block prints
+ * dashes) and the rest of the table stands. The age is whole years on the
+ * challenge clock, computed here so the client never does date math. */
+async function readAbout(): Promise<Map<string, AdminAbout> | null> {
+  try {
+    const rows = await db.rowParticipant.findMany({
+      where: { challenge: CHALLENGE },
+      select: { id: true, birthday: true, heightCm: true, weightKg: true, homeGym: true },
+    });
+    const at = nowMs();
+    return new Map(
+      rows.map((r) => [
+        r.id,
+        {
+          birthday: birthdayInput(r.birthday),
+          age: r.birthday ? ageOn(r.birthday, at) : null,
+          heightCm: r.heightCm,
+          weightKg: r.weightKg,
+          homeGym: r.homeGym ?? "",
+        },
+      ]),
+    );
+  } catch (err) {
+    console.error("row100k/signups: the About you columns could not be read (not pushed yet?)", err);
+    return null;
+  }
+}
+
 async function loadRowers(): Promise<AdminRower[]> {
-  const [participants, entries] = await Promise.all([
+  const [participants, entries, aboutOf] = await Promise.all([
     db.rowParticipant.findMany({
       where: { challenge: CHALLENGE },
       select: {
@@ -70,15 +105,17 @@ async function loadRowers(): Promise<AdminRower[]> {
       select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true },
       orderBy: [{ day: "desc" }, { createdAt: "desc" }],
     }),
+    readAbout(),
   ]);
 
-  // The address behind the Google sign-in (RowParticipant.userId is the
-  // Photographer id, no relation declared) — for the COPY EMAIL item.
+  // The address and the name behind the Google sign-in
+  // (RowParticipant.userId is the Photographer id, no relation declared)
+  // — for the COPY EMAIL item and the details block.
   const users = await db.photographer.findMany({
     where: { id: { in: participants.map((p) => p.userId) } },
-    select: { id: true, email: true },
+    select: { id: true, email: true, name: true },
   });
-  const emailOf = new Map(users.map((u) => [u.id, u.email]));
+  const userOf = new Map(users.map((u) => [u.id, u]));
 
   const rowsOf = new Map<string, AdminRower["rows"]>();
   for (const e of entries) {
@@ -90,6 +127,7 @@ async function loadRowers(): Promise<AdminRower[]> {
 
   return participants.map((p) => {
     const rows = rowsOf.get(p.id) ?? [];
+    const user = userOf.get(p.userId);
     return {
       id: p.id,
       rowerNumber: p.rowerNumber,
@@ -97,7 +135,10 @@ async function loadRowers(): Promise<AdminRower[]> {
       instagram: p.instagram,
       division: p.division,
       joined: joinedOn(p.createdAt),
-      email: emailOf.get(p.userId) ?? null,
+      joinedDay: pacificDay(p.createdAt.getTime()),
+      email: user?.email ?? null,
+      googleName: user?.name ?? null,
+      about: aboutOf?.get(p.id) ?? null,
       meters: rows.reduce((s, r) => s + r.meters, 0),
       sessions: rows.length,
       seconds: rows.reduce((s, r) => s + r.seconds, 0),
@@ -126,6 +167,7 @@ export default async function SignupsPage({ searchParams }: { searchParams?: { r
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{rowersCss}</style>
       <style>{sgCss}</style>
       <RowBar {...barProps(viewer)} />
 

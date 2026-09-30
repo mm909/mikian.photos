@@ -3,6 +3,7 @@ import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import type { AdminRower } from "../../rowers/RowersTable";
+import { rowersCss } from "../../rowers/rowersCss";
 import { RowersMock } from "./RowersMock";
 
 /* DEV-ONLY preview of the rowers table (the real page is /row100k/signups,
@@ -35,7 +36,23 @@ const MOCK: AdminRower[] = NAMES.map((name, i) => {
     instagram: name.toLowerCase().replace(/\s+/g, "."),
     division: i % 2 === 0 ? "M" : "F",
     joined: `Aug ${20 + i}`,
+    joinedDay: `2026-08-${20 + i}`,
     email: i === 6 ? null : `${name.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+    googleName: i === 6 ? null : name,
+    // The details block: one rower with nothing entered, one with the
+    // columns unreadable, the rest filled in.
+    about:
+      i === 3
+        ? null
+        : i === 5
+          ? { birthday: "", age: null, heightCm: null, weightKg: null, homeGym: "" }
+          : {
+              birthday: `${1975 + i * 4}-0${1 + (i % 9)}-${10 + i}`,
+              age: 2026 - (1975 + i * 4),
+              heightCm: 160 + i * 4,
+              weightKg: 58 + i * 6.5,
+              homeGym: i % 2 === 0 ? "LVSS" : "The garage",
+            },
     meters: rows.reduce((s, r) => s + r.meters, 0),
     sessions: rows.length,
     seconds: rows.reduce((s, r) => s + r.seconds, 0),
@@ -52,6 +69,7 @@ export default function RowersPreview({ searchParams }: { searchParams?: { r?: s
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{rowersCss}</style>
       <RowBar>
         <span className="mono">PREVIEW — NOT REAL DATA · NOTHING SAVES</span>
       </RowBar>
