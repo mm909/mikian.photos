@@ -25,14 +25,21 @@ import { loadProof, type ProofExample, type ProofMonth } from "./l3Data";
  * MONTH as a closed ledger — how many rowed, how many meters, how many made
  * the 100K — read top to bottom as one sentence, the three figures staggered
  * (short, long, short) and the third one wearing the only display label:
- * MADE THE 100K. Then the turn, the one water line on the screen: THIS MONTH
- * IS OPEN, and OPT IN under it at the foot of the first screen, where a
- * thumb is. Nothing is claimed; every figure is counted off the board
- * (l3Data.ts).
+ * MADE THE 100K. Then the turn, the one water line on the screen: THE
+ * OCTOBER 100K IS OPEN, and OPT IN under it at the foot of the first screen,
+ * where a thumb is. Nothing is claimed; every figure is counted off the
+ * board (l3Data.ts).
  *
  * Under the fold, the same proof in detail: the final top five men and
- * women, how the rungs filled, this month so far, what a rower gets, and
- * OPT IN once more with the number they would be handed. */
+ * women, how the rungs filled, this month as a strip of days with what
+ * counts as a row, what a rower gets (their calendar, their bests, two
+ * cards), and OPT IN once more with the number they would be handed.
+ *
+ * After two reviews (2026-09-30): the turn names the 100K, not the month;
+ * ANY MACHINE for ANY ERG under OPT IN; CLOSES OCT 3 for LATE LOGS; the
+ * month-so-far cells (the front page again) cut to the strip and one line;
+ * WHAT COUNTS said once; a best that does not exist and the logo card are
+ * not printed; ROWER 101 IS NEXT, not NUMBER. */
 
 const SIGN_IN = "/row100k/sign-in?callbackUrl=%2Frow100k%23join";
 
@@ -60,8 +67,16 @@ function Meters({ r }: { r: Pick<TotalRow, "meters" | "masked" | "digits"> }) {
   );
 }
 
+/* ANY MACHINE, not ANY ERG: a stranger off Instagram does not know the
+ * word, and ROWING MACHINE is already on the screen in the second figure. */
 function Facts() {
-  return <p className="l3-facts mono">Free · Any erg · A minute to join</p>;
+  return <p className="l3-facts mono">Free · Any machine · A minute to join</p>;
+}
+
+/* The turn: the thing being opted into, in one line. The 100K is defined
+ * two lines up (100,000 M IN 30 DAYS), so the line can carry it. */
+function Open() {
+  return <h1 className="l3-open">The {MONTH_WORD} 100K is open.</h1>;
 }
 
 /* THE FOLD. Three figures, then the turn. */
@@ -110,7 +125,7 @@ function Fold({ m, tag, thisMonth }: { m: ProofMonth; tag: string; thisMonth: bo
         </div>
       </div>
       <div className="l3-turn">
-        <h1 className="l3-open">{MONTH_WORD} is open.</h1>
+        <Open />
         <div className="l3-go">
           <OptIn href={SIGN_IN}>Opt in</OptIn>
         </div>
@@ -174,8 +189,10 @@ function Board({ m, final }: { m: ProofMonth; final: boolean }) {
 }
 
 /* THE RUNGS: how many of the month's rowers passed each one, as a bar of
- * everyone who rowed. The 100K is the one in water. */
-function Rungs({ m }: { m: ProofMonth }) {
+ * everyone who rowed. The 100K is the one in water. When the proof is this
+ * month (no last month to show) there is no SO FAR section, so WHAT COUNTS
+ * is said here instead. */
+function Rungs({ m, counts }: { m: ProofMonth; counts?: boolean }) {
   const pct = m.rowers > 0 ? Math.round((m.finished / m.rowers) * 100) : 0;
   return (
     <section className="l3-sec">
@@ -204,14 +221,29 @@ function Rungs({ m }: { m: ProofMonth }) {
           <b>{pct}%</b> of everyone who rowed made the 100K
         </p>
       ) : null}
+      {counts ? <Counts /> : null}
     </section>
   );
 }
 
+/* WHAT COUNTS, said once, in the words the log form uses (LogRow.tsx: two
+ * photos, you and the screen). A stranger who has never used a challenge
+ * site does not know whether they need an app, a Concept2 account or a
+ * gym; this is the last question before a Google sign-in. */
+function Counts() {
+  return (
+    <p className="l3-note mono">
+      <b>What counts</b> · a row logged with its meters and two photos, you and the screen · any machine, any gym
+    </p>
+  );
+}
+
 /* THIS MONTH SO FAR: the month as a strip of days — gone, today, to come —
- * over what has been rowed in it. Today is the one water mark. */
+ * and one line under it. Today is the one water mark. No meters-so-far
+ * cells here: on day 6 they argue with the proof above (review, 2026-09-30),
+ * and they are the front page again for anyone who taps ROWTEMBER next. */
 function Now({ m, day, left }: { m: ProofMonth; day: number; left: number }) {
-  const empty = m.meters <= 0;
+  const empty = m.rowers <= 0;
   return (
     <section className="l3-sec">
       <h2 className="l3-h mono">
@@ -228,27 +260,11 @@ function Now({ m, day, left }: { m: ProofMonth; day: number; left: number }) {
       {empty ? (
         <p className="l3-empty">The {m.word} board is empty. The first row takes the top of it.</p>
       ) : (
-        <div className="l3-now">
-          <div className="c wide">
-            <div className="n" style={emVar(num(m.meters))}>
-              {num(m.meters)}
-            </div>
-            <div className="l mono">meters so far</div>
-          </div>
-          <div className="c">
-            <div className="n">{num(m.rowers)}</div>
-            <div className="l mono">rowers in</div>
-          </div>
-          <div className="c">
-            <div className="n">{num(m.finished)}</div>
-            <div className="l mono">at 100K already</div>
-          </div>
-          <div className="c">
-            <div className="n">{num(left)}</div>
-            <div className="l mono">{left === 1 ? "day left" : "days left"}</div>
-          </div>
-        </div>
+        <p className="l3-note mono">
+          <b>{num(m.rowers)}</b> {m.rowers === 1 ? "rower" : "rowers"} in · <b>{num(left)}</b> {left === 1 ? "day" : "days"} left
+        </p>
       )}
+      <Counts />
     </section>
   );
 }
@@ -260,8 +276,13 @@ function Chip({ place }: { place: number | null }) {
 }
 
 /* WHAT YOU GET: one rower's page for the month, their real numbers — the
- * calendar, the split, the bests, the cards for Instagram. */
+ * calendar, the split (desktop only: its axis type sets at 5px in a phone
+ * column, l3Css.ts), the bests they have rowed, two cards for Instagram.
+ * A best that does not exist (buildBests prints an em dash) is not printed:
+ * a dash under YOUR NUMBERS is the opposite of the pitch. The logo card is
+ * dropped in the sheet the same way, for not being drawn from anything. */
 function Get({ eg }: { eg: ProofExample }) {
+  const bests = eg.bests.filter((b) => b.value !== "—");
   return (
     <section className="l3-sec">
       <h2 className="l3-h mono">
@@ -280,7 +301,7 @@ function Get({ eg }: { eg: ProofExample }) {
         <PaceCurve pts={eg.paceCurve} dots={eg.paceDots} />
       </div>
       <div className="l3-bests">
-        {eg.bests.map((b) => (
+        {bests.map((b) => (
           <div className="l3-best" key={b.key}>
             <div className="k">
               {b.label}
@@ -302,7 +323,9 @@ function Get({ eg }: { eg: ProofExample }) {
 export async function L3({ data }: { data: LandingData }) {
   const d = await loadProof(data);
   const m = d.proof;
-  const tag = d.fallback ? `Day ${d.day} of ${MONTH.days}` : d.final ? "Final" : `Late logs to ${d.closesTag}`;
+  // CLOSES OCT 3, not LATE LOGS TO: the 1st to the 3rd is when the recap
+  // posts send the most strangers, and late logs is site vocabulary.
+  const tag = d.fallback ? `Day ${d.day} of ${MONTH.days}` : d.final ? "Final" : `Closes ${d.closesTag}`;
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -315,14 +338,14 @@ export async function L3({ data }: { data: LandingData }) {
           <>
             <Fold m={m} tag={tag} thisMonth={d.fallback} />
             <Board m={m} final={d.final} />
-            <Rungs m={m} />
+            <Rungs m={m} counts={!d.now} />
             {d.now ? <Now m={d.now} day={d.day} left={d.left} /> : null}
           </>
         ) : (
           /* The board could not be read: the turn alone still does the job. */
           <header className="l3-fold">
             <div className="l3-turn">
-              <h1 className="l3-open">{MONTH_WORD} is open.</h1>
+              <Open />
               <div className="l3-go">
                 <OptIn href={SIGN_IN}>Opt in</OptIn>
               </div>
@@ -332,8 +355,11 @@ export async function L3({ data }: { data: LandingData }) {
         )}
         {d.example ? <Get eg={d.example} /> : null}
         <section className="l3-sec l3-end">
+          {/* ROWER 101, not NUMBER 101: after a page of 10K and 100K a bare
+           * number reads as a distance; ROWER ties it to the 93 ROWERS the
+           * fold opened with. */}
           <p className="l3-open">
-            {d.nextNumber ? <>Number {fmtRowerNumber(d.nextNumber)} is next.</> : <>{MONTH_WORD} is open.</>}
+            {d.nextNumber ? <>Rower {fmtRowerNumber(d.nextNumber)} is next.</> : <>The {MONTH_WORD} 100K is open.</>}
           </p>
           <div className="l3-go">
             <OptIn href={SIGN_IN}>Opt in</OptIn>

@@ -1,4 +1,5 @@
 import {
+  GOAL_METERS,
   MONTH,
   TIERS,
   computeBoards,
@@ -35,9 +36,11 @@ import { buildBests, buildShareData, getRower } from "../r/[num]/shareData";
  * Fails open: a board that cannot be read gives an empty proof and the page
  * still renders. */
 
-/* The rungs the ladder always draws; one above them is drawn only once
- * somebody is on it (the site never names a rung nobody has reached). */
-const RUNG_TOP = 250_000;
+/* The rungs the ladder always draws (10K, 50K, the 100K); the ones above
+ * are drawn only once somebody is on them (the site never names a rung
+ * nobody has reached), so the ladder closes on the water 100K line, not on
+ * an empty track and a zero. */
+const RUNG_TOP = GOAL_METERS;
 
 export type ProofRung = { meters: number; label: string; count: number };
 
