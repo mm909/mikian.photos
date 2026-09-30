@@ -30,7 +30,16 @@ import { formatTimeDigits } from "../LogRow";
  * here decides who may act. Real numbers always: this is the truth table,
  * never a blackout view. Errors print where the admin is looking: a row
  * error under that row (inside the editor, under SAVE), a rower error in a
- * spanning row under the rower. */
+ * spanning row under the rower.
+ *
+ * DETAILS (owner, 2026-09-30: "I need a way to view this information, like
+ * a summary on the rowers panel, I can see more of their details, if
+ * they've entered their height and weight and stuff like that"): a mono
+ * DETAILS word at the end of the row (and the same item in the ... menu,
+ * which is the way in under 640px, where the word leaves with the other
+ * .rw-x columns) opens one ruled block of label / value pairs under that
+ * row — who they are, what they entered on settings, what they have rowed
+ * — independent of the log, so both can be open. Blank prints a dash. */
 
 export type AdminRow = {
   id: string;
@@ -38,6 +47,19 @@ export type AdminRow = {
   meters: number;
   seconds: number;
   title: string;
+};
+
+/* What the rower entered on settings (birthday on the join form), or
+ * null when the page could not read those columns (signups/page.tsx
+ * guards that read the way settings/page.tsx does). Birthday is the
+ * "YYYY-MM-DD" the column holds, "" for none; age is computed server-side
+ * off the challenge clock. */
+export type AdminAbout = {
+  birthday: string;
+  age: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  homeGym: string;
 };
 
 export type AdminRower = {
@@ -48,7 +70,12 @@ export type AdminRower = {
   division: string;
   /* "Sep 4" — preformatted server-side, the repo's Pacific convention. */
   joined: string;
+  /* The same day as "2026-09-04", for the details block (with the year). */
+  joinedDay: string;
   email: string | null;
+  /* The name on the Google account behind the sign-in. */
+  googleName: string | null;
+  about: AdminAbout | null;
   meters: number;
   sessions: number;
   seconds: number;
@@ -69,9 +96,106 @@ const realSend: Send = async (url, init) => {
   return { ok: res.ok && data.ok === true, error: data.error };
 };
 
-const COLS = 8;
+const COLS = 9;
 
 const boardOf = (division: string) => (division === "F" ? "W" : division);
+
+/* ------------------------------------------------------------ details */
+
+const DASH = "—";
+
+/* "Men's" / "Women's" / "Overall" — the long form for the details block. */
+const boardName = (division: string) =>
+  division === "M" ? "Men's" : division === "F" ? "Women's" : "Overall";
+
+/* "Sep 4, 2026" from "2026-09-04" — fmtDay with the year behind it. */
+const fmtDate = (day: string) => `${fmtDay(day)}, ${day.slice(0, 4)}`;
+
+/* Height and weight print imperial here (owner reads ft in and lb): total
+ * inches = round(cm / 2.54), then feet and the inches left; lb = round(kg
+ * x 2.2046). The columns stay metric. */
+const fmtHeightFtIn = (cm: number) => {
+  const inches = Math.round(cm / 2.54);
+  return `${Math.floor(inches / 12)} ft ${inches % 12} in`;
+};
+const fmtWeightLb = (kg: number) => `${Math.round(kg * 2.2046)} lb`;
+
+/* A blank value prints a dash, never null. */
+const or = (v: string | null | undefined) => (v ? v : DASH);
+
+/* This month's rows and meters, off the rower's full log — the log is all
+ * time, the way the Meters rowed column is. */
+const inMonth = (day: string) => day >= FIRST_DAY && day <= LAST_DAY;
+function thisMonth(rows: AdminRow[]): { rows: number; meters: number } {
+  let n = 0;
+  let meters = 0;
+  for (const r of rows) {
+    if (!inMonth(r.day)) continue;
+    n += 1;
+    meters += r.meters;
+  }
+  return { rows: n, meters };
+}
+
+/* The block under a rower: two lists of label / value pairs (one under
+ * the other on a phone), rowersCss.ts. Rows come newest first, so the
+ * first one is the last row. */
+function RowerDetails({ r }: { r: AdminRower }) {
+  const month = thisMonth(r.rows);
+  const about = r.about;
+  return (
+    <tr className="rw-details">
+      <td colSpan={COLS} className="rw-dp">
+        <div className="rw-dls">
+          <dl className="rw-dl">
+            <dt>Rower</dt>
+            <dd>{fmtRowerNumber(r.rowerNumber)}</dd>
+            <dt>Name on the board</dt>
+            <dd>{r.name}</dd>
+            <dt>Board</dt>
+            <dd>{boardName(r.division)}</dd>
+            <dt>Google name</dt>
+            <dd>{or(r.googleName)}</dd>
+            <dt>Email</dt>
+            <dd>{or(r.email)}</dd>
+            <dt>Instagram</dt>
+            <dd>
+              {r.instagram ? (
+                <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noopener noreferrer">
+                  @{r.instagram}
+                </a>
+              ) : (
+                DASH
+              )}
+            </dd>
+            <dt>Joined</dt>
+            <dd>{fmtDate(r.joinedDay)}</dd>
+            <dt>Home gym</dt>
+            <dd>{or(about?.homeGym)}</dd>
+          </dl>
+          <dl className="rw-dl">
+            <dt>Birthday</dt>
+            <dd>{about?.birthday ? fmtDate(about.birthday) : DASH}</dd>
+            <dt>Age</dt>
+            <dd>{about?.age ?? DASH}</dd>
+            <dt>Height</dt>
+            <dd>{about?.heightCm != null ? fmtHeightFtIn(about.heightCm) : DASH}</dd>
+            <dt>Weight</dt>
+            <dd>{about?.weightKg != null ? fmtWeightLb(about.weightKg) : DASH}</dd>
+            <dt>Rows this month</dt>
+            <dd>{month.rows}</dd>
+            <dt>Meters this month</dt>
+            <dd>{fmtMeters(month.meters)}</dd>
+            <dt>Meters all time</dt>
+            <dd>{fmtMeters(r.meters)}</dd>
+            <dt>Last row</dt>
+            <dd>{r.rows[0] ? fmtDate(r.rows[0].day) : DASH}</dd>
+          </dl>
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 export function RowersTable({
   rowers,
@@ -91,6 +215,9 @@ export function RowersTable({
     const first = openNumber ? rowers.find((r) => r.rowerNumber === openNumber) : undefined;
     return new Set(first ? [first.id] : []);
   });
+  /* Which rowers have their details block open — its own set, so a block
+   * and a log can both be open on one rower. */
+  const [details, setDetails] = useState<Set<string>>(() => new Set());
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirmRower, setConfirmRower] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -139,6 +266,15 @@ export function RowersTable({
 
   const toggleOpen = (id: string) => {
     setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleDetails = (id: string) => {
+    setDetails((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -284,12 +420,14 @@ export function RowersTable({
               <th className="rw-x">Joined</th>
               <th className="num">Meters rowed</th>
               <th className="num rw-x">Sessions</th>
+              <th className="rw-x rw-dc" aria-label="Details" />
               <th className="rw-c" aria-label="Options" />
             </tr>
           </thead>
           <tbody>
             {list.map((r) => {
               const isOpen = open.has(r.id);
+              const showDetails = details.has(r.id);
               const menuOpen = menuFor === r.id;
               return (
                 <Fragment key={r.id}>
@@ -337,6 +475,17 @@ export function RowersTable({
                     <td className="num rw-x" style={{ color: "var(--gray)" }}>
                       {r.sessions}
                     </td>
+                    <td className="rw-x rw-dc" onClick={stop}>
+                      <button
+                        type="button"
+                        className={showDetails ? "rw-act on" : "rw-act"}
+                        aria-expanded={showDetails}
+                        aria-label={`Details for ${r.name}`}
+                        onClick={() => toggleDetails(r.id)}
+                      >
+                        Details
+                      </button>
+                    </td>
                     <td className="rw-c" onClick={stop}>
                       <span className="rw-anchor">
                         <button
@@ -364,6 +513,15 @@ export function RowersTable({
                                 }}
                               >
                                 {isOpen ? "Hide rows" : "Show rows"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  closeMenu();
+                                  toggleDetails(r.id);
+                                }}
+                              >
+                                {showDetails ? "Hide details" : "Details"}
                               </button>
                               <a href={`/row100k/r/${r.rowerNumber}`} onClick={closeMenu}>
                                 Profile →
@@ -429,6 +587,8 @@ export function RowersTable({
                       </td>
                     </tr>
                   )}
+
+                  {showDetails && <RowerDetails r={r} />}
 
                   {isOpen && (
                     <tr className="rw-open">

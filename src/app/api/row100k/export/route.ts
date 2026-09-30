@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import {
   CHALLENGE,
   CHALLENGE_DEMO,
+  birthdayInput,
   fmtDuration,
   fmtRowerNumber,
   fmtSplit,
@@ -117,6 +118,9 @@ const ROWS_HEADER = [
   "createdAt",
 ];
 
+/* The four About you columns ride at the END (owner, 2026-09-30, the
+ * details block on /row100k/signups): birthday as YYYY-MM-DD, height and
+ * weight metric as stored, home gym as typed — blank when not entered. */
 const ROWERS_HEADER = [
   "rowerNumber",
   "name",
@@ -130,6 +134,10 @@ const ROWERS_HEADER = [
   "avgSplit",
   "longest",
   "lastDay",
+  "birthday",
+  "heightCm",
+  "weightKg",
+  "homeGym",
 ];
 
 type Participant = {
@@ -140,6 +148,13 @@ type Participant = {
   instagram: string;
   division: string;
   createdAt: Date;
+};
+
+type About = {
+  birthday: Date | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  homeGym: string | null;
 };
 
 type Entry = {
@@ -158,7 +173,25 @@ type Loaded = {
   participants: Participant[];
   entriesOf: Map<string, Entry[]>;
   emailOf: Map<string, string>;
+  /* Empty when the About you columns could not be read (see readAbout). */
+  aboutOf: Map<string, About>;
 };
+
+/* The About you columns in their own query and CAUGHT, the way
+ * settings/page.tsx and /row100k/signups read them: if they cannot be read
+ * the four columns export blank and the file still comes. */
+async function readAbout(ids: string[]): Promise<Map<string, About>> {
+  try {
+    const rows = await db.rowParticipant.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, birthday: true, heightCm: true, weightKg: true, homeGym: true },
+    });
+    return new Map(rows.map((r) => [r.id, r]));
+  } catch (err) {
+    console.error("row100k export: the About you columns could not be read (not pushed yet?)", err);
+    return new Map();
+  }
+}
 
 /* Everyone (or the one rower), by number, with their rows by day then by
  * when they were logged, and the address behind each Google sign-in —
@@ -178,9 +211,11 @@ async function load(rower: number | null): Promise<Loaded> {
     },
     orderBy: { rowerNumber: "asc" },
   });
-  if (participants.length === 0) return { participants, entriesOf: new Map(), emailOf: new Map() };
+  if (participants.length === 0) {
+    return { participants, entriesOf: new Map(), emailOf: new Map(), aboutOf: new Map() };
+  }
 
-  const [entries, users] = await Promise.all([
+  const [entries, users, aboutOf] = await Promise.all([
     db.rowEntry.findMany({
       where: {
         challenge: CHALLENGE,
@@ -203,6 +238,7 @@ async function load(rower: number | null): Promise<Loaded> {
       where: { id: { in: participants.map((p) => p.userId) } },
       select: { id: true, email: true },
     }),
+    readAbout(participants.map((p) => p.id)),
   ]);
 
   const entriesOf = new Map<string, Entry[]>();
@@ -211,7 +247,7 @@ async function load(rower: number | null): Promise<Loaded> {
     if (list) list.push(e);
     else entriesOf.set(e.participantId, [e]);
   }
-  return { participants, entriesOf, emailOf: new Map(users.map((u) => [u.id, u.email])) };
+  return { participants, entriesOf, emailOf: new Map(users.map((u) => [u.id, u.email])), aboutOf };
 }
 
 const split = (meters: number, seconds: number) => (meters > 0 && seconds > 0 ? fmtSplit(meters, seconds) : "");
@@ -253,6 +289,7 @@ function rowersLines(data: Loaded): unknown[][] {
     const longest = rows.reduce((m, r) => Math.max(m, r.meters), 0);
     // Rows come sorted by day ascending, so the last one is the latest day.
     const lastDay = rows.length ? rows[rows.length - 1].day : "";
+    const about = data.aboutOf.get(p.id);
     return [
       p.rowerNumber,
       p.displayName,
@@ -266,6 +303,10 @@ function rowersLines(data: Loaded): unknown[][] {
       split(meters, seconds),
       longest,
       lastDay,
+      birthdayInput(about?.birthday),
+      about?.heightCm ?? "",
+      about?.weightKg ?? "",
+      about?.homeGym ?? "",
     ];
   });
 }
