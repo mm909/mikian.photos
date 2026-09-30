@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
+  HOME_GYMS,
   HOME_GYM_MAX,
   birthdayBounds,
-  fmtHeightCm,
-  fmtWeightKg,
+  heightCmFromFtIn,
+  heightFtIn,
+  matchHomeGym,
   parseBirthday,
-  parseHeightCm,
   parseHomeGym,
   parseInstagramOptional,
-  parseWeightKg,
+  weightKgFromLb,
+  weightLb,
   type Division,
 } from "@/lib/row100k";
 
@@ -42,16 +44,34 @@ import {
  * prefilled at join in the first place (row100kJoin.ts). A board name the
  * rower has typed for themself is left alone.
  *
- * Height and weight are TEXT fields, not number fields, so a rower can type
- * what they know — 180 cm or 5'11, 75 kg or 165 lb — and the same readers
- * the API uses (lib/row100k parseHeightCm/parseWeightKg) turn it metric
- * before it is sent; on save the input re-prints the stored metric value,
- * the one honest answer to what was kept. Blank clears. */
+ * HEIGHT, WEIGHT AND HOME GYM the American way (owner, 2026-09-30: "when
+ * I was trying to put in my height on my phone I couldn't type the
+ * apostrophe for five foot eleven … let's just put in feet and inches,
+ * sections. Everyone's American, no one's putting in kg or cm, same with
+ * weight, they just assume pounds. For home gym, can I provide options?
+ * … and then allow a free-form other"). Height is two small numeric boxes,
+ * FT and IN, that save together when focus leaves the pair (so tabbing
+ * from feet to inches is not a save of five foot nothing); weight is one
+ * box in pounds. The columns stay metric: lib/row100k turns the boxes to
+ * cm and lb to kg before the PATCH and turns the stored value back on
+ * save, so the boxes re-print what was kept. Both height boxes blank, or
+ * a blank weight, clears. Home gym is a row of chips from HOME_GYMS
+ * (lib/row100k, one list) plus OTHER, which opens the free-text field; a
+ * stored gym that is one of the list lights its chip, any other words
+ * light OTHER with the words shown. */
 
 const DIVISIONS: { value: Division; label: string }[] = [
   { value: "M", label: "MEN'S BOARD" },
   { value: "F", label: "WOMEN'S BOARD" },
 ];
+
+/* The OTHER chip's own value — never a gym name, never stored (a chip
+ * pick of OTHER saves nothing; the field under it does). */
+const OTHER = "__other__";
+
+/* Which chip a stored gym lights: its own, OTHER for a rower's words,
+ * none for nothing. */
+const gymChip = (stored: string): string => matchHomeGym(stored) ?? (stored ? OTHER : "");
 
 type Field = "first" | "last" | "name" | "instagram" | "division" | "birthday" | "height" | "weight" | "gym";
 type Flash = "saving" | "saved";
@@ -117,15 +137,20 @@ export function SettingsForm(props: {
   const [instagram, setInstagram] = useState(props.instagram);
   const [division, setDivision] = useState<Division | null>(props.division);
   const [birthday, setBirthday] = useState(props.about?.birthday ?? "");
-  const [height, setHeight] = useState(fmtHeightCm(props.about?.heightCm));
-  const [weight, setWeight] = useState(fmtWeightKg(props.about?.weightKg));
+  const boxes = heightFtIn(props.about?.heightCm);
+  const [heightFt, setHeightFt] = useState(boxes.ft);
+  const [heightIn, setHeightIn] = useState(boxes.inch);
+  const [weightLbs, setWeightLbs] = useState(weightLb(props.about?.weightKg));
   const [gym, setGym] = useState(props.about?.homeGym ?? "");
+  const [gymPick, setGymPick] = useState(gymChip(props.about?.homeGym ?? ""));
   const [flash, setFlash] = useState<Partial<Record<Field, Flash>>>({});
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const bounds = birthdayBounds();
 
   /* What the server (or the browser store) last accepted, so a blur with
-   * nothing new sends nothing. */
+   * nothing new sends nothing. Height and weight are kept as the column
+   * holds them (cm, kg) and compared after conversion, so retyping the
+   * same feet and inches is not a save. */
   const saved = useRef({
     first: guess.first,
     last: guess.last,
@@ -133,11 +158,21 @@ export function SettingsForm(props: {
     instagram: props.instagram,
     division: props.division,
     birthday: props.about?.birthday ?? "",
-    height: fmtHeightCm(props.about?.heightCm),
-    weight: fmtWeightKg(props.about?.weightKg),
+    heightCm: props.about?.heightCm ?? null,
+    weightKg: props.about?.weightKg ?? null,
     gym: props.about?.homeGym ?? "",
   });
   const timers = useRef<Partial<Record<Field, number>>>({});
+
+  /* The OTHER field takes focus when the chip is picked by hand — not on
+   * load, where OTHER may already be lit by a stored gym. */
+  const otherRef = useRef<HTMLInputElement>(null);
+  const focusOther = useRef(false);
+  useEffect(() => {
+    if (gymPick !== OTHER || !focusOther.current) return;
+    focusOther.current = false;
+    otherRef.current?.focus();
+  }, [gymPick]);
 
   /* The browser's copy of the two names, read after mount (the server
    * cannot see it, and reading it during render would hydrate a different
@@ -214,8 +249,18 @@ export function SettingsForm(props: {
     router.refresh();
   };
 
-  /* THE ROWER'S OWN DOOR: one key at a time. */
-  const saveAbout = async (field: Field, body: Record<string, string | number | null>, after: () => void) => {
+  /* THE ROWER'S OWN DOOR: one key at a time. Saves of one field run in
+   * the order they were asked for (the OTHER field's blur and the chip
+   * tapped to leave it are two saves a beat apart; in parallel the later
+   * one could land first and the stored gym would be the wrong one). */
+  const chain = useRef<Partial<Record<Field, Promise<void>>>>({});
+  const saveAbout = (field: Field, body: Record<string, string | number | null>, after: () => void) => {
+    const run = () => saveAboutNow(field, body, after);
+    const p = (chain.current[field] ?? Promise.resolve()).then(run);
+    chain.current[field] = p;
+    return p;
+  };
+  const saveAboutNow = async (field: Field, body: Record<string, string | number | null>, after: () => void) => {
     clearError(field);
     mark(field, "saving");
     try {
@@ -233,26 +278,33 @@ export function SettingsForm(props: {
         homeGym?: string | null;
       };
       if (!res.ok || !data.ok) return fail(field, data.error ?? "Something went wrong — try again.");
-      // The inputs re-print what was kept, metric and trimmed.
+      // The inputs re-print what was kept — the stored cm and kg turned
+      // back into feet, inches and pounds, the gym trimmed.
       if ("birthday" in body) {
         const v = data.birthday ?? "";
         setBirthday(v);
         saved.current.birthday = v;
       }
       if ("heightCm" in body) {
-        const v = fmtHeightCm(data.heightCm ?? null);
-        setHeight(v);
-        saved.current.height = v;
+        const cm = data.heightCm ?? null;
+        const b = heightFtIn(cm);
+        setHeightFt(b.ft);
+        setHeightIn(b.inch);
+        saved.current.heightCm = cm;
       }
       if ("weightKg" in body) {
-        const v = fmtWeightKg(data.weightKg ?? null);
-        setWeight(v);
-        saved.current.weight = v;
+        const kg = data.weightKg ?? null;
+        setWeightLbs(weightLb(kg));
+        saved.current.weightKg = kg;
       }
       if ("homeGym" in body) {
         const v = data.homeGym ?? "";
         setGym(v);
         saved.current.gym = v;
+        // Words that spell a listed gym light its chip; a cleared gym
+        // leaves OTHER open rather than pulling the field away mid-edit.
+        const chip = gymChip(v);
+        if (chip) setGymPick(chip);
       }
     } catch {
       return fail(field, "Something went wrong — try again.");
@@ -310,19 +362,39 @@ export function SettingsForm(props: {
     }
     void saveAbout("birthday", { birthday: v || null }, () => undefined);
   };
-  const onHeight = () => {
-    const h = height.trim();
-    if (h === saved.current.height) return clearError("height");
-    const cm = h ? parseHeightCm(h) : null;
-    if (h && cm === null) return fail("height", "Height did not read — try 180 cm or 5'11.");
+  /* The pair saves when focus leaves it, not when it moves from FT to IN
+   * (relatedTarget is where focus went; inside the pair means keep
+   * typing). Enter blurs with nowhere to go, so it saves. */
+  const onHeightBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+    const ft = heightFt.trim();
+    const inch = heightIn.trim();
+    const cm = ft || inch ? heightCmFromFtIn(ft, inch) : null;
+    if ((ft || inch) && cm === null) return fail("height", "Height did not read — 4 to 7 feet, 0 to 11 inches.");
+    if (cm === saved.current.heightCm) return clearError("height");
     void saveAbout("height", { heightCm: cm }, () => undefined);
   };
   const onWeight = () => {
-    const w = weight.trim();
-    if (w === saved.current.weight) return clearError("weight");
-    const kg = w ? parseWeightKg(w) : null;
-    if (w && kg === null) return fail("weight", "Weight did not read — try 75 kg or 165 lb.");
+    const w = weightLbs.trim();
+    const kg = w ? weightKgFromLb(w) : null;
+    if (w && kg === null) return fail("weight", "Weight did not read — 60 to 500 lb.");
+    if (kg === saved.current.weightKg) return clearError("weight");
     void saveAbout("weight", { weightKg: kg }, () => undefined);
+  };
+  /* A chip is a save of its name. OTHER saves nothing itself: it opens
+   * the field (blank, unless the stored gym is already the rower's own
+   * words) and the field saves on blur — blank included, which clears,
+   * since OTHER with nothing written is no gym. */
+  const onGymPick = (pick: string) => {
+    setGymPick(pick);
+    clearError("gym");
+    if (pick === OTHER) {
+      if (matchHomeGym(saved.current.gym)) setGym("");
+      focusOther.current = true;
+      return;
+    }
+    if (pick === saved.current.gym) return;
+    void saveAbout("gym", { homeGym: pick }, () => undefined);
   };
   const onGym = () => {
     const g = parseHomeGym(gym);
@@ -420,45 +492,74 @@ export function SettingsForm(props: {
             />
             <FieldErr errors={errors} field="birthday" />
 
-            <FieldLabel flash={flash} field="height" htmlFor="se-height">Height · optional</FieldLabel>
-            <input
-              id="se-height"
-              type="text"
-              inputMode="decimal"
-              value={height}
-              maxLength={16}
-              placeholder="180 cm or 5'11"
-              onChange={(e) => setHeight(e.target.value)}
-              onBlur={onHeight}
-              autoComplete="off"
-            />
+            <FieldLabel flash={flash} field="height" htmlFor="se-ft">Height</FieldLabel>
+            <div className="se-units" onBlur={onHeightBlur}>
+              <input
+                id="se-ft"
+                type="text"
+                inputMode="numeric"
+                value={heightFt}
+                maxLength={1}
+                onChange={(e) => setHeightFt(e.target.value)}
+                autoComplete="off"
+              />
+              <span className="se-unit">FT</span>
+              <input
+                id="se-in"
+                type="text"
+                inputMode="numeric"
+                value={heightIn}
+                maxLength={2}
+                onChange={(e) => setHeightIn(e.target.value)}
+                autoComplete="off"
+                aria-label="Inches"
+              />
+              <span className="se-unit">IN</span>
+            </div>
             <FieldErr errors={errors} field="height" />
 
-            <FieldLabel flash={flash} field="weight" htmlFor="se-weight">Weight · optional</FieldLabel>
-            <input
-              id="se-weight"
-              type="text"
-              inputMode="decimal"
-              value={weight}
-              maxLength={16}
-              placeholder="75 kg or 165 lb"
-              onChange={(e) => setWeight(e.target.value)}
-              onBlur={onWeight}
-              autoComplete="off"
-            />
+            <FieldLabel flash={flash} field="weight" htmlFor="se-weight">Weight · lb</FieldLabel>
+            <div className="se-units">
+              <input
+                id="se-weight"
+                type="text"
+                inputMode="numeric"
+                value={weightLbs}
+                maxLength={3}
+                onChange={(e) => setWeightLbs(e.target.value)}
+                onBlur={onWeight}
+                autoComplete="off"
+              />
+            </div>
             <FieldErr errors={errors} field="weight" />
 
-            <FieldLabel flash={flash} field="gym" htmlFor="se-gym">Home gym · optional</FieldLabel>
-            <input
-              id="se-gym"
-              type="text"
-              value={gym}
-              maxLength={HOME_GYM_MAX}
-              placeholder="Where you row"
-              onChange={(e) => setGym(e.target.value)}
-              onBlur={onGym}
-              autoComplete="off"
-            />
+            <FieldLabel flash={flash} field="gym">Home gym</FieldLabel>
+            <div className="pills" role="radiogroup" aria-label="Home gym">
+              {HOME_GYMS.map((g) => (
+                <label className="pill" key={g.name}>
+                  <input type="radio" name="gym" checked={gymPick === g.name} onChange={() => onGymPick(g.name)} />
+                  <span>{g.label}</span>
+                </label>
+              ))}
+              <label className="pill">
+                <input type="radio" name="gym" checked={gymPick === OTHER} onChange={() => onGymPick(OTHER)} />
+                <span>OTHER</span>
+              </label>
+            </div>
+            {gymPick === OTHER ? (
+              <input
+                ref={otherRef}
+                id="se-gym"
+                className="se-other"
+                type="text"
+                value={gym}
+                maxLength={HOME_GYM_MAX}
+                onChange={(e) => setGym(e.target.value)}
+                onBlur={onGym}
+                autoComplete="off"
+                aria-label="Other gym"
+              />
+            ) : null}
             <FieldErr errors={errors} field="gym" />
           </>
         ) : (

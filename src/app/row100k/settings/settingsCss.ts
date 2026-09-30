@@ -25,6 +25,19 @@ export const settingsCss = `
  * the other on a phone. */
 .row100k .se-pair{display:grid;grid-template-columns:1fr;gap:0 18px}
 @media(min-width:480px){.row100k .se-pair{grid-template-columns:1fr 1fr}}
+/* HEIGHT as FT and IN, WEIGHT as LB (owner, 2026-09-30: could not type
+ * the apostrophe for five foot eleven on a phone; everyone is American).
+ * Small mono boxes on the panel underline, each unit word after its box
+ * in the label face; the weight box is the same shape, its unit in the
+ * label. Written under .panel so it outranks the full-width input rule
+ * in theme.ts. */
+.row100k .se-units{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.row100k .panel .se-units input[type=text]{width:4.5ch;flex:none;font-family:var(--row-mono),monospace;font-size:17px;font-variant-numeric:tabular-nums;text-align:center;padding:8px 2px}
+.row100k .se-unit{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-right:14px}
+.row100k .se-unit:last-child{margin-right:0}
+/* HOME GYM: the join-form chips (.pills, theme.ts) in a row, OTHER
+ * opening the free-text field beneath them. */
+.row100k .panel .se-other{margin-top:12px}
 /* A quiet mono line when a group of fields is not available yet. */
 .row100k .se-off{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-top:24px;line-height:1.7}
 /* MY PROFILE under the block: the month word idiom, a dotted rule. */
