@@ -28,10 +28,13 @@ function isMissingColumn(err: unknown): boolean {
  * optional, in the settings page"; 2026-09-25: "give them the option to
  * enter their HOME GYM"). PATCH { birthday?, heightCm?, weightKg?,
  * homeGym? }: a key that is absent is left alone; null or "" clears it;
- * anything else must parse (the gym is free text under HOME_GYM_MAX).
- * Height and weight take a number (metric) OR the text the form holds —
- * "5'11", "165 lb" — through the same readers the form uses, so the two
- * cannot disagree about what a value means. THE OWNER OF THE ROW ONLY: not
+ * anything else must parse (the gym is free text under HOME_GYM_MAX — a
+ * chip name from HOME_GYMS or the rower's own words, the same door).
+ * Height and weight take a NUMBER in the column's units — cm, kg — which
+ * is what the settings form sends since 2026-09-30 (it holds feet, inches
+ * and pounds and converts at its edge, lib/row100k heightCmFromFtIn /
+ * weightKgFromLb) — or the text a caller might write, "5'11", "165 lb",
+ * through the same readers. THE OWNER OF THE ROW ONLY: not
  * an admin, not the moderation path below — these are the rower's own
  * facts and nobody else's to set. Nothing is revalidated because nothing
  * prints any of the three yet. */
@@ -64,7 +67,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     else {
       const cm = parseHeightCm(body.heightCm);
       if (cm === null) {
-        return NextResponse.json({ ok: false, error: "Height did not read — try 180 cm or 5'11." }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Height did not read — 4 to 7 feet." }, { status: 400 });
       }
       data.heightCm = cm;
     }
@@ -74,7 +77,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     else {
       const kg = parseWeightKg(body.weightKg);
       if (kg === null) {
-        return NextResponse.json({ ok: false, error: "Weight did not read — try 75 kg or 165 lb." }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Weight did not read — 60 to 500 lb." }, { status: 400 });
       }
       data.weightKg = kg;
     }

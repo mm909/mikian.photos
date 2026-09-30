@@ -268,17 +268,22 @@ export function birthdayBounds(atMs: number = Date.now()): { min: string; max: s
 }
 
 /* HEIGHT AND WEIGHT, optional, metric in the column (owner, 2026-09-24:
- * "height and weight optional, in the settings page"). The rower types
- * whatever they know — "180", "180 cm", "1.80 m", "5'11", "5 ft 11 in",
- * "71 in"; "75", "75 kg", "165 lb" — and these read it into cm and kg.
- * Null means it could not be read; the EMPTY string is the caller's to
- * handle (it means "clear", not "unreadable"). The bands are sanity, not
- * policy: wide enough for any adult who rows, tight enough to catch a
- * value typed in the wrong box. */
+ * "height and weight optional, in the settings page"). The API takes a
+ * cm or kg NUMBER — what the settings form sends since 2026-09-30 — or
+ * the text a rower might type at it, "180 cm", "1.80 m", "5'11", "71 in";
+ * "75 kg", "165 lb", "12 st 4" — and these read it into cm and kg. Null
+ * means it could not be read; the EMPTY string is the caller's to handle
+ * (it means "clear", not "unreadable"). The bands are sanity, not policy:
+ * wide enough for any adult who rows, tight enough to catch a value typed
+ * in the wrong box. The kg floor is 27, not 30, since 2026-09-30: the
+ * form's floor is 60 lb, which is 27.2 kg. */
 export const HEIGHT_CM_MIN = 100;
 export const HEIGHT_CM_MAX = 250;
-export const WEIGHT_KG_MIN = 30;
+export const WEIGHT_KG_MIN = 27;
 export const WEIGHT_KG_MAX = 250;
+
+const CM_PER_IN = 2.54;
+const KG_PER_LB = 0.45359237;
 
 const num = (s: string): number => Number(s.replace(",", "."));
 
@@ -289,10 +294,10 @@ export function parseHeightCm(v: unknown): number | null {
   if (!t) return null;
   // 5'11, 5' 11", 5ft 11in, 5 ft 11, 5 feet 11 inches, 6' (no inches)
   const ftIn = /^(\d{1,2})\s*(?:'|ft|feet|foot)\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:"|''|in|inch|inches)?)?$/.exec(t);
-  if (ftIn) return checkHeight((num(ftIn[1]) * 12 + (ftIn[2] ? num(ftIn[2]) : 0)) * 2.54);
+  if (ftIn) return checkHeight((num(ftIn[1]) * 12 + (ftIn[2] ? num(ftIn[2]) : 0)) * CM_PER_IN);
   // 71 in / 71"
   const inches = /^(\d{1,3}(?:\.\d+)?)\s*(?:"|in|inch|inches)$/.exec(t);
-  if (inches) return checkHeight(num(inches[1]) * 2.54);
+  if (inches) return checkHeight(num(inches[1]) * CM_PER_IN);
   // 1.80 m / 1,80m
   const metres = /^(\d(?:[.,]\d{1,2})?)\s*m$/.exec(t);
   if (metres) return checkHeight(num(metres[1]) * 100);
@@ -314,10 +319,10 @@ export function parseWeightKg(v: unknown): number | null {
   if (!t) return null;
   // 165 lb / 165lbs / 165 pounds
   const lb = /^(\d{2,3}(?:[.,]\d+)?)\s*(?:lb|lbs|pound|pounds)$/.exec(t);
-  if (lb) return checkWeight(num(lb[1]) * 0.45359237);
+  if (lb) return checkWeight(num(lb[1]) * KG_PER_LB);
   // 12 st 4 / 12st 4lb
   const stone = /^(\d{1,2})\s*(?:st|stone)\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:lb|lbs)?)?$/.exec(t);
-  if (stone) return checkWeight((num(stone[1]) * 14 + (stone[2] ? num(stone[2]) : 0)) * 0.45359237);
+  if (stone) return checkWeight((num(stone[1]) * 14 + (stone[2] ? num(stone[2]) : 0)) * KG_PER_LB);
   // 75 / 75 kg / 75.5kg
   const kg = /^(\d{2,3}(?:[.,]\d+)?)\s*(?:kg|kgs|kilo|kilos)?$/.exec(t);
   if (kg) return checkWeight(num(kg[1]));
@@ -327,6 +332,58 @@ export function parseWeightKg(v: unknown): number | null {
 function checkWeight(kg: number): number | null {
   const r = Math.round(kg * 10) / 10;
   return r >= WEIGHT_KG_MIN && r <= WEIGHT_KG_MAX ? r : null;
+}
+
+/* THE AMERICAN EDGE (owner, 2026-09-30: "when I was trying to put in my
+ * height on my phone I couldn't type the apostrophe for five foot eleven …
+ * let's just put in feet and inches, sections. Everyone's American, no
+ * one's putting in kg or cm, same with weight, they just assume pounds").
+ * The settings form holds FT and IN, and LB; the columns stay metric and
+ * the PATCH still carries cm and kg numbers. These turn the two ways: the
+ * boxes → cm (nearest cm) and lb → kg (nearest 0.1), the stored cm → the
+ * boxes (total inches = nearest inch, then feet and the remainder) and
+ * kg → the nearest lb. Whole feet 4–7, whole inches 0–11 (blank inches is
+ * 0; blank feet with inches is not a height), 60–500 lb; BOTH boxes blank
+ * is the caller's clear, not these. */
+export const HEIGHT_FT_MIN = 4;
+export const HEIGHT_FT_MAX = 7;
+export const HEIGHT_IN_MAX = 11;
+export const WEIGHT_LB_MIN = 60;
+export const WEIGHT_LB_MAX = 500;
+
+/* A whole number in a band, from a box (string) or a number; else null. */
+function whole(v: unknown, min: number, max: number): number | null {
+  const s = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim() : "";
+  if (!/^\d{1,3}$/.test(s)) return null;
+  const n = Number(s);
+  return n >= min && n <= max ? n : null;
+}
+
+const isBlank = (v: unknown): boolean => v == null || (typeof v === "string" && v.trim() === "");
+
+export function heightCmFromFtIn(ft: unknown, inch: unknown): number | null {
+  const f = whole(ft, HEIGHT_FT_MIN, HEIGHT_FT_MAX);
+  const i = isBlank(inch) ? 0 : whole(inch, 0, HEIGHT_IN_MAX);
+  if (f === null || i === null) return null;
+  return checkHeight((f * 12 + i) * CM_PER_IN);
+}
+
+export function heightFtIn(cm: number | null | undefined): { ft: string; inch: string } {
+  if (cm == null) return { ft: "", inch: "" };
+  const total = Math.round(cm / CM_PER_IN);
+  return { ft: String(Math.floor(total / 12)), inch: String(total % 12) };
+}
+
+export function weightKgFromLb(v: unknown): number | null {
+  const s = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim().replace(",", ".") : "";
+  if (!/^\d{1,3}(?:\.\d+)?$/.test(s)) return null;
+  const lb = Number(s);
+  if (lb < WEIGHT_LB_MIN || lb > WEIGHT_LB_MAX) return null;
+  return checkWeight(lb * KG_PER_LB);
+}
+
+export function weightLb(kg: number | null | undefined): string {
+  return kg == null ? "" : String(Math.round(kg / KG_PER_LB));
 }
 
 /* HOME GYM, optional free text (owner, 2026-09-25: "give them the option
@@ -343,7 +400,31 @@ export function parseHomeGym(v: unknown): string | null {
   return t.length <= HOME_GYM_MAX ? t : null;
 }
 
-/* What the settings inputs show for a stored value — metric, plainly. */
+/* THE GYMS AS CHIPS (owner, 2026-09-30: "can I provide options? like The
+ * Strip Barbell, Home, Planet Fitness, EōS … and then allow a free-form
+ * other"). ONE LIST: add a gym here and the settings page grows a chip.
+ * `name` is what is stored when the chip is picked; `label` is what the
+ * chip prints (caps by hand, so EōS keeps its ō). OTHER is the form's own
+ * chip, not a gym, and the PATCH keeps taking any string under
+ * HOME_GYM_MAX for it. */
+export const HOME_GYMS: readonly { name: string; label: string }[] = [
+  { name: "The Strip Barbell", label: "THE STRIP BARBELL" },
+  { name: "EōS Fitness", label: "EōS FITNESS" },
+  { name: "Planet Fitness", label: "PLANET FITNESS" },
+  { name: "Home", label: "HOME" },
+];
+
+/* A stored gym → the listed name it is (case and spacing aside), or null
+ * when it is a rower's own words, which light OTHER. */
+export function matchHomeGym(stored: string | null | undefined): string | null {
+  const key = (stored ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!key) return null;
+  return HOME_GYMS.find((g) => g.name.toLowerCase() === key)?.name ?? null;
+}
+
+/* What a stored value reads as in metric, plainly (the settings inputs
+ * printed these until 2026-09-30; kept for anything that wants the
+ * column's own units). */
 export function fmtHeightCm(cm: number | null | undefined): string {
   return cm == null ? "" : `${cm} cm`;
 }
