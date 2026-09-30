@@ -21,51 +21,53 @@ import { Heatmap } from "../Heatmap";
 import { OptIn } from "../OptIn";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { LandingCards } from "../landing/LandingCards";
 import type { LandingData, LandingExample } from "../landing/data";
 import { l5Css } from "./l5Css";
-import { loadL5, type L5Row } from "./l5Data";
+import { loadL5 } from "./l5Data";
 
 /* LANDING 5: THE CLOCK (owner brief, 2026-09-30: convert someone off
  * Instagram into a rower; the 100K month is the point, the stats are the
  * second reason, OPT IN is the call; a distinct fold, details under it).
  *
  * The idea: the month is live and you are late. The fold is a scoreboard —
- * the dateline (month, day d of n, one cell per day), everyone together as
- * the one water-blue figure, then the ask with the time left ticking under
- * it, then OPT IN. Under the fold the same clock does the arithmetic (the
- * meters a day from today, and what waiting a week costs), then the
- * evidence that the month is moving: the latest rows, the top fives, what
- * a rower gets, how a row counts, and OPT IN again.
+ * the dateline (month, day d of n, one cell per day), the ask at poster
+ * size with everyone's meters so far as the one water-blue line under it,
+ * the time left ticking with what it costs a day, then OPT IN. Under the
+ * fold the same clock does the arithmetic (the meters a day from today,
+ * and what waiting a week costs), how a row counts, what a rower gets,
+ * the top fives, and OPT IN again.
  *
- * Every figure is computed: the totals and boards from landing/data.ts, the
- * latest rows, last month and the next number from l5Data.ts. */
+ * Revised after two reviews (2026-09-30): the ask is the biggest thing on
+ * the screen and the total its caption, not the other way round; the
+ * per-day number is in the fold; the latest-rows list and the painted
+ * cards are gone; dates instead of day counts everywhere but the clock.
+ *
+ * Every figure is computed: the totals and boards from landing/data.ts,
+ * last month and the next number from l5Data.ts. */
 
 const SIGN_IN = "/row100k/sign-in?callbackUrl=%2Frow100k%23join";
-const FACTS = "Free · any rowing machine · a minute to join";
+/* Non-breaking inside the last fact, so a 360px phone breaks the line at
+ * a separator and not inside GOOGLE SIGN-IN. */
+const FACTS = "Free · any rowing machine · one Google sign-in";
 
 const n = (v: number) => Math.round(v).toLocaleString("en-US");
-
-/* "12 min ago", server-rendered against the challenge clock. */
-function ago(thenMs: number, now: number): string {
-  const s = Math.max(0, Math.floor((now - thenMs) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} ${h === 1 ? "hour" : "hours"} ago`;
-  const d = Math.floor(h / 24);
-  return `${d} ${d === 1 ? "day" : "days"} ago`;
-}
 
 /* What a day of the plan costs in time, at a split (seconds per 500 m). */
 function minutesAt(meters: number, split: number): number {
   return Math.max(1, Math.round(((meters / 500) * split) / 60));
 }
 
+/* "2:02" — a split to the second, for the plan note. */
 function fmtClock(split: number): string {
   const t = Math.round(split);
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+}
+
+/* "1:46.3" — the running average split to a tenth, the way PaceCurve
+ * labels its line. */
+function fmtTenth(split: number): string {
+  const t = Math.round(split * 10);
+  return `${Math.floor(t / 600)}:${String(Math.floor((t % 600) / 10)).padStart(2, "0")}.${t % 10}`;
 }
 
 /* The width of a comma-grouped figure in ems of Archivo Black: a lining
@@ -75,6 +77,23 @@ function fmtClock(split: number): string {
 function figureEms(text: string): number {
   let em = 0.06;
   for (const ch of text) em += ch === "," ? 0.3 : 0.67;
+  return em;
+}
+
+/* The width of a line of uppercase Archivo Black (the ask, the closer):
+ * the advance of every capital, digit and mark read off the font file
+ * (hmtx, 1000 units per em), less the -.02em tracking the headline
+ * wears, plus a hair so the line stops a percent short of the measure —
+ * it is nowrap, and short is fine where past the edge is not. Kerning
+ * only ever makes a pair narrower. */
+const CAP_EMS: Record<string, number> = {
+  A: 0.778, B: 0.778, C: 0.778, D: 0.778, E: 0.722, F: 0.667, G: 0.833, H: 0.833, I: 0.389, J: 0.667,
+  K: 0.833, L: 0.667, M: 0.944, N: 0.833, O: 0.833, P: 0.722, Q: 0.833, R: 0.778, S: 0.722, T: 0.722,
+  U: 0.833, V: 0.778, W: 1.0, X: 0.778, Y: 0.778, Z: 0.722, " ": 0.333, ",": 0.333, ".": 0.333,
+};
+function lineEms(text: string): number {
+  let em = 0.08;
+  for (const ch of text.toUpperCase()) em += (CAP_EMS[ch] ?? 0.667) - 0.02;
   return em;
 }
 
@@ -204,28 +223,6 @@ function TopRows({ label, rows }: { label: string; rows: TotalRow[] }) {
   );
 }
 
-function LatestRow({ r, now }: { r: L5Row; now: number }) {
-  return (
-    <li>
-      <span className="l5-who">
-        <span className="no">{fmtRowerNumber(r.rowerNumber)} · </span>
-        <a href={`/row100k/r/${r.rowerNumber}`}>{r.name}</a>
-      </span>
-      <span className="l5-m">
-        {r.masked ? (
-          <>
-            <Blocks digits={r.digits} /> m
-          </>
-        ) : (
-          fmtMeters(r.meters)
-        )}
-      </span>
-      <span className="l5-sp mono">{r.split ? `${r.split} /500m` : ""}</span>
-      <span className="l5-ago mono">{ago(r.createdAtMs, now)}</span>
-    </li>
-  );
-}
-
 function Chip({ place }: { place: number | null }) {
   if (!place) return null;
   const cls = place <= 3 ? `dtag m${place}` : "dtag";
@@ -233,8 +230,11 @@ function Chip({ place }: { place: number | null }) {
 }
 
 /* WHAT YOU GET, as a ledger: the thing on the left, one line of what it
- * is, and the thing itself drawn off one real rower's month. */
+ * is, and the thing itself drawn off one real rower's month. The split
+ * is the one number on a phone (the curve's axis text is unreadable in a
+ * 350px column) and the curve from 700px. */
 function Get({ eg, today, nextNumber }: { eg: LandingExample | null; today: number; nextNumber: number | null }) {
+  const last = eg && eg.paceCurve.length >= 2 ? eg.paceCurve[eg.paceCurve.length - 1] : null;
   return (
     <section className="l5-sec">
       <h2 className="mono">
@@ -254,7 +254,7 @@ function Get({ eg, today, nextNumber }: { eg: LandingExample | null; today: numb
           <>
             <div className="l5-item">
               <p className="k mono">Your month</p>
-              <p className="v">Every day, every meter.</p>
+              <p className="v">{MONTH_DAYS} days, every meter.</p>
               <div className="l5-cal">
                 <Heatmap byDay={eg.byDay} days={today} fullMonth />
               </div>
@@ -263,10 +263,16 @@ function Get({ eg, today, nextNumber }: { eg: LandingExample | null; today: numb
                 <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a> · {fmtMeters(eg.meters)} in {eg.sessions} rows
               </p>
             </div>
-            {eg.paceCurve.length >= 2 ? (
+            {last ? (
               <div className="l5-item">
                 <p className="k mono">Your split</p>
-                <p className="v">The average, moved by every row.</p>
+                <p className="v">Your time per 500 m, averaged over every row.</p>
+                <p className="l5-now">
+                  <b className="l5-big">{fmtTenth(last.s)}</b>
+                  <span className="mono">
+                    /500m after {eg.paceCurve.length} rows
+                  </span>
+                </p>
                 <div className="l5-curve">
                   <PaceCurve pts={eg.paceCurve} dots={eg.paceDots} />
                 </div>
@@ -274,7 +280,7 @@ function Get({ eg, today, nextNumber }: { eg: LandingExample | null; today: numb
             ) : null}
             <div className="l5-item">
               <p className="k mono">Your bests</p>
-              <p className="v">Timed, dated, ranked against the board.</p>
+              <p className="v">Fastest 5K and 10K, longest row, biggest day. Ranked against the board.</p>
               <div className="l5-bests">
                 {eg.bests.map((b) => (
                   <div className="l5-best" key={b.key}>
@@ -288,18 +294,13 @@ function Get({ eg, today, nextNumber }: { eg: LandingExample | null; today: numb
                 ))}
               </div>
             </div>
-            <div className="l5-item">
-              <p className="k mono">Your cards</p>
-              <p className="v">Drawn from your numbers, made for a story.</p>
-              <div className="l5-cards">
-                <LandingCards data={eg.share} />
-              </div>
-            </div>
           </>
         ) : null}
         <div className="l5-item">
           <p className="k mono">The boards</p>
-          <p className="v">Men and women. Fastest 5K and 10K. Longest row. All-time totals.</p>
+          <p className="v">
+            Men and women. Fastest 5K and 10K. Longest row. All-time totals. Share cards for Instagram.
+          </p>
         </div>
       </div>
     </section>
@@ -315,7 +316,9 @@ export async function L5({ data }: { data: LandingData }) {
   const perDay = Math.ceil(GOAL_METERS / daysLeft);
 
   /* IN A WEEK: the same sum seven days on — or, once a week from now is
-   * past the end of the month, the first of the next one. */
+   * past the end of the month, the first of the next one. The cells say
+   * dates, not day counts: the clock above counts whole days and a count
+   * that includes today would read one higher. */
   const weekLeft = daysLeft - 7;
   const weekPerDay = Math.ceil(GOAL_METERS / Math.max(1, weekLeft));
   const next = nextMonth(MONTH);
@@ -323,25 +326,41 @@ export async function L5({ data }: { data: LandingData }) {
     weekLeft >= 1
       ? {
           label: `In a week · ${MONTH.short} ${today + 7}`,
-          days: weekLeft,
+          span: `${MONTH.short} ${today + 7}–${MONTH_DAYS}`,
           perDay: weekPerDay,
-          note: `A week of waiting costs ${n(weekPerDay - perDay)} m a day.`,
+          note: `A week of waiting costs ${n(weekPerDay - perDay)} m a day`,
         }
       : {
           label: `Next month · ${next.short} 1`,
-          days: next.days,
+          span: `${next.short} 1–${next.days}`,
           perDay: Math.ceil(GOAL_METERS / next.days),
-          note: "The board resets on the 1st.",
+          note: "The board resets on the 1st",
         };
+  /* Both plan figures at one size, off the longer of the two. */
+  const planEm = Math.max(figureEms(n(perDay)), figureEms(n(later.perDay))) + 1.3;
 
   /* The board average split this month: every logged second over every
    * logged meter. What turns a day of meters into minutes. */
   const split =
     data.month.meters > 0 && data.month.seconds > 0 ? data.month.seconds / (data.month.meters / 500) : null;
+  const about = (meters: number) => (split ? ` · about ${minutesAt(meters, split)} min` : "");
 
   const rowersIn = extra.rowersIn ?? 0;
   const empty = !(data.month.meters > 0);
-  const figure = n(data.month.meters);
+
+  /* The ask, sized to fill the measure: two lines on a phone (the longer
+   * one sets the size), one line from 700px. */
+  const askLine = `${n(GOAL_METERS)} m.`;
+  const askStyle = {
+    "--l5-em": Math.round(lineEms(askLine) * 100) / 100,
+    "--l5-em-d": Math.round(lineEms(`Row ${askLine}`) * 100) / 100,
+  } as CSSProperties;
+
+  /* The closer: the meters a day, and the dates they run. */
+  const endTop = `${n(perDay)} m a day.`;
+  const endDates =
+    today === MONTH_DAYS ? `Today, ${MONTH.short} ${today}.` : `${MONTH.short} ${today} to ${MONTH.short} ${MONTH_DAYS}.`;
+  const endEm = Math.max(lineEms(endTop), lineEms(endDates));
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -350,8 +369,9 @@ export async function L5({ data }: { data: LandingData }) {
       <style>{l5Css}</style>
       <RowBar active="home" signedIn={false} rowerNumber={null} admin={false} />
 
-      {/* THE FOLD: the scoreboard. Four groups — the dateline, the figure,
-       * the ask with its clock, OPT IN. */}
+      {/* THE FOLD: the scoreboard. Four groups — the dateline, the ask
+       * with the live total under it, the clock with the day's cost,
+       * OPT IN. */}
       <header className="l5-fold">
         <div className="wrap front">
           <div>
@@ -360,15 +380,23 @@ export async function L5({ data }: { data: LandingData }) {
           </div>
 
           <div>
-            <div className="l5-fig" style={ems(figureEms(figure))}>
-              <div className="l5-n">{figure}</div>
+            <div className="l5-fig" style={askStyle}>
+              {/* The space before the break is the one word gap on a monitor,
+               * where the break is display:none; at the end of a phone
+               * line it collapses away. */}
+              <h1 className="l5-h">
+                Row{" "}
+                <br className="l5-br" />
+                {askLine}
+              </h1>
             </div>
+            <p className="l5-tot">{empty ? "0 m" : `${n(data.month.meters)} m`}</p>
             <p className="l5-cap mono">
               {empty ? (
                 <b>The board is empty. Be first.</b>
               ) : (
                 <>
-                  Meters rowed this month ·{" "}
+                  Rowed this month ·{" "}
                   <b>
                     {n(rowersIn)} {rowersIn === 1 ? "rower" : "rowers"} in
                   </b>
@@ -377,14 +405,14 @@ export async function L5({ data }: { data: LandingData }) {
             </p>
           </div>
 
-          <div className="l5-ask">
-            <div className="l5-hw">
-              <h1 className="l5-h">Row {n(GOAL_METERS)} m.</h1>
-            </div>
-            <div className="l5-clock">
-              <Clock leftMs={END_MS - now} />
-              <p className="l5-left mono">Left in {MONTH_WORD}</p>
-            </div>
+          <div className="l5-clock">
+            <Clock leftMs={END_MS - now} />
+            {/* Non-breaking inside each fact, so a phone breaks the line
+             * between them: LEFT IN OCTOBER · 3,847 M A DAY / FROM TODAY ·
+             * ABOUT 16 MIN. */}
+            <p className="l5-left mono">
+              Left in {MONTH_WORD} · {n(perDay)}&nbsp;m&nbsp;a&nbsp;day from&nbsp;today{about(perDay)}
+            </p>
           </div>
 
           <div className="l5-go">
@@ -394,7 +422,7 @@ export async function L5({ data }: { data: LandingData }) {
         </div>
       </header>
 
-      <div className={extra.latest.length > 0 ? "wrap front l5-duo" : "wrap front"}>
+      <div className="wrap front">
         {/* START TODAY: the clock, as meters a day. */}
         <section className="l5-sec">
           <h2 className="mono">
@@ -408,47 +436,57 @@ export async function L5({ data }: { data: LandingData }) {
               <div className="k mono">
                 From today · {MONTH.short} {today}
               </div>
-              <div className="v" style={ems(figureEms(n(perDay)) + 1.3)}>
+              <div className="v" style={ems(planEm)}>
                 {n(perDay)} m
               </div>
               <div className="s mono">
-                a day · {daysLeft} {daysLeft === 1 ? "day" : "days"}
-                {split ? ` · about ${minutesAt(perDay, split)} min` : ""}
+                a day · {MONTH.short} {today}–{MONTH_DAYS}
+                {about(perDay)}
               </div>
             </div>
             <div className="c late">
               <div className="k mono">{later.label}</div>
-              <div className="v" style={ems(figureEms(n(later.perDay)) + 1.3)}>
+              <div className="v" style={ems(planEm)}>
                 {n(later.perDay)} m
               </div>
               <div className="s mono">
-                a day · {later.days} {later.days === 1 ? "day" : "days"}
-                {split ? ` · about ${minutesAt(later.perDay, split)} min` : ""}
+                a day · {later.span}
+                {about(later.perDay)}
               </div>
             </div>
           </div>
           <p className="l5-note mono">
             {later.note}
-            {split ? ` Minutes at ${fmtClock(split)} /500m, the board average this month.` : ""}
+            {split ? ` · minutes at the board average, ${fmtClock(split)} /500m` : ""}
           </p>
         </section>
 
-        {/* THE LATEST ROWS: who is on the clock right now. */}
-        {extra.latest.length > 0 ? (
-          <section className="l5-sec">
-            <h2 className="mono">
-              The latest rows <span>· {MONTH.label}</span>
-            </h2>
-            <ol className="l5-rows">
-              {extra.latest.map((r) => (
-                <LatestRow key={r.id} r={r} now={now} />
-              ))}
-            </ol>
-          </section>
-        ) : null}
-      </div>
+        {/* HOW IT COUNTS: three lines, no pictures. */}
+        <section className="l5-sec">
+          <h2 className="mono">
+            How it counts <span>· three moves</span>
+          </h2>
+          <ol className="l5-how">
+            <li>
+              <b>Row.</b>
+              <span>Any rowing machine, any gym, any garage.</span>
+            </li>
+            <li>
+              <b>Two photos.</b>
+              <span>You, and the screen.</span>
+            </li>
+            <li>
+              <b>Log it.</b>
+              <span>Meters and time. The board moves on the spot.</span>
+            </li>
+          </ol>
+          <p className="l5-note mono">
+            Board resets on the 1st · your number and all-time total stay · race day in September
+          </p>
+        </section>
 
-      <div className="wrap front">
+        <Get eg={data.example} today={today} nextNumber={extra.nextNumber} />
+
         {/* THE BOARD SO FAR: the top five, men and women. */}
         <section className="l5-sec">
           <h2 className="mono">
@@ -472,43 +510,17 @@ export async function L5({ data }: { data: LandingData }) {
             </p>
           ) : null}
         </section>
-
-        <Get eg={data.example} today={today} nextNumber={extra.nextNumber} />
-
-        {/* HOW IT COUNTS: three lines, no pictures. */}
-        <section className="l5-sec">
-          <h2 className="mono">
-            How it counts <span>· three moves</span>
-          </h2>
-          <ol className="l5-how">
-            <li>
-              <b>Row.</b>
-              <span>Any rowing machine, any gym, any garage.</span>
-            </li>
-            <li>
-              <b>Two photos.</b>
-              <span>You, and the screen.</span>
-            </li>
-            <li>
-              <b>Log it.</b>
-              <span>Meters and time. The board moves on the spot.</span>
-            </li>
-          </ol>
-          <p className="l5-note mono">
-            The board resets on the 1st · your number and your all-time total stay · race day is in September
-          </p>
-        </section>
       </div>
 
-      {/* THE END: the clock once more, and the one call. */}
+      {/* THE END: the clock once more, as dates, and the one call. */}
       <section className="l5-end">
         <div className="wrap front">
           <Dateline today={today} />
-          <div className="l5-hw" style={ems(9.6)}>
+          <div className="l5-hw" style={ems(endEm)}>
             <p className="l5-h">
-              {daysLeft} {daysLeft === 1 ? "day" : "days"} left.
+              {endTop}
               <br />
-              {n(perDay)} m a day.
+              {endDates}
             </p>
           </div>
           <div className="l5-go">
