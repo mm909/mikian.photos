@@ -52,8 +52,9 @@ export type L4Data = {
 
 /* The ladder as the board shows it (row100k.ts visibleTiers): every rung
  * somebody reached that month plus the next one up, which nobody is told
- * the name of ahead of time (owner, 2026-09-05) — `reached` 0 is that one,
- * and the page draws blocks for it. */
+ * the name of ahead of time (owner, 2026-09-05) — `reached` 0 is that one.
+ * The page leaves it off: the blocks are a members' convention with no job
+ * on a landing (review, 2026-09-30). */
 function rungsOf(board: Boards | null): L4Rung[] {
   const max = board ? Math.max(0, ...board.total.map((r) => r.meters)) : 0;
   return visibleTiers(max).map((t) => ({
