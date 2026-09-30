@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { mailEnvelope } from "@/lib/email";
+import { nowMs } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
@@ -10,6 +11,8 @@ import { TextMenu } from "../TextMenu";
 import { waveCount } from "../raceday";
 import { resolvedRace } from "../racedaySettings";
 import { listRacers, type Racer } from "../racedayData";
+import { loadDailyInput } from "../dailyData";
+import { yesterdayKey, type DailyInput } from "../dailyMail";
 import { MAIL_KEYS, SAMPLE_LINE, buildMail, parseMailKey } from "./catalog";
 import { MailFrame } from "./MailFrame";
 import { emailsCss } from "./emailsCss";
@@ -31,6 +34,9 @@ export const metadata: Metadata = {
  * Built by the same functions the routes send with (catalog.ts), on the
  * race AS THE CONSOLE HAS IT (resolvedRace) — move the first wave in the
  * console and this page moves with it. A made-up rower; nothing is sent.
+ * The daily summary (2026-09-30) is the exception: real yesterday, read
+ * the way the cron reads it (dailyData.ts), and only when it is the mail
+ * being shown.
  *
  * Admin only in production, open in local dev: the gate the other console
  * pages wear. */
@@ -64,6 +70,17 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
   const wRaw = Number(one(searchParams?.w));
   const wave = Number.isInteger(wRaw) && wRaw >= 1 && wRaw <= waves ? wRaw : 1;
 
+  /* Yesterday, for the daily summary only. A read that fails is null, and
+   * the envelope says "yesterday not read". */
+  let daily: DailyInput | null = null;
+  if (key === "daily") {
+    try {
+      daily = await loadDailyInput(yesterdayKey(nowMs()));
+    } catch (err) {
+      console.error("row100k/emails: yesterday not read", err);
+    }
+  }
+
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "mikianmusser.com";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
@@ -75,6 +92,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
     racing: read ? racing.length : -1,
     watching: read ? live.length - racing.length : -1,
     origin: `${proto}://${host}`,
+    daily,
   });
   const env = mailEnvelope();
 
@@ -104,7 +122,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
                 </>
               )}
             </span>
-            <span className="r">Sample · {SAMPLE_LINE}</span>
+            <span className="r">{mail.stamp ?? `Sample · ${SAMPLE_LINE}`}</span>
           </div>
 
           <dl className="em-env">

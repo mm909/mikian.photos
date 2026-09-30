@@ -6,6 +6,7 @@ import { signupNote } from "../raceSignupMail";
 import { milestoneMail, rowLoggedMail } from "../rowMail";
 import { receiptEmail, settledEmail, sizeChangedEmail } from "../shirtEmail";
 import { joinNote } from "../joinMail";
+import { dailySummaryMail, emptyDailyInput, fmtDayShort, yesterdayKey, type DailyInput } from "../dailyMail";
 
 /* EVERY MAIL ROWTEMBER SENDS, built by the very functions the routes call,
  * on a made-up rower (owner, 2026-09-27: "Show me what the email looks like
@@ -15,11 +16,17 @@ import { joinNote } from "../joinMail";
  * back exactly as the inbox would.
  *
  * The rower is the one both preview routes already use, so every preview
- * of every mail on the site is the same person. */
+ * of every mail on the site is the same person.
+ *
+ * THE ONE EXCEPTION is the daily summary (2026-09-30): it has no rower in
+ * it, so the page shows it on yesterday's REAL numbers, read through the
+ * same function the cron reads with (dailyData.ts). The page hands the
+ * read in; null means it failed, and the mail is shown on an empty day
+ * with the envelope saying so. */
 
 const SAMPLE = { name: "Sasha Vance", rowerNumber: 12 };
 
-export type MailKey = "wave" | "shirt" | "shirt-size" | "shirt-owed" | "race-signup" | "join" | "row" | "milestone";
+export type MailKey = "wave" | "shirt" | "shirt-size" | "shirt-owed" | "race-signup" | "join" | "row" | "milestone" | "daily";
 
 export type ShownMail = {
   key: MailKey;
@@ -33,6 +40,9 @@ export type ShownMail = {
   text: string;
   /* null for the plain-text notes the owner gets. */
   html: string | null;
+  /* The page's right-hand line when the mail is not on the sample rower:
+   * "Real · Wed Oct 1" for the daily summary. Absent, the sample line. */
+  stamp?: string;
 };
 
 /* Racer-facing first, the owner's own notes after; the wave note leads
@@ -46,6 +56,7 @@ export const MAIL_KEYS: { key: MailKey; label: string }[] = [
   { key: "join", label: "New rower" },
   { key: "row", label: "Row logged" },
   { key: "milestone", label: "Milestone" },
+  { key: "daily", label: "Daily summary" },
 ];
 
 export function parseMailKey(raw: string | string[] | undefined): MailKey {
@@ -61,6 +72,9 @@ export function buildMail(o: {
   racing: number;
   watching: number;
   origin: string;
+  /* Yesterday as dailyData.ts read it, for the daily summary only; null
+   * when the read failed (or the page did not need it). */
+  daily?: DailyInput | null;
 }): ShownMail {
   const label = MAIL_KEYS.find((m) => m.key === o.key)?.label ?? o.key;
   const payUrl = `${o.origin}/row100k/shirt/pay`;
@@ -126,6 +140,19 @@ export function buildMail(o: {
     case "milestone": {
       const m = milestoneMail({ ...row, total: GOAL_METERS + 1_500 }, [GOAL_METERS], daysElapsed());
       return { key: o.key, label, to: "You", when: "A row carries a rower past 50K, 100K, 250K and up", html: null, ...m };
+    }
+    case "daily": {
+      const yesterday = yesterdayKey(nowMs());
+      const input = o.daily ?? emptyDailyInput(yesterday);
+      const m = dailySummaryMail(input);
+      return {
+        key: o.key,
+        label,
+        to: "You",
+        when: `Every morning at 6:15${o.daily ? "" : " · yesterday not read"}`,
+        stamp: `Real · ${fmtDayShort(input.day)}`,
+        ...m,
+      };
     }
   }
 }
