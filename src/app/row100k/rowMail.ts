@@ -145,8 +145,9 @@ export function freshPublicRow(
 
 /* The meters of one figure under a censor: blocks for the digit count when
  * the window is open, the run-up shape otherwise, the real number when
- * nothing is hidden. */
-function metersUnder(value: number, censor: Censor): string {
+ * nothing is hidden. Exported 2026-09-30 for the daily summary's top three
+ * (dailyMail.ts) — the same inbox, the same rule. */
+export function metersUnder(value: number, censor: Censor): string {
   if (censor.kind === "full") return `${blocksOf(digitCount(value))} m`;
   if (censor.kind === "partial") return `${blocksOf(partialShape(value, censor.hideLow))} m`;
   return fmtMeters(value);

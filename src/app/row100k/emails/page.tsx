@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { mailEnvelope } from "@/lib/email";
+import { nowMs } from "@/lib/row100k";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { siteSettings } from "@/lib/rowSettings";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
@@ -12,6 +13,8 @@ import { waveCount } from "../raceday";
 import { WAVE_PLACEHOLDERS, WAVE_WORDS, wavePlaceholders } from "../raceEmail";
 import { resolvedRace } from "../racedaySettings";
 import { listRacers, type Racer } from "../racedayData";
+import { loadDailyInput } from "../dailyData";
+import { yesterdayKey, type DailyInput } from "../dailyMail";
 import { MAIL_KEYS, SAMPLE_LINE, buildMail, parseMailKey } from "./catalog";
 import { MailFrame } from "./MailFrame";
 import { WaveWords } from "./WaveWords";
@@ -34,6 +37,9 @@ export const metadata: Metadata = {
  * Built by the same functions the routes send with (catalog.ts), on the
  * race AS THE CONSOLE HAS IT (resolvedRace) — move the first wave in the
  * console and this page moves with it. A made-up rower; nothing is sent.
+ * The daily summary (2026-09-30) is the exception: real yesterday, read
+ * the way the cron reads it (dailyData.ts), and only when it is the mail
+ * being shown.
  *
  * THE WORDS (owner, 2026-09-30): under the wave note's envelope an admin
  * gets three plain textareas for the lines the letter lets him retype
@@ -73,6 +79,17 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
   const wRaw = Number(one(searchParams?.w));
   const wave = Number.isInteger(wRaw) && wRaw >= 1 && wRaw <= waves ? wRaw : 1;
 
+  /* Yesterday, for the daily summary only. A read that fails is null, and
+   * the envelope says "yesterday not read". */
+  let daily: DailyInput | null = null;
+  if (key === "daily") {
+    try {
+      daily = await loadDailyInput(yesterdayKey(nowMs()));
+    } catch (err) {
+      console.error("row100k/emails: yesterday not read", err);
+    }
+  }
+
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "mikianmusser.com";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
@@ -85,6 +102,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
     racing: read ? racing.length : -1,
     watching: read ? live.length - racing.length : -1,
     origin: `${proto}://${host}`,
+    daily,
   });
   const env = mailEnvelope();
   /* Each placeholder with what it prints for the wave shown, for the mono
@@ -118,7 +136,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
                 </>
               )}
             </span>
-            <span className="r">Sample · {SAMPLE_LINE}</span>
+            <span className="r">{mail.stamp ?? `Sample · ${SAMPLE_LINE}`}</span>
           </div>
 
           <dl className="em-env">
