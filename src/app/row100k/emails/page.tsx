@@ -3,15 +3,18 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { mailEnvelope } from "@/lib/email";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
+import { siteSettings } from "@/lib/rowSettings";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { TextMenu } from "../TextMenu";
 import { waveCount } from "../raceday";
+import { WAVE_PLACEHOLDERS, WAVE_WORDS, wavePlaceholders } from "../raceEmail";
 import { resolvedRace } from "../racedaySettings";
 import { listRacers, type Racer } from "../racedayData";
 import { MAIL_KEYS, SAMPLE_LINE, buildMail, parseMailKey } from "./catalog";
 import { MailFrame } from "./MailFrame";
+import { WaveWords } from "./WaveWords";
 import { emailsCss } from "./emailsCss";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +35,12 @@ export const metadata: Metadata = {
  * race AS THE CONSOLE HAS IT (resolvedRace) — move the first wave in the
  * console and this page moves with it. A made-up rower; nothing is sent.
  *
+ * THE WORDS (owner, 2026-09-30): under the wave note's envelope an admin
+ * gets three plain textareas for the lines the letter lets him retype
+ * (WaveWords.tsx, the mail.wave setting). The page reads the setting the
+ * way the sender does and hands it to the same function, so the frame is
+ * the letter that goes out.
+ *
  * Admin only in production, open in local dev: the gate the other console
  * pages wear. */
 
@@ -44,7 +53,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
   if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
 
   const key = parseMailKey(searchParams?.e);
-  const race = await resolvedRace();
+  const [race, settings] = await Promise.all([resolvedRace(), siteSettings()]);
 
   /* The field, for two things only: how many waves the wave word offers,
    * and the sign-up note's tally. listRacers fails open; a field it could
@@ -72,11 +81,16 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
     key,
     race,
     wave,
+    mailWave: settings.mailWave,
     racing: read ? racing.length : -1,
     watching: read ? live.length - racing.length : -1,
     origin: `${proto}://${host}`,
   });
   const env = mailEnvelope();
+  /* Each placeholder with what it prints for the wave shown, for the mono
+   * line under the words. */
+  const vars = wavePlaceholders(race, wave);
+  const placeholders = WAVE_PLACEHOLDERS.map((name) => ({ name, value: vars[name] }));
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -117,6 +131,10 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
             <dt>Subject</dt>
             <dd className="subj">{mail.subject}</dd>
           </dl>
+
+          {key === "wave" && viewer.isAdmin && (
+            <WaveWords words={settings.mailWave} defaults={{ ...WAVE_WORDS }} placeholders={placeholders} />
+          )}
 
           {mail.html ? (
             <>

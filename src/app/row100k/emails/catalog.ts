@@ -1,5 +1,6 @@
 import { GOAL_METERS, daysElapsed, fmtRowerNumber, nowMs } from "@/lib/row100k";
 import { pacificDayKey } from "@/lib/rowPeriod";
+import type { MailWave } from "@/lib/rowSettings";
 import type { RaceDef } from "../raceday";
 import { waveEmail } from "../raceEmail";
 import { signupNote } from "../raceSignupMail";
@@ -58,6 +59,9 @@ export function buildMail(o: {
   key: MailKey;
   race: RaceDef;
   wave: number;
+  /* The owner's words for the wave note (siteSettings().mailWave) — the
+   * page passes what the send reads, so the preview is the letter. */
+  mailWave: MailWave;
   /* The field as it stands, for the sign-up note's tally; -1 = not read. */
   racing: number;
   watching: number;
@@ -79,7 +83,7 @@ export function buildMail(o: {
 
   switch (o.key) {
     case "wave": {
-      const m = waveEmail({ race: o.race, ...SAMPLE, wave: o.wave });
+      const m = waveEmail({ race: o.race, ...SAMPLE, wave: o.wave, copy: o.mailWave });
       return { key: o.key, label, to: "Each racer with a wave · bcc you", when: "Email the waves, in the race console · again if their wave moves", ...m };
     }
     case "shirt": {

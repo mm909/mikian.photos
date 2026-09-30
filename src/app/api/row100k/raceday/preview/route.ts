@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEffectiveActor } from "@/lib/permissions";
 import { isRow100kAdmin } from "@/lib/row100k";
+import { siteSettings } from "@/lib/rowSettings";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { waveEmail } from "@/app/row100k/raceEmail";
 
@@ -58,12 +59,14 @@ export async function GET(req: Request) {
   /* The race as the CONSOLE has it, not as the code ships it: the owner can
    * move the first wave an hour before he mails these, and a preview of the
    * wrong clock is worse than no preview. */
-  const race = await resolvedRace();
+  const [race, settings] = await Promise.all([resolvedRace(), siteSettings()]);
   const mail = waveEmail({
     race,
     ...SAMPLE,
     wave,
     baseUrl,
+    /* The owner's words (mail.wave), the same ones the send reads. */
+    copy: settings.mailWave,
   });
 
   if (url.searchParams.get("text") === "1") {
