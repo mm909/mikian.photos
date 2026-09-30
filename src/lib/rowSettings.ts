@@ -19,6 +19,14 @@ import { CHALLENGE, CHALLENGE_DEMO, nowMs } from "@/lib/row100k";
  *   blackout.policy  who the blackout hides: the top `count` of EACH board
  *                    ("division" — the men's ten and the women's ten, the
  *                    rule since 2026-09-08) or the top `count` OVERALL.
+ *   mail.wave        the owner's own words for the wave note (owner,
+ *                    2026-09-30: "I should be able to edit the emails
+ *                    inside of this application ... I should be able to
+ *                    swap the order of those on my own"). Three plain
+ *                    lines — arrive, waiver, sign-off — each optional;
+ *                    an absent or empty one means the letter's built-in
+ *                    line (raceEmail.ts WAVE_WORDS). Typed on the Emails
+ *                    page.
  *
  * EVERY READ FAILS OPEN TO THE DEFAULTS. The table may not be pushed yet
  * (the owner runs prisma db push on his own say-so), and a settings hiccup
@@ -37,15 +45,24 @@ export type Look = "paper" | "ink";
 export type BlackoutScope = "division" | "overall";
 export type BlackoutPolicy = { scope: BlackoutScope; count: number };
 
+/* The wave note's editable lines. A field that is absent means the
+ * built-in line; the parser drops empty ones, so {} is "all defaults". */
+export const MAIL_WAVE_FIELDS = ["arrive", "waiver", "signoff"] as const;
+export type MailWaveField = (typeof MAIL_WAVE_FIELDS)[number];
+export type MailWave = Partial<Record<MailWaveField, string>>;
+/* The most a line may run to. */
+export const MAIL_WAVE_MAX = 300;
+
 export type SiteSettings = {
   look: Look;
   /* Card ids switched off, in no particular order. */
   cardsOff: string[];
   blackout: BlackoutPolicy;
+  mailWave: MailWave;
 };
 
-export type SettingKey = "look" | "cards.off" | "blackout.policy";
-export const SETTING_KEYS: readonly SettingKey[] = ["look", "cards.off", "blackout.policy"];
+export type SettingKey = "look" | "cards.off" | "blackout.policy" | "mail.wave";
+export const SETTING_KEYS: readonly SettingKey[] = ["look", "cards.off", "blackout.policy", "mail.wave"];
 
 /* Retired from every picker (owner, 2026-09-16): the profile, the bib, the
  * club card, total + name, and row + name. Off by default; the shareables
@@ -67,6 +84,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   look: "paper",
   cardsOff: [...DEFAULT_CARDS_OFF],
   blackout: { ...DEFAULT_BLACKOUT_POLICY },
+  mailWave: {},
 };
 
 /* ------------------------------------------------------------ parsing */
@@ -104,10 +122,32 @@ export function parseBlackoutPolicy(v: unknown): BlackoutPolicy | null {
   return { scope, count };
 }
 
+/* Three optional strings, each trimmed, at most MAIL_WAVE_MAX long, with
+ * no angle brackets (plain text only — the letter escapes on render, this
+ * just keeps a stray tag from ever being typed in). An empty string means
+ * "the default" and is dropped, so the row only ever holds real changes.
+ * Placeholders ({first_wave} and the rest) are the letter's business
+ * (raceEmail.ts fillWords); an unknown one is left as typed. */
+export function parseMailWave(v: unknown): MailWave | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const out: MailWave = {};
+  for (const k of MAIL_WAVE_FIELDS) {
+    const s = o[k];
+    if (s === undefined || s === null) continue;
+    if (typeof s !== "string") return null;
+    const t = s.replace(/\r\n?/g, "\n").trim();
+    if (t.length > MAIL_WAVE_MAX || /[<>]/.test(t)) return null;
+    if (t) out[k] = t;
+  }
+  return out;
+}
+
 /* The validated value for a key, or null when it is not one. */
-export function parseSetting(key: SettingKey, value: unknown): Look | string[] | BlackoutPolicy | null {
+export function parseSetting(key: SettingKey, value: unknown): Look | string[] | BlackoutPolicy | MailWave | null {
   if (key === "look") return parseLook(value);
   if (key === "cards.off") return parseCardsOff(value);
+  if (key === "mail.wave") return parseMailWave(value);
   return parseBlackoutPolicy(value);
 }
 
@@ -118,6 +158,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
     look: DEFAULT_SETTINGS.look,
     cardsOff: [...DEFAULT_SETTINGS.cardsOff],
     blackout: { ...DEFAULT_SETTINGS.blackout },
+    mailWave: {},
   };
   for (const r of rows) {
     if (!isSettingKey(r.key)) continue;
@@ -131,6 +172,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
     if (v === null) continue;
     if (r.key === "look") out.look = v as Look;
     else if (r.key === "cards.off") out.cardsOff = v as string[];
+    else if (r.key === "mail.wave") out.mailWave = v as MailWave;
     else out.blackout = v as BlackoutPolicy;
   }
   return out;

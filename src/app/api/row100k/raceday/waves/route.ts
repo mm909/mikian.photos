@@ -4,6 +4,7 @@ import { sendPlainEmail } from "@/lib/email";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
+import { siteSettings } from "@/lib/rowSettings";
 import { currentRace, raceBySlug, waveTime } from "@/app/row100k/raceday";
 import { resolvedRace } from "@/app/row100k/racedaySettings";
 import { listRacers } from "@/app/row100k/racedayData";
@@ -161,6 +162,10 @@ export async function POST(req: Request) {
   if (action === "email") {
     try {
       const racers = await listRacers(race);
+      /* The owner's words for the note (mail.wave, typed on the Emails
+       * page), read once for the whole run so every note in it says the
+       * same thing. siteSettings never throws. */
+      const { mailWave } = await siteSettings();
       /* A wave note goes to racers only. A spectator with a stale wave (a
        * row written before the column existed, say) is skipped rather than
        * mailed a start time they are not racing. */
@@ -197,6 +202,7 @@ export async function POST(req: Request) {
           name: r.name,
           rowerNumber: r.rowerNumber,
           wave,
+          copy: mailWave,
         });
         const sent = await sendPlainEmail(to, mail.subject, mail.text, mail.html);
         if (sent.ok) {
