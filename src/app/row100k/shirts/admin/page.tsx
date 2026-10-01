@@ -28,6 +28,19 @@ const WHEN = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Los_Angeles",
 });
 
+/* THE WHEN: its own column on a desk, where it stays on one line; on a
+ * phone five columns run off the edge, so the column goes and the same
+ * words sit under the name, with the email. Rendered as the text child of
+ * a style tag, so no quotes or angle brackets in here (see theme.ts). */
+const adminCss = `
+.row100k table.board td.spa-when-col{font-size:11px;color:var(--gray);white-space:nowrap}
+.row100k .spa-when-line{display:none;font-size:10px;font-weight:400;color:var(--gray)}
+@media(max-width:559px){
+  .row100k table.board .spa-when-col{display:none}
+  .row100k .spa-when-line{display:block}
+}
+`;
+
 export default async function ShirtPreordersAdminPage() {
   const viewer = await resolveViewer();
   if (!viewer.actor || !viewer.isAdmin) notFound();
@@ -45,6 +58,7 @@ export default async function ShirtPreordersAdminPage() {
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
+      <style>{adminCss}</style>
       <RowBar {...barProps(viewer)} />
 
       <section>
@@ -97,7 +111,7 @@ export default async function ShirtPreordersAdminPage() {
                       <th>Rower</th>
                       <th>Shirt</th>
                       <th>Size</th>
-                      <th>Reserved</th>
+                      <th className="spa-when-col">Reserved</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -111,12 +125,12 @@ export default async function ShirtPreordersAdminPage() {
                               {r.email}
                             </div>
                           )}
+                          {/* The when, under the name, on a phone only (see adminCss). */}
+                          <div className="mono spa-when-line">{WHEN.format(new Date(r.createdAt))}</div>
                         </td>
                         <td>{COLOR_LABEL[r.color as "black" | "cream"] ?? r.color}</td>
                         <td>{r.size}</td>
-                        <td className="mono" style={{ fontSize: 11, color: "var(--gray)" }}>
-                          {WHEN.format(new Date(r.createdAt))}
-                        </td>
+                        <td className="mono spa-when-col">{WHEN.format(new Date(r.createdAt))}</td>
                       </tr>
                     ))}
                   </tbody>

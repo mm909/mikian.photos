@@ -42,7 +42,7 @@ export const shirtsCss = `
  * dotted rule so the two never read as one. */
 .row100k .sp-sizes{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:16px;padding-top:10px;border-top:1px dashed var(--line)}
 .row100k .sp-size{all:unset;cursor:pointer;font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;letter-spacing:.12em;line-height:1.4;padding:6px 0 3px;border-bottom:2px solid transparent;color:var(--gray);transition:color 160ms ease}
-.row100k .sp-size:hover{color:var(--water)}
+.row100k .sp-size:hover:not(.on){color:var(--water)}
 .row100k .sp-size.mine{color:var(--ink);border-bottom:2px dotted var(--line)}
 .row100k .sp-size.on,.row100k .sp-size.on.mine{color:var(--ink);border-bottom:2px solid var(--water)}
 .row100k .sp-size:disabled{cursor:default}
