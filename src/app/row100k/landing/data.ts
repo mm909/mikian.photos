@@ -6,6 +6,7 @@ import {
   divisionRank,
   fmtDay,
   nowMs,
+  pacificDay,
   recordPlacements,
   type Boards,
   type RecordRow,
@@ -26,7 +27,9 @@ import type { ShareData } from "../share/cards";
  * all time, the number the next rower gets, one real rower's month as the
  * example of what a profile holds, and — since 2026-10-01 — everyone's
  * meters on every day of every month so far, for the month calendar and
- * its month word. Fails open to EMPTY_LANDING so the page always renders. */
+ * its month word, and the two cards of the strip that are not the example
+ * rower's: everyone's total and the leader's. Fails open to EMPTY_LANDING
+ * so the page always renders. */
 
 /* The example rower: number 001 (the demo seed's first rower; in the live
  * namespace the first person who opted in). */
@@ -101,6 +104,35 @@ export type LandingExample = {
   share: ShareData;
 };
 
+/* THE TWO OTHER CARDS IN THE STRIP (owner, 2026-10-01: "show the total
+ * number of meters with the Rowtember logo … show what it looks like if
+ * you're in first, with that gold colour"). Each is a real month off the
+ * PUBLIC board, the month the clock is in once it has one, else the newest
+ * before it that does — the way the example rower's cards fall back. */
+type LandingCardMonth = {
+  monthKey: string;
+  /* "October" */
+  monthWord: string;
+  thisMonth: boolean;
+};
+
+/* Everyone's meters for the month — the stats page's own total card
+ * (cards.ts rowtember-community-total), its payload built the way
+ * StatsShare builds one. */
+export type LandingEveryone = LandingCardMonth & { share: ShareData };
+
+/* THE LEADER: the top of the public board in the newest month whose top is
+ * in plain sight — not masked, not unranked, no digits run down, and no
+ * blackout open on that board at all (under one the elite have no places,
+ * so the first row anybody can see is not first). Their total card with
+ * the name on it (cards.ts rowtember-named), which paints #1 and the gold
+ * mark off `rank`. Everything on it is what the board already prints. */
+export type LandingLeader = LandingCardMonth & {
+  name: string;
+  rowerNumber: number;
+  share: ShareData;
+};
+
 export type LandingData = {
   month: LandingTotals;
   all: LandingTotals;
@@ -118,6 +150,8 @@ export type LandingData = {
    * out the highest there is, plus one). Null until somebody has one. */
   nextNumber: number | null;
   example: LandingExample | null;
+  everyone: LandingEveryone | null;
+  leader: LandingLeader | null;
   /* Every month so far, oldest first — THE MONTH calendar. */
   months: LandingMonth[];
 };
@@ -136,6 +170,8 @@ export const EMPTY_LANDING: LandingData = {
   fastest10k: [],
   nextNumber: null,
   example: null,
+  everyone: null,
+  leader: null,
   months: [],
 };
 
@@ -210,6 +246,77 @@ export async function loadLanding(): Promise<LandingData> {
       }),
     };
 
+    /* THE STRIP'S OTHER TWO CARDS (2026-10-01): each is a month off the
+     * public board, newest first — this one once it has what the card
+     * needs, else the month before. */
+    const newestFirst = [...calendar].reverse();
+    const elapsedIn = (m: Month) => (m.key === MONTH.key ? daysElapsed(now) : m.days);
+    const cardMonth = (m: Month): LandingCardMonth => ({
+      monthKey: m.key,
+      monthWord: m.label.split(" ")[0],
+      thisMonth: m.key === MONTH.key,
+    });
+    const shareMonth = (m: Month) => ({ key: m.key, firstDow: m.firstDow, days: m.days });
+
+    // Everyone's total: the newest month with a meter in it.
+    const evMonth = newestFirst.find((m) => (boardOf.get(m.key)?.community.meters ?? 0) > 0);
+    const evBoard = evMonth ? boardOf.get(evMonth.key) : undefined;
+    if (evMonth && evBoard) {
+      const c = evBoard.community;
+      const days = elapsedIn(evMonth);
+      const month = shareMonth(evMonth);
+      const byDay: Record<string, number> = {};
+      out.months
+        .find((x) => x.key === evMonth.key)
+        ?.byDay.forEach((v, i) => {
+          if (v > 0) byDay[`${evMonth.key}-${String(i + 1).padStart(2, "0")}`] = v;
+        });
+      out.everyone = {
+        ...cardMonth(evMonth),
+        share: {
+          displayName: "EVERYONE",
+          rowerNumber: 0,
+          instagram: "",
+          meters: c.meters,
+          sessions: c.sessions,
+          byDay,
+          days,
+          month,
+          community: { meters: c.meters, rowers: activeOf(evBoard.total), sessions: c.sessions, byDay, daily: evBoard.daily, days, month },
+        },
+      };
+    }
+
+    // The leader: the newest month whose top is in plain sight. A board
+    // with anybody masked or unranked on it is skipped whole — under a
+    // blackout the first row a stranger can see is not first.
+    for (const m of newestFirst) {
+      const b = boardOf.get(m.key);
+      if (!b || b.total.some((r) => r.masked || r.unranked)) continue;
+      const top = b.total.find((r) => r.meters > 0);
+      if (!top || top.hideLow) continue;
+      const rank = divisionRank(b, top.participantId);
+      if (!rank || rank.place !== 1) continue;
+      out.leader = {
+        ...cardMonth(m),
+        name: top.name,
+        rowerNumber: top.rowerNumber,
+        share: {
+          displayName: top.name,
+          rowerNumber: top.rowerNumber,
+          instagram: "",
+          meters: top.meters,
+          sessions: top.sessions,
+          byDay: {},
+          division: top.division,
+          rank,
+          days: elapsedIn(m),
+          month: shareMonth(m),
+        },
+      };
+      break;
+    }
+
     // The example: rower 001's month, real numbers — unless the public
     // board has them masked or unranked right now, in which case the strip
     // stays off the page rather than print a hidden rower's truth.
@@ -219,17 +326,25 @@ export async function loadLanding(): Promise<LandingData> {
     // on. On the 1st nobody has an October row yet — the example had none,
     // and the section drew the bare mark, one tile, where the cards go.
     // September's cards are real cards.
+    //
+    // NEVER PAST TODAY (2026-10-01): only a seeded demo month has rows
+    // dated ahead of the clock, and THIS ROW must not be one of them (it
+    // printed OCT 31 on the 8th), nor the month card total more than its
+    // calendar draws. A month counts once they have a row in it by today.
     const rower = await getRower(EXAMPLE_ROWER);
+    const todayDay = pacificDay(now);
+    const lastOf = (m: Month) => (m.lastDay < todayDay ? m.lastDay : todayDay);
     const shown = rower
       ? [...calendar].reverse().find((m) => {
           const r = boardOf.get(m.key)?.total.find((t) => t.participantId === rower.participant.id);
-          return !!r && !r.masked && !r.unranked && r.meters > 0;
+          const rowed = rower.entries.some((e) => e.meters > 0 && e.day >= m.firstDay && e.day <= lastOf(m));
+          return !!r && !r.masked && !r.unranked && r.meters > 0 && rowed;
         })
       : undefined;
     const board = shown ? boardOf.get(shown.key) : undefined;
     if (rower && shown && board) {
       const { participant: p } = rower;
-      const entries = rower.entries.filter((e) => e.day >= shown.firstDay && e.day <= shown.lastDay);
+      const entries = rower.entries.filter((e) => e.day >= shown.firstDay && e.day <= lastOf(shown));
       const b = computeBoards([p], entries);
       const byDay: Record<string, number> = {};
       for (const e of entries) byDay[e.day] = (byDay[e.day] ?? 0) + e.meters;
