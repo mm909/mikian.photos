@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Nav } from "./Nav";
 import { Toast } from "./Toast";
 import { useRunner } from "./RunnerProvider";
+import { isRowtemberPath } from "@/lib/rowSegments";
 
 export function RunnerChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -25,8 +26,10 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     pathname === "/tsp/plan" ||
     pathname === "/lasd26" ||
     pathname.startsWith("/lasd26/") ||
-    pathname === "/row100k" ||
-    pathname.startsWith("/row100k/") ||
+    /* Rowtember: /row100k/…, and the same pages at the addresses without
+     * the prefix on rowtember.com (/stats, /r/95 — src/lib/rowSegments.ts),
+     * which usePathname reports as typed. */
+    isRowtemberPath(pathname) ||
     pathname === "/rowtember" ||
     pathname.startsWith("/rowtember/") ||
     /* The erg telemetry product (owner, 2026-09-17: it and Rowtember should
