@@ -87,6 +87,68 @@ export const rrCss = `
 .row100k .rr-fresh.stale{border-left:3px solid #fff;padding-left:11px;color:rgba(255,255,255,.74)}
 .row100k .rr-fresh.stale b{color:#fff}
 
+/* ---- THE ARCHIVE (owner, 2026-10-01) ----
+ * THE HEADER: the race day bill s own masthead idiom — a thick rule, the
+ * name in the house face with the day flush right, the piece and the place
+ * in mono under it, and the two houses on a line of their own under a
+ * hairline, a hairline between them. Closed by the 2px rule the sheet is
+ * ruled with. White marks on ink, no treatment. */
+.row100k .rr-arch{border-top:6px solid #fff;border-bottom:2px solid #fff;padding:14px 0 18px}
+.row100k .rr-archrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px 20px;flex-wrap:wrap}
+.row100k .rr-archt{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(40px,9vw,76px);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:#fff;margin:0}
+.row100k .rr-archd{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#fff;margin:0;white-space:nowrap}
+.row100k .rr-archp{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:12px 0 0;line-height:1.9}
+.row100k .rr-archm{display:flex;align-items:center;gap:clamp(14px,3vw,34px);margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.3)}
+.row100k .rr-archm a{display:block;line-height:0;flex:none}
+.row100k .rr-archm a:hover{opacity:.8}
+.row100k .rr-archm a+a{border-left:1px solid rgba(255,255,255,.3);padding-left:clamp(14px,3vw,34px)}
+.row100k .rr-archm img{display:block;width:clamp(110px,28vw,220px);height:auto}
+/* The sponsor mark is wider than it is tall; a little more width lands it
+ * at about the house mark s height. */
+.row100k .rr-archm a:nth-child(2) img{width:clamp(124px,31vw,240px)}
+
+/* THE LABELS: mono caps, two weights. A section word over a 2px rule, a
+ * bracket word over a hairline inside it — never the display face (owner:
+ * not THE MEN / THE WOMEN in Archivo Black). */
+.row100k .rr-sec{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#fff;margin:34px 0 0;padding-top:12px;border-top:2px solid #fff}
+.row100k .rr-lab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:26px 0 10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.3)}
+.row100k .rr-sec+.rr-lab{margin-top:16px;padding-top:0;border-top:0}
+.row100k .rr-lab .rt{letter-spacing:.14em}
+.row100k .rr-sec+.rr-pick .rr-pickk{margin-top:16px}
+.row100k .rr-lab+.rr-pod{margin-top:8px}
+
+/* SHARE YOUR TIME: a text control under the header — mono caps,
+ * underlined, the way every act on race day is a line of type — and the
+ * list it opens, in flow, in a 2px box like the wave pane: a name box
+ * with a rule under it and one ruled row per finisher. */
+.row100k .rr-share{margin-top:14px}
+.row100k .rr-act{-webkit-appearance:none;appearance:none;background:none;border:0;padding:6px 0;margin:0;color:#fff;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.row100k .rr-act:hover{text-decoration-thickness:2px}
+.row100k .rr-sharep{margin-top:12px;border:2px solid #fff;padding:14px 16px 4px;max-width:560px}
+.row100k .rr-sharef{display:flex;align-items:baseline;gap:14px}
+.row100k .rr-sharef span{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);flex:none}
+.row100k input.rr-sharein{flex:1 1 auto;min-width:0;width:100%;background:transparent;border:0;border-bottom:2px solid rgba(255,255,255,.55);color:#fff;font-size:18px;font-weight:700;letter-spacing:.01em;padding:4px 2px;border-radius:0;-webkit-appearance:none;appearance:none}
+.row100k input.rr-sharein:focus{outline:none;border-bottom-color:#fff}
+.row100k .rr-sharel{list-style:none;margin:12px 0 0;padding:0;max-height:320px;overflow:auto}
+.row100k .rr-sharer{display:flex;align-items:baseline;gap:12px;width:100%;-webkit-appearance:none;appearance:none;background:none;border:0;border-top:1px dashed rgba(255,255,255,.2);padding:9px 0 10px;margin:0;color:#fff;cursor:pointer;text-align:left;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px}
+.row100k .rr-sharer:hover .nm{text-decoration:underline;text-underline-offset:3px}
+.row100k .rr-sharer .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row100k .rr-sharer .wv{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);flex:none}
+.row100k .rr-sharer .tm{font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+.row100k .rr-sharenone{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);padding:10px 0 12px;border-top:1px dashed rgba(255,255,255,.2)}
+
+/* THE SHAREABLES DIALOG ON THIS GROUND — the race day bill s rule
+ * (rdCss.ts), copied: its accents go ink inside .rr-dark, the sheet stays
+ * paper with ink type, and trouble is said by weight. */
+.row100k .rr-dark .share-mark{background:var(--ink)}
+.row100k .rr-dark .share-x:hover{color:var(--ink)}
+.row100k .rr-dark .share-btn:hover{background:var(--ink);border-color:var(--ink);color:#fff}
+.row100k .rr-dark .share-btn.primary{background:var(--ink);border-color:var(--ink)}
+.row100k .rr-dark .share-btn.primary:hover{background:rgba(21,23,26,.82);border-color:rgba(21,23,26,.82)}
+.row100k .rr-dark .share-link:hover{color:var(--ink)}
+.row100k .rr-dark .share-status{color:var(--ink)}
+.row100k .rr-dark .share-status.bad{color:var(--ink);font-weight:700}
+
 /* ---- YOU ---- */
 .row100k .rr-you{border:2px solid #fff;border-left-width:9px;padding:14px 18px;margin-top:20px;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);line-height:2;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .row100k .rr-you b{color:#fff;font-weight:700}
@@ -115,18 +177,27 @@ export const rrCss = `
  * record, and the FASTEST TO COME lines. Nothing else in the repo used them,
  * and the cast override further down went the same way. */
 
-/* ---- the lane strip ---- */
-.row100k .rr-lanes{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:14px;background:rgba(255,255,255,.24)}
-.row100k .rr-lane{background:var(--ink);padding:10px 12px 12px;min-width:0}
-.row100k .rr-ln{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0}
-.row100k .rr-lname{font-family:var(--row-archivo-black),sans-serif;font-size:15px;line-height:1.15;text-transform:uppercase;color:#fff;margin:5px 0 0;overflow-wrap:anywhere}
-.row100k .rr-lsub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:4px 0 0}
-/* .5, not .4 — the grey floor this file sets. The open lane used to be where
- * the no-show was NAMED; the board stopped modelling one, so it now reads
- * ERG OPEN / NO ENTRY, a machine nobody was assigned to. It still reads
- * quieter than a rowing lane because the typeface and the size change. */
+/* ---- the lane strip ----
+ * TEN LANES, THE SAME HEIGHT IN EVERY WAVE (owner, 2026-10-01: the pane
+ * must never change height when switching waves). Every line in a lane is
+ * one line tall by rule — the name is cut with an ellipsis rather than
+ * wrapped, the fourth line is always there with a dash when there is
+ * nothing to say — so ten lanes are ten identical blocks whatever names
+ * are in them. Two rows of five from 620 up; a ruled LIST on a phone,
+ * where five blocks across 335px would cut every name to a syllable. The
+ * list rules are scoped to .rr-dark so the wall, which is scaled and not
+ * reflowed, never sees them from a phone. */
+/* THE HAIRLINES ARE ON THE LANES, not painted through a 1px gap by the
+ * container: with ten lanes in rows of five that worked, and eight lanes
+ * left two empty cells of the container showing through as a grey slab. */
+.row100k .rr-lanes{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:14px;padding:1px}
+.row100k .rr-lane{background:var(--ink);padding:10px 12px 12px;min-width:0;box-shadow:0 0 0 1px rgba(255,255,255,.24)}
+.row100k .rr-ln{font-family:var(--row-mono),monospace;font-size:10px;line-height:14px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0;white-space:nowrap}
+.row100k .rr-lname{font-family:var(--row-archivo-black),sans-serif;font-size:15px;line-height:18px;text-transform:uppercase;color:#fff;margin:5px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row100k .rr-lsub{font-family:var(--row-mono),monospace;font-size:10px;line-height:14px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:4px 0 0;white-space:nowrap}
+/* .5, not .4 — the grey floor this file sets. An open lane reads a dash in
+ * the name line and nothing under it: a machine nobody was assigned to. */
 .row100k .rr-lane.open .rr-lname,.row100k .rr-lane.open .rr-lsub{color:rgba(255,255,255,.5)}
-.row100k .rr-lane.open .rr-lname{font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px}
 
 /* ---- the counter strip ----
  * THE THREE-UP COUNTER COMPONENT IS GONE, but this markup is NOT dead: the
@@ -153,7 +224,8 @@ export const rrCss = `
 .row100k .rr-cw{border:1px solid rgba(255,255,255,.4);padding:12px 12px 14px;min-width:0}
 .row100k .rr-cw.done{background:#fff;border-color:#fff;color:var(--ink)}
 .row100k .rr-cw.live{border:2px solid #fff;border-top-width:9px}
-.row100k .rr-cw.yours{border-left-width:9px}
+/* .rr-cw.yours is gone: the finished sheet marks nobody (2026-10-01), and
+ * mid-race the YOU strip already names the wave. */
 .row100k .rr-cwk{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:0}
 .row100k .rr-cw.done .rr-cwk{color:rgba(21,23,26,.66)}
 .row100k .rr-wn{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(38px,5vw,54px);line-height:.9;letter-spacing:-.03em;margin:2px 0 0;color:#fff}
@@ -243,13 +315,15 @@ export const rrCss = `
  * left OFF a wave on the ergs: they all started together, so there is one
  * clock, and it is in the panel head rather than eight copies of it down the
  * lanes. */
-.row100k .rr-lval{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:#fff;margin:5px 0 0}
+.row100k .rr-lval{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;height:18px;line-height:18px;overflow:hidden;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:#fff;margin:5px 0 0;white-space:nowrap}
 .row100k .rr-lval.seed{font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+/* The dash: an open machine, or a wave still on the machines. */
+.row100k .rr-lval.none{font-weight:400;color:rgba(255,255,255,.5)}
 .row100k .rr-cast .rr-lval{font-size:12px;margin-top:4px}
 .row100k .rr-cast .rr-lval.seed{font-size:11px;color:rgba(255,255,255,.62)}
 /* The tag already carries margin-left; inside a flex line with its own gap
  * that reads as one wide space, so it is zeroed here only. */
-.row100k .rr-lval .rr-tag{margin-left:0}
+.row100k .rr-lval .rr-tag{margin-left:0;line-height:11px;padding-top:1px;padding-bottom:1px}
 
 /* ON THE WALL the cell keeps its detail lines: rr-hx is a PHONE rule and the
  * cast frame is 1280 no matter what is holding it, so a phone looking at the
@@ -336,6 +410,10 @@ export const rrCss = `
  * podium block the whole thing inverts to ink, like the text around it. */
 .row100k .rr-tag.pr{border:2px solid #fff;color:#fff;font-weight:700;padding:0 5px}
 .row100k .rr-step.s1 .rr-tag.pr{border-color:var(--ink);color:var(--ink)}
+/* FIRST 5K (owner, 2026-10-01): the quieter tag, a hairline where PR takes
+ * the 2px — a first is a fact about the rower, not a record broken. */
+.row100k .rr-tag.first{border:1px solid rgba(255,255,255,.5);color:rgba(255,255,255,.74);font-weight:700}
+.row100k .rr-step.s1 .rr-tag.first{border-color:rgba(21,23,26,.45);color:rgba(21,23,26,.7)}
 
 /* THE PLACE MARK — the medal with the colour taken out, and the same three
  * marks as the podium so the two teach each other. Mid-race the fill is
@@ -347,6 +425,10 @@ export const rrCss = `
 .row100k .rr-pl.p1{background:#fff;color:var(--ink)}
 .row100k .rr-pl.p2{border:2px solid #fff;color:#fff}
 .row100k .rr-pl.p3{border:1px solid rgba(255,255,255,.6);color:rgba(255,255,255,.86)}
+/* THE FINISHED SHEET (one table per bracket, 2026-10-01): first keeps the
+ * fill, second and third are the bare numeral in white — no box, the same
+ * rule the podium follows now. */
+.row100k .rr-pl.top{color:#fff}
 /* Withholding the fill cost first place its mark: an outline is what SECOND
  * wears, so the provisional 1 and the provisional 2 came out identical and
  * the ladder collapsed on the screen the owner opens first. First keeps a
@@ -355,11 +437,16 @@ export const rrCss = `
  * first place is. Fill is still not spent until the word FINAL. */
 .row100k table.rr-t.prov .rr-pl.p1{background:transparent;border:2px solid #fff;border-top-width:6px;color:#fff}
 
-/* ---- the podium ---- */
+/* ---- the podium ----
+ * NO BOX AROUND SECOND OR THIRD (owner, 2026-10-01: the second-place frame
+ * style is out). First keeps the fill, the loudest mark on the page; the
+ * other two are RULED, a hairline over each, flush to the column, so the
+ * three read as one measurement and not a winner in a box beside two more
+ * boxes. The clock stair carries the rest. */
 .row100k .rr-pod{display:grid;gap:12px;margin-top:4px}
-.row100k .rr-step{border:1px solid rgba(255,255,255,.45);padding:16px 18px 18px;min-width:0}
-.row100k .rr-step.s1{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k .rr-step.s2{border:2px solid #fff;border-top-width:7px;color:#fff}
+.row100k .rr-step{border-top:1px solid rgba(255,255,255,.45);padding:16px 0 18px;min-width:0}
+.row100k .rr-step.s1{background:#fff;border-top-color:#fff;color:var(--ink);padding:16px 18px 18px}
+.row100k .rr-step.s2{color:#fff}
 .row100k .rr-step.s3{color:rgba(255,255,255,.86)}
 .row100k .rr-ord{display:flex;align-items:baseline;gap:12px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:inherit}
 .row100k .rr-ord .gp{margin-left:auto;letter-spacing:.12em;font-weight:400;color:rgba(255,255,255,.74)}
@@ -376,11 +463,8 @@ export const rrCss = `
 .row100k .rr-step.s1 .rr-pm{color:rgba(21,23,26,.7);border-top-color:rgba(21,23,26,.25)}
 .row100k .rr-pm b{color:#fff;font-weight:700}
 .row100k .rr-step.s1 .rr-pm b{color:var(--ink)}
-/* THE FOURTH LINE. A podium normally hides it; printed, third place stops
- * being a cut-off and becomes a margin — and on this field a woman misses
- * it by nine tenths of a second. */
-.row100k .rr-fourth{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:12px 0 0;padding-top:12px;border-top:1px dashed rgba(255,255,255,.3);line-height:2}
-.row100k .rr-fourth b{color:#fff;font-weight:700}
+/* .rr-fourth is gone with the FOURTH line under each podium (owner,
+ * 2026-10-01: 1st, 2nd, 3rd only); the sheet above has the whole order. */
 /* .rr-legend and .rr-legend b are gone with the paragraph under the womens
  * podium that taught the filled block, the heavy outline and the hairline.
  * The cards already spell 1ST, 2ND and 3RD across the top, and the place
@@ -440,7 +524,6 @@ export const rrCss = `
 .row100k .rr-cast .rr-step.s3 .rr-pt{font-size:34px}
 .row100k .rr-cast .rr-step{padding:11px 14px 12px}
 .row100k .rr-cast .rr-pm{font-size:11px;color:rgba(255,255,255,.7);margin-top:7px;padding-top:6px;line-height:1.8}
-.row100k .rr-cast .rr-fourth{font-size:12px;color:rgba(255,255,255,.7);margin-top:8px;padding-top:8px}
 .row100k .rr-cast .rr-castk{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.66);margin:0 0 4px}
 .row100k .rr-cast .rr-samp{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62);text-align:right;margin:4px 0 0}
 /* The wall is the one screen nobody can interrogate, so a board that has
@@ -542,7 +625,23 @@ export const rrCss = `
 
 /* ---- widths ---- */
 @media(min-width:620px){
-  .row100k .rr-lanes{grid-template-columns:repeat(4,1fr)}
+  .row100k .rr-lanes{grid-template-columns:repeat(5,1fr)}
+}
+
+/* THE PHONE LANE LIST: one ruled row per lane, every row one line tall —
+ * the lane, the name cut to fit, the bracket, the time flush right. Page
+ * only (.rr-dark); the wall keeps its ten-across strip at any width. */
+@media(max-width:619px){
+  .row100k .rr-dark .rr-lanes{grid-template-columns:1fr;gap:0;padding:0;margin-top:10px}
+  /* A FIXED 36px ROW, centred and not baseline-aligned: a row with a tag
+   * in it and a row with a dash measured a pixel apart on the baseline,
+   * and ten of those made the pane a pixel and a half taller on wave 3. */
+  .row100k .rr-dark .rr-lane{display:grid;grid-template-columns:54px minmax(0,1fr) 16px auto;column-gap:10px;align-items:center;box-sizing:border-box;height:36px;padding:0;border-bottom:1px solid rgba(255,255,255,.18);box-shadow:none}
+  .row100k .rr-dark .rr-lane:last-child{border-bottom:0}
+  .row100k .rr-dark .rr-lane .rr-lname{margin:0;font-size:14px}
+  .row100k .rr-dark .rr-lane .rr-lsub{margin:0;text-align:center}
+  /* The time flush right in every row, the tag before it. */
+  .row100k .rr-dark .rr-lane .rr-lval{margin:0;justify-content:flex-start;flex-direction:row-reverse}
 }
 @media(min-width:880px){
   .row100k .rr-two{grid-template-columns:1fr 1fr}

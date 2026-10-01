@@ -84,6 +84,9 @@ export function sampleData(masked = false): ShareData {
         alt: "The Strip Barbell",
       },
       mine: { wave: 3, time: "7:15 PM" },
+      /* A race time, so the three RACE TIME looks preview too (2026-10-01).
+       * A PR, because the tag is the one thing on the card worth seeing. */
+      time: { time: "18:51", name: "SAMPLE ROWER", wave: 3, split: "1:53", day: "SUN SEP 27", tag: "PR" },
     },
     community: {
       meters: cum,

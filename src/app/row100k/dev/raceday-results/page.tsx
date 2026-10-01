@@ -5,6 +5,8 @@ import { resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
+import { currentRace } from "../../raceday";
+import { ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
 import { RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
@@ -174,7 +176,15 @@ export default async function DevRaceDayResultsPage({
         </span>
       </RowBar>
 
-      <RaceResults board={board} note={note} pick={pick} />
+      {/* The finished sample wears the archive header off the code race
+        * (2026-10-01), the way the real archive does off the race as it
+        * stands — same header, invented sheet. */}
+      <RaceResults
+        board={board}
+        note={note}
+        head={at === "finished" ? <ArchiveHead race={currentRace()} /> : undefined}
+        pick={pick}
+      />
 
       <RowFooter />
     </div>
