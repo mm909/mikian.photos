@@ -25,6 +25,7 @@ const ALLOWED_PREFIXES = [
   "/api/relay",
   "/api/cron/backfill-detection",
   "/api/cron/backup-db",
+  "/api/cron/row100k-daily",
   /* public/ folders, in case a request for one slips past the extension
    * rule in the matcher */
   "/assets",
