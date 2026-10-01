@@ -48,9 +48,13 @@ import {
   frontExtras,
   type FrontExtras,
 } from "./boardData";
-import { Landing } from "./landing/Landing";
 import { loadLanding } from "./landing/data";
-import { parseLand } from "./landing/view";
+import { L1 } from "./landings/L1";
+import { L2 } from "./landings/L2";
+import { L3 } from "./landings/L3";
+import { L4 } from "./landings/L4";
+import { L5 } from "./landings/L5";
+import { parseLand } from "./landings/view";
 import { recordsHref } from "./records/recordsUrl";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
@@ -170,13 +174,16 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
   const actor = await getEffectiveActor();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
 
-  /* THE SIGNED-OUT LANDINGS behind ?land=a|b|c (owner, 2026-09-25: "three
-   * different landing pages designed at getting user sign ups") — only a
-   * stranger who asked for one; anyone signed in, and any URL without the
-   * query, gets the page below untouched (landing/Landing.tsx). */
+  /* THE SIGNED-OUT LANDINGS behind ?land=1..5 (owner, 2026-09-30: five
+   * drafts to his brief — convert an Instagram visitor, the 100K month is
+   * the point, OPT IN is the ask) — only a stranger who asked for one;
+   * anyone signed in, and any URL without the query, gets the page below
+   * untouched (landings/L1..L5.tsx; the same five at /row100k/landings/pN). */
   const land = parseLand(searchParams?.land);
   if (land && !actor) {
-    return <Landing land={land} data={await loadLanding()} />;
+    const data = await loadLanding();
+    const Page = { 1: L1, 2: L2, 3: L3, 4: L4, 5: L5 }[land];
+    return <Page data={data} />;
   }
 
   let me: {

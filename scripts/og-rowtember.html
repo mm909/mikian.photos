@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@700&display=swap">
+<style>html,body{margin:0;background:#15171A}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="1200" height="630"></canvas>
+<script>
+/* THE LINK CARD, month-neutral (2026-09-28): the mark white on ink with
+ * its tilt, one mono line under it, the address in the corner. Replaces
+ * the September card ("100K SEPTEMBER · SEP 1–30") so an October link
+ * does not unfurl with last month's words. */
+const INK = "#15171A", GRAY = "rgba(255,255,255,.62)";
+const W = 1200, H = 630;
+async function draw() {
+  await document.fonts.load('150px "Archivo Black"');
+  await document.fonts.load('bold 20px "Space Mono"');
+  await document.fonts.ready;
+  const ctx = document.getElementById("c").getContext("2d");
+  ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+  let size = 170;
+  for (;;) { ctx.font = `${size}px "Archivo Black"`; if (ctx.measureText("ROWTEMBER").width <= W * 0.78 || size <= 40) break; size -= 1; }
+  ctx.font = `${size}px "Archivo Black"`; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  const tw = ctx.measureText("ROWTEMBER").width;
+  const padX = size * 0.34, padTop = size * 0.3, padBottom = size * 0.26, cap = size * 0.72;
+  const bw = tw + padX * 2, bh = cap + padTop + padBottom;
+  ctx.save();
+  ctx.translate(W / 2, H / 2 - 30);
+  ctx.rotate((-1.2 * Math.PI) / 180);
+  ctx.transform(1, 0, Math.tan((-2 * Math.PI) / 180), 1, 0, 0);
+  ctx.fillStyle = INK; ctx.fillRect(-bw / 2, -bh / 2, bw, bh);
+  ctx.fillStyle = "#fff"; ctx.fillText("ROWTEMBER", -bw / 2 + padX, -bh / 2 + padTop + cap);
+  ctx.restore();
+  ctx.font = 'bold 22px "Space Mono"'; ctx.textAlign = "center"; ctx.fillStyle = GRAY;
+  const line = "A FREE MONTHLY ROWING CHALLENGE · EVERY METER COUNTED";
+  ctx.save(); ctx.letterSpacing = "0.18em"; ctx.fillText(line, W / 2, H / 2 + 110); ctx.restore();
+  ctx.save(); ctx.letterSpacing = "0.18em"; ctx.textAlign = "right"; ctx.fillStyle = GRAY; ctx.font = 'bold 18px "Space Mono"'; ctx.fillText("MIKIANMUSSER.COM", W - 56, H - 48); ctx.restore();
+  document.title = "done";
+}
+draw();
+</script>
+</body>
+</html>

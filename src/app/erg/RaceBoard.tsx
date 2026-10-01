@@ -6,7 +6,7 @@ import { fmtTime, type Block } from "@/lib/pm5/predict";
 import { thinPoints, type XY } from "./chartGeom";
 import { blocksFor, pieceEnded, predictForErg, readFinish, typedErgName, type FinishRead } from "./ErgGoal";
 import { boardHideCss } from "./boardHideCss";
-import { DEFAULT_GOAL_M, type Erg, type ErgLink, LINK_WORD, boardErgs, boardRowersOnly, setBoardRowersOnly, setErgHidden } from "./hub";
+import { DEFAULT_GOAL_M, type Erg, type ErgLink, LINK_WORD, boardErgs, boardRowersOnly, liveAvgPaceS, livePaceS, setBoardRowersOnly, setErgHidden } from "./hub";
 
 /* THE RACE BOARD (owner, 2026-09-21: "a screen where it shows all the
  * rowers that are currently connected — a live race board. This would be
@@ -242,7 +242,9 @@ export function laneRows(all: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
     const { e, m, ended, p, finishS, track } = r;
     const a1 = e.model.a1;
     const g = e.model.general;
-    const pace = a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null;
+    /* The monitor's pace, or the metres over the clock on a monitor that
+     * sends none (hub.ts livePaceS; owner, 2026-09-27). */
+    const pace = livePaceS(e);
     const ss = e.model.samples;
     let pace500: number | null = null;
     if (ss.length > 1) {
@@ -276,7 +278,7 @@ export function laneRows(all: Erg[], goal: number = DEFAULT_GOAL_M): Lane[] {
        * "fill in their avg 500 with the avg pace for the whole row") — the
        * PM5 drops its status once the piece ends, so it is the finish
        * clock over the distance, not the monitor's last word. */
-      avgPace: finishS !== null && m > 0 ? (finishS / m) * 500 : a1 && a1.averagePaceS > 0 ? a1.averagePaceS : null,
+      avgPace: finishS !== null && m > 0 ? (finishS / m) * 500 : liveAvgPaceS(e),
       pace500,
       series,
       spm: a1 && a1.strokeRate > 0 ? a1.strokeRate : null,

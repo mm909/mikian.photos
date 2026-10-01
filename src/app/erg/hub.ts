@@ -246,6 +246,15 @@ export type Erg = {
    * the five thousand every slot assumes. The race board sets it to the
    * race distance on its own copy of the slot (ErgGoal.ts goalOf). */
   goalM: number;
+  /* THE LANE (owner, 2026-09-27, race day: "assign a lane to the ergs …
+   * so they get sorted in that order when the race resets and so that
+   * when I am assigning rowers to the ergs on the screen I can say go to
+   * number one and know which is that"). Set in the console's settings
+   * and shown nowhere else; the monitors page and the race board list
+   * lanes first, in lane order, and everything unnumbered after. Kept in
+   * the browser by device id, so a monitor paired again tonight is still
+   * lane 1. Null is no lane. */
+  lane: number | null;
   addedAt: number;
 };
 
@@ -273,6 +282,8 @@ const SAMPLE_CAP = 12_000;
 /* Force curves kept for SAVE, one per stroke; a chart draws only the last. */
 const FORCE_CAP = 2_000;
 const CONNECT_TIMEOUT_MS = 15_000;
+/* Live links at which a failed connect is probably the radio, not the erg. */
+const RADIO_HINT_AT = 7;
 const SAVE_TIMEOUT_MS = 60_000;
 
 export const ERG_API = "/api/erg/sessions";
@@ -389,6 +400,10 @@ type Wire = {
   timer: ReturnType<typeof setInterval> | null;
   lastStep: number;
   ppsTimes: number[];
+  /* General-status packets seen with no 0x32 yet — three is the verdict
+   * that this monitor sends none (derived ticks, below). */
+  generalTicks: number;
+  derivedNoted: boolean;
 };
 
 const ergs = new Map<string, Erg>();
@@ -430,6 +445,8 @@ const freshWire = (): Wire => ({
   driver: null,
   timer: null,
   lastStep: 0,
+  generalTicks: 0,
+  derivedNoted: false,
   ppsTimes: [],
 });
 
@@ -446,8 +463,60 @@ export function subscribe(fn: (list: Erg[]) => void): () => void {
   };
 }
 
+/* Lanes first, in lane order; the unnumbered after, in the order they
+ * were added. Every list on the site reads this, so lane 1 is the first
+ * row on the monitors page and the first lane on the board before a
+ * start. */
 export function listErgs(): Erg[] {
-  return Array.from(ergs.values()).sort((a, b) => a.addedAt - b.addedAt);
+  return Array.from(ergs.values()).sort((a, b) => {
+    if (a.lane !== null && b.lane !== null) return a.lane - b.lane || a.addedAt - b.addedAt;
+    if (a.lane !== null) return -1;
+    if (b.lane !== null) return 1;
+    return a.addedAt - b.addedAt;
+  });
+}
+
+/* ---- the lanes, kept in the browser ---------------------------------- */
+
+const LANE_STORE = "erg:lanes";
+
+function storedLanes(): Record<string, number> {
+  try {
+    if (typeof localStorage === "undefined") return {};
+    const raw = localStorage.getItem(LANE_STORE);
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    return v && typeof v === "object" ? (v as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function storedLane(id: string): number | null {
+  const v = storedLanes()[id];
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : null;
+}
+
+/* A whole number from 1 up, or null to take the lane off. Two ergs may
+ * carry the same number (the owner is the one moving cards, and a
+ * duplicate is easier to see than a refusal); they then sort by when they
+ * were added. */
+export function setErgLane(id: string, lane: number | null) {
+  const e = ergs.get(id);
+  if (!e) return;
+  const v = lane !== null && Number.isInteger(lane) && lane >= 1 && lane <= 99 ? lane : null;
+  e.lane = v;
+  try {
+    if (typeof localStorage !== "undefined" && e.source === "live") {
+      const all = storedLanes();
+      if (v === null) delete all[id];
+      else all[id] = v;
+      localStorage.setItem(LANE_STORE, JSON.stringify(all));
+    }
+  } catch {
+    /* A browser that refuses storage keeps the lane for the tab. */
+  }
+  log(e, v === null ? "lane cleared" : `lane ${v}`);
+  paint();
 }
 
 export function getErg(id: string): Erg | null {
@@ -553,7 +622,7 @@ function upsertStroke(e: Erg, n: number): ErgStroke {
     calPerHr: null,
     projTimeS: null,
     projDistM: null,
-    paceS: e.model.a1?.currentPaceS ?? null,
+    paceS: livePaceS(e),
     spm: e.model.a1?.strokeRate ?? null,
     hr: e.model.a1?.heartRate ?? null,
   };
@@ -572,6 +641,54 @@ function upsertSplit(e: Erg, n: number): TelemetrySplit {
   e.model.splits.push(fresh);
   e.model.splits.sort((p, q) => p.n - q.n);
   return fresh;
+}
+
+/* PACE FROM THE METRES (owner, 2026-09-27, race day: "on older erg
+ * machines we don't get pace info but we still get meters … if we can
+ * derive the pace from meters rowed that is the best option"). Seconds per
+ * 500 m over the last DERIVE_M metres of ticks — enough ticks to settle,
+ * few enough to follow a sprint; the first few metres of a piece measure
+ * over what there is. 0 when there is nothing to measure from yet, which
+ * is what the monitor's own pace reads at rest. */
+const DERIVE_M = 50;
+export function derivedPaceS(samples: ErgSample[], t: number, dist: number): number {
+  let j = samples.length - 1;
+  while (j > 0 && dist - samples[j].dist < DERIVE_M) j--;
+  const back = samples[j];
+  if (!back) return 0;
+  const dm = dist - back.dist;
+  const dt = t - back.t;
+  if (dm < 10 || dt <= 0) return 0;
+  return (dt / dm) * 500;
+}
+
+/* THE PACE A SURFACE PRINTS for a live erg: the monitor's own when it sends
+ * one, else the last tick's, which is derived from the metres on a monitor
+ * that sends none. Null at rest and before the first tick. */
+export function livePaceS(e: Erg): number | null {
+  const a1 = e.model.a1;
+  if (a1 && a1.currentPaceS > 0) return a1.currentPaceS;
+  const s = e.model.samples[e.model.samples.length - 1];
+  return s && s.pace > 0 ? s.pace : null;
+}
+
+/* The average for the piece so far: the monitor's, else the clock over
+ * the metres. */
+export function liveAvgPaceS(e: Erg): number | null {
+  const a1 = e.model.a1;
+  if (a1 && a1.averagePaceS > 0) return a1.averagePaceS;
+  const g = e.model.general;
+  return g && g.distanceM > 0 && g.elapsedS > 0 ? (g.elapsedS / g.distanceM) * 500 : null;
+}
+
+/* One tick onto the sample stream, capped like the buffers it joins. */
+function pushSample(e: Erg, sample: ErgSample) {
+  const m = e.model;
+  m.samples.push(sample);
+  if (m.samples.length > SAMPLE_CAP) {
+    m.samples.splice(0, m.samples.length - SAMPLE_CAP);
+    noteHeadTrim(e, m.samples[0]?.t ?? null, "tick");
+  }
 }
 
 /* The live model back to nothing for a NEW PIECE on the same erg: strokes,
@@ -660,6 +777,34 @@ function apply(e: Erg, p: MuxPacket) {
         void postRaceResult(e.id, Math.round(p.data.elapsedHundredths / 10));
       }
       if (prev !== null && prev !== p.data.workoutState) log(e, `workout state: ${workoutStateWord(prev)} → ${workoutStateWord(p.data.workoutState)}`);
+      /* TICKS OFF THE CLOCK AND THE METRES when no 0x32 comes (older
+       * monitors; owner, 2026-09-27, race day). The sample stream every
+       * chart and the race board read was only ever fed by 0x32, so a
+       * monitor without it drew nothing — no pace, no line, no last-500.
+       * Three general packets with no 0x32 is the verdict; one tick per
+       * advance of the clock, the pace derived from the metres. */
+      const wire = wires.get(e.id);
+      if (wire && m.a1 === null) {
+        wire.generalTicks++;
+        const last = m.samples[m.samples.length - 1];
+        if (wire.generalTicks >= 3 && (!last || p.data.elapsedS > last.t)) {
+          if (!wire.derivedNoted) {
+            wire.derivedNoted = true;
+            log(e, "no 0x32 from this monitor — pace derived from the metres");
+          }
+          const ls = m.strokes[m.strokes.length - 1];
+          pushSample(e, {
+            t: p.data.elapsedS,
+            dist: p.data.distanceM,
+            pace: derivedPaceS(m.samples, p.data.elapsedS, p.data.distanceM),
+            avgPace: p.data.distanceM > 0 && p.data.elapsedS > 0 ? (p.data.elapsedS / p.data.distanceM) * 500 : 0,
+            spm: ls?.spm ?? 0,
+            hr: null,
+            watts: ls?.watts ?? null,
+            drag: p.data.dragFactor,
+          });
+        }
+      }
       return;
     }
     case "additional1": {
@@ -678,20 +823,22 @@ function apply(e: Erg, p: MuxPacket) {
         return;
       }
       const ls = m.strokes[m.strokes.length - 1];
-      m.samples.push({
+      const dist = m.general?.distanceM ?? 0;
+      /* A 0x32 with no pace in it (owner, 2026-09-27: older monitors) is
+       * still a tick; the pace is the metres over the clock. */
+      const pace = p.data.currentPaceS > 0 ? p.data.currentPaceS : derivedPaceS(m.samples, p.data.elapsedS, dist);
+      const avgPace =
+        p.data.averagePaceS > 0 ? p.data.averagePaceS : dist > 0 && p.data.elapsedS > 0 ? (p.data.elapsedS / dist) * 500 : 0;
+      pushSample(e, {
         t: p.data.elapsedS,
-        dist: m.general?.distanceM ?? 0,
-        pace: p.data.currentPaceS,
-        avgPace: p.data.averagePaceS,
+        dist,
+        pace,
+        avgPace,
         spm: p.data.strokeRate,
         hr: p.data.heartRate,
         watts: ls?.watts ?? null,
         drag: m.general?.dragFactor ?? 0,
       });
-      if (m.samples.length > SAMPLE_CAP) {
-        m.samples.splice(0, m.samples.length - SAMPLE_CAP);
-        noteHeadTrim(e, m.samples[0]?.t ?? null, "tick");
-      }
       return;
     }
     case "additional2":
@@ -845,6 +992,7 @@ function makeErg(args: { id: string; device: ErgDevice; source: ErgSource; rate?
     rower: null,
     loaded: null,
     goalM: 0,
+    lane: args.source === "live" ? storedLane(args.id) : null,
     addedAt: Date.now() + ergs.size,
   };
   ergs.set(e.id, e);
@@ -1168,6 +1316,13 @@ async function connect(e: Erg) {
     e.link = "dropped";
     log(e, `connect failed — ${errText(err)}`);
     if (/timed out/.test(errText(err))) log(e, "if the PM5 shows in the laptop Bluetooth list, remove it there and try again");
+    /* THE RADIO'S CEILING (owner, 2026-09-27, race day: twelve ergs, the
+     * eleventh "says disconnected"). Nothing in here counts monitors; a
+     * laptop's Bluetooth chip holds a fixed number of links at once, often
+     * seven to ten, and Chrome cannot go past it. Say so when it is the
+     * likely cause, with the way round it. */
+    const live = [...ergs.values()].filter((x) => x !== e && x.source === "live" && x.link === "live").length;
+    if (live >= RADIO_HINT_AT) log(e, `${live} monitors are already connected — a laptop's Bluetooth radio holds only so many at once. Disconnect an erg that is not in this wave and try again.`);
   }
   paint();
 }

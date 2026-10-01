@@ -47,6 +47,7 @@ import { buildBests, buildShareData, getRower } from "./shareData";
 import { listRowerErgSessions } from "@/lib/pm5/store";
 import { inPeriod, parsePeriod, periodOptions } from "@/lib/rowPeriod";
 import { fmtTenths } from "@/lib/pm5/pm5";
+import { raceDayBest } from "./raceBest";
 import { fmtTenthsClock } from "@/lib/pm5/session";
 
 /* THE ERG ROWS for the profile (owner, 2026-09-23), as strings. Fails
@@ -280,6 +281,12 @@ export default async function RowerProfilePage({ params, searchParams }: { param
   // best cards off the same list). A masked profile's bests carry no value
   // string at all, only the blocks' digit count or the time's silhouette.
   const bests: ProfileBest[] = buildBests({ p, boards: b, records, masked });
+  // RACE DAY, as a fifth line under the bests (owner, 2026-09-28: "give the
+  // rowers a small special call out for their race day time"). Only once a
+  // time is posted; never masked, a race time is public the night it is
+  // rowed. Fails open (raceBest.ts).
+  const raceBest = await raceDayBest(p.id, period);
+  if (raceBest) bests.push(raceBest);
 
   // The log shows each row's photo pair — for everyone (the photos are the
   // honor system), and as the "current" pair in the owner's editor. One
@@ -332,7 +339,10 @@ export default async function RowerProfilePage({ params, searchParams }: { param
         phase: isAdmin && phase === "before" ? "open" : phase,
         earlyAdmin: isAdmin && phase === "before",
         defaultDay: clampDay(pacificDay(now)),
-        defaultTitle: defaultRowTitle(entries.length + 1),
+        /* THIS month's count, whatever month the page is showing (rollover
+         * review, 2026-09-28): a rower logging from their September view
+         * in October gets "October #1", not "October #24". */
+        defaultTitle: defaultRowTitle(allEntries.filter((e) => inPeriod(e.day, MONTH)).length + 1),
         sanity: await sanityBandForForm(),
       }
     : null;

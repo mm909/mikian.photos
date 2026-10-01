@@ -528,6 +528,9 @@ export const ergCss = `
 }
 .eg .eg-dname-box:hover{border-color:var(--eg-line-soft)}
 .eg .eg-dname-box:focus{outline:none;border-color:var(--eg-fg)}
+/* The lane number in the settings drawer: the name box, two digits wide. */
+.eg .eg-lane-box{max-width:120px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.eg .eg-lane-box::-webkit-outer-spin-button,.eg .eg-lane-box::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .eg .eg-dname-box::placeholder{color:var(--eg-fg-4)}
 .eg .eg-settings{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px 28px;

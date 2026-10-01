@@ -9,7 +9,6 @@ import { ensureParticipant } from "@/lib/row100kJoin";
 import {
   CHALLENGE,
   CHALLENGE_LIVE,
-  LOG_CLOSE_MS,
   nowMs,
   parseBirthday,
   parseDisplayName,
@@ -29,12 +28,11 @@ function isMissingColumn(err: unknown): boolean {
  * semantics). Requires a Google session; the rower number is assigned once
  * at first join, in join order, and never changes. */
 export async function POST(req: Request) {
-  if (nowMs() >= LOG_CLOSE_MS) {
-    return NextResponse.json(
-      { ok: false, error: "The challenge is wrapped — the board is final." },
-      { status: 400 },
-    );
-  }
+  /* No closing gate any more (rollover review, 2026-09-28): under the
+   * monthly clock a join is a join in whatever month it lands, and the old
+   * "the challenge is wrapped" check against the process month could only
+   * ever fire on a stale instance across a month boundary, refusing the
+   * first October joins. The log window is validateEntry's business. */
 
   const actor = await getEffectiveActor();
   if (!actor) {

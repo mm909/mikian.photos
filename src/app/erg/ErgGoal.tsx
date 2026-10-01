@@ -2,7 +2,7 @@
 
 import { isEnded } from "@/lib/pm5/pm5";
 import { fmtBand, fmtTime, predictFinish, type Block, type PieceState, type Prediction } from "@/lib/pm5/predict";
-import { DEFAULT_GOAL_M, type Erg, type ErgSample } from "./hub";
+import { DEFAULT_GOAL_M, type Erg, type ErgSample, livePaceS } from "./hub";
 
 /* THE GOAL, AND WHAT IT PREDICTS (owner, 2026-09-17: "infer the goal
  * distance to be a five K always. But allow us to change it" — and, on the
@@ -160,7 +160,6 @@ export function goalOf(e: Erg): number {
 
 export function pieceStateFor(e: Erg): PieceState {
   const g = e.model.general;
-  const a1 = e.model.a1;
   const { blocks, blockM } = blocksFor(e);
   return {
     targetMeters: goalOf(e),
@@ -168,7 +167,7 @@ export function pieceStateFor(e: Erg): PieceState {
     elapsedS: g ? g.elapsedHundredths / 100 : 0,
     blocks,
     blockM,
-    currentPaceS: a1 && a1.currentPaceS > 0 ? a1.currentPaceS : null,
+    currentPaceS: livePaceS(e),
   };
 }
 

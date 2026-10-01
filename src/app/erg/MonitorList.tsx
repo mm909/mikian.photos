@@ -25,6 +25,8 @@ import {
   getErg,
   listErgs,
   markLoaded,
+  liveAvgPaceS,
+  livePaceS,
   reconnect,
   removeErg,
   setErgHidden,
@@ -266,9 +268,9 @@ function ErgRow({ erg, onOpen, onChanged, signedIn, roster }: { erg: Erg; onOpen
          * clock says FINAL under itself instead. */}
         <span className="eg-r-nums">
           <Num k="Distance" v={g ? fmtMeters(g.distanceM) : "—"} />
-          <Num k="Pace /500m" v={a1 && a1.currentPaceS > 0 ? fmtPace(a1.currentPaceS) : "—"} />
+          <Num k="Pace /500m" v={livePaceS(erg) !== null ? fmtPace(livePaceS(erg) as number) : "—"} />
           {ended ? (
-            <Num k="Average /500m" v={a1 && a1.averagePaceS > 0 ? fmtPace(a1.averagePaceS) : "—"} s={g ? `OVER ${fmtMeters(g.distanceM)}` : ""} />
+            <Num k="Average /500m" v={liveAvgPaceS(erg) !== null ? fmtPace(liveAvgPaceS(erg) as number) : "—"} s={g ? `OVER ${fmtMeters(g.distanceM)}` : ""} />
           ) : (
             <Num k={`Expected ${goalWord(goalOf(erg))} finish`} v={finish.value} s={finish.under} hint={finish.hint} />
           )}

@@ -27,8 +27,10 @@ import {
   disconnect,
   ergTitle,
   ergUnsaved,
+  livePaceS,
   reconnect,
   saveErg,
+  setErgLane,
   setErgTitle,
   setRate,
   type Erg,
@@ -414,6 +416,27 @@ export function ErgDetail({ erg, onBack, signedIn = false, roster = null }: { er
               ))}
             </span>
           </div>
+          {/* THE LANE (owner, 2026-09-27): a number and nothing else, shown
+            * here alone. It orders the monitors page and the board before
+            * a start, so "go to number one" is the first row. */}
+          <div className="eg-settings-col">
+            <span className="eg-eyebrow">The lane</span>
+            <label className="eg-away" htmlFor={`dlane-${erg.id}`}>
+              Lane number
+            </label>
+            <input
+              id={`dlane-${erg.id}`}
+              className="eg-dname eg-dname-box eg-lane-box"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={99}
+              value={erg.lane ?? ""}
+              onChange={(ev) => setErgLane(erg.id, ev.target.value === "" ? null : Number(ev.target.value))}
+              placeholder="—"
+              aria-label="Lane number"
+            />
+          </div>
           <div className="eg-settings-col">
             <span className="eg-eyebrow">The monitor</span>
             <dl className="eg-dfacts">
@@ -451,7 +474,7 @@ export function ErgDetail({ erg, onBack, signedIn = false, roster = null }: { er
           unit="m"
           sub={g && g.totalWorkDistanceM ? `OF ${fmtMeters(g.totalWorkDistanceM)}` : ""}
         />
-        <Tile label="Pace /500m" value={a1 ? fmtPace(a1.currentPaceS) : "—"} sub={a2 ? `SPLIT AVG ${fmtPace(a2.splitAvgPaceS)}` : ""} />
+        <Tile label="Pace /500m" value={livePaceS(erg) !== null ? fmtPace(livePaceS(erg) as number) : "—"} sub={a2 ? `SPLIT AVG ${fmtPace(a2.splitAvgPaceS)}` : ""} />
         {/* THE LABEL IS SHORT SO THE CLOCK IS NOT (review, 2026-09-17: the
           * goal was in the label, which made a seventeen-character eyebrow
           * over a number in a 168px column). The goal moved down into the

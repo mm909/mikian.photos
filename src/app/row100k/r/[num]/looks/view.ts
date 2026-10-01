@@ -34,6 +34,9 @@ export type ProfileBest = {
   shape?: string;
   /* Blackout: how many digits a hidden meters best had — for the blocks. */
   digits?: number;
+  /* No best card exists for this line (the race day time, 2026-09-28), so
+   * the table shows no SHARE on it. */
+  noShare?: boolean;
 };
 
 export type ProfilePhase = "before" | "open" | "closed";

@@ -50,7 +50,7 @@ export function BestsTables({
               </td>
               {onShare ? (
                 <td className="sh">
-                  {r.value !== "—" ? (
+                  {r.value !== "—" && !r.noShare ? (
                     <button type="button" className="quiet-btn" onClick={() => onShare(r)}>
                       SHARE
                     </button>

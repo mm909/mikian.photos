@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/backup-db",
       "schedule": "0 10 * * *"
-    },
-    {
-      "path": "/api/cron/row100k-daily",
-      "schedule": "15 13 * * *"
     }
   ]
 }
