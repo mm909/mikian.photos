@@ -136,11 +136,15 @@ export const statsCss = `
 /* THE YEAR (YearGrid.tsx): a month a row, a day a column — the month word
  * in the first column, thirty-one cells after it, a cell the width the
  * phone allows and no figure inside. The day numbers over the columns are
- * the first and every fifth. */
-.row100k .yg{display:grid;grid-template-columns:2.4em repeat(31,1fr);gap:2px;align-items:center}
+ * the first and every fifth. The columns are minmax(0,1fr), not 1fr: a
+ * two-figure day number is wider than a phone cell, and with a plain 1fr
+ * it pushed its own column out, so every fifth square was a size up
+ * (seen 2026-10-01, on ink, where the squares are the brightest thing). The
+ * number hangs over its neighbours instead, which are blank. */
+.row100k .yg{display:grid;grid-template-columns:2.4em repeat(31,minmax(0,1fr));gap:2px;align-items:center}
 .row100k .yg-row{display:contents}
 .row100k .yg-m{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;color:var(--gray);text-transform:uppercase;padding-right:3px}
-.row100k .yg-d{font-family:var(--row-mono),monospace;font-size:9px;color:var(--gray);text-align:center;padding-bottom:2px;white-space:nowrap}
+.row100k .yg-d{font-family:var(--row-mono),monospace;font-size:9px;color:var(--gray);padding-bottom:2px;white-space:nowrap;display:flex;justify-content:center;min-width:0;overflow:visible}
 .row100k .yg .hm-cell,.row100k .yg-gap{aspect-ratio:1}
 @media (min-width:700px){.row100k .yg{gap:5px}.row100k .yg-m{font-size:11px}}
 `;

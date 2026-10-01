@@ -38,7 +38,7 @@ export const shirtsCss = `
 .row100k .sp-car-dots button{all:unset;cursor:pointer;width:8px;height:8px;border:1px solid var(--ink);box-sizing:border-box}
 .row100k .sp-car-dots button.on{background:var(--ink)}
 .row100k .sp-car-dots button:focus-visible{outline:2px solid var(--water);outline-offset:2px}
-/* The owner's two words under the frame, the action word's voice. */
+/* The two owner words under the frame, in the voice of the action word. */
 .row100k .sp-car-admin{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:10px}
 .row100k .sp-go.quiet{color:var(--gray);text-decoration-color:var(--line)}
 .row100k .sp-go.quiet:hover{color:var(--water)}

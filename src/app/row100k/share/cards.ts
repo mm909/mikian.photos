@@ -1,3 +1,4 @@
+import { cardAccent } from "./accent";
 import {
   END_MS,
   MONTH_DAYS,
@@ -249,7 +250,8 @@ export type ShareCard = {
   draw: (ctx: CanvasRenderingContext2D, data: ShareData, fonts: ShareFonts) => void;
 };
 
-const WATER = "#0077B6";
+/* The accent is not a constant any more: it is the site palette's, asked
+ * for at draw time (accent.ts cardAccent, set by RowSite — 2026-10-01). */
 const INK = "#15171A";
 const GOLD = "#D4AF37";
 const SILVER = "#C0C0C0";
@@ -260,11 +262,14 @@ const medalColor = (place: number): string | null =>
 
 /* ------------------------------------------------------------ primitives */
 
-/* The page's "open to everyone" mark: white caps on water blue, rotated a
+/* The page's "open to everyone" mark: caps on a box of the accent, rotated a
  * degree and a half and skewed, so it reads as something stamped on rather
  * than typeset. Returns the drawn width so callers can centre it. The box
- * paints water blue unless a medal color is handed in; silver is too light
- * for white caps, so text flips to ink on it.
+ * paints the site accent (accent.ts — it was the water blue until
+ * 2026-10-01) unless a medal color is handed in, and the caps are the type
+ * a slab of that accent carries: ink on the October pumpkin, white on a
+ * red or the blue. Silver is too light for white caps, so text flips to
+ * ink on it too.
  *
  * THE ELITE wear it white on ink (owner, 2026-09-08: "where someone is in
  * the elite, make the Rowtember logo white on black"): `masked` is the
@@ -278,8 +283,12 @@ function drawMark(
   opts: { cx: number; cy: number; size: number; fontFamily: string; box?: string; masked?: boolean },
 ) {
   const { cx, cy, size, fontFamily } = opts;
-  const boxColor = opts.box ?? (opts.masked ? INK : WATER);
-  const textColor = boxColor === SILVER ? INK : "#ffffff";
+  const site = cardAccent();
+  const onAccent = opts.box === undefined && !opts.masked;
+  const boxColor = opts.box ?? (opts.masked ? INK : site.accent);
+  /* INK itself when the caps are ink, so the strike below still knows. */
+  const siteCaps = site.caps.toLowerCase() === INK.toLowerCase() ? INK : site.caps;
+  const textColor = boxColor === SILVER ? INK : onAccent ? siteCaps : "#ffffff";
   ctx.save();
   ctx.font = `${size}px ${fontFamily}`;
   ctx.textBaseline = "alphabetic";
@@ -863,14 +872,15 @@ const rowtemberToday: ShareCard = {
 /* Card two: the club stamp. Earned, not given — it only appears in the menu
  * once the rower crosses 50k, and upgrades itself through the clubs. Each
  * club has its own colour (owner call, 2026-09-05) and it is the SAME ink
- * the board's tier tag uses (theme.ts --tier-*-ink: 50K green, 100K water,
- * .25M gold-brown, 500K ink), so the sticker and the table say the same
- * thing; the card stays see-through outside the tag. */
-const MILESTONES: { meters: number; label: string; plaque: string }[] = [
+ * the board's tier tag uses (theme.ts --tier-*-ink: 50K green, 100K the
+ * site accent, .25M gold-brown, 500K ink), so the sticker and the table say
+ * the same thing; the card stays see-through outside the tag. A null plaque
+ * is the accent, asked for when the card is drawn (accent.ts). */
+const MILESTONES: { meters: number; label: string; plaque: string | null }[] = [
   { meters: 500_000, label: "500K", plaque: INK },
   // The quarter-million club is ".25M", not "250K" (owner rebrand).
   { meters: 250_000, label: ".25M", plaque: "#8a6508" },
-  { meters: 100_000, label: "100K", plaque: WATER },
+  { meters: 100_000, label: "100K", plaque: null },
   { meters: 50_000, label: "50K", plaque: "#256e45" },
 ];
 
@@ -918,7 +928,7 @@ const rowtemberClub: ShareCard = {
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
 
-    ctx.fillStyle = club.plaque;
+    ctx.fillStyle = club.plaque ?? cardAccent().accent;
     ctx.fillRect(cx - boxW / 2, boxTop, boxW, boxH);
 
     // Flat white on the ink, like the table: the tag casts a shadow, the
@@ -931,7 +941,7 @@ const rowtemberClub: ShareCard = {
       cx,
       baseline: boxTop + (boxH + capH) / 2,
       font: `${size}px ${fonts.mono}`,
-      color: "#ffffff",
+      color: club.plaque ? "#ffffff" : cardAccent().caps,
     });
     ctx.restore();
 

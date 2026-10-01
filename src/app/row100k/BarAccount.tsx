@@ -6,7 +6,8 @@ import { signIn, signOut } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 
 /* Top-right of the bar. Signed out: an OPT IN chip in the accent. Joined: a "ROWER 023"
- * chip opening the account menu — profile, poster, plan, then settings
+ * chip (just "023" on a phone, where the bar is one line — owner,
+ * 2026-10-01; the word is the .x span theme.ts drops) opening the account menu — profile, poster, plan, then settings
  * (owner call, 2026-09-05: settings live behind this menu, not on the
  * page), then sign out. Signed in but not joined: join link + sign out.
  * Admins also get eyebrowed groups above Sign out — ADMINISTRATION, RACE
@@ -53,6 +54,7 @@ export function BarAccount({
   rowerNumber,
   admin,
   raceOver,
+  more,
   defaultOpen,
 }: {
   signedIn: boolean;
@@ -62,6 +64,11 @@ export function BarAccount({
   /** The race has been run (raceday.ts raceOver, resolved by RowBar off the
    * code clock): the first RACE DAY line is the archive, not a sign-up. */
   raceOver?: boolean;
+  /** The rail words a narrow screen cannot hold (barItems.ts overflowItems:
+   * RACE DAY while a race is announced, FEED and PARTNERS in September).
+   * They head the menu under 900px (theme.ts .acct-more) and are not
+   * displayed above it, where the rail carries them. */
+  more?: { href: string; label: string }[];
   /** Dev preview only — render with the menu already open. */
   defaultOpen?: boolean;
 }) {
@@ -90,14 +97,31 @@ export function BarAccount({
         className="acct-chip"
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={rowerNumber !== null ? `Rower ${fmtRowerNumber(rowerNumber)}, account menu` : "Account menu"}
         onClick={() => setOpen((v) => !v)}
       >
-        {rowerNumber !== null ? `Rower ${fmtRowerNumber(rowerNumber)} ▾` : "Account ▾"}
+        {rowerNumber !== null ? (
+          <>
+            <span className="x">Rower </span>
+            {fmtRowerNumber(rowerNumber)} ▾
+          </>
+        ) : (
+          "Account ▾"
+        )}
       </button>
       {open && (
         <>
           <div className="acct-overlay" onClick={close} aria-hidden="true" />
           <div className="acct-panel" role="menu">
+            {more && more.length > 0 && (
+              <div className="acct-more">
+                {more.map((it) => (
+                  <Link key={it.href} className="acct-item" href={it.href} onClick={close}>
+                    {it.label.charAt(0) + it.label.slice(1).toLowerCase()} →
+                  </Link>
+                ))}
+              </div>
+            )}
             {rowerNumber !== null ? (
               <>
                 <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>

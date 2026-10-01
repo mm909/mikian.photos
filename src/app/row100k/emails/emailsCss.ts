@@ -11,8 +11,11 @@ export const emailsCss = `
 .row100k .em-env dt{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gray);padding-top:3px}
 .row100k .em-env dd{margin:0;font-size:14px;line-height:1.45;color:var(--ink);overflow-wrap:anywhere}
 .row100k .em-env dd.subj{font-weight:700}
+/* The letter as it arrives: cream, and the plain text ink on white,
+ * whatever look the page around it wears (the type named the theme ink,
+ * which is white under the ink look: white on white, 2026-10-01). */
 .row100k .em-frame{display:block;width:100%;border:1px solid var(--ink);background:#F4F3EE}
-.row100k .em-text{margin:0;padding:18px 16px;border:1px solid var(--ink);background:#ffffff;font-family:var(--row-mono),monospace;font-size:12.5px;line-height:1.6;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.row100k .em-text{margin:0;padding:18px 16px;border:1px solid var(--ink);background:#ffffff;font-family:var(--row-mono),monospace;font-size:12.5px;line-height:1.6;color:#15171a;white-space:pre-wrap;overflow-wrap:anywhere}
 .row100k .em-plain{margin-top:18px}
 .row100k .em-plain summary{list-style:none;cursor:pointer;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gray);margin-bottom:10px}
 .row100k .em-plain summary::-webkit-details-marker{display:none}

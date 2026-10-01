@@ -57,10 +57,12 @@ const PH = H - T - B;
 const MONO = "var(--row-mono), monospace";
 /* The theme's variables, not literals, so the ink look reaches the SVG
  * (owner, 2026-09-16). The washes are the water at low alpha through
- * color-mix: on paper that is exactly the rgba(0,119,182,…) they were, and
- * under ink — where the water is white, the look being fully monochrome
- * (owner, later that day) — a white wash. The field edge is a grey and
- * reads on both grounds as it is. */
+ * color-mix, so they are whatever accent the palette hands the page: the
+ * blue wash they always were under the water preset, a wash of the
+ * October orange under the default (2026-10-01 — the ink look was
+ * monochrome until then, and this was a white wash). One hue a chart,
+ * and the type colour. The field edge is a grey and reads on both grounds
+ * as it is. */
 const INK = "var(--ink)";
 /* The gridline, the pip stroke and the YOU-dot halo keep their paper
  * literals (review, 2026-09-16: paper byte for byte) — --line is #c9c8c0

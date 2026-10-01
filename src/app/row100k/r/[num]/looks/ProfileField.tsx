@@ -70,7 +70,7 @@ export function ProfileField({
 
       {field.lengthKde && (
         <div className="st-kde">
-          <div className="t">Length of every row · everyone in grey, you in blue</div>
+          <div className="t">Length of every row · everyone, and you in color</div>
           <KdeScrub
             c={field.lengthKde}
             you={you.lengthYou}
@@ -84,7 +84,7 @@ export function ProfileField({
 
       {field.paceKde && (
         <div className="st-kde">
-          <div className="t">Split per 500 m · everyone in grey, you in blue</div>
+          <div className="t">Split per 500 m · everyone, and you in color</div>
           <KdeScrub c={field.paceKde} you={you.paceYou} kind="split" />
         </div>
       )}

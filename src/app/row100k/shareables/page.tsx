@@ -9,7 +9,7 @@ import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { Who } from "../Boards";
 import { CARDS } from "../share/cards";
-import { PaletteAdmin } from "./PaletteAdmin";
+import { LookAdmin, PaletteAdmin } from "./PaletteAdmin";
 import { ShareablesAdmin } from "./ShareablesAdmin";
 
 export const dynamic = "force-dynamic";
@@ -203,12 +203,17 @@ export default async function ShareablesPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>The site</h2>
-            <span className="mono">{settings.palette.toUpperCase()}</span>
+            <span className="mono">
+              {settings.look.toUpperCase()} · {settings.palette.toUpperCase()}
+            </span>
           </div>
+          {/* THE LOOK over the palette (2026-10-01): ink is the site, paper
+            * is one word away (PaletteAdmin.tsx LookAdmin). */}
+          <LookAdmin look={settings.look} />
           <PaletteAdmin palette={settings.palette} />
           <p className="sh-note">
-            THE LANDING WEARS THE PRESET WHOLE; EVERY OTHER PAGE TAKES ITS ACCENT. ?PALETTE=ID ON ANY PAGE TRIES ONE ON
-            THIS BROWSER ALONE, ?PALETTE=OFF ENDS THAT.
+            THE LOOK IS THE GROUND EVERY PAGE SITS ON. THE LANDING WEARS THE PRESET WHOLE; EVERY OTHER PAGE TAKES ITS
+            ACCENT. ?PALETTE=ID ON ANY PAGE TRIES ONE ON THIS BROWSER ALONE, ?PALETTE=OFF ENDS THAT.
           </p>
         </div>
       </section>

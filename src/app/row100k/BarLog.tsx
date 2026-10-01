@@ -21,9 +21,10 @@ import Link from "next/link";
  * address carries #log and the back button behaves; NavProgress skips a
  * same-page link on its own.
  *
- * One element in the DOM; theme.ts moves it with flex order: beside the
- * account chip on desktop, far right of the section-link row on phones,
- * directly under the chip. RowBar decides whether to render it at all
+ * One element in the DOM, beside the account chip at every width. On a
+ * phone it reads LOG (owner, 2026-10-01: the header is one line — the
+ * .x span is the part theme.ts drops under 640px; the aria-label keeps
+ * the whole name for a screen reader). RowBar decides whether to render it at all
  * (signed out, not joined, or the log window closed: nothing — the join CTA
  * is on the front page) and hands in the rower's number. */
 export function BarLog({ rowerNumber }: { rowerNumber: number }) {
@@ -31,12 +32,13 @@ export function BarLog({ rowerNumber }: { rowerNumber: number }) {
   return (
     <Link
       className="bar-log"
+      aria-label="Log a row"
       href={`${path}#log`}
       onClick={() => {
         if (window.location.pathname === path) window.dispatchEvent(new Event("row100k:log"));
       }}
     >
-      Log a row
+      Log<span className="x"> a row</span>
     </Link>
   );
 }

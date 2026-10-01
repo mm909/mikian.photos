@@ -10,8 +10,12 @@ import { DEFAULT_PALETTE, PALETTE_COOKIE, isPaletteId, type PaletteId } from "@/
  * Five keys, each its own RowSetting row, each validated both ways:
  *
  *   look             "paper" | "ink" — the colour scheme the whole site
- *                    wears. Ink is white on black, for race week and after.
- *                    An admin can also preview ink on their own browser
+ *                    wears. Ink is white on black and is THE DEFAULT since
+ *                    2026-10-01 (owner: "now that the page is white on
+ *                    black we need the other pages to follow. All of the
+ *                    other pages are light mode"); paper is the cream the
+ *                    site wore through September, one switch away. An
+ *                    admin can also preview either on their own browser
  *                    alone through the LOOK_COOKIE (row100k/layout.tsx).
  *   palette          which preset of rowPalette.ts the site wears (owner,
  *                    2026-09-30): the landing's ground and the accent every
@@ -89,8 +93,10 @@ export const DEFAULT_BLACKOUT_POLICY: BlackoutPolicy = { scope: "division", coun
 /* The most rowers a policy may hide, per board or overall. */
 export const BLACKOUT_COUNT_MAX = 100;
 
+/* The look and the palette the site wears unless the owner has picked
+ * another SINCE: ink, in October orange (rowPalette.ts DEFAULT_PALETTE). */
 export const DEFAULT_SETTINGS: SiteSettings = {
-  look: "paper",
+  look: "ink",
   palette: DEFAULT_PALETTE,
   cardsOff: [...DEFAULT_CARDS_OFF],
   blackout: { ...DEFAULT_BLACKOUT_POLICY },
@@ -171,7 +177,21 @@ export function parseSetting(
 
 /* ------------------------------------------------------------- reading */
 
-function fold(rows: { key: string; value: string }[]): SiteSettings {
+/* THE MOMENT THE COSMETIC DEFAULTS CHANGED (owner, 2026-10-01: "now that
+ * the page is white on black we need the other pages to follow"; "instead
+ * of red, let's pick like October orange"). A "look" or a "palette" row
+ * saved BEFORE this is the old default speaking — the red he picked on
+ * 2026-09-30, a paper look from race week — and it would pin the site to
+ * the very thing he has just asked to change, with no error and nothing to
+ * see in the code. So such a row is passed over and the defaults above
+ * stand; a row saved after it (the LOOK and PALETTE words on the
+ * shareables page) is his choice again and wins as it always did. The two
+ * cosmetic keys only: the card switches, the blackout policy and the mail
+ * lines are not defaults that moved. */
+export const COSMETIC_EPOCH_MS = Date.parse("2026-10-01T20:30:00Z");
+const COSMETIC_KEYS: readonly SettingKey[] = ["look", "palette"];
+
+function fold(rows: { key: string; value: string; updatedAt?: Date | string }[]): SiteSettings {
   const out: SiteSettings = {
     look: DEFAULT_SETTINGS.look,
     palette: DEFAULT_SETTINGS.palette,
@@ -181,6 +201,10 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
   };
   for (const r of rows) {
     if (!isSettingKey(r.key)) continue;
+    if (COSMETIC_KEYS.includes(r.key) && r.updatedAt !== undefined) {
+      const at = new Date(r.updatedAt).getTime();
+      if (Number.isFinite(at) && at < COSMETIC_EPOCH_MS) continue;
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(r.value);
@@ -201,7 +225,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
 const loadSettings = async (): Promise<SiteSettings> => {
   const rows = await db.rowSetting.findMany({
     where: { challenge: CHALLENGE },
-    select: { key: true, value: true },
+    select: { key: true, value: true, updatedAt: true },
   });
   return fold(rows);
 };

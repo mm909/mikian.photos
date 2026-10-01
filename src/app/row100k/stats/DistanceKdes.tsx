@@ -77,7 +77,7 @@ export function DistanceKdes({ charts, mine = false }: { charts: DistanceKde[]; 
         return (
           <div className="st-kde" key={d.meters}>
             <div className="t">
-              {d.label} times · {mine ? "everyone in grey, you in blue" : "everyone who has rowed one"}
+              {d.label} times · {mine ? "everyone, and you in color" : "everyone who has rowed one"}
             </div>
             <KdeScrub
               c={d.field}
