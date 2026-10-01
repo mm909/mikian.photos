@@ -7,9 +7,9 @@ import { RowFooter } from "../../RowFooter";
 import { raceOver, waveTime } from "../../raceday";
 import { raceWithSettings } from "../../racedaySettings";
 import { resultBoard } from "../../raceResults";
-import { ArchiveHead } from "../../raceresults/ArchiveHead";
+import { ArchiveFoot, ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
-import { RaceResults } from "../../raceresults/RaceResults";
+import { ArchiveShare, RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
 import { Refresh } from "./Refresh";
 
@@ -117,7 +117,13 @@ export default async function RaceDayResultsPage({
       <style>{rrCss}</style>
       <RowBar active="raceday" {...barProps(viewer)} />
       <Refresh active={!final} />
-      <RaceResults board={board} note={note} head={final ? <ArchiveHead race={race} /> : undefined} pick={pick} />
+      <RaceResults
+        board={board}
+        note={note}
+        head={final ? <ArchiveHead race={race} act={<ArchiveShare board={board} />} /> : undefined}
+        foot={final ? <ArchiveFoot race={race} /> : undefined}
+        pick={pick}
+      />
       <RowFooter />
     </div>
   );

@@ -2248,12 +2248,15 @@ export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id, 
 
 /* ---------------------------------------------------- the race time cards */
 
-/* A RACER'S TIME, THREE WAYS (owner, 2026-10-01: "a share image per racer
+/* A RACER'S TIME, TWO WAYS (owner, 2026-10-01: "a share image per racer
  * in the style of the winners box — the big bold time (whole seconds), the
- * name, the wave, in Archivo Black — with THREE looks the racer picks from:
- * black on white, white on black, and black text on transparent").
+ * name, the wave, in Archivo Black — with looks the racer picks from").
+ * It opened as three — black on white, white on black, black type on
+ * transparent — and BLACK ON WHITE CAME OFF the same night (owner, reading
+ * the dialog: remove it; white on black is the default, transparent
+ * second). Two chips, that order.
  *
- * ONE DRAWING, THREE GROUNDS. The composition is the finished sheet's
+ * ONE DRAWING, TWO GROUNDS. The composition is the finished sheet's
  * first-place block laid out on a square: a mono masthead (ROWTEMBER · RACE
  * DAY left, the day right), a thick rule, the time fitted to the measure,
  * the name under it, WAVE N, a hairline, and the split with the one tag the
@@ -2262,15 +2265,15 @@ export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id, 
  * stickers above are: this is a RESULT, and a result is a line on a sheet.
  *
  * NO BOX AROUND IT, whatever the place (owner: "no border/box around
- * 2nd/3rd — the current second-place frame style is out"), so the three
- * looks differ only in what the ground is painted: white under ink, ink
- * under white, or nothing under ink. NO SHADOW on any of them — the ink
- * ones sit on paper or on their own ink; the transparent one is ink type
- * meant for a light photograph, and a halo under black type is mud.
+ * 2nd/3rd — the current second-place frame style is out"), so the two
+ * looks differ only in what the ground is painted: ink under white, or
+ * nothing under ink. NO SHADOW on either — the ink one sits on its own
+ * ink; the transparent one is ink type meant for a light photograph, and a
+ * halo under black type is mud.
  *
  * THE BLOCK IS CENTRED VERTICALLY off its own measured height, so a long
  * name that fits at a smaller size does not leave the sheet bottom-heavy. */
-type TimeLook = "paper" | "ink" | "clear";
+type TimeLook = "ink" | "clear";
 
 function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: ShareFonts, look: TimeLook, W: number, H: number) {
   const race = data.race;
@@ -2282,13 +2285,10 @@ function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: Sha
   /* No alpha on the transparent look: a seven-tenths ink over a photograph
    * is whatever the photograph is, so the wave and the hairline go solid
    * there and quieter only where the card paints its own ground. */
-  const dim = look === "ink" ? "rgba(255,255,255,0.72)" : look === "paper" ? "rgba(21,23,26,0.7)" : INK;
-  const rule = look === "ink" ? "rgba(255,255,255,0.35)" : look === "paper" ? "rgba(21,23,26,0.3)" : INK;
+  const dim = look === "ink" ? "rgba(255,255,255,0.72)" : INK;
+  const rule = look === "ink" ? "rgba(255,255,255,0.35)" : INK;
 
-  if (look === "paper") {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, W, H);
-  } else if (look === "ink") {
+  if (look === "ink") {
     ctx.fillStyle = INK;
     ctx.fillRect(0, 0, W, H);
   }
@@ -2395,18 +2395,9 @@ function trackedWidth(ctx: CanvasRenderingContext2D, text: string, tracking: num
 const TIME_W = 1080;
 const TIME_H = 1080;
 
-const rowtemberRaceTimePaper: ShareCard = {
-  id: "rowtember-raceday-time-paper",
-  label: "Black on white",
-  width: TIME_W,
-  height: TIME_H,
-  light: false,
-  available: (d) => !!d.race?.time,
-  draw(ctx, data, fonts) {
-    drawRaceTime(ctx, data, fonts, "paper", this.width, this.height);
-  },
-};
-
+/* rowtember-raceday-time-paper (BLACK ON WHITE) stood here and came off
+ * (owner, 2026-10-01). The ink one is first in CARDS, so it is the one the
+ * dialog opens on. */
 const rowtemberRaceTimeInk: ShareCard = {
   id: "rowtember-raceday-time-ink",
   label: "White on black",
@@ -2433,10 +2424,10 @@ const rowtemberRaceTimeClear: ShareCard = {
   },
 };
 
-/* The archive picker's `only`: the three looks, nothing else. Same
+/* The archive picker's `only`: the two looks, nothing else. Same
  * guarantee as RACE_CARD_IDS — the payload is a racer's result and nothing
  * about their month, so no total card may be reachable from it. */
-export const RACE_TIME_CARD_IDS = [rowtemberRaceTimePaper.id, rowtemberRaceTimeInk.id, rowtemberRaceTimeClear.id];
+export const RACE_TIME_CARD_IDS = [rowtemberRaceTimeInk.id, rowtemberRaceTimeClear.id];
 
 /* ------------------------------------------------------- community cards */
 
@@ -3243,9 +3234,9 @@ export const CARDS: ShareCard[] = [
   // MY WAVE (owner, 2026-09-16): a told wave, on race day and on the
   // rower's own deck.
   rowtemberRaceDayWave,
-  // A RACER'S TIME, three looks (owner, 2026-10-01), off the archive's
-  // SHARE YOUR TIME picker. The paper one first: it is the sheet.
-  rowtemberRaceTimePaper,
+  // A RACER'S TIME, two looks (owner, 2026-10-01), off the archive's SHARE
+  // YOUR TIME button. White on black first: it is the default, and the
+  // sheet it came off is ink.
   rowtemberRaceTimeInk,
   rowtemberRaceTimeClear,
   rowtemberCommunityMonth,

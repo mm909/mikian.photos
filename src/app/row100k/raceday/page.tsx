@@ -11,8 +11,8 @@ import { currentRace, hoursLine, raceOpenFor, raceOver, racePhase, waveTime } fr
 import { raceWithSettings } from "../racedaySettings";
 import { listRacers } from "../racedayData";
 import { postingWindow, resultBoard } from "../raceResults";
-import { ArchiveHead } from "../raceresults/ArchiveHead";
-import { RaceResults } from "../raceresults/RaceResults";
+import { ArchiveFoot, ArchiveHead } from "../raceresults/ArchiveHead";
+import { ArchiveShare, RaceResults } from "../raceresults/RaceResults";
 import { rrCss } from "../raceresults/rrCss";
 import { FIELD_SHOWS_AT, Field } from "./Field";
 import { RaceShare, type RaceFacts } from "./RaceShare";
@@ -223,12 +223,14 @@ export default async function RaceDayPage() {
   /* THE ARCHIVE (owner, 2026-10-01: "once the race is over, race day is the
    * archive, not the sign-up page"). Race run or sheet posted (raceday.ts
    * raceOver), this address draws the finished board under one ruled
-   * header — the name, the day, the place, the two houses — then the
-   * results, the waves and the winners (raceresults/RaceResults.tsx). No
-   * bill, no act, no sign-up panel, no POST YOUR TIME rail, nothing about
-   * the viewer: the one personal control on it is SHARE YOUR TIME, and the
-   * viewer id goes in only so that control can list them first. The
-   * results address keeps answering with the same sheet. */
+   * header — the name, the day, the place and the piece on a line — then
+   * the results, the waves and the winners, and the sponsor line at the
+   * foot (raceresults/RaceResults.tsx). No bill, no act, no sign-up panel,
+   * no POST YOUR TIME rail, nothing about the viewer: the one personal
+   * control on it is SHARE YOUR TIME in the ticket s corner, and the
+   * viewer id goes in only so that control can open on their own time and
+   * nobody else s. The results address keeps answering with the same
+   * sheet. */
   if (raceOver(race, view.finalAt)) {
     const board = await resultBoard(race, { youParticipantId: viewer.myParticipantId, final: true });
     return (
@@ -236,7 +238,11 @@ export default async function RaceDayPage() {
         <style>{css}</style>
         <style>{rrCss}</style>
         <RowBar active="raceday" {...barProps(viewer)} />
-        <RaceResults board={board} head={<ArchiveHead race={race} />} />
+        <RaceResults
+          board={board}
+          head={<ArchiveHead race={race} act={<ArchiveShare board={board} />} />}
+          foot={<ArchiveFoot race={race} />}
+        />
         <RowFooter />
       </div>
     );

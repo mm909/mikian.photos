@@ -88,24 +88,32 @@ export const rrCss = `
 .row100k .rr-fresh.stale b{color:#fff}
 
 /* ---- THE ARCHIVE (owner, 2026-10-01) ----
- * THE HEADER: the race day bill s own masthead idiom — a thick rule, the
- * name in the house face with the day flush right, the piece and the place
- * in mono under it, and the two houses on a line of their own under a
- * hairline, a hairline between them. Closed by the 2px rule the sheet is
- * ruled with. White marks on ink, no treatment. */
-.row100k .rr-arch{border-top:6px solid #fff;border-bottom:2px solid #fff;padding:14px 0 18px}
-.row100k .rr-archrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px 20px;flex-wrap:wrap}
-.row100k .rr-archt{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(40px,9vw,76px);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:#fff;margin:0}
-.row100k .rr-archd{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#fff;margin:0;white-space:nowrap}
-.row100k .rr-archp{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:12px 0 0;line-height:1.9}
-.row100k .rr-archm{display:flex;align-items:center;gap:clamp(14px,3vw,34px);margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.3)}
-.row100k .rr-archm a{display:block;line-height:0;flex:none}
-.row100k .rr-archm a:hover{opacity:.8}
-.row100k .rr-archm a+a{border-left:1px solid rgba(255,255,255,.3);padding-left:clamp(14px,3vw,34px)}
-.row100k .rr-archm img{display:block;width:clamp(110px,28vw,220px);height:auto}
-/* The sponsor mark is wider than it is tall; a little more width lands it
- * at about the house mark s height. */
-.row100k .rr-archm a:nth-child(2) img{width:clamp(124px,31vw,240px)}
+ * THE HEADER, cut to a third (owner, the same night: the ticket took too
+ * much room). A thick rule, the name one step above the section words
+ * with SHARE YOUR TIME flush right of it, ONE mono line under both — the
+ * day, the house, the room, the piece — and the 2px rule the sheet is
+ * ruled with. No marks: the house is words now and the sponsor closed the
+ * sheet (.rr-spon). A grid, not a flex row, because the share control
+ * hands in two things — the button and the list it opens — and the list
+ * has to land under the mono line whatever the DOM order: row 1 is the
+ * name and the button, row 2 the line across both columns, row 3 the
+ * list across both. The poster-size name went with the marks. */
+.row100k .rr-arch{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px;border-top:6px solid #fff;border-bottom:2px solid #fff;padding:10px 0 12px}
+.row100k .rr-archt{grid-column:1;grid-row:1;font-family:var(--row-archivo-black),sans-serif;font-size:20px;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:#fff;margin:0;min-width:0}
+.row100k .rr-archp{grid-column:1/-1;grid-row:2;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:8px 0 0;line-height:1.9}
+/* A cell of the line never breaks inside itself; the line wraps between
+ * cells, after a dot. */
+.row100k .rr-archp span{white-space:nowrap}
+.row100k .rr-arch .rr-act{grid-column:2;grid-row:1;justify-self:end}
+.row100k .rr-arch .rr-sharep{grid-column:1/-1;grid-row:3}
+
+/* THE SPONSOR LINE at the foot of the sheet, above the footer: a hairline,
+ * the label in the quiet mono, the white mark beside it at a third of the
+ * width it had in the header. */
+.row100k .rr-spon{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:44px 0 0;padding-top:14px;border-top:1px solid rgba(255,255,255,.3);font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.row100k .rr-spon a{display:block;line-height:0;flex:none}
+.row100k .rr-spon a:hover{opacity:.8}
+.row100k .rr-spon img{display:block;width:clamp(64px,9vw,80px);height:auto}
 
 /* THE LABELS: mono caps, two weights. A section word over a 2px rule, a
  * bracket word over a hairline inside it — never the display face (owner:
@@ -113,23 +121,33 @@ export const rrCss = `
 .row100k .rr-sec{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#fff;margin:34px 0 0;padding-top:12px;border-top:2px solid #fff}
 .row100k .rr-lab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:26px 0 10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.3)}
 .row100k .rr-sec+.rr-lab{margin-top:16px;padding-top:0;border-top:0}
+/* Straight under the ticket the section word takes no rule of its own:
+ * the ticket closes on the same 2px, and two of them an inch apart with
+ * nothing between read as an empty band. */
+.row100k .rr-arch+.rr-sec{border-top:0;margin-top:10px}
 .row100k .rr-lab .rt{letter-spacing:.14em}
 .row100k .rr-sec+.rr-pick .rr-pickk{margin-top:16px}
 .row100k .rr-lab+.rr-pod{margin-top:8px}
 
-/* SHARE YOUR TIME: a text control under the header — mono caps,
- * underlined, the way every act on race day is a line of type — and the
- * list it opens, in flow, in a 2px box like the wave pane: a name box
- * with a rule under it and one ruled row per finisher. */
-.row100k .rr-share{margin-top:14px}
-.row100k .rr-act{-webkit-appearance:none;appearance:none;background:none;border:0;padding:6px 0;margin:0;color:#fff;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-.row100k .rr-act:hover{text-decoration-thickness:2px}
-.row100k .rr-sharep{margin-top:12px;border:2px solid #fff;padding:14px 16px 4px;max-width:560px}
+/* SHARE YOUR TIME: a real button in the ticket s corner (owner, 2026-10-01:
+ * not an underlined text link) — the profile s outline button (theme.ts
+ * .outline-btn), re-cut white on the ink ground, with the share glyph in
+ * front of the word. It fills on hover rather than taking the accent: the
+ * race surfaces are monochrome. The list it opens, in flow, in a 2px box
+ * like the wave pane: a name box with a rule under it and one ruled row
+ * per finisher. */
+.row100k .rr-dark .rr-act{display:inline-flex;align-items:center;gap:8px;border-color:#fff;color:#fff;padding:7px 14px 7px 12px;white-space:nowrap;line-height:1.2}
+.row100k .rr-dark .rr-act:hover{background:#fff;border-color:#fff;color:var(--ink)}
+/* Filled while its list is open — fill is a settled fact on this board,
+ * and the list under the ticket is the fact. */
+.row100k .rr-dark .rr-act[aria-expanded=true]{background:#fff;border-color:#fff;color:var(--ink)}
+.row100k .rr-actg{display:block;flex:none}
+.row100k .rr-sharep{margin-top:14px;border:2px solid #fff;padding:14px 16px 4px;max-width:560px}
 .row100k .rr-sharef{display:flex;align-items:baseline;gap:14px}
 .row100k .rr-sharef span{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);flex:none}
 .row100k input.rr-sharein{flex:1 1 auto;min-width:0;width:100%;background:transparent;border:0;border-bottom:2px solid rgba(255,255,255,.55);color:#fff;font-size:18px;font-weight:700;letter-spacing:.01em;padding:4px 2px;border-radius:0;-webkit-appearance:none;appearance:none}
 .row100k input.rr-sharein:focus{outline:none;border-bottom-color:#fff}
-.row100k .rr-sharel{list-style:none;margin:12px 0 0;padding:0;max-height:320px;overflow:auto}
+.row100k .rr-sharel{list-style:none;margin:12px 0 0;padding:0 10px 0 0;max-height:320px;overflow:auto}
 .row100k .rr-sharer{display:flex;align-items:baseline;gap:12px;width:100%;-webkit-appearance:none;appearance:none;background:none;border:0;border-top:1px dashed rgba(255,255,255,.2);padding:9px 0 10px;margin:0;color:#fff;cursor:pointer;text-align:left;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px}
 .row100k .rr-sharer:hover .nm{text-decoration:underline;text-underline-offset:3px}
 .row100k .rr-sharer .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -364,7 +382,23 @@ export const rrCss = `
 /* ---- the table ---- */
 .row100k table.rr-t{width:100%;border-collapse:collapse;font-family:var(--row-mono),monospace;font-size:13px;color:rgba(255,255,255,.82)}
 .row100k table.rr-t th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);font-weight:400;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.55);white-space:nowrap}
-.row100k table.rr-t td{padding:9px 6px;border-bottom:1px dashed rgba(255,255,255,.2);vertical-align:middle}
+/* BASELINE, NOT MIDDLE (owner, 2026-10-01: the time column sat oddly). On
+ * a phone the name cell is two lines — the name, the quiet sub-line — and
+ * a middle-aligned time floated between them; on the baseline it sits
+ * beside the name in every row, and the bold clock shares a baseline with
+ * the place and the name whatever face each is set in. */
+.row100k table.rr-t td{padding:9px 6px;border-bottom:1px dashed rgba(255,255,255,.2);vertical-align:baseline}
+/* THE TWO SHEETS SHARE ONE SET OF COLUMNS (owner, 2026-10-01: BEST COMING
+ * IN and the time landed at a different x on the men s and the women s).
+ * Auto layout sized each table off its own longest name, so the columns
+ * drifted; a fixed layout with a width on every numeric head puts them at
+ * the same x on both, and the name column takes what is left. The hidden
+ * phone columns (.rr-hx) simply drop out of the fixed grid. */
+.row100k table.rr-t.sheet{table-layout:fixed}
+.row100k table.rr-t.sheet th.col-seed{width:128px}
+.row100k table.rr-t.sheet th.col-time{width:92px}
+.row100k table.rr-t.sheet th.col-split{width:72px}
+.row100k table.rr-t.sheet th.col-wave{width:64px}
 .row100k table.rr-t td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k table.rr-t td.nm{font-family:var(--row-archivo),sans-serif;font-weight:700;color:#fff;min-width:0}
 .row100k table.rr-t td.br{color:rgba(255,255,255,.5);width:34px}
@@ -668,6 +702,11 @@ export const rrCss = `
   .row100k table.rr-t td{padding:8px 3px}
   .row100k table.rr-t th{padding:7px 3px}
   .row100k table.rr-t .pl{width:42px}
+  /* The one numeric column left on a phone, as narrow as its head, so the
+   * sub-line under a name keeps to one line. */
+  .row100k table.rr-t.sheet th.col-time{width:60px}
+  /* The ticket s line, a step quieter so it sets in two lines of 350px. */
+  .row100k .rr-archp{font-size:10px;letter-spacing:.12em}
   .row100k .rr-pl{min-width:26px;font-size:10px}
   .row100k .rr-cell{padding:10px 10px 12px}
   .row100k .rr-you{padding:12px 14px;border-left-width:7px}

@@ -6,9 +6,9 @@ import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import { currentRace } from "../../raceday";
-import { ArchiveHead } from "../../raceresults/ArchiveHead";
+import { ArchiveFoot, ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
-import { RaceResults } from "../../raceresults/RaceResults";
+import { ArchiveShare, RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
 import { sampleBoard, type SampleState } from "../../raceresults/sample";
 import { fmtClock } from "../../raceresults/types";
@@ -176,13 +176,14 @@ export default async function DevRaceDayResultsPage({
         </span>
       </RowBar>
 
-      {/* The finished sample wears the archive header off the code race
-        * (2026-10-01), the way the real archive does off the race as it
-        * stands — same header, invented sheet. */}
+      {/* The finished sample wears the archive header and the sponsor
+        * line off the code race (2026-10-01), the way the real archive
+        * does off the race as it stands — same header, invented sheet. */}
       <RaceResults
         board={board}
         note={note}
-        head={at === "finished" ? <ArchiveHead race={currentRace()} /> : undefined}
+        head={at === "finished" ? <ArchiveHead race={currentRace()} act={<ArchiveShare board={board} />} /> : undefined}
+        foot={at === "finished" ? <ArchiveFoot race={currentRace()} /> : undefined}
         pick={pick}
       />
 
