@@ -18,9 +18,12 @@ export const runtime = "nodejs";
  * on every verb, JSON 401/403 like the blackout route.
  *
  *   GET                                  → { ok, settings }
- *   POST { key, value }                  → write one switch (validated)
+ *   POST { key, value }                  → write one switch (validated;
+ *        "palette" takes a preset id from rowPalette.ts)
  *   POST { previewLook: "ink"|"paper"|null } → set or clear the admin's
  *        own-browser look cookie; nothing else changes for anybody else.
+ *        (The palette preview cookie is set by the middleware from
+ *        ?palette=<id> on any /row100k URL, not here.)
  *
  * A write revalidates the settings tag, so the very next request wears
  * the new switch. */

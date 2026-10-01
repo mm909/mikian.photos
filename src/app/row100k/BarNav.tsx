@@ -9,12 +9,18 @@ import {
 } from "@/lib/row100k";
 import { trackClick } from "./TrackedLink";
 
-/* The nav rail: ROWTEMBER (the brand mark, Archivo Black) then the section
- * links, all on one strip, with ONE water-blue pill resting under the
- * current page. The pill is the whole show (owner call, 2026-09-05): on
- * desktop it slides to whatever the pointer is over and settles back on
- * leave; whichever item it sits under goes white, ROWTEMBER off the pill is
- * water-blue and stays bold, the rest are the gray mono of a back-link.
+/* The nav rail: the section links on one strip, with ONE pill in the
+ * accent resting under the current page. The pill is the whole show (owner
+ * call, 2026-09-05): on desktop it slides to whatever the pointer is over
+ * and settles back on leave; whichever item it sits under goes white, the
+ * rest are the gray mono of a back-link.
+ *
+ * ROWTEMBER led the rail as the brand mark (Archivo Black, the pill
+ * resting on it on the front page) until 2026-09-30, when the bar's own
+ * wordmark became ROWTEMBER (RowBar.tsx, owner: never Mikian Musser) and
+ * the rail copy went: two of the one word side by side. The "home" key
+ * stays — the front page and the landing still pass it as `active` — but
+ * no item answers to it, so on the front page the pill rests nowhere.
  *
  * Positions are measured, never assumed, so the pill also moves in y when
  * the rail wraps at tablet widths or dissolves into the two-row phone bar
@@ -55,11 +61,7 @@ import { trackClick } from "./TrackedLink";
 export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
 
 const ITEMS: { key: NavKey; href: string; label: string }[] = [
-  { key: "home", href: "/row100k", label: "ROWTEMBER" },
-  /* Straight after the mark and ahead of every section link. ROWTEMBER is the
-   * masthead, not a place to go — it is why clicking it on the front page is a
-   * scroll and not a navigation — so this is the leftmost LINK, and the rail
-   * reads brand, then race, then sections. */
+  /* Ahead of every section link: the rail reads race, then sections. */
   { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
   /* No ?m= and no ?d=: the records page reads the plain URL as this month,
    * All (records/[record]/page.tsx hrefFor). */
@@ -365,11 +367,12 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
             >
               {it.label}
             </Link>
-            {/* Phone widths only (theme.ts): the rail dissolves, ROWTEMBER
-             * joins the masthead row, and this break forces the section links
-             * onto their own dashed-ruled row beneath. Display none otherwise.
-             * When RACE DAY is open it takes that same line and rules it in
-             * black instead, so the two never both appear. */}
+            {/* Phone widths only (theme.ts): the rail dissolves into the bar
+             * and this break — ordered ahead of every link by the sheet, so
+             * its place in the markup is moot — forces the section links onto
+             * their own dashed-ruled row under the wordmark. Display none
+             * otherwise. When RACE DAY is open it takes that same line and
+             * rules it in black instead, so the two never both appear. */}
             {i === 0 && !raceOpen && <i className="rail-break" aria-hidden="true" />}
           </Fragment>
         );

@@ -9,6 +9,7 @@ import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { Who } from "../Boards";
 import { CARDS } from "../share/cards";
+import { PaletteAdmin } from "./PaletteAdmin";
 import { ShareablesAdmin } from "./ShareablesAdmin";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,12 @@ export const metadata: Metadata = {
  * menu"); that URL forwards here. Admin-only in production; open in local
  * dev so it can be checked without a session, the same gate the dev pages
  * wear.
+ *
+ * THE PALETTE sits at the top (owner, 2026-09-30): the site switch for the
+ * landing's ground and the accent every page wears (rowPalette.ts), as one
+ * row of words, written through the same route as the card switches
+ * (PaletteAdmin.tsx). It lives here because this is where the other site
+ * switch is changed.
  *
  * EVERY READ FAILS OPEN. The switches come from siteSettings (defaults when
  * the RowSetting table is not pushed); the counts and the recent list come
@@ -79,6 +86,15 @@ const shCss = `
 .row100k table.board td.sh-act{color:var(--water);font-weight:700;letter-spacing:.06em}
 .row100k .sh-note{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:14px;line-height:1.7}
 .row100k .sh-missing{font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.14em;color:var(--water);font-weight:700}
+/* THE PALETTE ROW: a mono key, then one word per preset, the current one
+ * in ink with the accent ruled under it, the rest gray. Words, not boxes;
+ * they wrap on a phone. */
+.row100k .sh-pal{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;padding:14px 0 12px;border-bottom:1px dashed var(--line);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.row100k .sh-pal-k{font-weight:700;color:var(--ink);margin-right:6px}
+.row100k .sh-pal-w{background:none;border:none;padding:4px 0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent}
+.row100k .sh-pal-w:hover:not(:disabled){color:var(--ink)}
+.row100k .sh-pal-w.on{color:var(--ink);font-weight:700;border-bottom-color:var(--water)}
+.row100k .sh-pal-w:disabled{cursor:default}
 `;
 
 type Ev = {
@@ -182,6 +198,20 @@ export default async function ShareablesPage() {
       <style>{css}</style>
       <style>{shCss}</style>
       <RowBar />
+
+      <section>
+        <div className="wrap">
+          <div className="sec-head">
+            <h2>The site</h2>
+            <span className="mono">{settings.palette.toUpperCase()}</span>
+          </div>
+          <PaletteAdmin palette={settings.palette} />
+          <p className="sh-note">
+            THE LANDING WEARS THE PRESET WHOLE; EVERY OTHER PAGE TAKES ITS ACCENT. ?PALETTE=ID ON ANY PAGE TRIES ONE ON
+            THIS BROWSER ALONE, ?PALETTE=OFF ENDS THAT.
+          </p>
+        </div>
+      </section>
 
       <section>
         <div className="wrap">

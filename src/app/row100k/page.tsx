@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
+import { INK, PAPER } from "@/lib/rowPalette";
 import {
   CHALLENGE,
   FIRST_DAY,
@@ -52,14 +54,8 @@ import {
 } from "./boardData";
 import { loadLanding } from "./landing/data";
 import { L1 } from "./landings/L1";
-import { L2 } from "./landings/L2";
-import { L3 } from "./landings/L3";
-import { L4 } from "./landings/L4";
-import { L5 } from "./landings/L5";
-import { parseLand } from "./landings/view";
 import { recordsHref } from "./records/recordsUrl";
-
-type SearchParams = { [key: string]: string | string[] | undefined };
+import { sitePalette } from "./sitePalette";
 
 /* The nameplate is Rowtember in September and the month itself any other
  * time (owner, 2026-09-24), and the metadata says the same. */
@@ -83,9 +79,20 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = {
-  themeColor: "#F4F3EE",
-};
+/* The actor once per request: the viewport below and the page both ask. */
+const actorOnce = cache(getEffectiveActor);
+
+/* The browser chrome follows the ground: the landing's, for a stranger
+ * (rowPalette.ts — ink or paper by the preset), paper for everyone else. */
+export async function generateViewport(): Promise<Viewport> {
+  try {
+    if (await actorOnce()) return { themeColor: PAPER };
+    const palette = await sitePalette();
+    return { themeColor: palette.ground === "ink" ? INK : PAPER };
+  } catch {
+    return { themeColor: PAPER };
+  }
+}
 
 // Session-driven top block + live numbers — never render statically.
 export const dynamic = "force-dynamic";
@@ -172,20 +179,20 @@ function fmtHours(seconds: number): string {
   return h >= 100 ? Math.round(h).toLocaleString("en-US") : (Math.round(h * 10) / 10).toLocaleString("en-US");
 }
 
-export default async function Row100kPage({ searchParams }: { searchParams?: SearchParams }) {
-  const actor = await getEffectiveActor();
+export default async function Row100kPage() {
+  const actor = await actorOnce();
   const isAdmin = actor ? isRow100kAdmin(actor.email, actor.roles) : false;
 
-  /* THE SIGNED-OUT LANDINGS behind ?land=1..5 (owner, 2026-09-30: five
-   * drafts to his brief — convert an Instagram visitor, the 100K month is
-   * the point, OPT IN is the ask) — only a stranger who asked for one;
-   * anyone signed in, and any URL without the query, gets the page below
-   * untouched (landings/L1..L5.tsx; the same five at /row100k/landings/pN). */
-  const land = parseLand(searchParams?.land);
-  if (land && !actor) {
-    const data = await loadLanding();
-    const Page = { 1: L1, 2: L2, 3: L3, 4: L4, 5: L5 }[land];
-    return <Page data={data} />;
+  /* THE LANDING for every stranger (owner, 2026-09-30: THE DARE, picked
+   * from five drafts to his brief — convert an Instagram visitor, the 100K
+   * month is the point, OPT IN is the ask — is the signed-out front). No
+   * actor means the landing, in the palette the site wears (sitePalette:
+   * the setting, or this browser's ?palette= preview); anyone signed in —
+   * a joined rower, or an account still to join — gets the page below
+   * untouched (landings/L1.tsx). */
+  if (!actor) {
+    const [data, palette] = await Promise.all([loadLanding(), sitePalette()]);
+    return <L1 data={data} palette={palette} />;
   }
 
   let me: {

@@ -75,20 +75,19 @@ html:has(.row100k){scroll-behavior:smooth}
 @keyframes row-go{from{width:0}to{width:94%}}
 @media (prefers-reduced-motion:reduce){.row100k .bar-go.on{animation:none;width:100%}}
 .row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
-/* Who is putting this on, then what it is: the Mikian.Musser wordmark from
- * the landing page leads (kept, blue dot and all — owner call 2026-09-05),
- * the ROWTEMBER mark opens the nav rail beside it, so the bar reads as
- * Mikian Musser hosting Rowtember. */
+/* The ROWTEMBER wordmark leads (owner, 2026-09-30: ROWTEMBER, never
+ * Mikian Musser — the Mikian.Musser wordmark of 2026-09-05 is gone, and
+ * with it the ROWTEMBER the rail carried, which this now is; same 13px Archivo
+ * Black the rail mark wore), the nav rail opens beside it. */
 .row100k .bar-lead{display:flex;align-items:center;gap:12px;flex:none;min-width:0}
-.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:12px;line-height:1;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
-.row100k .bar-brand .dot{color:var(--water)}
+.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
 .row100k .bar-brand:hover{color:var(--water)}
-/* Nav rail + the one blue pill (owner call, 2026-09-05). ROWTEMBER and the
- * section links share a strip; one straight water-blue rectangle rests
- * under the current page and slides to whatever the pointer is over (BarNav
+/* Nav rail + the one accent pill (owner call, 2026-09-05). The section
+ * links share a strip; one straight rectangle in the accent rests under
+ * the current page and slides to whatever the pointer is over (BarNav
  * measures and moves it). Colour rules: the item under the pill is white;
- * ROWTEMBER off the pill is water-blue and stays Archivo Black; every other
- * item off the pill is the gray mono of .back-link. Until the client has
+ * every other item off the pill is the gray mono of .back-link (the
+ * .brand rules stay for a rail that carries a mark). Until the client has
  * measured, the active link paints its own blue box (.on) so the server
  * markup already looks right; .live hands over to the pill. .jump switches
  * every transition off for one frame so the pill can be placed, not flown.
@@ -155,7 +154,7 @@ html:has(.row100k){scroll-behavior:smooth}
  * room left for the rail under 640: it stacked three and four lines. */
 @media(max-width:639px){
   .row100k .bar{flex-wrap:wrap;gap:8px 4px;padding:10px 16px 12px}
-  .row100k .bar-brand{font-size:11px;letter-spacing:.03em}
+  .row100k .bar-brand{font-size:12px}
   .row100k .rail{display:contents}
   .row100k .rail a{font-size:11px;letter-spacing:.06em;padding:5px 6px 4px;order:2}
   .row100k .rail a.brand{font-size:12px;padding:5px 8px 4px;margin-left:6px;order:0}
@@ -749,7 +748,7 @@ html:has(.row100k){scroll-behavior:smooth}
  * It sits after every rule it re-cuts, because most of them tie on
  * specificity and source order is what settles a tie. */
 .row100k.chrome-ink .bar{background:var(--ink);border-bottom-color:#fff}
-.row100k.chrome-ink .bar-brand,.row100k.chrome-ink .bar-brand .dot{color:#fff}
+.row100k.chrome-ink .bar-brand{color:#fff}
 .row100k.chrome-ink .bar-brand:hover{color:rgba(255,255,255,.7)}
 .row100k.chrome-ink .bar .mono{color:rgba(255,255,255,.62)}
 .row100k.chrome-ink .rail a{color:rgba(255,255,255,.62)}
@@ -1399,7 +1398,6 @@ ${INK}{--paper:#0b0c0e;--ink:#ffffff;--ink-soft:rgba(255,255,255,.74);--gray:rgb
 ${INK} .bar{background:var(--paper)}
 ${INK} .bar .tag{color:var(--paper)}
 ${INK} .bar .mono{color:rgba(255,255,255,.62)}
-${INK} .bar-brand .dot{color:var(--ink)}
 ${INK} .bar-brand:hover{color:rgba(255,255,255,.74)}
 ${INK} .rail a{color:rgba(255,255,255,.62)}
 ${INK} .rail a.brand{color:var(--ink)}

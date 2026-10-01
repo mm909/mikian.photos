@@ -82,8 +82,8 @@ export default function Row100kPreview({
          * reflow and the pill behave exactly as on the real pages. */
         <div className="bar">
           <span className="bar-lead">
-            <Link className="bar-brand" href="/">
-              Mikian<span className="dot">.</span>Musser
+            <Link className="bar-brand" href="/row100k">
+              Rowtember
             </Link>
           </span>
           {/* raceOpen on: this harness is dev-only and raceOpenFor is true
