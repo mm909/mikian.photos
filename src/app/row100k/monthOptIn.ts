@@ -5,7 +5,12 @@ import { CHALLENGE, MONTH } from "@/lib/row100k";
  * on this month's board. The 100K board (dev/board/page.tsx) lists only the
  * rowers with a live RowMonthOptIn row for the month; everyone else's rows
  * still count everywhere else (the stats, the records, the profile) — the
- * opt-in is about the board, not the meters. SERVER ONLY. */
+ * opt-in is about the board, not the meters. SERVER ONLY.
+ *
+ * In is in (owner, 2026-10-01: "there's no opt out. Once you opt in,
+ * you're opted in"): nothing stamps cancelledAt any more. The filter stays
+ * for the rows let go under the first version, which had a way out — they
+ * are off the board until their rower opts in again. */
 
 /* The participant ids opted into `month`, live rows only. Throws on a db
  * failure (the table not pushed yet) so the page can fail soft itself. */
