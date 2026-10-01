@@ -132,4 +132,15 @@ export const statsCss = `
  * dashed cells, a touch dimmer, so the month reads as a month and today
  * can still be found. */
 .row100k .hm-cell.todo{opacity:.45}
+
+/* THE YEAR (YearGrid.tsx): a month a row, a day a column — the month word
+ * in the first column, thirty-one cells after it, a cell the width the
+ * phone allows and no figure inside. The day numbers over the columns are
+ * the first and every fifth. */
+.row100k .yg{display:grid;grid-template-columns:2.4em repeat(31,1fr);gap:2px;align-items:center}
+.row100k .yg-row{display:contents}
+.row100k .yg-m{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.08em;color:var(--gray);text-transform:uppercase;padding-right:3px}
+.row100k .yg-d{font-family:var(--row-mono),monospace;font-size:9px;color:var(--gray);text-align:center;padding-bottom:2px;white-space:nowrap}
+.row100k .yg .hm-cell,.row100k .yg-gap{aspect-ratio:1}
+@media (min-width:700px){.row100k .yg{gap:5px}.row100k .yg-m{font-size:11px}}
 `;

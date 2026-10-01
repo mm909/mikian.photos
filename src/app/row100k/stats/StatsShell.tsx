@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { HourGrid } from "../HourGrid";
 import { MonthSection } from "../MonthSection";
+import { YearGrid } from "./YearGrid";
 import { StatsShare } from "../StatsShare";
 import { StatsBoards, StatsRecords, type BoardMode } from "../Stats";
 import { TextMenu, type TextMenuOption } from "../TextMenu";
@@ -360,6 +361,17 @@ export function StatsShell({
             </div>
           </section>
         </>
+      )}
+
+      {!isMonth && data.yearMonths.length > 0 && (
+        /* THE YEAR (owner, 2026-10-01): all time draws every month so far
+           as a row of days, where a month would draw its calendar. */
+        <section className="st-sec">
+          <div className="wrap">
+            <Eyebrow left="The year" right={[...new Set(data.yearMonths.map((m) => m.key.slice(0, 4)))].join(" · ")} />
+            <YearGrid months={data.yearMonths} byDay={data.communityByDay} thresholds={data.thresholds} />
+          </div>
+        </section>
       )}
 
       {/* THE FIELD, with no line after the word (owner, 2026-09-25:

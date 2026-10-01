@@ -14,7 +14,7 @@ import {
   MONTH,
 } from "@/lib/row100k";
 import { maskedIds, previewBlackout, viewOpts, type Viewer } from "@/lib/row100kViewer";
-import { FIRST_MONTH_KEY, inPeriod, nextMonth, periodOptions, prevMonth, weeksOf, type Period } from "@/lib/rowPeriod";
+import { FIRST_MONTH_KEY, inPeriod, monthsThrough, nextMonth, periodOptions, prevMonth, weeksOf, type Period } from "@/lib/rowPeriod";
 import type { HourChart } from "../analysis/model";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { liteRecords, type RecordsProp } from "../records/defs";
@@ -81,6 +81,11 @@ export type StatsPayload = {
     days?: number;
   };
   communityByDay: Record<string, number>;
+  /* ALL TIME (owner, 2026-10-01: "when we select all time the month
+   * disappears — instead make it the year: every row a month, every column
+   * a day of the month"): the months so far, oldest first, with how many
+   * of each one's days have happened. Empty for a month period. */
+  yearMonths: { key: string; label: string; short: string; days: number; elapsed: number }[];
   curve: { day: string; cum: number }[];
   hourGrid: number[][];
   /* Days of `month` that have happened — every chart stops here. */
@@ -326,6 +331,16 @@ export async function buildStatsPayload(viewer: Viewer, period: Period): Promise
       days: liveMonth || period.kind === "all" ? undefined : pm.days,
     },
     communityByDay,
+    yearMonths:
+      period.kind === "all"
+        ? monthsThrough(now).map((m) => ({
+            key: m.key,
+            label: m.label,
+            short: m.short,
+            days: m.days,
+            elapsed: m.key === MONTH.key ? daysElapsed(now) : m.days,
+          }))
+        : [],
     curve: boards.daily,
     hourGrid,
     gridDayCount,
