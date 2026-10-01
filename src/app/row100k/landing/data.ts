@@ -32,8 +32,10 @@ import type { ShareData } from "../share/cards";
  * so the page always renders. */
 
 /* The example rower: number 001 (the demo seed's first rower; in the live
- * namespace the first person who opted in). */
+ * namespace the first person who opted in). While 001 is hidden, the lowest
+ * number in plain sight stands in (loadLanding), tried this many deep. */
 export const EXAMPLE_ROWER = 1;
+const STAND_INS = 3;
 /* Board depth, the same five the front page prints. */
 export const TOP = 5;
 /* How many of the fastest 5K and 10K rows the board landing names. */
@@ -318,8 +320,10 @@ export async function loadLanding(): Promise<LandingData> {
     }
 
     // The example: rower 001's month, real numbers — unless the public
-    // board has them masked or unranked right now, in which case the strip
-    // stays off the page rather than print a hidden rower's truth.
+    // board has them masked or unranked right now, or is running the low
+    // digits of their total down (review, 2026-10-01: the month card would
+    // have printed the real total beside a board showing 142,5▮▮), in which
+    // case their cards never reach the page.
     //
     // WHICH MONTH (2026-10-01): this one once they have a meter in it, else
     // the newest month before it that they rowed and are in plain sight
@@ -331,16 +335,42 @@ export async function loadLanding(): Promise<LandingData> {
     // dated ahead of the clock, and THIS ROW must not be one of them (it
     // printed OCT 31 on the 8th), nor the month card total more than its
     // calendar draws. A month counts once they have a row in it by today.
-    const rower = await getRower(EXAMPLE_ROWER);
     const todayDay = pacificDay(now);
     const lastOf = (m: Month) => (m.lastDay < todayDay ? m.lastDay : todayDay);
-    const shown = rower
-      ? [...calendar].reverse().find((m) => {
-          const r = boardOf.get(m.key)?.total.find((t) => t.participantId === rower.participant.id);
-          const rowed = rower.entries.some((e) => e.meters > 0 && e.day >= m.firstDay && e.day <= lastOf(m));
-          return !!r && !r.masked && !r.unranked && r.meters > 0 && rowed;
-        })
-      : undefined;
+    const plain = (r: TotalRow | undefined): r is TotalRow =>
+      !!r && !r.masked && !r.unranked && !r.hideLow && r.meters > 0;
+    type Rower = NonNullable<Awaited<ReturnType<typeof getRower>>>;
+    const plainMonth = (who: Rower) =>
+      newestFirst.find((m) => {
+        const r = boardOf.get(m.key)?.total.find((t) => t.participantId === who.participant.id);
+        const rowed = who.entries.some((e) => e.meters > 0 && e.day >= m.firstDay && e.day <= lastOf(m));
+        return plain(r) && rowed;
+      });
+    let rower = await getRower(EXAMPLE_ROWER);
+    let shown = rower ? plainMonth(rower) : undefined;
+    // UNDER LIGHTS OUT (review, 2026-10-01): a window masks every month's
+    // board, past ones too, so when 001 is one of the hidden the strip fell
+    // to the everyone card alone — the "only showing one card" the owner
+    // sent back that morning. The example is then the lowest rower number
+    // in plain sight on the newest board that has one: still a real rower
+    // whose numbers anybody can read, named under the cards. A few tries
+    // at most, each one rower. The leader's gold card has no stand-in: a
+    // first place is the one row a window always hides.
+    if (!shown) {
+      const open = newestFirst
+        .map((m) => boardOf.get(m.key)?.total.filter((r) => plain(r) && r.rowerNumber !== EXAMPLE_ROWER) ?? [])
+        .find((rows) => rows.length > 0);
+      const tries = (open ?? []).map((r) => r.rowerNumber).sort((a, b) => a - b).slice(0, STAND_INS);
+      for (const n of tries) {
+        const who = await getRower(n);
+        const m = who ? plainMonth(who) : undefined;
+        if (who && m) {
+          rower = who;
+          shown = m;
+          break;
+        }
+      }
+    }
     const board = shown ? boardOf.get(shown.key) : undefined;
     if (rower && shown && board) {
       const { participant: p } = rower;

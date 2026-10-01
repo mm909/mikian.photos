@@ -228,8 +228,8 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:${INK}}
  * 2026-10-01: swipeable, swipe-throughable), each on an ink tile the way
  * a sticker sits on a story: the total of everyone (1080 by 620), one row
  * (1080 by 620), the month of one rower (square), the leader in gold (1080
- * by 700), the
- * wide ones letterboxed in the same square so the strip is one height.
+ * by 700), the wide ones letterboxed in the same square so the strip is
+ * one height.
  * L4Cards paints each into its canvas, sized off the box and the device
  * pixels; the tile holds its shape from the first paint so nothing jumps
  * when the bitmap lands. On the ink ground a tile is told from the page by
@@ -250,7 +250,9 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:${INK}}
 .row100k .l1-tiles .l4c:focus-visible{outline:2px solid var(--l1-fg);outline-offset:4px}
 .row100k .l1-tiles .l4c-tile{min-width:0;margin:0;scroll-snap-align:start}
 .row100k .l1-tiles .l4c-card{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:var(--l1-tile);border:1px solid var(--l1-hair)}
-.row100k .l1-tiles .l4c-cap{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key)}
+/* A name with no space in it breaks where it must (review, 2026-10-01: a
+ * forty-letter name ran 37px past its tile and stretched the strip). */
+.row100k .l1-tiles .l4c-cap{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key);overflow-wrap:break-word;overflow-wrap:anywhere}
 .row100k .l1-tiles .l4c-cap b{color:var(--l1-fg);font-weight:700}
 .row100k .l1-tiles .l4c-cap a{color:var(--l1-fg);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
 .row100k .l1-tiles .l4c-cap a:hover{color:var(--l1-accent)}
