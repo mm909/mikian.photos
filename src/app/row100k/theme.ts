@@ -105,14 +105,17 @@ html:has(.row100k){scroll-behavior:smooth}
  * has measured, the active link paints its own box (.on) so the server
  * markup already looks right; .live hands over to the pill. .jump switches
  * every transition off for one frame so the pill can be placed, not flown.
- * Both link boxes are 27px tall (16px line + padding) so the pill keeps
- * its height as it crosses from the mark to the mono links. No skew.
+ * Both link boxes are 32px tall (16px line in 8px of padding) so the pill
+ * keeps its height as it crosses from the mark to the mono links, and every
+ * word on the bar is the 32px the two chips are, at every width (review,
+ * 2026-10-01: from 640px up the rail words were 27px, a short target on a
+ * tablet, while the phone cut was already 32). No skew.
  * ON AN INK GROUND THE PILL IS A RULE, not a slab (2026-10-01, the .bar
  * block under the footer rules): the word in the accent on a 2px line of
  * it, the same element sliding the same way. */
 .row100k .rail{position:relative;display:flex;align-items:center;gap:4px;flex:none;min-width:0}
-.row100k .rail a{position:relative;z-index:1;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;text-decoration:none;color:var(--gray);padding:6px 9px 5px;white-space:nowrap;transition:color 160ms ease}
-.row100k .rail a.brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.01em;color:var(--water);padding:6px 10px 5px}
+.row100k .rail a{position:relative;z-index:1;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;text-decoration:none;color:var(--gray);padding:8px 9px;white-space:nowrap;transition:color 160ms ease}
+.row100k .rail a.brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.01em;color:var(--water);padding:8px 10px}
 .row100k .rail a.lit{color:var(--on-water)}
 .row100k .rail:not(.live) a.on{background:var(--water)}
 .row100k .rail-pill{position:absolute;z-index:0;left:0;top:0;width:0;height:0;background:var(--water);opacity:0;pointer-events:none;transition:left 220ms cubic-bezier(.2,.7,.2,1),top 220ms cubic-bezier(.2,.7,.2,1),width 220ms cubic-bezier(.2,.7,.2,1),height 220ms cubic-bezier(.2,.7,.2,1),opacity 160ms ease}
@@ -124,9 +127,10 @@ html:has(.row100k){scroll-behavior:smooth}
  * rest, and it inverts AGAIN under the pointer and on its own page — the same
  * flip the SIGN UP slab makes on the page it leads to.
  * THE BOX IS A RAIL LINK TO THE PIXEL: 2px of ink border traded for 2px of
- * padding on every side, so it measures the same 27px as the mono links and
- * the pill keeps its height sliding past it. Measured in the running bar at
- * 90.1 by 27. The border is invisible on ink and becomes the edge of the white
+ * padding on every side, so it measures the same 32px as the mono links and
+ * the pill keeps its height sliding past it (27 until the rail words grew to
+ * 32, review 2026-10-01: 6px of padding over and under, 16px of line and the
+ * 2px edge twice). The border is invisible on ink and becomes the edge of the white
  * slab on cream — the trade .bar-log and .outline-btn already make here.
  * Tracking widens to .16em because that is the register of the page itself
  * (rd-mast .22em, rd-stamp .2em, rd-room .14em): a letterspaced mono cap line
@@ -142,11 +146,25 @@ html:has(.row100k){scroll-behavior:smooth}
  * Whether it is here at all is BarNav and RowBar, never CSS: when race day is
  * shut it is not in the markup. Under 900px it leaves the rail with the
  * other September words (.rail-x, below). */
-.row100k .rail a.rail-stamp{background:var(--ink);border:2px solid var(--ink);color:#fff;font-weight:700;letter-spacing:.16em;padding:4px 5px 3px 7px;margin:0 6px;transition:none}
+.row100k .rail a.rail-stamp{background:var(--ink);border:2px solid var(--ink);color:#fff;font-weight:700;letter-spacing:.16em;padding:6px 5px 6px 7px;margin:0 6px;transition:none}
 .row100k .rail a.rail-stamp:hover,.row100k .rail a.rail-stamp:focus-visible,.row100k .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
 /* Right-hand chip group pushes itself to the far edge so the bar needs no
- * justify rule. */
-.row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex:none}
+ * justify rule.
+ * A PAGE TAG IN IT GIVES WAY (review, 2026-10-01). A page can hand the bar a
+ * tag (RowBar children: PREVIEW, NOT REAL DATA on the dev pages); that lands
+ * here, ahead of the chip. While the bar wrapped, a long tag took a second
+ * row; on one line it pushed OPT IN 90px past the edge of a 390 phone and
+ * the whole page scrolled sideways. So the group may shrink, the chip and
+ * LOG never do, and the tag is what gives: one line, cut with an ellipsis,
+ * as much of it as the bar has room for. Under 640px there is room for a
+ * letter or three, so it leaves the bar (the 640 block below): only the
+ * dev pages hand one in, and most of them say it again in their own head
+ * (SAMPLE DATA, FAKE DATA, PREVIEW over the table). Every tag a page
+ * hands in is a span.mono; nothing in the account panel is one (its
+ * eyebrows are divs). */
+.row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex:0 1 auto;min-width:0}
+.row100k .bar-right .acct,.row100k .bar-right .acct-chip{flex:none}
+.row100k .bar-right span.mono{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* LOG A ROW on the bar (owner call, 2026-09-05): the account chip idiom
  * inverted — solid ink, white mono, the accent on hover — so a joined rower
  * can always reach the form. One element (BarLog): it takes the auto margin
@@ -159,7 +177,7 @@ html:has(.row100k){scroll-behavior:smooth}
  * words that do not fit one line. A rail link to look at, a button; its
  * list is the account panel hung from the left. */
 .row100k .rail-more{position:relative;display:flex;align-items:center}
-.row100k .rail-more-btn{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;color:var(--gray);padding:6px 9px 5px;white-space:nowrap}
+.row100k .rail-more-btn{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;color:var(--gray);padding:8px 9px;white-space:nowrap}
 .row100k .rail-more-btn:hover{color:var(--water)}
 .row100k .rail-more-btn:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
 .row100k .rail-more .acct-panel{left:auto;right:0;min-width:180px}
@@ -201,6 +219,7 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .bar-right{gap:8px}
   .row100k .bar-log{letter-spacing:.06em;padding:6px 8px}
   .row100k .bar-log .x,.row100k .acct-chip .x{display:none}
+  .row100k .bar-right span.mono{display:none}
 }
 @media(max-width:359px){
   .row100k .bar{gap:6px;padding:8px 12px}
@@ -221,8 +240,12 @@ html:has(.row100k){scroll-behavior:smooth}
    fits under the bar and scrolls inside itself rather than running off the
    bottom of the screen: the cap is the viewport minus the bar and a margin,
    momentum scrolling on iOS, and the panel keeps its own overscroll so the
-   page behind it does not move with it. */
-.row100k .acct-panel{position:absolute;top:calc(100% + 12px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:4px 16px;min-width:220px;z-index:60;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+   page behind it does not move with it.
+   IT HANGS FROM THE RULE (review, 2026-10-01): its top edge lies on the
+   2px rule under the bar, so the two lines are one. The gap is the bar
+   padding under the chip: 14px from 640px, 8px on a phone. At 12px it sat
+   2px above the rule on a desktop, edge on rule, one fat white line. */
+.row100k .acct-panel{position:absolute;top:calc(100% + 14px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:4px 16px;min-width:220px;z-index:60;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .row100k .acct-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:11px 2px;cursor:pointer;color:var(--ink);text-decoration:none}
 .row100k .acct-item:last-child{border-bottom:none}
 .row100k .acct-more .acct-item:last-child{border-bottom:1px dashed var(--line)}
@@ -232,6 +255,7 @@ html:has(.row100k){scroll-behavior:smooth}
  * so it wins. */
 @media(max-width:639px){
   .row100k .acct-chip{letter-spacing:.06em;padding:6px 8px}
+  .row100k .acct-panel{top:calc(100% + 8px)}
 }
 @media(max-width:359px){
   .row100k .acct-chip{letter-spacing:.03em;padding:6px}

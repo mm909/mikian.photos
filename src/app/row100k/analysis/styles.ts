@@ -8,7 +8,10 @@
  * water tint; solid water-blue appears only on the viewer, so the .y line
  * in a tile is the only blue type below the masthead. */
 export const analysisCss = `
-.row100k .an-mast{padding:36px 0 0}
+/* The top only (review, 2026-10-01): the masthead is a .wrap, and a padding
+ * shorthand here zeroed its 20px sides, so on a phone the eyebrow, the
+ * headline and the line under it ran to the edge of the glass. */
+.row100k .an-mast{padding-top:36px}
 .row100k .an-eyebrow{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;color:var(--gray);text-transform:uppercase}
 .row100k .an-mast h1{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(36px,9vw,66px);line-height:.95;text-transform:uppercase;letter-spacing:-.02em;margin-top:8px}
 .row100k .an-mast h1 .o{color:var(--water)}
