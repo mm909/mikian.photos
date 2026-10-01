@@ -569,6 +569,12 @@ model RowParticipant {
   /// option to enter their HOME GYM"). Settings page only; nothing prints
   /// it yet. Capped at HOME_GYM_MAX characters by the participants API.
   homeGym     String?
+  /// Shirt size, optional: "S" | "M" | "L" | "XL" | "2XL" (shirt.ts SIZES).
+  /// Asked on the sign-up page (owner, 2026-10-01: "their t-shirt size and
+  /// their height and their weight and their home gym — all of those
+  /// should be there, not as important") and editable in settings. Not a
+  /// reservation — the pre-orders are RowShirtPreorder. Nothing prints it.
+  shirtSize   String?
   createdAt   DateTime @default(now())
 
   entries RowEntry[]

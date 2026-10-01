@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
@@ -37,6 +38,8 @@ import { frontCss } from "./frontCss";
 import { RowBar } from "./RowBar";
 import { RowFooter } from "./RowFooter";
 import { JoinPanel } from "./JoinPanel";
+import { notJoined } from "./join/data";
+import { JOIN_PAGE_LIVE } from "./join/live";
 import { Dashboard, Wheels } from "./Dashboard";
 import { ROLL_COOKIE, type Roll } from "./roll";
 import { loopOn, type LoopData } from "./loop";
@@ -228,6 +231,14 @@ export default async function Row100kPage() {
   } catch (err) {
     console.error("row100k: failed to load viewer data", err);
   }
+
+  /* THE SIGN-UP PAGE (join/live.ts — owner, 2026-10-01: "once you log in,
+   * it brings you to a dedicated sign up page"). With the switch on, an
+   * account with no entry goes to /join and the JoinPanel at the foot of
+   * this page is never reached; off, as it is today, nothing here changes.
+   * notJoined asks again rather than trusting a null from a failed read
+   * above — a database hiccup must not send a rower off their own page. */
+  if (JOIN_PAGE_LIVE && !me && (await notJoined(actor.photographerId))) redirect("/join");
 
   // Fail open: if the tables aren't reachable the page still renders.
   // The board comes through boardView, which needs to know who is looking:

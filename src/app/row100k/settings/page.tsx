@@ -56,10 +56,24 @@ async function readAbout(id: string): Promise<About> {
   }
 }
 
+/* THE SHIRT SIZE (2026-10-01, asked on the sign-up page), read on its own
+ * for the reason above: its column is the newest, and a miss here must
+ * cost the form one row, not the four About you fields with it. "" is no
+ * size; undefined is no column yet, and the form leaves the row out. */
+async function readShirt(id: string): Promise<string | undefined> {
+  try {
+    const row = await db.rowParticipant.findUnique({ where: { id }, select: { shirtSize: true } });
+    return row ? (row.shirtSize ?? "") : undefined;
+  } catch (err) {
+    console.error("row100k/settings: the shirt size could not be read (not pushed yet?)", err);
+    return undefined;
+  }
+}
+
 export default async function SettingsPage() {
   const viewer = await resolveViewer();
   const me = viewer.me;
-  const about: About = me ? await readAbout(me.id) : null;
+  const [about, shirtSize] = me ? await Promise.all([readAbout(me.id), readShirt(me.id)]) : [null, undefined];
 
   return (
     <div className={`row100k ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
@@ -95,6 +109,7 @@ export default async function SettingsPage() {
                 division={parseDivision(me.division)}
                 googleName={viewer.actor.name}
                 about={about}
+                shirtSize={shirtSize}
               />
               <p className="se-foot">
                 <a href={`/row100k/r/${me.rowerNumber}`}>Profile →</a>

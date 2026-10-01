@@ -16,6 +16,7 @@ import {
   weightLb,
   type Division,
 } from "@/lib/row100k";
+import { SIZES, type Size } from "../shirt";
 
 /* ONE BLOCK, SAVING ITSELF (owner, 2026-09-25: "Combine the two blocks
  * (settings and about you) into one. Make the settings save automatically
@@ -58,7 +59,15 @@ import {
  * a blank weight, clears. Home gym is a row of chips from HOME_GYMS
  * (lib/row100k, one list) plus OTHER, which opens the free-text field; a
  * stored gym that is one of the list lights its chip, any other words
- * light OTHER with the words shown. */
+ * light OTHER with the words shown.
+ *
+ * SHIRT SIZE (2026-10-01): asked on the sign-up page (join/JoinForm.tsx,
+ * the owner's third tier — "their t-shirt size and their height and their
+ * weight and their home gym"), changed here. The sizes as words, the
+ * sign-up page's text controls (settingsCss.ts .se-size); a pick saves
+ * through the PATCH like the gym chips do, and picking the lit size again
+ * lets it go. The row is left out while its column is not in the database
+ * (props.shirtSize undefined). */
 
 const DIVISIONS: { value: Division; label: string }[] = [
   { value: "M", label: "MEN'S BOARD" },
@@ -73,7 +82,7 @@ const OTHER = "__other__";
  * none for nothing. */
 const gymChip = (stored: string): string => matchHomeGym(stored) ?? (stored ? OTHER : "");
 
-type Field = "first" | "last" | "name" | "instagram" | "division" | "birthday" | "height" | "weight" | "gym";
+type Field = "first" | "last" | "name" | "instagram" | "division" | "birthday" | "height" | "weight" | "gym" | "shirt";
 type Flash = "saving" | "saved";
 
 /* The Google account name, split on its first space: everything before it
@@ -128,6 +137,9 @@ export function SettingsForm(props: {
   googleName: string;
   /* The About you columns, or null while they are not in the database. */
   about: { birthday: string; heightCm: number | null; weightKg: number | null; homeGym: string } | null;
+  /* The stored shirt size ("" for none), or undefined while its column is
+   * not in the database. */
+  shirtSize?: string;
 }) {
   const router = useRouter();
   const guess = splitName(props.googleName);
@@ -143,6 +155,7 @@ export function SettingsForm(props: {
   const [weightLbs, setWeightLbs] = useState(weightLb(props.about?.weightKg));
   const [gym, setGym] = useState(props.about?.homeGym ?? "");
   const [gymPick, setGymPick] = useState(gymChip(props.about?.homeGym ?? ""));
+  const [shirt, setShirt] = useState(props.shirtSize ?? "");
   const [flash, setFlash] = useState<Partial<Record<Field, Flash>>>({});
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const bounds = birthdayBounds();
@@ -161,6 +174,7 @@ export function SettingsForm(props: {
     heightCm: props.about?.heightCm ?? null,
     weightKg: props.about?.weightKg ?? null,
     gym: props.about?.homeGym ?? "",
+    shirt: props.shirtSize ?? "",
   });
   const timers = useRef<Partial<Record<Field, number>>>({});
 
@@ -276,6 +290,7 @@ export function SettingsForm(props: {
         heightCm?: number | null;
         weightKg?: number | null;
         homeGym?: string | null;
+        shirtSize?: string | null;
       };
       if (!res.ok || !data.ok) return fail(field, data.error ?? "Something went wrong — try again.");
       // The inputs re-print what was kept — the stored cm and kg turned
@@ -305,6 +320,11 @@ export function SettingsForm(props: {
         // leaves OTHER open rather than pulling the field away mid-edit.
         const chip = gymChip(v);
         if (chip) setGymPick(chip);
+      }
+      if ("shirtSize" in body) {
+        const v = data.shirtSize ?? "";
+        setShirt(v);
+        saved.current.shirt = v;
       }
     } catch {
       return fail(field, "Something went wrong — try again.");
@@ -401,6 +421,17 @@ export function SettingsForm(props: {
     if (g === null) return fail("gym", `Keep the gym to ${HOME_GYM_MAX} characters.`);
     if (g === saved.current.gym) return clearError("gym");
     void saveAbout("gym", { homeGym: g || null }, () => undefined);
+  };
+  /* A size is a save of itself; the lit one, picked again, clears. A save
+   * that is refused puts the light back on what is stored — a lit size
+   * must be a kept one. */
+  const onShirt = (size: Size) => {
+    const next = shirt === size ? "" : size;
+    setShirt(next);
+    if (next === saved.current.shirt) return clearError("shirt");
+    void saveAbout("shirt", { shirtSize: next || null }, () => undefined).then(() => {
+      if (saved.current.shirt !== next) setShirt(saved.current.shirt);
+    });
   };
 
   /* Enter in a text field is a blur, which is a save; nothing submits. */
@@ -565,6 +596,27 @@ export function SettingsForm(props: {
         ) : (
           <p className="se-off">BIRTHDAY, HEIGHT, WEIGHT AND HOME GYM ARE NOT AVAILABLE YET.</p>
         )}
+
+        {props.shirtSize !== undefined ? (
+          <>
+            <FieldLabel flash={flash} field="shirt">Shirt size</FieldLabel>
+            <div className="se-sizes" role="radiogroup" aria-label="Shirt size">
+              {SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={shirt === size}
+                  className={`se-size${shirt === size ? " on" : ""}`}
+                  onClick={() => onShirt(size)}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            <FieldErr errors={errors} field="shirt" />
+          </>
+        ) : null}
 
         {/* Enter in a field still submits: with no visible submit button a
          * form of text fields swallows implicit submission, and onSubmit

@@ -38,6 +38,14 @@ export const settingsCss = `
 /* HOME GYM: the join-form chips (.pills, theme.ts) in a row, OTHER
  * opening the free-text field beneath them. */
 .row100k .panel .se-other{margin-top:12px}
+/* SHIRT SIZE (2026-10-01): the sizes as words, the text controls of the
+ * sign-up page (join/joinCss.ts .jn-pick) — bold mono, grey at rest, the
+ * picked one in ink on a 2px underline of the accent. */
+.row100k .se-sizes{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 20px}
+.row100k .se-size{all:unset;box-sizing:border-box;cursor:pointer;font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;letter-spacing:.12em;line-height:1.4;padding:6px 0 3px;border-bottom:2px solid transparent;color:var(--gray);transition:color 160ms ease}
+.row100k .se-size:hover{color:var(--ink)}
+.row100k .se-size.on{color:var(--ink);border-bottom-color:var(--water)}
+.row100k .se-size:focus-visible{outline:2px solid var(--water);outline-offset:3px}
 /* A quiet mono line when a group of fields is not available yet. */
 .row100k .se-off{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-top:24px;line-height:1.7}
 /* MY PROFILE under the block: the month word idiom, a dotted rule. */

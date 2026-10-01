@@ -3,12 +3,16 @@ import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
 import { joinNote } from "@/app/row100k/joinMail";
+import { parseJoinExtras } from "@/app/row100k/join/fields";
+import { JOIN_PAGE_LIVE } from "@/app/row100k/join/live";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { ensureParticipant } from "@/lib/row100kJoin";
 import {
   CHALLENGE,
   CHALLENGE_LIVE,
+  MONTH,
+  isRow100kAdmin,
   nowMs,
   parseBirthday,
   parseDisplayName,
@@ -24,9 +28,38 @@ function isMissingColumn(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === "P2022";
 }
 
+/* THE SHIRT SIZE, written on its own and never fatal: the column is new
+ * (2026-10-01) and may not be in the database when this code is — P2022 —
+ * and a join, or a settings save of the name, must not fail for it. Null
+ * clears. Logged and dropped on any miss; the rower can set it in settings
+ * once the column is there. */
+async function saveShirtSize(id: string, shirtSize: string | null): Promise<void> {
+  try {
+    await db.rowParticipant.update({ where: { id }, data: { shirtSize }, select: { id: true } });
+  } catch (err) {
+    console.error(
+      isMissingColumn(err)
+        ? "row100k join: shirtSize is not in the database yet — size not saved"
+        : "row100k join: the shirt size was not saved",
+      err,
+    );
+  }
+}
+
 /* Join the Row 100k challenge (or update your profile — same POST, upsert
  * semantics). Requires a Google session; the rower number is assigned once
- * at first join, in join order, and never changes. */
+ * at first join, in join order, and never changes.
+ *
+ * THE SIGN-UP PAGE (join/page.tsx, owner 2026-10-01) sends more in the same
+ * request, and every key of it is optional, so the JoinPanel and the
+ * settings form — which send the old shape — are untouched:
+ *   shirtSize, heightCm, weightKg, homeGym   the third tier, checked by
+ *     join/fields.ts parseJoinExtras (the participants PATCH readers);
+ *   monthOptIn: true   put the NEW rower on this month's 100K board with
+ *     the join (RowMonthOptIn, the row /api/row100k/month-optin writes).
+ * A refusal now also names its field (`field`), which the page prints the
+ * words under; an old client reads `error` and never sees it. A first join
+ * answers with the new row's id (`participantId`) as well. */
 export async function POST(req: Request) {
   /* No closing gate any more (rollover review, 2026-09-28): under the
    * monthly clock a join is a join in whatever month it lands, and the old
@@ -42,7 +75,17 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { displayName?: unknown; instagram?: unknown; division?: unknown; birthday?: unknown };
+  let body: {
+    displayName?: unknown;
+    instagram?: unknown;
+    division?: unknown;
+    birthday?: unknown;
+    shirtSize?: unknown;
+    heightCm?: unknown;
+    weightKg?: unknown;
+    homeGym?: unknown;
+    monthOptIn?: unknown;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -55,7 +98,7 @@ export async function POST(req: Request) {
   const displayName = parseDisplayName(body.displayName);
   if (!displayName) {
     return NextResponse.json(
-      { ok: false, error: "Add the name you want on the board (at least 2 characters)." },
+      { ok: false, error: "Add the name you want on the board (at least 2 characters).", field: "name" },
       { status: 400 },
     );
   }
@@ -65,14 +108,18 @@ export async function POST(req: Request) {
   const instagram = parseInstagramOptional(body.instagram);
   if (instagram === null) {
     return NextResponse.json(
-      { ok: false, error: "That Instagram handle does not look right — letters, numbers, dots and underscores only." },
+      {
+        ok: false,
+        error: "That Instagram handle does not look right — letters, numbers, dots and underscores only.",
+        field: "instagram",
+      },
       { status: 400 },
     );
   }
   const division = parseDivision(body.division);
   if (!division) {
     return NextResponse.json(
-      { ok: false, error: "Pick which board you're competing on." },
+      { ok: false, error: "Pick which board you're competing on.", field: "division" },
       { status: 400 },
     );
   }
@@ -85,9 +132,20 @@ export async function POST(req: Request) {
   let birthday: Date | undefined;
   if (body.birthday !== undefined && body.birthday !== null && body.birthday !== "") {
     const checked = parseBirthday(body.birthday, nowMs());
-    if (!checked.ok) return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: checked.error, field: "birthday" }, { status: 400 });
+    }
     birthday = checked.value;
   }
+  // THE THIRD TIER (owner, 2026-10-01: "their t-shirt size and their height
+  // and their weight and their home gym — all of those should be there, not
+  // as important"): absent is "leave it", null or "" is none, anything else
+  // must read — the same readers the settings page saves through.
+  const extras = parseJoinExtras(body);
+  if (!extras.ok) {
+    return NextResponse.json({ ok: false, error: extras.error, field: extras.field }, { status: 400 });
+  }
+  const { shirtSize, ...about } = extras.value;
 
   // THIRTY AN HOUR, up from ten (2026-09-25): the settings page saves each
   // field the moment it changes (owner: "no SAVE CHANGES button"), so one
@@ -120,7 +178,9 @@ export async function POST(req: Request) {
         where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
         select: { id: true },
       });
-      if (!already) return NextResponse.json({ ok: false, error: "Add your birthday." }, { status: 400 });
+      if (!already) {
+        return NextResponse.json({ ok: false, error: "Add your birthday.", field: "birthday" }, { status: 400 });
+      }
     }
 
     // The birthday column may not be in the database yet (owner,
@@ -129,14 +189,24 @@ export async function POST(req: Request) {
     // sent, so a P2022 here can only mean that column, and the answer is a
     // refusal in plain words, not a stack trace. Nothing was written: the
     // create is the statement that failed, so no rower number was spent.
+    // (Height, weight and home gym ride in the same two statements when
+    // the sign-up page sends them; their columns have been in the database
+    // since 2026-09-25. The shirt size, the one column that may not be, is
+    // written on its own — saveShirtSize.)
     let created;
     try {
-      created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division, birthday });
+      created = await ensureParticipant({ userId: actor.photographerId, displayName, instagram, division, birthday, about });
       if (!created.created) {
+        // `select` is load-bearing: without one the update reads the whole
+        // row back, the new shirtSize column with it, and every settings
+        // save of the name would be a P2022 on a database the column has
+        // not reached (found by hand, 2026-10-01).
         await db.rowParticipant.update({
           where: { id: created.id },
-          data: { displayName, instagram, division, ...(birthday ? { birthday } : {}) },
+          data: { displayName, instagram, division, ...(birthday ? { birthday } : {}), ...about },
+          select: { id: true },
         });
+        if (shirtSize !== undefined) await saveShirtSize(created.id, shirtSize);
         revalidateTag("row100k-boards");
         return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: true });
       }
@@ -148,6 +218,38 @@ export async function POST(req: Request) {
         );
       }
       throw err;
+    }
+
+    // The row exists and the number is spent: from here nothing may fail
+    // the join. A size, when one was picked, then the month.
+    if (shirtSize) await saveShirtSize(created.id, shirtSize);
+
+    // THE MONTH'S 100K WITH THE JOIN (owner, 2026-10-01: "welcome, rower
+    // one twenty — choose to opt in"): the sign-up page's OPT IN is the
+    // opt-in to this month's board as well, so the new rower gets the row
+    // /api/row100k/month-optin would write, in the same request. Only when
+    // the page asks (the JoinPanel does not, and joins as it always has),
+    // and — while the page and the board are in development — only for an
+    // admin in production, the gate that route wears; join/live.ts lifts
+    // it with the page. In a try of its own: a table not pushed, or any
+    // other miss, costs the rower the board row, never the join.
+    let monthOptIn = false;
+    if (
+      body.monthOptIn === true &&
+      (JOIN_PAGE_LIVE || process.env.NODE_ENV !== "production" || isRow100kAdmin(actor.email, actor.roles))
+    ) {
+      try {
+        await db.rowMonthOptIn.upsert({
+          where: {
+            challenge_participantId_month: { challenge: CHALLENGE, participantId: created.id, month: MONTH.key },
+          },
+          create: { challenge: CHALLENGE, participantId: created.id, rowerNumber: created.rowerNumber, month: MONTH.key },
+          update: { cancelledAt: null },
+        });
+        monthOptIn = true;
+      } catch (err) {
+        console.error("row100k join: the month opt-in was not written (table pushed?)", err);
+      }
     }
 
     {
@@ -171,7 +273,13 @@ export async function POST(req: Request) {
         if (!sent.ok) console.error("row100k: signup email failed", sent.error);
       }
 
-      return NextResponse.json({ ok: true, rowerNumber: created.rowerNumber, updated: false });
+      return NextResponse.json({
+        ok: true,
+        rowerNumber: created.rowerNumber,
+        updated: false,
+        participantId: created.id,
+        monthOptIn,
+      });
     }
   }
 }

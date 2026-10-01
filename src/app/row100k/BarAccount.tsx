@@ -214,6 +214,14 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/dev/board" onClick={close}>
                   The 100K board →
                 </Link>
+                {/* THE SIGN-UP PAGE (owner, 2026-10-01: "once you log in, it
+                 * brings you to a dedicated sign up page") — join/page.tsx,
+                 * in development behind join/live.ts. An admin is a rower
+                 * already, so the link is the preview: the page as a new
+                 * account gets it, with an OPT IN that saves nothing. */}
+                <Link className="acct-item" href="/join?preview=1" onClick={close}>
+                  Sign-up page →
+                </Link>
               </>
             )}
             <button
