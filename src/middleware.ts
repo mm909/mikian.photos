@@ -71,7 +71,23 @@ function paletteRedirect(req: NextRequest): NextResponse | null {
   return res;
 }
 
+/* ROWTEMBER.COM (owner, 2026-10-01: the domain is on the project and the
+ * Google redirect URI is added). On that host the front door is Rowtember
+ * itself: / is served by the /row100k page — a rewrite, so the address
+ * stays the bare domain — instead of the Mikian Musser landing. Every other
+ * path is as it is on the old host (/row100k/…), until the paths lose
+ * their prefix. */
+function onRowtember(req: NextRequest): boolean {
+  const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  return host === "rowtember.com" || host === "www.rowtember.com";
+}
+
 export function middleware(req: NextRequest) {
+  if (req.nextUrl.pathname === "/" && onRowtember(req)) {
+    const front = req.nextUrl.clone();
+    front.pathname = "/row100k";
+    return NextResponse.rewrite(front);
+  }
   if (allowed(req.nextUrl.pathname)) return paletteRedirect(req) ?? NextResponse.next();
   return NextResponse.redirect(new URL("/", req.url), 307);
 }
