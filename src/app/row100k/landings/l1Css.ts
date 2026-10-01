@@ -144,10 +144,17 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
  * 54, 76 parts in a hundred, then the accent itself — so the ramp is the
  * palette, whatever the palette is, and never a second colour beside it
  * (owner, same day: the charts were blue and also red). The figure is the
- * page type on the four mixed steps and the slab type (--l1-caps) on the
- * full accent, the pair OPT IN wears. A browser with no color-mix gets the
- * line in front of it: the hairline for the low steps, the accent for the
- * high ones.
+ * page type on the mixed steps and the slab type (--l1-caps) on the full
+ * accent, the pair OPT IN wears. A browser with no color-mix gets the line
+ * in front of it: the hairline for the low steps, the accent for the high
+ * ones.
+ *
+ * THE FOURTH STEP ON INK takes the slab type too (review, 2026-10-01). The
+ * accent is turning pumpkin, a light one that carries ink caps, and three
+ * quarters of it over black is still too light for the white figure: 3.6
+ * to 1, and 2.9 under the mustard, where the ink figure holds 4.4 and 5.7.
+ * A red, the blue and the green carry white caps, so for them nothing
+ * moves. On paper the fourth step is a tint, and the page ink reads on it.
  *
  * A day nobody rowed is an empty ruled cell; a day to come is the same
  * cell dashed and dim; today wears a rule in the page type. Square cells
@@ -162,7 +169,7 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
 .row100k .l1-c.s3{background:var(--l1-hair);background:color-mix(in srgb,var(--l1-accent) 54%,var(--l1-bg));border-color:transparent}
 .row100k .l1-c.s4{background:var(--l1-accent);background:color-mix(in srgb,var(--l1-accent) 76%,var(--l1-bg));border-color:transparent}
 .row100k .l1-c.s5{background:var(--l1-accent);border-color:transparent}
-.row100k .l1-c.s5 span{color:var(--l1-caps)}
+.row100k .l1-c.s5 span,.row100k.l1-ink .l1-c.s4 span{color:var(--l1-caps)}
 .row100k .l1-c.todo{border-style:dashed;opacity:.5}
 .row100k .l1-c.now{border-color:var(--l1-fg)}
 /* The month in one line: its meters and its rowers, the figures in the
