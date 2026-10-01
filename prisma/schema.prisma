@@ -727,6 +727,27 @@ model RowShirtPreorder {
   @@index([challenge, color, size])
 }
 
+/// THE MONTH'S 100K, opted into (owner, 2026-10-01, the board redesign:
+/// "the board should be for specifically the 100K monthly challenge with
+/// the opt-in"). One row per rower per month: opting in creates it or
+/// clears cancelledAt, NOT THIS MONTH stamps cancelledAt. A rower whose
+/// rows exist but who has no live row here is not on that month's board.
+/// Pushed with `prisma db push` like the shirt tables.
+model RowMonthOptIn {
+  id            String    @id @default(cuid())
+  challenge     String    @default("row100k-sep-2026")
+  participantId String
+  rowerNumber   Int
+  /// "2026-10" — the month opted into (rowPeriod.ts Month.key).
+  month         String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  cancelledAt   DateTime?
+
+  @@unique([challenge, participantId, month])
+  @@index([challenge, month])
+}
+
 /// A signup for RACE DAY — the timed 5,000 m trial on Sunday Sep 27 2026 at
 /// The Strip Barbell, Las Vegas (owner, 2026-09-10). Free: a rower registers
 /// and the owner puts them in a wave, then tells them by email. The race

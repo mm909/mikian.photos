@@ -207,6 +207,13 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/shirts" onClick={close}>
                   Shirts →
                 </Link>
+                {/* THE 100K BOARD in the opt-in look (owner, 2026-10-01: "the
+                 * board should be for specifically the 100K monthly challenge
+                 * with the opt-in") — dev/board/page.tsx, in development
+                 * until the owner has seen it on his phone. */}
+                <Link className="acct-item" href="/row100k/dev/board" onClick={close}>
+                  The 100K board →
+                </Link>
               </>
             )}
             <button
