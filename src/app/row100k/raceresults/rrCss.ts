@@ -189,9 +189,11 @@ export const rrCss = `
  * reflowed, never sees them from a phone. */
 /* THE HAIRLINES ARE ON THE LANES, not painted through a 1px gap by the
  * container: with ten lanes in rows of five that worked, and eight lanes
- * left two empty cells of the container showing through as a grey slab. */
+ * left two empty cells of the container showing through as a grey slab. An
+ * outline, not a box-shadow: the house draws no shadows, and a 1px outline
+ * into the 1px gap is the same hairline. */
 .row100k .rr-lanes{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:14px;padding:1px}
-.row100k .rr-lane{background:var(--ink);padding:10px 12px 12px;min-width:0;box-shadow:0 0 0 1px rgba(255,255,255,.24)}
+.row100k .rr-lane{background:var(--ink);padding:10px 12px 12px;min-width:0;outline:1px solid rgba(255,255,255,.24)}
 .row100k .rr-ln{font-family:var(--row-mono),monospace;font-size:10px;line-height:14px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0;white-space:nowrap}
 .row100k .rr-lname{font-family:var(--row-archivo-black),sans-serif;font-size:15px;line-height:18px;text-transform:uppercase;color:#fff;margin:5px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row100k .rr-lsub{font-family:var(--row-mono),monospace;font-size:10px;line-height:14px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);margin:4px 0 0;white-space:nowrap}
@@ -366,7 +368,13 @@ export const rrCss = `
 .row100k table.rr-t td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k table.rr-t td.nm{font-family:var(--row-archivo),sans-serif;font-weight:700;color:#fff;min-width:0}
 .row100k table.rr-t td.br{color:rgba(255,255,255,.5);width:34px}
-.row100k table.rr-t td.tm{color:#fff;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+/* THE TIME CELL IS A CELL. theme.ts hands every .row100k .tm the text
+ * menu s inline-block (TextMenu, 2026-09-25), which pulled this td out of
+ * the table: the clock sat left of its own 5,000 M head with a gap in the
+ * dashed rule beside it, on the sheet and on HOW THE NIGHT RAN. Put back
+ * here, where the cell is named, rather than renaming a class the wall and
+ * the mid-race board share. */
+.row100k table.rr-t td.tm{display:table-cell;position:static;color:#fff;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .row100k table.rr-t td.dim{color:rgba(255,255,255,.5);text-align:right;white-space:nowrap}
 .row100k table.rr-t td.seed{color:rgba(255,255,255,.62);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .row100k table.rr-t .pl{width:54px}
@@ -636,7 +644,7 @@ export const rrCss = `
   /* A FIXED 36px ROW, centred and not baseline-aligned: a row with a tag
    * in it and a row with a dash measured a pixel apart on the baseline,
    * and ten of those made the pane a pixel and a half taller on wave 3. */
-  .row100k .rr-dark .rr-lane{display:grid;grid-template-columns:54px minmax(0,1fr) 16px auto;column-gap:10px;align-items:center;box-sizing:border-box;height:36px;padding:0;border-bottom:1px solid rgba(255,255,255,.18);box-shadow:none}
+  .row100k .rr-dark .rr-lane{display:grid;grid-template-columns:54px minmax(0,1fr) 16px auto;column-gap:10px;align-items:center;box-sizing:border-box;height:36px;padding:0;border-bottom:1px solid rgba(255,255,255,.18);outline:0}
   .row100k .rr-dark .rr-lane:last-child{border-bottom:0}
   .row100k .rr-dark .rr-lane .rr-lname{margin:0;font-size:14px}
   .row100k .rr-dark .rr-lane .rr-lsub{margin:0;text-align:center}
