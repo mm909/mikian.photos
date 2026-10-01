@@ -44,6 +44,7 @@ export type JoinErrors = Partial<Record<JoinField, string>>;
 /* The refusals, in the words the settings form and the join route already
  * use for the same fields. */
 export const JOIN_ERR = {
+  birthday: "Add your birthday.",
   name: "Add the name you want on the board.",
   instagram: "That Instagram handle does not look right — letters, numbers, dots and underscores.",
   division: "Pick which board you're competing on.",
@@ -107,8 +108,15 @@ export const JOIN_FIELD_ORDER: readonly JoinField[] = [
 export function readJoinForm(v: JoinValues, atMs: number = Date.now()): { errors: JoinErrors; body: JoinBody | null } {
   const errors: JoinErrors = {};
 
-  const born = parseBirthday(v.birthday, atMs);
-  if (!born.ok) errors.birthday = born.error;
+  // A box left empty is asked for in the route's words for the same miss
+  // ("Add your birthday."); parseBirthday says "as a full date" to an empty
+  // string, which reads as a scolding for something never typed (review,
+  // 2026-10-01).
+  if (!v.birthday.trim()) errors.birthday = JOIN_ERR.birthday;
+  else {
+    const born = parseBirthday(v.birthday, atMs);
+    if (!born.ok) errors.birthday = born.error;
+  }
 
   const displayName = parseDisplayName(v.name);
   if (!displayName) errors.name = JOIN_ERR.name;

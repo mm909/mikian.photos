@@ -1,9 +1,11 @@
 /* THE SIGN-UP PAGE (join/page.tsx; owner, 2026-10-01: "there should be
  * like tiers … these aren't strict, but there's a hierarchy"). One ruled
  * form, three tiers told apart by the size of their type and the weight of
- * their rule, never by a sentence: the number and who you are at headline
- * size on a 2px ink underline; the board name and the board on a 2px ink
- * rule; then the rest as a small mono list on dashed hairlines. OPT IN is
+ * their rule, never by a sentence: the number at headline size on a 2px
+ * ink rule and who you are in large type under it; the board name and the
+ * board a step down, on a 2px ink rule; then the rest as a small mono list
+ * on dashed hairlines. Rules of ink mark the tiers; every field underline
+ * is the quiet line. OPT IN is
  * the landing's slab of the accent. The bar, the footer and the error line
  * ride on theme.ts. Prefix .jn-.
  *
@@ -35,7 +37,12 @@ export const joinCss = `
 /* TIER ONE: first and last name, the email as plain type, the birthday. */
 .row100k .jn-t1{display:grid;grid-template-columns:minmax(0,1fr);gap:22px 28px;padding-top:24px}
 .row100k .jn-t1 input[type=text],.row100k .jn-t1 input[type=date],.row100k .jn-mail{font-size:clamp(22px,5.6vw,30px);font-weight:600;line-height:1.2;letter-spacing:-.01em}
-.row100k .jn-t1 input[type=text],.row100k .jn-t1 input[type=date]{border-bottom-color:var(--ink);padding:6px 0 8px;min-height:1.9em}
+/* The field underlines stay the quiet line here as in the tiers below: a
+ * rule of ink is a tier, never a field. With the birthday in ink, a phone
+ * stacked its underline over the 2px rule of tier two, two full-width
+ * lines with nothing between them, read as one more empty box (review,
+ * 2026-10-01). The size of the type is what makes this tier the first. */
+.row100k .jn-t1 input[type=text],.row100k .jn-t1 input[type=date]{padding:6px 0 8px;min-height:1.9em}
 /* The email is type, not a field: the same box as the inputs beside it so
  * the two baselines sit level, with no rule under it. */
 .row100k .jn-mail{display:flex;align-items:center;min-height:1.9em;padding:6px 0 8px;border-bottom:2px solid transparent;color:var(--ink);overflow-wrap:anywhere;min-width:0}
@@ -96,9 +103,11 @@ export const joinCss = `
 
 /* OPT IN: the one action, a slab of the accent — the landing block
  * (l1Css.ts .l1-cta), the words in mono caps, the arrow at the far end.
- * The type on it is the ground colour, so it holds on paper and on ink. */
+ * The type on it is the slab type the palette names for its accent
+ * (--on-water: ink on the pumpkin, white on a red), not the ground colour,
+ * which put ink on a red accent on the ink look (review, 2026-10-01). */
 .row100k .jn-act{margin-top:36px}
-.row100k .jn-go{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;background:var(--water);color:var(--paper);font-family:var(--row-mono),monospace;font-size:clamp(18px,5vw,22px);font-weight:700;line-height:1;letter-spacing:.16em;text-transform:uppercase;padding:22px 20px 21px;transition:background 160ms ease}
+.row100k .jn-go{all:unset;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;width:100%;background:var(--water);color:var(--on-water);font-family:var(--row-mono),monospace;font-size:clamp(18px,5vw,22px);font-weight:700;line-height:1;letter-spacing:.16em;text-transform:uppercase;padding:22px 20px 21px;transition:background 160ms ease}
 .row100k .jn-go .arr{font-weight:400;letter-spacing:0}
 .row100k .jn-go:hover,.row100k .jn-go:focus-visible{background:var(--water-hover)}
 .row100k .jn-go:focus-visible{outline:2px solid var(--water);outline-offset:4px}

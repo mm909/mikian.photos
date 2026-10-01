@@ -32,6 +32,9 @@ assert.equal(empty.body, null);
 assert.deepEqual(Object.keys(empty.errors).sort(), ["birthday", "division", "name"], "only the two tiers that must be filled refuse");
 assert.equal(empty.errors.name, JOIN_ERR.name);
 assert.equal(empty.errors.division, JOIN_ERR.division);
+/* An empty birthday is asked for, not told it is not a full date. */
+assert.equal(empty.errors.birthday, JOIN_ERR.birthday);
+assert.equal(readJoinForm({ ...good, birthday: "   " }, NOW).errors.birthday, JOIN_ERR.birthday);
 
 const min = readJoinForm(good, NOW);
 assert.deepEqual(min.errors, {});
