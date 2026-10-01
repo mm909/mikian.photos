@@ -76,8 +76,17 @@ export type RaceDef = {
    * not need to know when the wave starts"), but the console prints it. */
   firstWaveAt: number;
   waveMinutes: number;
-  /* Ergs on the floor — how many racers a wave holds. */
+  /* Ergs on the floor — how many racers a wave holds. The PLAN: the wave
+   * console seeds against it and may override it (RowRaceSettings). */
   waveSize: number;
+  /* THE MACHINES THAT ACTUALLY RAN ON THE NIGHT — the width of the lane
+   * strip on the results board and the archive. Code only, never the
+   * console: the console's waveSize is what the owner planned the grid
+   * around, and the floor can come up short of it (owner, 2026-10-01:
+   * "there were 10 rowing machines on the night, not 12 — Bluetooth
+   * limit"; the settings row still says 12 and is left alone). Absent, the
+   * board draws waveSize lanes as it always did. */
+  lanes?: number;
   /* The picture the ads carry: a gallery R2 key, or null for the newest
    * shot, and whether it is drawn in black and white. */
   photo: { key: string | null; bw: boolean };
@@ -95,6 +104,25 @@ export type RaceDef = {
    * PRODUCTION until they accept — see SPONSOR_SHOWN. */
   sponsor: { name: string; url: string; mark: { src: string; alt: string; ratio: number } } | null;
 };
+
+/* DOUBLES — NOT BUILT (note for the next builder, 2026-10-01). The owner
+ * says the next race day runs singles AND doubles. Nothing below knows
+ * that yet; what it would take, in the order the night runs:
+ *   - a `format` on the race ("singles" | "doubles", or a list of events
+ *     a racer enters), carried through RowRaceSignup so a name can be in
+ *     one event or both and the console can seed each event on its own;
+ *   - a PAIR per lane in the wave model: RowRaceSignup is one rower per
+ *     row, so doubles need a crew (two participantIds, one lane, one wave)
+ *     — a RowRaceCrew table, or a `crewId` on the signup row that two rows
+ *     share, with lanesFor() in raceResults.ts seating the crew, not the
+ *     rower;
+ *   - ONE TIME PER PAIR: `tenths` lives on the signup row today, so a
+ *     doubles result has to land on the crew (or on both rows at once and
+ *     be read once), and the board, the podium, the PR rule (a pair has no
+ *     5k baseline) and the profile's race day line all key off that;
+ *   - the brackets: men's, women's and mixed pairs, so `brackets` grows a
+ *     key per event rather than per rower.
+ * Until then every surface assumes one rower per lane. */
 
 /* ACCEPTED (owner, 2026-09-21, later the same day: "enable the sports and
  * spine sponsorship"). For a few hours this read NODE_ENV so the treatment
@@ -138,6 +166,9 @@ export const RACES: RaceDef[] = [
     firstWaveAt: Date.UTC(2026, 8, 28, 1, 15, 0),
     waveMinutes: 30,
     waveSize: 8,
+    /* Ten on the floor on the night (owner, 2026-10-01): the console had
+     * planned twelve, two never paired. The archive draws ten lanes. */
+    lanes: 10,
     /* The picture the ads carry. Null means the newest gallery shot; the
      * console picks one and says whether it is drawn in black and white
      * (owner, 2026-09-11: "allow me to change that photo and have it be
@@ -248,6 +279,17 @@ export function racePhase(r: RaceDef, at: number = nowMs()): RacePhase {
    * in the console). Otherwise the race is run. */
   if (at < r.firstWaveAt + 6 * 3_600_000) return "closed";
   return "raced";
+}
+
+/* THE RACE IS OVER (owner, 2026-10-01: once the race is over, race day is
+ * the archive, not the sign-up page). Either the clock says so (racePhase
+ * raced) or the sheet is posted (RowRaceSettings.finalAt, which the caller
+ * has already read) — the owner posting the sheet at 2 AM must flip the
+ * page before the six-hour rule does. One rule, read by the race day page,
+ * the results page and the account menu, so no surface pushes a sign-up
+ * for a race that has been run. */
+export function raceOver(r: RaceDef, finalAt: number | null, at: number = nowMs()): boolean {
+  return finalAt !== null || racePhase(r, at) === "raced";
 }
 
 /* THE GATE, and it is OPEN (owner, 2026-09-12: "make the race day sign up

@@ -186,10 +186,13 @@ async function readWaveStamps(race: RaceDef): Promise<WaveStamp[]> {
 }
 
 /* THE REAL BOARD. Pass the viewer's participant id for the YOU strip (never
- * from the cast frame). `nowMs` defaults to the challenge clock. */
+ * from the cast frame). `nowMs` defaults to the challenge clock. `final`
+ * forces the sheet: the archive (raceday/page.tsx, once raceOver) draws a
+ * race that has been run as finished whether or not the owner ever pressed
+ * POST — a week-old board reading LIVE is wrong on its face. */
 export async function resultBoard(
   race: RaceDef,
-  opts: { youParticipantId?: string | null; nowMs?: number } = {},
+  opts: { youParticipantId?: string | null; nowMs?: number; final?: boolean } = {},
 ): Promise<ResultBoard> {
   const nowMs = opts.nowMs ?? challengeNow();
 
@@ -201,7 +204,7 @@ export async function resultBoard(
   }
   const [stamps, finalAt] = await Promise.all([readWaveStamps(race), raceFinalAt(race.slug)]);
   const live = liveField(racers);
-  const final = finalAt !== null;
+  const final = opts.final === true || finalAt !== null;
 
   /* The grid: as many waves as the field needs, or as the highest hand-set
    * wave says, whichever is more. */
@@ -211,15 +214,20 @@ export async function resultBoard(
 
   /* WAVE STATE. No stamp: to come. Stamped: rowed once every racer in it
    * has a time or a DNF, or forty minutes have passed, or the sheet is
-   * posted; until then it is on the ergs. */
+   * posted; until then it is on the ergs.
+   *
+   * A POSTED SHEET MEANS EVERY WAVE IS IN, stamp or no stamp (archive,
+   * 2026-10-01): on the night the waves were started off the erg console
+   * and never stamped here, so the final board read TO COME · DUE 6:15 PM
+   * over a wave of seven finished times. The sheet is the stamp. */
   const waves: ResultWave[] = [];
   for (let n = 1; n <= count; n++) {
     const startedAtMs = startedBy.get(n) ?? null;
     const members = live.filter((r) => r.wave === n);
-    let state: ResultWave["state"] = "to_come";
-    if (startedAtMs !== null) {
+    let state: ResultWave["state"] = final ? "rowed" : "to_come";
+    if (!final && startedAtMs !== null) {
       const allIn = members.every((r) => r.tenths !== null || r.status === "dnf");
-      state = final || allIn || nowMs >= startedAtMs + WAVE_ROWED_AFTER_MS ? "rowed" : "on_the_ergs";
+      state = allIn || nowMs >= startedAtMs + WAVE_ROWED_AFTER_MS ? "rowed" : "on_the_ergs";
     }
     waves.push({ wave: n, scheduledAtMs: race.firstWaveAt + (n - 1) * race.waveMinutes * MIN, startedAtMs, state });
   }
@@ -258,13 +266,19 @@ export async function resultBoard(
 
   const you = opts.youParticipantId ? live.find((r) => r.participantId === opts.youParticipantId) : null;
 
+  /* THE LANE STRIP IS AS WIDE AS THE FLOOR WAS (raceday.ts lanes), not as
+   * wide as the console planned — and never narrower than a lane somebody
+   * was actually seated in, or that racer would fall off the strip. */
+  const seated = [...lanes.values()].reduce((n, l) => Math.max(n, l), 0);
+  const ergs = Math.max(race.lanes ?? race.waveSize, seated);
+
   return {
     raceSlug: race.slug,
     dateLine: `Race day · ${race.when} · ${race.meters.toLocaleString()} m`,
     /* The gym and the room, no town — same reasoning as sample.ts. */
     placeLine: `${race.venue} · ${race.room}`,
     meters: race.meters,
-    ergs: race.waveSize,
+    ergs,
     waveMinutes: race.waveMinutes,
     state: final ? "finished" : "midrace",
     nowMs,

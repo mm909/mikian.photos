@@ -5,7 +5,7 @@ import {
   bracketView,
   fmtAgo,
   fmtClock,
-  fmtTime,
+  fmtRaceTime,
   ranked,
   roomCounts,
   type ResultBoard,
@@ -139,21 +139,20 @@ export function CastFrame({
   
           {final ? (
             <>
+              {/* MEN / WOMEN, and nothing after the word (owner, 2026-10-01:
+                * the counts and SCORED APART came off every race surface).
+                * Whole seconds on the clocks, like the page. */}
               <div>
-                <p className="rr-castk">
-                  The men · {men.all.length} racers · {men.rowed} times · scored apart
-                </p>
+                <p className="rr-castk">Men</p>
                 <Podium board={b} view={men} />
               </div>
               <div>
-                <p className="rr-castk">
-                  The women · {women.all.length} racers · {women.rowed} times · scored apart
-                </p>
+                <p className="rr-castk">Women</p>
                 <Podium board={b} view={women} />
               </div>
               <div className="rr-count">
                 <div className="rr-cell fill">
-                  <div className="rr-n">{fastest ? fmtTime(fastest.seconds ?? 0) : "—"}</div>
+                  <div className="rr-n">{fastest ? fmtRaceTime(fastest.seconds ?? 0) : "—"}</div>
                   <div className="rr-k">
                     Fastest 5,000 m in the room{fastest ? ` · ${fastest.name}` : ""}
                   </div>

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { CHALLENGE, fmtRecordTime, fmtRowerNumber } from "@/lib/row100k";
+import { CHALLENGE, computeBoards, fmtRecordTime, fmtRowerNumber, type Boards } from "@/lib/row100k";
 import { boardData } from "./boardData";
 import { parseRole, type RaceDef, type RaceRole } from "./raceday";
 
@@ -9,10 +9,20 @@ import { parseRole, type RaceDef, type RaceRole } from "./raceday";
  * name, number and handle) and the one number the list prints, their
  * fastest 5k.
  *
- * The 5k comes off the SAME record the site computes everywhere else
+ * The 5k comes off the SAME record rule the site computes everywhere else
  * (lib/row100k computeBoards fastest[5000] — best normalized time from any
  * piece of at least 5,000 m), so the racer list can never disagree with the
- * records page about who is quickest.
+ * records page about what counts as a 5k.
+ *
+ * BUT OVER EVERY ROW BEFORE THE RACE, not the board of the month (owner,
+ * 2026-10-01: "people who clearly rowed their fastest 5K on the night are
+ * not marked"). The seed used to be boardData().fastest[5000], which is the
+ * month the CLOCK is in — so on October 1 every racer read FIRST 5K, and in
+ * September the race-night 5,000 m that rowers logged to their own feed was
+ * in the board already and nobody could ever beat their own race time. The
+ * baseline is now every row dated BEFORE race day, all time (raceBaseline
+ * below), so the race is measured against what the rower came in with and
+ * nothing they logged on or after the night.
  *
  * BLACKOUT: a 5k TIME is public even for one of the elite (blackoutRules
  * hides their meters, not their clock — maskBoards never touches the
@@ -56,7 +66,9 @@ export type Racer = {
   withdrewAt: string | null;
   note: string;
   createdAt: string;
-  /* Their fastest 5k this September, null when they have not rowed one. */
+  /* Their fastest 5k COMING IN — every row dated before race day, all
+   * time — null when they have not rowed one. `prorated`: the pace of a
+   * longer piece normalised to 5,000 m, not a 5k they sat down and rowed. */
   best5k: { seconds: number; text: string; day: string; prorated: boolean } | null;
   /* Their September total. 0 on a row the blackout masks — never print it. */
   meters: number;
@@ -79,6 +91,27 @@ export type Racer = {
 };
 
 export const EMPTY_RACERS: Racer[] = [];
+
+/* THE BASELINE: the fastest-5k board computed over every row the race's
+ * participants logged BEFORE race day (day < race.day, any month). The same
+ * computeBoards rule the records page runs, handed a cut of the rows rather
+ * than the month's. Throws on a database failure; listRacers catches it and
+ * seeds nobody, the way the board read always failed. */
+async function raceBaseline(race: RaceDef, participantIds: string[]): Promise<Boards["fastest"][5000]> {
+  if (participantIds.length === 0) return [];
+  const [participants, entries] = await Promise.all([
+    db.rowParticipant.findMany({
+      where: { id: { in: participantIds }, challenge: CHALLENGE },
+      select: { id: true, displayName: true, instagram: true, division: true, rowerNumber: true },
+    }),
+    db.rowEntry.findMany({
+      where: { challenge: CHALLENGE, participantId: { in: participantIds }, day: { lt: race.day } },
+      select: { participantId: true, day: true, meters: true, seconds: true },
+      orderBy: [{ day: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  return computeBoards(participants, entries, race.day).fastest[5000];
+}
 
 /* Every signup for the race, withdrawals included, in the order they put
  * their names in (newest last). The page decides who to show; the wave
@@ -147,13 +180,13 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
     console.error(`row100k raceday: rower lookup failed for ${race.slug}`, err);
   }
 
-  // The 5k and the meters, off the public board. Its own failure costs the
-  // times, not the list.
+  // The 5k coming in, off every row before race day (raceBaseline), and
+  // the month's meters off the public board. Each read's own failure costs
+  // its number, not the list.
   const best = new Map<string, Racer["best5k"]>();
   const meters = new Map<string, number>();
   try {
-    const boards = await boardData();
-    for (const r of boards.fastest[5000]) {
+    for (const r of await raceBaseline(race, ids)) {
       best.set(r.participantId, {
         seconds: r.value,
         text: fmtRecordTime(r.value),
@@ -161,6 +194,11 @@ export async function listRacers(race: RaceDef): Promise<Racer[]> {
         prorated: !!r.prorated,
       });
     }
+  } catch (err) {
+    console.error(`row100k raceday: baseline read failed for ${race.slug}`, err);
+  }
+  try {
+    const boards = await boardData();
     for (const r of boards.total) meters.set(r.participantId, r.masked ? 0 : r.meters);
   } catch (err) {
     console.error(`row100k raceday: board read failed for ${race.slug}`, err);

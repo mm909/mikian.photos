@@ -52,12 +52,16 @@ export function BarAccount({
   signedIn,
   rowerNumber,
   admin,
+  raceOver,
   defaultOpen,
 }: {
   signedIn: boolean;
   rowerNumber: number | null;
   /** Row100k admin — shows the ADMINISTRATION / RACE DAY / DEVELOPMENT groups. */
   admin?: boolean;
+  /** The race has been run (raceday.ts raceOver, resolved by RowBar off the
+   * code clock): the first RACE DAY line is the archive, not a sign-up. */
+  raceOver?: boolean;
   /** Dev preview only — render with the menu already open. */
   defaultOpen?: boolean;
 }) {
@@ -144,8 +148,11 @@ export function BarAccount({
                  * puts them in waves and times them, the ergs, the live
                  * board while they are racing, the results, and the wall. */}
                 <Eyebrow>Race day</Eyebrow>
+                {/* THE ARCHIVE once the race is run (owner, 2026-10-01: no
+                  * menu may push a sign-up for a race that has happened; a
+                  * plain Race day link to the archive is fine). */}
                 <Link className="acct-item" href="/row100k/raceday" onClick={close}>
-                  Sign-up page →
+                  {raceOver ? "Race day →" : "Sign-up page →"}
                 </Link>
                 <Link className="acct-item" href="/row100k/raceday/print" onClick={close}>
                   Print flyers →

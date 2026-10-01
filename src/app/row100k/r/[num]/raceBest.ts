@@ -2,7 +2,7 @@ import { inPeriod, pacificDayKey, type Period } from "@/lib/rowPeriod";
 import type { RaceDef } from "../../raceday";
 import { listRacers } from "../../racedayData";
 import { resolvedRace } from "../../racedaySettings";
-import { fmtTenths } from "../../raceResults";
+import { fmtRaceTime } from "../../raceresults/types";
 import type { ProfileBest } from "./looks/view";
 
 /* THE RACE DAY LINE on a rower's profile (owner, 2026-09-28, the morning
@@ -12,6 +12,10 @@ import type { ProfileBest } from "./looks/view";
  * their own board — the medal chip the other bests wear, top ten only.
  * Nothing until the owner has posted a time; a spectator or a withdrawn
  * entry gets nothing. A race time is never masked: it was on the wall.
+ *
+ * WHOLE SECONDS, FLOORED (owner, 2026-10-01), like every race surface:
+ * 21:41.1 prints 21:41 here as it does on the sheet (raceresults/types.ts
+ * fmtRaceTime). The other bests on the table keep their tenth.
  *
  * Fails open: a signup read that hiccups costs the line, never the page. */
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -45,7 +49,7 @@ export async function raceDayBest(participantId: string, period: Period): Promis
     return {
       key: "raceday",
       label: "Race day 5k",
-      value: fmtTenths(me.tenths),
+      value: fmtRaceTime(me.tenths / 10),
       sub: `${where}${field.length > 1 ? ` · ${ordinal(place)} of ${field.length}${label ? ` ${label.toLowerCase()}` : ""}` : ""}`,
       place: place >= 1 && place <= 10 ? place : null,
       href: "/row100k/raceday/results",

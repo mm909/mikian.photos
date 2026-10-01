@@ -197,6 +197,26 @@ export type ShareData = {
      * keeps all three. The owner asked for the wave card, not for the race
      * day event cards in every told racer's picker. */
     waveOnly?: boolean;
+    /* A RACER'S TIME (owner, 2026-10-01: "a share image per racer in the
+     * style of the winners box — the big bold time, the name, the wave")
+     * — unlocks the three RACE TIME cards and nothing else. Set by the
+     * archive's SHARE YOUR TIME picker (raceresults/ShareTime.tsx) off the
+     * finished board, display-ready: the time already floored to the
+     * second (types.ts fmtRaceTime), the split likewise, the day off the
+     * bill's `when`. `tag` is the one mark the sheet gives a time (types.ts
+     * raceTag) so the card can never say PR where the sheet does not. */
+    time?: {
+      /* "21:41" */
+      time: string;
+      /* "LINDSAY ENSING" */
+      name: string;
+      wave: number;
+      /* "2:10" — per 500 m. */
+      split: string;
+      /* "SUN SEP 27" */
+      day: string;
+      tag: "PR" | "FIRST 5K" | null;
+    };
   };
 };
 
@@ -2226,6 +2246,198 @@ const rowtemberRaceDayWave: ShareCard = {
  * two never look like they disagree. */
 export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id, rowtemberRaceDayWave.id];
 
+/* ---------------------------------------------------- the race time cards */
+
+/* A RACER'S TIME, THREE WAYS (owner, 2026-10-01: "a share image per racer
+ * in the style of the winners box — the big bold time (whole seconds), the
+ * name, the wave, in Archivo Black — with THREE looks the racer picks from:
+ * black on white, white on black, and black text on transparent").
+ *
+ * ONE DRAWING, THREE GROUNDS. The composition is the finished sheet's
+ * first-place block laid out on a square: a mono masthead (ROWTEMBER · RACE
+ * DAY left, the day right), a thick rule, the time fitted to the measure,
+ * the name under it, WAVE N, a hairline, and the split with the one tag the
+ * sheet gives the time — PR, or FIRST 5K — in an outlined mono box. Left
+ * aligned and ruled, the way the page is, and not centred the way the
+ * stickers above are: this is a RESULT, and a result is a line on a sheet.
+ *
+ * NO BOX AROUND IT, whatever the place (owner: "no border/box around
+ * 2nd/3rd — the current second-place frame style is out"), so the three
+ * looks differ only in what the ground is painted: white under ink, ink
+ * under white, or nothing under ink. NO SHADOW on any of them — the ink
+ * ones sit on paper or on their own ink; the transparent one is ink type
+ * meant for a light photograph, and a halo under black type is mud.
+ *
+ * THE BLOCK IS CENTRED VERTICALLY off its own measured height, so a long
+ * name that fits at a smaller size does not leave the sheet bottom-heavy. */
+type TimeLook = "paper" | "ink" | "clear";
+
+function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: ShareFonts, look: TimeLook, W: number, H: number) {
+  const race = data.race;
+  const t = race?.time;
+  if (!race || !t) return;
+  const M = 72;
+  const measure = W - M * 2;
+  const ink = look === "ink" ? "#ffffff" : INK;
+  /* No alpha on the transparent look: a seven-tenths ink over a photograph
+   * is whatever the photograph is, so the wave and the hairline go solid
+   * there and quieter only where the card paints its own ground. */
+  const dim = look === "ink" ? "rgba(255,255,255,0.72)" : look === "paper" ? "rgba(21,23,26,0.7)" : INK;
+  const rule = look === "ink" ? "rgba(255,255,255,0.35)" : look === "paper" ? "rgba(21,23,26,0.3)" : INK;
+
+  if (look === "paper") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+  } else if (look === "ink") {
+    ctx.fillStyle = INK;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* Measure first, so the whole block can be centred on the sheet. */
+  const timeSize = fitToWidth(ctx, t.time, fonts.black, measure, 360);
+  const name = t.name.toUpperCase();
+  const nameSize = fitToWidth(ctx, name, fonts.black, measure, 112);
+  const waveText = `WAVE ${Math.max(1, Math.floor(t.wave))}`;
+  const waveSize = 64;
+  const mastSize = 26;
+  const footSize = 28;
+  const lead = { mast: 34, time: 44, name: 30, wave: 44, hair: 30, foot: 36 };
+  const block =
+    mastSize * 0.72 + lead.mast + 6 +
+    timeSize * 0.72 + lead.time +
+    nameSize * 0.72 + lead.name +
+    waveSize * 0.72 + lead.wave +
+    lead.hair + 2 +
+    lead.foot + footSize * 0.72;
+  let y = Math.max(M, (H - block) / 2);
+
+  ctx.save();
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+
+  /* The masthead: the event left, the day flush right, tracked mono caps. */
+  const mastL = `ROWTEMBER · ${race.title.toUpperCase()}`;
+  const mastR = t.day.toUpperCase();
+  ctx.font = `bold ${mastSize}px ${fonts.mono}`;
+  ctx.fillStyle = ink;
+  y += mastSize * 0.72;
+  drawTrackedLeft(ctx, mastL, M, y, 4);
+  const rW = trackedWidth(ctx, mastR, 4);
+  drawTrackedLeft(ctx, mastR, W - M - rW, y, 4);
+  y += lead.mast;
+  ctx.fillStyle = ink;
+  ctx.fillRect(M, y, measure, 6);
+  y += 6;
+
+  /* The time, the biggest thing on the sheet, flush to the measure. */
+  y += lead.time + timeSize * 0.72;
+  ctx.font = `${timeSize}px ${fonts.black}`;
+  ctx.fillStyle = ink;
+  ctx.fillText(t.time, M, y, measure);
+
+  /* The name. */
+  y += lead.name + nameSize * 0.72;
+  ctx.font = `${nameSize}px ${fonts.black}`;
+  ctx.fillText(name, M, y, measure);
+
+  /* The wave. */
+  y += lead.wave + waveSize * 0.72;
+  ctx.font = `${waveSize}px ${fonts.black}`;
+  ctx.fillStyle = dim;
+  ctx.fillText(waveText, M, y, measure);
+
+  /* The hairline and the foot: the split, and the one tag the sheet gave
+   * this time, drawn as the page draws it — mono caps in a 2px box. */
+  y += lead.hair;
+  ctx.fillStyle = rule;
+  ctx.fillRect(M, y, measure, 2);
+  y += 2 + lead.foot + footSize * 0.72;
+  ctx.font = `bold ${footSize}px ${fonts.mono}`;
+  ctx.fillStyle = ink;
+  const foot = `${t.split} /500`;
+  drawTrackedLeft(ctx, foot, M, y, 4);
+  if (t.tag) {
+    const tagSize = 22;
+    ctx.font = `bold ${tagSize}px ${fonts.mono}`;
+    const tw = trackedWidth(ctx, t.tag, 4);
+    const padX = 14;
+    const boxH = tagSize * 0.72 + 22;
+    const x = M + trackedWidth(ctx, foot, 4, `bold ${footSize}px ${fonts.mono}`) + 36;
+    const top = y - footSize * 0.72 - (boxH - footSize * 0.72) / 2;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = ink;
+    ctx.strokeRect(x, top, tw + padX * 2, boxH);
+    ctx.font = `bold ${tagSize}px ${fonts.mono}`;
+    drawTrackedLeft(ctx, t.tag, x + padX, top + (boxH + tagSize * 0.72) / 2, 4);
+  }
+  ctx.restore();
+}
+
+/* Tracked mono, LEFT aligned, at the current ctx.font and fillStyle — the
+ * page's masthead idiom. drawCenteredText only centres. */
+function drawTrackedLeft(ctx: CanvasRenderingContext2D, text: string, x: number, baseline: number, tracking: number) {
+  let cx = x;
+  for (const c of [...text]) {
+    ctx.fillText(c, cx, baseline);
+    cx += ctx.measureText(c).width + tracking;
+  }
+}
+
+function trackedWidth(ctx: CanvasRenderingContext2D, text: string, tracking: number, font?: string): number {
+  ctx.save();
+  if (font) ctx.font = font;
+  const chars = [...text];
+  const w = chars.reduce((s, c) => s + ctx.measureText(c).width, 0) + tracking * (chars.length - 1);
+  ctx.restore();
+  return w;
+}
+
+const TIME_W = 1080;
+const TIME_H = 1080;
+
+const rowtemberRaceTimePaper: ShareCard = {
+  id: "rowtember-raceday-time-paper",
+  label: "Black on white",
+  width: TIME_W,
+  height: TIME_H,
+  light: false,
+  available: (d) => !!d.race?.time,
+  draw(ctx, data, fonts) {
+    drawRaceTime(ctx, data, fonts, "paper", this.width, this.height);
+  },
+};
+
+const rowtemberRaceTimeInk: ShareCard = {
+  id: "rowtember-raceday-time-ink",
+  label: "White on black",
+  width: TIME_W,
+  height: TIME_H,
+  light: true,
+  available: (d) => !!d.race?.time,
+  draw(ctx, data, fonts) {
+    drawRaceTime(ctx, data, fonts, "ink", this.width, this.height);
+  },
+};
+
+/* Ink type on nothing: a PNG with alpha, for a light photograph. The
+ * preview stage shows it on paper (light: false). */
+const rowtemberRaceTimeClear: ShareCard = {
+  id: "rowtember-raceday-time-clear",
+  label: "Transparent",
+  width: TIME_W,
+  height: TIME_H,
+  light: false,
+  available: (d) => !!d.race?.time,
+  draw(ctx, data, fonts) {
+    drawRaceTime(ctx, data, fonts, "clear", this.width, this.height);
+  },
+};
+
+/* The archive picker's `only`: the three looks, nothing else. Same
+ * guarantee as RACE_CARD_IDS — the payload is a racer's result and nothing
+ * about their month, so no total card may be reachable from it. */
+export const RACE_TIME_CARD_IDS = [rowtemberRaceTimePaper.id, rowtemberRaceTimeInk.id, rowtemberRaceTimeClear.id];
+
 /* ------------------------------------------------------- community cards */
 
 /* "561k" for a community-scale day; the month can push a single day past a
@@ -3031,6 +3243,11 @@ export const CARDS: ShareCard[] = [
   // MY WAVE (owner, 2026-09-16): a told wave, on race day and on the
   // rower's own deck.
   rowtemberRaceDayWave,
+  // A RACER'S TIME, three looks (owner, 2026-10-01), off the archive's
+  // SHARE YOUR TIME picker. The paper one first: it is the sheet.
+  rowtemberRaceTimePaper,
+  rowtemberRaceTimeInk,
+  rowtemberRaceTimeClear,
   rowtemberCommunityMonth,
   rowtemberCommunityTotal,
   rowtemberCommunityToday,
