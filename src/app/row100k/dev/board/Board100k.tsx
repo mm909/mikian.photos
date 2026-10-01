@@ -56,6 +56,8 @@ export type BoardMe = {
 
 type Reply = { ok?: boolean; in?: boolean; error?: string };
 type Placed = BoardRow & { rank: number | null };
+/* Where OPT IN was pressed: a refusal is printed there, not a screen away. */
+type Ask = "strip" | "gap";
 type Block = { kind: "gap" } | { kind: "tier"; tier: BoardTier; items: (Placed | "gap")[] };
 
 const ASKED = (month: string) => `row100k.b100k.asked.${month}`;
@@ -96,7 +98,7 @@ export function Board100k({
   const [inNow, setInNow] = useState(me?.in ?? false);
   const [count, setCount] = useState(count0);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<{ at: Ask; say: string } | null>(null);
   const [asked, setAsked] = useState(false);
   /* Set by a successful OPT IN: the new row is brought into view once. */
   const [landed, setLanded] = useState(false);
@@ -173,8 +175,11 @@ export function Board100k({
   /* OPT IN, for a rower on the roster. A stranger and an account that
    * never joined get a link instead (below), not this. The row goes on the
    * board and the count goes up on the press, before the answer; a refusal
-   * takes both back and says so under the strip. */
-  const optIn = async () => {
+   * takes both back and says so where it was pressed — under the strip, or
+   * under the dashed line, which can be sixty rows down the page from the
+   * strip (review, 2026-10-01: pressed there, the row came and went and the
+   * one line that said why was off the screen). */
+  const optIn = async (at: Ask) => {
     if (busy || !me || inNow) return;
     setBusy(true);
     setErr(null);
@@ -186,7 +191,7 @@ export function Board100k({
       setLanded(false);
       setInNow(false);
       setCount((c) => Math.max(0, c - 1));
-      setErr(why);
+      setErr({ at, say: why });
     };
     try {
       const res = await fetch("/api/row100k/month-optin", { method: "POST" });
@@ -276,11 +281,16 @@ export function Board100k({
   /* The dashed line. On an empty board there is no column to sit in, so
    * the words start on the measure (.solo). */
   const gap = (key: string): ReactNode => (
-    <div key={key} role="row">
+    <div key={key} className="bd-ask" role="row">
       <div role="cell">
-        <button type="button" className={any ? "bd-gap" : "bd-gap solo"} onClick={() => void optIn()} disabled={busy}>
+        <button type="button" className={any ? "bd-gap" : "bd-gap solo"} onClick={() => void optIn("gap")} disabled={busy}>
           <span>Opt in to be on this board</span>
         </button>
+        {err?.at === "gap" ? (
+          <p className="bd-say at" role="alert">
+            {err.say}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -349,11 +359,11 @@ export function Board100k({
         </div>
 
         <div className="bd-strip">
-          <span className="t">
-            The {month.name} 100K · {count} in
-          </span>
+          {/* No count over a board that could not be read: "0 in" would
+              be a number nobody counted. */}
+          <span className="t">{unreadable ? `The ${month.name} 100K` : `The ${month.name} 100K · ${count} in`}</span>
           {inNow || unreadable ? null : me ? (
-            <button type="button" className="bd-ctl" onClick={() => void optIn()} disabled={busy}>
+            <button type="button" className="bd-ctl" onClick={() => void optIn("strip")} disabled={busy}>
               Opt in
             </button>
           ) : (
@@ -364,9 +374,9 @@ export function Board100k({
             </Link>
           )}
         </div>
-        {err ? (
+        {err?.at === "strip" ? (
           <p className="bd-say" role="alert">
-            {err}
+            {err.say}
           </p>
         ) : null}
 
@@ -438,7 +448,7 @@ export function Board100k({
           Your {month.word} rows count toward it. You are on the board.
         </p>
         <div className="bd-acts">
-          <button type="button" className="bd-ctl big" onClick={() => void optIn()} disabled={busy}>
+          <button type="button" className="bd-ctl big" onClick={() => void optIn("strip")} disabled={busy}>
             Opt in
           </button>
           <button type="button" className="bd-quiet" onClick={closeSheet}>

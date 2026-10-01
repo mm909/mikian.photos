@@ -89,13 +89,20 @@ export const board100kCss = `
 .row100k .bd-row.me .bd-rk,.row100k .bd-row.me .bd-who .n{color:var(--water);font-weight:700}
 
 /* THE DASHED LINE where the row of a rower who is not in would sit. The
- * whole line is the control; the words sit in the rower column. */
-.row100k .bd-gap{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:10px;align-items:center;width:100%;margin-top:-1px;padding:11px 0 10px;background:none;border:0;border-top:1px dashed var(--ink);border-bottom:1px dashed var(--ink);border-radius:0;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:20px;letter-spacing:.16em;text-transform:uppercase;text-align:left;color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+ * whole line is the control; the words sit in the rower column. Its top
+ * dash lies on the hairline of the row above, so that row gives its
+ * hairline up and the line is drawn over whatever else is there (review,
+ * 2026-10-01: on paper the hairline covered the top dash and the line was
+ * dashed below only). */
+.row100k .bd-row:has(+ .bd-ask) .bd-in{border-bottom-color:transparent}
+.row100k .bd-gap{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:10px;align-items:center;width:100%;margin-top:-1px;padding:11px 0 10px;background:none;border:0;border-top:1px dashed var(--ink);border-bottom:1px dashed var(--ink);border-radius:0;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:20px;letter-spacing:.16em;text-transform:uppercase;text-align:left;color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .row100k .bd-gap span{grid-column:2;justify-self:start;border-bottom:2px solid var(--water);line-height:1.5;padding-bottom:2px}
 .row100k .bd-gap.solo span{grid-column:1 / -1}
 .row100k .bd-gap:hover span{color:var(--water);border-bottom-width:4px;padding-bottom:0}
 .row100k .bd-gap:disabled{color:var(--gray);cursor:default}
 .row100k .bd-gap:focus-visible{outline-offset:-2px}
+/* A refusal, under the dashed line it was pressed on. */
+.row100k .bd-say.at{margin-top:0;padding:10px 0 9px;border-bottom:1px solid var(--line)}
 
 /* Nobody in: one plain line. */
 .row100k .bd-none{padding:14px 0 13px;border-bottom:1px solid var(--line);font-size:11px;line-height:1.5;letter-spacing:.16em;text-transform:uppercase;color:var(--gray)}
