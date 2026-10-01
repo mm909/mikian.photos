@@ -1,44 +1,50 @@
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { GOAL_METERS, MONTH, MONTH_DAYS, MONTH_WORD, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
-import { nextMonth } from "@/lib/rowPeriod";
+import { INK, PAPER, accentOn, capsOn, type Palette, type PaletteGround } from "@/lib/rowPalette";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
-import { Heatmap } from "../Heatmap";
-import { OptIn } from "../OptIn";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { LandingCards } from "../landing/LandingCards";
 import type { LandingData, LandingExample } from "../landing/data";
+import { MeterCount } from "../landing/MeterCount";
+import type { ShareData } from "../share/cards";
+import { L4Cards } from "./L4Cards";
 import { l1Css } from "./l1Css";
-import { loadL1, type L1Rung } from "./l1Data";
 
-/* LANDING 1 — THE DARE (owner brief, 2026-09-30: the landing has to turn
- * someone who tapped a link on Instagram into a rower; the month's goal is
- * the 100K, the tracking is the second reason, OPT IN is the one action,
- * and the fold is its own look with the detail under it).
+/* THE DARE — the front page for every stranger (owner brief, 2026-09-30:
+ * the landing has to turn someone who tapped a link on Instagram into a
+ * rower; the month's goal is the 100K, the tracking is the second reason,
+ * OPT IN is the one action). Picked from five drafts the same day ("the
+ * best one so far") and cut to his notes: ink ground, white type, ONE
+ * accent, the brand white, black and red.
  *
- * THE FOLD IS A POSTER, in ink: one sentence, each line fitted flush to the
- * measure so it is as large as the phone allows, then OPT IN where a thumb
- * lands and one mono line of facts. No number of anybody's, no board.
- * Under it the page turns to cream and answers in order: how a meter
- * counts, the rungs on the way, what a rower gets, the month so far — and
- * then closes in ink on OPT IN again, with the number the next rower gets.
+ * THE FOLD IS A POSTER: the dateline with the month's days as a strip,
+ * the eyebrow, one sentence fitted flush to the measure line by line with
+ * the month in the accent, then the two live figures — ROWERS and METERS,
+ * this month, the meters counting up — and OPT IN as a block where a thumb
+ * lands. No arithmetic, no countdown, no chips, no sign-in talk.
  *
- * It wears theme.ts .chrome-ink, so the bar and the footer are ink and
- * belong to the two ink ends of the page; the bar is NOT sticky here, so it
- * leaves with the poster and never hangs black over the cream. The bar
- * resolves the viewer itself; a joined rower never sees this page at all
- * (p1/page.tsx sends them to the front page), and for everyone else the
- * bar's SIGN IN chip is hidden (l1Css.ts) so OPT IN is the one door.
+ * UNDER IT, still on the same ground: how a meter counts in three lines,
+ * the cards a rower posts after a row (the share dialog's own month and
+ * profile cards, painted off one real rower's month — L4Cards), the number
+ * the next rower gets, OPT IN again, the footer.
  *
- * Reviewed twice (2026-09-30) and cut to what the reviews asked: the day
- * line on the fold, the empty rungs above the club folded into one line,
- * the pace curve gone (5px axis labels on a phone), the cards leading
- * WHAT YOU GET with the bests as one line of facts, and an empty-month
- * state for the 1st, when the Instagram link goes out. */
+ * THE GROUND AND THE ACCENT COME FROM THE PALETTE (rowPalette.ts): ink or
+ * paper (ink whatever the preset says under the site's ink look —
+ * sitePalette.ts landingGround), and the accent cut for it. The page sets
+ * them as variables on its root (--l1-*) and the sheet (l1Css.ts) reads
+ * nothing else, so one sheet serves every preset. On ink it wears theme.ts
+ * .chrome-ink, so the bar and the footer are ink too; the bar is NOT
+ * sticky here, and its SIGN IN chip is hidden (l1Css.ts) so OPT IN is the
+ * one door. A joined rower, or any signed-in account, never sees this page
+ * (page.tsx renders the front). */
 
 /* OPT IN goes to the Rowtember sign-in and lands back on the front page at
  * #join (the same place the front page OPT IN sends a stranger). */
 const SIGN_IN = "/row100k/sign-in?callbackUrl=%2Frow100k%23join";
+
+/* What the tiles paint when there is no rower to draw: the mark alone. */
+const BARE: ShareData = { displayName: "", rowerNumber: 0, instagram: "", meters: 0, sessions: 0, byDay: {} };
 
 /* ARCHIVO BLACK, as a share of the em — the advances and every kerned pair
  * of the face the page loads, the same measurement raceday/page.tsx fits
@@ -76,7 +82,7 @@ const KERN: Record<string, number> = {
   XG: -0.034, XO: -0.034, YA: -0.094, YC: -0.06, YG: -0.06, YO: -0.06,
   YS: -0.043, "Y,": -0.162, "Y.": -0.17,
 };
-/* The display lines are tracked at -.02em (l1Css.ts .l1-dare, .l1-total).
+/* The display lines are tracked at -.02em (l1Css.ts .l1-dare, .l1-next).
  * Counted on the gaps, not the glyphs: CSS tracks after the last character
  * too, and it is the ink that has to reach the edge. */
 const TRACK = 0.02;
@@ -97,81 +103,35 @@ const kl = (n: number): CSSProperties => ({ "--kl": n.toFixed(3) }) as CSSProper
 
 const num = (n: number) => n.toLocaleString("en-US");
 
-/* One fact of a mono line, kept whole: a number split from its unit is the
- * one wrap the house never allows, so a line of these can only break on a
- * dot. */
-function Nb({ children }: { children: React.ReactNode }) {
-  return <span className="l1-nb">{children}</span>;
-}
-
 /* The dots between facts, with a break allowed on either side. */
 const DOT = " · ";
 
-function Opt() {
+/* THE DATELINE, from the clock draft (L5, 2026-09-30): the month on the
+ * left, the day of it on the right, a 2px rule, then one cell per day with
+ * the days gone — today with them — filled. */
+function Dateline({ today }: { today: number }) {
   return (
-    <div className="l1-go">
-      <OptIn href={SIGN_IN}>Opt in</OptIn>
+    <div className="l1-top">
+      <p className="l1-date mono">
+        <b>{MONTH.label}</b>
+        <span>
+          Day {today} of {MONTH_DAYS}
+        </span>
+      </p>
+      <div className="l1-days" role="img" aria-label={`Day ${today} of ${MONTH_DAYS}`}>
+        {Array.from({ length: MONTH_DAYS }, (_, i) => (
+          <i key={i} className={i < today ? "on" : undefined} />
+        ))}
+      </div>
     </div>
-  );
-}
-
-function Facts() {
-  return (
-    <p className="l1-facts mono">
-      <Nb>Free</Nb>
-      {DOT}
-      <Nb>Any erg</Nb>
-      {DOT}
-      <Nb>A minute to join</Nb>
-    </p>
-  );
-}
-
-/* What the 100K asks of a day from today, in one line: the meters, the
- * minutes at the pace the board averages, the days. On the fold, under the
- * dare, because it is the fact that makes the dare doable; on the 100K
- * rung again, where it belongs. */
-function DayLine({
-  perDay,
-  minutes,
-  daysLeft,
-  className,
-  daysFirst,
-}: {
-  perDay: number;
-  minutes: number | null;
-  daysLeft: number;
-  className: string;
-  daysFirst?: boolean;
-}) {
-  const days = (
-    <Nb>
-      {daysLeft} {daysLeft === 1 ? "day" : "days"} left
-    </Nb>
-  );
-  const rate = (
-    <>
-      <Nb>{num(perDay)} m a day</Nb>
-      {minutes ? (
-        <>
-          {DOT}
-          <Nb>{num(minutes)} min</Nb>
-        </>
-      ) : null}
-    </>
-  );
-  return (
-    <p className={`${className} mono`}>
-      {daysFirst ? days : rate}
-      {DOT}
-      {daysFirst ? rate : days}
-    </p>
   );
 }
 
 /* THE POSTER. Four lines on a phone, each its own size so each ends on the
  * measure; two lines from 900px, where four would be taller than a laptop.
- * The month line never outgrows the line above it (MAY is a short word). */
+ * The month line never outgrows the line above it (MAY is a short word).
+ * The month is the one word in the accent — it is a headline, and the
+ * month is the news. */
 function Dare() {
   const goal = num(GOAL_METERS);
   const row = "Row";
@@ -194,10 +154,45 @@ function Dare() {
           {meters}
         </span>{" "}
         <span className="l1-w" style={k(Math.max(fitK(month), fitK(meters)))}>
-          {month}
+          in <em>{MONTH_WORD}</em>
         </span>
       </span>
     </h1>
+  );
+}
+
+/* THE TWO LIVE FIGURES: rowers with a meter this month, and everyone's
+ * meters together, counting up (MeterCount). Mono cap labels, tabular
+ * figures; two ruled rows on a phone, two cells from 640px. */
+function Live({ rowers, meters }: { rowers: number; meters: number }) {
+  return (
+    <dl className="l1-live">
+      <div>
+        <dt className="mono">Rowers</dt>
+        <dd>{num(rowers)}</dd>
+      </div>
+      <div>
+        <dt className="mono">Meters</dt>
+        <dd>
+          <MeterCount value={meters} />
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+/* OPT IN as a block in the accent: the one control on the page, where a
+ * thumb lands. */
+function Go() {
+  return (
+    <div className="l1-act">
+      <Link className="l1-cta mono" href={SIGN_IN}>
+        <span>Opt in</span>
+        <span className="arr" aria-hidden="true">
+          →
+        </span>
+      </Link>
+    </div>
   );
 }
 
@@ -232,270 +227,106 @@ function Steps() {
   );
 }
 
-/* THE RUNGS, top rung on top, the way a ladder stands: the distance, what
- * the board calls it, how many rowers are on or past it this month (the
- * bar is that count against every rower on the board), and the same count
- * for the month that closed. The 100K rung is the one in water, with what
- * it asks of a day from today.
- *
- * A rung above the club that nobody stood on this month or last is not a
- * row of zeros: those fold into one grey line at the top of the ladder,
- * so the first rung a stranger reads is the 100K. And while this month's
- * board is still empty (the 1st), the big figure on each rung is last
- * month's count and the bars are drawn off last month's board. */
-function Ladder({
-  rungs,
-  active,
-  prevActive,
-  prevWord,
-  empty,
-  perDay,
-  minutes,
-  daysLeft,
-}: {
-  rungs: L1Rung[];
-  active: number;
-  prevActive: number;
-  prevWord: string | null;
-  empty: boolean;
-  perDay: number;
-  minutes: number | null;
-  daysLeft: number;
-}) {
-  const top = [...rungs].reverse();
-  const bare = (r: L1Rung) => r.meters > GOAL_METERS && r.now === 0 && !r.prev;
-  const above = top.filter(bare);
-  const shown = top.filter((r) => !bare(r));
-  const usePrev = empty && prevWord !== null;
-  const base = usePrev ? prevActive : active;
-  return (
-    <ol className="l1-ladder">
-      {above.length > 0 ? (
-        <li className="l1-rung above">
-          <p className="sub">
-            <Nb>Above the club</Nb>
-            {above
-              .slice()
-              .reverse()
-              .map((r) => (
-                <span key={r.key}>
-                  {DOT}
-                  <Nb>{num(r.meters)} m</Nb>
-                </span>
-              ))}
-          </p>
-        </li>
-      ) : null}
-      {shown.map((r) => {
-        const goal = r.meters === GOAL_METERS;
-        const count = usePrev ? (r.prev ?? 0) : r.now;
-        const share = base > 0 ? Math.min(100, (count / base) * 100) : 0;
-        return (
-          <li key={r.key} className={goal ? "l1-rung goal" : "l1-rung"}>
-            <div className="top">
-              <span className="m">
-                {num(r.meters)} <em>m</em>
-              </span>
-              <span className="c">{num(count)}</span>
-            </div>
-            <div className="sub">
-              <span>{r.title ?? r.label}</span>
-              <span>
-                {usePrev
-                  ? `in ${prevWord}`
-                  : r.prev !== null && prevWord
-                    ? `${num(r.prev)} in ${prevWord}`
-                    : count === 1
-                      ? "rower"
-                      : "rowers"}
-              </span>
-            </div>
-            <div className="fill">
-              <i style={{ width: `${share.toFixed(1)}%` }} />
-            </div>
-            {goal ? <DayLine className="day" perDay={perDay} minutes={minutes} daysLeft={daysLeft} daysFirst /> : null}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/* WHAT YOU GET, off one real rower's month: the cards the share dialog
- * draws for a story (the Instagram reason, so they lead), the calendar,
- * and the bests as one line of facts under it. Not the profile strip the
- * three rejected landings carried, and no pace curve: its axis labels fall
- * to 5px on a phone. */
-function Get({ eg, today }: { eg: LandingExample; today: number }) {
+/* THE CARDS a rower posts after a row: the share dialog's month card and
+ * profile card, painted off the example rower's real month, each on an ink
+ * tile (owner, 2026-09-30: seeing that after a row you can post the card).
+ * With no rower to draw — the 1st, or the example masked by a blackout —
+ * the mark alone. */
+function Cards({ eg }: { eg: LandingExample | null }) {
   return (
     <>
-      <p className="l1-eg mono">
-        <b>Rower {fmtRowerNumber(eg.rowerNumber)}</b>
-        {DOT}
-        <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a>
-        {DOT}
-        <Nb>
-          {fmtMeters(eg.meters)} in {eg.sessions} {eg.sessions === 1 ? "row" : "rows"}
-        </Nb>
-      </p>
-      <div className="l1-get">
-        <figure className="l1-fig">
-          <figcaption>
-            <b>A</b> The cards you post
-          </figcaption>
-          <LandingCards data={eg.share} />
-        </figure>
-        <figure className="l1-fig">
-          <figcaption>
-            <b>B</b> {MONTH_WORD}, day by day
-          </figcaption>
-          <Heatmap byDay={eg.byDay} days={today} fullMonth />
-          <p className="l1-bests mono">
-            {eg.bests.map((b) => (
-              <Nb key={b.key}>
-                {b.label} <b>{b.value}</b>
-              </Nb>
-            ))}
-          </p>
-        </figure>
+      <div className={eg ? "l1-tiles" : "l1-tiles l1-bare"}>
+        {eg ? (
+          <L4Cards data={eg.share} ids={["rowtember-month", "rowtember-profile"]} />
+        ) : (
+          <L4Cards data={BARE} ids={["rowtember-logo"]} />
+        )}
       </div>
+      {eg ? (
+        <p className="l1-eg mono">
+          <b>Rower {fmtRowerNumber(eg.rowerNumber)}</b>
+          {DOT}
+          <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a>
+          {DOT}
+          <span className="l1-nb">
+            {fmtMeters(eg.meters)} in {eg.sessions} {eg.sessions === 1 ? "row" : "rows"}
+          </span>
+        </p>
+      ) : null}
     </>
   );
 }
 
-/* The same, in words, for the day the example rower has no meters yet (the
- * 1st) or is hidden by a blackout. */
-function GetWords() {
-  return (
-    <ol className="l1-steps">
-      {[
-        { h: "The cards", p: "Your month, drawn for a story." },
-        { h: "The month", p: "A calendar of every day you row." },
-        { h: "The bests", p: "Fastest 5K and 10K, longest row, biggest day." },
-      ].map((s, i) => (
-        <li key={s.h}>
-          <span className="n">{"ABC"[i]}</span>
-          <div>
-            <h3>{s.h}</h3>
-            <p>{s.p}</p>
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
+/* The page's colours, as variables the sheet reads: the ground, the type
+ * on it at the theme's four weights, the hairline, and the accent cut for
+ * that ground with the type a slab of it carries. The three water
+ * variables follow the accent so the focus ring and anything else from
+ * theme.ts agrees with the page. */
+function vars(p: Palette, ground: PaletteGround): CSSProperties {
+  const ink = ground === "ink";
+  const a = accentOn(p, ground);
+  return {
+    "--l1-bg": ink ? INK : "var(--paper)",
+    "--l1-fg": ink ? PAPER : INK,
+    "--l1-soft": ink ? "rgba(244,243,238,.74)" : "var(--ink-soft)",
+    "--l1-key": ink ? "rgba(244,243,238,.62)" : "var(--gray)",
+    "--l1-hair": ink ? "rgba(244,243,238,.26)" : "var(--line)",
+    "--l1-accent": a.accent,
+    "--l1-accent-hover": a.hover,
+    "--l1-caps": capsOn(a.accent),
+    "--water": a.accent,
+    "--water-hover": a.hover,
+    "--water-pale": a.pale,
+    background: "var(--l1-bg)",
+    color: "var(--l1-fg)",
+  } as CSSProperties;
 }
 
-function Cell({ n, l }: { n: string; l: string }) {
-  return (
-    <div className="c">
-      <div className="n">{n}</div>
-      <div className="l">{l}</div>
-    </div>
-  );
-}
-
-export async function L1({ data }: { data: LandingData }) {
-  const extra = await loadL1();
-
-  /* What the 100K asks of a day from today, and how long that is on the
-   * erg at the pace the whole board is averaging (this month, or all time
-   * while the month is still empty). */
-  const daysLeft = Math.max(1, MONTH_DAYS - data.today + 1);
-  const perDay = Math.ceil(GOAL_METERS / daysLeft);
-  const paced = data.month.meters > 0 && data.month.seconds > 0 ? data.month : data.all;
-  const minutes =
-    paced.meters > 0 && paced.seconds > 0 ? Math.max(1, Math.round((perDay * (paced.seconds / paced.meters)) / 60)) : null;
-
-  /* THE EMPTY MONTH: on the 1st, when the link goes out, nobody has a
-   * meter on the board yet. The rungs then show the month that closed and
-   * the SO FAR block shows all time — everything the page has already
-   * loaded — rather than five zeros and an empty shop. */
-  const empty = extra.active === 0 && data.month.sessions === 0;
-  const rungWord = empty && extra.prevWord ? extra.prevWord : MONTH_WORD;
-  const sum = empty ? data.all : data.month;
-  const total = num(sum.meters);
-  /* The one cell that reads 0 through the first days of any month, when it
-   * is no failing of anybody's: swap it for the all-time count. */
-  const finished =
-    sum.finished > 0 || data.all.finished === 0
-      ? { n: sum.finished, l: empty ? "reached 100K" : "at 100K already" }
-      : { n: data.all.finished, l: "at 100K, all time" };
-  const next = nextMonth(MONTH);
+/* `ground` is the preset's, or ink under the ink look (sitePalette.ts
+ * landingGround): the accent is the preset's cut for whichever it is. */
+export function L1({ data, palette, ground }: { data: LandingData; palette: Palette; ground: PaletteGround }) {
+  const today = Math.min(MONTH_DAYS, Math.max(1, data.today));
+  const ink = ground === "ink";
+  const root = ["row100k", "l1", ink ? "chrome-ink l1-ink" : "l1-paper", archivo.variable, archivoBlack.variable, spaceMono.variable].join(" ");
 
   return (
-    <div className={`row100k chrome-ink l1 ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
+    <div className={root} style={vars(palette, ground)} data-palette={palette.id}>
       <style>{css}</style>
       <style>{l1Css}</style>
-      <RowBar active="home" sticky={false} />
+      <RowBar active="home" sticky={false} signedIn={false} rowerNumber={null} admin={false} />
 
       <header className="l1-fold">
         <div className="wrap front l1-poster">
-          <p className="l1-eye mono">The monthly rowing machine challenge</p>
+          <Dateline today={today} />
+          <p className="l1-eye mono">The monthly rowing challenge</p>
           <Dare />
-          <DayLine className="l1-day" perDay={perDay} minutes={minutes} daysLeft={daysLeft} />
-          <div className="l1-act">
-            <Opt />
-            <Facts />
-          </div>
+          <Live rowers={data.month.active} meters={data.month.meters} />
+          <Go />
         </div>
       </header>
 
       <main className="l1-body">
         <div className="wrap front">
-          <section className="l1-sec first">
+          <section className="l1-sec">
             <Head label="How it counts" />
             <Steps />
           </section>
 
           <section className="l1-sec">
-            <Head label="The rungs" note={`Rowers on each · ${rungWord}`} />
-            <Ladder
-              rungs={extra.rungs}
-              active={extra.active}
-              prevActive={extra.prevActive}
-              prevWord={extra.prevWord}
-              empty={empty}
-              perDay={perDay}
-              minutes={minutes}
-              daysLeft={daysLeft}
-            />
-          </section>
-
-          <section className="l1-sec">
-            <Head label="What you get" note="Your own page" />
-            {data.example ? <Get eg={data.example} today={data.today} /> : <GetWords />}
-          </section>
-
-          <section className="l1-sec l1-month">
-            <Head label={empty ? "All time" : MONTH.label} note={empty ? "Every month" : "So far"} />
-            <div className="l1-total" style={k(fitK(total))}>
-              {total}
-            </div>
-            <p className="l1-total-l mono">Meters · everyone together</p>
-            <div className="l1-cells">
-              <Cell n={num(empty ? sum.rowers : extra.active)} l={empty ? "rowers" : "rowers on the board"} />
-              <Cell n={num(sum.sessions)} l="rows logged" />
-              <Cell n={num(finished.n)} l={finished.l} />
-              <Cell n={num(daysLeft)} l={daysLeft === 1 ? "day left" : "days left"} />
-            </div>
+            <Head label="The cards" note="After every row" />
+            <Cards eg={data.example} />
           </section>
         </div>
       </main>
 
       <section className="l1-close">
         <div className="wrap front">
-          {extra.nextNumber ? (
+          {data.nextNumber ? (
             <p className="l1-next">
-              Number {fmtRowerNumber(extra.nextNumber)} is next. <span>Yours for life.</span>
+              Number {fmtRowerNumber(data.nextNumber)} is next. <span>Yours for life.</span>
             </p>
           ) : null}
-          <div className="l1-act">
-            <Opt />
-            <Facts />
-          </div>
-          <p className="l1-reset mono">
-            Resets {next.short} 1 · Your number stays
-          </p>
+          <Go />
         </div>
       </section>
 

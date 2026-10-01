@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { PALETTE_COOKIE, isPaletteId } from "@/lib/rowPalette";
 
 /* The photo marketplace is off the air. Owner, 2026-09-25: "Make those
  * pages unreachable. No mikian.photos page should still be accessible."
@@ -40,8 +41,38 @@ function allowed(pathname: string): boolean {
   return false;
 }
 
+/* THE PALETTE PREVIEW (owner, 2026-09-30: try the colours live). Any
+ * /row100k URL carrying ?palette=<id> (rowPalette.ts) sets the preview
+ * cookie for this browser and comes straight back to the same URL without
+ * the query, so the page that then renders — the segment layout and the
+ * landing both read the cookie (sitePalette.ts) — already wears it. Any
+ * other value (?palette=off) clears the cookie and the site setting stands
+ * again. A session cookie: closing the browser ends the preview. */
+function paletteRedirect(req: NextRequest): NextResponse | null {
+  const url = req.nextUrl;
+  if (!url.pathname.startsWith("/row100k")) return null;
+  const want = url.searchParams.get("palette");
+  if (want === null) return null;
+  const back = url.clone();
+  back.searchParams.delete("palette");
+  const res = NextResponse.redirect(back, 307);
+  if (isPaletteId(want)) {
+    res.cookies.set({
+      name: PALETTE_COOKIE,
+      value: want,
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+    });
+  } else {
+    res.cookies.set({ name: PALETTE_COOKIE, value: "", path: "/", maxAge: 0 });
+  }
+  return res;
+}
+
 export function middleware(req: NextRequest) {
-  if (allowed(req.nextUrl.pathname)) return NextResponse.next();
+  if (allowed(req.nextUrl.pathname)) return paletteRedirect(req) ?? NextResponse.next();
   return NextResponse.redirect(new URL("/", req.url), 307);
 }
 

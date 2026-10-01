@@ -12,22 +12,22 @@ import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
 import { openRaffle, raffleDismissCookie } from "./raffles";
 
-/* The one bar every /row100k page wears: the Mikian.Musser wordmark (kept,
- * blue dot and all — owner call, 2026-09-05), then the nav rail with its
- * sliding pill (ROWTEMBER, the RACE DAY stamp while a race is announced
- * and open, THE BOARD — back on the rail 2026-09-25, pointing at the
- * total-meters rankings — STATS, FEED, PARTNERS in September), then
- * — for a joined rower — the LOG A ROW
- * button, then the sign-in / rower chip on the right. Server component: it
- * resolves the session itself unless the page already did and hands the
- * answer in.
+/* The one bar every /row100k page wears: the ROWTEMBER wordmark (owner,
+ * 2026-09-30: ROWTEMBER, never Mikian Musser — it was the Mikian.Musser
+ * wordmark from 2026-09-05 to then, with ROWTEMBER as the first item of
+ * the rail), then the nav rail with its sliding pill (the RACE DAY stamp
+ * while a race is announced and open, THE BOARD — back on the rail
+ * 2026-09-25, pointing at the total-meters rankings — STATS, FEED, PARTNERS
+ * in September), then — for a joined rower — the LOG A ROW button, then
+ * the sign-in / rower chip on the right. Server component: it resolves the
+ * session itself unless the page already did and hands the answer in.
  * `children` lands between the rail and the account chip for page tags.
  *
  * Layout: direct flex children (.bar-lead, the rail, .bar-log, .bar-right)
- * so the <=560px media query in theme.ts can reflow them into a deliberate
- * two-row bar — wordmark + ROWTEMBER + account up top, the section links
- * with LOG A ROW at their far right on their own ruled row below (the rail
- * dissolves to let ROWTEMBER cross over; see BarNav). */
+ * so the <=639px media query in theme.ts can reflow them into a deliberate
+ * two-row bar — wordmark + account up top, the section links with LOG A
+ * ROW at their far right on their own ruled row below (the rail dissolves
+ * into the bar; see BarNav). */
 export async function RowBar({
   active,
   sticky = true,
@@ -109,9 +109,9 @@ export async function RowBar({
         {/* The line along the top that says a tap landed (NavProgress.tsx). */}
         <NavProgress />
         <span className="bar-lead">
-          {/* Mikian Musser, hosting Rowtember — the landing wordmark leads. */}
-          <Link className="bar-brand" href="/">
-            Mikian<span className="dot">.</span>Musser
+          {/* The wordmark, to the front page. */}
+          <Link className="bar-brand" href="/row100k">
+            Rowtember
           </Link>
         </span>
         {/* RACE DAY on the rail rides the same switch as the race itself

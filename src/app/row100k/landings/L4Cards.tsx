@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { availableCards, prepareCard, type ShareCard, type ShareData, type ShareFonts } from "../share/cards";
 import { useShareFonts } from "../shareables/CardPreview";
 
-/* THE CARDS ON LANDING 4, painted: landing/LandingCards with two things
- * that landing needs (review, 2026-09-30) and the shared painter does not
- * have. (1) The canvas is sized off ITS OWN BOX and the device pixel
- * ratio, not a fixed 0.3 of the 1080 art: the fold's card is the one thing
- * a stranger is asked to believe is real, and a 324px bitmap shown at 226
- * CSS px on a 3x phone is a 2x upscale, smeared. (2) `ids` says which cards
- * to paint, so a tile that shows one card paints one, not three.
+/* THE CARD TILES ON THE LANDING, painted: landing/LandingCards with two
+ * things the landing needs (review, 2026-09-30, written for the card draft
+ * and kept for THE DARE, L1.tsx) and the shared painter does not have.
+ * (1) The canvas is sized off ITS OWN BOX and the device pixel ratio, not
+ * a fixed 0.3 of the 1080 art: the card is the one thing a stranger is
+ * asked to believe is real, and a 324px bitmap shown at 226 CSS px on a 3x
+ * phone is a 2x upscale, smeared. (2) `ids` says which cards to paint, so
+ * a tile that shows one card paints one, not three.
  *
  * `standIn` is whatever the server should print in the box until the
  * bitmap is there: this is a client component, so it server-renders with
@@ -84,7 +85,7 @@ function Card({
     try {
       card.draw(ctx, data, fonts.current ?? { black: "sans-serif", mono: "monospace" });
     } catch (err) {
-      console.error(`landing 4: ${card.id} failed to paint`, err);
+      console.error(`landing: ${card.id} failed to paint`, err);
     }
     ctx.restore();
     onPaint();

@@ -1,17 +1,22 @@
 import { revalidateTag, unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { CHALLENGE, CHALLENGE_DEMO, nowMs } from "@/lib/row100k";
+import { DEFAULT_PALETTE, PALETTE_COOKIE, isPaletteId, type PaletteId } from "@/lib/rowPalette";
 
 /* Site-wide switches for Rowtember (owner, 2026-09-16), read on every
  * /row100k request through the segment layout and written from the admin
  * pages through /api/row100k/settings.
  *
- * Three keys, each its own RowSetting row, each validated both ways:
+ * Five keys, each its own RowSetting row, each validated both ways:
  *
  *   look             "paper" | "ink" — the colour scheme the whole site
  *                    wears. Ink is white on black, for race week and after.
  *                    An admin can also preview ink on their own browser
  *                    alone through the LOOK_COOKIE (row100k/layout.tsx).
+ *   palette          which preset of rowPalette.ts the site wears (owner,
+ *                    2026-09-30): the landing's ground and the accent every
+ *                    page takes through --water. Previewed on one browser
+ *                    through PALETTE_COOKIE, set from ?palette=<id>.
  *   cards.off        the share card ids switched OFF in every picker
  *                    (share/cards.ts CARDS). The code default is the list
  *                    the owner retired on 2026-09-16; the shareables page
@@ -40,6 +45,9 @@ export const SETTINGS_TAG = "row100k-settings";
  * for anyone who carries it; only the settings route ever SETS it, and that
  * route is admin-only. A session cookie: closing the browser ends it. */
 export const LOOK_COOKIE = "row100k_look";
+/* The same for a palette. Lives in rowPalette.ts, which the middleware can
+ * import; re-exported here so the layout reads both names from one place. */
+export { PALETTE_COOKIE };
 
 export type Look = "paper" | "ink";
 export type BlackoutScope = "division" | "overall";
@@ -55,14 +63,15 @@ export const MAIL_WAVE_MAX = 300;
 
 export type SiteSettings = {
   look: Look;
+  palette: PaletteId;
   /* Card ids switched off, in no particular order. */
   cardsOff: string[];
   blackout: BlackoutPolicy;
   mailWave: MailWave;
 };
 
-export type SettingKey = "look" | "cards.off" | "blackout.policy" | "mail.wave";
-export const SETTING_KEYS: readonly SettingKey[] = ["look", "cards.off", "blackout.policy", "mail.wave"];
+export type SettingKey = "look" | "palette" | "cards.off" | "blackout.policy" | "mail.wave";
+export const SETTING_KEYS: readonly SettingKey[] = ["look", "palette", "cards.off", "blackout.policy", "mail.wave"];
 
 /* Retired from every picker (owner, 2026-09-16): the profile, the bib, the
  * club card, total + name, and row + name. Off by default; the shareables
@@ -82,6 +91,7 @@ export const BLACKOUT_COUNT_MAX = 100;
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   look: "paper",
+  palette: DEFAULT_PALETTE,
   cardsOff: [...DEFAULT_CARDS_OFF],
   blackout: { ...DEFAULT_BLACKOUT_POLICY },
   mailWave: {},
@@ -95,6 +105,10 @@ export function isSettingKey(v: unknown): v is SettingKey {
 
 export function parseLook(v: unknown): Look | null {
   return v === "paper" || v === "ink" ? v : null;
+}
+
+export function parsePalette(v: unknown): PaletteId | null {
+  return isPaletteId(v) ? v : null;
 }
 
 const CARD_ID = /^[a-z0-9-]{1,60}$/;
@@ -144,8 +158,12 @@ export function parseMailWave(v: unknown): MailWave | null {
 }
 
 /* The validated value for a key, or null when it is not one. */
-export function parseSetting(key: SettingKey, value: unknown): Look | string[] | BlackoutPolicy | MailWave | null {
+export function parseSetting(
+  key: SettingKey,
+  value: unknown,
+): Look | PaletteId | string[] | BlackoutPolicy | MailWave | null {
   if (key === "look") return parseLook(value);
+  if (key === "palette") return parsePalette(value);
   if (key === "cards.off") return parseCardsOff(value);
   if (key === "mail.wave") return parseMailWave(value);
   return parseBlackoutPolicy(value);
@@ -156,6 +174,7 @@ export function parseSetting(key: SettingKey, value: unknown): Look | string[] |
 function fold(rows: { key: string; value: string }[]): SiteSettings {
   const out: SiteSettings = {
     look: DEFAULT_SETTINGS.look,
+    palette: DEFAULT_SETTINGS.palette,
     cardsOff: [...DEFAULT_SETTINGS.cardsOff],
     blackout: { ...DEFAULT_SETTINGS.blackout },
     mailWave: {},
@@ -171,6 +190,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
     const v = parseSetting(r.key, parsed);
     if (v === null) continue;
     if (r.key === "look") out.look = v as Look;
+    else if (r.key === "palette") out.palette = v as PaletteId;
     else if (r.key === "cards.off") out.cardsOff = v as string[];
     else if (r.key === "mail.wave") out.mailWave = v as MailWave;
     else out.blackout = v as BlackoutPolicy;
