@@ -97,12 +97,16 @@ import { ShareTime, type ShareRacer } from "./ShareTime";
  *     row and the open-on-your-wave default are gone from the finished
  *     sheet (mid-race keeps them: a rower in the gym looking for their
  *     wave is a different page). The one personal thing left is SHARE YOUR
- *     TIME (ShareTime.tsx), which puts the signed-in racer first in its
- *     list and marks nothing on the page.
+ *     TIME (ShareTime.tsx), a button in the ticket s top right that opens
+ *     the signed-in racer s own card and nobody else s, or a name picker
+ *     for anyone not on the sheet; it marks nothing on the page. The page
+ *     builds it off the board (ArchiveShare below) and hands it to the
+ *     header, which reads the race.
  *   - NO DATELINE. No FINAL 12:00 AM clock, no SHEET POSTED, no freshness
  *     line — the archive header (ArchiveHead.tsx, handed in as `head`) says
- *     the name, the day, the place and the two houses, and the rest is
- *     just the results.
+ *     the name, the day, the place and the piece on one mono line, and
+ *     the rest is just the results. The sponsor s mark closes the sheet
+ *     (`foot`, ArchiveFoot) under a small ruled line.
  *   - WHOLE SECONDS, FLOORED, everywhere (types.ts fmtRaceTime): 21:41.1
  *     prints 21:41, a split 2:10.3 prints 2:10. The tenths still decide the
  *     order underneath; nothing is re-sorted after the floor.
@@ -747,23 +751,25 @@ function PlaceNum({ place }: { place: number }) {
 
 export function BracketTable({ board, view }: { board: ResultBoard; view: BracketView }) {
   return (
-    <table className="rr-t">
+    /* .sheet: a fixed layout with a width on every numeric head, so the
+     * men s and the women s columns land at the same x (rrCss.ts). */
+    <table className="rr-t sheet">
       <thead>
         <tr>
           <th className="pl" scope="col">
             Pl.
           </th>
           <th scope="col">Rower</th>
-          <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
+          <th className="col-seed rr-hx" scope="col" style={{ textAlign: "right" }}>
             Best coming in
           </th>
-          <th scope="col" style={{ textAlign: "right" }}>
+          <th className="col-time" scope="col" style={{ textAlign: "right" }}>
             {board.meters.toLocaleString()} m
           </th>
-          <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
+          <th className="col-split rr-hx" scope="col" style={{ textAlign: "right" }}>
             /500
           </th>
-          <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
+          <th className="col-wave rr-hx" scope="col" style={{ textAlign: "right" }}>
             Wave
           </th>
         </tr>
@@ -917,14 +923,13 @@ function YouStrip({ board }: { board: ResultBoard }) {
   );
 }
 
-/* ---- the share list -------------------------------------------------- */
+/* ---- the share control ----------------------------------------------- */
 
 /* Every finisher as the share card wants them — display-ready, floored,
- * tagged — the signed-in racer first when they are one of them. The board
- * is the only source, so the card can never print a time the sheet does
- * not. The day is the board's own dateLine cut to its middle cell. */
+ * tagged — in place order. The board is the only source, so the card can
+ * never print a time the sheet does not. */
 function shareRacers(board: ResultBoard): ShareRacer[] {
-  const rows = ranked(boardRacers(board)).map(
+  return ranked(boardRacers(board)).map(
     (r): ShareRacer => ({
       id: r.id,
       name: r.name,
@@ -935,10 +940,6 @@ function shareRacers(board: ResultBoard): ShareRacer[] {
       tag: raceTag(r),
     }),
   );
-  if (!board.youId) return rows;
-  const i = rows.findIndex((r) => r.id === board.youId);
-  if (i <= 0) return rows;
-  return [rows[i], ...rows.slice(0, i), ...rows.slice(i + 1)];
 }
 
 /* "RACE DAY · SUNDAY, SEP 27 · 5,000 M" -> "SUNDAY, SEP 27", upper-cased
@@ -947,19 +948,44 @@ function shareDay(board: ResultBoard): string {
   return (board.dateLine.split("·")[1] ?? board.dateLine).trim().toUpperCase();
 }
 
+/* SHARE YOUR TIME, built off the board, for the header s `act` slot: the
+ * page composes head={ArchiveHead race act={ArchiveShare board}} so the
+ * header keeps reading the race and the control keeps reading the sheet.
+ * `mine` is the signed-in viewer s own row when they are a finisher — the
+ * one thing youId does on the archive — and null otherwise, which is what
+ * decides between their own card and the picker (ShareTime.tsx). A racer
+ * is handed NO list at all: the rule that nobody shares somebody else s
+ * time while signed in is kept by the control never holding one. */
+export function ArchiveShare({ board }: { board: ResultBoard }) {
+  const racers = shareRacers(board);
+  const mine = board.youId ? (racers.find((r) => r.id === board.youId) ?? null) : null;
+  return (
+    <ShareTime
+      racers={mine ? [] : racers}
+      mine={mine}
+      race={{ title: board.dateLine.split("·")[0].trim().toUpperCase(), day: shareDay(board) }}
+    />
+  );
+}
+
 /* ---- the page -------------------------------------------------------- */
 
 export function RaceResults({
   board,
   note,
   head,
+  foot,
   pick,
 }: {
   board: ResultBoard;
   note?: ReactNode;
   /* THE ARCHIVE HEADER (ArchiveHead.tsx), finished sheet only: the page
-   * builds it off the RaceDef, which the board does not carry. */
+   * builds it off the RaceDef, which the board does not carry, and puts
+   * the share control (ArchiveShare) in its act slot. */
   head?: ReactNode;
+  /* THE SPONSOR LINE (ArchiveFoot), finished sheet only, off the same
+   * RaceDef; it closes the sheet above the footer. */
+  foot?: ReactNode;
   /* ?wave=N — a deep link on a phone, and how a gym pins one wave. It beats
    * the computed default; see pickedWave() in types.ts. */
   pick?: number | null;
@@ -977,11 +1003,6 @@ export function RaceResults({
           <div className="rr-wrap">
             {note}
             {head}
-            {/* THE ONE PERSONAL THING on the sheet, and it marks nothing. */}
-            <ShareTime
-              racers={shareRacers(board)}
-              race={{ title: board.dateLine.split("·")[0].trim().toUpperCase(), day: shareDay(board) }}
-            />
             <Section>Results</Section>
             <Label>Men</Label>
             <BracketTable board={board} view={men} />
@@ -1009,6 +1030,7 @@ export function RaceResults({
             <Podium board={board} view={men} />
             <Label>Women</Label>
             <Podium board={board} view={women} />
+            {foot}
           </div>
         </section>
       </div>
