@@ -703,6 +703,30 @@ model RowShirtOrder {
   @@index([challenge, createdAt])
 }
 
+/// A shirt PRE-ORDER (owner, 2026-09-30): two shirts, "black" and "cream",
+/// sold at cost and paid when they arrive — so no price on the row, no
+/// payment fields and nothing to settle; this is a separate table from
+/// the September shirt (RowShirtOrder) on purpose. One row per rower per
+/// colour, enforced by the unique: a size change rewrites the row, LET IT
+/// GO stamps `cancelledAt`, and reserving again clears the stamp on the
+/// same row (kept, never deleted, the way a race-day withdrawal is). No
+/// FK, like the other Row* tables; `rowerNumber` rides along for the
+/// owner's list.
+model RowShirtPreorder {
+  id            String    @id @default(cuid())
+  challenge     String    @default("row100k-sep-2026")
+  participantId String
+  rowerNumber   Int
+  color         String
+  size          String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  cancelledAt   DateTime?
+
+  @@unique([challenge, participantId, color])
+  @@index([challenge, color, size])
+}
+
 /// A signup for RACE DAY — the timed 5,000 m trial on Sunday Sep 27 2026 at
 /// The Strip Barbell, Las Vegas (owner, 2026-09-10). Free: a rower registers
 /// and the owner puts them in a wave, then tells them by email. The race

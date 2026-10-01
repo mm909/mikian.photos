@@ -106,6 +106,12 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/plan" onClick={close}>
                   Plan →
                 </Link>
+                {/* THE SHIRTS, as pre-orders (owner, 2026-09-30): shirts/page.tsx.
+                 * Where the September shirt link used to sit, for a rower on
+                 * the board — the page needs a rower number. */}
+                <Link className="acct-item" href="/row100k/shirts" onClick={close}>
+                  Shirts →
+                </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
                 </Link>
@@ -135,6 +141,10 @@ export function BarAccount({
                  * 2026-09-27) — the wave note first (emails/page.tsx). */}
                 <Link className="acct-item" href="/row100k/emails" onClick={close}>
                   Emails →
+                </Link>
+                {/* The shirt pre-orders, with the CSV (shirts/admin/page.tsx). */}
+                <Link className="acct-item" href="/row100k/shirts/admin" onClick={close}>
+                  Shirt pre-orders →
                 </Link>
 
                 {/* RACE DAY, ITS OWN GROUP (owner, 2026-09-21: "I need all my
