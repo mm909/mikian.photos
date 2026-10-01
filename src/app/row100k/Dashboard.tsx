@@ -1,32 +1,89 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
 import { fmtRowerNumber, type Division, type RecordBadge, type SanityBand } from "@/lib/row100k";
 import { type MyRow } from "./MyRows";
 import { LogInPlace } from "./LogInPlace";
 import type { ShareData } from "./share/cards";
+import { ROLL_COOKIE, type Roll } from "./roll";
+
+/* THE ROLL-DOWN (owner, 2026-10-01, the first morning of a new month): "when
+ * everyone first logs in on the new month, animate the number they look at
+ * — their total — down to zero." The wheels start on last month's total and
+ * run down to this month's number, once per rower per month. The page
+ * decides whether this visit rolls (ROLL_COOKIE unset for this month, see
+ * page.tsx) and renders the OLD number, so the first paint is the number
+ * they ended on — no flash of zero before the script lands — and the
+ * client runs it down, then writes the cookie so the next visit is static. */
+const ROLL_MS = 3200;
+
+function rolled(cookie: string) {
+  document.cookie = `${ROLL_COOKIE}=${cookie}; path=/; max-age=${60 * 60 * 24 * 45}; samesite=lax`;
+}
 
 /* THE BIG NUMBER of the front page: the landing counter's wheels (Home.tsx
  * .od geometry, theme.ts .my-od), static, the leading zeros dimmed. Seven
  * wheels for a rower's own month, eight for everyone together (owner,
  * 2026-09-25, signed out: "the big number is the month's total meters,
  * like mikianmusser.com's counter head, dimmed leading wheels are fine but
- * static"). With `href` the number is a link with no chrome of its own. */
+ * static"). With `href` the number is a link with no chrome of its own.
+ * With `roll` the wheels open on `roll.from` and run down to `meters`. */
 export function Wheels({
   meters,
   digits,
   href,
   label,
+  roll,
 }: {
   meters: number;
   digits: 7 | 8;
   href?: string;
   /* The link's accessible name — where tapping the number goes. */
   label?: string;
+  roll?: Roll;
 }) {
-  const tokens = tokensFor(metersText(meters, digits));
+  const [shown, setShown] = useState(roll ? roll.from : meters);
+  // Primitives, so a re-render with a fresh `roll` object does not restart
+  // a roll already in flight.
+  const from = roll?.from;
+  const cookie = roll?.cookie;
+
+  useEffect(() => {
+    if (from === undefined || cookie === undefined) {
+      setShown(meters);
+      return;
+    }
+    // Reduced motion: land on the number and remember the month as rolled.
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(meters);
+      rolled(cookie);
+      return;
+    }
+    const delta = meters - from;
+    let raf = 0;
+    let t0 = 0;
+    const tick = (now: number) => {
+      if (!t0) t0 = now;
+      const t = Math.min(1, (now - t0) / ROLL_MS);
+      // Ease in and out: the wheels gather speed, then settle on the number.
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      setShown(Math.round(from + delta * e));
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else rolled(cookie);
+    };
+    // A beat on the old number first, so it registers before it moves.
+    const wait = setTimeout(() => {
+      raf = requestAnimationFrame(tick);
+    }, 700);
+    return () => {
+      clearTimeout(wait);
+      cancelAnimationFrame(raf);
+    };
+  }, [from, cookie, meters]);
+
+  const tokens = tokensFor(metersText(shown, digits));
   const od = (
     <div className="my-od" role="img" aria-label={`${meters.toLocaleString("en-US")} meters rowed`}>
       {tokens.map((t, i) => (
@@ -114,6 +171,8 @@ export function Dashboard(props: {
   simulateJustJoined?: boolean;
   /* The front page: the number and its line only (see above). */
   bare?: boolean;
+  /* First visit of a new month: open on last month's total and run down. */
+  roll?: Roll;
 }) {
   const profileHref = `/row100k/r/${props.rowerNumber}`;
   const { byDay, longest } = useMemo(() => shareSummary(props.rows), [props.rows]);
@@ -123,7 +182,7 @@ export function Dashboard(props: {
       {/* Seven wheels, not the landing's eight: nobody rows ten million
         * meters in a month, and the empty ten-millions digit read as noise
         * (owner, 2026-09-05). Room for 9,999,999 stays. */}
-      <Wheels meters={props.meters} digits={7} href={profileHref} label="your stats" />
+      <Wheels meters={props.meters} digits={7} href={profileHref} label="your stats" roll={props.roll} />
       <p className="my-unit mono">
         Meters ·{" "}
         <b>

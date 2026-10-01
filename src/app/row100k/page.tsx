@@ -23,6 +23,7 @@ import {
   defaultRowTitle,
 } from "@/lib/row100k";
 import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
+import { cookies } from "next/headers";
 import { monthsThrough, prevMonth } from "@/lib/rowPeriod";
 import { activeBlackout } from "@/lib/blackout";
 import { previewViewOpts, readBlackoutPreview } from "@/lib/row100kViewer";
@@ -35,6 +36,7 @@ import { RowBar } from "./RowBar";
 import { RowFooter } from "./RowFooter";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard, Wheels } from "./Dashboard";
+import { ROLL_COOKIE, type Roll } from "./roll";
 import { LogInPlace } from "./LogInPlace";
 import { Who } from "./Boards";
 import { Blocks } from "./Blackout";
@@ -285,6 +287,22 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
   const monthRows = myRows.filter((r) => r.day >= FIRST_DAY && r.day <= LAST_DAY);
   const myMeters = monthRows.reduce((s, r) => s + r.meters, 0);
 
+  // THE ROLL-DOWN (owner, 2026-10-01): the first time a rower opens the page
+  // in a new month, the wheels open on LAST month's total and run down to
+  // this month's number (Dashboard.tsx). Once per rower per month — the
+  // client leaves ROLL_COOKIE = "<month>:<rower>" when the roll has run,
+  // and a rower with nothing to run down from (a first month, no rows last
+  // month, or already ahead of it) gets the static number as before.
+  let roll: Roll | undefined;
+  if (me && monthsThrough(clockNow()).length > 1) {
+    const last = prevMonth(MONTH);
+    const prevMeters = myRows
+      .filter((r) => r.day >= last.firstDay && r.day <= last.lastDay)
+      .reduce((s, r) => s + r.meters, 0);
+    const cookie = `${MONTH.key}:${me.rowerNumber}`;
+    if (prevMeters > myMeters && cookies().get(ROLL_COOKIE)?.value !== cookie) roll = { from: prevMeters, cookie };
+  }
+
   const nowMs = clockNow();
   const phase: "before" | "open" | "closed" =
     nowMs < START_MS ? "before" : nowMs >= LOG_CLOSE_MS ? "closed" : "open";
@@ -479,6 +497,7 @@ export default async function Row100kPage({ searchParams }: { searchParams?: Sea
               rows={monthRows}
               phase={earlyAdmin ? "open" : phase}
               bare
+              roll={roll}
             />
           ) : (
             <div className="mine eight">
