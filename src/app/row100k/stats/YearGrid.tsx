@@ -43,7 +43,7 @@ export function YearGrid({
           <div className="yg-row" key={mon.key}>
             <div className="yg-m">{mon.short}</div>
             {Array.from({ length: COLS }, (_, i) => {
-              if (i >= mon.days) return <div className="yg-gap" key={`${mon.key}-${i}`} />;
+              if (i >= mon.days) return <div className="yg-gap" key={`gap-${mon.key}-${i}`} />;
               const day = `${mon.key}-${String(i + 1).padStart(2, "0")}`;
               const m = byDay[day] ?? 0;
               const todo = i >= mon.elapsed;
