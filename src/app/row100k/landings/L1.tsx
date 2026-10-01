@@ -9,6 +9,7 @@ import type { LandingData, LandingExample } from "../landing/data";
 import { MeterCount } from "../landing/MeterCount";
 import type { ShareData } from "../share/cards";
 import { L4Cards } from "./L4Cards";
+import { L1Month } from "./L1Month";
 import { l1Css } from "./l1Css";
 
 /* THE DARE — the front page for every stranger (owner brief, 2026-09-30:
@@ -24,10 +25,12 @@ import { l1Css } from "./l1Css";
  * this month, the meters counting up — and OPT IN as a block where a thumb
  * lands. No arithmetic, no countdown, no chips, no sign-in talk.
  *
- * UNDER IT, still on the same ground: how a meter counts in three lines,
- * the cards a rower posts after a row (the share dialog's own month and
- * profile cards, painted off one real rower's month — L4Cards), the number
- * the next rower gets, OPT IN again, the footer.
+ * UNDER IT, still on the same ground: THE MONTH — everyone's meters a day
+ * as the heat calendar, the month word a menu over every month so far
+ * (L1Month, 2026-10-01) — how a meter counts in three lines, the cards a
+ * rower posts after a row (the share dialog's own month, profile and row
+ * cards, painted off one real rower's month — L4Cards), the number the
+ * next rower gets, OPT IN again, the footer.
  *
  * THE GROUND AND THE ACCENT COME FROM THE PALETTE (rowPalette.ts): ink or
  * paper (ink whatever the preset says under the site's ink look —
@@ -208,12 +211,19 @@ function Head({ label, note }: { label: string; note?: string }) {
   );
 }
 
-/* HOW IT COUNTS: three verbs, a fact under each. */
+/* HOW IT COUNTS: three verbs, a fact under each. The copy is the owner's
+ * (2026-10-01): "any rower, any gym, any distance"; the two photos are one
+ * of the rower and one of the monitor, so "we could just leave it meters,
+ * time and two photos"; and the third, "instead of it counts … watch your
+ * place on the leaderboard, watch the records, look at your progress …
+ * let's not do the minute you log it; we could say something about live
+ * progress, live status". Three verbs still — row, log it, watch it — and
+ * a head no longer than IT COUNTS was, so it holds one line in its column. */
 function Steps() {
   const steps = [
-    { h: "Row", p: "Any rowing machine, any gym, any distance." },
-    { h: "Log it", p: "Meters, time and two photos of the monitor." },
-    { h: "It counts", p: "On your page and on the board, the minute you log it." },
+    { h: "Row", p: "Any rower, any gym, any distance." },
+    { h: "Log it", p: "Meters, time and two photos." },
+    { h: "Watch it", p: "Your place on the board, the records, your month. Live." },
   ];
   return (
     <ol className="l1-steps">
@@ -230,30 +240,43 @@ function Steps() {
   );
 }
 
-/* THE CARDS a rower posts after a row: the share dialog's month card and
- * profile card, painted off the example rower's real month, each on an ink
- * tile (owner, 2026-09-30: seeing that after a row you can post the card).
- * With no rower to draw — the 1st, or the example masked by a blackout —
- * the mark alone. */
+/* THE CARDS a rower posts after a row: three of the share dialog's own —
+ * the month, the profile and the row just logged — painted off the example
+ * rower's real month, each on an ink tile (owner, 2026-09-30: seeing that
+ * after a row you can post the card). A row of tiles: three across on a
+ * laptop, a strip that slides sideways on a phone with the next tile
+ * showing at the edge, so each is big enough to read.
+ *
+ * ONE CARD WAS SHOWING (owner, 2026-10-01: "right now we're only showing
+ * one card for some reason"): the example had no meter in the new month
+ * yet, so the page drew the bare mark — one tile. The example is now the
+ * newest month they have rowed (landing/data.ts), named in the line under
+ * the tiles when it is not this one. The mark alone is still what a page
+ * with no rower to draw gets — nobody has ever rowed, or the example is
+ * masked by a blackout in every month. */
+const CARD_IDS = ["rowtember-month", "rowtember-profile", "rowtember-row"];
+
 function Cards({ eg }: { eg: LandingExample | null }) {
   return (
     <>
       <div className={eg ? "l1-tiles" : "l1-tiles l1-bare"}>
-        {eg ? (
-          <L4Cards data={eg.share} ids={["rowtember-month", "rowtember-profile"]} />
-        ) : (
-          <L4Cards data={BARE} ids={["rowtember-logo"]} />
-        )}
+        {eg ? <L4Cards data={eg.share} ids={CARD_IDS} /> : <L4Cards data={BARE} ids={["rowtember-logo"]} />}
       </div>
       {eg ? (
         <p className="l1-eg mono">
           <b>Rower {fmtRowerNumber(eg.rowerNumber)}</b>
           {DOT}
-          <a href={`/row100k/r/${eg.rowerNumber}`}>{eg.name}</a>
+          <a href={eg.thisMonth ? `/row100k/r/${eg.rowerNumber}` : `/row100k/r/${eg.rowerNumber}?m=${eg.monthKey}`}>{eg.name}</a>
           {DOT}
           <span className="l1-nb">
             {fmtMeters(eg.meters)} in {eg.sessions} {eg.sessions === 1 ? "row" : "rows"}
           </span>
+          {eg.thisMonth ? null : (
+            <>
+              {DOT}
+              <span className="l1-nb">{eg.monthWord}</span>
+            </>
+          )}
         </p>
       ) : null}
     </>
@@ -318,6 +341,10 @@ export function L1({ data, palette, ground }: { data: LandingData; palette: Pale
 
       <main className="l1-body">
         <div className="wrap front">
+          {/* THE MONTH before how it counts (owner, 2026-10-01): the heat
+              calendar of everyone's meters a day, the month word a menu. */}
+          <L1Month months={data.months} current={MONTH.key} />
+
           <section className="l1-sec">
             <Head label="How it counts" />
             <Steps />

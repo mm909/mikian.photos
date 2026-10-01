@@ -135,6 +135,66 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
 .row100k .l1-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 14px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:17px;letter-spacing:.16em;text-transform:uppercase;color:var(--l1-fg);border-bottom:2px solid var(--l1-fg);padding-bottom:8px}
 .row100k .l1-h span{color:var(--l1-key);font-weight:400}
 
+/* THE MONTH (L1Month.tsx; owner, 2026-10-01: a stats section before how it
+ * counts, the month diagram, the previous months on a selector). The heat
+ * calendar the stats page draws, on this ground: weekday letters over one
+ * cell per day, the k figure inside, the days to come dim and dashed.
+ *
+ * ONE HUE. The five steps are the accent mixed into the ground — 16, 34,
+ * 54, 76 parts in a hundred, then the accent itself — so the ramp is the
+ * palette, whatever the palette is, and never a second colour beside it
+ * (owner, same day: the charts were blue and also red). The figure is the
+ * page type on the mixed steps and the slab type (--l1-caps) on the full
+ * accent, the pair OPT IN wears. A browser with no color-mix gets the line
+ * in front of it: the hairline for the low steps, the accent for the high
+ * ones.
+ *
+ * THE FOURTH STEP ON INK takes the slab type too (review, 2026-10-01). The
+ * accent is turning pumpkin, a light one that carries ink caps, and three
+ * quarters of it over black is still too light for the white figure: 3.6
+ * to 1, and 2.9 under the mustard, where the ink figure holds 4.4 and 5.7.
+ * A red, the blue and the green carry white caps, so for them nothing
+ * moves. On paper the fourth step is a tint, and the page ink reads on it.
+ *
+ * A day nobody rowed is an empty ruled cell; a day to come is the same
+ * cell dashed and dim; today wears a rule in the page type. Square cells
+ * on a phone; from 760px a cell is half as tall as it is wide, so the
+ * month is a band across the measure and not a wall. */
+.row100k .l1-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:16px}
+.row100k .l1-dow{font-family:var(--row-mono),monospace;font-size:10px;line-height:14px;letter-spacing:.1em;color:var(--l1-key);text-align:center;padding-bottom:2px}
+.row100k .l1-c{display:flex;align-items:center;justify-content:center;min-width:0;aspect-ratio:1;border:1px solid var(--l1-hair)}
+.row100k .l1-c span{font-family:var(--row-mono),monospace;font-size:clamp(10px,3vw,15px);font-weight:700;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--l1-fg)}
+.row100k .l1-c.s1{background:var(--l1-hair);background:color-mix(in srgb,var(--l1-accent) 16%,var(--l1-bg));border-color:transparent}
+.row100k .l1-c.s2{background:var(--l1-hair);background:color-mix(in srgb,var(--l1-accent) 34%,var(--l1-bg));border-color:transparent}
+.row100k .l1-c.s3{background:var(--l1-hair);background:color-mix(in srgb,var(--l1-accent) 54%,var(--l1-bg));border-color:transparent}
+.row100k .l1-c.s4{background:var(--l1-accent);background:color-mix(in srgb,var(--l1-accent) 76%,var(--l1-bg));border-color:transparent}
+.row100k .l1-c.s5{background:var(--l1-accent);border-color:transparent}
+.row100k .l1-c.s5 span,.row100k.l1-ink .l1-c.s4 span{color:var(--l1-caps)}
+.row100k .l1-c.todo{border-style:dashed;opacity:.5}
+.row100k .l1-c.now{border-color:var(--l1-fg)}
+/* The month in one line: its meters and its rowers, the figures in the
+ * page type and the words in the key grey. */
+.row100k .l1-cal-sum{margin-top:14px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key)}
+.row100k .l1-cal-sum b{color:var(--l1-fg);font-variant-numeric:tabular-nums}
+@media(min-width:760px){
+  .row100k .l1-cal{gap:8px;margin-top:18px}
+  .row100k .l1-c{aspect-ratio:2}
+  .row100k .l1-c span{font-size:15px;letter-spacing:0}
+}
+/* THE MONTH WORD on the head: a word that is a menu (TextMenu.tsx), in the
+ * head type and the page colour, the dotted rule its tell. Its list is the
+ * house panel turned over for this ground — the ground, a 2px rule in the
+ * page type, the line under the pointer inverted, the month showing in the
+ * accent — where the theme panel is paper with a water wash. */
+.row100k .l1-h h2{font:inherit;letter-spacing:inherit}
+.row100k .l1-h .tm{color:var(--l1-fg);font-weight:700}
+.row100k.l1 .tm-btn:hover{color:var(--l1-accent)}
+.row100k.l1 .tm-btn:focus-visible{outline-color:var(--l1-fg)}
+.row100k.l1 .tm-list{background:var(--l1-bg);border-color:var(--l1-fg);box-shadow:none}
+.row100k.l1 .tm-list a{color:var(--l1-fg)}
+.row100k.l1 .tm-list a.on{color:var(--l1-accent)}
+.row100k.l1 .tm-list a:hover,.row100k.l1 .tm-list a:focus-visible{background:var(--l1-fg);color:var(--l1-bg)}
+
 /* HOW IT COUNTS: the numeral in the margin, the verb at poster weight, one
  * fact under it. Three across from 760px. */
 .row100k .l1-steps{list-style:none}
@@ -152,25 +212,36 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-steps h3{font-size:clamp(34px,4.2vw,48px)}
 }
 
-/* THE CARDS: the two the share dialog draws, each on an ink tile the way a
- * sticker sits on a story — the month (square) and the profile (1080 by
- * 700, letterboxed in the same square). L4Cards paints them into the .l4c
- * box, sized off the box and the device pixels; the tile holds its shape
- * from the first paint so nothing jumps when the bitmap lands. On the ink
- * ground a tile is told from the page by a hairline. The bare mark, when
- * there is no rower to draw, takes one tile. */
+/* THE CARDS: three the share dialog draws, each on an ink tile the way a
+ * sticker sits on a story — the month (square), the profile (1080 by 700)
+ * and the row (1080 by 620), the two wide ones letterboxed in the same
+ * square. L4Cards paints them into the .l4c box, sized off the box and the
+ * device pixels; the tile holds its shape from the first paint so nothing
+ * jumps when the bitmap lands. On the ink ground a tile is told from the
+ * page by a hairline.
+ *
+ * A ROW OF TILES (owner, 2026-10-01, of the one tile he was seeing; the
+ * two before it were 170px each on a phone, too small to read). On a phone
+ * the row is a strip that slides sideways: a tile is about three quarters
+ * of the measure, so the next one shows at the edge and says there is
+ * more, and the strip runs out through the right gutter to the edge of the
+ * screen. It scrolls inside itself — the page never gets a sideways
+ * scroll — and its bar is hidden, the cut tile being the tell. From 760px
+ * the three stand across the measure, a third each, and nothing slides.
+ * The bare mark, when there is no rower to draw, takes one tile. */
 .row100k .l1-tiles{margin-top:18px}
-.row100k .l1-tiles .l4c{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
-.row100k .l1-tiles .l4c-card{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:#15171a;border:1px solid var(--l1-hair)}
-.row100k .l1-bare .l4c{grid-template-columns:minmax(0,1fr)}
+.row100k .l1-tiles .l4c{display:grid;grid-auto-flow:column;grid-auto-columns:min(76%,300px);gap:10px;align-items:start;margin-right:-20px;padding-right:20px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-left:0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.row100k .l1-tiles .l4c::-webkit-scrollbar{display:none}
+.row100k .l1-tiles .l4c-card{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:#15171a;border:1px solid var(--l1-hair);scroll-snap-align:start}
+.row100k .l1-bare .l4c{grid-auto-columns:minmax(0,1fr);margin-right:0;padding-right:0;overflow-x:visible}
 .row100k .l1-bare .l4c-card{aspect-ratio:1080/620}
 .row100k .l1-eg{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key)}
 .row100k .l1-eg b{color:var(--l1-fg)}
 .row100k .l1-eg a{color:var(--l1-fg);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
 .row100k .l1-eg a:hover{color:var(--l1-accent)}
 @media(min-width:760px){
-  .row100k .l1-tiles .l4c{grid-template-columns:repeat(2,minmax(0,320px));gap:18px}
-  .row100k .l1-bare .l4c{grid-template-columns:minmax(0,480px)}
+  .row100k .l1-tiles .l4c{grid-auto-columns:minmax(0,calc((100% - 36px) / 3));gap:18px;margin-right:0;padding-right:0;overflow-x:visible}
+  .row100k .l1-bare .l4c{grid-auto-columns:minmax(0,480px)}
 }
 
 /* ------------------------------------------------------------ THE CLOSE
