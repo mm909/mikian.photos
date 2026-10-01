@@ -19,13 +19,14 @@ import type { ProfileBest } from "../r/[num]/looks/view";
 import { buildBests, buildShareData, getRower } from "../r/[num]/shareData";
 import type { ShareData } from "../share/cards";
 
-/* ONE LOADER for the three signed-out landings (owner, 2026-09-25: "three
- * different landing pages designed at getting user sign ups — lean into
- * the stats we collect, the long-term logging and progress, some of the
- * leaderboards, the shareables"). Everything a stranger may see: the
+/* ONE LOADER for the signed-out landing (owner, 2026-09-25: "lean into the
+ * stats we collect, the long-term logging and progress, some of the
+ * leaderboards, the shareables"; since 2026-09-30 THE DARE, landings/L1.tsx,
+ * is the front for every stranger). Everything a stranger may see: the
  * PUBLIC board (boardData — the blackout already applied), this month and
- * all time, and one real rower's month as the example of what a profile
- * holds. Fails open to EMPTY_LANDING so the page always renders. */
+ * all time, the number the next rower gets, and one real rower's month as
+ * the example of what a profile holds. Fails open to EMPTY_LANDING so the
+ * page always renders. */
 
 /* The example rower: number 001 (the demo seed's first rower; in the live
  * namespace the first person who opted in). */
@@ -38,7 +39,12 @@ export const FAST = 3;
 export type LandingTotals = {
   meters: number;
   seconds: number;
+  /* Everyone on the roster — the board's own `people`, rowed or not. */
   rowers: number;
+  /* Rowers with a meter on the board in the period (a masked row counts:
+   * the blackout hides the number, not the rower). The ROWERS figure on
+   * the fold. */
+  active: number;
   finished: number;
   sessions: number;
 };
@@ -73,10 +79,13 @@ export type LandingData = {
   topWomen: TotalRow[];
   fastest5k: RecordRow[];
   fastest10k: RecordRow[];
+  /* The number the next rower to opt in is handed (the join route hands
+   * out the highest there is, plus one). Null until somebody has one. */
+  nextNumber: number | null;
   example: LandingExample | null;
 };
 
-const EMPTY_TOTALS: LandingTotals = { meters: 0, seconds: 0, rowers: 0, finished: 0, sessions: 0 };
+const EMPTY_TOTALS: LandingTotals = { meters: 0, seconds: 0, rowers: 0, active: 0, finished: 0, sessions: 0 };
 
 export const EMPTY_LANDING: LandingData = {
   month: EMPTY_TOTALS,
@@ -88,11 +97,19 @@ export const EMPTY_LANDING: LandingData = {
   topWomen: [],
   fastest5k: [],
   fastest10k: [],
+  nextNumber: null,
   example: null,
 };
 
-function totalsOf(c: { meters: number; seconds: number; people: number; finished: number; sessions: number }): LandingTotals {
-  return { meters: c.meters, seconds: c.seconds, rowers: c.people, finished: c.finished, sessions: c.sessions };
+const activeOf = (rows: { meters: number; masked?: boolean }[]): number =>
+  rows.filter((r) => r.meters > 0 || r.masked).length;
+
+function totalsOf(b: {
+  total: { meters: number; masked?: boolean }[];
+  community: { meters: number; seconds: number; people: number; finished: number; sessions: number };
+}): LandingTotals {
+  const c = b.community;
+  return { meters: c.meters, seconds: c.seconds, rowers: c.people, active: activeOf(b.total), finished: c.finished, sessions: c.sessions };
 }
 
 export async function loadLanding(): Promise<LandingData> {
@@ -102,10 +119,12 @@ export async function loadLanding(): Promise<LandingData> {
     const [month, all] = await Promise.all([boardData(), boardData(allTime(now))]);
     const hidden = month.total.some((r) => r.unranked);
     const onBoard = hidden ? [] : month.total.filter((r) => r.meters > 0 || r.masked);
+    const top = all.total.reduce((n, r) => Math.max(n, r.rowerNumber), 0);
     out = {
       ...out,
-      month: totalsOf(month.community),
-      all: totalsOf(all.community),
+      month: totalsOf(month),
+      all: totalsOf(all),
+      nextNumber: top > 0 ? top + 1 : null,
       hidden,
       topMen: onBoard.filter((r) => r.division === "M").slice(0, TOP),
       topWomen: onBoard.filter((r) => r.division === "F").slice(0, TOP),
