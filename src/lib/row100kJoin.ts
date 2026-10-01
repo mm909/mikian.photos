@@ -26,6 +26,15 @@ export async function ensureParticipant(o: {
    * race day does not, so a walk-in is created without one and can add it
    * on the settings page later. */
   birthday?: Date | null;
+  /* Height, weight and home gym, in the column's own units — the sign-up
+   * page's third tier (owner, 2026-10-01: "their height and their weight
+   * and their home gym — all of those should be there, not as important").
+   * Written into the create only when given, so the two doors that never
+   * ask (the JoinPanel, race day) make the same row they always made. The
+   * shirt size is NOT here: its column is the one that may not be in the
+   * database yet, and a create that named it would spend no rower number
+   * and take no join — the join route writes it on its own, after. */
+  about?: { heightCm?: number | null; weightKg?: number | null; homeGym?: string | null };
 }): Promise<ParticipantKey> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const existing = await db.rowParticipant.findUnique({
@@ -50,6 +59,9 @@ export async function ensureParticipant(o: {
           /* Only written when given, so a door that never asks (race day)
            * keeps working on a database the column has not reached yet. */
           ...(o.birthday ? { birthday: o.birthday } : {}),
+          ...(o.about?.heightCm != null ? { heightCm: o.about.heightCm } : {}),
+          ...(o.about?.weightKg != null ? { weightKg: o.about.weightKg } : {}),
+          ...(o.about?.homeGym ? { homeGym: o.about.homeGym } : {}),
         },
         select: { id: true, rowerNumber: true, division: true },
       });

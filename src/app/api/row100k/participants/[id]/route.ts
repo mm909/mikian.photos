@@ -14,6 +14,7 @@ import {
   parseHomeGym,
   parseWeightKg,
 } from "@/lib/row100k";
+import { parseSize } from "@/app/row100k/shirt";
 
 export const runtime = "nodejs";
 
@@ -37,21 +38,33 @@ function isMissingColumn(err: unknown): boolean {
  * through the same readers. THE OWNER OF THE ROW ONLY: not
  * an admin, not the moderation path below — these are the rower's own
  * facts and nobody else's to set. Nothing is revalidated because nothing
- * prints any of the three yet. */
+ * prints any of the three yet.
+ *
+ * shirtSize too (2026-10-01, asked on the sign-up page, changed here from
+ * settings): one of shirt.ts SIZES, null or "" clears. Its column is the
+ * newest, so the read-back below asks for it only when this request wrote
+ * it — a save of the height must not 500 on a database the column has not
+ * reached. */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const actor = await getEffectiveActor();
   if (!actor) {
     return NextResponse.json({ ok: false, error: "Sign in with Google first." }, { status: 401 });
   }
 
-  let body: { birthday?: unknown; heightCm?: unknown; weightKg?: unknown; homeGym?: unknown };
+  let body: { birthday?: unknown; heightCm?: unknown; weightKg?: unknown; homeGym?: unknown; shirtSize?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   }
 
-  const data: { birthday?: Date | null; heightCm?: number | null; weightKg?: number | null; homeGym?: string | null } = {};
+  const data: {
+    birthday?: Date | null;
+    heightCm?: number | null;
+    weightKg?: number | null;
+    homeGym?: string | null;
+    shirtSize?: string | null;
+  } = {};
   const blank = (v: unknown) => v === null || v === "";
 
   if ("birthday" in body) {
@@ -91,6 +104,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
       // Whitespace-only collapses to "", which is a clear, not a value.
       data.homeGym = gym || null;
+    }
+  }
+  if ("shirtSize" in body) {
+    if (blank(body.shirtSize)) data.shirtSize = null;
+    else {
+      const size = parseSize(body.shirtSize);
+      if (!size) {
+        return NextResponse.json({ ok: false, error: "Pick a shirt size from the list." }, { status: 400 });
+      }
+      data.shirtSize = size;
     }
   }
   if (Object.keys(data).length === 0) {
@@ -136,9 +159,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ ok: false, error: "That is not your entry." }, { status: 404 });
   }
 
+  // The size is read back only when it was just written (the write landing
+  // is what says the column is there).
+  const wroteShirt = "shirtSize" in data;
   const saved = await db.rowParticipant.findUnique({
     where: { id: params.id },
-    select: { birthday: true, heightCm: true, weightKg: true, homeGym: true },
+    select: { birthday: true, heightCm: true, weightKg: true, homeGym: true, shirtSize: wroteShirt },
   });
   return NextResponse.json({
     ok: true,
@@ -146,6 +172,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     heightCm: saved?.heightCm ?? null,
     weightKg: saved?.weightKg ?? null,
     homeGym: saved?.homeGym ?? null,
+    ...(wroteShirt ? { shirtSize: saved?.shirtSize ?? null } : {}),
   });
 }
 
