@@ -4,6 +4,7 @@
  * rowers, meters, who joined, who crossed a rung, the month so far and
  * the top three — every number off the same fold the boards use. */
 import assert from "node:assert/strict";
+import { TIERS } from "@/lib/row100k";
 import type { RawEntry } from "./analysis/data";
 import {
   dailyInput,
@@ -20,6 +21,10 @@ import {
 } from "./dailyMail";
 
 /* Noon Pacific on the day given, on the challenge's fixed UTC-7 clock. */
+/* The 10K rung's title wears the month the clock is in (TIERS, since the
+ * October rollover), so the test reads it rather than spelling it. */
+const T10 = TIERS.find((t) => t.meters === 10_000)!.title;
+
 const noon = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d, 19, 0, 0);
 let seq = 0;
 const row = (participantId: string, day: string, meters = 5000): RawEntry => ({
@@ -104,7 +109,7 @@ assert.deepEqual(i.joined, [
   { name: "Dee Park", rowerNumber: 4 },
 ]);
 assert.equal(i.signedUp, 4);
-assert.deepEqual(i.crossed, [{ meters: 10_000, title: "Rowtember Participant", rowers: [{ name: "Ann Lee", rowerNumber: 1 }, { name: "Ben Ortiz", rowerNumber: 2 }] }], "a and b both reach 10K in October on the 1st (their September meters do not count)");
+assert.deepEqual(i.crossed, [{ meters: 10_000, title: T10, rowers: [{ name: "Ann Lee", rowerNumber: 1 }, { name: "Ben Ortiz", rowerNumber: 2 }] }], "a and b both reach 10K in October on the 1st (their September meters do not count)");
 assert.equal(i.month.word, "October");
 assert.equal(i.month.dayN, 1);
 assert.equal(i.month.days, 31);
@@ -134,7 +139,7 @@ assert.equal(sep.month.meters, 30_000, "Sep 25–30");
 assert.equal(sep.month.rowers, 2);
 assert.equal(sep.joined.length, 0);
 assert.equal(sep.signedUp, 2, "c and d had not joined yet");
-assert.deepEqual(sep.crossed, [{ meters: 10_000, title: "Rowtember Participant", rowers: [{ name: "Ben Ortiz", rowerNumber: 2 }] }], "a sat at exactly 10,000 the day before, so only b crosses on the 30th");
+assert.deepEqual(sep.crossed, [{ meters: 10_000, title: T10, rowers: [{ name: "Ben Ortiz", rowerNumber: 2 }] }], "a sat at exactly 10,000 the day before, so only b crosses on the 30th");
 
 /* The 100K club and the higher rungs, one huge day. */
 const big = dailyInput(
@@ -171,7 +176,7 @@ assert.ok(m.text.includes("ROWTEMBER — THURSDAY, OCTOBER 1"));
 assert.ok(m.text.includes("DAILY ACTIVE ROWERS\n3 · 1.4 avg over 7 days · +1 on the day before"));
 assert.ok(m.text.includes("METERS ON THE DAY\n25,000 m · 4 rows"));
 assert.ok(m.text.includes("JOINED\n+2 · 4 signed up in all\n003 · Cal Reyes\n004 · Dee Park"));
-assert.ok(m.text.includes("CROSSED A RUNG\n10K · Rowtember Participant: Ann Lee, Ben Ortiz"));
+assert.ok(m.text.includes(`CROSSED A RUNG\n10K · ${T10}: Ann Lee, Ben Ortiz`));
 assert.ok(m.text.includes("OCTOBER SO FAR · DAY 1 OF 31\n25,000 m · 4 rows · 3 rowers rowed · 0 in the 100K club · 30 days left"));
 assert.ok(m.text.includes("TOP THREE ON THE DAY\n1 · 002 · Ben Ortiz · 12,000 m\n2 · 001 · Ann Lee · 10,000 m\n3 · 003 · Cal Reyes · 3,000 m"));
 /* The html carries the same facts, inline styles only, no pictures. */

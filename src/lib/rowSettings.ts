@@ -177,21 +177,7 @@ export function parseSetting(
 
 /* ------------------------------------------------------------- reading */
 
-/* THE MOMENT THE COSMETIC DEFAULTS CHANGED (owner, 2026-10-01: "now that
- * the page is white on black we need the other pages to follow"; "instead
- * of red, let's pick like October orange"). A "look" or a "palette" row
- * saved BEFORE this is the old default speaking — the red he picked on
- * 2026-09-30, a paper look from race week — and it would pin the site to
- * the very thing he has just asked to change, with no error and nothing to
- * see in the code. So such a row is passed over and the defaults above
- * stand; a row saved after it (the LOOK and PALETTE words on the
- * shareables page) is his choice again and wins as it always did. The two
- * cosmetic keys only: the card switches, the blackout policy and the mail
- * lines are not defaults that moved. */
-export const COSMETIC_EPOCH_MS = Date.parse("2026-10-01T20:30:00Z");
-const COSMETIC_KEYS: readonly SettingKey[] = ["look", "palette"];
-
-function fold(rows: { key: string; value: string; updatedAt?: Date | string }[]): SiteSettings {
+function fold(rows: { key: string; value: string }[]): SiteSettings {
   const out: SiteSettings = {
     look: DEFAULT_SETTINGS.look,
     palette: DEFAULT_SETTINGS.palette,
@@ -201,10 +187,6 @@ function fold(rows: { key: string; value: string; updatedAt?: Date | string }[])
   };
   for (const r of rows) {
     if (!isSettingKey(r.key)) continue;
-    if (COSMETIC_KEYS.includes(r.key) && r.updatedAt !== undefined) {
-      const at = new Date(r.updatedAt).getTime();
-      if (Number.isFinite(at) && at < COSMETIC_EPOCH_MS) continue;
-    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(r.value);
@@ -225,7 +207,7 @@ function fold(rows: { key: string; value: string; updatedAt?: Date | string }[])
 const loadSettings = async (): Promise<SiteSettings> => {
   const rows = await db.rowSetting.findMany({
     where: { challenge: CHALLENGE },
-    select: { key: true, value: true, updatedAt: true },
+    select: { key: true, value: true },
   });
   return fold(rows);
 };
