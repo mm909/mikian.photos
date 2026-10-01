@@ -37,6 +37,11 @@ export const ROW_SEGMENTS: ReadonlySet<string> = new Set([
   "stats",
 ]);
 
+/* Where Rowtember lives (owner, 2026-10-01: "no more hosting will get
+ * done on mikianmusser.com for Rowtember"). Mail links, the old host's
+ * redirects and anything that must print an absolute address use this. */
+export const ROWTEMBER_ORIGIN = "https://www.rowtember.com";
+
 /* A path that is a Rowtember page: /row100k and under it, or one of the
  * segments above. */
 export function isRowtemberPath(pathname: string): boolean {

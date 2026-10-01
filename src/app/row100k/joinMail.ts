@@ -1,4 +1,5 @@
 import { fmtRowerNumber } from "@/lib/row100k";
+import { ROWTEMBER_ORIGIN } from "@/lib/rowSegments";
 
 /* THE NEW-ROWER NOTE — the plain-text line the owner gets when somebody
  * joins (api/row100k/join, first joins only, live namespace only). Lifted
@@ -30,7 +31,7 @@ export function joinNote(o: {
       `Board: ${o.division === "F" ? "Women's" : "Men's"}`,
       `Account: ${o.accountName} <${o.accountEmail}>`,
       ``,
-      `The board: https://mikianmusser.com/row100k#board`,
+      `The board: ${ROWTEMBER_ORIGIN}/board`,
     ].join("\n"),
   };
 }

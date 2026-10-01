@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PALETTE_COOKIE, isPaletteId } from "@/lib/rowPalette";
-import { ROW_SEGMENTS } from "@/lib/rowSegments";
+import { ROWTEMBER_ORIGIN, ROW_SEGMENTS, isRowtemberPath } from "@/lib/rowSegments";
 
 /* The photo marketplace is off the air. Owner, 2026-09-25: "Make those
  * pages unreachable. No mikian.photos page should still be accessible."
@@ -51,7 +51,7 @@ function allowed(pathname: string): boolean {
  * again. A session cookie: closing the browser ends the preview. */
 function paletteRedirect(req: NextRequest): NextResponse | null {
   const url = req.nextUrl;
-  if (!url.pathname.startsWith("/row100k")) return null;
+  if (!isRowtemberPath(url.pathname) && !(url.pathname === "/" && frontAtRoot(req))) return null;
   const want = url.searchParams.get("palette");
   if (want === null) return null;
   const back = url.clone();
@@ -91,9 +91,32 @@ function onRowtember(req: NextRequest): boolean {
  * shares carries no prefix. The list is the folders under src/app/row100k
  * that hold a page (src/lib/rowSegments.ts). */
 
+/* The Rowtember front at /: on rowtember.com, and on a local dev server
+ * running the Rowtember demo (npm run dev:row100k sets the demo flag), so
+ * the wordmark's / goes where it goes in production. A plain local server
+ * keeps the Mikian Musser landing at /. */
+function frontAtRoot(req: NextRequest): boolean {
+  if (onRowtember(req)) return true;
+  const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  return process.env.NEXT_PUBLIC_ROW100K_DEMO === "1" && (host === "localhost" || host === "127.0.0.1");
+}
+
+/* ONE ADDRESS PER PAGE on rowtember.com: an old /row100k/… link or
+ * bookmark there is sent to the same page without the prefix, query and
+ * all, so the address bar never shows it. */
+function stripPrefix(req: NextRequest): NextResponse | null {
+  if (!onRowtember(req)) return null;
+  const { pathname, search } = req.nextUrl;
+  if (pathname !== "/row100k" && !pathname.startsWith("/row100k/")) return null;
+  const to = req.nextUrl.clone();
+  to.pathname = pathname === "/row100k" ? "/" : pathname.slice("/row100k".length);
+  to.search = search;
+  return NextResponse.redirect(to, 308);
+}
+
 function rowRewrite(req: NextRequest): NextResponse | null {
   const { pathname } = req.nextUrl;
-  if (pathname === "/" && onRowtember(req)) {
+  if (pathname === "/" && frontAtRoot(req)) {
     const front = req.nextUrl.clone();
     front.pathname = "/row100k";
     return NextResponse.rewrite(front);
@@ -115,7 +138,6 @@ function rowRewrite(req: NextRequest): NextResponse | null {
  * landing at /, the crew call, the relay, the media kit and every API
  * route stay where they are. Only the two production hostnames: a preview
  * deployment and localhost serve everything, as before. */
-const ROWTEMBER_ORIGIN = "https://www.rowtember.com";
 
 function onOldHost(req: NextRequest): boolean {
   const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
@@ -154,10 +176,10 @@ function toRowtember(req: NextRequest): NextResponse | null {
 }
 
 export function middleware(req: NextRequest) {
-  const moved = toRowtember(req);
+  const moved = toRowtember(req) ?? stripPrefix(req);
   if (moved) return moved;
   const row = rowRewrite(req);
-  if (row) return row;
+  if (row) return paletteRedirect(req) ?? row;
   if (allowed(req.nextUrl.pathname)) return paletteRedirect(req) ?? NextResponse.next();
   return NextResponse.redirect(new URL("/", req.url), 307);
 }

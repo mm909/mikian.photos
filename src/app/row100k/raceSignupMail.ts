@@ -1,5 +1,6 @@
 import { fmtRowerNumber } from "@/lib/row100k";
 import { RACE_ROLES, type RaceDef, type RaceRole } from "./raceday";
+import { ROWTEMBER_ORIGIN } from "@/lib/rowSegments";
 
 /* THE SIGNUP NOTE (owner, 2026-09-12: "send me an email whenever someone
  * signs up for race day"). One plain-text line to the owner every time a
@@ -110,8 +111,8 @@ const NEWS: Record<SignupEvent, { said: (who: string, what: string) => string; l
  * that goes nowhere — the owner tapping a dead link at 6 PM on race day is
  * the failure worth spending three lines on. */
 function siteUrl(base: string | undefined, path: string): string {
-  const b = (base ?? process.env.NEXT_PUBLIC_BASE_URL ?? "https://mikianmusser.com").trim().replace(/\/+$/, "");
-  return `${/^https?:\/\//i.test(b) ? b : "https://mikianmusser.com"}${path}`;
+  const b = (base ?? ROWTEMBER_ORIGIN).trim().replace(/\/+$/, "");
+  return `${/^https?:\/\//i.test(b) ? b : ROWTEMBER_ORIGIN}${path}`;
 }
 
 /* "Racer" / "Spectator", off the same table the page and the ads set their

@@ -28,6 +28,7 @@ import {
   type Censor,
   type RowLogged,
 } from "@/app/row100k/rowMail";
+import { ROWTEMBER_ORIGIN } from "@/lib/rowSegments";
 
 export const runtime = "nodejs";
 
@@ -150,7 +151,6 @@ export async function POST(req: Request) {
       _sum: { meters: true },
       _count: true,
     });
-    const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://mikianmusser.com").replace(/\/$/, "");
     const totalNow = totals._sum.meters ?? prevTotal + value.meters;
     const logged: RowLogged = {
       name: participant.displayName,
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
       title: value.title,
       total: totalNow,
       sessions: totals._count,
-      profileUrl: `${base}/row100k/r/${participant.rowerNumber}`,
+      profileUrl: `${ROWTEMBER_ORIGIN}/r/${participant.rowerNumber}`,
     };
     // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
     // unless explicitly rerouted — both notes go to the same place.
