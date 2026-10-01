@@ -29,6 +29,10 @@ export const shirtsCss = `
 .row100k .sp-fig path{stroke:var(--ink);stroke-width:2;stroke-linejoin:miter;vector-effect:non-scaling-stroke}
 .row100k .sp-fig.black path{fill:#15171a}
 .row100k .sp-fig.cream path{fill:#F4F3EE}
+/* The chest embroidery: the wordmark face, 5.6 units high on a 120-wide
+ * tee, white on black and the water blue on cream. */
+.row100k .sp-emb{font-family:var(--row-archivo-black),sans-serif;font-size:4.2px;letter-spacing:.04em;fill:#F4F3EE}
+.row100k .sp-fig.cream .sp-emb{fill:#0077B6}
 
 /* The name at headline weight, the count as the bold mono line under it,
  * the number in the one accent. */

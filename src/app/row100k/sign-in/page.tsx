@@ -57,7 +57,7 @@ export default function SignInPage({
             <div className="sec-head">
               <h2>Sign in</h2>
             </div>
-            <p className="si-line">With your Google account · free · one minute</p>
+            <p className="si-line">With your Google account</p>
             {failed ? <p className="si-err">Google sign-in didn&rsquo;t finish — try again.</p> : null}
             <SignInControl callbackUrl={callbackUrl} />
           </div>

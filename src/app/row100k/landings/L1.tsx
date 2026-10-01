@@ -164,15 +164,18 @@ function Dare() {
 /* THE TWO LIVE FIGURES: rowers with a meter this month, and everyone's
  * meters together, counting up (MeterCount). Mono cap labels, tabular
  * figures; two ruled rows on a phone, two cells from 640px. */
-function Live({ rowers, meters }: { rowers: number; meters: number }) {
+function Live({ rowers, meters, allTime }: { rowers: number; meters: number; allTime?: boolean }) {
+  /* The 1st of a month, before anyone has logged: the all-time figures,
+   * said so, rather than two zeros under the headline. */
+  const tail = allTime ? " · all time" : "";
   return (
     <dl className="l1-live">
       <div>
-        <dt className="mono">Rowers</dt>
+        <dt className="mono">Rowers{tail}</dt>
         <dd>{num(rowers)}</dd>
       </div>
       <div>
-        <dt className="mono">Meters</dt>
+        <dt className="mono">Meters{tail}</dt>
         <dd>
           <MeterCount value={meters} />
         </dd>
@@ -300,7 +303,11 @@ export function L1({ data, palette, ground }: { data: LandingData; palette: Pale
           <Dateline today={today} />
           <p className="l1-eye mono">The monthly rowing challenge</p>
           <Dare />
-          <Live rowers={data.month.active} meters={data.month.meters} />
+          {data.month.meters > 0 ? (
+            <Live rowers={data.month.active} meters={data.month.meters} />
+          ) : (
+            <Live rowers={data.all.active} meters={data.all.meters} allTime />
+          )}
           <Go />
         </div>
       </header>

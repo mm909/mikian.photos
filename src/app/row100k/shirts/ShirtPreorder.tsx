@@ -26,11 +26,17 @@ const SIGN_IN = `/row100k/sign-in?callbackUrl=${encodeURIComponent(PATH)}`;
 type Reply = { ok?: boolean; error?: string; counts?: Counts; mine?: Mine | null };
 
 /* A flat tee: shoulders, a dipped collar, the sleeves out and down, the
- * body straight to the hem. One path; the fill and the outline are CSS. */
+ * body straight to the hem. One path; the fill and the outline are CSS.
+ * The embroidery (owner, 2026-10-01): ROWTEMBER small on the left chest,
+ * where a pocket would be — white on the black shirt, the water blue on
+ * the cream one, the same face on both. */
 function Tee({ color }: { color: Color }) {
   return (
     <svg className={`sp-fig ${color}`} viewBox="0 0 120 112" aria-hidden="true" focusable="false">
       <path d="M28 10 L46 3 C52 12 68 12 74 3 L92 10 L116 28 L104 44 L92 38 L92 108 L28 108 L28 38 L16 44 L4 28 Z" />
+      <text className="sp-emb" x="87" y="34" textAnchor="end">
+        ROWTEMBER
+      </text>
     </svg>
   );
 }
