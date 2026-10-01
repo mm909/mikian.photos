@@ -11,11 +11,17 @@
  * Rendered as the text child of a style tag, so no double quotes, no
  * apostrophes, no angle brackets and no ampersands anywhere in this
  * string, comments included (see the note in theme.ts). Child combinators
- * are out for the same reason; every selector is a descendant one. */
+ * are out for the same reason; every selector is a descendant one.
+ *
+ * The one colour that is not a variable is the overscroll ground on the
+ * html element, which sits above the page root and cannot read its
+ * variables: the palette ink, interpolated, never a literal. */
+import { INK } from "@/lib/rowPalette";
+
 export const l1Css = `
 /* The ink ground runs past the page: what shows under an overscroll is
  * the ground, not white. Dark controls on it. */
-html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
+html:has(.l1-ink),html:has(.l1-ink) body{background:${INK}}
 .row100k.l1-ink{color-scheme:dark}
 .row100k.l1 :focus-visible{outline-color:var(--l1-fg)}
 
@@ -92,6 +98,12 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-live{column-gap:24px}
   .row100k .l1-live div{padding:14px 24px 15px 0}
   .row100k .l1-live dd{font-size:clamp(40px,6.4vw,72px)}
+}
+/* The all-time tail on the labels, the 1st of a month before a meter, is
+ * gone on a phone (owner, 2026-10-01: it gets cut off and does not look
+ * good): the labels are ROWERS and METERS there. */
+@media(max-width:639px){
+  .row100k .l1-at{display:none}
 }
 
 /* OPT IN, straight under the sentence so it is on the first screen of any
@@ -212,43 +224,75 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-steps h3{font-size:clamp(34px,4.2vw,48px)}
 }
 
-/* THE CARDS: three the share dialog draws, each on an ink tile the way a
- * sticker sits on a story — the month (square), the profile (1080 by 700)
- * and the row (1080 by 620), the two wide ones letterboxed in the same
- * square. L4Cards paints them into the .l4c box, sized off the box and the
- * device pixels; the tile holds its shape from the first paint so nothing
- * jumps when the bitmap lands. On the ink ground a tile is told from the
- * page by a hairline.
+/* THE CARDS: four the share dialog draws, as templates in a strip (owner,
+ * 2026-10-01: swipeable, swipe-throughable), each on an ink tile the way
+ * a sticker sits on a story: the total of everyone (1080 by 620), one row
+ * (1080 by 620), the month of one rower (square), the leader in gold (1080
+ * by 700), the wide ones letterboxed in the same square so the strip is
+ * one height.
+ * L4Cards paints each into its canvas, sized off the box and the device
+ * pixels; the tile holds its shape from the first paint so nothing jumps
+ * when the bitmap lands. On the ink ground a tile is told from the page by
+ * a hairline. Under each tile, whose card it is and when.
  *
- * A ROW OF TILES (owner, 2026-10-01, of the one tile he was seeing; the
- * two before it were 170px each on a phone, too small to read). On a phone
- * the row is a strip that slides sideways: a tile is about three quarters
- * of the measure, so the next one shows at the edge and says there is
- * more, and the strip runs out through the right gutter to the edge of the
- * screen. It scrolls inside itself — the page never gets a sideways
- * scroll — and its bar is hidden, the cut tile being the tell. From 760px
- * the three stand across the measure, a third each, and nothing slides.
- * The bare mark, when there is no rower to draw, takes one tile. */
+ * THE STRIP scrolls inside itself, the page never sideways, and snaps a
+ * tile at a time. On a phone a tile is most of the measure and never under
+ * 280px, so its figures read, with the next one showing at the edge — the
+ * strip runs out through the right gutter to the edge of the screen. From
+ * 760px three and a bit stand across the measure, the cut fourth the tell
+ * that it slides. No bar: the cut tile, and under the strip the count of
+ * tiles seen and the two arrows, for a mouse that has no sideways wheel.
+ * The strip takes focus, and the arrow keys move it.
+ * The bare mark, when there is nothing to draw, takes one wide tile. */
 .row100k .l1-tiles{margin-top:18px}
-.row100k .l1-tiles .l4c{display:grid;grid-auto-flow:column;grid-auto-columns:min(76%,300px);gap:10px;align-items:start;margin-right:-20px;padding-right:20px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-left:0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.row100k .l1-tiles .l4c{display:grid;grid-auto-flow:column;grid-auto-columns:max(280px,min(84%,340px));gap:12px;align-items:start;margin-right:-20px;padding-right:20px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .row100k .l1-tiles .l4c::-webkit-scrollbar{display:none}
-.row100k .l1-tiles .l4c-card{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:#15171a;border:1px solid var(--l1-hair);scroll-snap-align:start}
+.row100k .l1-tiles .l4c:focus-visible{outline:2px solid var(--l1-fg);outline-offset:4px}
+.row100k .l1-tiles .l4c-tile{min-width:0;margin:0;scroll-snap-align:start}
+.row100k .l1-tiles .l4c-card{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:var(--l1-tile);border:1px solid var(--l1-hair)}
+/* A name with no space in it breaks where it must (review, 2026-10-01: a
+ * forty-letter name ran 37px past its tile and stretched the strip). */
+.row100k .l1-tiles .l4c-cap{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key);overflow-wrap:break-word;overflow-wrap:anywhere}
+.row100k .l1-tiles .l4c-cap b{color:var(--l1-fg);font-weight:700}
+.row100k .l1-tiles .l4c-cap a{color:var(--l1-fg);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
+.row100k .l1-tiles .l4c-cap a:hover{color:var(--l1-accent)}
+/* The count and the arrows: mono, the count in the key grey, the arrows in
+ * the page type with a thumb of room round them, the right one on the
+ * measure. Kept in the flow when the strip fits, but invisible, so the
+ * close does not jump when the count lands. */
+.row100k .l1-tiles .l4c-pg{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.16em;color:var(--l1-key)}
+.row100k .l1-tiles .l4c-pg.off{visibility:hidden}
+.row100k .l1-tiles .l4c-n{font-variant-numeric:tabular-nums}
+.row100k .l1-tiles .l4c-arr{display:flex;margin-right:-12px}
+.row100k .l1-tiles .l4c-arr button{font-family:var(--row-mono),monospace;font-size:20px;line-height:1;color:var(--l1-fg);background:none;border:none;padding:12px;cursor:pointer}
+.row100k .l1-tiles .l4c-arr button:hover{color:var(--l1-accent)}
+.row100k .l1-tiles .l4c-arr button:disabled{color:var(--l1-hair);cursor:default}
 .row100k .l1-bare .l4c{grid-auto-columns:minmax(0,1fr);margin-right:0;padding-right:0;overflow-x:visible}
 .row100k .l1-bare .l4c-card{aspect-ratio:1080/620}
-.row100k .l1-eg{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.14em;text-transform:uppercase;color:var(--l1-key)}
-.row100k .l1-eg b{color:var(--l1-fg)}
-.row100k .l1-eg a{color:var(--l1-fg);text-decoration:none;border-bottom:1px dotted currentColor;padding-bottom:1px}
-.row100k .l1-eg a:hover{color:var(--l1-accent)}
 @media(min-width:760px){
-  .row100k .l1-tiles .l4c{grid-auto-columns:minmax(0,calc((100% - 36px) / 3));gap:18px;margin-right:0;padding-right:0;overflow-x:visible}
+  .row100k .l1-tiles .l4c{grid-auto-columns:max(280px,calc((100% - 54px) / 3.25));gap:18px;margin-right:0;padding-right:0}
   .row100k .l1-bare .l4c{grid-auto-columns:minmax(0,480px)}
 }
 
 /* ------------------------------------------------------------ THE CLOSE
- * The number the next rower gets, OPT IN again, then the footer. */
+ * WELCOME, ROWER 120 — the number the next rower is handed — in the poster
+ * face, OPT IN under it, then the footer. Fitted the way the sentence on
+ * the fold is (L1.tsx fitK): the heading is the container, each line a
+ * share of its width, so WELCOME and ROWER 120 both end on the measure on
+ * a phone; from 640px the two are one line, fitted whole. A vw line in
+ * front of every cqw line for a WebView without container units. The
+ * number is the one word in the accent. */
 .row100k .l1-close{padding:clamp(44px,9vh,84px) 0 clamp(40px,8vh,72px);border-top:2px solid var(--l1-fg)}
-.row100k .l1-next{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8.4vw,60px);line-height:.96;letter-spacing:-.02em;text-transform:uppercase;color:var(--l1-fg)}
-.row100k .l1-next span{display:block;color:var(--l1-key)}
+.row100k .l1-wel{container-type:inline-size;width:100%;font-family:var(--row-archivo-black),sans-serif;font-weight:400;line-height:.86;letter-spacing:-.02em;text-transform:uppercase;color:var(--l1-fg)}
+.row100k .l1-wel em{font-style:normal;color:var(--l1-accent)}
+.row100k .l1-wln{display:block}
+.row100k .l1-wl{display:block;font-size:calc(min(100vw - 40px,1000px) / var(--k));font-size:calc(100cqw / var(--k));white-space:nowrap}
+.row100k .l1-wl + .l1-wl{padding-top:.12em}
+@media(min-width:640px){
+  .row100k .l1-wln{font-size:calc(min(100vw - 40px,1000px) / var(--kl));font-size:calc(100cqw / var(--kl));white-space:nowrap}
+  .row100k .l1-wl{display:inline;font-size:inherit}
+  .row100k .l1-wl + .l1-wl{padding-top:0}
+}
 .row100k .l1-close .l1-act{margin-top:0;padding-top:clamp(28px,6vh,48px)}
 /* The footer rule sits straight under the close on paper too (the ink
  * chrome already does this). */

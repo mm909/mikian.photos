@@ -1,14 +1,15 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
-import { GOAL_METERS, MONTH, MONTH_DAYS, MONTH_WORD, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { GOAL_METERS, MONTH, MONTH_DAYS, MONTH_WORD, fmtDay, fmtRowerNumber } from "@/lib/row100k";
 import { INK, PAPER, accentOn, capsOn, type Palette, type PaletteGround } from "@/lib/rowPalette";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import type { LandingData, LandingExample } from "../landing/data";
+import type { LandingData } from "../landing/data";
 import { MeterCount } from "../landing/MeterCount";
 import type { ShareData } from "../share/cards";
-import { L4Cards } from "./L4Cards";
+import { statsHref } from "../stats/statsUrl";
+import { L4Cards, type L4Tile } from "./L4Cards";
 import { L1Month } from "./L1Month";
 import { l1Css } from "./l1Css";
 
@@ -28,9 +29,9 @@ import { l1Css } from "./l1Css";
  * UNDER IT, still on the same ground: THE MONTH — everyone's meters a day
  * as the heat calendar, the month word a menu over every month so far
  * (L1Month, 2026-10-01) — how a meter counts in three lines, the cards a
- * rower posts after a row (the share dialog's own month, profile and row
- * cards, painted off one real rower's month — L4Cards), the number the
- * next rower gets, OPT IN again, the footer.
+ * rower posts after a row (a strip of four of the share dialog's own,
+ * painted off real public numbers — L4Cards), the welcome with the number
+ * the next rower gets, OPT IN again, the footer.
  *
  * THE GROUND AND THE ACCENT COME FROM THE PALETTE (rowPalette.ts): ink or
  * paper (ink whatever the preset says under the site's ink look —
@@ -85,7 +86,7 @@ const KERN: Record<string, number> = {
   XG: -0.034, XO: -0.034, YA: -0.094, YC: -0.06, YG: -0.06, YO: -0.06,
   YS: -0.043, "Y,": -0.162, "Y.": -0.17,
 };
-/* The display lines are tracked at -.02em (l1Css.ts .l1-dare, .l1-next).
+/* The display lines are tracked at -.02em (l1Css.ts .l1-dare, .l1-wel).
  * Counted on the gaps, not the glyphs: CSS tracks after the last character
  * too, and it is the ink that has to reach the edge. */
 const TRACK = 0.02;
@@ -169,8 +170,11 @@ function Dare() {
  * figures; two ruled rows on a phone, two cells from 640px. */
 function Live({ rowers, meters, allTime }: { rowers: number; meters: number; allTime?: boolean }) {
   /* The 1st of a month, before anyone has logged: the all-time figures,
-   * said so, rather than two zeros under the headline. */
-  const tail = allTime ? " · all time" : "";
+   * said so, rather than two zeros under the headline. The tail is a span
+   * the sheet drops under 640px (owner, 2026-10-01: "let's just remove the
+   * all-time call-out on mobile, it gets cut off and doesn't look good"):
+   * on a phone the labels are ROWERS and METERS. */
+  const tail = allTime ? <span className="l1-at"> · all time</span> : null;
   return (
     <dl className="l1-live">
       <div>
@@ -240,46 +244,131 @@ function Steps() {
   );
 }
 
-/* THE CARDS a rower posts after a row: three of the share dialog's own —
- * the month, the profile and the row just logged — painted off the example
- * rower's real month, each on an ink tile (owner, 2026-09-30: seeing that
- * after a row you can post the card). A row of tiles: three across on a
- * laptop, a strip that slides sideways on a phone with the next tile
- * showing at the edge, so each is big enough to read.
+/* THE CARDS a rower posts after a row, as a strip of templates (owner,
+ * 2026-10-01: "the cards need to be something other than just Rowtember …
+ * let's show several of them, like templates, and have them be swipeable,
+ * swipe-throughable. Show the total number of meters with the Rowtember
+ * logo; show what an individual row looks like; show what it looks like
+ * for the meters; show what it looks like if you're in first, with that
+ * gold colour"). Four of the share dialog's own, in his order, each off
+ * real numbers from the public board (landing/data.ts):
+ *   everyone's month, the stats page's total card with the mark;
+ *   THIS ROW, the example rower's newest timed row;
+ *   the example rower's month, the calendar card with their meters;
+ *   the leader's total with their name, which paints #1 and the mark in
+ *   gold — the top of the newest month whose top is in plain sight.
+ * Under each, whose it is and when, the names to their profiles. A card
+ * the data cannot draw stays off the strip.
  *
- * ONE CARD WAS SHOWING (owner, 2026-10-01: "right now we're only showing
- * one card for some reason"): the example had no meter in the new month
- * yet, so the page drew the bare mark — one tile. The example is now the
- * newest month they have rowed (landing/data.ts), named in the line under
- * the tiles when it is not this one. The mark alone is still what a page
- * with no rower to draw gets — nobody has ever rowed, or the example is
- * masked by a blackout in every month. */
-const CARD_IDS = ["rowtember-month", "rowtember-profile", "rowtember-row"];
+ * The strip itself (L4Cards, l1Css.ts .l1-tiles): one tile to a phone
+ * screen with the next one showing at the edge, three and a bit across a
+ * laptop, snapping a tile at a time. The mark alone, one tile, is what a
+ * page with nothing to draw gets — nobody has ever rowed. */
+function profileHref(rowerNumber: number, monthKey: string, thisMonth: boolean): string {
+  return thisMonth ? `/row100k/r/${rowerNumber}` : `/row100k/r/${rowerNumber}?m=${monthKey}`;
+}
 
-function Cards({ eg }: { eg: LandingExample | null }) {
+function Who({ name, rowerNumber, href }: { name: string; rowerNumber: number; href: string }) {
   return (
     <>
-      <div className={eg ? "l1-tiles" : "l1-tiles l1-bare"}>
-        {eg ? <L4Cards data={eg.share} ids={CARD_IDS} /> : <L4Cards data={BARE} ids={["rowtember-logo"]} />}
-      </div>
-      {eg ? (
-        <p className="l1-eg mono">
-          <b>Rower {fmtRowerNumber(eg.rowerNumber)}</b>
-          {DOT}
-          <a href={eg.thisMonth ? `/row100k/r/${eg.rowerNumber}` : `/row100k/r/${eg.rowerNumber}?m=${eg.monthKey}`}>{eg.name}</a>
-          {DOT}
-          <span className="l1-nb">
-            {fmtMeters(eg.meters)} in {eg.sessions} {eg.sessions === 1 ? "row" : "rows"}
-          </span>
-          {eg.thisMonth ? null : (
-            <>
-              {DOT}
-              <span className="l1-nb">{eg.monthWord}</span>
-            </>
-          )}
-        </p>
-      ) : null}
+      <b className="l1-nb">Rower {fmtRowerNumber(rowerNumber)}</b>
+      {DOT}
+      <a href={href}>{name}</a>
     </>
+  );
+}
+
+function Cards({ data }: { data: LandingData }) {
+  const { example: eg, everyone, leader } = data;
+  const tiles: L4Tile[] = [];
+  if (everyone) {
+    tiles.push({
+      id: "rowtember-community-total",
+      data: everyone.share,
+      caption: (
+        <>
+          <a href={statsHref({ m: everyone.monthKey }, MONTH.key)}>Everyone</a>
+          {DOT}
+          <span className="l1-nb">{everyone.monthWord}</span>
+        </>
+      ),
+    });
+  }
+  if (eg) {
+    const href = profileHref(eg.rowerNumber, eg.monthKey, eg.thisMonth);
+    const row = eg.share.row;
+    if (row) {
+      tiles.push({
+        id: "rowtember-row",
+        data: eg.share,
+        caption: (
+          <>
+            <Who name={eg.name} rowerNumber={eg.rowerNumber} href={href} />
+            {DOT}
+            <span className="l1-nb">{fmtDay(row.day)}</span>
+          </>
+        ),
+      });
+    }
+    tiles.push({
+      id: "rowtember-month",
+      data: eg.share,
+      caption: (
+        <>
+          <Who name={eg.name} rowerNumber={eg.rowerNumber} href={href} />
+          {DOT}
+          <span className="l1-nb">{eg.monthWord}</span>
+        </>
+      ),
+    });
+  }
+  if (leader) {
+    tiles.push({
+      id: "rowtember-named",
+      data: leader.share,
+      caption: (
+        <>
+          <Who name={leader.name} rowerNumber={leader.rowerNumber} href={profileHref(leader.rowerNumber, leader.monthKey, leader.thisMonth)} />
+          {DOT}
+          <span className="l1-nb">{leader.monthWord}</span>
+        </>
+      ),
+    });
+  }
+  return tiles.length > 0 ? (
+    <div className="l1-tiles">
+      <L4Cards tiles={tiles} label="Share cards" />
+    </div>
+  ) : (
+    <div className="l1-tiles l1-bare">
+      <L4Cards tiles={[{ id: "rowtember-logo", data: BARE }]} label="Share card" />
+    </div>
+  );
+}
+
+/* THE CLOSE (owner, 2026-10-01: "the final call to action should be:
+ * welcome, rower one twenty. Choose to opt in"): the number the next rower
+ * is handed, as a welcome, in the poster face — fitted to the measure the
+ * way the sentence on the fold is, two lines on a phone and one from
+ * 640px — the number in the accent, the one word of news, as the month is
+ * on the fold. OPT IN under it. */
+function Welcome({ next }: { next: number }) {
+  const a = "Welcome,";
+  const n = fmtRowerNumber(next);
+  const b = `Rower ${n}`;
+  return (
+    <h2 className="l1-wel" aria-label={`Welcome, rower ${n}`}>
+      {/* The heading is the container, so the line that sizes itself off
+          it is a child: one wrapper for the one-line cut from 640px. */}
+      <span className="l1-wln" style={kl(fitK(`${a} ${b}`))} aria-hidden="true">
+        <span className="l1-wl" style={k(fitK(a))}>
+          {a}
+        </span>{" "}
+        <span className="l1-wl" style={k(fitK(b))}>
+          Rower <em>{n}</em>
+        </span>
+      </span>
+    </h2>
   );
 }
 
@@ -287,11 +376,13 @@ function Cards({ eg }: { eg: LandingExample | null }) {
  * on it at the theme's four weights, the hairline, and the accent cut for
  * that ground with the type a slab of it carries. The three water
  * variables follow the accent so the focus ring and anything else from
- * theme.ts agrees with the page. */
+ * theme.ts agrees with the page. --l1-tile is the ink under a share card
+ * on either ground: the cards are white type on nothing. */
 function vars(p: Palette, ground: PaletteGround): CSSProperties {
   const ink = ground === "ink";
   const a = accentOn(p, ground);
   return {
+    "--l1-tile": INK,
     "--l1-bg": ink ? INK : "var(--paper)",
     "--l1-fg": ink ? PAPER : INK,
     "--l1-soft": ink ? "rgba(244,243,238,.74)" : "var(--ink-soft)",
@@ -352,18 +443,14 @@ export function L1({ data, palette, ground }: { data: LandingData; palette: Pale
 
           <section className="l1-sec">
             <Head label="The cards" note="After every row" />
-            <Cards eg={data.example} />
+            <Cards data={data} />
           </section>
         </div>
       </main>
 
       <section className="l1-close">
         <div className="wrap front">
-          {data.nextNumber ? (
-            <p className="l1-next">
-              Number {fmtRowerNumber(data.nextNumber)} is next. <span>Yours for life.</span>
-            </p>
-          ) : null}
+          {data.nextNumber ? <Welcome next={data.nextNumber} /> : null}
           <Go />
         </div>
       </section>
