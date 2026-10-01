@@ -19,10 +19,8 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
 .row100k.l1-ink{color-scheme:dark}
 .row100k.l1 :focus-visible{outline-color:var(--l1-fg)}
 
-/* OPT IN is the one door on this page: the bar keeps its wordmark and its
- * rail, and the SIGN IN chip (the only boxed thing on the bar, and it
- * opens the same sign-in) stays off. */
-.row100k.l1 .acct-chip{display:none}
+/* The bar keeps its wordmark, its rail and the OPT IN chip in the top
+ * right (owner, 2026-10-01): the same door as the slab under the sentence. */
 
 /* A fact kept whole: a number never parts from its unit at a wrap. */
 .row100k .l1-nb{white-space:nowrap}
@@ -81,26 +79,26 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-w{display:inline;font-size:inherit;padding-top:0}
 }
 
-/* THE TWO LIVE FIGURES under a 2px rule: a mono cap label over a tabular
- * figure, one ruled row each on a phone, side by side from 640px. The
- * meters count up (MeterCount.tsx) and the tabular figures keep the digits
- * in their columns while they do. */
-.row100k .l1-live{margin-top:24px;border-top:2px solid var(--l1-fg)}
-.row100k .l1-live div{min-width:0;padding:12px 0 13px;border-bottom:1px dashed var(--l1-hair)}
-.row100k .l1-live div:last-child{border-bottom:none}
-.row100k .l1-live dt{font-size:11px;font-weight:700;line-height:16px;letter-spacing:.16em;text-transform:uppercase;color:var(--l1-key)}
-.row100k .l1-live dd{margin-top:6px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(32px,10.5vw,64px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--l1-fg)}
+/* THE TWO LIVE FIGURES under OPT IN, side by side at every width (owner,
+ * 2026-10-01): a mono cap label over a tabular figure, rowers a third of
+ * the measure and meters the rest. The meters count up (MeterCount.tsx)
+ * and the tabular figures keep the digits in their columns while they do. */
+.row100k .l1-live{margin-top:22px;border-top:2px solid var(--l1-fg);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);column-gap:16px}
+.row100k .l1-live div{min-width:0;padding:12px 16px 13px 0;border-right:1px dashed var(--l1-hair)}
+.row100k .l1-live div:last-child{border-right:none;padding-right:0}
+.row100k .l1-live dt{font-size:11px;font-weight:700;line-height:16px;letter-spacing:.16em;text-transform:uppercase;color:var(--l1-key);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row100k .l1-live dd{margin-top:6px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(26px,8.2vw,40px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--l1-fg)}
 @media(min-width:640px){
-  .row100k .l1-live{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);column-gap:24px}
-  .row100k .l1-live div{border-bottom:none;border-right:1px dashed var(--l1-hair);padding:14px 24px 15px 0}
-  .row100k .l1-live div:last-child{border-right:none;padding-right:0}
+  .row100k .l1-live{column-gap:24px}
+  .row100k .l1-live div{padding:14px 24px 15px 0}
   .row100k .l1-live dd{font-size:clamp(40px,6.4vw,72px)}
 }
 
-/* OPT IN, pushed to the foot of the poster where a thumb is: a slab of the
- * accent across the measure, the words in mono caps at a size white holds
- * on it, the arrow at the far end. Hover lifts it to the lighter cut. */
-.row100k .l1-act{margin-top:auto;padding-top:30px}
+/* OPT IN, straight under the sentence so it is on the first screen of any
+ * phone: a slab of the accent across the measure, the words in mono caps
+ * at a size white holds on it, the arrow at the far end. Hover lifts it to
+ * the lighter cut. */
+.row100k .l1-act{padding-top:22px}
 .row100k .l1-cta{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--l1-accent);color:var(--l1-caps);font-size:clamp(18px,5vw,22px);font-weight:700;line-height:1;letter-spacing:.16em;text-transform:uppercase;padding:22px 20px 21px;text-decoration:none;transition:background 160ms ease}
 .row100k .l1-cta .arr{font-weight:400;letter-spacing:0}
 .row100k .l1-cta:hover,.row100k .l1-cta:focus-visible{background:var(--l1-accent-hover)}
@@ -113,7 +111,7 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
 }
 @media(min-width:900px){
   .row100k .l1-fold{min-height:0}
-  .row100k .l1-act{margin-top:clamp(40px,8vh,80px)}
+  .row100k .l1-act{padding-top:clamp(28px,5vh,48px)}
 }
 /* A SHORT PHONE (an SE: 667px tall) has no room for the poster at full
  * stretch — OPT IN fell 120px under the first screen. The two figures go
@@ -123,11 +121,9 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-poster{padding-top:12px;padding-bottom:18px}
   .row100k .l1-eye{margin-top:16px}
   .row100k .l1-dare{margin-top:6px;max-width:min(100%,42vh);max-width:min(100%,42svh)}
-  .row100k .l1-live{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);column-gap:16px}
-  .row100k .l1-live div{border-bottom:none;border-right:1px dashed var(--l1-hair);padding:10px 16px 11px 0}
-  .row100k .l1-live div:last-child{border-right:none;padding-right:0}
-  .row100k .l1-live dd{font-size:clamp(28px,8.6vw,40px)}
-  .row100k .l1-act{padding-top:20px}
+  .row100k .l1-live{margin-top:16px}
+  .row100k .l1-live div{padding:10px 16px 11px 0}
+  .row100k .l1-act{padding-top:16px}
   .row100k .l1-cta{padding:18px 20px 17px}
 }
 

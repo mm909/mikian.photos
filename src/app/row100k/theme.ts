@@ -787,6 +787,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k.chrome-ink .rail a.rail-stamp:hover,.row100k.chrome-ink .rail a.rail-stamp:focus-visible,.row100k.chrome-ink .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
 .row100k.chrome-ink .acct-chip{border-color:#fff;color:#fff}
 .row100k.chrome-ink .acct-chip:hover{border-color:#fff;color:var(--ink);background:#fff}
+/* OPT IN, the signed-out chip: a block of the accent on either ground. */
+.row100k .acct-chip.opt,.row100k.chrome-ink .acct-chip.opt{background:var(--l1-accent,var(--water));border-color:var(--l1-accent,var(--water));color:#fff}
+.row100k .acct-chip.opt:hover,.row100k.chrome-ink .acct-chip.opt:hover{background:var(--l1-accent-hover,var(--water-hover));border-color:var(--l1-accent-hover,var(--water-hover));color:#fff}
 .row100k.chrome-ink .bar-log{background:#fff;border-color:#fff;color:var(--ink)}
 /* The raffle strip was an ink band already, so the inverted bar costs it
  * only its edges: the paper-tinted type goes plain white and its button

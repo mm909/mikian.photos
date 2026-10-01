@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signIn, signOut } from "next-auth/react";
 import { fmtRowerNumber } from "@/lib/row100k";
 
-/* Top-right of the bar. Signed out: a SIGN IN chip. Joined: a "ROWER 023"
+/* Top-right of the bar. Signed out: an OPT IN chip in the accent. Joined: a "ROWER 023"
  * chip opening the account menu — profile, poster, plan, then settings
  * (owner call, 2026-09-05: settings live behind this menu, not on the
  * page), then sign out. Signed in but not joined: join link + sign out.
@@ -70,12 +70,15 @@ export function BarAccount({
 
   if (!signedIn) {
     return (
+      /* Signed out, the chip is the ask itself (owner, 2026-10-01: "an OPT
+       * IN button in the top right where the profile would be when not
+       * logged in"): the accent block, the same door as before. */
       <button
         type="button"
-        className="acct-chip"
+        className="acct-chip opt"
         onClick={() => signIn("google", { callbackUrl: "/row100k#join" })}
       >
-        Sign in
+        Opt in
       </button>
     );
   }

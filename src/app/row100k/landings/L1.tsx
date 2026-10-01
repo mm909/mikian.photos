@@ -303,12 +303,16 @@ export function L1({ data, palette, ground }: { data: LandingData; palette: Pale
           <Dateline today={today} />
           <p className="l1-eye mono">The monthly rowing challenge</p>
           <Dare />
+          {/* OPT IN straight under the sentence, the figures after it
+              (owner, 2026-10-01, on his phone: "I need the opt in button
+              above the fold — above the stats, the stats side by side
+              below it"). */}
+          <Go />
           {data.month.meters > 0 ? (
             <Live rowers={data.month.active} meters={data.month.meters} />
           ) : (
             <Live rowers={data.all.active} meters={data.all.meters} allTime />
           )}
-          <Go />
         </div>
       </header>
 
