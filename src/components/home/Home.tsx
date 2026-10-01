@@ -320,7 +320,7 @@ export function Home({ snapshot }: { snapshot: MeterSnapshot }) {
             Meters rowed · <b>everyone together</b> · all time
           </p>
           <div className="cta">
-            <a className="opt" href="/row100k">
+            <a className="opt" href="https://www.rowtember.com/">
               Opt in
               <span className="arr" aria-hidden="true">
                 <svg viewBox="0 0 100 100" focusable="false">

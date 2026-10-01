@@ -135,7 +135,57 @@ function rowRewrite(req: NextRequest): NextResponse | null {
   return NextResponse.rewrite(to);
 }
 
+/* NO ROWTEMBER ON THE OLD HOST (owner, 2026-10-01: "no more hosting will
+ * get done on mikianmusser.com for Rowtember"). On mikianmusser.com every
+ * Rowtember address — /row100k and everything under it, the addresses
+ * without the prefix, and the erg console — answers with a permanent
+ * redirect to the same page on www.rowtember.com, query kept, the
+ * /row100k prefix dropped. Printed links and old mail keep working; a
+ * rower signs in once more there (a session belongs to its host). The
+ * landing at /, the crew call, the relay, the media kit and every API
+ * route stay where they are. Only the two production hostnames: a preview
+ * deployment and localhost serve everything, as before. */
+const ROWTEMBER_ORIGIN = "https://www.rowtember.com";
+
+function onOldHost(req: NextRequest): boolean {
+  const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  return host === "mikianmusser.com" || host === "www.mikianmusser.com";
+}
+
+/* A Rowtember address as it reads on rowtember.com, or null for a path
+ * that is not Rowtember's. */
+function rowtemberPath(pathname: string): string | null {
+  if (pathname === "/row100k") return "/";
+  if (pathname.startsWith("/row100k/")) return pathname.slice("/row100k".length);
+  if (pathname === "/erg" || pathname.startsWith("/erg/")) return pathname;
+  if (ROW_SEGMENTS.has(pathname.split("/")[1] ?? "")) return pathname;
+  return null;
+}
+
+function toRowtember(req: NextRequest): NextResponse | null {
+  if (!onOldHost(req)) return null;
+  const { pathname, search, searchParams } = req.nextUrl;
+  const path = rowtemberPath(pathname);
+  if (path === null) return null;
+  /* The one sign-in page serves both hosts (src/lib/auth.ts pages.signIn):
+   * asked for on the way to a page that stays here — the relay console,
+   * the crew call — it must sign in HERE, so it is left alone. */
+  if (path === "/sign-in") {
+    const cb = searchParams.get("callbackUrl") ?? "";
+    let cbPath = cb;
+    try {
+      cbPath = new URL(cb, req.url).pathname;
+    } catch {
+      cbPath = "";
+    }
+    if (cbPath && cbPath !== "/" && rowtemberPath(cbPath) === null) return null;
+  }
+  return NextResponse.redirect(`${ROWTEMBER_ORIGIN}${path}${search}`, 308);
+}
+
 export function middleware(req: NextRequest) {
+  const moved = toRowtember(req);
+  if (moved) return moved;
   const row = rowRewrite(req);
   if (row) return row;
   if (allowed(req.nextUrl.pathname)) return paletteRedirect(req) ?? NextResponse.next();

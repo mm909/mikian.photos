@@ -11,7 +11,7 @@ export function HomeBar() {
         Mikian Musser
       </a>
       <nav aria-label="Site">
-        <a className="row" href="/row100k">
+        <a className="row" href="https://www.rowtember.com/">
           Rowtember
         </a>
         <a className="lasd" href="/lasd26">
