@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PALETTE_COOKIE, isPaletteId } from "@/lib/rowPalette";
+import { ROW_SEGMENTS } from "@/lib/rowSegments";
 
 /* The photo marketplace is off the air. Owner, 2026-09-25: "Make those
  * pages unreachable. No mikian.photos page should still be accessible."
@@ -88,38 +89,7 @@ function onRowtember(req: NextRequest): boolean {
  * /stats, /r/95, /records/5k, /sign-in — is served by the page at
  * /row100k/<the same path>, a rewrite, so the address a rower sees and
  * shares carries no prefix. The list is the folders under src/app/row100k
- * that hold a page; add a new page folder here when one is made. None of
- * them is also a top-level route of this app. */
-const ROW_SEGMENTS = new Set([
-  "analysis",
-  "blackout",
-  "board",
-  "dev",
-  "emails",
-  "feed",
-  "gallery",
-  "join",
-  "moderation",
-  "partners",
-  "plan",
-  "pm5",
-  "post",
-  "posters",
-  "preview",
-  "r",
-  "race-admin",
-  "raceday",
-  "raffles",
-  "records",
-  "settings",
-  "shareables",
-  "shirt",
-  "shirts",
-  "shop-admin",
-  "sign-in",
-  "signups",
-  "stats",
-]);
+ * that hold a page (src/lib/rowSegments.ts). */
 
 function rowRewrite(req: NextRequest): NextResponse | null {
   const { pathname } = req.nextUrl;
