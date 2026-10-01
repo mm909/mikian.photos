@@ -4,9 +4,10 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
-import { waveTime } from "../../raceday";
-import { resolvedRace } from "../../racedaySettings";
+import { raceOver, waveTime } from "../../raceday";
+import { raceWithSettings } from "../../racedaySettings";
 import { resultBoard } from "../../raceResults";
+import { ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
 import { RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
@@ -38,8 +39,12 @@ export const metadata: Metadata = {
  *
  * TIMES ARE PUBLIC FOR EVERYBODY. The blackout hides meters, never a 5k
  * clock (racedayData.ts), so nothing on this board is masked for anyone.
- * The YOU strip reads the session — a rower sees their own row marked —
- * and the cast frame drops it on the way in. */
+ * Mid-race the YOU strip reads the session — a rower sees their own row
+ * marked — and the cast frame drops it on the way in.
+ *
+ * ONCE THE RACE IS OVER (raceday.ts raceOver, 2026-10-01) this is the same
+ * archive /row100k/raceday draws: the ruled header off the race, then the
+ * finished sheet, and nothing about the viewer. Two addresses, one page. */
 const DAY_MS = 24 * 3_600_000;
 const RACE_PATH = "/row100k/raceday";
 const RESULTS_PATH = "/row100k/raceday/results";
@@ -63,9 +68,11 @@ export default async function RaceDayResultsPage({
   const pick = waveRaw !== undefined && /^[0-9]+$/.test(waveRaw) ? Number(waveRaw) : null;
 
   /* The race AS IT STANDS — a first wave moved in the console moves every
-   * scheduled time on the grid. */
-  const race = await resolvedRace();
-  const board = await resultBoard(race, { youParticipantId: viewer.myParticipantId });
+   * scheduled time on the grid — and whether the sheet is posted, in the
+   * same read. */
+  const { race, view } = await raceWithSettings();
+  const over = raceOver(race, view.finalAt);
+  const board = await resultBoard(race, { youParticipantId: viewer.myParticipantId, final: over });
   const final = board.state === "finished";
   /* A day out the grid is empty and the note says why. */
   const early = board.nowMs < race.opensAt - DAY_MS;
@@ -110,7 +117,7 @@ export default async function RaceDayResultsPage({
       <style>{rrCss}</style>
       <RowBar active="raceday" {...barProps(viewer)} />
       <Refresh active={!final} />
-      <RaceResults board={board} note={note} pick={pick} />
+      <RaceResults board={board} note={note} head={final ? <ArchiveHead race={race} /> : undefined} pick={pick} />
       <RowFooter />
     </div>
   );

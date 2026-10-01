@@ -1,4 +1,4 @@
-import { hoursLine, waveTime, type RaceDef } from "../raceday";
+import { hoursLine, raceOver, waveTime, type RaceDef } from "../raceday";
 import { myRacer, type Racer } from "../racedayData";
 import { resolvedRace } from "../racedaySettings";
 import type { ShareData } from "../share/cards";
@@ -55,6 +55,11 @@ export async function myWaveShare(participantId: string | null): Promise<RaceSha
   if (!participantId) return undefined;
   try {
     const race = await resolvedRace();
+    /* A wave is a thing to come. Once the race is run (raceday.ts raceOver,
+     * off the clock alone — this read carries no finalAt) the card comes
+     * out of every deck; the result lives on the archive, where SHARE YOUR
+     * TIME hands out the time card instead (2026-10-01). */
+    if (raceOver(race, null)) return undefined;
     const mine = toldWave(race, await myRacer(race, participantId));
     return mine ? { ...raceFactsOf(race), mine, waveOnly: true } : undefined;
   } catch (err) {

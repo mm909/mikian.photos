@@ -1,4 +1,4 @@
-import { fmtRecordTime, fmtSplit } from "@/lib/row100k";
+import { fmtRecordTime } from "@/lib/row100k";
 
 /* THE RESULTS BOARD — the model, and everything derivable from it.
  *
@@ -118,7 +118,11 @@ export type ResultBoard = {
   racers: ResultRacer[];
   /* The signed-in viewer, when they are in the field. Never set on the cast
    * frame: a gym casting from a signed-in laptop would put one rower on the
-   * wall all evening. */
+   * wall all evening. ON THE FINISHED SHEET IT MARKS NOTHING (owner,
+   * 2026-10-01: the archive is public and impersonal — no YOU, no "your
+   * wave", no highlighted row); its one remaining job there is to put the
+   * viewer first in the SHARE YOUR TIME picker. Mid-race the YOU strip and
+   * the row mark still read it. */
   youId: string | null;
   /* True when the numbers are invented, so the surface can say so. */
   sample: boolean;
@@ -153,19 +157,46 @@ export function fmtAgo(fromMs: number, toMs: number): string {
 
 /* ---- times --------------------------------------------------------- */
 
+/* THE TENTH, for anything that still wants it. The race surfaces do not
+ * (fmtRaceTime below); this is kept for the mid-race board's internals and
+ * for any caller outside the race that reads the model. */
 export function fmtTime(seconds: number): string {
   return fmtRecordTime(seconds);
 }
 
-export function fmtSplitFor(meters: number, seconds: number): string {
-  return fmtSplit(meters, seconds);
+/* WHOLE SECONDS, FLOORED, on every race surface (owner, 2026-10-01:
+ * "21:41.1 → 21:41, a 500 m split 2:10.3 → 2:10"). Floored and never
+ * rounded, because a 21:41.9 rounded up is a time nobody rowed. Integer
+ * tenths first so a float cannot shave a second. Ties after flooring keep
+ * the tenths order underneath (ranked); nothing is re-sorted. The rest of
+ * the site keeps fmtRecordTime and its tenth. */
+export function fmtRaceTime(seconds: number): string {
+  const s = Math.floor(Math.round(seconds * 10) / 10);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
-/* "+0:31.5" / "-2:07.9" — a margin, always signed, so second and third read
- * as a measurement from the winner rather than as two more rows. */
+/* "2:10" — the 500 m split, floored to the second, race surfaces only. */
+export function fmtSplitFor(meters: number, seconds: number): string {
+  return fmtRaceTime(seconds / (meters / 500));
+}
+
+/* "+0:31" / "-2:07" — a margin, always signed, so second and third read
+ * as a measurement from the winner rather than as two more rows. Floored
+ * like every other race time. */
 export function fmtGap(delta: number): string {
   const sign = delta < 0 ? "-" : "+";
-  return `${sign}${fmtRecordTime(Math.abs(delta))}`;
+  return `${sign}${fmtRaceTime(Math.abs(delta))}`;
+}
+
+/* The seed as the race prints it: whole seconds, and a prorated one wears
+ * an asterisk and never the word (owner, 2026-10-01). Null for no baseline. */
+export function fmtSeed(best: ResultRacer["best5k"]): string | null {
+  if (!best) return null;
+  return `${fmtRaceTime(best.seconds)}${best.prorated ? "*" : ""}`;
 }
 
 /* ---- the field ----------------------------------------------------- */
@@ -217,6 +248,26 @@ export function isPr(r: ResultRacer): boolean {
   return r.seconds < r.best5k.seconds;
 }
 
+/* A FIRST 5K (owner, 2026-10-01): a finisher with NO 5,000 m or longer row
+ * before the race has no baseline, so the night IS their first — and it is
+ * said with a tag beside the time, in the place PR would go, rather than
+ * left as an absence. The seed cell reads a dash. */
+export function isFirst5k(r: ResultRacer): boolean {
+  return r.status === "finished" && r.seconds !== null && !r.best5k;
+}
+
+/* THE ONE MARK A ROW WEARS, or none: PR against the seed (prorated or
+ * rowed — the seed printed is the seed measured against), FIRST 5K with no
+ * seed at all. Every surface that tags a time reads this, the share card
+ * included, so a rower is never a PR on the sheet and nothing on the card. */
+export type RaceTag = "PR" | "FIRST 5K";
+
+export function raceTag(r: ResultRacer): RaceTag | null {
+  if (isPr(r)) return "PR";
+  if (isFirst5k(r)) return "FIRST 5K";
+  return null;
+}
+
 /* STILL TO ROW, THE THREATS AND THE UNSEEDED ARE GONE, and so is the seed
  * bar they drew down the side of the field table (owner, 2026-09-11: remove
  * the callouts to two of them having a faster five k on record, one with
@@ -250,11 +301,12 @@ export function bracketView(b: ResultBoard, bracket: Bracket): BracketView {
   };
 }
 
-/* THE PODIUM, and the line a podium normally hides. Fourth is carried
- * because it turns third place from a cut-off into a margin. */
+/* THE PODIUM: first, second, third. The FOURTH line — how far off the
+ * podium they were — was carried here from the first mock and came off
+ * (owner, 2026-10-01: "Podium shows 1st, 2nd, 3rd only, no 4th"); the
+ * sheet under the podium has the whole order. */
 export type Podium = {
   steps: { racer: ResultRacer; place: 1 | 2 | 3; gap: number }[];
-  fourth: { racer: ResultRacer; offPodium: number } | null;
   /* What first won by — so the three blocks read as one measurement. */
   wonBy: number | null;
 };
@@ -267,12 +319,8 @@ export function podium(v: BracketView): Podium {
     place: (i + 1) as 1 | 2 | 3,
     gap: (racer.seconds ?? 0) - (first?.seconds ?? 0),
   }));
-  const third = rk[2] ?? null;
-  const four = rk[3] ?? null;
   return {
     steps,
-    fourth:
-      four && third ? { racer: four, offPodium: (four.seconds ?? 0) - (third.seconds ?? 0) } : null,
     wonBy: rk.length > 1 ? (rk[1].seconds ?? 0) - (first?.seconds ?? 0) : null,
   };
 }
@@ -338,9 +386,10 @@ export function racerById(b: ResultBoard, id: string | null): ResultRacer | null
  * the board reflowed every half hour and a frame clipped at 720 was left with
  * a hole. The panel shows the wave that is NEXT instead: who sits down, on
  * which erg, and what they came in with, which is what the room is physically
- * doing in that gap. FINISHED there is nothing live to follow, so a rower
- * gets their own wave and anybody else gets wave 1, the night from the start.
- * A pinned wave beats all of it.
+ * doing in that gap. FINISHED there is nothing live to follow, so the panel
+ * opens on wave 1, the night from the start, for everybody — it used to
+ * open on the viewer's own wave, and the archive marks nobody (owner,
+ * 2026-10-01). A pinned wave beats all of it.
  *
  * NOTHING ROTATES ON A TIMER. The wall moves when the ROOM moves, which needs
  * no clock of its own and starts working the day the poll the cast frame
@@ -350,10 +399,7 @@ export function pickedWave(b: ResultBoard, pick?: number | null): number {
   if (typeof pick === "number" && b.waves.some((w) => w.wave === pick)) return pick;
   const live = liveWave(b);
   if (live) return live.wave;
-  if (b.state === "finished") {
-    const you = racerById(b, b.youId);
-    return you ? you.wave : first;
-  }
+  if (b.state === "finished") return first;
   const next = nextWave(b);
   if (next) return next.wave;
   return [...b.waves].filter((w) => w.state === "rowed").pop()?.wave ?? first;

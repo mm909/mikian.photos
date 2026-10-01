@@ -8,15 +8,16 @@ import {
   fmtClock,
   fmtElapsed,
   fmtGap,
+  fmtRaceTime,
+  fmtSeed,
   fmtSplitFor,
-  fmtTime,
   inWave,
-  isPr,
   nextWave,
   ordinal,
   pickedWave,
   placeOf,
   podium,
+  raceTag,
   racerById,
   ranked,
   roomCounts,
@@ -28,6 +29,7 @@ import {
   type ResultRacer,
   type ResultWave,
 } from "./types";
+import { ShareTime, type ShareRacer } from "./ShareTime";
 
 /* THE START LIST THAT FILLS IN — the results board.
  *
@@ -89,29 +91,37 @@ import {
  *   - the wall is clickable: the cells on the television take a click too
  *     (CastPicker.tsx owns the pick; this file only wires onPick).
  *
- * FIRST, SECOND AND THIRD WITHOUT A COLOUR — four redundant signals, since
- * a monochrome board cannot hand out a gold medal:
- *   1 THE BLOCK   filled white / 2px outline / 1px hairline. Fill beats
- *                 outline beats hairline: it is a literal podium.
- *   2 THE CLOCK   86 / 52 / 38 on a laptop, 50 / 36 / 31 on a phone, so the
- *                 stair survives the stack.
- *   3 THE ORDINAL spelled: 1ST / 2ND / 3RD.
- *   4 THE GAP     printed on all three. First carries WON BY 0:31.5 rather
- *                 than an empty space, so the blocks read as ONE
- *                 measurement and not a winner plus two also-rans.
- * And under each podium, the line a podium normally hides: FOURTH, with how
- * far off it they were. On this field a woman misses third by nine tenths of
- * a second, and that is the best thing on the page.
+ * THE FINISHED SHEET IS THE ARCHIVE (owner, 2026-10-01, the week after the
+ * race, reading it on his phone). What changed, all of it his list:
+ *   - PUBLIC AND IMPERSONAL. The YOU strip, the YOU tag, the highlighted
+ *     row and the open-on-your-wave default are gone from the finished
+ *     sheet (mid-race keeps them: a rower in the gym looking for their
+ *     wave is a different page). The one personal thing left is SHARE YOUR
+ *     TIME (ShareTime.tsx), which puts the signed-in racer first in its
+ *     list and marks nothing on the page.
+ *   - NO DATELINE. No FINAL 12:00 AM clock, no SHEET POSTED, no freshness
+ *     line — the archive header (ArchiveHead.tsx, handed in as `head`) says
+ *     the name, the day, the place and the two houses, and the rest is
+ *     just the results.
+ *   - WHOLE SECONDS, FLOORED, everywhere (types.ts fmtRaceTime): 21:41.1
+ *     prints 21:41, a split 2:10.3 prints 2:10. The tenths still decide the
+ *     order underneath; nothing is re-sorted after the floor.
+ *   - MEN / WOMEN as mono caps labels, not THE MEN / THE WOMEN in the
+ *     display face; the counts and SCORED APART are gone with them.
+ *   - THE ORDER: the header, then the results (one table per bracket, in
+ *     place order), then the waves (the picker and HOW THE NIGHT RAN), then
+ *     the winners (1st, 2nd, 3rd, and no fourth line).
+ *   - THE SEED wears an asterisk when it is prorated off a longer row, and
+ *     never the word; a finisher with no seed at all is tagged FIRST 5K
+ *     where PR would go (types.ts raceTag).
+ *   - TEN LANES, two rows of five on a laptop and a ruled list on a phone,
+ *     drawn in full for every wave so the pane never changes height when a
+ *     cell is tapped: an empty lane prints a dash and keeps its rows.
  *
  * The components take a plain serialisable model (types.ts) and never read
  * the database, so the real page can hand them real rows unchanged. */
 
 const DASH = "—";
-
-function seedText(r: ResultRacer): string {
-  if (!r.best5k) return "First 5k";
-  return fmtTime(r.best5k.seconds) + (r.best5k.prorated ? " (pro-rated)" : "");
-}
 
 /* THE PR MARK, and the only mark this board hands out for a time measured
  * against a rower's own history. It replaced vsBest(), which printed a
@@ -119,17 +129,26 @@ function seedText(r: ResultRacer): string {
  * say which sign was the good one. A tag either sits beside a name or it
  * does not, and PR needs no explaining to anybody who has ever rowed.
  *
+ * FIRST 5K rides the same slot (owner, 2026-10-01): a finisher with no
+ * 5,000 m before the race is not an absence of a mark, it is a mark. The
+ * rule is types.ts raceTag, one answer for every surface.
+ *
  * IT SURVIVES THE PHONE, which a column could not: Br, BEST COMING IN, /500
  * and the old VS BEST are all .rr-hx and vanish under 620px, so the one
  * screen the owner reads the board on would have been the one screen with
  * no mark on it. This rides in the name cell. */
-function PrTag({ racer }: { racer: ResultRacer }) {
-  if (!isPr(racer)) return null;
-  return <span className="rr-tag pr">PR</span>;
+function Tag({ racer }: { racer: ResultRacer }) {
+  const tag = raceTag(racer);
+  if (tag === null) return null;
+  return <span className={tag === "PR" ? "rr-tag pr" : "rr-tag first"}>{tag}</span>;
 }
 
-/* ---- the dateline ---------------------------------------------------- */
+/* ---- the dateline (mid-race only) ------------------------------------ */
 
+/* The finished sheet has no dateline any more (owner, 2026-10-01): the
+ * archive header carries the day and the place, and FINAL / SHEET POSTED
+ * said nothing a reader of a posted sheet needed. Mid-race it is still the
+ * clock the room reads. */
 export function Dateline({ board }: { board: ResultBoard }) {
   const final = board.state === "finished";
   return (
@@ -171,6 +190,25 @@ function Freshness({ board }: { board: ResultBoard }) {
   );
 }
 
+/* ---- the labels ------------------------------------------------------ */
+
+/* MONO CAPS, NOT THE DISPLAY FACE (owner, 2026-10-01: not THE MEN / THE
+ * WOMEN in Archivo Black; the mono caps label style the rest of the page
+ * uses). Two weights of the same thing: a section word over a 2px rule,
+ * and a bracket word over a hairline inside it. */
+function Section({ children }: { children: ReactNode }) {
+  return <p className="rr-sec">{children}</p>;
+}
+
+function Label({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <p className="rr-lab">
+      <span>{children}</span>
+      {right !== undefined && <span className="rt">{right}</span>}
+    </p>
+  );
+}
+
 /* ---- the leader box -------------------------------------------------- */
 
 /* LEADING, MID-RACE ONLY. Both the page and the wall draw this inside their
@@ -197,7 +235,7 @@ export function LeaderBox({ board, view }: { board: ResultBoard; view: BracketVi
         </>
       ) : (
         <>
-          <p className="rr-big">{fmtTime(lead.seconds ?? 0)}</p>
+          <p className="rr-big">{fmtRaceTime(lead.seconds ?? 0)}</p>
           <p className="rr-who">{lead.name}</p>
           {/* The leader box is the mid-race podium, so it wears the mid-race
             * podium's mark. Without it the wall carried no PR anywhere until
@@ -205,7 +243,7 @@ export function LeaderBox({ board, view }: { board: ResultBoard; view: BracketVi
             * every screen or it means nothing on any of them. */}
           <p className="rr-meta">
             <b>{fmtSplitFor(board.meters, lead.seconds ?? 0)}</b> /500 · Wave {lead.wave}
-            <PrTag racer={lead} />
+            <Tag racer={lead} />
           </p>
         </>
       )}
@@ -213,7 +251,7 @@ export function LeaderBox({ board, view }: { board: ResultBoard; view: BracketVi
   );
 }
 
-/* Eight lanes across a 1280 frame is not much room: a long name is cut to a
+/* Ten lanes across a 1280 frame is not much room: a long name is cut to a
  * first name and an initial on the wall only, never on a phone. */
 function castName(name: string, cast?: boolean): string {
   if (!cast || name.length <= 12) return name;
@@ -278,7 +316,13 @@ function castName(name: string, cast?: boolean): string {
  * client state on the page and useState in CastPicker on the wall, and
  * router.refresh() keeps both. The move into ?wave=N once proposed here is
  * not needed; ?wave=N stays what it was, the deep link a gym pins one wave
- * to the wall with. A full reload still returns to the computed default. */
+ * to the wall with. A full reload still returns to the computed default.
+ *
+ * THE PANE NEVER CHANGES HEIGHT (owner, 2026-10-01). Every wave draws every
+ * lane — board.ergs of them, ten on the night — with the same four rows in
+ * each, a dash where nobody sat, the name on one line and cut if it has to
+ * be; so tapping 1, 2, 3 moves names and times and nothing else. The YOURS
+ * bar on a cell is gone with the rest of the viewer marks. */
 const WAVE_GROUP = "rr-wave";
 
 export function WavePicker({
@@ -295,13 +339,14 @@ export function WavePicker({
   onPick?: (wave: number) => void;
 }) {
   const chosen = pickedWave(board, pick);
-  const you = cast ? null : racerById(board, board.youId);
   const next = nextWave(board);
   /* The column count travels as a custom property for the same reason the
    * lane count does: the frame is clipped at 720, and a grid whose width is
    * typed into the stylesheet wraps to a second row and falls off the
    * television with no error the night the floor runs six waves. */
   const style = { "--rr-waves": board.waves.length } as CSSProperties;
+  /* ROWING MACHINES, not ergs, in anything a rower reads. */
+  const grid = `${board.waves.length} waves · ${board.ergs} rowing machines`;
   return (
     /* ONE BLOCK, caption and cells together. The cast frame is a flex column
      * with justify-content:space-between, so a caption returned as a loose
@@ -310,7 +355,7 @@ export function WavePicker({
     <div className="rr-pick">
       {cast ? (
         <p className="rr-castk">
-          The grid · {board.waves.length} waves · {board.ergs} ergs
+          {grid}
           {next ? ` · next wave ${fmtClock(next.scheduledAtMs)}` : ""}
         </p>
       ) : (
@@ -318,29 +363,20 @@ export function WavePicker({
          * be tapped has to say so once. The wall gets the neutral caption
          * instead — nobody taps a television. */
         <p className="rr-pickk">
-          <span>
-            The grid · {board.waves.length} waves · {board.ergs} ergs
-          </span>
+          <span>{grid}</span>
           <span className="rt">Tap a wave</span>
         </p>
       )}
       {/* role=group, NOT role=radiogroup: the panes live inside the same grid
-        * element, and a radiogroup with eight lane blocks inside it is a lie.
+        * element, and a radiogroup with ten lane blocks inside it is a lie.
         * The cells and panes are INTERLEAVED so the open pane is an adjacent
         * sibling of its own cell; the stylesheet puts every cell on row 1 and
         * every pane on row 2 across all columns. */}
       <div className="rr-sel" style={style} role="group" aria-label="The waves">
         {board.waves.map((w) => (
           <Fragment key={w.wave}>
-            <WaveCell
-              board={board}
-              w={w}
-              open={w.wave === chosen}
-              yours={you !== null && you.wave === w.wave}
-              cast={cast}
-              onPick={onPick}
-            />
-            <WavePane board={board} w={w} open={w.wave === chosen} you={you} cast={cast} />
+            <WaveCell board={board} w={w} open={w.wave === chosen} cast={cast} onPick={onPick} />
+            <WavePane board={board} w={w} open={w.wave === chosen} cast={cast} />
           </Fragment>
         ))}
       </div>
@@ -357,14 +393,12 @@ function WaveCell({
   board,
   w,
   open,
-  yours,
   cast,
   onPick,
 }: {
   board: ResultBoard;
   w: ResultWave;
   open: boolean;
-  yours: boolean;
   cast?: boolean;
   onPick?: (wave: number) => void;
 }) {
@@ -374,7 +408,7 @@ function WaveCell({
   const state = w.state === "rowed" ? "done" : w.state === "on_the_ergs" ? "live" : "soon";
   /* NAMED .pick AND NOT .on, because the state word `soon` contains the
    * substring `on` and a careless selector would match it. */
-  const cls = `rr-cw ${state}${yours ? " yours" : ""}${open ? " pick" : ""}`;
+  const cls = `rr-cw ${state}${open ? " pick" : ""}`;
   const body = (
     <>
       {!cast && (
@@ -394,13 +428,13 @@ function WaveCell({
             {done[0] ? (
               <>
                 <br />
-                Best {fmtTime(done[0].seconds ?? 0)}
+                Best {fmtRaceTime(done[0].seconds ?? 0)}
               </>
             ) : null}
           </>
         ) : w.state === "on_the_ergs" ? (
           <>
-            On the ergs
+            Rowing
             {elapsed ? (
               <>
                 <br />
@@ -409,15 +443,7 @@ function WaveCell({
             ) : null}
           </>
         ) : (
-          <>
-            {field.length} racers
-            {yours ? (
-              <>
-                <br />
-                Yours
-              </>
-            ) : null}
-          </>
+          <>{field.length} racers</>
         )}
       </p>
       {/* The tongue that bridges the 10px gap down to the panel. A real span,
@@ -438,8 +464,8 @@ function WaveCell({
 
 /* THE PANEL HEAD, and THE STATE WORD LEADS IT. A reader can park the panel on
  * wave 1 while wave 3 is pulling, so a settled wave that opened with a clock
- * would read as the live one. Rowed, on the ergs and to come each say which
- * they are first and put the numbers after.
+ * would read as the live one. Rowed, on the machines and to come each say
+ * which they are first and put the numbers after.
  *
  * THE FASTEST AND THE AVERAGE COME OFF waveLineOf(), the same ledger the
  * night table prints, so a head can never disagree with the table below it.
@@ -451,15 +477,15 @@ function paneHead(board: ResultBoard, w: ResultWave): string {
   if (w.state === "rowed") {
     const line = waveLineOf(board, w.wave);
     const bits = ["Rowed"];
-    if (line?.fastest) bits.push(`fastest ${fmtTime(line.fastest.seconds ?? 0)}`);
-    if (line && line.averageSeconds !== null) bits.push(`average ${fmtTime(line.averageSeconds)}`);
+    if (line?.fastest) bits.push(`fastest ${fmtRaceTime(line.fastest.seconds ?? 0)}`);
+    if (line && line.averageSeconds !== null) bits.push(`average ${fmtRaceTime(line.averageSeconds)}`);
     return bits.join(" · ");
   }
   if (w.state === "on_the_ergs") {
     /* NO START STAMP, NO CLOCK. A wave that went late must never be counted
      * from the schedule, or it reads as nearly finished. */
     const elapsed = fmtElapsed(w.startedAtMs, board.nowMs);
-    return `On the ergs${elapsed ? ` · ${elapsed} elapsed` : ""}`;
+    return `Rowing${elapsed ? ` · ${elapsed} elapsed` : ""}`;
   }
   const sheet = inWave(board, w.wave).length;
   const mins = Math.round((w.scheduledAtMs - board.nowMs) / 60000);
@@ -469,49 +495,44 @@ function paneHead(board: ResultBoard, w: ResultWave): string {
 
 /* THE FOURTH LINE IN A LANE, and it is keyed off the RACER and not the wave,
  * so every combination is honest. A DNF never reaches a lane any more
- * (types.ts boardRacers) — the erg they sat on is drawn open.
+ * (types.ts boardRacers) — the machine they sat on is drawn open.
  *
  * A TIME IS A FACT AND A SEED IS A PROMISE, so they are drawn differently
  * (rrCss.ts): the time white, bold and tabular, the seed at the grey floor in
  * the eye size. That difference is the owner test applied — where a legend was
  * load-bearing, make the mark self-evident instead of keeping the paragraph.
  *
- * A WAVE ON THE ERGS GETS NO FOURTH LINE AT ALL. They all started together,
- * so there is ONE clock and it lives in the head; eight identical elapsed
- * clocks down the lanes would be eight copies of one fact. */
-type LaneValue = { text: string; tone: "time" | "seed"; pr: boolean };
+ * EVERY LANE HAS A FOURTH LINE NOW, a dash when there is nothing to say —
+ * an open machine, a wave on the machines — so the pane is the same height
+ * whatever wave is open (owner, 2026-10-01). */
+type LaneValue = { text: string; tone: "time" | "seed" | "none"; racer: ResultRacer | null };
 
-function laneValue(r: ResultRacer | null): LaneValue | null {
-  if (r === null) return null;
+function laneValue(r: ResultRacer | null): LaneValue {
+  if (r === null) return { text: DASH, tone: "none", racer: null };
   if (r.status === "finished" && r.seconds !== null) {
-    return { text: fmtTime(r.seconds), tone: "time", pr: isPr(r) };
+    return { text: fmtRaceTime(r.seconds), tone: "time", racer: r };
   }
-  if (r.status === "rowing") return null;
-  return {
-    text: r.best5k ? `Best in ${fmtTime(r.best5k.seconds)}` : "First 5k",
-    tone: "seed",
-    pr: false,
-  };
+  if (r.status === "rowing") return { text: DASH, tone: "none", racer: null };
+  const seed = fmtSeed(r.best5k);
+  return { text: seed ? `Best in ${seed}` : "First 5k", tone: "seed", racer: null };
 }
 
-/* ONE WAVE, LANE BY LANE. Always board.ergs of them, an erg with nobody
+/* ONE WAVE, LANE BY LANE. Always board.ergs of them, a machine with nobody
  * assigned DRAWN and not skipped so the room can see the empty seat.
  *
  * NO PLACE MARK IN A LANE. Mid-race a place is provisional and the table
  * withholds the fill to say so; a bare M1 in a lane would carry no such
  * context and would read settled. Placing is the table's job — the lane says
- * who was on which erg and what they pulled. */
+ * who was on which machine and what they pulled. */
 function WavePane({
   board,
   w,
   open,
-  you,
   cast,
 }: {
   board: ResultBoard;
   w: ResultWave;
   open: boolean;
-  you: ResultRacer | null;
   cast?: boolean;
 }) {
   const field = inWave(board, w.wave);
@@ -523,9 +544,10 @@ function WavePane({
     <div className={open ? "rr-pane pick" : "rr-pane"}>
       <p className="rr-eye">
         {/* THE LIVE SQUARE IS DRAWN IN ONE PLACE ONLY — inside the pane of
-          * the wave that is actually on the ergs. With no JavaScript that is
-          * trivially correct: the square is in one wave's markup and nowhere
-          * else, so a panel parked on a settled wave can never wear it. */}
+          * the wave that is actually on the machines. With no JavaScript
+          * that is trivially correct: the square is in one wave's markup
+          * and nowhere else, so a panel parked on a settled wave can never
+          * wear it. */}
         {w.state === "on_the_ergs" && <span className="rr-sq" aria-hidden="true" />}
         <span>Wave {w.wave} · lane by lane</span>
         <span className="rt">{paneHead(board, w)}</span>
@@ -536,19 +558,12 @@ function WavePane({
           return (
             <div className={racer === null ? "rr-lane open" : "rr-lane"} key={lane}>
               <p className="rr-ln">Lane {lane}</p>
-              <p className="rr-lname">
-                {racer ? castName(racer.name, cast) : "Erg open"}
-                {racer !== null && you !== null && racer.id === you.id && (
-                  <span className="rr-tag you">You</span>
-                )}
+              <p className="rr-lname">{racer ? castName(racer.name, cast) : DASH}</p>
+              <p className="rr-lsub">{racer === null ? " " : brLetter(racer.bracket)}</p>
+              <p className={v.tone === "time" ? "rr-lval" : `rr-lval ${v.tone}`}>
+                {v.text}
+                {v.racer && <Tag racer={v.racer} />}
               </p>
-              <p className="rr-lsub">{racer === null ? "No entry" : brLetter(racer.bracket)}</p>
-              {v && (
-                <p className={v.tone === "time" ? "rr-lval" : `rr-lval ${v.tone}`}>
-                  {v.text}
-                  {v.pr && <span className="rr-tag pr">PR</span>}
-                </p>
-              )}
             </div>
           );
         })}
@@ -557,7 +572,7 @@ function WavePane({
   );
 }
 
-/* ---- the field table ------------------------------------------------- */
+/* ---- the field table (mid-race) -------------------------------------- */
 
 function PlaceMark({ board, racer }: { board: ResultBoard; racer: ResultRacer }) {
   const p = placeOf(board, racer);
@@ -581,10 +596,17 @@ function PlaceMark({ board, racer }: { board: ResultBoard; racer: ResultRacer })
  * so a row with a name and no time is only ever somebody still to row. */
 function TimeCell({ racer }: { racer: ResultRacer }) {
   if (racer.status === "finished" && racer.seconds !== null) {
-    return <td className="tm">{fmtTime(racer.seconds)}</td>;
+    return <td className="tm">{fmtRaceTime(racer.seconds)}</td>;
   }
   if (racer.status === "rowing") return <td className="st now">Rowing</td>;
   return <td className="dim">{DASH}</td>;
+}
+
+/* The seed cell: whole seconds, an asterisk for a prorated one, a dash for
+ * none (the FIRST 5K tag beside the name says the rest). */
+function SeedCell({ racer }: { racer: ResultRacer }) {
+  const seed = fmtSeed(racer.best5k);
+  return <td className="seed rr-hx">{seed ?? DASH}</td>;
 }
 
 function NameCell({
@@ -594,22 +616,24 @@ function NameCell({
 }: {
   board: ResultBoard;
   racer: ResultRacer;
-  you: boolean;
+  /* Mid-race only; the finished sheet marks nobody. */
+  you?: boolean;
 }) {
   /* The signed ON BEST clause came off this line with every other plus and
-   * minus; the split stays, and the PR tag above it carries what the sign
-   * was for. On a phone this sub-line IS the Br, seed and /500 columns. */
+   * minus; the split stays, and the tag above it carries what the sign was
+   * for. On a phone this sub-line IS the seed, /500 and wave columns. */
+  const seed = fmtSeed(racer.best5k);
   const sub =
     racer.status === "finished" && racer.seconds !== null
-      ? `${fmtSplitFor(board.meters, racer.seconds)} /500`
-      : racer.best5k
-        ? `Best in ${fmtTime(racer.best5k.seconds)}`
+      ? `${fmtSplitFor(board.meters, racer.seconds)} /500 · wave ${racer.wave}${seed ? ` · was ${seed}` : ""}`
+      : seed
+        ? `Best in ${seed}`
         : "First 5k";
   return (
     <td className="nm">
       {racer.name}
       {you && <span className="rr-tag you">You</span>}
-      <PrTag racer={racer} />
+      <Tag racer={racer} />
       <span className="rr-sub">{sub}</span>
     </td>
   );
@@ -631,7 +655,7 @@ export function FieldTable({ board }: { board: ResultBoard }) {
         <th colSpan={6} scope="colgroup">
           Wave {w.wave} · {fmtClock(w.scheduledAtMs)} · {field.length} racers
           <span className={w.state === "on_the_ergs" ? "now" : undefined}>
-            {w.state === "rowed" ? "Rowed" : w.state === "on_the_ergs" ? "On the ergs" : "To come"}
+            {w.state === "rowed" ? "Rowed" : w.state === "on_the_ergs" ? "Rowing" : "To come"}
           </span>
         </th>
       </tr>,
@@ -653,7 +677,7 @@ export function FieldTable({ board }: { board: ResultBoard }) {
           </td>
           <NameCell board={board} racer={r} you={you} />
           <td className="br rr-hx">{brLetter(r.bracket)}</td>
-          <td className="seed rr-hx">{seedText(r)}</td>
+          <SeedCell racer={r} />
           <TimeCell racer={r} />
           <td className="dim rr-hx">
             {r.status === "finished" && r.seconds !== null
@@ -708,25 +732,28 @@ export function FieldTable({ board }: { board: ResultBoard }) {
   );
 }
 
-/* THE RESULT — the same field, now one list sorted by time. Men and women
- * are scored apart, so the place mark is qualified and the two brackets sit
- * in one room, which is the story the night actually has. */
-export function ResultTable({ board }: { board: ResultBoard }) {
-  /* Every row has a time. The DNF rows that used to close the sheet are
-   * gone with the status arm (owner, 2026-09-16): nobody who did not row. */
-  const done = ranked(boardRacers(board));
+/* ---- the result (finished) ------------------------------------------- */
+
+/* ONE TABLE PER BRACKET (owner, 2026-10-01), in place order, under a MEN or
+ * WOMEN label. It used to be one room sorted by time with M1 / W1 marks; a
+ * sheet per bracket needs no letter on the place, so the mark is the bare
+ * numeral — first keeps its fill, second and third are white and bold, the
+ * rest sit at the grey floor. The seed column prints the asterisk for a
+ * prorated baseline and a dash for none. */
+function PlaceNum({ place }: { place: number }) {
+  const cls = place === 1 ? "rr-pl p1" : place <= 3 ? "rr-pl top" : "rr-pl";
+  return <span className={cls}>{place}</span>;
+}
+
+export function BracketTable({ board, view }: { board: ResultBoard; view: BracketView }) {
   return (
     <table className="rr-t">
-      <caption>The result · one room sorted by time, scored apart</caption>
       <thead>
         <tr>
           <th className="pl" scope="col">
             Pl.
           </th>
           <th scope="col">Rower</th>
-          <th className="rr-hx" scope="col">
-            Br
-          </th>
           <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
             Best coming in
           </th>
@@ -736,29 +763,31 @@ export function ResultTable({ board }: { board: ResultBoard }) {
           <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
             /500
           </th>
-          {/* NINE COLUMNS, NOW EIGHT. VS BEST held the signed -0:20.6 that
-            * needed a legend to say which sign was the good one, and it was
-            * .rr-hx besides, so the phone never saw it. The PR tag beside
-            * the name says the half of it worth saying, everywhere. */}
           <th className="rr-hx" scope="col" style={{ textAlign: "right" }}>
             Wave
           </th>
         </tr>
       </thead>
       <tbody>
-        {done.map((r) => (
-          <tr className={r.id === board.youId ? "mine" : undefined} key={r.id}>
+        {view.ranked.map((r, i) => (
+          <tr key={r.id}>
             <td className="pl">
-              <PlaceMark board={board} racer={r} />
+              <PlaceNum place={i + 1} />
             </td>
-            <NameCell board={board} racer={r} you={r.id === board.youId} />
-            <td className="br rr-hx">{brLetter(r.bracket)}</td>
-            <td className="seed rr-hx">{seedText(r)}</td>
+            <NameCell board={board} racer={r} />
+            <SeedCell racer={r} />
             <TimeCell racer={r} />
             <td className="dim rr-hx">{fmtSplitFor(board.meters, r.seconds ?? 0)}</td>
             <td className="dim rr-hx">{r.wave}</td>
           </tr>
         ))}
+        {view.ranked.length === 0 && (
+          <tr>
+            <td className="dim" colSpan={6} style={{ textAlign: "left" }}>
+              {DASH}
+            </td>
+          </tr>
+        )}
       </tbody>
     </table>
   );
@@ -766,46 +795,47 @@ export function ResultTable({ board }: { board: ResultBoard }) {
 
 /* ---- the podium ------------------------------------------------------ */
 
-/* No `cast` prop any more: it existed only to keep the signed ON THEIR BEST
- * COMING IN line off the television, and that line is gone from both. */
+/* FIRST, SECOND AND THIRD WITHOUT A COLOUR — a monochrome board cannot hand
+ * out a gold medal, so the three say their place with the block (first
+ * filled white), the clock (86 / 52 / 38 on a laptop, 50 / 36 / 31 on a
+ * phone), the spelled ordinal and the gap, printed on all three so the
+ * blocks read as ONE measurement: first carries WON BY rather than an empty
+ * space. NO BOX AROUND SECOND OR THIRD any more (owner, 2026-10-01: the
+ * second-place frame style is out): they are ruled, not framed — a hairline
+ * over each — and first keeps its fill. The FOURTH line under the podium is
+ * gone with them; the sheet above has the whole order. No `cast` prop any
+ * more: it existed only to keep the signed ON THEIR BEST COMING IN line off
+ * the television, and that line is gone from both. */
 export function Podium({ board, view }: { board: ResultBoard; view: BracketView }) {
   const p = podium(view);
   if (p.steps.length === 0) return null;
   return (
-    <>
-      <div className="rr-pod">
-        {p.steps.map(({ racer, place, gap }) => (
-          <div className={`rr-step s${place}`} key={racer.id}>
-            <p className="rr-ord">
-              {ordinal(place)}
-              <span className="gp">
-                {place === 1
-                  ? p.wonBy === null
-                    ? "Only finisher"
-                    : `Won by ${fmtGap(p.wonBy).slice(1)}`
-                  : fmtGap(gap)}
-              </span>
-            </p>
-            <p className="rr-pt">{fmtTime(racer.seconds ?? 0)}</p>
-            <p className="rr-pn">{racer.name}</p>
-            {/* The second line of this block used to print -0:20.6 ON THEIR
-              * BEST COMING IN, on the page only. It is one tag now, and the
-              * wall gets it too: a podium finisher who went faster than they
-              * ever have is worth a mark from across a gym. */}
-            <p className="rr-pm">
-              <b>{fmtSplitFor(board.meters, racer.seconds ?? 0)}</b> /500 · Wave {racer.wave}
-              <PrTag racer={racer} />
-            </p>
-          </div>
-        ))}
-      </div>
-      {p.fourth && (
-        <p className="rr-fourth">
-          Fourth · <b>{p.fourth.racer.name}</b> · <b>{fmtTime(p.fourth.racer.seconds ?? 0)}</b> ·{" "}
-          {p.fourth.offPodium.toFixed(1)} sec off the podium
-        </p>
-      )}
-    </>
+    <div className="rr-pod">
+      {p.steps.map(({ racer, place, gap }) => (
+        <div className={`rr-step s${place}`} key={racer.id}>
+          <p className="rr-ord">
+            {ordinal(place)}
+            <span className="gp">
+              {place === 1
+                ? p.wonBy === null
+                  ? "Only finisher"
+                  : `Won by ${fmtGap(p.wonBy).slice(1)}`
+                : fmtGap(gap)}
+            </span>
+          </p>
+          <p className="rr-pt">{fmtRaceTime(racer.seconds ?? 0)}</p>
+          <p className="rr-pn">{racer.name}</p>
+          {/* The second line of this block used to print -0:20.6 ON THEIR
+            * BEST COMING IN, on the page only. It is one tag now, and the
+            * wall gets it too: a podium finisher who went faster than they
+            * ever have is worth a mark from across a gym. */}
+          <p className="rr-pm">
+            <b>{fmtSplitFor(board.meters, racer.seconds ?? 0)}</b> /500 · Wave {racer.wave}
+            <Tag racer={racer} />
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -843,8 +873,8 @@ function NightTable({ board }: { board: ResultBoard }) {
               {l.timeText}
             </td>
             <td className="dim">{l.lanes}</td>
-            <td className="tm">{l.fastest ? fmtTime(l.fastest.seconds ?? 0) : DASH}</td>
-            <td className="dim">{l.averageSeconds === null ? DASH : fmtTime(l.averageSeconds)}</td>
+            <td className="tm">{l.fastest ? fmtRaceTime(l.fastest.seconds ?? 0) : DASH}</td>
+            <td className="dim">{l.averageSeconds === null ? DASH : fmtRaceTime(l.averageSeconds)}</td>
           </tr>
         ))}
       </tbody>
@@ -852,7 +882,7 @@ function NightTable({ board }: { board: ResultBoard }) {
   );
 }
 
-/* ---- you ------------------------------------------------------------- */
+/* ---- you (mid-race) -------------------------------------------------- */
 
 function YouStrip({ board }: { board: ResultBoard }) {
   const you = racerById(board, board.youId);
@@ -865,17 +895,14 @@ function YouStrip({ board }: { board: ResultBoard }) {
       <span className="nm">{you.name}</span>
       {you.status === "finished" && you.seconds !== null ? (
         <span>
-          <b>{fmtTime(you.seconds)}</b> · {place === null ? "" : `${place}${place === 1 ? "st" : place === 2 ? "nd" : place === 3 ? "rd" : "th"} `}
+          <b>{fmtRaceTime(you.seconds)}</b> · {place === null ? "" : `${place}${place === 1 ? "st" : place === 2 ? "nd" : place === 3 ? "rd" : "th"} `}
           {/* RANKED AGAINST THE NUMBER ACTUALLY RANKED. The bracket field
             * drops the no-shows but keeps a rower who sat down and stopped,
             * so this line was printing 12TH MAN OF 23 under a heading that
             * said 22 TIMES. It is the one line a rower screenshots. */}
           {you.bracket === "M" ? "man" : "woman"} of{" "}
           {bracketView(board, you.bracket).ranked.length}
-          {/* ON YOUR BEST COMING IN, signed, used to close this line. It is
-            * the line a rower screenshots, so it is where the one mark that
-            * replaced every signed number earns the most. */}
-          <PrTag racer={you} />
+          <Tag racer={you} />
         </span>
       ) : (
         <span>
@@ -890,15 +917,49 @@ function YouStrip({ board }: { board: ResultBoard }) {
   );
 }
 
+/* ---- the share list -------------------------------------------------- */
+
+/* Every finisher as the share card wants them — display-ready, floored,
+ * tagged — the signed-in racer first when they are one of them. The board
+ * is the only source, so the card can never print a time the sheet does
+ * not. The day is the board's own dateLine cut to its middle cell. */
+function shareRacers(board: ResultBoard): ShareRacer[] {
+  const rows = ranked(boardRacers(board)).map(
+    (r): ShareRacer => ({
+      id: r.id,
+      name: r.name,
+      rowerNumber: r.rowerNumber,
+      time: fmtRaceTime(r.seconds ?? 0),
+      wave: r.wave,
+      split: fmtSplitFor(board.meters, r.seconds ?? 0),
+      tag: raceTag(r),
+    }),
+  );
+  if (!board.youId) return rows;
+  const i = rows.findIndex((r) => r.id === board.youId);
+  if (i <= 0) return rows;
+  return [rows[i], ...rows.slice(0, i), ...rows.slice(i + 1)];
+}
+
+/* "RACE DAY · SUNDAY, SEP 27 · 5,000 M" -> "SUNDAY, SEP 27", upper-cased
+ * the way the share payload is. */
+function shareDay(board: ResultBoard): string {
+  return (board.dateLine.split("·")[1] ?? board.dateLine).trim().toUpperCase();
+}
+
 /* ---- the page -------------------------------------------------------- */
 
 export function RaceResults({
   board,
   note,
+  head,
   pick,
 }: {
   board: ResultBoard;
   note?: ReactNode;
+  /* THE ARCHIVE HEADER (ArchiveHead.tsx), finished sheet only: the page
+   * builds it off the RaceDef, which the board does not carry. */
+  head?: ReactNode;
   /* ?wave=N — a deep link on a phone, and how a gym pins one wave. It beats
    * the computed default; see pickedWave() in types.ts. */
   pick?: number | null;
@@ -909,6 +970,51 @@ export function RaceResults({
   const c = roomCounts(board);
   const next = nextWave(board);
 
+  if (final) {
+    return (
+      <div className="rr-dark">
+        <section>
+          <div className="rr-wrap">
+            {note}
+            {head}
+            {/* THE ONE PERSONAL THING on the sheet, and it marks nothing. */}
+            <ShareTime
+              racers={shareRacers(board)}
+              race={{ title: board.dateLine.split("·")[0].trim().toUpperCase(), day: shareDay(board) }}
+            />
+            <Section>Results</Section>
+            <Label>Men</Label>
+            <BracketTable board={board} view={men} />
+            <Label>Women</Label>
+            <BracketTable board={board} view={women} />
+          </div>
+        </section>
+        <section>
+          <div className="rr-wrap">
+            <Section>Waves</Section>
+            {/* THE PICKER AND THE LEDGER SIT IN ONE SECTION, and the table
+              * stays: the panel is how ONE wave ran with the names
+              * attached, the table is how the three compare side by side,
+              * which a panel showing one at a time cannot do. Both route
+              * their fastest and their average through waveLines, so they
+              * can never disagree. */}
+            <WavePicker board={board} pick={pick} />
+            <NightTable board={board} />
+          </div>
+        </section>
+        <section>
+          <div className="rr-wrap">
+            <Section>Winners</Section>
+            <Label>Men</Label>
+            <Podium board={board} view={men} />
+            <Label>Women</Label>
+            <Podium board={board} view={women} />
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="rr-dark">
       <section>
@@ -917,127 +1023,57 @@ export function RaceResults({
           <Dateline board={board} />
           <YouStrip board={board} />
 
-          {final ? null : (
-            <>
-              {/* TWO BOXES, NOT THREE. ON THE ERGS NOW was the third, and the
-                * wave panel a few inches below prints the same wave, the same
-                * start stamp and the same elapsed clock with eight names
-                * attached. The picker created that duplicate, so the picker
-                * removes it. */}
-              <div className="rr-two">
-                <LeaderBox board={board} view={men} />
-                <LeaderBox board={board} view={women} />
-              </div>
-              {/* THE PICKER GOES IN THE SLOT THE COUNTER STRIP VACATED, so
-                * the top of the board does not grow, and the cells and the
-                * panel they open TOUCH. The standalone grid section that used
-                * to sit three hundred pixels and a section boundary further
-                * down is deleted: a control that far from the thing it
-                * controls is not an interaction. Its mono subtitle is the
-                * caption inside the picker now. */}
-              <WavePicker board={board} pick={pick} />
-              {/* WHAT IS NEXT, and nothing else. This line carried the room
-                * counts as well — N OF N HAVE ROWED · N ON THE ERGS · N
-                * STILL TO COME · N DID NOT START — under a three-cell
-                * counter that had just said the same thing bigger. Both went
-                * (owner, 2026-09-11). The wave and the time it goes off is
-                * the half a rower standing in the gym needs. It is rendered
-                * only when there IS a next wave, or the last wave of the
-                * night left an empty bar ruled across the page. */}
-              {next && (
-                <p className="rr-next">
-                  Next ·{" "}
-                  <b>
-                    Wave {next.wave} at {fmtClock(next.scheduledAtMs)}
-                  </b>
-                </p>
-              )}
-            </>
+          {/* TWO BOXES, NOT THREE. ON THE ERGS NOW was the third, and the
+            * wave panel a few inches below prints the same wave, the same
+            * start stamp and the same elapsed clock with eight names
+            * attached. The picker created that duplicate, so the picker
+            * removes it. */}
+          <div className="rr-two">
+            <LeaderBox board={board} view={men} />
+            <LeaderBox board={board} view={women} />
+          </div>
+          {/* THE PICKER GOES IN THE SLOT THE COUNTER STRIP VACATED, so
+            * the top of the board does not grow, and the cells and the
+            * panel they open TOUCH. The standalone grid section that used
+            * to sit three hundred pixels and a section boundary further
+            * down is deleted: a control that far from the thing it
+            * controls is not an interaction. Its mono subtitle is the
+            * caption inside the picker now. */}
+          <WavePicker board={board} pick={pick} />
+          {/* WHAT IS NEXT, and nothing else. This line carried the room
+            * counts as well — N OF N HAVE ROWED · N ON THE ERGS · N
+            * STILL TO COME · N DID NOT START — under a three-cell
+            * counter that had just said the same thing bigger. Both went
+            * (owner, 2026-09-11). The wave and the time it goes off is
+            * the half a rower standing in the gym needs. It is rendered
+            * only when there IS a next wave, or the last wave of the
+            * night left an empty bar ruled across the page. */}
+          {next && (
+            <p className="rr-next">
+              Next ·{" "}
+              <b>
+                Wave {next.wave} at {fmtClock(next.scheduledAtMs)}
+              </b>
+            </p>
           )}
         </div>
       </section>
 
-      {final && (
-        <>
-          <section>
-            <div className="rr-wrap">
-              <div className="sec-head">
-                <h2>The men</h2>
-                <span className="mono">
-                  {men.all.length} racers · scored apart · {men.rowed} times
-                </span>
-              </div>
-              <Podium board={board} view={men} />
-            </div>
-          </section>
-          <section>
-            <div className="rr-wrap">
-              <div className="sec-head">
-                <h2>The women</h2>
-                <span className="mono">
-                  {women.all.length} racers · scored apart · {women.rowed} times
-                </span>
-              </div>
-              <Podium board={board} view={women} />
-              {/* THE MARK LEGEND STOOD HERE and it is gone (owner,
-                * 2026-09-11: if we need this much text to explain something,
-                * it is probably not good). It taught four things and three
-                * of them did not need it: the podium blocks already spell
-                * 1ST / 2ND / 3RD across the top of each card, and the place
-                * marks down the sheet carry the numeral itself. The fourth
-                * was the signed vs-best, which went with the numbers. What
-                * DID need a fix rather than a paragraph was the letter: the
-                * mark read W1 while the Br column beside it read F, and only
-                * this sentence reconciled them. The column says W now. */}
-            </div>
-          </section>
-          <section>
-            <div className="rr-wrap">
-              <div className="sec-head">
-                <h2>How the night ran</h2>
-                {/* The waves and the ergs come off the picker caption twenty
-                  * pixels below this line now, so the head keeps the one fact
-                  * the picker does not print. */}
-                <span className="mono">Every wave · {board.waveMinutes} minutes apart</span>
-              </div>
-              {/* THE PICKER AND THE LEDGER SIT IN ONE SECTION, and the table
-                * stays: the panel is how ONE wave ran with the names
-                * attached, the table is how the five compare side by side,
-                * which a panel showing one at a time cannot do. Both route
-                * their fastest and their average through waveLines, so they
-                * can never disagree. On a finished sheet the panel opens on
-                * YOUR wave — the first reader of a result is a rower looking
-                * for themselves. */}
-              <WavePicker board={board} pick={pick} />
-              <NightTable board={board} />
-            </div>
-          </section>
-        </>
-      )}
-
-      {/* THE STANDALONE GRID SECTION STOOD HERE, mid-race only, three hundred
-        * pixels below the lane strip it described. The cells are the control
-        * now and they live directly on top of the panel they open, up in the
-        * first section. */}
-
       <section>
         <div className="rr-wrap">
           <div className="sec-head">
-            <h2>{final ? "The result" : "The field"}</h2>
+            <h2>The field</h2>
             <span className="mono">
               {c.field} racers · {men.all.length} men · {women.all.length} women
             </span>
           </div>
-          {/* BOTH PARAGRAPHS THAT STOOD HERE ARE GONE. The finished one
-            * explained M1 and W1 — the caption on the table below says one
-            * room sorted by time, scored apart, in a line, and the mark now
-            * wears the same letter as the Br column. The mid-race one
+          {/* BOTH PARAGRAPHS THAT STOOD HERE ARE GONE. The mid-race one
             * explained that empty rows fill in (the sixteen empty rows do
             * that themselves), counted how many were still to come (a count
             * the owner cut everywhere else on the board), and was the only
             * thing that ever explained the seed bar — so the bar went with
             * the sentence rather than standing there unreadable. */}
-          {final ? <ResultTable board={board} /> : <FieldTable board={board} />}
+          <FieldTable board={board} />
         </div>
       </section>
     </div>

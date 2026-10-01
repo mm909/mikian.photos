@@ -7,10 +7,13 @@ import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
 import { nowMs } from "@/lib/row100k";
-import { hoursLine, raceOpenFor, racePhase, waveTime } from "../raceday";
+import { currentRace, hoursLine, raceOpenFor, raceOver, racePhase, waveTime } from "../raceday";
 import { raceWithSettings } from "../racedaySettings";
 import { listRacers } from "../racedayData";
-import { postingWindow } from "../raceResults";
+import { postingWindow, resultBoard } from "../raceResults";
+import { ArchiveHead } from "../raceresults/ArchiveHead";
+import { RaceResults } from "../raceresults/RaceResults";
+import { rrCss } from "../raceresults/rrCss";
 import { FIELD_SHOWS_AT, Field } from "./Field";
 import { RaceShare, type RaceFacts } from "./RaceShare";
 import { raceFactsOf } from "../shareables/waveShare";
@@ -36,23 +39,41 @@ export const dynamic = "force-dynamic";
  * date, the same photograph — cut to 1200 by 630 and saved as a file,
  * because an OG image is fetched by a crawler that will not run a canvas.
  * Re-cut it from the studio when the picture changes; it is a snapshot,
- * not a render. */
-export const metadata: Metadata = {
-  title: "Race day — Rowtember 2026",
-  description:
-    "A timed 5,000 m trial at The Strip Barbell, Las Vegas. Sunday, Sep 27, 6–9 PM. Free — race it or come and watch.",
-  openGraph: {
+ * not a render.
+ *
+ * TWO TITLES (2026-10-01): once the race is run the page is the archive
+ * and a pasted link should say RESULTS, not invite anybody to a race that
+ * has happened. Read off the code clock alone (racePhase), no settings
+ * read, so metadata costs nothing; the hour between a posted sheet and the
+ * six-hour rule is the one case this lags the page, and it only lags on a
+ * link preview. */
+const OG = { url: "/row100k/raceday/og.jpg", width: 1200, height: 630 };
+
+export function generateMetadata(): Metadata {
+  if (racePhase(currentRace()) === "raced") {
+    return {
+      title: "Race day results — Rowtember 2026",
+      description: "The 5,000 m results from race day. Sunday, Sep 27. The Strip Barbell, The Engine Room.",
+      openGraph: { title: "Race day results — Rowtember 2026", description: "The 5,000 m results from race day.", images: [OG] },
+      twitter: { card: "summary_large_image", title: "Race day results — Rowtember 2026", description: "The 5,000 m results from race day.", images: [OG.url] },
+    };
+  }
+  return {
     title: "Race day — Rowtember 2026",
-    description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
-    images: [{ url: "/row100k/raceday/og.jpg", width: 1200, height: 630 }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Race day — Rowtember 2026",
-    description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
-    images: ["/row100k/raceday/og.jpg"],
-  },
-};
+    description: "A timed 5,000 m trial at The Strip Barbell, Las Vegas. Sunday, Sep 27, 6–9 PM. Race it or come and watch.",
+    openGraph: {
+      title: "Race day — Rowtember 2026",
+      description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
+      images: [OG],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Race day — Rowtember 2026",
+      description: "A timed 5,000 m trial. Sunday, Sep 27, 6–9 PM. The Strip Barbell, The Engine Room.",
+      images: [OG.url],
+    },
+  };
+}
 
 /* RACE DAY (owner, 2026-09-10): a timed 5,000 m trial at The Strip Barbell
  * on the last Sunday of Rowtember. Free — a rower registers, the owner puts
@@ -198,6 +219,29 @@ export default async function RaceDayPage() {
   // posted — which the POST YOUR TIME rail needs (owner, 2026-09-16).
   const { race, view } = await raceWithSettings();
   const phase = racePhase(race);
+
+  /* THE ARCHIVE (owner, 2026-10-01: "once the race is over, race day is the
+   * archive, not the sign-up page"). Race run or sheet posted (raceday.ts
+   * raceOver), this address draws the finished board under one ruled
+   * header — the name, the day, the place, the two houses — then the
+   * results, the waves and the winners (raceresults/RaceResults.tsx). No
+   * bill, no act, no sign-up panel, no POST YOUR TIME rail, nothing about
+   * the viewer: the one personal control on it is SHARE YOUR TIME, and the
+   * viewer id goes in only so that control can list them first. The
+   * results address keeps answering with the same sheet. */
+  if (raceOver(race, view.finalAt)) {
+    const board = await resultBoard(race, { youParticipantId: viewer.myParticipantId, final: true });
+    return (
+      <div className={`row100k chrome-ink ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
+        <style>{css}</style>
+        <style>{rrCss}</style>
+        <RowBar active="raceday" {...barProps(viewer)} />
+        <RaceResults board={board} head={<ArchiveHead race={race} />} />
+        <RowFooter />
+      </div>
+    );
+  }
+
   const racers = await listRacers(race);
   // A withdrawal keeps its row so the wave console can see the hole it
   // leaves; the FIELD is only the names still in.

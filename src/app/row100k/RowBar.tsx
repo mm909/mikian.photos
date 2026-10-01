@@ -7,7 +7,7 @@ import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
 import { BarNav, type NavKey } from "./BarNav";
 import { NavProgress } from "./NavProgress";
-import { raceAnnounced, raceOpenFor } from "./raceday";
+import { currentRace, raceAnnounced, raceOpenFor, raceOver } from "./raceday";
 import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
 import { openRaffle, raffleDismissCookie } from "./raffles";
@@ -133,7 +133,15 @@ export async function RowBar({
         {rower !== null && logOpen && <BarLog rowerNumber={rower} />}
         <span className="bar-right">
           {children}
-          <BarAccount signedIn={isSignedIn} rowerNumber={rower} admin={isAdmin} />
+          {/* raceOver off the code clock alone (no finalAt, no settings
+            * read): the bar must not cost every page a database round trip,
+            * and the six-hour rule is late by at most an evening. */}
+          <BarAccount
+            signedIn={isSignedIn}
+            rowerNumber={rower}
+            admin={isAdmin}
+            raceOver={raceOver(currentRace(), null, nowMs())}
+          />
         </span>
       </div>
       {banner}
