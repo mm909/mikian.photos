@@ -82,12 +82,62 @@ function onRowtember(req: NextRequest): boolean {
   return host === "rowtember.com" || host === "www.rowtember.com";
 }
 
-export function middleware(req: NextRequest) {
-  if (req.nextUrl.pathname === "/" && onRowtember(req)) {
+/* THE ADDRESSES WITHOUT /row100k (owner, 2026-10-01: "let's remove all of
+ * the row100k references in the hyperlink"). The pages still live under
+ * src/app/row100k; a request whose first segment is one of theirs —
+ * /stats, /r/95, /records/5k, /sign-in — is served by the page at
+ * /row100k/<the same path>, a rewrite, so the address a rower sees and
+ * shares carries no prefix. The list is the folders under src/app/row100k
+ * that hold a page; add a new page folder here when one is made. None of
+ * them is also a top-level route of this app. */
+const ROW_SEGMENTS = new Set([
+  "analysis",
+  "blackout",
+  "board",
+  "dev",
+  "emails",
+  "feed",
+  "gallery",
+  "join",
+  "moderation",
+  "partners",
+  "plan",
+  "pm5",
+  "post",
+  "posters",
+  "preview",
+  "r",
+  "race-admin",
+  "raceday",
+  "raffles",
+  "records",
+  "settings",
+  "shareables",
+  "shirt",
+  "shirts",
+  "shop-admin",
+  "sign-in",
+  "signups",
+  "stats",
+]);
+
+function rowRewrite(req: NextRequest): NextResponse | null {
+  const { pathname } = req.nextUrl;
+  if (pathname === "/" && onRowtember(req)) {
     const front = req.nextUrl.clone();
     front.pathname = "/row100k";
     return NextResponse.rewrite(front);
   }
+  const first = pathname.split("/")[1] ?? "";
+  if (!ROW_SEGMENTS.has(first)) return null;
+  const to = req.nextUrl.clone();
+  to.pathname = `/row100k${pathname}`;
+  return NextResponse.rewrite(to);
+}
+
+export function middleware(req: NextRequest) {
+  const row = rowRewrite(req);
+  if (row) return row;
   if (allowed(req.nextUrl.pathname)) return paletteRedirect(req) ?? NextResponse.next();
   return NextResponse.redirect(new URL("/", req.url), 307);
 }
