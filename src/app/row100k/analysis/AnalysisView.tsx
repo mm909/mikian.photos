@@ -62,7 +62,7 @@ export function AnalysisView({
         </h1>
         <p className="sub">
           {m.sessions
-            ? `${fmtInt(m.sessions)} sessions from ${fmtInt(m.rowers)} rowers, as distributions: the spread, the standard deviations, what correlates with what. The field is grey and nobody in it is named. Sign in and the blue is you — only you.`
+            ? `${fmtInt(m.sessions)} sessions from ${fmtInt(m.rowers)} rowers, as distributions: the spread, the standard deviations, what correlates with what. The field is grey and nobody in it is named. Sign in and the color is you — only you.`
             : "Nothing logged yet. The distributions draw themselves as the first rows land."}
         </p>
         <div className="an-pill">
@@ -90,7 +90,7 @@ export function AnalysisView({
           )}
           {you && m.you ? (
             <span className="an-who">
-              ROWER {fmtRowerNumber(m.you.rowerNumber)} · {m.you.sessions} {m.you.sessions === 1 ? "SESSION" : "SESSIONS"} IN BLUE
+              ROWER {fmtRowerNumber(m.you.rowerNumber)} · {m.you.sessions} {m.you.sessions === 1 ? "SESSION" : "SESSIONS"} IN COLOR
             </span>
           ) : null}
         </div>

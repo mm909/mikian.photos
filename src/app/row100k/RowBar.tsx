@@ -5,7 +5,8 @@ import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, LOG_CLOSE_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
 import { BarLog } from "./BarLog";
-import { BarNav, type NavKey } from "./BarNav";
+import { overflowItems, type NavKey } from "./barItems";
+import { BarNav } from "./BarNav";
 import { NavProgress } from "./NavProgress";
 import { currentRace, raceAnnounced, raceOpenFor, raceOver } from "./raceday";
 import { myRaffleRows } from "./raffleData";
@@ -16,18 +17,22 @@ import { openRaffle, raffleDismissCookie } from "./raffles";
  * 2026-09-30: ROWTEMBER, never Mikian Musser — it was the Mikian.Musser
  * wordmark from 2026-09-05 to then, with ROWTEMBER as the first item of
  * the rail), then the nav rail with its sliding pill (the RACE DAY stamp
- * while a race is announced and open, THE BOARD — back on the rail
- * 2026-09-25, pointing at the total-meters rankings — STATS, FEED, PARTNERS
- * in September), then — for a joined rower — the LOG A ROW button, then
- * the sign-in / rower chip on the right. Server component: it resolves the
+ * while a race is announced and open, BOARD — back on the rail 2026-09-25,
+ * pointing at the total-meters rankings — STATS, FEED, PARTNERS in
+ * September), then — for a joined rower — the LOG A ROW button, then the
+ * OPT IN / rower chip on the right. Server component: it resolves the
  * session itself unless the page already did and hands the answer in.
  * `children` lands between the rail and the account chip for page tags.
  *
- * Layout: direct flex children (.bar-lead, the rail, .bar-log, .bar-right)
- * so the <=639px media query in theme.ts can reflow them into a deliberate
- * two-row bar — wordmark + account up top, the section links with LOG A
- * ROW at their far right on their own ruled row below (the rail dissolves
- * into the bar; see BarNav). */
+ * ONE LINE AT EVERY WIDTH (owner, 2026-10-01: "look at the header. We need
+ * to condense it into one line"). The two-row phone bar of 2026-09-05 is
+ * gone: .bar-lead, the rail, .bar-log and .bar-right are one flex row that
+ * never wraps (theme.ts). What a phone cannot hold is shortened there (LOG,
+ * the bare rower number) or moved: the words that are only sometimes on
+ * the rail (barItems.ts overflowItems — RACE DAY, FEED, PARTNERS) leave it
+ * under 900px and head the account menu instead, which is why this hands
+ * BarAccount the list; a visitor, with no menu, gets MORE on the rail
+ * (BarNav). */
 export async function RowBar({
   active,
   sticky = true,
@@ -100,9 +105,20 @@ export async function RowBar({
     }
   }
 
-  /* Not sticky still has to be positioned: on a phone the pill inside the
-   * dissolved rail is placed against the bar (BarNav measures from the
-   * pill's offsetParent), so the bar must stay its containing block. */
+  /* RACE DAY on the rail rides the same switch as the race itself
+   * (raceday.ts raceOpenFor): everyone in local dev, the owner alone in
+   * production until he opens it — so the link is there for him today
+   * and for the world the hour he flips it. AND only while a race is
+   * announced (raceday.ts raceAnnounced; owner, 2026-09-25: "RACE DAY
+   * should be hidden when no race day is announced"): from the day it
+   * goes up until a day after its doors shut, so December, with no
+   * race coming, has no stamp. Resolved here, where isAdmin already
+   * is, so the server markup and the first client render agree — once,
+   * for the rail and for the overflow the account menu carries. */
+  const raceOpen = raceOpenFor(isAdmin) && raceAnnounced(nowMs());
+
+  /* Not sticky still has to be positioned: the account panel and the MORE
+   * panel hang off the bar, so it must stay their containing block. */
   return (
     <>
       <div className="bar" style={sticky ? undefined : { position: "relative" }}>
@@ -114,22 +130,13 @@ export async function RowBar({
             Rowtember
           </Link>
         </span>
-        {/* RACE DAY on the rail rides the same switch as the race itself
-         * (raceday.ts raceOpenFor): everyone in local dev, the owner alone in
-         * production until he opens it — so the link is there for him today
-         * and for the world the hour he flips it. AND only while a race is
-         * announced (raceday.ts raceAnnounced; owner, 2026-09-25: "RACE DAY
-         * should be hidden when no race day is announced"): from the day it
-         * goes up until a day after its doors shut, so December, with no
-         * race coming, has no stamp. Resolved here, where isAdmin already
-         * is, so the server markup and the first client render agree. */}
-        <BarNav active={active} raceOpen={raceOpenFor(isAdmin) && raceAnnounced(nowMs())} />
+        <BarNav active={active} raceOpen={raceOpen} signedIn={isSignedIn} />
         {/* Joined rowers only (owner call, 2026-09-05): the account menu's
          * "Log a row", made obvious; it goes to the rower's own profile with
          * the form open (owner, 2026-09-25). Signed out, not yet joined, or
          * the log window closed: nothing — the join CTA is on the front page.
-         * A direct child of the bar so the phone media query can drop it onto
-         * the link row under the chip. */}
+         * A direct child of the bar: it takes the auto margin that pushes it
+         * and the chip to the far right. */}
         {rower !== null && logOpen && <BarLog rowerNumber={rower} />}
         <span className="bar-right">
           {children}
@@ -140,6 +147,7 @@ export async function RowBar({
             signedIn={isSignedIn}
             rowerNumber={rower}
             admin={isAdmin}
+            more={overflowItems(raceOpen).map((it) => ({ href: it.href, label: it.label }))}
             raceOver={raceOver(currentRace(), null, nowMs())}
           />
         </span>

@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  nowMs,
-  MONTH,
-} from "@/lib/row100k";
+import { nowMs } from "@/lib/row100k";
+import { ITEMS, STAMP, isSometimes, railItems, type NavKey } from "./barItems";
 import { trackClick } from "./TrackedLink";
 
 /* The nav rail: the section links on one strip, with ONE pill in the
@@ -22,9 +20,15 @@ import { trackClick } from "./TrackedLink";
  * stays — the front page and the landing still pass it as `active` — but
  * no item answers to it, so on the front page the pill rests nowhere.
  *
- * Positions are measured, never assumed, so the pill also moves in y when
- * the rail wraps at tablet widths or dissolves into the two-row phone bar
- * (where its containing block becomes the bar itself — see theme.ts).
+ * Positions are measured, never assumed. The rail is one row at every
+ * width since 2026-10-01 (owner: "look at the header. We need to condense
+ * it into one line"): it no longer wraps at tablet widths and no longer
+ * dissolves into a two-row phone bar, so the pill only ever moves in x —
+ * but it is still measured, because a font swap or a resize moves the words.
+ *
+ * ON AN INK GROUND THE PILL IS A RULE (theme.ts, the dark() block): the
+ * same element, the same slide, drawn as a 2px line of the accent under the
+ * word instead of a slab behind it. Nothing here knows which.
  *
  * Cross-page slide: from a click until the page changes, the pill's live
  * position is stashed in sessionStorage every frame. The next page's rail
@@ -51,29 +55,19 @@ import { trackClick } from "./TrackedLink";
  * raceOpenFor(isAdmin) AND raceAnnounced() (raceday.ts), resolved by RowBar
  * on the server, so the link and the page can never disagree about whether
  * there is a race, and a month with no race coming wears no stamp (owner,
- * 2026-09-25: "RACE DAY should be hidden when no race day is announced"). */
-
-/* THE BOARD is back on the rail (owner, 2026-09-25: "add a link in the
- * header for the board — it goes to the records page with total meters and
- * ALL selected for the current month"). It went off on 2026-09-24 when the
- * board page was folded into the full rankings; the key now points at that
- * total-meters view, plain URL, and lights on every records page. */
-export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
-
-const ITEMS: { key: NavKey; href: string; label: string }[] = [
-  /* Ahead of every section link: the rail reads race, then sections. */
-  { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
-  /* No ?m= and no ?d=: the records page reads the plain URL as this month,
-   * All (records/[record]/page.tsx hrefFor). */
-  { key: "board", href: "/row100k/records/total", label: "THE BOARD" },
-  { key: "stats", href: "/row100k/stats", label: "STATS" },
-  { key: "feed", href: "/row100k/feed", label: "FEED" },
-  { key: "partners", href: "/row100k/partners", label: "PARTNERS" },
-];
-
-/* The one item the pill may not address. It stays in ITEMS whether or not it
- * renders, so isKey keeps accepting the key and `active` stays typed. */
-const STAMP: NavKey = "raceday";
+ * 2026-09-25: "RACE DAY should be hidden when no race day is announced").
+ *
+ * THE WORDS THAT ARE ONLY SOMETIMES THERE (barItems.ts isSometimes: the
+ * stamp, and FEED and PARTNERS in September) wear .rail-x and leave the
+ * rail under 900px, where one line cannot hold them beside the wordmark
+ * and the chips. A signed-in rower finds them at the head of the account
+ * menu (RowBar hands BarAccount the same list); a visitor has no menu, so
+ * the rail grows the word MORE in their place — a button, with the words
+ * in the account panel under it. From 900px MORE is not displayed.
+ *
+ * The items themselves, and the key type, live in barItems.ts so the
+ * server half of the bar can read them too. */
+export type { NavKey };
 
 type Box = { left: number; top: number; width: number; height: number };
 type Stash = { key: NavKey | null; box: Box; at: number };
@@ -126,8 +120,19 @@ function reducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen?: boolean }) {
+export function BarNav({
+  active,
+  raceOpen = false,
+  signedIn = false,
+}: {
+  active?: NavKey;
+  raceOpen?: boolean;
+  /* Whether there is an account menu to carry the overflow words on a
+   * narrow screen. Without one the rail shows MORE. */
+  signedIn?: boolean;
+}) {
   const pathname = usePathname();
+  const [more, setMore] = useState(false);
   const railRef = useRef<HTMLElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef(new Map<NavKey, HTMLAnchorElement>());
@@ -228,6 +233,7 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
   useEffect(() => {
     window.clearTimeout(pinTimer.current);
     setPinned(null);
+    setMore(false);
   }, [pathname]);
 
   const rest: NavKey | null = pinned ?? hot ?? active ?? null;
@@ -291,14 +297,10 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
     tickStash();
   };
 
-  /* raceOpenFor(isAdmin) and raceAnnounced(), resolved by RowBar: the gate
-   * the race wears, and whether a race is in its window at all. Shut, or no
-   * race announced, and the stamp is not in the markup at all. */
-  /* PARTNERS and FEED are September's (owner, 2026-09-24: "on October 1st
-   * we're going to hide the partner page"; "hide the feed on October 1st,
-   * same as the partner page"). Both pages stay at their addresses. */
-  const SEPTEMBER_ONLY: NavKey[] = ["partners", "feed"];
-  const items = ITEMS.filter((it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)));
+  /* What the rail carries right now (barItems.ts): the stamp only while
+   * the race is open and announced, September's two only in September. */
+  const items = railItems(raceOpen);
+  const overflow = items.filter((it) => isSometimes(it.key));
 
   const railClass = ["rail", live ? "live" : "", jump || placing ? "jump" : ""].filter(Boolean).join(" ");
   const pillStyle: React.CSSProperties | undefined =
@@ -316,7 +318,7 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
     <nav ref={railRef} className={railClass} aria-label="Rowtember" onPointerLeave={() => setHot(null)}>
       {/* .rail-pill, not .pill: that name is already the join form radio chip. */}
       <div ref={pillRef} className="rail-pill" aria-hidden="true" style={pillStyle} />
-      {items.map((it, i) => {
+      {items.map((it) => {
         const stamp = it.key === STAMP;
         /* The stamp takes neither .lit nor .on: it is already white on black
          * and carries its own indicator. .on is the one that would actually
@@ -327,6 +329,7 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
         const cls = [
           it.key === "home" ? "brand" : "",
           stamp ? "rail-stamp" : "",
+          isSometimes(it.key) ? "rail-x" : "",
           !stamp && lit === it.key ? "lit" : "",
           !stamp && !live && active === it.key ? "on" : "",
         ]
@@ -367,16 +370,46 @@ export function BarNav({ active, raceOpen = false }: { active?: NavKey; raceOpen
             >
               {it.label}
             </Link>
-            {/* Phone widths only (theme.ts): the rail dissolves into the bar
-             * and this break — ordered ahead of every link by the sheet, so
-             * its place in the markup is moot — forces the section links onto
-             * their own dashed-ruled row under the wordmark. Display none
-             * otherwise. When RACE DAY is open it takes that same line and
-             * rules it in black instead, so the two never both appear. */}
-            {i === 0 && !raceOpen && <i className="rail-break" aria-hidden="true" />}
           </Fragment>
         );
       })}
+      {/* MORE, under 900px, for a visitor (theme.ts .rail-more): the words
+       * above that wear .rail-x are not displayed there, and with no
+       * account menu to carry them this is their place. The pill never
+       * addresses it — no ref, the same omission as the stamp. */}
+      {!signedIn && overflow.length > 0 && (
+        <span className="rail-more">
+          <button
+            type="button"
+            className="rail-more-btn"
+            aria-expanded={more}
+            aria-haspopup="menu"
+            onClick={() => setMore((v) => !v)}
+          >
+            More ▾
+          </button>
+          {more && (
+            <>
+              <div className="acct-overlay" onClick={() => setMore(false)} aria-hidden="true" />
+              <div className="acct-panel" role="menu">
+                {overflow.map((it) => (
+                  <Link
+                    key={it.key}
+                    className="acct-item"
+                    href={it.href}
+                    onClick={(e) => {
+                      setMore(false);
+                      onClick(it.key, it.href)(e);
+                    }}
+                  >
+                    {it.label} →
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </span>
+      )}
     </nav>
   );
 }

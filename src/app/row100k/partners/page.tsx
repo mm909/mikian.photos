@@ -117,7 +117,7 @@ const ptnCss = `
 .row100k .ptn-lvss .eyebrow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:22px}
 .row100k .ptn-lvss-mark{display:inline-block;max-width:560px;width:100%}
 .row100k .ptn-lvss-mark img{display:block;width:100%;height:auto}
-/* No sentence under the mark (owner, 2026-09-21: "remove this copy") — the
+/* No sentence under the mark (owner, 2026-09-21: remove this copy) — the
  * eyebrow says race day, the mark says who, the line under says how to
  * reach them. */
 .row100k .ptn-lvss-sub{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:26px 0 0}

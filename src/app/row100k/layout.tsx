@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { INK, PAPER } from "@/lib/rowPalette";
 import { RowSite } from "./RowSite";
 import { siteLook, sitePalette, siteSettingsOnce } from "./sitePalette";
 
 /* The one wrapper every /row100k page renders inside (owner, 2026-09-16).
  * It reads the site switches once per request (src/lib/rowSettings.ts,
  * fails open to the defaults) and hands three of them down through RowSite:
- * the look — paper, or the white-on-black ink for race week — the palette
- * (rowPalette.ts: the accent every page wears through --water), and the
- * share cards that are switched off.
+ * the look — the white-on-black ink, the default since 2026-10-01, or the
+ * paper of September — the palette (rowPalette.ts: the accent every page
+ * wears through --water, cut for that look), and the share cards that are
+ * switched off.
  *
  * The look can be previewed on one browser through LOOK_COOKIE, which the
  * settings route sets for an admin; the palette through PALETTE_COOKIE,
@@ -30,6 +32,14 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Rowtember",
 };
+
+/* The browser chrome follows the ground (2026-10-01, with ink the default
+ * look): the black of the ink look, the cream of paper, so a phone has no
+ * cream address bar over a black page. A page may still name its own (the
+ * front page does, for the landing ground). */
+export async function generateViewport(): Promise<Viewport> {
+  return { themeColor: (await siteLook()) === "ink" ? INK : PAPER };
+}
 
 export default async function Row100kLayout({ children }: { children: ReactNode }) {
   const [settings, look, palette] = await Promise.all([siteSettingsOnce(), siteLook(), sitePalette()]);

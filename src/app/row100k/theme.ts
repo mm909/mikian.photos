@@ -36,24 +36,28 @@ const NOISE =
  * no :has() never gets the wall inverted (review, 2026-09-16). */
 const INK = ".row-ink .row100k:not(.chrome-ink):not(.rr-wall)";
 
+/* BOTH INK GROUNDS AT ONCE: a page under the ink look, and a page that is
+ * ink on its own (.chrome-ink — the landing, race day, the results board).
+ * The bar, the raffle strip and the account menu are one chrome on either,
+ * so their rules are written once and read the --bar-* variables each
+ * ground sets (the ink look flips --paper and --ink; .chrome-ink does not,
+ * so it names its black and its white). */
+const dark = (...sels: string[]) => sels.flatMap((x) => [`${INK} ${x}`, `.row100k.chrome-ink ${x}`]).join(",");
+
 export const css = `
 html:has(.row100k){scroll-behavior:smooth}
 .row100k,.row100k *{margin:0;padding:0;box-sizing:border-box}
-/* Anchor targets have to clear the sticky bar, and the bar is not one
- * height. It is 62px across a desktop, two rows on a phone, and three rows
- * on a phone once RACE DAY is in it, so the single 64px this sheet has
- * always used dropped a jump to the join form or the log section behind
- * the bar on every phone. Measured, not guessed: 98px for the two row bar
- * and 128px with the stamp band, plus 8px of air. The stamp case is picked
- * out with :has, which this sheet already leans on two rules above. */
+/* Anchor targets have to clear the sticky bar: 62px across a desktop, and
+ * 50px on a phone now that the bar is one row at every width (2026-10-01;
+ * it was two rows, and three with the RACE DAY band, and this carried 106
+ * and 136). Measured, plus 8px of air on the phone. */
 .row100k section[id]{scroll-margin-top:64px}
 @media (max-width:639px){
-  .row100k section[id]{scroll-margin-top:106px}
-  .row100k:has(.rail-stamp) section[id]{scroll-margin-top:136px}
+  .row100k section[id]{scroll-margin-top:58px}
 }
 .row100k{
   --paper:#F4F3EE; --ink:#15171a; --ink-soft:#3b3e42; --gray:#8a8a85; --line:#c9c8c0;
-  --water:#0077B6; --water-hover:#1a90d4; --water-pale:#e3eef5; --frame:#1c2b33;
+  --water:#B04506; --water-hover:#D2580F; --water-pale:#FBE7D6; --on-water:#fff; --frame:#1f2226;
   background:var(--paper) url(${NOISE}) repeat;
   color:var(--ink);
   font-family:var(--row-archivo),sans-serif;
@@ -61,6 +65,15 @@ html:has(.row100k){scroll-behavior:smooth}
   min-height:100vh;width:100%;color-scheme:light;
 }
 @media (prefers-reduced-motion: reduce){ .row100k *{transition:none!important;animation:none!important} }
+/* THE ACCENT IS THE PALETTE (src/lib/rowPalette.ts): RowSite writes the
+ * preset into --water, --water-hover, --water-pale and --on-water (the type
+ * a filled slab of it carries) for the ground the look gives the page.
+ * What the root above and this rule hold is October orange, the default
+ * preset, for a page outside the /row100k layout (the rowing machine
+ * pages wear this sheet with no RowSite over them): the burnt cut on
+ * paper, the pumpkin on either ink ground. --frame, the mat a photo sits
+ * on, was a blue-black and is a plain one. */
+.row100k.chrome-ink,.row-ink .row100k{--water:#FF7A1A;--water-hover:#FF9A4D;--water-pale:#2E1C0E;--on-water:#15171a}
 .row100k .mono{font-family:var(--row-mono),monospace}
 .row100k .wrap{max-width:760px;margin:0 auto;padding:0 20px}
 .row100k a{color:inherit}
@@ -68,42 +81,45 @@ html:has(.row100k){scroll-behavior:smooth}
 
 .row100k .bar{display:flex;align-items:center;gap:18px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .row100k .bar .mono{font-size:12px;letter-spacing:.08em}
-/* THE TAP LANDED (NavProgress.tsx): a water line along the top edge of the
- * viewport from the moment a link is pressed until the next page paints. */
+/* THE TAP LANDED (NavProgress.tsx): a line of the accent along the top edge
+ * of the viewport from the moment a link is pressed until the next page
+ * paints. */
 .row100k .bar-go{position:fixed;left:0;top:0;height:3px;width:0;background:var(--water);z-index:60;opacity:0;pointer-events:none}
 .row100k .bar-go.on{opacity:1;animation:row-go 9s cubic-bezier(.08,.6,.2,1) forwards}
 @keyframes row-go{from{width:0}to{width:94%}}
 @media (prefers-reduced-motion:reduce){.row100k .bar-go.on{animation:none;width:100%}}
-.row100k .bar .tag{background:var(--water);color:#fff;padding:3px 8px}
+.row100k .bar .tag{background:var(--water);color:var(--on-water);padding:3px 8px}
 /* The ROWTEMBER wordmark leads (owner, 2026-09-30: ROWTEMBER, never
  * Mikian Musser — the Mikian.Musser wordmark of 2026-09-05 is gone, and
  * with it the ROWTEMBER the rail carried, which this now is; same 13px Archivo
  * Black the rail mark wore), the nav rail opens beside it. */
 .row100k .bar-lead{display:flex;align-items:center;gap:12px;flex:none;min-width:0}
-.row100k .bar-brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
+.row100k .bar-brand{display:inline-flex;align-items:center;min-height:32px;font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
 .row100k .bar-brand:hover{color:var(--water)}
 /* Nav rail + the one accent pill (owner call, 2026-09-05). The section
  * links share a strip; one straight rectangle in the accent rests under
  * the current page and slides to whatever the pointer is over (BarNav
- * measures and moves it). Colour rules: the item under the pill is white;
- * every other item off the pill is the gray mono of .back-link (the
- * .brand rules stay for a rail that carries a mark). Until the client has
- * measured, the active link paints its own blue box (.on) so the server
+ * measures and moves it). Colour rules: the item under the pill carries the
+ * slab type; every other item off the pill is the gray mono of .back-link
+ * (the .brand rules stay for a rail that carries a mark). Until the client
+ * has measured, the active link paints its own box (.on) so the server
  * markup already looks right; .live hands over to the pill. .jump switches
  * every transition off for one frame so the pill can be placed, not flown.
  * Both link boxes are 27px tall (16px line + padding) so the pill keeps
- * its height as it crosses from the mark to the mono links. No skew. */
-.row100k .rail{position:relative;display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}
+ * its height as it crosses from the mark to the mono links. No skew.
+ * ON AN INK GROUND THE PILL IS A RULE, not a slab (2026-10-01, the .bar
+ * block under the footer rules): the word in the accent on a 2px line of
+ * it, the same element sliding the same way. */
+.row100k .rail{position:relative;display:flex;align-items:center;gap:4px;flex:none;min-width:0}
 .row100k .rail a{position:relative;z-index:1;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;text-decoration:none;color:var(--gray);padding:6px 9px 5px;white-space:nowrap;transition:color 160ms ease}
 .row100k .rail a.brand{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.01em;color:var(--water);padding:6px 10px 5px}
-.row100k .rail a.lit{color:#fff}
+.row100k .rail a.lit{color:var(--on-water)}
 .row100k .rail:not(.live) a.on{background:var(--water)}
 .row100k .rail-pill{position:absolute;z-index:0;left:0;top:0;width:0;height:0;background:var(--water);opacity:0;pointer-events:none;transition:left 220ms cubic-bezier(.2,.7,.2,1),top 220ms cubic-bezier(.2,.7,.2,1),width 220ms cubic-bezier(.2,.7,.2,1),height 220ms cubic-bezier(.2,.7,.2,1),opacity 160ms ease}
 .row100k .rail.jump .rail-pill,.row100k .rail.jump a{transition:none}
-.row100k .rail-break{display:none}
 /* RACE DAY: the one item on the rail that is already on (owner, 2026-09-11 —
  * a race day header link, the leftmost one, in that white on black font). The
- * rail answers in water blue; race day answers in black and white. So this
+ * rail answers in the accent; race day answers in black and white. So this
  * item never borrows the pill. It carries its own ground, it is inverted at
  * rest, and it inverts AGAIN under the pointer and on its own page — the same
  * flip the SIGN UP slab makes on the page it leads to.
@@ -116,86 +132,87 @@ html:has(.row100k){scroll-behavior:smooth}
  * (rd-mast .22em, rd-stamp .2em, rd-room .14em): a letterspaced mono cap line
  * on black is what that world sounds like. The right padding gives 2px back,
  * since letter-spacing hangs after the last glyph and a short word in a black
- * box shows it. Six pixels of margin each side keeps the black off a blue pill
- * resting on ROWTEMBER or on THE BOARD.
+ * box shows it. Six pixels of margin each side keeps the black off a pill
+ * resting on the next word.
  * IT SNAPS. The rail eases colour over 160ms and nothing else, so an eased
  * inversion is a blank white box for a tenth of a second if only the colour
  * eases, and grey on grey halfway through if both do. A stamp does not fade —
  * and transition none also puts this rule out of reach of the .jump tie, which
  * it would otherwise win on source order alone.
  * Whether it is here at all is BarNav and RowBar, never CSS: when race day is
- * shut it is not in the markup. */
+ * shut it is not in the markup. Under 900px it leaves the rail with the
+ * other September words (.rail-x, below). */
 .row100k .rail a.rail-stamp{background:var(--ink);border:2px solid var(--ink);color:#fff;font-weight:700;letter-spacing:.16em;padding:4px 5px 3px 7px;margin:0 6px;transition:none}
 .row100k .rail a.rail-stamp:hover,.row100k .rail a.rail-stamp:focus-visible,.row100k .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
 /* Right-hand chip group pushes itself to the far edge so the bar needs no
  * justify rule. */
 .row100k .bar-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex:none}
 /* LOG A ROW on the bar (owner call, 2026-09-05): the account chip idiom
- * inverted — solid ink, white mono, water on hover — so a joined rower can
- * always reach the form. One element (BarLog), moved by flex order: on
- * desktop it takes the auto margin and the chip group loses its own, so
- * the pair sits together at the far right, same height as the chip. Both
- * are flex none: at tablet widths the rail wraps to make room, the button
- * and the chip never get squeezed onto two lines. */
+ * inverted — solid ink, white mono, the accent on hover — so a joined rower
+ * can always reach the form. One element (BarLog): it takes the auto margin
+ * and the chip group loses its own, so the pair sits together at the far
+ * right, same height as the chip. Both are flex none. */
 .row100k .bar-log{display:inline-block;flex:none;margin-left:auto;background:var(--ink);color:#fff;border:2px solid var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:16px;text-transform:uppercase;padding:6px 12px;text-decoration:none;white-space:nowrap;transition:background 160ms ease,border-color 160ms ease}
-.row100k .bar-log:hover,.row100k .bar-log:focus-visible{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .bar-log:hover,.row100k .bar-log:focus-visible{background:var(--water);border-color:var(--water);color:var(--on-water)}
 .row100k .bar-log + .bar-right{margin-left:0}
-/* Phone widths (under 640px, the same seam as the front-page grids): an
- * intentional two-row bar — wordmark, ROWTEMBER and the account chip on
- * the masthead row, the section links on their own dashed-ruled row
- * beneath. The rail gives up its box (display contents) so ROWTEMBER can
- * sit up top with the wordmark while the rest drop past the break; the
- * pill then positions against the bar, which is why RowBar keeps the bar
- * positioned even when it is not sticky. Both link boxes are 25px here,
- * and so is LOG A ROW, which follows the links (order 3) and takes the
- * auto margin to the far right — directly under the chip; the chip group
- * gets its own auto margin back for the masthead row. Up to 639 rather
- * than 560 because with the button beside the chip the one-row bar has no
- * room left for the rail under 640: it stacked three and four lines. */
+/* MORE (BarNav): the word a signed-out phone gets in place of the rail
+ * words that do not fit one line. A rail link to look at, a button; its
+ * list is the account panel hung from the left. */
+.row100k .rail-more{position:relative;display:flex;align-items:center}
+.row100k .rail-more-btn{all:unset;box-sizing:border-box;cursor:pointer;display:inline-block;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;line-height:16px;text-transform:uppercase;color:var(--gray);padding:6px 9px 5px;white-space:nowrap}
+.row100k .rail-more-btn:hover{color:var(--water)}
+.row100k .rail-more-btn:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
+.row100k .rail-more .acct-panel{left:auto;right:0;min-width:180px}
+/* Its items are account-menu items, but they sit inside the rail, where
+ * every link is cut as a rail word: grey, inline, 32px of box. One more
+ * class than those rules puts the menu item back. */
+.row100k .rail .rail-more a.acct-item{display:block;z-index:auto;color:var(--ink);font-size:12px;letter-spacing:.08em;line-height:inherit;padding:11px 2px;white-space:nowrap}
+.row100k .rail .rail-more a.acct-item:hover{color:var(--water)}
+/* ONE LINE AT EVERY WIDTH (owner, 2026-10-01: look at the header, we need
+ * to condense it into one line — on his phone the bar was two rows, the
+ * wordmark over THE BOARD and STATS). The two-row phone bar of 2026-09-05
+ * is gone and so is the black RACE DAY band that made it three: the bar
+ * never wraps, the rail never dissolves into it, and what a narrow screen
+ * cannot hold is shortened or moved, never stacked.
+ *   - Under 900px the words that are only sometimes there (.rail-x: the
+ *     RACE DAY stamp while a race is announced, FEED and PARTNERS in
+ *     September) leave the rail. A signed-in rower finds them at the head
+ *     of the account menu (.acct-more); a visitor, who has no menu, gets
+ *     the word MORE on the rail in their place (.rail-more). From 900px
+ *     both of those are gone and the words are on the rail.
+ *   - Under 640px LOG A ROW is LOG and ROWER 095 is 095 (the .x spans are
+ *     the words dropped), the wordmark steps down to 12px, and every
+ *     control is 32px tall: the links 16px of line in 8px of padding, the
+ *     two chips 16px in 6px and a 2px edge. The bar is 50px.
+ *   - Under 360px (320px phones) the gutters, the gaps and the tracking
+ *     tighten once more and the wordmark is 11px.
+ * Measured at 390, 360 and 320, signed in and out: one row, no scroll. */
+@media(max-width:899px){
+  .row100k .rail .rail-x{display:none}
+}
+@media(min-width:900px){
+  .row100k .rail-more,.row100k .acct-more{display:none}
+}
 @media(max-width:639px){
-  .row100k .bar{flex-wrap:wrap;gap:8px 4px;padding:10px 16px 12px}
+  .row100k .bar{gap:10px;padding:8px 16px}
   .row100k .bar-brand{font-size:12px}
-  .row100k .rail{display:contents}
-  .row100k .rail a{font-size:11px;letter-spacing:.06em;padding:5px 6px 4px;order:2}
-  .row100k .rail a.brand{font-size:12px;padding:5px 8px 4px;margin-left:6px;order:0}
-  .row100k .rail-break{display:block;flex-basis:100%;height:0;border-top:1px dashed var(--line);order:1}
-  /* On the phone the chip stops being a chip. The link row carries four links
-   * and LOG A ROW at 375px with about two pixels to spare, so nothing more can
-   * be asked of it: RACE DAY takes the line the dashed rule used to hold and
-   * runs the full measure of the bar instead, a black band between the masthead
-   * and the sections. BarNav drops the dashed break whenever the band renders,
-   * because the band is that rule now. Taller than a link box on purpose: it is
-   * the one thing up here built to be tapped. Measured at 375: the band is 343
-   * by 31 and the bar goes 98 to 128, with the link row untouched, so no width
-   * from 320 up can wrap it. */
-  .row100k .rail a.rail-stamp{order:1;flex:0 0 100%;margin:0;padding:6px 10px 5px 12px;letter-spacing:.2em}
-  .row100k .bar-log{order:3;margin-left:auto;font-size:11px;letter-spacing:.06em;line-height:16px;padding:3px 8px 2px}
-  .row100k .bar-log + .bar-right{margin-left:auto}
-}
-/* The link row has to hold THE BOARD, STATS, FEED, PARTNERS and LOG A ROW
- * on one line: at 375px that is a fit by a hair, so from 389px down the
- * button alone gives up tracking and side padding (the links keep their
- * look at 375, the common phone; every box stays 25px). From 374px down
- * the links follow with a little less tracking and padding, keeping their
- * left edge, and the brand margin eases so the masthead row still holds
- * the chip at 360px. Under 360px (320px phones) the whole row steps to
- * 10px mono and the column gap tightens; the button never drops to a row
- * of its own. */
-@media(max-width:389px){
-  .row100k .bar-log{letter-spacing:.02em;padding:3px 6px 2px}
-}
-@media(max-width:374px){
-  .row100k .rail a{letter-spacing:.03em;padding:5px 5px 4px}
-  .row100k .rail a.brand{margin-left:2px}
+  .row100k .rail{gap:0}
+  .row100k .rail a,.row100k .rail-more-btn{font-size:11px;letter-spacing:.06em;padding:8px 6px}
+  .row100k .bar-right{gap:8px}
+  .row100k .bar-log{letter-spacing:.06em;padding:6px 8px}
+  .row100k .bar-log .x,.row100k .acct-chip .x{display:none}
 }
 @media(max-width:359px){
-  .row100k .bar{gap:8px 2px}
-  .row100k .rail a{font-size:10px;letter-spacing:.02em;padding:5px 4px 4px}
-  .row100k .bar-log{font-size:10px;letter-spacing:.02em;padding:3px 6px 2px}
+  .row100k .bar{gap:6px;padding:8px 12px}
+  .row100k .bar-brand{font-size:11px}
+  .row100k .rail a,.row100k .rail-more-btn{letter-spacing:.03em;padding:8px 4px}
+  .row100k .bar-right{gap:6px}
+  .row100k .bar-log{letter-spacing:.03em;padding:6px}
 }
-/* Account chip + dropdown (top-right of the bar). */
+/* Account chip + dropdown (top-right of the bar). 16px of line so the chip
+ * and LOG A ROW are the same 32px. */
 .row100k .acct{position:relative;display:flex;align-items:center}
-.row100k .acct-chip{border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;cursor:pointer}
+.row100k .acct-chip{border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:16px;text-transform:uppercase;padding:6px 12px;cursor:pointer;white-space:nowrap}
 .row100k .acct-chip:hover{border-color:var(--water);color:var(--water)}
 .row100k .acct-overlay{position:fixed;inset:0;z-index:55}
 /* The admin menu has grown a group at a time and is now longer than a
@@ -208,12 +225,16 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .acct-panel{position:absolute;top:calc(100% + 12px);right:0;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(21,23,26,.14);padding:4px 16px;min-width:220px;z-index:60;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .row100k .acct-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:11px 2px;cursor:pointer;color:var(--ink);text-decoration:none}
 .row100k .acct-item:last-child{border-bottom:none}
+.row100k .acct-more .acct-item:last-child{border-bottom:1px dashed var(--line)}
 .row100k .acct-item:hover{color:var(--water)}
 .row100k .acct-item.danger:hover{color:#b3400f}
-/* Phone masthead row has to hold wordmark + ROWTEMBER + this chip at 360px;
- * a tighter chip buys the room. Sits after the base rule so it wins. */
-@media(max-width:560px){
-  .row100k .acct-chip{letter-spacing:.06em;padding:6px 10px}
+/* The phone chips: a tighter chip buys the room. Sits after the base rule
+ * so it wins. */
+@media(max-width:639px){
+  .row100k .acct-chip{letter-spacing:.06em;padding:6px 8px}
+}
+@media(max-width:359px){
+  .row100k .acct-chip{letter-spacing:.03em;padding:6px}
 }
 
 /* ----------------------------------------------------------------------
@@ -372,9 +393,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .pill span{display:inline-block;border:2px solid var(--line);padding:9px 16px;font-family:var(--row-mono),monospace;font-size:13px;cursor:pointer;user-select:none;color:var(--ink-soft)}
 .row100k .pill input:checked + span{border-color:var(--water);color:var(--water)}
 .row100k .pill input:focus-visible + span{outline:2px solid var(--water);outline-offset:2px}
-.row100k .send{display:block;width:100%;margin-top:30px;background:var(--water);color:#fff;border:none;font-family:var(--row-archivo-black),sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;padding:18px;cursor:pointer;text-align:center;text-decoration:none}
+.row100k .send{display:block;width:100%;margin-top:30px;background:var(--water);color:var(--on-water);border:none;font-family:var(--row-archivo-black),sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;padding:18px;cursor:pointer;text-align:center;text-decoration:none}
 .row100k .send:hover{background:var(--water-hover)}
-.row100k .send:disabled{background:#b9c9d2;color:#f0f4f6;cursor:default}
+.row100k .send:disabled{background:var(--line);color:var(--paper);cursor:default}
 .row100k .goog{display:flex;width:100%;align-items:center;justify-content:center;gap:12px;background:var(--ink);color:var(--paper);border:none;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:16px;padding:16px;margin-top:22px;cursor:pointer}
 .row100k .goog:hover{background:var(--water)}
 .row100k .goog svg{flex:none}
@@ -395,14 +416,14 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-overlay{position:fixed;inset:0;background:rgba(21,23,26,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
 .row100k .share-modal{background:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 rgba(21,23,26,.2);width:min(560px,100%);max-height:90vh;overflow-y:auto;padding:16px 18px 18px}
 .row100k .share-head{position:relative;display:flex;justify-content:center;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:10px;min-height:30px}
-.row100k .share-mark{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:14px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:#fff;background:var(--water);padding:7px 12px 6px}
+.row100k .share-mark{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:14px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--on-water);background:var(--water);padding:7px 12px 6px}
 .row100k .share-x{position:absolute;right:0;top:0;background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--ink);padding:0 2px}
 .row100k .share-x:hover{color:var(--water)}
 .row100k .share-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .row100k .share-pick{border:2px solid var(--line);background:none;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 11px;cursor:pointer;color:var(--ink-soft)}
 .row100k .share-pick.on{border-color:var(--ink);color:var(--ink)}
 .row100k .share-stage{margin-top:14px;border:2px solid var(--ink);padding:14px;background:var(--paper)}
-.row100k .share-stage.dark{background:#1c2b33;background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
+.row100k .share-stage.dark{background:var(--frame);background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
 .row100k .share-canvas{display:block;width:100%;height:auto}
 .row100k .share-note{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 .row100k .share-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
@@ -412,8 +433,8 @@ html:has(.row100k){scroll-behavior:smooth}
  * phone needs. .share-link is the phone DOWNLOAD — a text link under the
  * two filled buttons. */
 .row100k .share-btn{border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:12px 16px;cursor:pointer;flex:1 1 auto;border-radius:0}
-.row100k .share-btn:hover{background:var(--water);border-color:var(--water);color:#fff}
-.row100k .share-btn.primary{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .share-btn:hover{background:var(--water);border-color:var(--water);color:var(--on-water)}
+.row100k .share-btn.primary{background:var(--water);border-color:var(--water);color:var(--on-water)}
 .row100k .share-btn.primary:hover{background:var(--water-hover);border-color:var(--water-hover)}
 .row100k .share-btn.quiet{border-color:var(--line);color:var(--gray);flex:0 1 auto}
 .row100k .share-btn.quiet:hover{background:none;border-color:var(--ink);color:var(--ink)}
@@ -429,7 +450,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .act-row{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
 .row100k .big-act{flex:1 1 180px;display:block;text-align:center;border:2px solid var(--ink);background:none;color:var(--ink);font-family:var(--row-archivo-black),sans-serif;font-size:17px;text-transform:uppercase;letter-spacing:.04em;padding:15px 14px;cursor:pointer;text-decoration:none}
 .row100k .big-act:hover{border-color:var(--water);color:var(--water)}
-.row100k .big-act.primary{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .big-act.primary{background:var(--water);border-color:var(--water);color:var(--on-water)}
 .row100k .big-act.primary:hover{background:var(--water-hover);border-color:var(--water-hover)}
 .row100k .split-live{font-family:var(--row-mono),monospace;font-size:12px;color:var(--gray);margin-top:10px;min-height:18px}
 .row100k .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
@@ -541,7 +562,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .dtag.m1{background:#D4AF37;border-color:#a8871e;color:#3a2c04}
 .row100k .dtag.m2{background:#C0C0C0;border-color:#999;color:#2c3033}
 .row100k .dtag.m3{background:#CD7F32;border-color:#a05e1c;color:#331b04}
-.row100k .donebadge{display:inline-block;font-size:10px;background:var(--water);color:#fff;padding:1px 6px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace}
+.row100k .donebadge{display:inline-block;font-size:10px;background:var(--water);color:var(--on-water);padding:1px 6px;margin-left:8px;vertical-align:1px;font-family:var(--row-mono),monospace}
 .row100k .rowbar{height:5px;background:#e3e1d8;margin-top:6px}
 .row100k .rowbar .f{height:100%;background:var(--water)}
 .row100k .board-empty{font-family:var(--row-mono),monospace;font-size:13px;color:var(--gray);padding:18px 0;line-height:1.8}
@@ -599,8 +620,11 @@ html:has(.row100k){scroll-behavior:smooth}
 
 /* Movement arrows + finisher rows in the standings table. */
 .row100k .mv{font-family:var(--row-mono),monospace;font-size:11px;white-space:nowrap}
+/* Up is the accent; down is the key grey. Down was a rust (#b3400f), which
+ * sat fine beside the water blue and is the same colour as the burnt
+ * orange the paper look wears now — two arrows told apart by shape alone. */
 .row100k .mv.up{color:var(--water)}
-.row100k .mv.dn{color:#b3400f}
+.row100k .mv.dn{color:var(--gray)}
 .row100k tr.fin td{background:var(--water-pale)}
 .row100k tr.divrow td{border-bottom:1px dashed var(--line);padding:14px 6px 6px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;color:var(--water);text-transform:uppercase}
 .row100k tr.divrow.rest td{color:var(--gray)}
@@ -640,7 +664,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .rw-find::placeholder{color:var(--gray);text-transform:uppercase;letter-spacing:.12em;font-size:11px}
 .row100k table.board.rw-t th.rw-c,.row100k table.board.rw-t td.rw-c{width:34px;padding-left:0;padding-right:0;text-align:right}
 .row100k .rw-r{cursor:pointer}
-.row100k .rw-r:hover td{background:rgba(227,238,245,.45)}
+.row100k .rw-r:hover td{background:color-mix(in srgb,var(--water-pale) 45%,transparent)}
 .row100k .rw-r.on td{background:var(--water-pale)}
 .row100k .rw-name{appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;margin:0;color:var(--ink);font:inherit;font-weight:700;text-align:left;cursor:pointer}
 .row100k .rw-name:hover{color:var(--water)}
@@ -693,13 +717,19 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .back-link{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-decoration:none;color:var(--gray)}
 .row100k .back-link:hover{color:var(--water)}
 
-/* September heatmap (GitHub-commit style, one month, no day numbers). */
+/* September heatmap (GitHub-commit style, one month, no day numbers).
+ * ONE HUE (owner, 2026-10-01: the colors on some of these charts are a
+ * little funky, like they are blue and also red or orange): the four heats
+ * were fixed blues and stayed blue whatever the palette put beside them.
+ * They are steps of the accent over the ground now — 14, 38 and 68 parts
+ * in a hundred, then the accent itself — so a chart is the type colour
+ * and one accent. The hour grid and the year grid wear the same steps. */
 .row100k .hm{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .row100k .hm .dow{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.1em;color:var(--gray);text-align:center;padding-bottom:3px}
 .row100k .hm-cell{aspect-ratio:1;border:1px dashed var(--line)}
-.row100k .hm-cell.b1{background:#d9e8f2;border:1px solid #d9e8f2}
-.row100k .hm-cell.b2{background:#a5cde3;border:1px solid #a5cde3}
-.row100k .hm-cell.b3{background:#4d9fc9;border:1px solid #4d9fc9}
+.row100k .hm-cell.b1{background:color-mix(in srgb,var(--water) 14%,var(--paper));border:1px solid transparent}
+.row100k .hm-cell.b2{background:color-mix(in srgb,var(--water) 38%,var(--paper));border:1px solid transparent}
+.row100k .hm-cell.b3{background:color-mix(in srgb,var(--water) 68%,var(--paper));border:1px solid transparent}
 .row100k .hm-cell.b4{background:var(--water);border:1px solid var(--water)}
 .row100k .hm-legend{display:flex;align-items:center;gap:6px;margin-top:12px;font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.12em;color:var(--gray);text-transform:uppercase}
 .row100k .hm-legend i{width:12px;height:12px;display:block}
@@ -725,86 +755,97 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k footer a:hover{color:var(--water)}
 
 /* ----------------------------------------------------------------------
- * .chrome-ink — THE BAR, THE RAFFLE STRIP AND THE FOOTER, INVERTED. A page
- * whose ground is ink puts this class on its own wrapper and the shared
- * chrome comes with it: the bar goes black under a white rule, the wordmark
- * and the rail go white, the water-blue pill goes white, the strip under the
- * bar and the footer follow. Nothing else on the site changes.
+ * THE CHROME ON AN INK GROUND — the bar, the raffle strip, the account
+ * menu and the footer. Two kinds of page are ink: one under the ink look
+ * (.row-ink, at the foot of this sheet, which flips the palette under
+ * everything), and one that is ink on its own and wears .chrome-ink on its
+ * wrapper — the landing, race day, the results board (owner, 2026-09-12:
+ * make the header and footer black and white on the race day sign up page;
+ * and the day before, that the way the header changes on the results board
+ * is the kind of change that should happen everywhere).
  *
- * WHY IT IS HERE and not on the page that first wanted it. The race results
- * board wrote these rules for itself, and then the race day sign up needed
- * the same ones (owner, 2026-09-12: make the header and footer black and
- * white on the race day sign up page — and the day before, that the way the
- * header changes on the results board is the kind of change that should
- * happen everywhere). Two copies of a block this size is two copies that
- * drift, so the chrome half moved here and both pages wear the class. What
- * was about the BOARD stayed in raceresults/rrCss.ts.
+ * ONE BLOCK FOR BOTH. Until 2026-10-01 each ground had its own copy of
+ * these rules and both were monochrome: a white pill, a white LOG A ROW,
+ * no hue anywhere. The ink look is the site now and it wears the palette
+ * accent (owner, 2026-10-01: instead of red, let us pick like October
+ * orange), so the two copies are one, written through dark() and four
+ * --bar-* variables: .chrome-ink names its black and its paper here, the
+ * ink look hands over its flipped --paper and --ink (the INK root).
  *
- * ONLY FOR A PAGE THAT IS INK TOP TO BOTTOM. This inverts the chrome, not
- * the body: on a cream page it would hang a black bar over a cream article.
- * The white focus ring is scoped to the three chrome regions for that same
- * reason, and a dark body paints its own (rd-dark, rr-dark).
+ * WHAT IS THE ACCENT UP HERE AND WHAT IS NOT. The word of the page you are
+ * on and the 2px rule under it; OPT IN; the hover of every word and chip.
+ * The wordmark, the rule under the bar, the RACE DAY stamp and LOG A ROW
+ * are the type colour.
  *
- * It sits after every rule it re-cuts, because most of them tie on
- * specificity and source order is what settles a tie. */
-.row100k.chrome-ink .bar{background:var(--ink);border-bottom-color:#fff}
-.row100k.chrome-ink .bar-brand{color:#fff}
-.row100k.chrome-ink .bar-brand:hover{color:rgba(255,255,255,.7)}
-.row100k.chrome-ink .bar .mono{color:rgba(255,255,255,.62)}
-.row100k.chrome-ink .rail a{color:rgba(255,255,255,.62)}
-.row100k.chrome-ink .rail a.brand{color:#fff}
-.row100k.chrome-ink .rail a.lit{color:var(--ink)}
-.row100k.chrome-ink .rail-pill{background:#fff}
-.row100k.chrome-ink .rail:not(.live) a.on{background:#fff;color:var(--ink)}
-/* THE STAMP FLIPS WITH THE GROUND. On cream RACE DAY is the one black thing
+ * THE PILL IS A RULE. On cream the indicator is a slab of the accent with
+ * the word knocked out of it. On black that slab beside the OPT IN slab is
+ * two blocks of orange in one bar, so the same element (BarNav still
+ * measures it and slides it) keeps its box, drops its fill and draws only
+ * its bottom edge, and the word it sits under goes to the accent. Before
+ * the client has measured, the active link draws the same rule itself
+ * (.on, an inset line, so its box does not grow).
+ *
+ * THE STAMP FLIPS WITH THE GROUND. On cream RACE DAY is the one black thing
  * on the rail; on ink it has to be the one white thing, or it is a black
- * chip on a black bar. That is what the results board had been showing since
- * race day went public on 2026-09-12 and the stamp started rendering for
- * everybody instead of only for an admin: it sat there as grey mono like any
- * other link, its ink slab invisible against the bar and its white letters
- * overruled by the rail colour two rules up.
- * So the pair is INVERTED here, and the first cut of it had the two states
- * the other way round. Mirroring cream exactly made the RESTING stamp a
- * solid white slab — and the rail pill is also a solid white slab under
- * .chrome-ink. On the results board, which passes no active key, the stamp
- * rests filled; hover any other link and the pill lands beside it at the
- * same height, the same fill, the same ink letters, ten pixels away. Two
- * identical white blocks, one of which is the indicator. Measured on the
- * live page, not guessed.
- * REST IS THEREFORE THE HOLLOW ONE: ink ground, white edge, white letters —
- * a box that is plainly not the pill. The flip, on pointer, keyboard focus
- * and its own page, fills white with ink type, which is the pill look and
- * is correct there: the pill never rests on the stamp, so a filled stamp
- * under the pointer is the only white block on that part of the rail, and
- * on race day it says you are standing inside the black rather than
- * pointing at it. The
- * server paint needs nothing extra: BarNav hands the stamp neither .lit nor
- * .on, so these two rules are its whole look before and after the fonts land.
- * Both of them end in a.rail-stamp on purpose — the plain rail colour above
- * ties with the base stamp rule and wins on source order, which was the bug.
- * The border colour is set once, at rest, and holds through the flip. */
-.row100k.chrome-ink .rail a.rail-stamp{background:transparent;border-color:#fff;color:#fff}
-.row100k.chrome-ink .rail a.rail-stamp:hover,.row100k.chrome-ink .rail a.rail-stamp:focus-visible,.row100k.chrome-ink .rail a.rail-stamp[aria-current=page]{background:#fff;color:var(--ink)}
-.row100k.chrome-ink .acct-chip{border-color:#fff;color:#fff}
-.row100k.chrome-ink .acct-chip:hover{border-color:#fff;color:var(--ink);background:#fff}
-/* OPT IN, the signed-out chip: a block of the accent on either ground. */
-.row100k .acct-chip.opt,.row100k.chrome-ink .acct-chip.opt{background:var(--l1-accent,var(--water));border-color:var(--l1-accent,var(--water));color:#fff}
-.row100k .acct-chip.opt:hover,.row100k.chrome-ink .acct-chip.opt:hover{background:var(--l1-accent-hover,var(--water-hover));border-color:var(--l1-accent-hover,var(--water-hover));color:#fff}
-.row100k.chrome-ink .bar-log{background:#fff;border-color:#fff;color:var(--ink)}
-/* The raffle strip was an ink band already, so the inverted bar costs it
- * only its edges: the paper-tinted type goes plain white and its button
- * takes the same white slab the rest of the chrome buttons wear here. */
-.row100k.chrome-ink .rfb-k,.row100k.chrome-ink .rfb-t,.row100k.chrome-ink .rfb-x{color:#fff}
-.row100k.chrome-ink .rfb-cta{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k.chrome-ink .rfb-cta.in{background:transparent;color:#fff}
-.row100k.chrome-ink .rfb-cta:hover,.row100k.chrome-ink .rfb-cta:focus-visible{background:#fff;border-color:#fff;color:var(--ink)}
-.row100k.chrome-ink footer{background:var(--ink);color:#fff;border-top-color:#fff;margin-top:0}
-.row100k.chrome-ink footer .mono,.row100k.chrome-ink footer a{color:#fff}
-.row100k.chrome-ink .bar :focus-visible,.row100k.chrome-ink .rfb :focus-visible,.row100k.chrome-ink footer :focus-visible{outline-color:#fff}
-/* The account dropdown hangs inside the bar but is a paper panel with ink
- * type in it, so the white ring would land on cream and disappear. It keeps
- * the blue one the rest of the site uses. */
-.row100k.chrome-ink .acct-panel :focus-visible{outline-color:var(--water)}
+ * chip on a black bar. REST IS THE HOLLOW ONE: ink ground, white edge,
+ * white letters — a box that is plainly not LOG A ROW, which rests filled.
+ * The flip, on pointer, keyboard focus and its own page, fills white with
+ * ink type. Both of its rules end in a.rail-stamp on purpose — the plain
+ * rail colour above ties with the base stamp rule and wins on source order,
+ * which was the bug of 2026-09-12. The border colour is set once, at rest,
+ * and holds through the flip.
+ *
+ * THE MENU IS INK TOO. The account panel was left a cream panel on a
+ * .chrome-ink page (its type is ink, and a white focus ring vanished on
+ * it). With the whole site on black a cream sheet falling out of a black
+ * bar is the odd one, so it takes the ground, a white edge and no shadow.
+ *
+ * ONLY FOR A PAGE THAT IS INK TOP TO BOTTOM. .chrome-ink inverts the
+ * chrome, not the body: on a cream page it would hang a black bar over a
+ * cream article. A dark body paints its own focus ring (rd-dark, rr-dark).
+ *
+ * It sits after every rule it re-cuts, because several tie on specificity
+ * and source order is what settles a tie. */
+.row100k.chrome-ink{--bar-bg:#15171a;--bar-fg:#F4F3EE;--bar-dim:rgba(244,243,238,.62);--bar-hair:rgba(244,243,238,.24)}
+${dark(".bar")}{background:var(--bar-bg);border-bottom-color:var(--bar-fg)}
+${dark(".bar-brand")}{color:var(--bar-fg)}
+${dark(".bar-brand:hover")}{color:var(--water)}
+${dark(".bar .mono")}{color:var(--bar-dim)}
+${dark(".rail a", ".rail-more-btn")}{color:var(--bar-dim)}
+${dark(".rail a.brand")}{color:var(--bar-fg)}
+${dark(".rail a.lit", ".rail-more-btn:hover")}{color:var(--water)}
+${dark(".rail-pill")}{background:none;border-bottom:2px solid var(--water)}
+${dark(".rail:not(.live) a.on")}{background:none;color:var(--water);box-shadow:inset 0 -2px 0 var(--water)}
+${dark(".rail a.rail-stamp")}{background:transparent;border-color:var(--bar-fg);color:var(--bar-fg)}
+${dark(".rail a.rail-stamp:hover", ".rail a.rail-stamp:focus-visible", ".rail a.rail-stamp[aria-current=page]")}{background:var(--bar-fg);color:var(--bar-bg)}
+${dark(".acct-chip")}{border-color:var(--bar-fg);color:var(--bar-fg)}
+${dark(".acct-chip:hover")}{background:none;border-color:var(--water);color:var(--water)}
+/* OPT IN, the signed-out chip: a block of the accent on any ground, in the
+ * type a slab of it carries (ink on the pumpkin, white on a red). The
+ * landing hands in its own cut of both (--l1-accent, --l1-caps). */
+.row100k .acct-chip.opt,${dark(".acct-chip.opt")}{background:var(--l1-accent,var(--water));border-color:var(--l1-accent,var(--water));color:var(--l1-caps,var(--on-water))}
+.row100k .acct-chip.opt:hover,${dark(".acct-chip.opt:hover")}{background:var(--l1-accent-hover,var(--water-hover));border-color:var(--l1-accent-hover,var(--water-hover));color:var(--l1-caps,var(--on-water))}
+${dark(".bar-log")}{background:var(--bar-fg);border-color:var(--bar-fg);color:var(--bar-bg)}
+${dark(".bar-log:hover", ".bar-log:focus-visible")}{background:var(--water);border-color:var(--water);color:var(--on-water)}
+${dark(".acct-panel")}{background:var(--bar-bg);border-color:var(--bar-fg);box-shadow:none}
+${dark(".acct-item", ".rail .rail-more a.acct-item")}{color:var(--bar-fg);border-bottom-color:var(--bar-hair)}
+${dark(".acct-item:hover", ".rail .rail-more a.acct-item:hover")}{color:var(--water)}
+/* A danger item says so with an underline, not a rust. */
+${dark(".acct-item.danger:hover")}{color:var(--bar-fg);text-decoration:underline;text-underline-offset:3px}
+/* The raffle strip was an ink band already: it takes the ground, a white
+ * rule under it, plain white type, and its button is the white slab LOG A
+ * ROW is, with the same accent under the pointer. */
+${dark(".rfb")}{background:var(--bar-bg);color:var(--bar-fg);border-bottom-color:var(--bar-fg)}
+${dark(".rfb-k", ".rfb-t", ".rfb-t b", ".rfb-x")}{color:var(--bar-fg)}
+${dark(".rfb-cta")}{background:var(--bar-fg);border-color:var(--bar-fg);color:var(--bar-bg)}
+${dark(".rfb-cta.in")}{background:transparent;color:var(--bar-fg)}
+${dark(".rfb-cta:hover", ".rfb-cta:focus-visible")}{background:var(--water);border-color:var(--water);color:var(--on-water)}
+/* The footer under the ink look comes through the flipped variables; a
+ * .chrome-ink page names its own. */
+.row100k.chrome-ink footer{background:var(--bar-bg);color:var(--bar-fg);border-top-color:var(--bar-fg);margin-top:0}
+.row100k.chrome-ink footer .mono,.row100k.chrome-ink footer a{color:var(--bar-fg)}
+.row100k.chrome-ink footer a:hover{color:var(--water)}
+.row100k.chrome-ink .bar :focus-visible,.row100k.chrome-ink .rfb :focus-visible,.row100k.chrome-ink footer :focus-visible{outline-color:var(--bar-fg)}
 
 /* OPT IN, ported from the landing page (src/components/home/Home.tsx .opt):
  * Archivo Black at poster size, water-blue underline, the blunt arrow. One
@@ -845,7 +886,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .tierbadge{display:inline-block;font-size:10px;color:#fff;padding:1px 6px;margin-right:8px;vertical-align:1px;font-family:var(--row-mono),monospace;letter-spacing:.04em}
 .row100k .tierbadge.common{background:var(--tier-common-ink)}
 .row100k .tierbadge.rare{background:var(--tier-rare-ink)}
-.row100k .tierbadge.epic{background:var(--tier-epic-ink)}
+.row100k .tierbadge.epic{background:var(--tier-epic-ink);color:var(--on-water)}
 /* The border is traded for padding (1px for 1px, top and bottom; 1px of the
  * 6px each side) so the badge measures the same as its neighbours. */
 .row100k .tierbadge.legend{background:#15171a;color:#E6C46B;border:1px solid #E6C46B;padding:0 5px;letter-spacing:.12em}
@@ -941,13 +982,15 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .sh-size{flex:1 0 116px;min-width:116px;background:var(--ink);color:#fff;border:2px solid var(--ink);padding:14px 8px 12px;text-align:center;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
 .row100k .sh-size:hover:not(:disabled){border-color:var(--water)}
 .row100k .sh-size.on{background:var(--water);border-color:var(--water)}
+.row100k .sh-size.on .sh-sz,.row100k .sh-size.on .sh-cnt .hot{color:var(--on-water)}
+.row100k .sh-size.on .sh-cnt{color:var(--on-water);opacity:.8}
 .row100k .sh-size:disabled{cursor:default}
 .row100k .sh-size.mine{outline:2px solid var(--water);outline-offset:2px}
 .row100k .sh-sz{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,7vw,44px);line-height:1;color:#fff}
 .row100k .sh-cnt{display:block;margin-top:8px;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.72);line-height:1.6;white-space:nowrap}
 .row100k .sh-cnt .hot{color:#fff;font-weight:700}
 .row100k .sh-buy{margin-top:16px;width:100%;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(18px,4.6vw,24px);text-transform:uppercase;letter-spacing:.02em;padding:16px 18px;border:2px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
-.row100k .sh-buy:hover:not(:disabled){background:var(--water);border-color:var(--water)}
+.row100k .sh-buy:hover:not(:disabled){background:var(--water);border-color:var(--water);color:var(--on-water)}
 .row100k .sh-buy:disabled{opacity:.45;cursor:default}
 .row100k a.sh-buy{display:block;text-align:center;text-decoration:none}
 .row100k .sh-confirm{display:flex;gap:8px;margin-top:16px}
@@ -1025,10 +1068,10 @@ html:has(.row100k){scroll-behavior:smooth}
 /* ----------------------------------------------------------------------
  * Stats-page month block (MonthSection + the hour grid).
  * The per-day k labels inside heatmap cells: bold mono, sized to the cell.
- * Only b4 (#0077B6) is deep enough for white type (4.9:1); ink wins on
- * every lighter bucket — b3 puts white at 2.95:1, ink at 6.1:1. */
+ * Only b4, the accent itself, takes the slab type (--on-water); ink wins
+ * on every lighter step. */
 .row100k .hm-num{font-family:var(--row-mono),monospace;font-size:clamp(11px,2.6vw,17px);font-weight:700;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
-.row100k .hm-cell.b4 .hm-num{color:#fff}
+.row100k .hm-cell.b4 .hm-num{color:var(--on-water)}
 /* The small share row tucked under a chart. */
 .row100k .ms-actions{display:flex;justify-content:flex-end;margin-top:10px}
 /* Hour grid: one row per September day, 24 square hour columns, and the
@@ -1042,9 +1085,9 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .hg-day{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;align-self:center;white-space:nowrap;text-align:right;padding-right:4px}
 .row100k .hg-tick{font-family:var(--row-mono),monospace;font-size:9px;letter-spacing:.06em;color:var(--gray);text-transform:uppercase;padding-bottom:3px;white-space:nowrap;min-width:0;overflow:visible}
 .row100k .hg-cell{aspect-ratio:1;min-width:0;background:rgba(21,23,26,.05)}
-.row100k .hg-cell.b1{background:#d9e8f2}
-.row100k .hg-cell.b2{background:#a5cde3}
-.row100k .hg-cell.b3{background:#4d9fc9}
+.row100k .hg-cell.b1{background:color-mix(in srgb,var(--water) 14%,var(--paper))}
+.row100k .hg-cell.b2{background:color-mix(in srgb,var(--water) 38%,var(--paper))}
+.row100k .hg-cell.b3{background:color-mix(in srgb,var(--water) 68%,var(--paper))}
 .row100k .hg-cell.b4{background:var(--water)}
 
 /* ----------------------------------------------------------------------
@@ -1317,241 +1360,248 @@ html:has(.row100k){scroll-behavior:smooth}
 /* ----------------------------------------------------------------------
  * .row-ink — THE WHOLE SITE, WHITE ON BLACK (owner, 2026-09-16: show me
  * what the whole rowtember page can look like in a white on black color
- * scheme; the blackout starts the 20th, and race week and after may go
- * ink). The segment layout (row100k/layout.tsx) wraps every page in a div
- * that carries this class when the site look is ink or the LOOK_COOKIE says
- * so. Paper adds nothing: nothing outside these selectors changes.
+ * scheme). The segment layout (row100k/layout.tsx) wraps every page in a
+ * div that carries this class when the site look is ink or the LOOK_COOKIE
+ * says so. Paper adds nothing: nothing outside these selectors changes.
  *
- * FULLY MONOCHROME (owner, 2026-09-16, later that day: we will stick with
- * the paper look for now — work on a fully mono chrome UI, keep the ui
- * colors the same but work on the mono chrome, and give me the admin
- * switch to see it on my side still). So paper keeps its blue, byte for
- * byte, and under ink there is NO HUE AT ALL: black, white and greys, the
- * register race day (raceday/rdCss.ts) and the results board
- * (raceresults/rrCss.ts) set on 2026-09-11. No water, no champagne, no
- * green or gold tier, no metal medal, no rust error, no blue ramp.
+ * IT IS THE SITE NOW, AND IT HAS ONE ACCENT (owner, 2026-10-01: now that
+ * the page is white on black we need the other pages to follow, all of the
+ * other pages are light mode; and: instead of red, let us pick like
+ * October orange, a month theme color, like Halloween orange). From
+ * 2026-09-16 to then this block was FULLY MONOCHROME — the water was
+ * white, no hue at all — because the owner was still on paper and wanted
+ * the mono chrome worked on. The look is the default now
+ * (rowSettings.ts) and the accent is the palette one (rowPalette.ts,
+ * written into --water by RowSite for the ground: the pumpkin on ink).
  *
- * THE GREY LADDER, white over the #0b0c0e ground (the rdCss.ts steps):
- *   #fff                    1     the accent (what was water), headlines,
- *                                 values, filled slabs, the 100K tier, the
- *                                 gold medal ring, the error line
- *   rgba(255,255,255,.74)   bone  body copy (ink-soft), the hover of a
- *                                 filled white slab (water-hover), the
- *                                 silver medal ring
- *   rgba(255,255,255,.62)   key   mono eyebrows, keys, table heads (gray),
- *                                 the 50K tier (#a3a3a3 opaque)
- *   rgba(255,255,255,.5)    quiet the 10K tier (#858585 opaque), the
- *                                 bronze medal ring, the down arrow, a
+ * THE GROUND AND THE TYPE are the landing ones (rowPalette.ts INK and
+ * PAPER): #15171a under #F4F3EE. The first cut sat on #0b0c0e with pure
+ * white, the race day steps; the landing went ink on 2026-09-30 on the
+ * theme ink, and the pages behind it have to be the same black.
+ *
+ * WHERE THE ACCENT GOES, AND WHERE IT DOES NOT. It is for the accent role
+ * only:
+ *   - the rule under a word that is a control (OPT IN, LOG A ROW, SHARE,
+ *     the submenu word that is on, a link that goes somewhere), and that
+ *     word under the pointer;
+ *   - the word of the page you are on, in the bar;
+ *   - the OPT IN chip and the submit slab, which carry the slab type
+ *     (--on-water: ink on the pumpkin, white on a red);
+ *   - you: your own row on a board, your tile, your mark on a chart;
+ *   - a fill that measures something: the progress bar, the heats of the
+ *     month, the hours and the year, the curve, the 100K tier.
+ * It is NOT for a figure or for body type. On paper the odometer, the
+ * board head, a record, the meters of a row and the price all printed in
+ * the water; here every one of them is white, and so are the small mono
+ * words that were water for emphasis. Each of those is named below.
+ *
+ * THE LADDER, the type colour over the ground:
+ *   #F4F3EE                 1     headlines, figures, values, filled
+ *                                 slabs, the .25M tier, the gold medal
+ *                                 ring, the error line
+ *   rgba(244,243,238,.74)   bone  body copy (ink-soft), the silver ring,
+ *                                 the 50K tier (#babab7 opaque)
+ *   rgba(244,243,238,.62)   key   mono eyebrows, keys, table heads (gray)
+ *   rgba(244,243,238,.5)    quiet the 10K tier (#858584 opaque), the
+ *                                 bronze ring, the down arrow, a
  *                                 placeholder
- *   rgba(255,255,255,.3)    hair  a rule meant to be seen, the second
- *                                 heat of the ramps (#545454 opaque)
- *   rgba(255,255,255,.24)   dash  the hairline (line): dashed rules,
+ *   rgba(244,243,238,.24)   dash  the hairline (line): dashed rules,
  *                                 input underlines, pill outlines
- *   rgba(255,255,255,.18)   faint the first heat of the ramps (#373737
- *                                 opaque), the progress track
- *   rgba(255,255,255,.06)   wash  a hover, an empty hour cell
- *   #1c1d20                 lift  a slab one step off the ground
- *                                 (water-pale): the finished row, the
- *                                 pressed record card, a disabled SEND,
- *                                 the photo frame
- * Nothing under .5 ever carries a letter. The ramps and the tier slabs
- * are opaque hex so a border on them cannot stack brighter than the fill.
+ *   rgba(244,243,238,.18)   faint the progress track (#3d3f40 opaque)
+ *   rgba(244,243,238,.06)   wash  an empty hour cell
+ *   #23262b                 lift  a slab one step off the ground: the
+ *                                 photo frame, the dark card stage
+ *   --water-pale            tint  the accent at its darkest (the palette
+ *                                 pale cut for ink): your row, the row
+ *                                 that is open, a pressed card
+ * Nothing under .5 ever carries a letter.
  *
  * HOW. The palette is flipped at the root — paper is the black, ink is
- * white, the greys and the hairline re-cut for a black ground, and the
- * water is WHITE, because the accent on black is the brightest thing on
- * it, the way it is on race day — and everything above that is drawn in
- * the variables comes along for free. What is left is every rule that
- * named a colour outright, and every rule whose cue was the hue: white
- * type on a blue or an ink fill (an ink fill is a WHITE fill now, so the
- * type goes to the ground colour), the ink drop shadows, the cream board
- * tint, the blue ramps, the medal chips, the tier badges, the rust of an
- * error, and the hovers that went ink to water, which is white to white
- * here and so needs a wash, a dim or an underline to say anything. The
- * bar, the raffle strip and the footer take the .chrome-ink treatment
- * re-cut in the flipped variables: a black bar under a white rule, a
- * white pill with ink type, a white LOG A ROW slab.
+ * the white, the greys and the hairline re-cut for a black ground — and
+ * everything above that is drawn in the variables comes along for free.
+ * What is left is every rule that named a colour outright (a white on a
+ * fill, an ink drop shadow, the cream board tint, the medal chips, the
+ * rust of an error), every figure that printed in the water, and the tier
+ * colours, which were a green and a gold.
  *
- * FILLED WHITE CARRIES BLACK TYPE HERE. .send, the pill, the tier slabs,
- * the share mark and every other slab that was blue print their type in
- * var(--paper) — cream on paper, black on ink.
+ * FLAT. No drop shadows on black: the menus, the dialog and the pressed
+ * card were lifted by an offset ink shadow on cream, and a white-cast
+ * copy of it here read as a second border. They are a 2px edge and
+ * nothing else.
  *
  * NOT FOR A PAGE THAT IS INK ALREADY. Race day and the results board wear
  * .chrome-ink and paint their own black in rules that mean black when they
  * say var(--ink); flipping the palette under them would have inverted them
- * back to white. Every selector here excludes .chrome-ink, so those two
- * pages render under ink exactly as they render today — and the :not() is
+ * back to white. Every selector here excludes .chrome-ink, so those pages
+ * render under ink exactly as they render on their own — and the :not() is
  * also what lifts these rules over the page-local sheets, which are a
  * second style tag, later in source, at the same specificity. The cast
- * wall wears .rr-wall on its root and is excluded the same way.
+ * wall wears .rr-wall on its root and is excluded the same way. Their bar
+ * is the block above the OPT IN rules (dark()).
  *
  * WHAT IS NOT REACHED FROM HERE: the analysis charts (analysis/charts.tsx)
  * draw their washes as the water at low alpha through color-mix, so they
- * go white here on their own — their gridline, pip stroke and dot halo
+ * take the accent on their own — their gridline, pip stroke and dot halo
  * keep paper literals and read the --an-* variables set at the root
- * below, so paper stays byte for byte; the share cards (share/cards.ts) and the
- * poster engine paint canvases in colours of their own; the partner slabs
- * on /partners wear the partner brand green and gold, which is theirs. */
-html:has(.row-ink),html:has(.row-ink) body{background:#0b0c0e}
-.row-ink{background:#0b0c0e;min-height:100vh}
-${INK}{--paper:#0b0c0e;--ink:#ffffff;--ink-soft:rgba(255,255,255,.74);--gray:rgba(255,255,255,.62);--line:rgba(255,255,255,.24);--water:#ffffff;--water-hover:rgba(255,255,255,.74);--water-pale:#1c1d20;--frame:#1c1d20;--tier-common-ink:#858585;--tier-rare-ink:#a3a3a3;--tier-epic-ink:#ffffff;--tier-legend-ink:#ffffff;--an-grid:rgba(255,255,255,.24);--an-paper:#0b0c0e;--an-halo:#0b0c0e;background:var(--paper);color-scheme:dark}
+ * below; the share cards (share/cards.ts) and the poster engine paint
+ * canvases in colours of their own; the partner slabs on /partners wear
+ * the partner brand green and gold, which is theirs. */
+/* The ground runs past the page: what shows under an overscroll, and while
+ * the page is still arriving, is the black and not the cream of the site
+ * sheet. Only where a .row100k page is under the look — the print flyer
+ * (raceday/print, root .pr) is ink on white for a sheet of paper and keeps
+ * its own grey desk. */
+html:has(.row-ink .row100k),html:has(.row-ink .row100k) body{background:#15171a}
+.row-ink:has(.row100k){background:#15171a;min-height:100vh}
+${INK}{--paper:#15171a;--ink:#F4F3EE;--ink-soft:rgba(244,243,238,.74);--gray:rgba(244,243,238,.62);--line:rgba(244,243,238,.24);--frame:#23262b;--tier-common-ink:#858584;--tier-rare-ink:#babab7;--tier-epic-ink:var(--water);--tier-legend-ink:var(--ink);--an-grid:rgba(244,243,238,.24);--an-paper:#15171a;--an-halo:#15171a;--bar-bg:var(--paper);--bar-fg:var(--ink);--bar-dim:var(--gray);--bar-hair:var(--line);--fg:var(--ink);--fg-muted:var(--gray);--fg-faint:rgba(244,243,238,.5);background:var(--paper);color-scheme:dark}
+/* THE SITE SHEET UNDER THIS ONE (globals.css) paints every p in its own
+ * --fg and every .mono in its --fg-muted, both resolved at the document
+ * root to the warm ink of the photo site. On cream nobody could tell; on
+ * black a paragraph or a mono line that names no colour of its own — the
+ * how-to-enter line of the raffle, a note under a table — was dark type
+ * on a dark page. The three --fg variables are re-pointed at the flipped
+ * ink in the root rule above, so those lines come up white and key grey
+ * with no rule naming them. */
 
-/* THE CHROME: .chrome-ink, re-cut for the flipped variables. The focus
- * ring is the water, and the water is white, so nothing to re-cut there. */
-${INK} .bar{background:var(--paper)}
-${INK} .bar .tag{color:var(--paper)}
-${INK} .bar .mono{color:rgba(255,255,255,.62)}
-${INK} .bar-brand:hover{color:rgba(255,255,255,.74)}
-${INK} .rail a{color:rgba(255,255,255,.62)}
-${INK} .rail a.brand{color:var(--ink)}
-${INK} .rail a.lit{color:var(--paper)}
-${INK} .rail-pill{background:var(--ink)}
-${INK} .rail:not(.live) a.on{background:var(--ink);color:var(--paper)}
-/* The stamp rests hollow and fills under the pointer — the .chrome-ink
- * reasoning, one to one. */
-${INK} .rail a.rail-stamp{background:transparent;color:var(--ink)}
-${INK} .rail a.rail-stamp:hover,${INK} .rail a.rail-stamp:focus-visible,${INK} .rail a.rail-stamp[aria-current=page]{background:var(--ink);color:var(--paper)}
-${INK} .bar-log,${INK} .bar-log:hover,${INK} .bar-log:focus-visible{color:var(--paper)}
-${INK} .acct-chip:hover{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-${INK} .acct-panel{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
-/* A danger item says so with an underline, not a rust. */
-${INK} .acct-item.danger:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
-/* The raffle strip stays a black band; the white rule under it is its
- * edge, its type goes plain white and its button is the white slab the
- * rest of the chrome buttons wear here. */
-${INK} .rfb{background:var(--paper);color:var(--ink);border-bottom-color:var(--ink)}
-${INK} .rfb-k,${INK} .rfb-t,${INK} .rfb-x{color:var(--ink)}
-${INK} .rfb-cta{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-${INK} .rfb-cta.in{background:transparent;color:var(--ink)}
-${INK} .rfb-cta:hover,${INK} .rfb-cta:focus-visible{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+/* FIGURES ARE WHITE. Each of these printed in the water on paper: the
+ * odometer, the board head, a record, the meters of a row on the ledger,
+ * the profile log and the feed, the first cell of the clock, the price,
+ * and the number on a tile that is you (its label keeps the accent — that
+ * is the you mark). The odometer is a link: it takes the accent under the
+ * pointer, where on paper it went from water to ink. */
+${INK} .my-od,${INK} .bhead-n,${INK} .rec .v,${INK} .plog-m,${INK} .mlg-m,${INK} .fd-strip .fd-m,${INK} .count .c:first-child .n,${INK} .sh-price,${INK} .st-tile.you .n{color:var(--ink)}
+${INK} .st-tile.you .n .u{color:var(--gray);opacity:1}
+${INK} .my-od-link:hover .my-od{color:var(--water)}
+/* AND SO ARE THE SMALL WORDS that were water for emphasis and are not a
+ * control: the head of a front box, the step number, the ask on the log
+ * form, the figure in a pace note and in a feed day head, the due line,
+ * the share status, the opens-here line of a record card, the OK box. The
+ * descriptor beside a section head drops to the key grey, since the head
+ * it sits next to is white already. */
+${INK} .front-box .head,${INK} .step .d,${INK} .rec .duo .dv,${INK} .logf-ask .k,${INK} .pace-note b,${INK} .fd-dayh .r b,${INK} .sh-due,${INK} .share-status,${INK} .rec-open,${INK} .form-ok,${INK} .count-done{color:var(--ink)}
+${INK} .sec-head .mono,${INK} .panel .p-head .mono{color:var(--gray)}
+/* A WORD THAT GOES SOMEWHERE is white on a rule of the accent, and the
+ * accent under the pointer: the board link under the front page news, the
+ * full rankings link on the stats page, the handle on a profile, the
+ * actions on the rowing machine table. On paper the first two were water
+ * words that went ink on hover, and the last two had no rule at all. */
+${INK} .front-more a,${INK} .st-all-line .st-all{color:var(--ink)}
+${INK} .front-more a:hover,${INK} .st-all-line .st-all:hover{color:var(--water);border-color:var(--water)}
+${INK} .pf-id a,${INK} .pf-erg-act a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--water);text-underline-offset:3px}
+${INK} .pf-id a:hover,${INK} .pf-erg-act a:hover{color:var(--water)}
 
 /* FORMS AND BUTTONS. The ink-filled ones (.goog, .tabs .on, .day-select)
- * already flip through the variables; these named a white or a rust. An
- * error is the race day one: white, bold, a white bar down its side. */
-${INK} .send{color:var(--paper)}
+ * flip through the variables and the accent-filled ones (.send, the
+ * primary buttons) carry --on-water from the base rules; these named a
+ * white or a rust. An error is the race day one: white, bold, a white bar
+ * down its side. */
 ${INK} .send:disabled{background:var(--water-pale);color:var(--gray)}
-${INK} .goog:hover{background:var(--water-hover)}
 ${INK} .form-err{color:var(--ink);font-weight:700;border-left:3px solid var(--ink);padding-left:11px}
-${INK} .panel ::placeholder{color:rgba(255,255,255,.5)}
-${INK} .big-act.primary{color:var(--paper)}
+${INK} .panel ::placeholder{color:rgba(244,243,238,.5)}
 ${INK} .del-btn:hover{color:var(--ink)}
-${INK} .mv.dn{color:rgba(255,255,255,.5)}
-/* HOVER CUES. Outline buttons went ink to water under the pointer; both
- * are white here, so the box takes a wash instead. The underlined words
- * of the profile log switch are not boxes and keep their bare hover. */
-${INK} .tabs button:hover:not(.on):not(:disabled),${INK} .tabs a:hover:not(.on),${INK} .outline-btn:hover,${INK} .big-act:hover:not(.primary),${INK} button.rec:hover:not([aria-pressed=true]){background:rgba(255,255,255,.06)}
-${INK} .pf-log .tabs button:hover:not(.on){background:none}
+${INK} .mv.dn{color:rgba(244,243,238,.5)}
 
-/* THE SHARE DIALOG: a dimmer that is darker than the page, white-cast
- * shadows, black type on the white mark and the white buttons, and the
- * dark card stage on the lift grey rather than its blue-black. */
+/* THE SHARE DIALOG: a dimmer that is darker than the page, no shadow, the
+ * mark a white slab with ink type (the wordmark is not the accent), and
+ * the dark card stage on the lift grey. */
 ${INK} .share-overlay{background:rgba(0,0,0,.72)}
-${INK} .share-modal{box-shadow:8px 8px 0 rgba(255,255,255,.14)}
-${INK} .share-mark{color:var(--paper)}
-${INK} .share-btn:hover{color:var(--paper)}
-${INK} .share-btn.primary{color:var(--paper)}
-${INK} .share-btn.quiet:hover{color:var(--ink)}
-${INK} .share-status.bad{color:var(--ink);font-weight:700}
-${INK} .share-stage.dark{background-color:#1c1d20}
+${INK} .share-modal{box-shadow:none}
+${INK} .share-mark{background:var(--ink);color:var(--paper)}
+${INK} .share-status.bad{font-weight:700}
 
-/* THE LEDGER AND THE ROWERS TABLE: menu shadows, danger as an underline,
- * the hover wash. */
-${INK} .mlg-menu{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
-${INK} .mlg-menu button.danger:not(:disabled){color:var(--ink);text-decoration:underline;text-underline-offset:3px}
-${INK} .rw-menu{box-shadow:6px 6px 0 rgba(255,255,255,.14)}
-${INK} .rw-menu .danger:not(:disabled){color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+/* THE MENUS, THE LEDGER AND THE ROWERS TABLE: flat, danger as an
+ * underline, the hover wash. */
+${INK} .mlg-menu,${INK} .rw-menu,${INK} .tm-list{box-shadow:none}
+${INK} .mlg-menu button.danger:not(:disabled),${INK} .rw-menu .danger:not(:disabled){color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 ${INK} .rw-act.danger:hover{color:var(--ink)}
-${INK} .rw-r:hover td{background:rgba(255,255,255,.04)}
+${INK} .rw-r:hover td{background:rgba(244,243,238,.05)}
+${INK} button.rec[aria-pressed=true],${INK} a.rec:hover,${INK} .rec.linked:hover{box-shadow:none}
 
 /* THE BOARD. Bare on the black, as it is on race day: the cream tint was
- * a hue, and a lifted finished row needs the ground under it to read. The
- * medals go hollow — a white ring for gold, bone for silver, quiet for
- * bronze, the type in the ring colour — so no filled chip fights the tier
- * slabs beside it. */
+ * a hue, and the tinted row that is you needs the ground under it to
+ * read. The medals go hollow — a white ring for gold, bone for silver,
+ * quiet for bronze, the type in the ring colour — so no filled chip
+ * fights the tier slabs beside it. The progress bar is the accent on a
+ * faint track. */
 ${INK} table.board{background:transparent}
-${INK} .dtag.m1{background:transparent;border-color:#fff;color:#fff}
-${INK} .dtag.m2{background:transparent;border-color:rgba(255,255,255,.74);color:rgba(255,255,255,.74)}
-${INK} .dtag.m3{background:transparent;border-color:rgba(255,255,255,.5);color:rgba(255,255,255,.5)}
-${INK} .donebadge{color:var(--paper)}
-${INK} .rowbar{background:#373737}
-/* Tier badges, a ladder of lightness with black type on every slab: 10K
- * quiet grey, 50K key grey, 100K white; the .25M is the one inversion — a
- * black slab in a white ring with white letterspaced type, no champagne;
- * ELITE and the pace tag are white slabs (the paper rule, flipped), which
- * is what 10K, ELITE and pace are to each other on paper: one black slab
- * each, told apart by the word. */
+${INK} .dtag.m1{background:transparent;border-color:var(--ink);color:var(--ink)}
+${INK} .dtag.m2{background:transparent;border-color:rgba(244,243,238,.74);color:rgba(244,243,238,.74)}
+${INK} .dtag.m3{background:transparent;border-color:rgba(244,243,238,.5);color:rgba(244,243,238,.5)}
+${INK} .rowbar{background:#3d3f40}
+/* Tier badges, a ladder with ink type on every slab: 10K quiet grey, 50K
+ * bone, then the 100K — the goal the site is named for — in the accent
+ * with its slab type. The .25M is the one inversion: a black slab in a
+ * white ring with white letterspaced type, no champagne. ELITE and the
+ * pace tag are white slabs (the paper rule, flipped). The divider rows of
+ * the board take the same four through the --tier variables at the root. */
 ${INK} .tierbadge{color:var(--paper)}
+${INK} .tierbadge.epic,${INK} .tierbadge.you,${INK} .donebadge{color:var(--on-water)}
 ${INK} .tierbadge.legend{background:var(--paper);color:var(--ink);border-color:var(--ink)}
 /* The blackout page state chip. */
 ${INK} .bo-state.on{color:var(--paper)}
 
-/* THE HEATMAP AND THE HOUR GRID: the ramp runs faint to white on black
- * (it ran pale to deep blue on cream) — .18, .3, .42, then the water,
- * which is white and takes black type. The third heat stops at .42 so
- * white type still clears 4.5:1 on it. The legend swatches (the cell
- * classes, set in Heatmap.tsx) follow the cells. */
-${INK} .hm-cell.b1{background:#373737;border-color:#373737}
-${INK} .hm-cell.b2{background:#545454;border-color:#545454}
-${INK} .hm-cell.b3{background:#717171;border-color:#717171}
-${INK} .hm-cell.b4 .hm-num{color:var(--paper)}
-${INK} .hg-cell{background:rgba(255,255,255,.06)}
-${INK} .hg-cell.b1{background:#373737}
-${INK} .hg-cell.b2{background:#545454}
-${INK} .hg-cell.b3{background:#717171}
+/* THE HEATMAP, THE HOUR GRID, THE YEAR: the same steps of the accent over
+ * the ground as on paper, re-cut for black — 20, 40 and 60 parts in a
+ * hundred, then the accent. The third heat stops at 60 so the white day
+ * figure still clears 4.5:1 on it; the fourth takes the slab type from
+ * the base rule. An empty hour is a faint wash. */
+${INK} .hm-cell.b1,${INK} .hg-cell.b1{background:color-mix(in srgb,var(--water) 20%,var(--paper))}
+${INK} .hm-cell.b2,${INK} .hg-cell.b2{background:color-mix(in srgb,var(--water) 40%,var(--paper))}
+${INK} .hm-cell.b3,${INK} .hg-cell.b3{background:color-mix(in srgb,var(--water) 60%,var(--paper))}
+${INK} .hg-cell{background:rgba(244,243,238,.06)}
+${INK} .hg-cell.b4{background:var(--water)}
 
-/* THE DOG TAG is white on black by design; on a black page it needs an
- * edge, so the slab lifts a step and takes a ring at its rim, outside the
- * stamped rule .dt-in already draws. */
-${INK} .dt{background:#15171a;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
-/* THE ELITE mark on the feed: a white block now, ink type; under the
- * pointer the word underlines in black and the two squares dim, since
- * the water they used to turn is the white of the block. */
+/* LIGHTS OUT. The censor blocks are white squares on this ground (owner,
+ * 2026-10-01: on this color scheme we censor with white squares instead of
+ * black squares). The digit blocks (.bo i) and the bare feed footprint
+ * (.fd-hid) are drawn in var(--ink) and so flip on their own; they are
+ * named here so the rule is on the page and not an accident of the
+ * variables. THE DOG TAG is white on black by design; on a black page it
+ * needs an edge, so the slab lifts a step and takes a ring at its rim,
+ * outside the stamped rule .dt-in already draws. */
+${INK} .bo i,${INK} .fd-hid{background:var(--ink)}
+${INK} .dt{background:#1d2023;box-shadow:inset 0 0 0 1px rgba(244,243,238,.28)}
+/* THE LIGHTS OUT mark on the feed: a white block now, ink type; under the
+ * pointer the word underlines in ink and the two squares take the accent. */
 ${INK} .fd-elite{color:var(--paper)}
 ${INK} .fd-elite:hover .w{text-decoration-color:var(--paper)}
-${INK} .fd-elite:hover .sq i{background:rgba(11,12,14,.5)}
 
-/* THE SHIRT: the size boxes and the buy slab are white now, so their type
- * goes black; the photo stepper keeps a black ground under the pointer.
- * The picked size was the blue box among black ones — here it is the
- * hollow one among white, a white ring with white type, and an unpicked
- * box dims to bone under the pointer. BUY dims to bone the same way;
- * KEEP stays hollow and its ring and word go bone. */
+/* THE SHIRT (dev/shirts): the size boxes and the buy slab are white now,
+ * so their type goes black; the photo stepper keeps a black ground under
+ * the pointer. The picked size is the accent box among the white ones and
+ * BUY takes the accent under the pointer (the base rules, with the slab
+ * type); KEEP stays hollow. */
 ${INK} .sh-nav:hover{background:#000}
 ${INK} .sh-size,${INK} .sh-sz,${INK} .sh-cnt .hot{color:var(--paper)}
-${INK} .sh-cnt{color:rgba(11,12,14,.72)}
-${INK} .sh-size:hover:not(:disabled):not(.on){background:var(--water-hover);border-color:var(--water-hover)}
-${INK} .sh-size.on{background:var(--paper);border-color:var(--ink)}
-${INK} .sh-size.on .sh-sz,${INK} .sh-size.on .sh-cnt .hot{color:var(--ink)}
-${INK} .sh-size.on .sh-cnt{color:rgba(255,255,255,.74)}
+${INK} .sh-cnt{color:rgba(21,23,26,.72)}
+${INK} .sh-size.on .sh-sz,${INK} .sh-size.on .sh-cnt .hot,${INK} .sh-size.on .sh-cnt{color:var(--on-water)}
 ${INK} .sh-buy{color:var(--paper)}
-${INK} .sh-buy:hover:not(:disabled){background:var(--water-hover);border-color:var(--water-hover)}
+${INK} .sh-buy:hover:not(:disabled){color:var(--on-water)}
 ${INK} .sh-buy.keep{color:var(--ink)}
-${INK} .sh-buy.keep:hover:not(:disabled){background:transparent;color:var(--water-hover);border-color:var(--water-hover)}
+${INK} .sh-buy.keep:hover:not(:disabled){color:var(--water)}
 
 /* PAGE-LOCAL SHEETS that named a white, an ink shadow, a cream or a rust:
  * the raffle ticket and the win box (partners/Raffle.tsx), the raffle
  * admin win box (raffles/page.tsx), the partner slabs, the post pack and
  * poster studio buttons and the studio render log, the race console
  * warning (race-admin/page.tsx). */
-${INK} .rf-ticket{box-shadow:8px 8px 0 rgba(255,255,255,.14)}
-${INK} .rf-call.go{color:var(--paper)}
+${INK} .rf-ticket,${INK} .rf-win,${INK} .rf-adm-win,${INK} .ptn-logos,${INK} .ptn-brand{box-shadow:none}
+${INK} .rf-call.go,${INK} .rf-cta:hover{color:var(--on-water)}
+${INK} .rf-call.go .mono{color:var(--on-water);opacity:.8}
 /* The IN slab and the win box are white slabs now, so the sub-lines that
- * named a literal cream go ink at the same wash; the GO button headline
- * went black above, its sub-line follows (review, 2026-09-16). */
-${INK} .rf-call.go .mono{color:rgba(11,12,14,.8)}
-${INK} .rf-call.in .mono,${INK} .rf-win .t,${INK} .rf-win .meta{color:rgba(11,12,14,.7)}
+ * named a literal cream go ink at the same wash (review, 2026-09-16). */
+${INK} .rf-call.in .mono,${INK} .rf-win .t,${INK} .rf-win .meta{color:rgba(21,23,26,.7)}
 ${INK} .rf-win .who a:hover{color:var(--paper)}
-${INK} .rf-cta:hover{color:var(--paper)}
-/* The two win boxes are white slabs with a shadow that was the water: a
- * white shadow on a white slab is a bigger slab, so it goes hair grey. */
-${INK} .rf-win,${INK} .rf-adm-win{box-shadow:4px 4px 0 rgba(255,255,255,.3)}
-${INK} .rf-adm-win .k,${INK} .rf-adm-win .l{color:rgba(11,12,14,.7)}
-${INK} .ptn-logos,${INK} .ptn-brand{box-shadow:8px 8px 0 rgba(255,255,255,.12)}
-${INK} .pk-btn.primary,${INK} .pk-btn.primary:hover,${INK} .po-btn.primary,${INK} .po-btn.primary:hover{color:var(--paper)}
+${INK} .rf-adm-win .k,${INK} .rf-adm-win .l{color:rgba(21,23,26,.7)}
+${INK} .pk-btn.primary,${INK} .pk-btn.primary:hover,${INK} .po-btn.primary,${INK} .po-btn.primary:hover{color:var(--on-water)}
 /* The one rust left on a public page: a failed step in the poster render
  * log. White, and the weight it already has (review, 2026-09-16). */
 ${INK} .po-log .neg{color:var(--ink)}
 ${INK} .ra-warn{color:var(--ink);font-weight:700}
+/* Figures in the page-local sheets that printed in the water: the reserved
+ * count on the shirts page, a share count and the action word on the
+ * shareables table. White, like every other figure here. */
+${INK} .sp-count b,${INK} table.board td.sh-n.on,${INK} table.board td.sh-act,${INK} .sh-missing{color:var(--ink)}
 /* PERFECT ATTENDANCE (2026-09-21): a plain roll of names, three across on a
  * desk and one on a phone. No numbers, so nothing here is ever masked. */
 .row100k .pa-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 22px}

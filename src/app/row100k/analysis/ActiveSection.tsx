@@ -51,8 +51,8 @@ export function ActiveSection({ a }: { a: ActiveModel }) {
               <ActiveSvg a={a} />
             </ChartBox>
             <p className="an-note">
-              A rower counts once a day however many rows they log · days on the challenge clock, Pacific · the blue line is
-              the trailing seven-day average, the ink bar is today.
+              A rower counts once a day however many rows they log · days on the challenge clock, Pacific · the line is
+              the trailing seven-day average, the solid bar is today.
             </p>
           </>
         ) : (
