@@ -9,6 +9,7 @@ import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/form
 import { communityLayout, rowerLayout, TOP_TEN_BOARDS, topTenMenLayout, topTenWomenLayout, type TopTenBoard } from "../poster/layouts";
 import { POSTER_STOCKS } from "../poster/paint";
 import { RACE_ARTWORKS, RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
+import { PeriodSelect } from "../PeriodSelect";
 import type {
   CommunityPoster,
   FontBox,
@@ -843,31 +844,28 @@ export function PosterStudio({
     </>
   );
 
-  /* THE TIME FRAME row (owner, 2026-10-01): the months so far and ALL
-   * TIME as links that keep the subject — ?r=N for a rower, ?subject= for
-   * Rowtember and the top ten — and carry ?m= for any period but this
-   * month. Race day is an ad with no period, so the row is not offered
+  /* THE TIME FRAME (owner, 2026-10-01): the month word, the one the
+   * rankings page wears — a tap drops the months so far and ALL TIME
+   * (PeriodSelect.tsx; "not one button per time frame ... a little drop
+   * down"). Each line keeps the subject — ?r=N for a rower, ?subject= for
+   * Rowtember and the top ten — and carries ?m= for any period but this
+   * month. Race day is an ad with no period, so the word is not offered
    * there. */
-  const periodHref = (k: string): string => {
-    const q = new URLSearchParams();
-    if (subject === "rower" && rower) q.set("r", String(rower.rower.rowerNumber));
-    else if (subject === "top10") q.set("subject", "top10");
-    else if (subject === "community") q.set("subject", "rowtember");
-    if (period && k !== period.current) q.set("m", k);
-    const s = q.toString();
-    return s ? `/row100k/posters?${s}` : "/row100k/posters";
-  };
+  const periodQuery: Record<string, string> =
+    subject === "rower" && rower
+      ? { r: String(rower.rower.rowerNumber) }
+      : subject === "top10"
+        ? { subject: "top10" }
+        : subject === "community"
+          ? { subject: "rowtember" }
+          : {};
   const periodRow =
     period && subject !== "raceday" ? (
       <div className="po-group po-period">
         <p className="po-eye">Time frame</p>
-        <div className="tabs" role="group" aria-label="Time frame" style={{ marginBottom: 0 }}>
-          {period.options.map((o) => (
-            <Link key={o.key} className={o.key === period.key ? "on" : undefined} href={periodHref(o.key)}>
-              {o.label}
-            </Link>
-          ))}
-        </div>
+        <p className="po-period-word">
+          <PeriodSelect options={period.options} value={period.key} base="/row100k/posters" current={period.current} query={periodQuery} />
+        </p>
       </div>
     ) : null;
 

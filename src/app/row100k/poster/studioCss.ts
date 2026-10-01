@@ -26,9 +26,10 @@ export const poCss = `
 .row100k .po-subject .pf-find{top:calc(100% + 4px)}
 .row100k .po-groups{display:flex;flex-wrap:wrap;gap:6px 30px;margin:20px 0 0}
 .row100k .po-group .tabs{margin-bottom:0}
-/* THE TIME FRAME row (2026-10-01): its own line under the subject, the
- * same chips. */
-.row100k .po-period{margin-bottom:14px}
+/* THE TIME FRAME (2026-10-01): its own line under the subject — the
+ * month word in the dateline voice, a drop-down on a tap (TextMenu). */
+.row100k .po-period{margin-bottom:18px}
+.row100k .po-period-word{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);line-height:1.6}
 .row100k .po-eye{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gray);margin:0 0 8px}
 .row100k .po-opts{margin:14px 0 0}
 .row100k .po-opts button:disabled{opacity:.35;cursor:default}
