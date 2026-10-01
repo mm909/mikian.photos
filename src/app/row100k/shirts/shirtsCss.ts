@@ -9,9 +9,6 @@
  * apostrophes, no angle brackets and no ampersands anywhere in this
  * string, comments included (see the note in theme.ts). */
 export const shirtsCss = `
-/* The one line of copy, under the section head. */
-.row100k .sp-line{margin:-8px 0 26px;font-family:var(--row-mono),monospace;font-size:12px;letter-spacing:.1em;line-height:1.6;text-transform:uppercase;color:var(--ink-soft)}
-
 /* THE TWO SHIRTS: one bar between two ink rules, split down the middle by
  * a dashed hairline. Side by side at every width — on a 390px phone each
  * half is 165px, which holds the five size words and CHANGE TO 2XL with
@@ -20,23 +17,35 @@ export const shirtsCss = `
 .row100k .sp-shirt{min-width:0;padding:24px 24px 26px 0}
 .row100k .sp-shirt + .sp-shirt{border-left:1px dashed var(--line);padding-left:24px;padding-right:0}
 
-/* The drawing: a flat tee, the fill the shirt itself and the outline the
- * ink — so the black shirt stands on the paper and the cream one is cut
- * out of it. Literal fills, not the variables: under the ink look the
- * paper goes black and the ink white, and a cream shirt drawn in var(--paper)
- * would come out black. The outline follows the look. */
-.row100k .sp-fig{display:block;width:100%;max-width:200px;height:auto}
-.row100k .sp-fig path{stroke:var(--ink);stroke-width:2;stroke-linejoin:miter;vector-effect:non-scaling-stroke}
-.row100k .sp-fig.black path{fill:#15171a}
-.row100k .sp-fig.cream path{fill:#F4F3EE}
-/* The chest embroidery: the wordmark face, 5.6 units high on a 120-wide
- * tee, white on black and the water blue on cream. */
-.row100k .sp-emb{font-family:var(--row-archivo-black),sans-serif;font-size:4.2px;letter-spacing:.04em;fill:#F4F3EE}
-.row100k .sp-fig.cream .sp-emb{fill:#0077B6}
+/* THE CAROUSEL (2026-10-01, where the drawn tee was): a 4:5 frame the
+ * width of the half, the photos snapping one at a time on a horizontal
+ * scroll, no scrollbar; a row of dots under it. Empty: one flat frame in
+ * the shirt colour, literal fills (under the ink look the paper goes
+ * black, and a cream frame drawn in var(--paper) would come out black). */
+.row100k .sp-car{position:relative;width:100%}
+.row100k .sp-car-strip{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;aspect-ratio:4/5;background:var(--line)}
+.row100k .sp-car-strip::-webkit-scrollbar{display:none}
+.row100k .sp-car-frame{all:unset;cursor:pointer;flex:none;width:100%;height:100%;scroll-snap-align:start;scroll-snap-stop:always;display:block}
+.row100k .sp-car-frame img{display:block;width:100%;height:100%;object-fit:cover}
+.row100k .sp-car-frame:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
+.row100k .sp-car-empty{aspect-ratio:4/5;display:flex;align-items:flex-end;padding:12px;border:1px solid var(--ink)}
+.row100k .sp-car.black .sp-car-empty{background:#15171a}
+.row100k .sp-car.cream .sp-car-empty{background:#F4F3EE}
+.row100k .sp-car-empty span{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.row100k .sp-car.black .sp-car-empty span{color:#F4F3EE}
+.row100k .sp-car.cream .sp-car-empty span{color:#15171a}
+.row100k .sp-car-dots{display:flex;gap:6px;margin-top:10px}
+.row100k .sp-car-dots button{all:unset;cursor:pointer;width:8px;height:8px;border:1px solid var(--ink);box-sizing:border-box}
+.row100k .sp-car-dots button.on{background:var(--ink)}
+.row100k .sp-car-dots button:focus-visible{outline:2px solid var(--water);outline-offset:2px}
+/* The owner's two words under the frame, the action word's voice. */
+.row100k .sp-car-admin{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:10px}
+.row100k .sp-go.quiet{color:var(--gray);text-decoration-color:var(--line)}
+.row100k .sp-go.quiet:hover{color:var(--water)}
 
 /* The name at headline weight, the count as the bold mono line under it,
  * the number in the one accent. */
-.row100k .sp-name{margin-top:18px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(22px,5.4vw,34px);line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--ink)}
+.row100k .sp-name{margin-top:16px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(22px,5.4vw,34px);line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--ink)}
 .row100k .sp-count{margin-top:10px;font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.12em;line-height:1.5;text-transform:uppercase;color:var(--ink-soft)}
 .row100k .sp-count b{color:var(--water)}
 

@@ -30,7 +30,7 @@
  * `measure()` is the same draw under an empty clip (see `measureByDraw`),
  * so the two can never disagree by a unit. */
 
-import { MONTH_WORD, fmtDuration, fmtRowerNumber } from "@/lib/row100k";
+import { fmtDuration, fmtRowerNumber } from "@/lib/row100k";
 import type {
   Figure,
   PosterBox,
@@ -455,10 +455,14 @@ strip.measure = measureByDraw(strip.draw);
  * grid on the wall, the elapsed weeks on a phone. Masked:
  * "DAYS ROWED · METERS HIDDEN" and dots. The month never grows past its
  * cell cap, so a grown row leaves the remainder as paper. */
-function monthOpts(paint: PosterPaint) {
+function monthOpts(paint: PosterPaint, d: RowerPoster) {
   const key = paint.format.key;
   return {
     full: paint.format.family === "printL",
+    // The time frame's grid (span.ts): the month's days, or all time's.
+    days: d.asOf.days,
+    firstDow: d.asOf.firstDow,
+    firstDay: d.asOf.firstDay,
     // The post asks for 50, not the 56 it used to: six units of cell buys
     // the FOURTH best line back mid-month (owner, 2026-09-10: "on the
     // bests, we can include things like longest row, biggest day"), and
@@ -482,7 +486,7 @@ const month: Mod = {
       masked ? "DAYS ROWED · METERS HIDDEN" : "METERS PER DAY",
       masked ? "DAYS ROWED" : undefined,
     );
-    return eye + monthLayout(paint.tk, box.w, d.asOf.dayNumber, monthOpts(paint)).h;
+    return eye + monthLayout(paint.tk, box.w, d.asOf.dayNumber, monthOpts(paint, d)).h;
   },
   draw(ctx, box, d, _fonts, paint) {
     const masked = d.month.meters === null;
@@ -499,7 +503,7 @@ const month: Mod = {
     // spent its chart step); the grid fits its cell to it.
     const maxH = box.h >= 1e6 ? undefined : box.y + box.h - y;
     const h = drawMonth(ctx, paint, box.x, y, box.w, d.month, d.asOf.dayNumber, {
-      ...monthOpts(paint),
+      ...monthOpts(paint, d),
       maxH,
     });
     return y + h - box.y;
@@ -626,7 +630,7 @@ const bests: Mod = {
   draw(ctx, box, d, _fonts, paint) {
     const PAL = paint.c;
     const tk = paint.tk;
-    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
+    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", d.asOf.scope);
     const pitch = tk.rowPitch * 1.4;
     const lfont = paint.font("archivoBold", tk.row);
     const sfont = paint.font("mono", tk.small);
@@ -661,12 +665,12 @@ const bestsCompact: Mod = {
   draw(ctx, box, d, _fonts, paint) {
     const PAL = paint.c;
     const tk = paint.tk;
-    const eyeH = eyebrowHeight(ctx, paint, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
+    const eyeH = eyebrowHeight(ctx, paint, box.w, "THE BESTS", d.asOf.scope);
     // Half a unit of tolerance: a box handed back at exactly the measured
     // height read as 3.9999 lines and drew three (Integrate, the square).
     const lines = Math.min(d.bests.length, Math.floor((box.h + 0.5 - eyeH) / tk.rowPitch));
     if (lines < Math.min(2, d.bests.length)) return 0;
-    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", `THIS ${MONTH_WORD.toUpperCase()}`);
+    let y = paint.eyebrow(ctx, box.x, box.y, box.w, "THE BESTS", d.asOf.scope);
     const lfont = paint.font("archivoBold", tk.row);
     const rm = paint.metricsOf(ctx, paint.font("mono", tk.row), tk.row);
     for (let i = 0; i < lines; i++) {

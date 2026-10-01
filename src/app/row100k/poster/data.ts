@@ -21,9 +21,9 @@ import { forcedBlackout } from "@/lib/blackoutRules";
 import { activeBlackout, listBlackouts, type BlackoutState } from "@/lib/blackout";
 import type { BlackoutPolicy } from "@/lib/blackoutRules";
 import { CHALLENGE, nowMs, type Boards } from "@/lib/row100k";
+import { inPeriod, monthOf, type Period } from "@/lib/rowPeriod";
 import type { Viewer } from "@/lib/row100kViewer";
 import { boardView } from "../boardData";
-import { fieldEntries } from "../fieldData";
 import { firstToGoal } from "../firstToGoal";
 import { assembleCommunity, assembleRower, forceBlackoutState } from "./assemble";
 import type { CommunityPoster, PosterRosterRower, RowerPoster } from "./types";
@@ -32,6 +32,10 @@ export type PosterDataOpts = {
   /* The admin's test blackout: treat the window as open for this request.
    * The page passes `viewer.preview !== null`; the leak test passes true. */
   forceBlackout?: boolean;
+  /* THE TIME FRAME (owner, 2026-10-01: "a specific month or all time"):
+   * the board, the rows and the grid are all this period's (rowPeriod.ts
+   * parsePeriod off ?m=). This month when absent. */
+  period?: Period;
 };
 
 /* The page may hand the resolved Viewer straight through instead of the
@@ -43,11 +47,17 @@ function forceOf(opts: PosterDataOpts | Viewer | undefined): boolean {
   return opts.forceBlackout === true;
 }
 
+function periodOf(opts: PosterDataOpts | Viewer | undefined, atMs: number): Period {
+  if (opts && !("preview" in opts) && opts.period) return opts.period;
+  return monthOf(atMs);
+}
+
 /* The PUBLIC board and the window as boardView returns them; null board
  * when the read threw (the assembler then fails closed under a window). */
 async function publicBoard(
   force: boolean,
   what: string,
+  period: Period,
 ): Promise<{ boards: Boards | null; blackout: BlackoutState; policy?: BlackoutPolicy }> {
   // A poster leaves the site, so the window is decided here UNCACHED and
   // fail-CLOSED (review, 2026-09-10): activeBlackout() answers "no window"
@@ -69,6 +79,7 @@ async function publicBoard(
       viewerParticipantId: null,
       admin: false,
       forceBlackout: force,
+      period,
     });
     return { boards: v.boards, blackout: v.blackout, policy: v.policy };
   } catch (err) {
@@ -84,30 +95,35 @@ async function publicBoard(
 export async function communityPosterData(opts?: PosterDataOpts | Viewer): Promise<CommunityPoster> {
   const force = forceOf(opts);
   const atMs = nowMs();
-  const [{ boards, blackout, policy }, rows, field, claim] = await Promise.all([
-    publicBoard(force, "community"),
-    // Who / day / logged-at for the hour bars and the big-day row count.
-    // Orphan rows are dropped in the assembler against the board's ids.
+  const period = periodOf(opts, atMs);
+  const [{ boards, blackout, policy }, rows, claim] = await Promise.all([
+    publicBoard(force, "community", period),
+    // Who / day / logged-at for the hour bars and the big-day row count,
+    // and the meters and seconds the split density is built from — one
+    // read, THE PERIOD'S rows only, so a September sheet drawn in October
+    // carries September's field (fieldData.ts fieldEntries is every month
+    // and carries no day). Orphan rows are dropped in the assembler
+    // against the board's ids.
     db.rowEntry
       .findMany({
         where: { challenge: CHALLENGE },
-        select: { participantId: true, day: true, createdAt: true },
+        select: { participantId: true, day: true, createdAt: true, meters: true, seconds: true },
       })
       .then((list) =>
-        list.map((e) => ({
-          participantId: e.participantId,
-          day: e.day,
-          createdAtMs: e.createdAt.getTime(),
-        })),
+        list
+          .filter((e) => inPeriod(e.day, period))
+          .map((e) => ({
+            participantId: e.participantId,
+            day: e.day,
+            createdAtMs: e.createdAt.getTime(),
+            meters: e.meters,
+            seconds: e.seconds,
+          })),
       )
       .catch((err: unknown) => {
         console.error("row100k/poster: failed to load entries for the hours", err);
         return null;
       }),
-    fieldEntries().catch((err: unknown) => {
-      console.error("row100k/poster: failed to load the field entries", err);
-      return null;
-    }),
     // The claim's running total (GoalClaim.total) is the rower's real
     // number and stops here: only the name, number and day go on.
     firstToGoal()
@@ -117,7 +133,8 @@ export async function communityPosterData(opts?: PosterDataOpts | Viewer): Promi
         return null;
       }),
   ]);
-  return assembleCommunity({ boards, blackout, policy, rows, field, claim, atMs });
+  const field = rows ? rows.map((r) => ({ participantId: r.participantId, meters: r.meters, seconds: r.seconds })) : null;
+  return assembleCommunity({ boards, blackout, policy, rows, field, claim, atMs, period });
 }
 
 /* One rower's poster, or null when there is no such rower (the page then
@@ -130,6 +147,7 @@ export async function rowerPosterData(
   if (!Number.isInteger(rowerNumber) || rowerNumber < 1) return null;
   const force = forceOf(opts);
   const atMs = nowMs();
+  const period = periodOf(opts, atMs);
   try {
     const participant = await db.rowParticipant.findUnique({
       where: { challenge_rowerNumber: { challenge: CHALLENGE, rowerNumber } },
@@ -143,14 +161,18 @@ export async function rowerPosterData(
     });
     if (!participant) return null;
     const [entries, { boards, blackout }] = await Promise.all([
-      db.rowEntry.findMany({
-        where: { participantId: participant.id },
-        select: { day: true, meters: true, seconds: true, title: true },
-        orderBy: [{ day: "asc" }, { createdAt: "asc" }],
-      }),
-      publicBoard(force, `rower ${rowerNumber}`),
+      db.rowEntry
+        .findMany({
+          where: { participantId: participant.id },
+          select: { day: true, meters: true, seconds: true, title: true },
+          orderBy: [{ day: "asc" }, { createdAt: "asc" }],
+        })
+        // The period's rows only: the log, the bests and the calendar are
+        // all that month's, or every month's for all time.
+        .then((list) => list.filter((e) => inPeriod(e.day, period))),
+      publicBoard(force, `rower ${rowerNumber}`, period),
     ]);
-    return assembleRower({ participant, entries, pub: boards, blackout, atMs });
+    return assembleRower({ participant, entries, pub: boards, blackout, atMs, period });
   } catch (err) {
     console.error(`row100k/poster: failed to load rower ${rowerNumber}`, err);
     return null;

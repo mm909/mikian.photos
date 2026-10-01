@@ -39,6 +39,7 @@ import { RowFooter } from "./RowFooter";
 import { JoinPanel } from "./JoinPanel";
 import { Dashboard, Wheels } from "./Dashboard";
 import { ROLL_COOKIE, type Roll } from "./roll";
+import { loopOn, type LoopData } from "./loop";
 import { LogInPlace } from "./LogInPlace";
 import { Who } from "./Boards";
 import { Blocks } from "./Blackout";
@@ -400,6 +401,22 @@ export default async function Row100kPage() {
     console.error("row100k: failed to compute placements", err);
   }
 
+  // THE LOOP (loop.ts; owner, 2026-10-01): the viewer's division off the
+  // board, unmasked, for the place line under the number and the pass
+  // animation. Nothing while the elite are hidden — no place is printed
+  // then anywhere (blackoutRules.ts) — and nothing for a rower in the
+  // elite themself. Admin-only in production until the owner has tested
+  // it on his phone (loopOn).
+  const loop: LoopData | undefined =
+    me && loopOn(isAdmin) && !hidden && !elite
+      ? {
+          division: me.division === "M" || me.division === "F" ? me.division : "X",
+          rows: onBoard
+            .filter((r) => r.division === me.division && !r.masked)
+            .map((r) => ({ rowerNumber: r.rowerNumber, name: r.name, meters: r.meters })),
+        }
+      : undefined;
+
   // Prefills for the in-place log form — the same ones the profile computes:
   // Pacific today clamped into the month (the day the rower actually rowed,
   // not the UTC date that has rolled over by a Californian evening) and the
@@ -456,6 +473,7 @@ export default async function Row100kPage() {
       earlyAdmin={earlyAdmin}
       sanity={sanity}
       bare
+      loop={loop != null}
     />
   ) : null;
 
@@ -506,6 +524,7 @@ export default async function Row100kPage() {
               phase={earlyAdmin ? "open" : phase}
               bare
               roll={roll}
+              loop={loop}
             />
           ) : (
             <div className="mine eight">

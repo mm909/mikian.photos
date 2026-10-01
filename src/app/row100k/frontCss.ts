@@ -129,6 +129,42 @@ export const frontCss = `
  * panel): the bar already ends on a 2px rule, so the seam draws none. */
 .row100k .front-form .front-log{margin-top:6px;border-top:none;padding-top:0}
 
+/* THE LOOP (loop.ts, 2026-10-01). THE SHEET, a phone: the log form rises
+ * from the bottom over a scrim and stops short of the top, so the big
+ * number stays in view while the row is typed; it scrolls inside itself
+ * for the photos. The same paper and 2px ink rule as the bar. */
+.row100k .front-sheet-scrim{position:fixed;inset:0;z-index:60;background:rgba(21,23,26,.38);opacity:0;pointer-events:none;transition:opacity 300ms ease}
+.row100k .front-sheet-scrim.on{opacity:1;pointer-events:auto}
+.row100k .front-sheet{position:fixed;left:0;right:0;bottom:0;z-index:61;max-height:78dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--paper);border-top:2px solid var(--ink);padding:12px 20px calc(28px + env(safe-area-inset-bottom,0px));transform:translateY(102%);visibility:hidden;transition:transform 360ms cubic-bezier(.2,.7,.2,1),visibility 0s linear 360ms}
+.row100k .front-sheet.on{transform:none;visibility:visible;transition:transform 360ms cubic-bezier(.2,.7,.2,1),visibility 0s}
+.row100k .front-sheet-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:6px}
+.row100k .front-sheet-head .mono{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+.row100k .front-sheet-x{all:unset;cursor:pointer;font-size:26px;line-height:1;color:var(--ink);padding:0 2px}
+.row100k .front-sheet .logf{margin-top:0}
+@media(prefers-reduced-motion:reduce){.row100k .front-sheet,.row100k .front-sheet-scrim{transition:none}}
+
+/* THE PLACE under the big number (LoopRank.tsx): one mono line — the
+ * place in ink, the gap in grey — then two rows on a thin ink rule, the
+ * rower just above and you, the way the loop mock drew them. A pass swaps
+ * the two: each row rides its own track and slides 40px. */
+.row100k .lp-rank{margin-top:14px}
+.row100k .lp-line{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);line-height:18px;font-variant-numeric:tabular-nums}
+.row100k .lp-line b{display:block;color:var(--ink);font-weight:700}
+.row100k .lp-gap{display:block}
+.row100k .lp-mini{position:relative;height:80px;margin-top:10px;border-top:1px solid var(--ink)}
+.row100k .lp-row{position:absolute;left:0;right:0;height:40px;display:flex;align-items:center;gap:10px;padding:0 6px;border-bottom:1px dashed var(--line);font-family:var(--row-mono),monospace;font-size:13px;transition:top 560ms cubic-bezier(.2,.7,.2,1)}
+.row100k .lp-row.them{top:0}
+.row100k .lp-row.me{top:40px}
+.row100k .lp-row.me.alone{top:0}
+.row100k .lp-mini.swap .lp-row.them{top:40px}
+.row100k .lp-mini.swap .lp-row.me{top:0}
+.row100k .lp-row .rk{color:var(--gray);width:24px;font-variant-numeric:tabular-nums}
+.row100k .lp-row .who{flex:1;min-width:0;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row100k .lp-row .who .n{font-family:var(--row-mono),monospace;font-weight:400;color:var(--gray);font-size:12px}
+.row100k .lp-row.me .who{color:var(--water)}
+.row100k .lp-row .m{font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.row100k .lp-row{transition:none}}
+
 /* THE PREVIOUS MONTH (2026-09-28, the October rollover): while this month
  * has no rows, one gray mono line under the top fives goes to the final
  * standings of the month that closed. Water on hover, like the numbers. */

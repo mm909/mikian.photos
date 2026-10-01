@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { forcedBlackout } from "@/lib/blackoutRules";
 import { notFound } from "next/navigation";
-import { FIRST_DAY_TAG, START_MS, nowMs } from "@/lib/row100k";
+import { FIRST_DAY_TAG, MONTH, START_MS, nowMs } from "@/lib/row100k";
+import { parsePeriod, periodOptions } from "@/lib/rowPeriod";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
@@ -36,7 +37,13 @@ export const metadata: Metadata = {
  *
  * ROWTEMBER and RACE DAY stay admin-only and their payloads are never read
  * for anyone else. An admin reaches Rowtember with ?subject=rowtember (the
- * chip's href), because their no-query default is their own rower too. */
+ * chip's href), because their no-query default is their own rower too.
+ *
+ * THE TIME FRAME (owner, 2026-10-01: "select the time frame for the
+ * posters — a specific month or all time"): ?m=YYYY-MM or ?m=all
+ * (rowPeriod.ts parsePeriod, the stats page's spelling), this month when
+ * absent. Every payload is drawn over it (poster/data.ts), and the
+ * subject hrefs carry it across a hop. */
 
 function parseNum(raw: string | undefined): number | null {
   if (typeof raw !== "string" || raw === "") return null;
@@ -49,12 +56,14 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
 export default async function PostersPage({
   searchParams,
 }: {
-  searchParams?: { r?: string | string[]; subject?: string | string[] };
+  searchParams?: { r?: string | string[]; subject?: string | string[]; m?: string | string[] };
 }) {
   const viewer = await resolveViewer();
   const admin = viewer.isAdmin;
 
   const before = nowMs() < START_MS;
+  const period = parsePeriod(searchParams?.m, nowMs());
+  const mQuery = period.key === MONTH.key ? "" : `m=${period.key}`;
   const rRaw = one(searchParams?.r);
   const rNum = parseNum(rRaw);
   if (rRaw !== undefined && rNum === null) notFound();
@@ -64,7 +73,7 @@ export default async function PostersPage({
   // owner included), else nothing — the picker. Only an explicit ?r= may 404.
   const explicit = rNum !== null;
   const subjectNum = explicit ? rNum : wantsCommunity ? null : (viewer.me?.rowerNumber ?? null);
-  const opts = { forceBlackout: forcedBlackout(viewer.preview) };
+  const opts = { forceBlackout: forcedBlackout(viewer.preview), period };
 
   let community: CommunityPoster | null = null;
   let rower: RowerPoster | null = null;
@@ -128,6 +137,11 @@ export default async function PostersPage({
               roster={roster}
               rowerOnly={!admin}
               initialSubject={wantsCommunity && subjectQ === "top10" ? "top10" : undefined}
+              hrefs={{
+                community: `/row100k/posters?subject=rowtember${mQuery ? `&${mQuery}` : ""}`,
+                rowerPrefix: `/row100k/posters?${mQuery ? `${mQuery}&` : ""}r=`,
+              }}
+              period={{ key: period.key, label: period.label, options: periodOptions(nowMs()), current: MONTH.key }}
             />
           )}
         </div>

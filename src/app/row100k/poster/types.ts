@@ -167,10 +167,22 @@ export type PosterAsOf = {
   day: string;
   /* "2026-09-10" (Pacific day) */
   iso: string;
-  /* 1..30 — 30 after Sep 30 */
+  /* 1..days — `days` once the span is over */
   dayNumber: number;
   final: boolean;
   year: number;
+  /* THE TIME FRAME (owner, 2026-10-01: a month, or all time — poster/span.ts).
+   * `title` is the nameplate ("ROWTEMBER 2026" | "OCTOBER 2026" | "ALL
+   * TIME"), `scope` the bests eyebrow ("THIS OCTOBER" | "ALL TIME"); the
+   * grid is `days` cells from `firstDay`, the 1st under weekday `firstDow`. */
+  kind: "month" | "all";
+  title: string;
+  scope: string;
+  firstDay: string;
+  days: number;
+  firstDow: number;
+  /* "SEP 1" | "OCT 1" */
+  firstTag: string;
   /* The masthead's mono line, built once: community "SEP 10 · DAY 10 OF 30"
    * | "SEP 30 · FINAL"; rower "ROWTEMBER 2026 · MEN’S BOARD · 100K CLUB ·
    * SEP 10 · DAY 10 OF 30" (the rank rides here on the phone post). */

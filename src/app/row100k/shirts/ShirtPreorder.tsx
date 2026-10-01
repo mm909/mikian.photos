@@ -3,9 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { COLORS, COLOR_LABEL, SIZES, type Color, type Counts, type Mine, type Size } from "../shirtPreorder";
+import { ShirtCarousel, type ShirtPhoto } from "./ShirtCarousel";
 
 /* THE TWO SHIRTS (owner, 2026-09-30, the pre-order page). Each half of the
- * bar is one shirt: the drawing, the name, the public count, then — for a
+ * bar is one shirt: the photographs (a carousel the owner posts into —
+ * ShirtCarousel.tsx; the drawn tee came off on 2026-10-01: "instead of the
+ * graphic of the T, give me a carousel"), the name, the public count, then — for a
  * signed-in rower on the board — the sizes as words and ONE action word
  * by state:
  *   nothing reserved     RESERVE, grey until a size is picked
@@ -25,32 +28,22 @@ const SIGN_IN = `/row100k/sign-in?callbackUrl=${encodeURIComponent(PATH)}`;
 
 type Reply = { ok?: boolean; error?: string; counts?: Counts; mine?: Mine | null };
 
-/* A flat tee: shoulders, a dipped collar, the sleeves out and down, the
- * body straight to the hem. One path; the fill and the outline are CSS.
- * The embroidery (owner, 2026-10-01): ROWTEMBER small on the left chest,
- * where a pocket would be — white on the black shirt, the water blue on
- * the cream one, the same face on both. */
-function Tee({ color }: { color: Color }) {
-  return (
-    <svg className={`sp-fig ${color}`} viewBox="0 0 120 112" aria-hidden="true" focusable="false">
-      <path d="M28 10 L46 3 C52 12 68 12 74 3 L92 10 L116 28 L104 44 L92 38 L92 108 L28 108 L28 38 L16 44 L4 28 Z" />
-      <text className="sp-emb" x="87" y="34" textAnchor="end">
-        ROWTEMBER
-      </text>
-    </svg>
-  );
-}
-
 export function ShirtPreorder({
   counts: initialCounts,
   mine: initialMine,
   signedIn,
   joined,
+  photos,
+  admin,
 }: {
   counts: Counts;
   mine: Mine | null;
   signedIn: boolean;
   joined: boolean;
+  /* The owner's photographs of each shirt (shirtPhotos.ts), oldest first. */
+  photos: Record<Color, ShirtPhoto[]>;
+  /* The owner: ADD PHOTOS and REMOVE under each carousel. */
+  admin: boolean;
 }) {
   const [counts, setCounts] = useState(initialCounts);
   const [mine, setMine] = useState<Mine>(initialMine ?? { black: null, cream: null });
@@ -121,7 +114,7 @@ export function ShirtPreorder({
       <div className="sp-two">
         {COLORS.map((color) => (
           <div className="sp-shirt" key={color}>
-            <Tee color={color} />
+            <ShirtCarousel color={color} photos={photos[color]} admin={admin} />
             <h3 className="sp-name">{COLOR_LABEL[color]}</h3>
             <p className="sp-count">
               <b>{counts[color].total}</b> reserved

@@ -61,7 +61,6 @@ import {
 /* NO COLOUR NAMES HERE — see charts.ts; the two run colours below come off
  * `paint.c` so both stocks draw one masthead. */
 import { FIRST_DOW } from "./paint";
-import { MONTH_DAYS } from "@/lib/row100k";
 import type {
   CommunityPoster,
   PosterBox,
@@ -130,7 +129,9 @@ const takeawaysOf = (d: CommunityPoster): PosterTakeaway[] =>
  * square has room for. The dateline itself is the DATA stream's ("SEP 12",
  * or "FINAL" from Oct 1 — the DAY N OF 30 tail came off both sheets). */
 const masthead = mod("masthead", 60, (ctx, box, d, paint) => {
-  const runs: Run[] = [{ text: `ROWTEMBER ${d.year}`, color: paint.c.ink }];
+  // The nameplate is the time frame (span.ts): ROWTEMBER 2026, OCTOBER
+  // 2026, or ALL TIME (owner, 2026-10-01).
+  const runs: Run[] = [{ text: d.asOf.title, color: paint.c.ink }];
   const note = d.blackout.active && !isPhone(paint) ? d.blackout.note : null;
   return drawNameplate(ctx, paint, box, runs, d.asOf.dateline, note, paint.tk.nameCap);
 });
@@ -190,7 +191,7 @@ const curve = chart(
   "curve",
   115,
   (paint) => (family(paint) === "printL" ? 210 : 115),
-  (ctx, box, d, paint) => drawCurve(ctx, paint, box, d.byDay, d.asOf.dayNumber, d.asOf.day),
+  (ctx, box, d, paint) => drawCurve(ctx, paint, box, d.byDay, d.asOf),
 );
 
 /* C6. One drawing, two registrations, and the one module on the sheet that
@@ -215,7 +216,7 @@ const curve = chart(
 const PHONE_CELL = 34;
 const monthModule = (id: string, full: boolean): Mod => {
   const rowsOf = (d: CommunityPoster) =>
-    Math.ceil(((full ? MONTH_DAYS : Math.max(1, Math.min(MONTH_DAYS, d.asOf.dayNumber))) + FIRST_DOW) / 7);
+    Math.ceil(((full ? d.asOf.days : Math.max(1, Math.min(d.asOf.days, d.asOf.dayNumber))) + d.asOf.firstDow) / 7);
   /* The eyebrow plus the S M T W T F S row — measured off paint.eyebrow
    * itself, never guessed, because drawMonth lays the grid under it. */
   const head = (ctx: Ctx, paint: PosterPaint, w: number) =>
@@ -247,6 +248,9 @@ const monthModule = (id: string, full: boolean): Mod => {
         eyebrow: { left: "THE MONTH", right: "METERS PER DAY" },
         meters: d.byDay,
         dayNumber: d.asOf.dayNumber,
+        days: d.asOf.days,
+        firstDow: d.asOf.firstDow,
+        firstDay: d.asOf.firstDay,
         full,
         buckets: "quartile",
         cellCap: cell,
@@ -275,7 +279,7 @@ const board = (id: string, division: "M" | "F", count: 5 | 10): Mod =>
 /* C8. "I like that we call out the records here for fastest rows, longest
  * row, biggest day." On the wall sheets the records take the foot of the
  * right rail and spread their lines to fill it (charts.ts drawRecords). */
-const records = mod("records", 80, (ctx, box, d, paint) => drawRecords(ctx, paint, box, d.records, d.blackout.active));
+const records = mod("records", 80, (ctx, box, d, paint) => drawRecords(ctx, paint, box, d.records, d.blackout.active, d.asOf.scope));
 
 /* C9, C10. "I like that we have the hours and the field chart here." Fixed
  * rows: 170 on the wall, 120 on the phone — or the one-line note when the

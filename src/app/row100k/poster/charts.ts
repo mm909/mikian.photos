@@ -35,7 +35,8 @@
  * data they read still ships; community.ts registers them as modules and
  * names them in no plan, so putting one back is one line there. */
 
-import { FIRST_DAY_TAG, MONTH_DAYS, MONTH_WORD, dayTicks, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { domAt, spanTicks, tickLabel } from "./span";
 /* NO COLOUR NAMES HERE — that is the point. Every colour comes off
  * `paint.c` (SPEC.md §4, THE BLACK STOCK), so one drawing serves both
  * stocks; what is left is geometry and formatting. */
@@ -50,6 +51,7 @@ import type {
   PosterSplit,
   PosterStanding,
   PosterTakeaway,
+  PosterAsOf,
 } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
@@ -374,8 +376,7 @@ export function drawCurve(
   paint: PosterPaint,
   box: PosterBox,
   byDay: number[],
-  dayNumber: number,
-  asOfDay: string,
+  asOf: PosterAsOf,
 ): number {
   const C = paint.c;
   const { tk } = paint;
@@ -385,10 +386,10 @@ export function drawCurve(
     box.y,
     box.w,
     "THE CURVE",
-    `METERS TOGETHER · ${FIRST_DAY_TAG} → ${asOfDay.toUpperCase()}`,
+    `METERS TOGETHER · ${asOf.firstTag} → ${asOf.day.toUpperCase()}`,
     "METERS TOGETHER",
   );
-  const days = Math.max(1, Math.min(dayNumber, byDay.length));
+  const days = Math.max(1, Math.min(asOf.dayNumber, byDay.length));
   if (days < 2) return noteLine(ctx, paint, box.x, yTop, "THE CURVE STARTS TOMORROW") - box.y;
   const cum: number[] = [];
   let acc = 0;
@@ -420,8 +421,10 @@ export function drawCurve(
     }
   }
   paint.rule(ctx, L, B, R - L, tk.hair * 1.4, C.ink);
-  for (const d of dayTicks(days)) {
-    paint.drawCentered(ctx, d === 1 ? FIRST_DAY_TAG : String(d), X(d), B + tk.axis * 1.7, aFont, C.gray);
+  // The ticks: 1 / 10 / 20 / last inside a month; every month's 1st over
+  // all time (span.ts).
+  for (const d of spanTicks(asOf, days)) {
+    paint.drawCentered(ctx, tickLabel(asOf, d), X(d), B + tk.axis * 1.7, aFont, C.gray);
   }
   ctx.save();
   ctx.beginPath();
@@ -465,10 +468,17 @@ export type MonthOpts = {
    * (DAYS ROWED dots off `rowed`). */
   meters: number[] | null;
   rowed?: boolean[];
-  /* 1..30 — cells past it are future days (paper). */
+  /* 1..days — cells past it are future days (paper). */
   dayNumber: number;
-  /* The full five-row September grid (the wall sizes) or the elapsed
-   * weeks only (the hand-outs and the phone). */
+  /* THE TIME FRAME (span.ts): how many cells the grid has, the weekday of
+   * the first one, and the first day itself — the number printed in a cell
+   * is that date's own day of the month, so all time reads as the months
+   * laid end to end. */
+  days: number;
+  firstDow: number;
+  firstDay: string;
+  /* The full grid (the wall sizes) or the elapsed weeks only (the hand-outs
+   * and the phone). */
   full: boolean;
   /* Community: quartiles of the elapsed days (SPEC.md §14.1); rower: the
    * site's fixed 2,500 / 5,000 / 10,000 (Heatmap.tsx). */
@@ -501,9 +511,9 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
     paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
   );
   y += tk.small * 1.9;
-  const dayN = Math.max(1, Math.min(MONTH_DAYS, o.dayNumber));
-  const shown = o.full ? MONTH_DAYS : dayN;
-  const rows = Math.ceil((shown + FIRST_DOW) / 7);
+  const dayN = Math.max(1, Math.min(o.days, o.dayNumber));
+  const shown = o.full ? o.days : dayN;
+  const rows = Math.ceil((shown + o.firstDow) / 7);
   let th: [number, number, number];
   if (o.buckets === "quartile") {
     const sorted = (o.meters ?? [])
@@ -525,9 +535,10 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const showLabel = labelSize >= tk.small * 0.8;
   const showNum = cell >= tk.axis * 1.8;
   for (let i = 0; i < shown; i++) {
-    const idx = i + FIRST_DOW;
+    const idx = i + o.firstDow;
     const x = box.x + (idx % 7) * (cellW + gap);
     const cy = y + Math.floor(idx / 7) * (cellH + gap);
+    const dom = String(domAt(o.firstDay, i));
     if (i >= dayN) {
       // The days still to come. On the small grid the design left them as
       // bare paper; now that the calendar is the picture of the upper
@@ -543,7 +554,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, cy + 0.5, cellW - 1, cellH - 1);
       ctx.restore();
-      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.line);
+      if (showNum) paint.drawText(ctx, dom, x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.line);
       continue;
     }
     const m = o.meters ? Math.max(0, o.meters[i] ?? 0) : 0;
@@ -568,7 +579,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
       ctx.arc(x + cellW / 2, cy + cellH / 2 + cellH * 0.06, cell * 0.12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.ink);
+      if (showNum) paint.drawText(ctx, dom, x + cellW * 0.1, cy + tk.axis * 1.15, numFont, C.ink);
       continue;
     }
     const b = m < th[0] ? 0 : m < th[1] ? 1 : m < th[2] ? 2 : 3;
@@ -593,7 +604,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
     // wrong for the bw ramp, which flips in the MIDDLE as the cells go
     // light. Carried beside the fill, a label can never drift from it.
     const ink = step.on;
-    if (showNum) paint.drawText(ctx, String(i + 1), x + cellW * 0.1, cy + tk.axis * 1.15, numFont, ink);
+    if (showNum) paint.drawText(ctx, dom, x + cellW * 0.1, cy + tk.axis * 1.15, numFont, ink);
     if (showLabel) paint.drawCentered(ctx, kLabel(m), x + cellW / 2, cy + cellH - cellH * 0.16, labelFont, ink);
   }
   return y + rows * cellH + (rows - 1) * gap - box.y;
@@ -726,6 +737,8 @@ export function drawRecords(
   box: PosterBox,
   records: PosterRecord[],
   blackout: boolean,
+  /* The eyebrow's right word: "THIS OCTOBER" | "ALL TIME" (asOf.scope). */
+  scope: string,
 ): number {
   const C = paint.c;
   const { tk } = paint;
@@ -735,7 +748,7 @@ export function drawRecords(
     box.y,
     box.w,
     "THE RECORDS",
-    blackout ? "TIMES ARE SHOWN, HIDDEN METERS ARE NOT" : `THIS ${MONTH_WORD.toUpperCase()}`,
+    blackout ? "TIMES ARE SHOWN, HIDDEN METERS ARE NOT" : scope,
     blackout ? "TIMES SHOWN" : undefined,
   );
   const labelH = tk.small * 1.5;

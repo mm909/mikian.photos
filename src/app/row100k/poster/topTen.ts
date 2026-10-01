@@ -61,7 +61,7 @@ function scaled(paint: PosterPaint, k: number): PosterPaint {
 
 /* S1. The Rowtember nameplate, as the community sheet has it. */
 const masthead = mod("masthead", 60, (ctx, box, d, paint) => {
-  const runs: Run[] = [{ text: `ROWTEMBER ${d.year}`, color: paint.c.ink }];
+  const runs: Run[] = [{ text: d.asOf.title, color: paint.c.ink }];
   const note = d.blackout.active && !isPhone(paint) ? d.blackout.note : null;
   return drawNameplate(ctx, paint, box, runs, d.asOf.dateline, note, paint.tk.nameCap);
 });

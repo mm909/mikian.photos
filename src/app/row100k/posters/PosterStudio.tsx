@@ -243,6 +243,12 @@ export type PosterStudioProps = {
    * viewer's no-query default is their own rower (posters/page.tsx). */
   hrefs?: { community: string; rowerPrefix: string };
   initialFormat?: PosterFormatKey;
+  /* THE TIME FRAME (owner, 2026-10-01: "select the time frame for the
+   * posters — a specific month or all time"): the period the payloads
+   * were drawn over, every month so far and all time as chips, and this
+   * month's key (the page's no-query default). A route, like the subject:
+   * the sheet is a server read. Absent on the dev fixture. */
+  period?: { key: string; label: string; options: { key: string; label: string }[]; current: string };
 };
 
 export function PosterStudio({
@@ -259,6 +265,7 @@ export function PosterStudio({
   refusePpi,
   hrefs = { community: "/row100k/posters?subject=rowtember", rowerPrefix: "/row100k/posters?r=" },
   initialFormat,
+  period,
 }: PosterStudioProps) {
   const router = useRouter();
   /* Rowtember and a rower are ROUTES (the payload is a server read); race
@@ -836,6 +843,34 @@ export function PosterStudio({
     </>
   );
 
+  /* THE TIME FRAME row (owner, 2026-10-01): the months so far and ALL
+   * TIME as links that keep the subject — ?r=N for a rower, ?subject= for
+   * Rowtember and the top ten — and carry ?m= for any period but this
+   * month. Race day is an ad with no period, so the row is not offered
+   * there. */
+  const periodHref = (k: string): string => {
+    const q = new URLSearchParams();
+    if (subject === "rower" && rower) q.set("r", String(rower.rower.rowerNumber));
+    else if (subject === "top10") q.set("subject", "top10");
+    else if (subject === "community") q.set("subject", "rowtember");
+    if (period && k !== period.current) q.set("m", k);
+    const s = q.toString();
+    return s ? `/row100k/posters?${s}` : "/row100k/posters";
+  };
+  const periodRow =
+    period && subject !== "raceday" ? (
+      <div className="po-group po-period">
+        <p className="po-eye">Time frame</p>
+        <div className="tabs" role="group" aria-label="Time frame" style={{ marginBottom: 0 }}>
+          {period.options.map((o) => (
+            <Link key={o.key} className={o.key === period.key ? "on" : undefined} href={periodHref(o.key)}>
+              {o.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    ) : null;
+
   if (!drawing) {
     // PICK A ROWER (owner, 2026-09-16): the public studio with nobody
     // chosen — signed out, or signed in and not joined. The subject row
@@ -868,6 +903,7 @@ export function PosterStudio({
       </div>
 
       {subjectRow}
+      {periodRow}
 
       <div className="po-groups">
         <div className="po-group">

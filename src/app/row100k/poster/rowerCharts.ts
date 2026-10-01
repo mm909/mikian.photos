@@ -18,7 +18,7 @@
 
 /* NO COLOUR NAMES HERE — see charts.ts. Geometry and formatting only. */
 import { DOW_LETTERS, FIRST_DOW, kLabel } from "./paint";
-import { MONTH_DAYS } from "@/lib/row100k";
+import { domAt } from "./span";
 import type { PosterBox, PosterPaint, PosterTokens, RowerLogRow } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
@@ -55,9 +55,15 @@ export const clockTenths = (s: number): string => {
 /* ================================================================= month */
 
 export type MonthOpts = {
-  /* The full five-row September grid (print on the wall), or the elapsed
-   * weeks only (phone) — SPEC §6 C6. */
+  /* The full grid (print on the wall), or the elapsed weeks only (phone)
+   * — SPEC §6 C6. */
   full: boolean;
+  /* THE TIME FRAME (span.ts, off the payload's asOf): the cells in the
+   * grid, the weekday of the first, and the first day — a cell prints its
+   * date's own day of the month. */
+  days: number;
+  firstDow: number;
+  firstDay: string;
   /* The story caps a cell at 44, the post at 56. */
   cellCap?: number;
   /* The height the grid must live in (the box the engine handed the
@@ -94,8 +100,8 @@ function cellFor(tk: PosterTokens, w: number, opts: MonthOpts): number {
  * module's measure() reports (eyebrow excluded). */
 export function monthLayout(tk: PosterTokens, w: number, dayNumber: number, opts: MonthOpts): MonthLayout {
   const gap = tk.small * 0.7;
-  const days = opts.full ? MONTH_DAYS : Math.min(MONTH_DAYS, Math.max(1, dayNumber));
-  const rows = Math.ceil((days + FIRST_DOW) / 7);
+  const days = opts.full ? opts.days : Math.min(opts.days, Math.max(1, dayNumber));
+  const rows = Math.ceil((days + opts.firstDow) / 7);
   const axisH = tk.small * 1.9;
   let cell = cellFor(tk, w, opts);
   if (opts.maxH !== undefined) {
@@ -167,7 +173,8 @@ export function drawMonth(
   const labelSize = cell * 0.28;
   const labelFont = paint.font("monoBold", labelSize);
   for (let i = 0; i < L.days; i++) {
-    const idx = i + FIRST_DOW;
+    const idx = i + opts.firstDow;
+    const dom = String(domAt(opts.firstDay, i));
     const cx = x0 + (idx % 7) * (cell + gap);
     const cy = top + Math.floor(idx / 7) * (cell + gap);
     // A day after the as-of day is paper: the month is not over yet.
@@ -196,7 +203,7 @@ export function drawMonth(
       ctx.restore();
       paint.drawText(
         ctx,
-        String(i + 1),
+        dom,
         cx + cell * 0.12,
         cy + cell * 0.12 + numSize * 0.8,
         numFont,
@@ -222,7 +229,7 @@ export function drawMonth(
       ctx.restore();
     }
     const fg = step.on;
-    paint.drawText(ctx, String(i + 1), cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, fg);
+    paint.drawText(ctx, dom, cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, fg);
     paint.drawCentered(ctx, kLabel(m), cx + cell / 2, cy + cell - cell * 0.14, labelFont, fg);
   }
   return L.h;

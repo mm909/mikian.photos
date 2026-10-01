@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FIRST_DAY, type SanityBand } from "@/lib/row100k";
+import { LOGGED_EVENT, LOOP_SHARE_AT_MS, reducedMotion, type LoggedDetail } from "./loop";
 import { LogRow } from "./LogRow";
 import { OptIn } from "./OptIn";
 import { useCardsOff } from "./RowSite";
@@ -45,6 +46,7 @@ export function LogInPlace({
   justJoined,
   bare,
   noShare,
+  loop,
 }: {
   share: ShareData;
   /* Today clamped into September, from the server; LogRow adopts the
@@ -70,8 +72,34 @@ export function LogInPlace({
    * A ROW and drops its SHARE word — the dateline's SHARE (looks/ShareWord)
    * asks for the dialog by the row100k:share event instead. */
   noShare?: boolean;
+  /* THE LOOP (loop.ts): on a phone the form is a sheet that rises from
+   * the bottom with the big number still in view; a saved row sends
+   * LOGGED_EVENT to the wheels and the place line, and the share dialog
+   * waits until they have run. Desktop keeps the seam under the cells and
+   * still sends the event. */
+  loop?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  /* A phone, measured after mount (the server cannot know): the sheet. */
+  const [sheet, setSheet] = useState(false);
+  useEffect(() => {
+    if (!loop || typeof matchMedia !== "function") return;
+    const mq = matchMedia("(max-width: 639px)");
+    const on = () => setSheet(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [loop]);
+  const asSheet = loop === true && sheet;
+  // The page under an open sheet does not scroll.
+  useEffect(() => {
+    if (!asSheet || !open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [asSheet, open]);
   const [shareOpen, setShareOpen] = useState(false);
   const [preferredCardId, setPreferredCardId] = useState<string | undefined>(undefined);
   const [shareRow, setShareRow] = useState<ShareData["row"]>(null);
@@ -113,10 +141,10 @@ export function LogInPlace({
   const toggleForm = useCallback(() => {
     if (phase === "closed") return;
     setOpen((v) => {
-      if (!v) scrollToForm();
+      if (!v && !asSheet) scrollToForm();
       return !v;
     });
-  }, [phase]);
+  }, [phase, asSheet]);
 
   // /row100k#log (the account menu's LOG A ROW) lands here with the form
   // already open — the browser scrolls to the id, this opens the seam. Also
@@ -125,7 +153,7 @@ export function LogInPlace({
     const openNow = () => {
       if (phase === "closed") return;
       setOpen(true);
-      scrollToForm();
+      if (!asSheet) scrollToForm();
     };
     const toggle = toggleForm;
     const openIfAsked = () => {
@@ -153,7 +181,7 @@ export function LogInPlace({
       window.removeEventListener("row100k:log-toggle", toggle);
       window.removeEventListener("row100k:share", openShare);
     };
-  }, [phase, toggleForm]);
+  }, [phase, toggleForm, asSheet]);
 
   // The word that opens the form lives in another component (LogCell.tsx,
   // in the counter row) and turns its arrow with the form: it is told each
@@ -181,8 +209,28 @@ export function LogInPlace({
     setOpen(false);
     setShareRow(entry);
     setPreferredCardId("rowtember-row");
+    if (loop) {
+      // THE LOOP: the sheet goes, the wheels run up, the place moves, and
+      // only then the share dialog — the run is the point.
+      const detail: LoggedDetail = { meters: entry.meters, day: entry.day };
+      window.dispatchEvent(new CustomEvent<LoggedDetail>(LOGGED_EVENT, { detail }));
+      window.setTimeout(() => setShareOpen(true), reducedMotion() ? 0 : LOOP_SHARE_AT_MS);
+      return;
+    }
     setShareOpen(true);
   };
+
+  const form = (
+    <LogRow
+      defaultDay={defaultDay}
+      defaultTitle={defaultTitle}
+      phase={phase}
+      earlyAdmin={earlyAdmin}
+      simulate={simulate}
+      sanity={sanity}
+      onLogged={onLogged}
+    />
+  );
 
   return (
     <div className="front-act" id="log" style={{ scrollMarginTop: 72 }}>
@@ -213,19 +261,25 @@ export function LogInPlace({
         </div>
       )}
 
-      {/* LogRow brings its own flat panel (no box) — this is just the seam. */}
-      {open && phase !== "closed" && (
-        <div className="front-log">
-          <LogRow
-            defaultDay={defaultDay}
-            defaultTitle={defaultTitle}
-            phase={phase}
-            earlyAdmin={earlyAdmin}
-            simulate={simulate}
-            sanity={sanity}
-            onLogged={onLogged}
-          />
-        </div>
+      {/* LogRow brings its own flat panel (no box) — this is just the seam.
+          THE SHEET (loop.ts, a phone): the same form rises from the bottom
+          over a scrim, the big number still in view above it; the × and the
+          scrim close it. Mounted while open so the slide can play. */}
+      {asSheet ? (
+        <>
+          <div className={`front-sheet-scrim${open && phase !== "closed" ? " on" : ""}`} onClick={() => setOpen(false)} aria-hidden="true" />
+          <section className={`front-sheet${open && phase !== "closed" ? " on" : ""}`} aria-label="Log a row" aria-hidden={!open}>
+            <div className="front-sheet-head">
+              <span className="mono">Log a row</span>
+              <button type="button" className="front-sheet-x" aria-label="Close" onClick={() => setOpen(false)}>
+                ×
+              </button>
+            </div>
+            {phase !== "closed" && open ? form : null}
+          </section>
+        </>
+      ) : (
+        open && phase !== "closed" && <div className="front-log">{form}</div>
       )}
 
       <ShareDialog

@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { metersText, tokensFor } from "@/components/home/digits";
 import { fmtRowerNumber, type Division, type RecordBadge, type SanityBand } from "@/lib/row100k";
 import { type MyRow } from "./MyRows";
 import { LogInPlace } from "./LogInPlace";
 import type { ShareData } from "./share/cards";
 import { ROLL_COOKIE, type Roll } from "./roll";
+import { LOGGED_EVENT, LOOP_BEAT_MS, LOOP_COUNT_MS, easeOut, reducedMotion, type LoggedDetail, type LoopData } from "./loop";
+import { LoopRank } from "./LoopRank";
 
 /* THE ROLL-DOWN (owner, 2026-10-01, the first morning of a new month): "when
  * everyone first logs in on the new month, animate the number they look at
@@ -36,6 +38,7 @@ export function Wheels({
   href,
   label,
   roll,
+  loop,
 }: {
   meters: number;
   digits: 7 | 8;
@@ -43,6 +46,10 @@ export function Wheels({
   /* The link's accessible name — where tapping the number goes. */
   label?: string;
   roll?: Roll;
+  /* THE LOOP (loop.ts): a saved row (LOGGED_EVENT) runs the wheels UP by
+   * its meters — a beat after the sheet closes, over LOOP_COUNT_MS, easing
+   * out — before the refresh lands with the same number. */
+  loop?: boolean;
 }) {
   const [shown, setShown] = useState(roll ? roll.from : meters);
   // Primitives, so a re-render with a fresh `roll` object does not restart
@@ -50,9 +57,52 @@ export function Wheels({
   const from = roll?.from;
   const cookie = roll?.cookie;
 
+  /* THE COUNT-UP. `bump` is the run asked for; `running` keeps the prop
+   * effect below from snapping the wheels to the refreshed total while the
+   * run is still in flight (the run ends on that same number). */
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  const running = useRef(false);
+  const [bump, setBump] = useState<{ from: number; to: number; n: number } | null>(null);
+  useEffect(() => {
+    if (!loop) return;
+    const on = (e: Event) => {
+      const add = (e as CustomEvent<LoggedDetail>).detail?.meters ?? 0;
+      if (!(add > 0)) return;
+      setBump((b) => ({ from: shownRef.current, to: shownRef.current + add, n: (b?.n ?? 0) + 1 }));
+    };
+    window.addEventListener(LOGGED_EVENT, on);
+    return () => window.removeEventListener(LOGGED_EVENT, on);
+  }, [loop]);
+  useEffect(() => {
+    if (!bump) return;
+    if (reducedMotion()) {
+      setShown(bump.to);
+      return;
+    }
+    running.current = true;
+    let raf = 0;
+    let t0 = 0;
+    const tick = (now: number) => {
+      if (!t0) t0 = now;
+      const t = Math.min(1, (now - t0) / LOOP_COUNT_MS);
+      setShown(Math.round(bump.from + (bump.to - bump.from) * easeOut(t)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else running.current = false;
+    };
+    const wait = setTimeout(() => {
+      raf = requestAnimationFrame(tick);
+    }, LOOP_BEAT_MS);
+    return () => {
+      clearTimeout(wait);
+      cancelAnimationFrame(raf);
+      running.current = false;
+    };
+  }, [bump]);
+
   useEffect(() => {
     if (from === undefined || cookie === undefined) {
-      setShown(meters);
+      if (!running.current) setShown(meters);
       return;
     }
     // Reduced motion: land on the number and remember the month as rolled.
@@ -173,6 +223,9 @@ export function Dashboard(props: {
   bare?: boolean;
   /* First visit of a new month: open on last month's total and run down. */
   roll?: Roll;
+  /* THE LOOP (loop.ts): the wheels count up on a saved row and the place
+   * line under the number ticks (LoopRank.tsx). Absent: static, as before. */
+  loop?: LoopData;
 }) {
   const profileHref = `/row100k/r/${props.rowerNumber}`;
   const { byDay, longest } = useMemo(() => shareSummary(props.rows), [props.rows]);
@@ -182,13 +235,14 @@ export function Dashboard(props: {
       {/* Seven wheels, not the landing's eight: nobody rows ten million
         * meters in a month, and the empty ten-millions digit read as noise
         * (owner, 2026-09-05). Room for 9,999,999 stays. */}
-      <Wheels meters={props.meters} digits={7} href={profileHref} label="your stats" roll={props.roll} />
+      <Wheels meters={props.meters} digits={7} href={profileHref} label="your stats" roll={props.roll} loop={props.loop != null} />
       <p className="my-unit mono">
         Meters ·{" "}
         <b>
           rower {fmtRowerNumber(props.rowerNumber)} · {props.displayName}
         </b>
       </p>
+      {props.loop ? <LoopRank loop={props.loop} me={props.rowerNumber} meters={props.meters} name={props.displayName} /> : null}
 
       {props.bare ? null : (
         <LogInPlace

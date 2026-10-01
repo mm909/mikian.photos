@@ -30,13 +30,8 @@ import {
   type StandingRow,
 } from "@/lib/blackoutRules";
 import {
-  END_MS,
-  FIRST_DAY,
   GOAL_METERS,
-  LAST_DAY,
-  MONTH_NAME,
   computeBoards,
-  daysElapsed,
   divisionRank,
   fmtDay,
   fmtDuration,
@@ -51,9 +46,11 @@ import {
   type Boards,
   type RecordRow,
 } from "@/lib/row100k";
+import { monthOf, type Period } from "@/lib/rowPeriod";
 import { fmtClock, fmtInt } from "../analysis/fmt";
 import { recordDef } from "../records/defs";
 import { buildField, type FieldEntry, type FieldModel } from "../stats/field";
+import { dayAt, dayIndex, spanOf, type PosterSpan } from "./span";
 import type {
   CommunityPoster,
   Division,
@@ -95,9 +92,6 @@ export const rowerUrl = (rowerNumber: number) => `${COMMUNITY_URL}/R/${fmtRowerN
  * MIN_KDE — the field keeps its own copy; the hours follow the same floor). */
 const MIN_SESSIONS = 5;
 
-const YEAR = Number(FIRST_DAY.slice(0, 4));
-const MONTH = FIRST_DAY.slice(0, 7);
-
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const r4 = (v: number) => Math.round(v * 10000) / 10000;
 
@@ -112,24 +106,42 @@ export const hourLabel = (h: number): string =>
 
 /* ------------------------------------------------------------- as-of */
 
-/* The poster's clock, built once from the challenge's fixed UTC-7 day
- * (row100k.ts daysElapsed / pacificDay). Clamped into September on both
- * ends: a hung poster reads SEP 30 · FINAL from END_MS on, never "Oct 2",
- * and before the first stroke it reads Sep 1 (the studio is not offered
- * then, but the payload must still be sane). `stamp` is the mono tail both
- * datelines share. */
-export function posterAsOf(atMs = nowMs()): PosterAsOf & { stamp: string } {
-  const dayNumber = daysElapsed(atMs);
-  const final = atMs >= END_MS;
+/* The poster's clock over its TIME FRAME (span.ts: the month asked for,
+ * this one by default, or all time). Clamped into the span on both ends:
+ * a finished month reads FINAL and its last day, never "Oct 2", and before
+ * the first stroke it reads the 1st (the studio is not offered then, but
+ * the payload must still be sane). `stamp` is the mono tail both datelines
+ * share. */
+export function posterAsOf(atMs = nowMs(), period?: Period): PosterAsOf & { stamp: string } {
+  const span = spanOf(period ?? monthOf(atMs), atMs);
+  return asOfSpan(span, atMs);
+}
+
+function asOfSpan(span: PosterSpan, atMs: number): PosterAsOf & { stamp: string } {
   const raw = pacificDay(atMs);
-  const iso = final || raw > LAST_DAY ? LAST_DAY : raw < FIRST_DAY ? FIRST_DAY : raw;
+  const iso = span.final || raw > span.lastDay ? span.lastDay : raw < span.firstDay ? span.firstDay : raw;
   const day = fmtDay(iso);
   // The day count is gone (owner, 2026-09-10: "day ten of thirty can just
   // get removed on both of them — if it is September tenth, then we know it
   // is day ten"), and at FINAL the date goes with it: a finished month is
-  // the whole month, and the nameplate already says ROWTEMBER 2026.
-  const stamp = final ? "FINAL" : day.toUpperCase();
-  return { day, iso, dayNumber, final, year: YEAR, dateline: stamp, stamp };
+  // the whole month, and the nameplate already says which month.
+  const stamp = span.final ? "FINAL" : day.toUpperCase();
+  return {
+    day,
+    iso,
+    dayNumber: span.dayNumber,
+    final: span.final,
+    year: span.year,
+    dateline: stamp,
+    stamp,
+    kind: span.kind,
+    title: span.title,
+    scope: span.scope,
+    firstDay: span.firstDay,
+    days: span.days,
+    firstDow: span.firstDow,
+    firstTag: span.firstTag,
+  };
 }
 
 /* The blackout as the sheet prints it. The note explains the blocks on the
@@ -190,6 +202,11 @@ export type CommunityInput = {
    * comes this far. */
   claim: { name: string; rowerNumber: number; day: string } | null;
   atMs?: number;
+  /* THE TIME FRAME (owner, 2026-10-01): the month the sheet is about, or
+   * all time (span.ts). The month `atMs` is in when absent. The rows and
+   * the board handed in are already that period's; this only shapes the
+   * grid and the dates. */
+  period?: Period;
 };
 
 /* One PUBLIC-board row as a standing. Masked: the tier floor and the digit
@@ -358,19 +375,18 @@ function clubOf(boards: Boards, claim: CommunityInput["claim"]): PosterClub {
   };
 }
 
-/* Meters per day, Sep 1 … the as-of day, by differencing boards.daily — the
- * SAME board read as totals.meters, so the curve's last point equals the
- * headline (an admin's future-dated test row is the one way they differ; it
- * is skipped rather than folded onto the wrong day). */
-function byDayOf(boards: Boards, dayNumber: number): number[] {
-  const out = Array<number>(dayNumber).fill(0);
+/* Meters per day, the span's 1st … the as-of day, by differencing
+ * boards.daily — the SAME board read as totals.meters, so the curve's last
+ * point equals the headline (an admin's future-dated test row is the one
+ * way they differ; it is skipped rather than folded onto the wrong day). */
+function byDayOf(boards: Boards, span: PosterSpan): number[] {
+  const out = Array<number>(span.dayNumber).fill(0);
   let prev = 0;
   for (const d of boards.daily) {
     const m = d.cum - prev;
     prev = d.cum;
-    if (d.day.slice(0, 7) !== MONTH) continue;
-    const i = Number(d.day.slice(8, 10)) - 1;
-    if (i < 0 || i >= dayNumber) continue;
+    const i = dayIndex(span, d.day);
+    if (i < 0 || i >= span.dayNumber) continue;
     out[i] += m;
   }
   return out;
@@ -380,7 +396,7 @@ function byDayOf(boards: Boards, dayNumber: number): number[] {
  * createdAt − 7 h, September rows only, orphans dropped). Sessions, never
  * meters — "a meters sum handed to client components would equal one
  * rower's session whenever they row an hour alone" (review, 2026-09-05). */
-function hoursOf(rows: CommunityInput["rows"], known: Set<string> | null): number[] | null {
+function hoursOf(rows: CommunityInput["rows"], known: Set<string> | null, span: PosterSpan): number[] | null {
   if (!rows) return null;
   const counts = Array<number>(24).fill(0);
   let n = 0;
@@ -388,7 +404,7 @@ function hoursOf(rows: CommunityInput["rows"], known: Set<string> | null): numbe
     if (known && !known.has(r.participantId)) continue;
     const west = new Date(r.createdAtMs - PACIFIC_SHIFT_MS);
     const day = west.toISOString().slice(0, 10);
-    if (day < FIRST_DAY || day > LAST_DAY) continue;
+    if (day < span.firstDay || day > span.lastDay) continue;
     counts[west.getUTCHours()] += 1;
     n += 1;
   }
@@ -429,9 +445,10 @@ function takeawaysOf(
   hours: number[] | null,
   model: FieldModel | null,
   totals: { sessions: number; meters: number; rowers: number },
-  dayNumber: number,
+  span: PosterSpan,
   club: PosterClub,
 ): PosterTakeaway[] {
+  const dayNumber = span.dayNumber;
   const out: PosterTakeaway[] = [];
   let bi = -1;
   let bm = 0;
@@ -445,7 +462,7 @@ function takeawaysOf(
     out.push({
       key: "biggestDay",
       label: "BIGGEST DAY",
-      value: `SEP ${bi + 1} · ${kLabel(bm).toUpperCase()}`,
+      value: `${fmtDay(dayAt(span, bi)).toUpperCase()} · ${kLabel(bm).toUpperCase()}`,
     });
   if (hours) {
     let hi = 0;
@@ -499,7 +516,8 @@ function takeawaysOf(
 
 export function assembleCommunity(input: CommunityInput): CommunityPoster {
   const atMs = input.atMs ?? nowMs();
-  const asOf = posterAsOf(atMs);
+  const span = spanOf(input.period ?? monthOf(atMs), atMs);
+  const asOf = asOfSpan(span, atMs);
   const blackout = posterBlackout(input.blackout);
   const boards = input.boards;
 
@@ -517,7 +535,7 @@ export function assembleCommunity(input: CommunityInput): CommunityPoster {
     : { men: [], women: [], overall: [] };
   const records = boards ? recordsOf(boards, hidden, rowsThatDay) : EMPTY_RECORDS;
   const club = boards ? clubOf(boards, input.claim) : { count: 0, roll: [], first: null };
-  const byDay = boards ? byDayOf(boards, asOf.dayNumber) : Array<number>(asOf.dayNumber).fill(0);
+  const byDay = boards ? byDayOf(boards, span) : Array<number>(asOf.dayNumber).fill(0);
   const totals = {
     meters: boards?.community.meters ?? 0,
     seconds: boards?.community.seconds ?? 0,
@@ -527,20 +545,15 @@ export function assembleCommunity(input: CommunityInput): CommunityPoster {
     rowers: boards ? onBoard(boards).length : 0,
     club: boards?.community.finished ?? 0,
   };
-  const hours = hoursOf(input.rows, known);
+  const hours = hoursOf(input.rows, known, span);
   const model = fieldOf(input.field, hidden);
 
+  const { stamp: _stamp, ...asOfOut } = asOf;
+  void _stamp;
   return {
     kind: "community",
     year: asOf.year,
-    asOf: {
-      day: asOf.day,
-      iso: asOf.iso,
-      dayNumber: asOf.dayNumber,
-      final: asOf.final,
-      year: asOf.year,
-      dateline: asOf.stamp,
-    },
+    asOf: { ...asOfOut, dateline: asOf.stamp },
     blackout,
     totals,
     byDay,
@@ -549,7 +562,7 @@ export function assembleCommunity(input: CommunityInput): CommunityPoster {
     club,
     hours,
     split: splitOf(model),
-    takeaways: takeawaysOf(byDay, hours, model, totals, asOf.dayNumber, club),
+    takeaways: takeawaysOf(byDay, hours, model, totals, span, club),
     partner: GRIZZLY_PARTNER,
     url: COMMUNITY_URL,
   };
@@ -571,6 +584,9 @@ export type RowerInput = {
   pub: Boards | null;
   blackout: BlackoutState;
   atMs?: number;
+  /* THE TIME FRAME (owner, 2026-10-01), as CommunityInput.period. The
+   * entries handed in are already that period's. */
+  period?: Period;
 };
 
 const metersFigure = (v: number, masked: boolean): Figure =>
@@ -578,7 +594,8 @@ const metersFigure = (v: number, masked: boolean): Figure =>
 
 export function assembleRower(input: RowerInput): RowerPoster {
   const atMs = input.atMs ?? nowMs();
-  const asOf = posterAsOf(atMs);
+  const span = spanOf(input.period ?? monthOf(atMs), atMs);
+  const asOf = asOfSpan(span, atMs);
   const p = input.participant;
   const entries = input.entries;
   const pub = input.pub;
@@ -592,7 +609,9 @@ export function assembleRower(input: RowerInput): RowerPoster {
       meters: e.meters,
       seconds: e.seconds,
     })),
-    pacificDay(atMs),
+    // The "today" figures stop at the span's last day: a finished month's
+    // sheet is that month's.
+    pacificDay(atMs) > span.lastDay ? span.lastDay : pacificDay(atMs),
   );
   const me = b.total[0];
   const seconds = entries.reduce((s, e) => s + e.seconds, 0);
@@ -628,15 +647,14 @@ export function assembleRower(input: RowerInput): RowerPoster {
     return places.find((r) => r.key === key)?.place ?? null;
   };
 
-  /* Per-day meters and the rowed flags, Sep 1 … the as-of day. Dates are
-   * public; the meters are not built while masked. */
+  /* Per-day meters and the rowed flags, the span's 1st … the as-of day.
+   * Dates are public; the meters are not built while masked. */
   const rowed = Array<boolean>(asOf.dayNumber).fill(false);
   const dayMeters = Array<number>(asOf.dayNumber).fill(0);
   const rowsOn = new Map<string, number>();
   for (const e of entries) {
     rowsOn.set(e.day, (rowsOn.get(e.day) ?? 0) + 1);
-    if (e.day.slice(0, 7) !== MONTH) continue;
-    const i = Number(e.day.slice(8, 10)) - 1;
+    const i = dayIndex(span, e.day);
     if (i < 0 || i >= asOf.dayNumber) continue;
     rowed[i] = true;
     dayMeters[i] += e.meters;
@@ -742,21 +760,17 @@ export function assembleRower(input: RowerInput): RowerPoster {
   const communityRowers = pub ? onBoard(pub).length : 0;
 
   const board = division === "M" ? " · MEN’S BOARD" : division === "F" ? " · WOMEN’S BOARD" : "";
-  // The month's name in caps (2026-09-28): ROWTEMBER 2026 in September,
-  // OCTOBER 2026 after. The ROWTEMBER mark on the sheet itself stays.
-  const dateline = `${MONTH_NAME.toUpperCase()} ${asOf.year}${board}${club ? " · 100K CLUB" : ""} · ${asOf.stamp}`;
+  // The time frame's name in caps (2026-09-28, and the span since
+  // 2026-10-01): ROWTEMBER 2026 in September, OCTOBER 2026 after, ALL
+  // TIME over every month. The ROWTEMBER mark on the sheet itself stays.
+  const dateline = `${span.title}${board}${club ? " · 100K CLUB" : ""} · ${asOf.stamp}`;
 
+  const { stamp: _stamp, ...asOfOut } = asOf;
+  void _stamp;
   return {
     kind: "rower",
     year: asOf.year,
-    asOf: {
-      day: asOf.day,
-      iso: asOf.iso,
-      dayNumber: asOf.dayNumber,
-      final: asOf.final,
-      year: asOf.year,
-      dateline,
-    },
+    asOf: { ...asOfOut, dateline },
     blackout: posterBlackout(input.blackout, false),
     rower: {
       rowerNumber: p.rowerNumber,
