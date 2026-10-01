@@ -55,7 +55,7 @@ import {
 import { loadLanding } from "./landing/data";
 import { L1 } from "./landings/L1";
 import { recordsHref } from "./records/recordsUrl";
-import { sitePalette } from "./sitePalette";
+import { landingGround, sitePalette } from "./sitePalette";
 
 /* The nameplate is Rowtember in September and the month itself any other
  * time (owner, 2026-09-24), and the metadata says the same. */
@@ -83,12 +83,12 @@ export const metadata: Metadata = {
 const actorOnce = cache(getEffectiveActor);
 
 /* The browser chrome follows the ground: the landing's, for a stranger
- * (rowPalette.ts — ink or paper by the preset), paper for everyone else. */
+ * (sitePalette.ts landingGround — ink or paper by the preset and the
+ * look), paper for everyone else. */
 export async function generateViewport(): Promise<Viewport> {
   try {
     if (await actorOnce()) return { themeColor: PAPER };
-    const palette = await sitePalette();
-    return { themeColor: palette.ground === "ink" ? INK : PAPER };
+    return { themeColor: (await landingGround()) === "ink" ? INK : PAPER };
   } catch {
     return { themeColor: PAPER };
   }
@@ -186,13 +186,14 @@ export default async function Row100kPage() {
   /* THE LANDING for every stranger (owner, 2026-09-30: THE DARE, picked
    * from five drafts to his brief — convert an Instagram visitor, the 100K
    * month is the point, OPT IN is the ask — is the signed-out front). No
-   * actor means the landing, in the palette the site wears (sitePalette:
-   * the setting, or this browser's ?palette= preview); anyone signed in —
-   * a joined rower, or an account still to join — gets the page below
-   * untouched (landings/L1.tsx). */
+   * actor means the landing, in the palette the site wears and on its
+   * ground (sitePalette.ts: the settings, or this browser's previews; the
+   * ink look keeps the landing on ink); anyone signed in — a joined rower,
+   * or an account still to join — gets the page below untouched
+   * (landings/L1.tsx). */
   if (!actor) {
-    const [data, palette] = await Promise.all([loadLanding(), sitePalette()]);
-    return <L1 data={data} palette={palette} />;
+    const [data, palette, ground] = await Promise.all([loadLanding(), sitePalette(), landingGround()]);
+    return <L1 data={data} palette={palette} ground={ground} />;
   }
 
   let me: {

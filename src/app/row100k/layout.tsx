@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import type { ReactNode } from "react";
-import { LOOK_COOKIE, parseLook, siteSettings, type Look } from "@/lib/rowSettings";
 import { RowSite } from "./RowSite";
-import { sitePalette } from "./sitePalette";
+import { siteLook, sitePalette, siteSettingsOnce } from "./sitePalette";
 
 /* The one wrapper every /row100k page renders inside (owner, 2026-09-16).
  * It reads the site switches once per request (src/lib/rowSettings.ts,
@@ -14,11 +12,12 @@ import { sitePalette } from "./sitePalette";
  *
  * The look can be previewed on one browser through LOOK_COOKIE, which the
  * settings route sets for an admin; the palette through PALETTE_COOKIE,
- * which the middleware sets from ?palette=<id> (sitePalette.ts). Both are
- * honoured for anyone who carries them because they are cosmetic and
- * nothing else on the site reads them: a look is not a permission, and
- * checking a session here would cost every page a lookup for the sake of a
- * colour.
+ * which the middleware sets from ?palette=<id>. Both reads live in
+ * sitePalette.ts, where the front page reads the same two for the
+ * landing. Both are honoured for anyone who carries them because they are
+ * cosmetic and nothing else on the site reads them: a look is not a
+ * permission, and checking a session here would cost every page a lookup
+ * for the sake of a colour.
  *
  * cookies() makes the segment dynamic, which every page under it already
  * is (force-dynamic, live numbers). No markup of its own beyond RowSite's
@@ -33,14 +32,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Row100kLayout({ children }: { children: ReactNode }) {
-  const [settings, palette] = await Promise.all([siteSettings(), sitePalette()]);
-  let look: Look = settings.look;
-  try {
-    const preview = parseLook(cookies().get(LOOK_COOKIE)?.value);
-    if (preview) look = preview;
-  } catch {
-    /* cookies() outside a request scope — the site-wide look stands */
-  }
+  const [settings, look, palette] = await Promise.all([siteSettingsOnce(), siteLook(), sitePalette()]);
   return (
     <RowSite look={look} palette={palette} cardsOff={settings.cardsOff}>
       {children}

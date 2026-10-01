@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { GOAL_METERS, MONTH, MONTH_DAYS, MONTH_WORD, fmtMeters, fmtRowerNumber } from "@/lib/row100k";
-import { INK, PAPER, accentOn, capsOn, type Palette } from "@/lib/rowPalette";
+import { INK, PAPER, accentOn, capsOn, type Palette, type PaletteGround } from "@/lib/rowPalette";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
@@ -30,12 +30,14 @@ import { l1Css } from "./l1Css";
  * the next rower gets, OPT IN again, the footer.
  *
  * THE GROUND AND THE ACCENT COME FROM THE PALETTE (rowPalette.ts): ink or
- * paper, and the accent cut for it. The page sets them as variables on its
- * root (--l1-*) and the sheet (l1Css.ts) reads nothing else, so one sheet
- * serves every preset. On ink it wears theme.ts .chrome-ink, so the bar and
- * the footer are ink too; the bar is NOT sticky here, and its SIGN IN chip
- * is hidden (l1Css.ts) so OPT IN is the one door. A joined rower, or any
- * signed-in account, never sees this page (page.tsx renders the front). */
+ * paper (ink whatever the preset says under the site's ink look —
+ * sitePalette.ts landingGround), and the accent cut for it. The page sets
+ * them as variables on its root (--l1-*) and the sheet (l1Css.ts) reads
+ * nothing else, so one sheet serves every preset. On ink it wears theme.ts
+ * .chrome-ink, so the bar and the footer are ink too; the bar is NOT
+ * sticky here, and its SIGN IN chip is hidden (l1Css.ts) so OPT IN is the
+ * one door. A joined rower, or any signed-in account, never sees this page
+ * (page.tsx renders the front). */
 
 /* OPT IN goes to the Rowtember sign-in and lands back on the front page at
  * #join (the same place the front page OPT IN sends a stranger). */
@@ -260,9 +262,9 @@ function Cards({ eg }: { eg: LandingExample | null }) {
  * that ground with the type a slab of it carries. The three water
  * variables follow the accent so the focus ring and anything else from
  * theme.ts agrees with the page. */
-function vars(p: Palette): CSSProperties {
-  const ink = p.ground === "ink";
-  const a = accentOn(p, p.ground);
+function vars(p: Palette, ground: PaletteGround): CSSProperties {
+  const ink = ground === "ink";
+  const a = accentOn(p, ground);
   return {
     "--l1-bg": ink ? INK : "var(--paper)",
     "--l1-fg": ink ? PAPER : INK,
@@ -280,13 +282,15 @@ function vars(p: Palette): CSSProperties {
   } as CSSProperties;
 }
 
-export function L1({ data, palette }: { data: LandingData; palette: Palette }) {
+/* `ground` is the preset's, or ink under the ink look (sitePalette.ts
+ * landingGround): the accent is the preset's cut for whichever it is. */
+export function L1({ data, palette, ground }: { data: LandingData; palette: Palette; ground: PaletteGround }) {
   const today = Math.min(MONTH_DAYS, Math.max(1, data.today));
-  const ink = palette.ground === "ink";
+  const ink = ground === "ink";
   const root = ["row100k", "l1", ink ? "chrome-ink l1-ink" : "l1-paper", archivo.variable, archivoBlack.variable, spaceMono.variable].join(" ");
 
   return (
-    <div className={root} style={vars(palette)} data-palette={palette.id}>
+    <div className={root} style={vars(palette, ground)} data-palette={palette.id}>
       <style>{css}</style>
       <style>{l1Css}</style>
       <RowBar active="home" sticky={false} signedIn={false} rowerNumber={null} admin={false} />

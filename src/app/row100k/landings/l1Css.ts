@@ -115,6 +115,21 @@ html:has(.l1-ink),html:has(.l1-ink) body{background:#15171a}
   .row100k .l1-fold{min-height:0}
   .row100k .l1-act{margin-top:clamp(40px,8vh,80px)}
 }
+/* A SHORT PHONE (an SE: 667px tall) has no room for the poster at full
+ * stretch — OPT IN fell 120px under the first screen. The two figures go
+ * side by side as they do from 640px, the sentence takes a smaller share
+ * of the height, and the air between the blocks closes up. */
+@media(max-width:639px) and (max-height:720px){
+  .row100k .l1-poster{padding-top:12px;padding-bottom:18px}
+  .row100k .l1-eye{margin-top:16px}
+  .row100k .l1-dare{margin-top:6px;max-width:min(100%,42vh);max-width:min(100%,42svh)}
+  .row100k .l1-live{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);column-gap:16px}
+  .row100k .l1-live div{border-bottom:none;border-right:1px dashed var(--l1-hair);padding:10px 16px 11px 0}
+  .row100k .l1-live div:last-child{border-right:none;padding-right:0}
+  .row100k .l1-live dd{font-size:clamp(28px,8.6vw,40px)}
+  .row100k .l1-act{padding-top:20px}
+  .row100k .l1-cta{padding:18px 20px 17px}
+}
 
 /* ------------------------------------------------------------ THE PAGE
  * The same ground. A section is a mono cap label on a 2px rule, the way
