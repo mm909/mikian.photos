@@ -137,7 +137,7 @@ export const authOptions: NextAuthOptions = {
   // like the wrong website"). Both the sign-in and the error page are
   // /row100k/sign-in, which prints ?error= as one quiet line.
   pages: {
-    signIn: "/row100k/sign-in",
-    error: "/row100k/sign-in",
+    signIn: "/sign-in",
+    error: "/sign-in",
   },
 };

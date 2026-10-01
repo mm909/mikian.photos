@@ -485,16 +485,25 @@ html:has(.row100k){scroll-behavior:smooth}
  * stat size over a plain underline, the split readout beneath them, then a
  * dashed hairline and the small pair. The form styles its own inputs (the
  * front page mounts it outside any panel). No box, no skew. */
-.row100k .logf-big{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+/* THE LOG FORM, to the mock the owner picked (2026-10-01: I like this
+ * version of the log a row screen, but the main button stays LOG IT):
+ * a mono dateline, the two figures big over their rules, the split line,
+ * the day and title on a dashed rule, the photos, and LOG IT as one big
+ * word underlined in the accent rather than a filled slab. The two pairs
+ * stay side by side on a phone, as drawn. */
+.row100k .logf-head{font-family:var(--row-mono),monospace;font-size:12px;line-height:18px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);margin:0 0 4px}
+.row100k .logf-big{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px}
 .row100k .logf-big label.fl{margin-top:6px}
-.row100k .logf input.logf-num{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8vw,52px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;padding:4px 0 8px}
+.row100k .logf input.logf-num{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(34px,11vw,64px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;padding:4px 0 8px}
 .row100k .logf input.logf-num::placeholder{color:var(--line)}
-.row100k .logf .split-live{margin-top:12px;font-size:13px}
+.row100k .logf .split-live{margin-top:14px;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 .row100k .logf .split-live b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
-.row100k .logf-small{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;border-top:1px dashed var(--line);margin-top:16px}
-.row100k .logf-small input[type=text],.row100k .logf-small input[type=date]{font-size:15px;color:var(--ink-soft)}
+.row100k .logf-small{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px;border-top:1px dashed var(--line);margin-top:18px}
+.row100k .logf-small input[type=text],.row100k .logf-small input[type=date]{font-size:17px;color:var(--ink-soft)}
 .row100k .logf-photos{border-top:1px dashed var(--line);margin-top:24px}
-.row100k .logf .send{margin-top:26px;font-size:18px;padding:16px}
+.row100k .logf .send{display:inline-block;width:auto;margin-top:30px;padding:0;background:none;color:var(--ink);font-size:clamp(44px,13vw,64px);line-height:1.1;letter-spacing:-.01em;text-decoration:underline;text-decoration-color:var(--water);text-decoration-thickness:.09em;text-underline-offset:.12em;text-decoration-skip-ink:none;transition:color 160ms ease}
+.row100k .logf .send:hover{background:none;color:var(--water)}
+.row100k .logf .send:disabled{background:none;color:var(--gray);text-decoration-color:var(--line)}
 .row100k .logf .form-ok{border:none;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);text-align:left;padding:14px 0}
 /* The second-look strip: sits between the photos and the button when a row
  * falls outside the band everyone else has logged. It asks, it never
@@ -504,7 +513,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .logf-ask p{margin-top:6px;font-size:14px;line-height:1.5;color:var(--ink-soft)}
 .row100k .logf-ask p b{color:var(--ink);font-variant-numeric:tabular-nums}
 .row100k .logf-ask-acts{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-@media(max-width:560px){.row100k .logf-big,.row100k .logf-small{grid-template-columns:1fr;gap:0}}
+@media(max-width:560px){.row100k .logf-big,.row100k .logf-small{gap:0 18px}}
 
 /* My rows — the photo ledger on the editable log (own profile + admin view).
  * Each row is an ink-bordered strip: photo pair at the left, numbers in the
@@ -1520,6 +1529,7 @@ ${INK} .pf-id a:hover,${INK} .pf-erg-act a:hover{color:var(--water)}
  * white or a rust. An error is the race day one: white, bold, a white bar
  * down its side. */
 ${INK} .send:disabled{background:var(--water-pale);color:var(--gray)}
+${INK} .logf .send,${INK} .logf .send:hover,${INK} .logf .send:disabled{background:none}
 ${INK} .form-err{color:var(--ink);font-weight:700;border-left:3px solid var(--ink);padding-left:11px}
 ${INK} .panel ::placeholder{color:rgba(244,243,238,.5)}
 ${INK} .del-btn:hover{color:var(--ink)}

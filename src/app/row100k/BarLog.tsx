@@ -28,7 +28,7 @@ import Link from "next/link";
  * (signed out, not joined, or the log window closed: nothing — the join CTA
  * is on the front page) and hands in the rower's number. */
 export function BarLog({ rowerNumber }: { rowerNumber: number }) {
-  const path = `/row100k/r/${rowerNumber}`;
+  const path = `/r/${rowerNumber}`;
   return (
     <Link
       className="bar-log"

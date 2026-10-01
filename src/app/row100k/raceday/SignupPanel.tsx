@@ -74,7 +74,7 @@ import { RaceShare, type RaceFacts } from "./RaceShare";
  * waiver exception it carried and RaceShare.openSignal all went with the
  * card. The button is still there and it still says what it does. */
 
-const RACE_PATH = "/row100k/raceday";
+const RACE_PATH = "/raceday";
 
 /* The two roles come out of raceday.ts (RACE_ROLES) rather than being typed
  * again here: the owner wrote those words, and a page that paraphrases them
@@ -102,7 +102,7 @@ export type OwnTiming = {
   resultsOpen: boolean;
 };
 
-const RESULTS_PATH = "/row100k/raceday/results";
+const RESULTS_PATH = "/raceday/results";
 
 export function SignupPanel({
   race,

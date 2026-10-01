@@ -56,9 +56,9 @@ export const metadata: Metadata = {
 function frontHref(): string {
   try {
     const host = (headers().get("host") ?? "").toLowerCase().split(":")[0];
-    return host === "rowtember.com" || host === "www.rowtember.com" ? "/" : "/row100k";
+    return host === "rowtember.com" || host === "www.rowtember.com" ? "/" : "/";
   } catch {
-    return "/row100k";
+    return "/";
   }
 }
 

@@ -76,7 +76,7 @@ export function Field({ race, field }: { race: RaceDef; field: Racer[] }) {
           <tr key={r.id}>
             <td className="rk">{fmtRowerNumber(r.rowerNumber)}</td>
             <td className="who">
-              <a href={`/row100k/r/${r.rowerNumber}`}>{r.name}</a>
+              <a href={`/r/${r.rowerNumber}`}>{r.name}</a>
             </td>
             <td className="br mono">{bracketMark(race, r.division)}</td>
             <td className="num t5">{r.best5k ? r.best5k.text : <span className="none">—</span>}</td>

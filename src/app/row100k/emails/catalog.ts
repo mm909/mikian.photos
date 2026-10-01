@@ -82,7 +82,7 @@ export function buildMail(o: {
   daily?: DailyInput | null;
 }): ShownMail {
   const label = MAIL_KEYS.find((m) => m.key === o.key)?.label ?? o.key;
-  const payUrl = `${o.origin}/row100k/shirt/pay`;
+  const payUrl = `${o.origin}/shirt/pay`;
   const today = pacificDayKey(nowMs());
   const row = {
     ...SAMPLE,
@@ -92,7 +92,7 @@ export function buildMail(o: {
     title: "Morning row",
     total: 84_210,
     sessions: 14,
-    profileUrl: `${o.origin}/row100k/r/${SAMPLE.rowerNumber}`,
+    profileUrl: `${o.origin}/r/${SAMPLE.rowerNumber}`,
   };
 
   switch (o.key) {

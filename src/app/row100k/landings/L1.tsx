@@ -45,7 +45,7 @@ import { l1Css } from "./l1Css";
 
 /* OPT IN goes to the Rowtember sign-in and lands back on the front page at
  * #join (the same place the front page OPT IN sends a stranger). */
-const SIGN_IN = "/row100k/sign-in?callbackUrl=%2Frow100k%23join";
+const SIGN_IN = "/sign-in?callbackUrl=%2F%23join";
 
 /* What the tiles paint when there is no rower to draw: the mark alone. */
 const BARE: ShareData = { displayName: "", rowerNumber: 0, instagram: "", meters: 0, sessions: 0, byDay: {} };
@@ -265,7 +265,7 @@ function Steps() {
  * laptop, snapping a tile at a time. The mark alone, one tile, is what a
  * page with nothing to draw gets — nobody has ever rowed. */
 function profileHref(rowerNumber: number, monthKey: string, thisMonth: boolean): string {
-  return thisMonth ? `/row100k/r/${rowerNumber}` : `/row100k/r/${rowerNumber}?m=${monthKey}`;
+  return thisMonth ? `/r/${rowerNumber}` : `/r/${rowerNumber}?m=${monthKey}`;
 }
 
 function Who({ name, rowerNumber, href }: { name: string; rowerNumber: number; href: string }) {

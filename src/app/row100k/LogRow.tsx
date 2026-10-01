@@ -86,6 +86,14 @@ function secondLook(band: SanityBand, meters: number, seconds: number): SecondLo
   return null;
 }
 
+/* "Thursday, October 8" for a YYYY-MM-DD day, read at noon UTC so the
+ * weekday never slips across a time zone; "" for anything else. */
+function dayWords(day: string): string {
+  const t = Date.parse(`${day}T12:00:00Z`);
+  if (!Number.isFinite(t)) return "";
+  return new Date(t).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+}
+
 export function LogRow({
   defaultDay,
   defaultTitle,
@@ -258,6 +266,12 @@ export function LogRow({
         void submit();
       }}
     >
+      {/* The form's dateline (owner, 2026-10-01, of the "Rowtember loop"
+          mock: "I like this version of the log a row screen"): what it is
+          and the day the row goes on, following the DAY field. */}
+      <p className="logf-head">
+        Log a row{dayWords(day) ? ` · ${dayWords(day)}` : ""}
+      </p>
       <div className="logf-big">
         <div>
           <label className="fl" htmlFor="log-meters">Meters</label>
@@ -332,7 +346,7 @@ export function LogRow({
 
       <div className="logf-photos">
         <label className="fl" htmlFor="log-photos">
-          Photos — 2 required
+          Photos · 2 required
         </label>
         {photos.strip}
       </div>

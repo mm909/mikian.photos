@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
  * the recent list all live at /row100k/shareables now; this URL only
  * forwards. */
 export default function DevStatsPage() {
-  redirect("/row100k/shareables");
+  redirect("/shareables");
 }

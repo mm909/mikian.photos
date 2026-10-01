@@ -71,7 +71,7 @@ export function Clock({ view, s }: { view: ProfileView; s: number }) {
 export function MonthWord({ view }: { view: ProfileView }) {
   const many = view.periodOptions.length > 2;
   return many ? (
-    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/row100k/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
+    <PeriodSelect options={view.periodOptions} value={view.period.key} base={`/r/${view.rower.rowerNumber}`} current={view.thisMonthKey} />
   ) : (
     <>{periodText(view)}</>
   );

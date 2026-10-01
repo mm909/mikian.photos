@@ -18,5 +18,5 @@ export default function BoardPage({ searchParams }: { searchParams?: { m?: strin
   if (m) q.set("m", m);
   if (d) q.set("d", d);
   const s = q.toString();
-  permanentRedirect(`/row100k/records/total${s ? `?${s}` : ""}`);
+  permanentRedirect(`/records/total${s ? `?${s}` : ""}`);
 }

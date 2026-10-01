@@ -76,15 +76,15 @@ export function AnalysisView({
               </button>
             </div>
           ) : viewer === "empty" ? (
-            <a className="hint" href="/row100k">
+            <a className="hint" href="/">
               Log a row to see yours →
             </a>
           ) : viewer === "unjoined" ? (
-            <a className="hint" href="/row100k#join">
+            <a className="hint" href="/#join">
               Join the challenge to overlay yours →
             </a>
           ) : (
-            <button type="button" className="hint" onClick={() => signIn("google", { callbackUrl: "/row100k/analysis?you=1" })}>
+            <button type="button" className="hint" onClick={() => signIn("google", { callbackUrl: "/analysis?you=1" })}>
               Sign in to overlay yours →
             </button>
           )}

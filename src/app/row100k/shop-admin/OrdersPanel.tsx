@@ -76,7 +76,7 @@ export function OrdersPanel({ orders: initial }: { orders: ShirtOrderRow[] }) {
                     <span className="mono" style={{ color: "var(--gray)", fontWeight: 400 }}>
                       {String(o.rowerNumber).padStart(3, "0")} ·{" "}
                     </span>
-                    <Link href={`/row100k/r/${o.rowerNumber}`}>{o.name}</Link>
+                    <Link href={`/r/${o.rowerNumber}`}>{o.name}</Link>
                     {o.email && (
                       <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
                         {o.email}

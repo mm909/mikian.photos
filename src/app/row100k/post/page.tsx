@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
  * studio is the one place a shareable is made now, so an old link lands
  * there. PostPack.tsx, slides.ts and clubJoins.ts went with it. */
 export default function PostPackPage(): never {
-  redirect("/row100k/posters");
+  redirect("/posters");
 }

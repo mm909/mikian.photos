@@ -38,7 +38,7 @@ export function PerfectAttendance({ rows }: { rows: WeeklyRow[] }) {
     <ul className="pa-list">
       {rows.map((r) => (
         <li key={r.participantId}>
-          <a href={`/row100k/r/${r.rowerNumber}`}>{r.name}</a>
+          <a href={`/r/${r.rowerNumber}`}>{r.name}</a>
           <span className="mono">{fmtRowerNumber(r.rowerNumber)}</span>
         </li>
       ))}

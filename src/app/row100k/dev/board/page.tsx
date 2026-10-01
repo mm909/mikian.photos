@@ -62,7 +62,7 @@ export const metadata: Metadata = {
  * dev; reached from the DEVELOPMENT group of the account menu. When it
  * goes live it takes /row100k/board and THE BOARD on the rail. */
 
-const SIGN_IN = `/row100k/sign-in?callbackUrl=${encodeURIComponent("/row100k/dev/board")}`;
+const SIGN_IN = `/sign-in?callbackUrl=${encodeURIComponent("/dev/board")}`;
 
 /* The numbers a row may print, as boardView left them: blocks for a hidden
  * total, the partial shape in the run-up, neither otherwise. */

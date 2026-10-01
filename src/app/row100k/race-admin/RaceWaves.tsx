@@ -360,7 +360,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
                     <span className="mono" style={{ color: "var(--gray)", fontWeight: 400 }}>
                       {fmtRowerNumber(r.rowerNumber)} ·{" "}
                     </span>
-                    <Link href={`/row100k/r/${r.rowerNumber}`}>{r.name}</Link>
+                    <Link href={`/r/${r.rowerNumber}`}>{r.name}</Link>
                     {r.note && (
                       <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
                         {r.note}
@@ -436,7 +436,7 @@ export function RaceWaves({ race, racers, unreadable }: { race: RaceDef; racers:
                     <span className="mono" style={{ color: "var(--gray)", fontWeight: 400 }}>
                       {fmtRowerNumber(r.rowerNumber)} ·{" "}
                     </span>
-                    <Link href={`/row100k/r/${r.rowerNumber}`}>{r.name}</Link>
+                    <Link href={`/r/${r.rowerNumber}`}>{r.name}</Link>
                     {r.note && (
                       <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
                         {r.note}

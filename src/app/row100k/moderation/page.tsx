@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
  * opens that rower. */
 export default function ModerationPage({ searchParams }: { searchParams?: { r?: string } }) {
   const r = searchParams?.r;
-  redirect(r && /^\d{1,6}$/.test(r) ? `/row100k/signups?r=${r}` : "/row100k/signups");
+  redirect(r && /^\d{1,6}$/.test(r) ? `/signups?r=${r}` : "/signups");
 }

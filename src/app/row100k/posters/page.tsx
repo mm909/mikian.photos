@@ -138,8 +138,8 @@ export default async function PostersPage({
               rowerOnly={!admin}
               initialSubject={wantsCommunity && subjectQ === "top10" ? "top10" : undefined}
               hrefs={{
-                community: `/row100k/posters?subject=rowtember${mQuery ? `&${mQuery}` : ""}`,
-                rowerPrefix: `/row100k/posters?${mQuery ? `${mQuery}&` : ""}r=`,
+                community: `/posters?subject=rowtember${mQuery ? `&${mQuery}` : ""}`,
+                rowerPrefix: `/posters?${mQuery ? `${mQuery}&` : ""}r=`,
               }}
               period={{ key: period.key, label: period.label, options: periodOptions(nowMs()), current: MONTH.key }}
             />

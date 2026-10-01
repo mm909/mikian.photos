@@ -142,7 +142,7 @@ export function Raffle({
             <span className="rf-stamp">Drawn</span>
           </div>
           <span className="who">
-            <a href={`/row100k/r/${w.rowerNumber}`}>
+            <a href={`/r/${w.rowerNumber}`}>
               {w.name} · {fmtRowerNumber(w.rowerNumber)}
             </a>
           </span>
@@ -165,7 +165,7 @@ export function Raffle({
             </span>
           </div>
         ) : (
-          <a className="rf-call go" href={joined ? "/row100k#log" : "/row100k#join"}>
+          <a className="rf-call go" href={joined ? "/#log" : "/#join"}>
             <span className="big">Log a row to enter →</span>
             <span className="mono">
               {joined ? "" : "Opt in, then "}

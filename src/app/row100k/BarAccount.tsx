@@ -83,7 +83,7 @@ export function BarAccount({
       <button
         type="button"
         className="acct-chip opt"
-        onClick={() => signIn("google", { callbackUrl: "/row100k#join" })}
+        onClick={() => signIn("google", { callbackUrl: "/#join" })}
       >
         Opt in
       </button>
@@ -124,25 +124,25 @@ export function BarAccount({
             )}
             {rowerNumber !== null ? (
               <>
-                <Link className="acct-item" href={`/row100k/r/${rowerNumber}`} onClick={close}>
+                <Link className="acct-item" href={`/r/${rowerNumber}`} onClick={close}>
                   Profile →
                 </Link>
                 {/* POSTER, back (owner, 2026-09-25: "The shareables page
                  * did not land — revert to just the poster"): the studio
                  * with this rower as the subject (posters/page.tsx ?r=N). */}
-                <Link className="acct-item" href={`/row100k/posters?r=${rowerNumber}`} onClick={close}>
+                <Link className="acct-item" href={`/posters?r=${rowerNumber}`} onClick={close}>
                   Poster →
                 </Link>
                 {/* THE PLAN, live (owner, 2026-09-25): plan/page.tsx. */}
-                <Link className="acct-item" href="/row100k/plan" onClick={close}>
+                <Link className="acct-item" href="/plan" onClick={close}>
                   Plan →
                 </Link>
-                <Link className="acct-item" href="/row100k/settings" onClick={close}>
+                <Link className="acct-item" href="/settings" onClick={close}>
                   Settings →
                 </Link>
               </>
             ) : (
-              <Link className="acct-item" href="/row100k#join" onClick={close}>
+              <Link className="acct-item" href="/#join" onClick={close}>
                 Join the challenge →
               </Link>
             )}
@@ -154,21 +154,21 @@ export function BarAccount({
                  * above each eyebrow already draws the dashed divider
                  * (border-bottom). */}
                 <Eyebrow>Administration</Eyebrow>
-                <Link className="acct-item" href="/row100k/blackout" onClick={close}>
+                <Link className="acct-item" href="/blackout" onClick={close}>
                   Lights out →
                 </Link>
                 {/* Signups + moderation, one table (rowers/RowersTable.tsx);
                  * the CSV downloads live there too. */}
-                <Link className="acct-item" href="/row100k/signups" onClick={close}>
+                <Link className="acct-item" href="/signups" onClick={close}>
                   Rowers →
                 </Link>
                 {/* Every mail the site sends, as it arrives (owner,
                  * 2026-09-27) — the wave note first (emails/page.tsx). */}
-                <Link className="acct-item" href="/row100k/emails" onClick={close}>
+                <Link className="acct-item" href="/emails" onClick={close}>
                   Emails →
                 </Link>
                 {/* The shirt pre-orders, with the CSV (shirts/admin/page.tsx). */}
-                <Link className="acct-item" href="/row100k/shirts/admin" onClick={close}>
+                <Link className="acct-item" href="/shirts/admin" onClick={close}>
                   Shirt pre-orders →
                 </Link>
 
@@ -182,13 +182,13 @@ export function BarAccount({
                 {/* THE ARCHIVE once the race is run (owner, 2026-10-01: no
                   * menu may push a sign-up for a race that has happened; a
                   * plain Race day link to the archive is fine). */}
-                <Link className="acct-item" href="/row100k/raceday" onClick={close}>
+                <Link className="acct-item" href="/raceday" onClick={close}>
                   {raceOver ? "Race day →" : "Sign-up page →"}
                 </Link>
-                <Link className="acct-item" href="/row100k/raceday/print" onClick={close}>
+                <Link className="acct-item" href="/raceday/print" onClick={close}>
                   Print flyers →
                 </Link>
-                <Link className="acct-item" href="/row100k/race-admin" onClick={close}>
+                <Link className="acct-item" href="/race-admin" onClick={close}>
                   Waves and timing →
                 </Link>
                 <Link className="acct-item" href="/erg" onClick={close}>
@@ -197,10 +197,10 @@ export function BarAccount({
                 <Link className="acct-item" href="/erg?board=1" onClick={close}>
                   Race board →
                 </Link>
-                <Link className="acct-item" href="/row100k/raceday/results" onClick={close}>
+                <Link className="acct-item" href="/raceday/results" onClick={close}>
                   Results →
                 </Link>
-                <Link className="acct-item" href="/row100k/raceday/results?cast=1" onClick={close}>
+                <Link className="acct-item" href="/raceday/results?cast=1" onClick={close}>
                   The wall →
                 </Link>
 
@@ -209,18 +209,18 @@ export function BarAccount({
                  * "push the sample race day board with sample data so I can
                  * take a look at it"). Mid-race, finished, and the frame a
                  * TV in the gym would show. */}
-                <Link className="acct-item" href="/row100k/dev/raceday-results" onClick={close}>
+                <Link className="acct-item" href="/dev/raceday-results" onClick={close}>
                   Race results (sample) →
                 </Link>
                 {/* The numbers live here rather than on the bar for now
                  * (owner call, 2026-09-05): not ready to be a public tab. */}
-                <Link className="acct-item" href="/row100k/analysis" onClick={close}>
+                <Link className="acct-item" href="/analysis" onClick={close}>
                   The numbers →
                 </Link>
                 {/* The share cards: on/off switches and the recent shares
                  * (owner, 2026-09-24: call it Share stats, under
                  * development). */}
-                <Link className="acct-item" href="/row100k/shareables" onClick={close}>
+                <Link className="acct-item" href="/shareables" onClick={close}>
                   Share stats →
                 </Link>
                 {/* THE SHIRTS, as pre-orders (shirts/page.tsx) — in development,
@@ -228,14 +228,14 @@ export function BarAccount({
                  * live. Put it in development still"). It sat in the rower
                  * group for a day; the page 404s for non-admins in
                  * production until the owner says it goes live. */}
-                <Link className="acct-item" href="/row100k/shirts" onClick={close}>
+                <Link className="acct-item" href="/shirts" onClick={close}>
                   Shirts →
                 </Link>
                 {/* THE 100K BOARD in the opt-in look (owner, 2026-10-01: "the
                  * board should be for specifically the 100K monthly challenge
                  * with the opt-in") — dev/board/page.tsx, in development
                  * until the owner has seen it on his phone. */}
-                <Link className="acct-item" href="/row100k/dev/board" onClick={close}>
+                <Link className="acct-item" href="/dev/board" onClick={close}>
                   The 100K board →
                 </Link>
                 {/* THE SIGN-UP PAGE (owner, 2026-10-01: "once you log in, it
@@ -251,7 +251,7 @@ export function BarAccount({
             <button
               type="button"
               className="acct-item danger"
-              onClick={() => signOut({ callbackUrl: "/row100k" })}
+              onClick={() => signOut({ callbackUrl: "/" })}
             >
               Sign out
             </button>

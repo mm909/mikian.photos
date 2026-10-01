@@ -12,8 +12,8 @@ export async function GET(req: Request) {
   if (process.env.NODE_ENV === "production") return new NextResponse(null, { status: 404 });
   const url = new URL(req.url);
   const email = (url.searchParams.get("email") ?? "").trim().toLowerCase();
-  const toRaw = url.searchParams.get("to") ?? "/row100k/raceday";
-  const to = toRaw.startsWith("/") && !toRaw.startsWith("//") ? toRaw : "/row100k/raceday";
+  const toRaw = url.searchParams.get("to") ?? "/raceday";
+  const to = toRaw.startsWith("/") && !toRaw.startsWith("//") ? toRaw : "/raceday";
   const res = NextResponse.redirect(new URL(to, url.origin), { status: 303 });
   if (email) res.cookies.set("mk_dev_actor", email, { path: "/", httpOnly: false, sameSite: "lax", maxAge: 3600 });
   else res.cookies.set("mk_dev_actor", "", { path: "/", maxAge: 0 });

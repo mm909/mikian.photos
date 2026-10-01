@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return bad(`The month has not ended — settle after ${fmtDay(m.lastDay)}.`, 409);
   }
 
-  const payUrl = `${resolveBaseUrl(req)}/row100k/shirt/pay`;
+  const payUrl = `${resolveBaseUrl(req)}/shirt/pay`;
 
   try {
     const open = await db.rowShirtOrder.findMany({

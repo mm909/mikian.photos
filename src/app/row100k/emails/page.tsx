@@ -121,7 +121,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
           <div className="pf-eye">
             <span className="em-words">
               <TextMenu
-                options={MAIL_KEYS.map((m) => ({ key: m.key, label: m.label, href: m.key === "wave" ? "/row100k/emails" : `/row100k/emails?e=${m.key}` }))}
+                options={MAIL_KEYS.map((m) => ({ key: m.key, label: m.label, href: m.key === "wave" ? "/emails" : `/emails?e=${m.key}` }))}
                 value={key}
                 ariaLabel="Which email"
               />
@@ -129,7 +129,7 @@ export default async function EmailsPage({ searchParams }: { searchParams?: Sear
                 <>
                   <span className="dot">·</span>
                   <TextMenu
-                    options={Array.from({ length: waves }, (_, i) => ({ key: String(i + 1), label: `Wave ${i + 1}`, href: `/row100k/emails?w=${i + 1}` }))}
+                    options={Array.from({ length: waves }, (_, i) => ({ key: String(i + 1), label: `Wave ${i + 1}`, href: `/emails?w=${i + 1}` }))}
                     value={String(wave)}
                     ariaLabel="Which wave"
                   />

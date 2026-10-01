@@ -24,7 +24,7 @@ export function isPeriodStat(k: string | undefined): k is PeriodStatKey {
   return k === "day" || k === "week";
 }
 
-export const STATS_PATH = "/row100k/stats";
+export const STATS_PATH = "/stats";
 
 export type StatsQuery = {
   /* The period key; the page's own month when equal to `currentMonthKey`. */
@@ -55,5 +55,5 @@ export function rankingsHref(key: string, periodKey: string, at?: { day?: number
   p.set("m", periodKey);
   if (key === "day" && at?.day != null && at.day >= 1) p.set("day", String(at.day));
   if (key === "week" && at?.w != null && at.w >= 1) p.set("w", String(at.w));
-  return `/row100k/records/${key}?${p.toString()}`;
+  return `/records/${key}?${p.toString()}`;
 }

@@ -17,7 +17,7 @@
  * "the same day and week picker as the stats page"). Plain functions, no
  * imports: shared by the server page, the client shell and the API route. */
 
-export const RECORDS_PATH = "/row100k/records";
+export const RECORDS_PATH = "/records";
 
 export type RecordsQuery = {
   key: string;

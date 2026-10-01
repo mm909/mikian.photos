@@ -322,7 +322,7 @@ export function Board100k({
           </span>
           <span className="bd-who" role="cell">
             <span className="n">{fmtRowerNumber(r.rowerNumber)} · </span>
-            <a href={`/row100k/r/${r.rowerNumber}`}>{r.name}</a>
+            <a href={`/r/${r.rowerNumber}`}>{r.name}</a>
           </span>
           <span className="bd-num" role="cell">
             {r.blocks != null ? (
@@ -369,7 +369,7 @@ export function Board100k({
           ) : (
             /* A stranger signs in and comes back here; an account that
              * never joined joins first, on the front page's form. */
-            <Link className="bd-ctl" href={signedIn ? "/row100k#join" : signInHref}>
+            <Link className="bd-ctl" href={signedIn ? "/#join" : signInHref}>
               Opt in
             </Link>
           )}

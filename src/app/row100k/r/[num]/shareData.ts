@@ -138,7 +138,7 @@ export function buildBests(args: {
 }): ProfileBest[] {
   const { p, boards: b, records, masked } = args;
   const divQ = p.division === "F" ? "f" : p.division === "M" ? "m" : "all";
-  const boardHref = (board: string) => `/row100k/records/${board}?d=${divQ}`;
+  const boardHref = (board: string) => `/records/${board}?d=${divQ}`;
   const placeOf = (key: string) => records?.find((r) => r.key === key)?.place ?? null;
   const metersBest = (key: string, label: string, r: { value: number; day: string } | undefined): ProfileBest => ({
     key,

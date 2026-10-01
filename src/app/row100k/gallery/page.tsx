@@ -159,7 +159,7 @@ export default async function GalleryPage() {
   const merged = [
     ...r2Photos,
     ...files.map((f) => {
-      const full = `/row100k/rowtember-profiles/${encodeURIComponent(f)}`;
+      const full = `/rowtember-profiles/${encodeURIComponent(f)}`;
       return { src: full, full, key: null };
     }),
   ];

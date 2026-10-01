@@ -74,13 +74,13 @@ export function RaffleBanner({
           A ${valueUsd} ticket to <b>{title}</b>, {when} — log a row Wednesday, Thursday or Friday and you are in.
         </span>
         {entered ? (
-          <a className="rfb-cta in" href="/row100k/partners#raffle">
+          <a className="rfb-cta in" href="/partners#raffle">
             You&apos;re in · the raffle →
           </a>
         ) : (
           <a
             className="rfb-cta"
-            href={joined ? "/row100k#log" : "/row100k#join"}
+            href={joined ? "/#log" : "/#join"}
             onClick={(e) => {
               // The same in-place trick as BarLog: on a page that carries the
               // log form, tell it to open rather than hopping to the front.

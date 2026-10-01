@@ -189,7 +189,7 @@ export function RowerSearch({
     if (others.length !== 1) return;
     e.preventDefault();
     setOpen(false);
-    router.push(`/row100k/r/${others[0].rower.rowerNumber}`);
+    router.push(`/r/${others[0].rower.rowerNumber}`);
   };
 
   // What came back, for a screen reader: the list swaps in silently as you
@@ -274,7 +274,7 @@ export function RowerSearch({
                 <li key={rower.rowerNumber}>
                   <Link
                     className="pf-find-row"
-                    href={`/row100k/r/${rower.rowerNumber}`}
+                    href={`/r/${rower.rowerNumber}`}
                     onClick={() => setOpen(false)}
                   >
                     <span className="n">{fmtRowerNumber(rower.rowerNumber)}</span>

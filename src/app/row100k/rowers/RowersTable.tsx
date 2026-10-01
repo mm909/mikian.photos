@@ -526,7 +526,7 @@ export function RowersTable({
                               >
                                 {showDetails ? "Hide details" : "Details"}
                               </button>
-                              <a href={`/row100k/r/${r.rowerNumber}`} onClick={closeMenu}>
+                              <a href={`/r/${r.rowerNumber}`} onClick={closeMenu}>
                                 Profile →
                               </a>
                               {r.instagram && (

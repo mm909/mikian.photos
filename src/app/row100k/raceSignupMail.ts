@@ -164,7 +164,7 @@ export function signupNote(a: SignupArrival): SignupNote {
       tally,
       ``,
       `THE DOOR LIST`,
-      siteUrl(a.baseUrl, "/row100k/race-admin"),
+      siteUrl(a.baseUrl, "/race-admin"),
     ].join("\n"),
   };
 }

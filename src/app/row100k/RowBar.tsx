@@ -126,7 +126,7 @@ export async function RowBar({
         <NavProgress />
         <span className="bar-lead">
           {/* The wordmark, to the front page. */}
-          <Link className="bar-brand" href="/row100k">
+          <Link className="bar-brand" href="/">
             Rowtember
           </Link>
         </span>

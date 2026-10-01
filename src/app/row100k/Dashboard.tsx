@@ -227,7 +227,7 @@ export function Dashboard(props: {
    * line under the number ticks (LoopRank.tsx). Absent: static, as before. */
   loop?: LoopData;
 }) {
-  const profileHref = `/row100k/r/${props.rowerNumber}`;
+  const profileHref = `/r/${props.rowerNumber}`;
   const { byDay, longest } = useMemo(() => shareSummary(props.rows), [props.rows]);
 
   return (

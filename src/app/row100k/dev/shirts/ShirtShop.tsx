@@ -31,7 +31,7 @@ import {
 
 export type MineLite = { size: string; kind: string; status: string; amountUsd: number; paidAt: string | null } | null;
 
-const SHOP_PATH = "/row100k/dev/shirts";
+const SHOP_PATH = "/dev/shirts";
 
 export function ShirtShop({
   photos,
@@ -129,7 +129,7 @@ export function ShirtShop({
     );
   } else if (!joined) {
     action = (
-      <Link className="sh-buy" href="/row100k#join">
+      <Link className="sh-buy" href="/#join">
         Opt in to buy
       </Link>
     );

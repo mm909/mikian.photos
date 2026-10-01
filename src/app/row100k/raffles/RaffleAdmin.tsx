@@ -191,7 +191,7 @@ export function RaffleAdmin({
               The winner · drawn {fmtPacificStamp(w.drawnAt)} by {w.drawnBy || "—"} · from {w.entrants} in the hat
             </div>
             <div className="n">
-              <a href={`/row100k/r/${w.rowerNumber}`}>
+              <a href={`/r/${w.rowerNumber}`}>
                 {w.name} · {fmtRowerNumber(w.rowerNumber)}
               </a>
             </div>
@@ -259,7 +259,7 @@ export function RaffleAdmin({
             {entrants.map((e) => (
               <tr key={e.participantId}>
                 <td className="who">
-                  <a href={`/row100k/r/${e.rowerNumber}`}>
+                  <a href={`/r/${e.rowerNumber}`}>
                     {e.name} · {fmtRowerNumber(e.rowerNumber)}
                   </a>
                 </td>

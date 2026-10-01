@@ -22,7 +22,7 @@ import { SignupPanel, type OwnTiming } from "./SignupPanel";
 
 /* THE RESULTS BOARD, and when this page starts pointing at it: a day
  * before the doors. Earlier it is an empty grid. */
-const RESULTS_HREF = "/row100k/raceday/results";
+const RESULTS_HREF = "/raceday/results";
 const DAY_MS = 24 * 3_600_000;
 
 export const dynamic = "force-dynamic";

@@ -46,8 +46,8 @@ export const metadata: Metadata = {
  * archive /row100k/raceday draws: the ruled header off the race, then the
  * finished sheet, and nothing about the viewer. Two addresses, one page. */
 const DAY_MS = 24 * 3_600_000;
-const RACE_PATH = "/row100k/raceday";
-const RESULTS_PATH = "/row100k/raceday/results";
+const RACE_PATH = "/raceday";
+const RESULTS_PATH = "/raceday/results";
 
 export default async function RaceDayResultsPage({
   searchParams,

@@ -34,7 +34,7 @@ import {
  * refreshed too, so the door list and the wave console above — server
  * blocks reading the same rows — agree with this. */
 
-const RESULTS_PATH = "/row100k/raceday/results";
+const RESULTS_PATH = "/raceday/results";
 
 type Board = { ok?: boolean; error?: string; board?: ResultBoard };
 type Wrote = { board: ResultBoard } | { error: string };

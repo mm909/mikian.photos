@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const kind = url.searchParams.get("kind") ?? "receipt";
-  const payUrl = `${url.origin}/row100k/shirt/pay`;
+  const payUrl = `${url.origin}/shirt/pay`;
   const month = settleMonthDefault().label;
   const mail =
     kind === "preorder"

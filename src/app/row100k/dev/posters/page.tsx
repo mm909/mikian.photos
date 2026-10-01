@@ -146,8 +146,8 @@ export default async function DevPostersPage({
   }
   const tail = keep.toString() ? `&${keep.toString()}` : "";
   const hrefs = {
-    community: `/row100k/dev/posters?subject=community${tail}`,
-    rowerPrefix: `/row100k/dev/posters?subject=rower${tail}&r=`,
+    community: `/dev/posters?subject=community${tail}`,
+    rowerPrefix: `/dev/posters?subject=rower${tail}&r=`,
   };
 
   const community = subject === "community" ? fixture.community : null;

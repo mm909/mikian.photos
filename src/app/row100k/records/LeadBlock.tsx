@@ -62,7 +62,7 @@ export function LeadBlock({
           <>
             {fmtRowerNumber(holder.rowerNumber)} ·{" "}
             <b>
-              <a href={`/row100k/r/${holder.rowerNumber}`}>{holder.name}</a>
+              <a href={`/r/${holder.rowerNumber}`}>{holder.name}</a>
             </b>
           </>
         ) : (

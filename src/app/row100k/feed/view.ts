@@ -71,7 +71,7 @@ export type FeedItem = {
  * since 2026-09-16 (owner: no opt-in to see the board or the stats), so
  * the signed-out detour to the front page's list is gone. */
 export function eliteListHref(): string {
-  return "/row100k/board#elite";
+  return "/board#elite";
 }
 
 /* A whole day's total — every row that landed that Pacific day, not just

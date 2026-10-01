@@ -75,7 +75,7 @@ function feedHref(beforeCursor: string | null): string {
   const q = new URLSearchParams();
   if (beforeCursor) q.set("before", beforeCursor);
   const s = q.toString();
-  return s ? `/row100k/feed?${s}` : "/row100k/feed";
+  return s ? `/feed?${s}` : "/feed";
 }
 
 /* The dateline under THE FEED: today (Pacific) and where the month stands

@@ -82,7 +82,7 @@ export default function Row100kPreview({
          * reflow and the pill behave exactly as on the real pages. */
         <div className="bar">
           <span className="bar-lead">
-            <Link className="bar-brand" href="/row100k">
+            <Link className="bar-brand" href="/">
               Rowtember
             </Link>
           </span>

@@ -67,7 +67,7 @@ export function Who({
         {fmtRowerNumber(row.rowerNumber)} ·{" "}
       </span>
       {badge}
-      {link ? <a href={`/row100k/r/${row.rowerNumber}`}>{row.name}</a> : row.name}
+      {link ? <a href={`/r/${row.rowerNumber}`}>{row.name}</a> : row.name}
     </span>
   );
 }
@@ -148,7 +148,7 @@ export function Boards({
   head = true,
   tab: controlled,
   movement = true,
-  statsHref = "/row100k/stats",
+  statsHref = "/stats",
   query = "",
   foot = true,
   final = false,

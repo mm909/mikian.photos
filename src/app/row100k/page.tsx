@@ -539,7 +539,7 @@ export default async function Row100kPage() {
             />
           ) : (
             <div className="mine eight">
-              <Wheels meters={togetherMeters} digits={8} href="/row100k/stats" label="the stats page" />
+              <Wheels meters={togetherMeters} digits={8} href="/stats" label="the stats page" />
               <p className="my-unit mono">
                 Meters · <b>everyone together</b>
               </p>
@@ -570,7 +570,7 @@ export default async function Row100kPage() {
             <div className="cell fc tog">
               <div className="l mono">{me ? "meters together" : "hours together"}</div>
               <div className="n">
-                <Link href="/row100k/stats">{me ? fmtMeters(togetherMeters) : fmtHours(togetherSeconds)}</Link>
+                <Link href="/stats">{me ? fmtMeters(togetherMeters) : fmtHours(togetherSeconds)}</Link>
               </div>
             </div>
             <div className="cell fc latest">
@@ -578,7 +578,7 @@ export default async function Row100kPage() {
                 <>
                   <div className="by">
                     <span className="num">{fmtRowerNumber(latestRow.rowerNumber)} · </span>
-                    <a href={`/row100k/r/${latestRow.rowerNumber}`}>{latestRow.name}</a>
+                    <a href={`/r/${latestRow.rowerNumber}`}>{latestRow.name}</a>
                   </div>
                   <div className="n">
                     {latestRow.masked ? (

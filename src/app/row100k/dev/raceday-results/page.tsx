@@ -114,7 +114,7 @@ export default async function DevRaceDayResultsPage({
           board={board}
           pick={pick}
           pinned={pinned}
-          note={<a href={`/row100k/dev/raceday-results?at=${at}`}>Back to the page</a>}
+          note={<a href={`/dev/raceday-results?at=${at}`}>Back to the page</a>}
         />
       </div>
     );
@@ -135,26 +135,26 @@ export default async function DevRaceDayResultsPage({
         * which was true when the first wave went off at 6:30; the race
         * definition moved the grid to 6:15 and the strip went on printing
         * 7:38 over a board whose own clock read 7:23, two inches below it. */}
-      <a href={`/row100k/dev/raceday-results?at=${at}`}>
+      <a href={`/dev/raceday-results?at=${at}`}>
         {at === "midrace" ? `mid-race, ${fmtClock(board.nowMs)}` : "finished"}
       </a>{" "}
       · see{" "}
-      <a href={`/row100k/dev/raceday-results?at=${other}`}>
+      <a href={`/dev/raceday-results?at=${other}`}>
         {other === "midrace" ? "mid-race" : "finished"}
       </a>{" "}
       · the wall{" "}
       {/* TWO LINKS, because they are two different things now. The first is
         * what goes on the television and fills it; the second is the literal
         * 1280 by 720 for anything that captures pixels. */}
-      <a href={`/row100k/dev/raceday-results?at=${at}&cast=1`}>cast view, fills the screen</a> ·{" "}
-      <a href={`/row100k/dev/raceday-results?at=${at}&cast=fixed`}>pinned 1280 by 720</a> ·{" "}
-      <a href={`/row100k/dev/raceday-results?at=${at}&you=${you ? "0" : "1"}`}>
+      <a href={`/dev/raceday-results?at=${at}&cast=1`}>cast view, fills the screen</a> ·{" "}
+      <a href={`/dev/raceday-results?at=${at}&cast=fixed`}>pinned 1280 by 720</a> ·{" "}
+      <a href={`/dev/raceday-results?at=${at}&you=${you ? "0" : "1"}`}>
         {you ? "signed out" : "signed in"}
       </a>
       {/* THE REAL ONE (2026-09-16): the same components off the database,
         * at the address the race day page and the console point to. */}
       {" · "}
-      <a href="/row100k/raceday/results">the real board →</a>
+      <a href="/raceday/results">the real board →</a>
     </p>
   );
 

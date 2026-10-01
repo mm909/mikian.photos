@@ -23,8 +23,8 @@ import { ShirtCarousel, type ShirtPhoto } from "./ShirtCarousel";
  * The counts come in from the page and are replaced by whatever the route
  * answers, so a change is on the page the moment it lands. */
 
-const PATH = "/row100k/shirts";
-const SIGN_IN = `/row100k/sign-in?callbackUrl=${encodeURIComponent(PATH)}`;
+const PATH = "/shirts";
+const SIGN_IN = `/sign-in?callbackUrl=${encodeURIComponent(PATH)}`;
 
 type Reply = { ok?: boolean; error?: string; counts?: Counts; mine?: Mine | null };
 
@@ -160,7 +160,7 @@ export function ShirtPreorder({
       )}
       {signedIn && !joined && (
         <p className="sp-visitor">
-          <Link className="sp-go" href="/row100k#join">
+          <Link className="sp-go" href="/#join">
             Opt in
           </Link>
         </p>

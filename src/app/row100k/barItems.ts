@@ -20,13 +20,13 @@ export type NavItem = { key: NavKey; href: string; label: string };
 
 export const ITEMS: NavItem[] = [
   /* Ahead of every section link: the rail reads race, then sections. */
-  { key: "raceday", href: "/row100k/raceday", label: "RACE DAY" },
+  { key: "raceday", href: "/raceday", label: "RACE DAY" },
   /* No ?m= and no ?d=: the records page reads the plain URL as this month,
    * All (records/[record]/page.tsx hrefFor). */
-  { key: "board", href: "/row100k/records/total", label: "BOARD" },
-  { key: "stats", href: "/row100k/stats", label: "STATS" },
-  { key: "feed", href: "/row100k/feed", label: "FEED" },
-  { key: "partners", href: "/row100k/partners", label: "PARTNERS" },
+  { key: "board", href: "/records/total", label: "BOARD" },
+  { key: "stats", href: "/stats", label: "STATS" },
+  { key: "feed", href: "/feed", label: "FEED" },
+  { key: "partners", href: "/partners", label: "PARTNERS" },
 ];
 
 /* The one item the pill may not address. It stays in ITEMS whether or not it

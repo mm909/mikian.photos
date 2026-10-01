@@ -119,7 +119,7 @@ export default async function ShirtPreordersAdminPage() {
                       <tr key={r.id}>
                         <td className="rk">{fmtRowerNumber(r.rowerNumber)}</td>
                         <td className="who">
-                          <a href={`/row100k/r/${r.rowerNumber}`}>{r.name}</a>
+                          <a href={`/r/${r.rowerNumber}`}>{r.name}</a>
                           {r.email && (
                             <div className="mono" style={{ fontSize: 10, color: "var(--gray)", fontWeight: 400 }}>
                               {r.email}

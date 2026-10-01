@@ -52,7 +52,7 @@ export async function raceDayBest(participantId: string, period: Period): Promis
       value: fmtRaceTime(me.tenths / 10),
       sub: `${where}${field.length > 1 ? ` · ${ordinal(place)} of ${field.length}${label ? ` ${label.toLowerCase()}` : ""}` : ""}`,
       place: place >= 1 && place <= 10 ? place : null,
-      href: "/row100k/raceday/results",
+      href: "/raceday/results",
       noShare: true,
     };
   } catch (err) {

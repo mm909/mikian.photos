@@ -174,7 +174,7 @@ function Strip({
           {item.title ? <span className="fd-ttl">{item.title}</span> : null}
           <span className="fd-nm">
             <span className="fd-n">{item.numStr} ·</span>
-            <a className="fd-who" href={`/row100k/r/${item.rowerNumber}`}>
+            <a className="fd-who" href={`/r/${item.rowerNumber}`}>
               {item.name}
             </a>
           </span>

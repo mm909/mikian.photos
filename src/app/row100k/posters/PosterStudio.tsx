@@ -264,7 +264,7 @@ export function PosterStudio({
   rowerOnly,
   dev,
   refusePpi,
-  hrefs = { community: "/row100k/posters?subject=rowtember", rowerPrefix: "/row100k/posters?r=" },
+  hrefs = { community: "/posters?subject=rowtember", rowerPrefix: "/posters?r=" },
   initialFormat,
   period,
 }: PosterStudioProps) {
@@ -864,7 +864,7 @@ export function PosterStudio({
       <div className="po-group po-period">
         <p className="po-eye">Time frame</p>
         <p className="po-period-word">
-          <PeriodSelect options={period.options} value={period.key} base="/row100k/posters" current={period.current} query={periodQuery} />
+          <PeriodSelect options={period.options} value={period.key} base="/posters" current={period.current} query={periodQuery} />
         </p>
       </div>
     ) : null;

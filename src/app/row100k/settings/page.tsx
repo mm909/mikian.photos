@@ -96,7 +96,7 @@ export default async function SettingsPage() {
           ) : !me ? (
             <p className="board-empty">
               YOU HAVE NOT JOINED YET.{" "}
-              <a href="/row100k#join" style={{ color: "var(--water)" }}>
+              <a href="/#join" style={{ color: "var(--water)" }}>
                 JOIN THE CHALLENGE →
               </a>
             </p>
@@ -112,7 +112,7 @@ export default async function SettingsPage() {
                 shirtSize={shirtSize}
               />
               <p className="se-foot">
-                <a href={`/row100k/r/${me.rowerNumber}`}>Profile →</a>
+                <a href={`/r/${me.rowerNumber}`}>Profile →</a>
               </p>
             </>
           )}

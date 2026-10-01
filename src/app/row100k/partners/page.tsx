@@ -251,7 +251,7 @@ export default async function PartnersPage() {
     ) : (
       <>
         Leading —{" "}
-        <a href={`/row100k/r/${lead.row.rowerNumber}`}>
+        <a href={`/r/${lead.row.rowerNumber}`}>
           {lead.row.name} · {fmtRowerNumber(lead.row.rowerNumber)}
         </a>{" "}
         · {metersOf(lead.row)}
@@ -370,7 +370,7 @@ export default async function PartnersPage() {
                     5 <em>FREE MEALS</em>
                   </div>
                   <span className="who">
-                    <a href={`/row100k/r/${claim.rowerNumber}`}>
+                    <a href={`/r/${claim.rowerNumber}`}>
                       {claim.name} · {fmtRowerNumber(claim.rowerNumber)}
                     </a>
                   </span>

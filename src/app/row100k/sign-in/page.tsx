@@ -32,7 +32,7 @@ const signInCss = `
  * a protocol-relative one) falls back to the front page. */
 function safeCallback(raw: string | string[] | undefined): string {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  if (!v || !v.startsWith("/") || v.startsWith("//")) return "/row100k";
+  if (!v || !v.startsWith("/") || v.startsWith("//")) return "/";
   return v;
 }
 
