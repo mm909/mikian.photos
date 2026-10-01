@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { CHALLENGE } from "@/lib/row100k";
+import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
 import { parseColor, parseSize } from "@/app/row100k/shirtPreorder";
 import { preorderState } from "@/app/row100k/shirtPreorders";
 
@@ -19,9 +19,15 @@ export const runtime = "nodejs";
  * DELETE  { color } — let it go: stamps cancelledAt. Nothing is deleted.
  *
  * No money anywhere in here (the shirts are paid when they arrive) and
- * nothing to settle, so no email either. The counts are public — this is
- * not the September shop and wears none of its gate. Colour and size are
- * checked server-side against the two lists in shirtPreorder.ts. */
+ * nothing to settle, so no email either. Colour and size are checked
+ * server-side against the two lists in shirtPreorder.ts.
+ *
+ * IN DEVELOPMENT, with the page (owner, 2026-10-01: "The shirts page
+ * should not be live"): the page is admin-only in production, and so are
+ * the writes here — a 404 for anyone else, the same answer the page
+ * gives, so nothing reserves through the API that could not reserve
+ * through the page. Open in local dev. The GET stays open: the counts
+ * only an admin can move, and nothing a rower can do with them. */
 
 const bad = (error: string, status = 400) => NextResponse.json({ ok: false, error }, { status });
 
@@ -29,6 +35,9 @@ const bad = (error: string, status = 400) => NextResponse.json({ ok: false, erro
  * a rower number hangs off, and the row needs one. */
 async function me() {
   const actor = await getEffectiveActor();
+  if (process.env.NODE_ENV === "production" && !(actor && isRow100kAdmin(actor.email, actor.roles))) {
+    return { res: new NextResponse(null, { status: 404 }) };
+  }
   if (!actor) return { res: bad("Sign in first.", 401) };
   const p = await db.rowParticipant.findUnique({
     where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },

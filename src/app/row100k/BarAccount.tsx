@@ -110,12 +110,6 @@ export function BarAccount({
                 <Link className="acct-item" href="/row100k/plan" onClick={close}>
                   Plan →
                 </Link>
-                {/* THE SHIRTS, as pre-orders (owner, 2026-09-30): shirts/page.tsx.
-                 * Where the September shirt link used to sit, for a rower on
-                 * the board — the page needs a rower number. */}
-                <Link className="acct-item" href="/row100k/shirts" onClick={close}>
-                  Shirts →
-                </Link>
                 <Link className="acct-item" href="/row100k/settings" onClick={close}>
                   Settings →
                 </Link>
@@ -201,6 +195,14 @@ export function BarAccount({
                  * development). */}
                 <Link className="acct-item" href="/row100k/shareables" onClick={close}>
                   Share stats →
+                </Link>
+                {/* THE SHIRTS, as pre-orders (shirts/page.tsx) — in development,
+                 * not live (owner, 2026-10-01: "The shirts page should not be
+                 * live. Put it in development still"). It sat in the rower
+                 * group for a day; the page 404s for non-admins in
+                 * production until the owner says it goes live. */}
+                <Link className="acct-item" href="/row100k/shirts" onClick={close}>
+                  Shirts →
                 </Link>
               </>
             )}

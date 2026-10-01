@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
@@ -11,7 +12,8 @@ import { shirtsCss } from "./shirtsCss";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Shirts — Rowtember",
+  title: "Shirts (dev) — Rowtember",
+  robots: { index: false, follow: false },
 };
 
 /* THE SHIRTS, as pre-orders (owner, 2026-09-30: at cost, no payment now —
@@ -19,12 +21,20 @@ export const metadata: Metadata = {
  * shirts, black and cream, the September sizes; a signed-in rower on the
  * board reserves a size of either or both, changes it, or lets it go, and
  * the number reserved of each is public, per colour and per size. One
- * line of copy. Public page; the one word a visitor gets is SIGN IN.
- * Reached from the account menu (BarAccount.tsx, Shirts →). The owner's
- * list is ./admin. Not the September shirt: that is dev/shirts and stays
- * retired. */
+ * line of copy. The one word a visitor gets is SIGN IN. The owner's list
+ * is ./admin. Not the September shirt: that is dev/shirts and stays
+ * retired.
+ *
+ * IN DEVELOPMENT, not live (owner, 2026-10-01: "The shirts page should not
+ * be live. Put it in development still" — and the standing rule, a new
+ * page starts in development unless the owner says otherwise). The same
+ * gate as the other dev pages: admin-only in production, a 404 for
+ * everyone else; open in local dev. Reached from the DEVELOPMENT group of
+ * the account menu (BarAccount.tsx, Shirts →), and the reserve route
+ * (api/row100k/shirts) wears the same gate. */
 export default async function ShirtsPage() {
   const viewer = await resolveViewer();
+  if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
 
   let counts: Counts = preorderCounts([]);
   let mine: Mine | null = null;
@@ -46,7 +56,7 @@ export default async function ShirtsPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>Shirts</h2>
-            <span className="mono">PRE-ORDER</span>
+            <span className="mono">DEV · PRE-ORDER</span>
           </div>
           <p className="sp-line">{costLine()}</p>
           <ShirtPreorder counts={counts} mine={mine} signedIn={viewer.actor !== null} joined={viewer.myParticipantId !== null} />
