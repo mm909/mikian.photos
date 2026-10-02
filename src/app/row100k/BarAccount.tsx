@@ -65,7 +65,8 @@ export function BarAccount({
    * code clock): the first RACE DAY line is the archive, not a sign-up. */
   raceOver?: boolean;
   /** The rail words a narrow screen cannot hold (barItems.ts overflowItems:
-   * RACE DAY while a race is announced, FEED and PARTNERS in September).
+   * RACE DAY while a race is announced or just run, FEED and PARTNERS in
+   * September).
    * They head the menu under 900px (theme.ts .acct-more) and are not
    * displayed above it, where the rail carries them. */
   more?: { href: string; label: string }[];

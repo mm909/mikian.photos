@@ -202,9 +202,18 @@ html:has(.row100k){scroll-behavior:smooth}
  *     the words dropped), the wordmark steps down to 12px, and every
  *     control is 32px tall: the links 16px of line in 8px of padding, the
  *     two chips 16px in 6px and a 2px edge. The bar is 50px.
- *   - Under 360px (320px phones) the gutters, the gaps and the tracking
- *     tighten once more and the wordmark is 11px.
- * Measured at 390, 360 and 320, signed in and out: one row, no scroll. */
+ *   - Under 440px (every phone short of the 440 Pro Max) the rail reads
+ *     BOARD RANKINGS STATS since 2026-10-01, and a visitor also gets MORE
+ *     while the stamp is up: at the 640 cut that is 429px of bar, past the
+ *     edge of every phone up to 414 and flush on the edge at 428. So the
+ *     tracking goes on the rail, LOG and the chip, the rail words keep 3px
+ *     of side padding, the gutters are 12px, the gaps 6px and the wordmark
+ *     11px. No word leaves and nothing wraps.
+ *   - Under 360px (320px phones) the type steps down once to 10px, the
+ *     size of the menu eyebrows, rail words, LOG, chip and wordmark alike,
+ *     with 2px of side padding on the rail words and 4px gaps.
+ * Measured at 320, 360, 375, 390, 414, 430 and 440, signed in and out,
+ * with RANKINGS and MORE on the rail: one row, no scroll, the gutter kept. */
 @media(max-width:899px){
   .row100k .rail .rail-x{display:none}
 }
@@ -221,12 +230,19 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .bar-log .x,.row100k .acct-chip .x{display:none}
   .row100k .bar-right span.mono{display:none}
 }
-@media(max-width:359px){
+@media(max-width:439px){
   .row100k .bar{gap:6px;padding:8px 12px}
   .row100k .bar-brand{font-size:11px}
-  .row100k .rail a,.row100k .rail-more-btn{letter-spacing:.03em;padding:8px 4px}
+  .row100k .rail a,.row100k .rail-more-btn{letter-spacing:0;padding:8px 3px}
   .row100k .bar-right{gap:6px}
-  .row100k .bar-log{letter-spacing:.03em;padding:6px}
+  .row100k .bar-log{letter-spacing:0;padding:6px}
+}
+@media(max-width:359px){
+  .row100k .bar{gap:4px}
+  .row100k .bar-brand{font-size:10px}
+  .row100k .rail a,.row100k .rail-more-btn{font-size:10px;padding:8px 2px}
+  .row100k .bar-right{gap:4px}
+  .row100k .bar-log{font-size:10px;padding:6px 5px}
 }
 /* Account chip + dropdown (top-right of the bar). 16px of line so the chip
  * and LOG A ROW are the same 32px. */
@@ -257,8 +273,11 @@ html:has(.row100k){scroll-behavior:smooth}
   .row100k .acct-chip{letter-spacing:.06em;padding:6px 8px}
   .row100k .acct-panel{top:calc(100% + 8px)}
 }
+@media(max-width:439px){
+  .row100k .acct-chip{letter-spacing:0;padding:6px}
+}
 @media(max-width:359px){
-  .row100k .acct-chip{letter-spacing:.03em;padding:6px}
+  .row100k .acct-chip{font-size:10px;padding:6px 5px}
 }
 
 /* ----------------------------------------------------------------------

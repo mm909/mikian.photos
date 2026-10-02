@@ -17,8 +17,8 @@ import { openRaffle, raffleDismissCookie } from "./raffles";
  * 2026-09-30: ROWTEMBER, never Mikian Musser — it was the Mikian.Musser
  * wordmark from 2026-09-05 to then, with ROWTEMBER as the first item of
  * the rail), then the nav rail with its sliding pill (the RACE DAY stamp
- * while a race is announced and open, BOARD — back on the rail 2026-09-25,
- * pointing at the total-meters rankings — STATS, FEED, PARTNERS in
+ * while a race is announced or just run, BOARD — the month's 100K since
+ * 2026-10-01 — RANKINGS, STATS, FEED, PARTNERS in
  * September), then — for a joined rower — the LOG A ROW button, then the
  * OPT IN / rower chip on the right. Server component: it resolves the
  * session itself unless the page already did and hands the answer in.
