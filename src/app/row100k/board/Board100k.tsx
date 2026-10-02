@@ -368,7 +368,7 @@ export function Board100k({
             </button>
           ) : (
             /* A stranger signs in and comes back here; an account that
-             * never joined joins first, on the front page's form. */
+             * never joined joins first, on the sign-up page (/join). */
             <Link className="bd-ctl" href={signedIn ? "/join" : signInHref}>
               Opt in
             </Link>

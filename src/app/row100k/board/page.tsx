@@ -42,8 +42,7 @@ export const metadata: Metadata = {
  * when it's on desktop? It better not look like this"; "I can't click on
  * the rower number up there"). So this file is the frame every page is:
  * the site bar, the page on the front measure, the site footer, the look
- * and the palette off the layout. THE BOARD is lit on the rail because
- * that is the tab this page takes when it goes live.
+ * and the palette off the layout. BOARD is lit on the rail.
  *
  * A TIER PRINTS ONLY ONCE SOMEBODY ON THE BOARD IS IN IT (owner, same
  * day: "if someone is not in that tier yet, then we do not show the tier

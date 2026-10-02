@@ -6,14 +6,14 @@ import { MONTH } from "@/lib/row100k";
  * call into a client module, which is why this is a file of its own). PURE:
  * no database, no cookies.
  *
- * THE BOARD is back on the rail (owner, 2026-09-25: "add a link in the
- * header for the board — it goes to the records page with total meters and
- * ALL selected for the current month"). It went off on 2026-09-24 when the
- * board page was folded into the full rankings; the key now points at that
- * total-meters view, plain URL, and lights on every records page. The word
- * is BOARD, not THE BOARD, since 2026-10-01 (owner: "look at the header. We
- * need to condense it into one line") — the article was three characters a
- * phone did not have. */
+ * BOARD and RANKINGS since 2026-10-01 (owner: "we have the board, which is
+ * what's currently in dev, and then we have rankings, which is what the
+ * current board is going to be renamed to"): BOARD is the month's 100K at
+ * /board, RANKINGS the total-meters records view it used to open (owner,
+ * 2026-09-25), lit on every records page. The word is BOARD, not THE
+ * BOARD (owner, the same day: "look at the header. We need to condense it
+ * into one line") — the article was three characters a phone did not
+ * have. */
 export type NavKey = "home" | "raceday" | "board" | "rankings" | "stats" | "feed" | "gallery" | "partners";
 
 export type NavItem = { key: NavKey; href: string; label: string };
@@ -43,16 +43,17 @@ export const STAMP: NavKey = "raceday";
 const SEPTEMBER_ONLY: NavKey[] = ["partners", "feed"];
 
 /* THE WORDS THAT ARE ONLY SOMETIMES THERE: the stamp while a race is
- * announced, and September's two. BOARD and STATS are the rail a phone can
- * always hold in one line beside the wordmark and the chips; these are the
- * ones that leave it under 900px (theme.ts .rail-x) for the account menu,
- * or for the word MORE when there is no account. */
+ * announced or just run, and September's two. BOARD, RANKINGS and STATS
+ * are the rail a phone always holds in one line beside the wordmark and the
+ * chips (theme.ts, the 440 and 360 cuts); these are the ones that leave it
+ * under 900px (theme.ts .rail-x) for the account menu, or for the word MORE
+ * when there is no account. */
 const SOMETIMES: NavKey[] = [STAMP, ...SEPTEMBER_ONLY];
 
 /* What the rail carries right now. `raceOpen` is raceOpenFor(isAdmin) AND
- * raceAnnounced(), resolved by RowBar: the gate the race wears, and whether
- * a race is in its window at all. Shut, or no race announced, and the stamp
- * is not in the markup at all. */
+ * (raceAnnounced() OR the race has been run), resolved by RowBar: the gate
+ * the race wears, and whether there is a race or its results to lead to.
+ * Otherwise the stamp is not in the markup at all. */
 export function railItems(raceOpen: boolean): NavItem[] {
   return ITEMS.filter(
     (it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)),

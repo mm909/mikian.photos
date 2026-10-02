@@ -52,10 +52,11 @@ import { trackClick } from "./TrackedLink";
  * ref — with nothing in itemRefs it gets no Box, and the pill can only move to
  * a box it has measured. It cannot land there by hover, by pin, by carry, or
  * by being the active page. Whether it is on the rail at all is
- * raceOpenFor(isAdmin) AND raceAnnounced() (raceday.ts), resolved by RowBar
- * on the server, so the link and the page can never disagree about whether
- * there is a race, and a month with no race coming wears no stamp (owner,
- * 2026-09-25: "RACE DAY should be hidden when no race day is announced").
+ * raceOpenFor(isAdmin) AND (raceAnnounced() OR the race has been run)
+ * (raceday.ts), resolved by RowBar on the server, so the link and the page
+ * can never disagree about whether there is a race (owner, 2026-09-25:
+ * "RACE DAY should be hidden when no race day is announced"; 2026-10-01:
+ * the results of a race that has been run keep it up).
  *
  * THE WORDS THAT ARE ONLY SOMETIMES THERE (barItems.ts isSometimes: the
  * stamp, and FEED and PARTNERS in September) wear .rail-x and leave the

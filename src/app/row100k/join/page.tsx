@@ -36,9 +36,11 @@ export const metadata: Metadata = {
  *   already a rower       → the front page. There is nothing to sign up
  *                           for twice; their fields are in settings.
  *
- * IN DEVELOPMENT (CLAUDE.md; join/live.ts is the switch): admin-only in
- * production, a 404 for anyone else; open in local dev; "(dev)" in the
- * title; linked from the DEVELOPMENT group of the account menu. An admin
+ * LIVE since 2026-10-01 (owner: "I like the sign up page. We can make that
+ * live"; join/live.ts is the switch — off, it is the CLAUDE.md dev gate:
+ * admin-only in production and "(dev)" in the title). The front page and
+ * every OPT IN send an account with no entry here; the account menu links
+ * the preview under ADMINISTRATION. An admin
  * is a rower already and would only ever be sent away, so ?preview=1 shows
  * them the page as a new account gets it — their own name and email, the
  * next number — with an OPT IN that sends nothing. The preview is an
