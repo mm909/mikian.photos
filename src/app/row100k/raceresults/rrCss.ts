@@ -121,24 +121,31 @@ export const rrCss = `
  * nothing between read as an empty band. */
 .row100k .rr-arch+.rr-sec{border-top:0;margin-top:10px}
 /* RESULTS with SHARE YOUR TIME at the end of its line (owner, 2026-10-01).
- * The picker the button opens drops to a line of its own under both. */
-.row100k .rr-sech{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
-.row100k .rr-sech .rr-sharep{flex-basis:100%;margin-top:4px}
+ * The picker the button opens drops to a line of its own under both. A
+ * grid, not a wrapping flex row: the picker is capped at 560px, so in a
+ * flex row it fit beside the word on a laptop and space-between pushed
+ * the button into the middle; and on a phone its name box held it wider
+ * than the column. Row 1 is the word and the button, row 2 the picker
+ * across both, allowed to shrink to the column. */
+.row100k .rr-sech{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px}
+.row100k .rr-sech .rr-secw{grid-column:1;grid-row:1;min-width:0}
+.row100k .rr-sech .rr-act{grid-column:2;grid-row:1;justify-self:end}
+.row100k .rr-sech .rr-sharep{grid-column:1/-1;grid-row:2;min-width:0}
 .row100k .rr-lab .rt{letter-spacing:.14em}
 .row100k .rr-sec+.rr-pick .rr-pickk{margin-top:16px}
 .row100k .rr-lab+.rr-pod{margin-top:8px}
 
-/* SHARE YOUR TIME: a real button in the ticket s corner (owner, 2026-10-01:
- * not an underlined text link) — the profile s outline button (theme.ts
- * .outline-btn), re-cut white on the ink ground, with the share glyph in
- * front of the word. It fills on hover rather than taking the accent: the
- * race surfaces are monochrome. The list it opens, in flow, in a 2px box
- * like the wave pane: a name box with a rule under it and one ruled row
- * per finisher. */
+/* SHARE YOUR TIME: a real button at the end of the RESULTS line (owner,
+ * 2026-10-01: not an underlined text link) — the profile s outline button
+ * (theme.ts .outline-btn), re-cut white on the ink ground, with the share
+ * glyph in front of the word. It fills on hover rather than taking the
+ * accent: the race surfaces are monochrome. The list it opens, in flow, in
+ * a 2px box like the wave pane: a name box with a rule under it and one
+ * ruled row per finisher, the name and the time, no wave. */
 .row100k .rr-dark .rr-act{display:inline-flex;align-items:center;gap:8px;border-color:#fff;color:#fff;padding:7px 14px 7px 12px;white-space:nowrap;line-height:1.2}
 .row100k .rr-dark .rr-act:hover{background:#fff;border-color:#fff;color:var(--ink)}
 /* Filled while its list is open — fill is a settled fact on this board,
- * and the list under the ticket is the fact. */
+ * and the list under the line is the fact. */
 .row100k .rr-dark .rr-act[aria-expanded=true]{background:#fff;border-color:#fff;color:var(--ink)}
 .row100k .rr-actg{display:block;flex:none}
 .row100k .rr-sharep{margin-top:14px;border:2px solid #fff;padding:14px 16px 4px;max-width:560px}
@@ -150,17 +157,22 @@ export const rrCss = `
 .row100k .rr-sharer{display:flex;align-items:baseline;gap:12px;width:100%;-webkit-appearance:none;appearance:none;background:none;border:0;border-top:1px dashed rgba(255,255,255,.2);padding:9px 0 10px;margin:0;color:#fff;cursor:pointer;text-align:left;font-family:var(--row-archivo),sans-serif;font-weight:700;font-size:14px}
 .row100k .rr-sharer:hover .nm{text-decoration:underline;text-underline-offset:3px}
 .row100k .rr-sharer .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row100k .rr-sharer .wv{font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);flex:none}
 .row100k .rr-sharer .tm{font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
 .row100k .rr-sharenone{font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5);padding:10px 0 12px;border-top:1px dashed rgba(255,255,255,.2)}
 
 /* THE SHAREABLES DIALOG ON THIS GROUND — the race day bill s rule
  * (rdCss.ts), copied: its accents go ink inside .rr-dark, the sheet stays
- * paper with ink type, and trouble is said by weight. */
-.row100k .rr-dark .share-mark{background:var(--ink)}
+ * paper with ink type, and trouble is said by weight. The ink slabs (the
+ * wordmark, the primary button) print white: the October palette makes
+ * --on-water ink on an ink ground, which put ink type on an ink slab. */
+.row100k .rr-dark .share-mark{background:var(--ink);color:#fff}
 .row100k .rr-dark .share-x:hover{color:var(--ink)}
 .row100k .rr-dark .share-btn:hover{background:var(--ink);border-color:var(--ink);color:#fff}
-.row100k .rr-dark .share-btn.primary{background:var(--ink);border-color:var(--ink)}
+.row100k .rr-dark .share-btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+/* The dialog is drawn inside the RESULTS line now, so it would inherit the
+ * section word type (mono, 12px, bold, tracked caps); it takes back the
+ * body type it had under the ticket. */
+.row100k .rr-sech .share-overlay{font-family:var(--row-archivo),sans-serif;font-size:16px;font-weight:400;letter-spacing:normal;text-transform:none}
 .row100k .rr-dark .share-btn.primary:hover{background:rgba(21,23,26,.82);border-color:rgba(21,23,26,.82)}
 .row100k .rr-dark .share-link:hover{color:var(--ink)}
 .row100k .rr-dark .share-status{color:var(--ink)}

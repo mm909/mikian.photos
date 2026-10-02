@@ -10,19 +10,16 @@ import type { RaceDef } from "../raceday";
  * "the ticket takes too much room"). What it was: the name at poster size
  * with the day flush right, the piece and the place on a mono line, and
  * the two marks on a ruled line of their own. What it is: the name one
- * step above the section words, the share control flush right of it, and
- * ONE mono line under both — the day, the house, the room and the piece,
- * dotted together, wrapping on a phone but never stacking as blocks. The
- * house mark is gone from the page altogether (the venue stays as words);
- * the sponsor mark went to the foot of the sheet, small, under a RACE DAY
- * SPONSOR label (ArchiveFoot below).
+ * step above the section words and ONE mono line under it — the day, the
+ * house, the room and the piece, dotted together, wrapping on a phone but
+ * never stacking as blocks. The house mark is gone from the page
+ * altogether (the venue stays as words); the sponsor mark went to the foot
+ * of the sheet, alone and centred (ArchiveFoot below).
  *
- * `act` is the one control the header carries — SHARE YOUR TIME
- * (ShareTime.tsx), handed in by the page because it reads the board and
- * this header reads the race. It lands in the top right of the ticket by
- * grid area, where the profile and the stats page keep their SHARE, and
- * the list it opens spans the ticket under the mono line (rrCss.ts
- * .rr-arch).
+ * `act` is an optional control to the right of the name. SHARE YOUR TIME
+ * rode here until the owner moved it to the RESULTS line (2026-10-01,
+ * RaceResults.tsx); the real pages pass nothing, the sample page still
+ * does.
  *
  * Reads the race, never the board: the board knows a dateLine and a
  * placeLine as strings, and the header wants the pieces apart. Server

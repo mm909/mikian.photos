@@ -7,10 +7,13 @@ import { RACE_TIME_CARD_IDS, type ShareData } from "../share/cards";
 
 /* SHARE YOUR TIME (owner, 2026-10-01): the one personal thing on the
  * archive. The page marks nobody — no YOU, no highlighted row — so the
- * racer finds themself here instead: a button in the top right of the
- * ticket opens a short list of every finisher with their time, a box to
- * search it by name, and a pick opens the share dialog on the two looks of
- * the race time card (share/cards.ts RACE_TIME_CARD_IDS).
+ * racer finds themself here instead: a button at the end of the RESULTS
+ * line (it sat in the top right of the ticket until the owner moved it,
+ * 2026-10-01) opens a short list of every finisher with their time, a box
+ * to search it by name, and a pick opens the share dialog on the two looks
+ * of the race time card (share/cards.ts RACE_TIME_CARD_IDS). No wave on
+ * the list, as on the card and the sheet (owner, 2026-10-01: "I don't care
+ * which wave").
  *
  * A SIGNED-IN RACER SHARES THEIR OWN TIME AND NOBODY ELSE S (owner, later
  * the same night). When the viewer is on the sheet (`mine`), the button
@@ -24,8 +27,8 @@ import { RACE_TIME_CARD_IDS, type ShareData } from "../share/cards";
  * ink ground (rrCss.ts .rr-act), with the share glyph in front of the word
  * — the tray and the arrow, drawn inline so it takes the button s colour.
  *
- * THE LIST IS IN FLOW, not a popover. It opens under the ticket s mono
- * line and the sheet moves down to make room, the way the wave pane does
+ * THE LIST IS IN FLOW, not a popover. It opens under the RESULTS line
+ * and the sheet moves down to make room, the way the wave pane does
  * under its cells; a floating panel over a results table is a second
  * surface on a page that is supposed to be one.
  *
@@ -142,7 +145,6 @@ export function ShareTime({
               <li key={r.id}>
                 <button type="button" className="rr-sharer" onClick={() => setPicked(r)}>
                   <span className="nm">{r.name}</span>
-                  <span className="wv">Wave {r.wave}</span>
                   <span className="tm">{r.time}</span>
                 </button>
               </li>
