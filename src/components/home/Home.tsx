@@ -8,7 +8,8 @@ import { useLiveMeters } from "./useLiveMeters";
 import { metersText, tokensFor } from "./digits";
 
 /* The landing page body — the odometer poster (owner pick, 2026-09-03,
- * from five candidates). One colossal water-blue number set in Archivo
+ * from five candidates). One colossal number in the accent (the Rowtember
+ * October orange since 2026-10-01, theme.ts --water) set in Archivo
  * Black straight onto the paper, its digits rolling vertically like a
  * mechanical odometer; a mono status line above, a mono unit line below,
  * then a huge underlined OPT IN text link to /row100k and four counter
@@ -32,10 +33,6 @@ import { metersText, tokensFor } from "./digits";
  * escapes them server-side only and the style tag hydration-mismatches. */
 
 const css = `
-/* The ink look (.home-ink, theme.ts) needs nothing from this sheet: every
- * colour below is a variable, so when the palette flips the odometer, OPT
- * IN, its underline, the live dot and the cell rules all go white — the
- * ink look is monochrome (owner, 2026-09-16). */
 .home .stage{position:relative;padding:clamp(34px,7vh,84px) 0 48px}
 .home .status{display:flex;align-items:center;flex-wrap:wrap;font-family:var(--home-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
 

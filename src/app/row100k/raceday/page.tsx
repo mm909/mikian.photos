@@ -224,13 +224,13 @@ export default async function RaceDayPage() {
    * archive, not the sign-up page"). Race run or sheet posted (raceday.ts
    * raceOver), this address draws the finished board under one ruled
    * header — the name, the day, the place and the piece on a line — then
-   * the results, the waves and the winners, and the sponsor line at the
-   * foot (raceresults/RaceResults.tsx). No bill, no act, no sign-up panel,
-   * no POST YOUR TIME rail, nothing about the viewer: the one personal
-   * control on it is SHARE YOUR TIME in the ticket s corner, and the
-   * viewer id goes in only so that control can open on their own time and
-   * nobody else s. The results address keeps answering with the same
-   * sheet. */
+   * the results, the waves and the winners, and the sponsor s mark alone
+   * and centred at the foot (raceresults/RaceResults.tsx). No bill, no act,
+   * no sign-up panel, no POST YOUR TIME rail, nothing about the viewer: the
+   * one personal control on it is SHARE YOUR TIME at the end of the
+   * RESULTS line, and the viewer id goes in only so that control can open
+   * on their own time and nobody else s. The results address keeps
+   * answering with the same sheet. */
   if (raceOver(race, view.finalAt)) {
     const board = await resultBoard(race, { youParticipantId: viewer.myParticipantId, final: true });
     return (

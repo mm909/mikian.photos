@@ -1,5 +1,4 @@
 import type { MeterSnapshot } from "@/lib/homeStats";
-import type { Look } from "@/lib/rowSettings";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
 import { HomeBar } from "./HomeBar";
 import { HomeFooter } from "./HomeFooter";
@@ -8,14 +7,13 @@ import { Home } from "./Home";
 /* The landing shell: fonts + base stylesheet, the bar, the page body, the
  * footer. Home is a client component that drives the live counter.
  *
- * The look (owner, 2026-09-16): ink puts .home-ink on the shell and the
- * stylesheet flips the palette (theme.ts). Paper adds no class, so the
- * default render is what it was. */
-export function Landing({ snapshot, look = "paper" }: { snapshot: MeterSnapshot; look?: Look }) {
+ * ALWAYS LIGHT (owner, 2026-10-01: "keep the colors on the Mikian Musser
+ * homepage the same"). From 2026-09-16 it took a `look` and the ink one put
+ * .home-ink on the shell; src/app/page.tsx stopped reading the switch, so
+ * the prop and the ink stylesheet came off with it. */
+export function Landing({ snapshot }: { snapshot: MeterSnapshot }) {
   return (
-    <div
-      className={`home${look === "ink" ? " home-ink" : ""} ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}
-    >
+    <div className={`home ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style>{css}</style>
       <HomeBar />
       <main>

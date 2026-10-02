@@ -97,16 +97,18 @@ import { ShareTime, type ShareRacer } from "./ShareTime";
  *     row and the open-on-your-wave default are gone from the finished
  *     sheet (mid-race keeps them: a rower in the gym looking for their
  *     wave is a different page). The one personal thing left is SHARE YOUR
- *     TIME (ShareTime.tsx), a button in the ticket s top right that opens
- *     the signed-in racer s own card and nobody else s, or a name picker
- *     for anyone not on the sheet; it marks nothing on the page. The page
- *     builds it off the board (ArchiveShare below) and hands it to the
- *     header, which reads the race.
+ *     TIME (ShareTime.tsx), a button at the end of the RESULTS line that
+ *     opens the signed-in racer s own card and nobody else s, or a name
+ *     picker for anyone not on the sheet; it marks nothing on the page.
+ *     It is built off the board (ArchiveShare below).
  *   - NO DATELINE. No FINAL 12:00 AM clock, no SHEET POSTED, no freshness
  *     line — the archive header (ArchiveHead.tsx, handed in as `head`) says
  *     the name, the day, the place and the piece on one mono line, and
  *     the rest is just the results. The sponsor s mark closes the sheet
- *     (`foot`, ArchiveFoot) under a small ruled line.
+ *     (`foot`, ArchiveFoot), alone and centred.
+ *   - NO WAVE on the results tables or their phone sub-line (owner,
+ *     2026-10-01: "I don't care which wave"); the waves have their own
+ *     section.
  *   - WHOLE SECONDS, FLOORED, everywhere (types.ts fmtRaceTime): 21:41.1
  *     prints 21:41, a split 2:10.3 prints 2:10. The tenths still decide the
  *     order underneath; nothing is re-sorted after the floor.
@@ -207,7 +209,7 @@ function Section({ children, right }: { children: ReactNode; right?: ReactNode }
   if (right === undefined) return <p className="rr-sec">{children}</p>;
   return (
     <div className="rr-sec rr-sech">
-      <span>{children}</span>
+      <span className="rr-secw">{children}</span>
       {right}
     </div>
   );
@@ -955,10 +957,9 @@ function shareDay(board: ResultBoard): string {
   return (board.dateLine.split("·")[1] ?? board.dateLine).trim().toUpperCase();
 }
 
-/* SHARE YOUR TIME, built off the board, for the header s `act` slot: the
- * page composes head={ArchiveHead race act={ArchiveShare board}} so the
- * header keeps reading the race and the control keeps reading the sheet.
- * `mine` is the signed-in viewer s own row when they are a finisher — the
+/* SHARE YOUR TIME, built off the board. The finished sheet below puts it at
+ * the end of the RESULTS line (owner, 2026-10-01); it used to ride in the
+ * header s `act` slot, which the sample page still hands it. `mine` is the signed-in viewer s own row when they are a finisher — the
  * one thing youId does on the archive — and null otherwise, which is what
  * decides between their own card and the picker (ShareTime.tsx). A racer
  * is handed NO list at all: the rule that nobody shares somebody else s
@@ -987,11 +988,11 @@ export function RaceResults({
   board: ResultBoard;
   note?: ReactNode;
   /* THE ARCHIVE HEADER (ArchiveHead.tsx), finished sheet only: the page
-   * builds it off the RaceDef, which the board does not carry, and puts
-   * the share control (ArchiveShare) in its act slot. */
+   * builds it off the RaceDef, which the board does not carry. The share
+   * control is not in it any more: it is on the RESULTS line below. */
   head?: ReactNode;
-  /* THE SPONSOR LINE (ArchiveFoot), finished sheet only, off the same
-   * RaceDef; it closes the sheet above the footer. */
+  /* THE SPONSOR MARK (ArchiveFoot), finished sheet only, off the same
+   * RaceDef; it closes the sheet above the footer, centred, no label. */
   foot?: ReactNode;
   /* ?wave=N — a deep link on a phone, and how a gym pins one wave. It beats
    * the computed default; see pickedWave() in types.ts. */

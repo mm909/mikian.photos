@@ -2269,10 +2269,11 @@ export const RACE_CARD_IDS = [rowtemberRaceDayBill.id, rowtemberRaceDayName.id, 
  * ONE DRAWING, TWO GROUNDS. The composition is the finished sheet's
  * first-place block laid out on a square: a mono masthead (ROWTEMBER · RACE
  * DAY left, the day right), a thick rule, the time fitted to the measure,
- * the name under it, WAVE N, a hairline, and the split with the one tag the
- * sheet gives the time — PR, or FIRST 5K — in an outlined mono box. Left
- * aligned and ruled, the way the page is, and not centred the way the
- * stickers above are: this is a RESULT, and a result is a line on a sheet.
+ * the name under it, a hairline, and the split with the one tag the sheet
+ * gives the time — PR, or FIRST 5K — in an outlined mono box. WAVE N sat
+ * under the name until the owner took it off (2026-10-01). Left aligned
+ * and ruled, the way the page is, and not centred the way the stickers
+ * above are: this is a RESULT, and a result is a line on a sheet.
  *
  * NO BOX AROUND IT, whatever the place (owner: "no border/box around
  * 2nd/3rd — the current second-place frame style is out"), so the two
@@ -2292,10 +2293,9 @@ function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: Sha
   const M = 72;
   const measure = W - M * 2;
   const ink = look === "ink" ? "#ffffff" : INK;
-  /* No alpha on the transparent look: a seven-tenths ink over a photograph
-   * is whatever the photograph is, so the wave and the hairline go solid
-   * there and quieter only where the card paints its own ground. */
-  const dim = look === "ink" ? "rgba(255,255,255,0.72)" : INK;
+  /* No alpha on the transparent look: a faded ink over a photograph is
+   * whatever the photograph is, so the hairline goes solid there and
+   * quieter only where the card paints its own ground. */
   const rule = look === "ink" ? "rgba(255,255,255,0.35)" : INK;
 
   if (look === "ink") {
