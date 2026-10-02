@@ -785,13 +785,20 @@ html:has(.row100k){scroll-behavior:smooth}
 /* THE FOOTER AT THE FOOT (owner, 2026-10-01: when a page is short, the
  * footer still sits at the bottom of the screen). A page root that holds
  * the footer spacer (RowFooter.tsx .foot-push) is a flex column at least a
- * screen tall; the spacer grows into what the content leaves. Children do
- * not shrink, and a .wrap straight under the root keeps its full measure
- * (auto side margins would otherwise shrink it to its content). */
-.row100k:has(> .foot-push){display:flex;flex-direction:column}
-.row100k:has(> .foot-push) > *{flex-shrink:0}
-.row100k:has(> .foot-push) > .wrap{width:100%}
-.row100k > .foot-push{flex:1 0 0}
+ * screen tall; the spacer grows into what the content leaves. A .wrap
+ * straight under the root keeps its full measure (auto side margins would
+ * otherwise shrink it to its content). Nothing shrinks: the root is only
+ * ever as tall as its content or the screen, never shorter than the
+ * content, so no flex-shrink rule is needed.
+ * NO CHILD COMBINATOR IN THESE RULES. React escapes the greater-than sign
+ * in a style tag on the server, so the rules arrived broken and every page
+ * fell back to client rendering on the text mismatch. The spacer is only
+ * ever a child of the page root (RowFooter.tsx), so a root that holds it
+ * anywhere is the root that holds it as a child, and a .wrap followed by
+ * the spacer is a .wrap beside it. */
+.row100k:has(.foot-push){display:flex;flex-direction:column}
+.row100k .wrap:has(~ .foot-push){width:100%}
+.row100k .foot-push{flex:1 0 0}
 .row100k footer .big{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.1em;margin-bottom:10px}
 .row100k footer .mono{font-size:11px;color:var(--gray);line-height:1.9}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
