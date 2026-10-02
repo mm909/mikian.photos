@@ -8,7 +8,7 @@ import { RowFooter } from "../../RowFooter";
 import { currentRace } from "../../raceday";
 import { ArchiveFoot, ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
-import { ArchiveShare, RaceResults } from "../../raceresults/RaceResults";
+import { RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
 import { sampleBoard, type SampleState } from "../../raceresults/sample";
 import { fmtClock } from "../../raceresults/types";
@@ -182,7 +182,7 @@ export default async function DevRaceDayResultsPage({
       <RaceResults
         board={board}
         note={note}
-        head={at === "finished" ? <ArchiveHead race={currentRace()} act={<ArchiveShare board={board} />} /> : undefined}
+        head={at === "finished" ? <ArchiveHead race={currentRace()} /> : undefined}
         foot={at === "finished" ? <ArchiveFoot race={currentRace()} /> : undefined}
         pick={pick}
       />
