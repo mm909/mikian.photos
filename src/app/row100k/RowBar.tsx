@@ -114,8 +114,11 @@ export async function RowBar({
    * goes up until a day after its doors shut, so December, with no
    * race coming, has no stamp. Resolved here, where isAdmin already
    * is, so the server markup and the first client render agree — once,
-   * for the rail and for the overflow the account menu carries. */
-  const raceOpen = raceOpenFor(isAdmin) && raceAnnounced(nowMs());
+   * for the rail and for the overflow the account menu carries.
+   * AND ONCE A RACE HAS BEEN RUN its results are the page (owner,
+   * 2026-10-01: "make the race day results page public"): the stamp stays
+   * to lead there, until the next race is announced in its place. */
+  const raceOpen = raceOpenFor(isAdmin) && (raceAnnounced(nowMs()) || raceOver(currentRace(), null, nowMs()));
 
   /* Not sticky still has to be positioned: the account panel and the MORE
    * panel hang off the bar, so it must stay their containing block. */

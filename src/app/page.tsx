@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
 import { meterSnapshot } from "@/lib/homeStats";
-import { LOOK_COOKIE, parseLook, siteSettings, type Look } from "@/lib/rowSettings";
 import { Landing } from "@/components/home/Landing";
 
 /**
@@ -23,10 +21,11 @@ import { Landing } from "@/components/home/Landing";
  * board read (LEAD_MAX_M), and crawls there until a row lands. Only a board
  * that went down (a fixed or deleted row) snaps it. See useLiveMeters.ts.
  *
- * The look (owner, 2026-09-16): the landing wears the same paper-or-ink
- * switch as /row100k, read the same way the /row100k layout reads it —
- * the site setting, overridden by the admin's own-browser preview cookie.
- * siteSettings() never throws; the cookie read is guarded the same way.
+ * ALWAYS LIGHT (owner, 2026-10-01: "keep the colors on the Mikian Musser
+ * homepage the same — it should be light"). It wore Rowtember's
+ * paper-or-ink switch from 2026-09-16 and went black the day Rowtember's
+ * default did; it no longer reads that setting. Rowtember's colour is its
+ * October orange here (components/home/theme.ts --water).
  */
 export const dynamic = "force-dynamic";
 
@@ -46,26 +45,10 @@ export const metadata: Metadata = {
   },
 };
 
-async function currentLook(): Promise<Look> {
-  const settings = await siteSettings();
-  let look: Look = settings.look;
-  try {
-    const preview = parseLook(cookies().get(LOOK_COOKIE)?.value);
-    if (preview) look = preview;
-  } catch {
-    /* cookies() outside a request scope — the site-wide look stands */
-  }
-  return look;
-}
-
-/* The browser chrome tint follows the ground: cream on paper, the black of
- * the ink look otherwise. */
-export async function generateViewport(): Promise<Viewport> {
-  const look = await currentLook();
-  return { themeColor: look === "ink" ? "#0b0c0e" : "#F4F3EE" };
-}
+/* The browser chrome tint: the cream of the page. */
+export const viewport: Viewport = { themeColor: "#F4F3EE" };
 
 export default async function HomePage() {
-  const [snapshot, look] = await Promise.all([meterSnapshot(), currentLook()]);
-  return <Landing snapshot={snapshot} look={look} />;
+  const snapshot = await meterSnapshot();
+  return <Landing snapshot={snapshot} />;
 }

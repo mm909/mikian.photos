@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GOAL_METERS, fmtRowerNumber } from "@/lib/row100k";
-import { BlockShape, Blocks } from "../../Blackout";
+import { BlockShape, Blocks } from "../Blackout";
 
 /* THE 100K BOARD, drawn (see page.tsx). The server hands the month, the
  * count, the listed rows in board order, the four tiers and who is
@@ -369,7 +369,7 @@ export function Board100k({
           ) : (
             /* A stranger signs in and comes back here; an account that
              * never joined joins first, on the front page's form. */
-            <Link className="bd-ctl" href={signedIn ? "/#join" : signInHref}>
+            <Link className="bd-ctl" href={signedIn ? "/join" : signInHref}>
               Opt in
             </Link>
           )}

@@ -94,7 +94,7 @@ export default async function RecordRankingPage({ params, searchParams }: { para
 
       {/* THE BOARD is the lit tab on every record (owner, 2026-09-25: a
           header link for the board that lands here, on total meters). */}
-      <RowBar active="board" {...barProps(viewer)} />
+      <RowBar active="rankings" {...barProps(viewer)} />
 
       <RecordsShell initial={initial} recordKey={key} div0={div} day0={idx(searchParams?.day)} week0={idx(searchParams?.w)} />
 

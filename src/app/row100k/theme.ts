@@ -782,6 +782,16 @@ html:has(.row100k){scroll-behavior:smooth}
  * page — with 20px here AND the wrap stripped of its gutter, the footer
  * sat 20px left of the measure on every desktop page). RowFooter.tsx. */
 .row100k footer{padding:44px 0 64px;border-top:2px solid var(--ink);margin-top:56px}
+/* THE FOOTER AT THE FOOT (owner, 2026-10-01: when a page is short, the
+ * footer still sits at the bottom of the screen). A page root that holds
+ * the footer spacer (RowFooter.tsx .foot-push) is a flex column at least a
+ * screen tall; the spacer grows into what the content leaves. Children do
+ * not shrink, and a .wrap straight under the root keeps its full measure
+ * (auto side margins would otherwise shrink it to its content). */
+.row100k:has(> .foot-push){display:flex;flex-direction:column}
+.row100k:has(> .foot-push) > *{flex-shrink:0}
+.row100k:has(> .foot-push) > .wrap{width:100%}
+.row100k > .foot-push{flex:1 0 0}
 .row100k footer .big{font-family:var(--row-archivo-black),sans-serif;font-size:13px;letter-spacing:.1em;margin-bottom:10px}
 .row100k footer .mono{font-size:11px;color:var(--gray);line-height:1.9}
 .row100k footer a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}

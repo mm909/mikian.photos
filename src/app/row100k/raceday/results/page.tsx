@@ -9,7 +9,7 @@ import { raceWithSettings } from "../../racedaySettings";
 import { resultBoard } from "../../raceResults";
 import { ArchiveFoot, ArchiveHead } from "../../raceresults/ArchiveHead";
 import { CastFrame } from "../../raceresults/CastFrame";
-import { ArchiveShare, RaceResults } from "../../raceresults/RaceResults";
+import { RaceResults } from "../../raceresults/RaceResults";
 import { rrCss } from "../../raceresults/rrCss";
 import { Refresh } from "./Refresh";
 
@@ -120,7 +120,7 @@ export default async function RaceDayResultsPage({
       <RaceResults
         board={board}
         note={note}
-        head={final ? <ArchiveHead race={race} act={<ArchiveShare board={board} />} /> : undefined}
+        head={final ? <ArchiveHead race={race} /> : undefined}
         foot={final ? <ArchiveFoot race={race} /> : undefined}
         pick={pick}
       />

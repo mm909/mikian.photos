@@ -45,7 +45,7 @@ import { l1Css } from "./l1Css";
 
 /* OPT IN goes to the Rowtember sign-in and lands back on the front page at
  * #join (the same place the front page OPT IN sends a stranger). */
-const SIGN_IN = "/sign-in?callbackUrl=%2F%23join";
+const SIGN_IN = "/sign-in?callbackUrl=%2Fjoin";
 
 /* What the tiles paint when there is no rower to draw: the mark alone. */
 const BARE: ShareData = { displayName: "", rowerNumber: 0, instagram: "", meters: 0, sessions: 0, byDay: {} };

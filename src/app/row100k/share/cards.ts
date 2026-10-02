@@ -2307,16 +2307,16 @@ function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: Sha
   const timeSize = fitToWidth(ctx, t.time, fonts.black, measure, 360);
   const name = t.name.toUpperCase();
   const nameSize = fitToWidth(ctx, name, fonts.black, measure, 112);
-  const waveText = `WAVE ${Math.max(1, Math.floor(t.wave))}`;
-  const waveSize = 64;
+  /* No wave on the card (owner, 2026-10-01: "remove which wave you're in,
+   * I don't care which wave, on the sticker"): the time, the name, the
+   * split and its tag. */
   const mastSize = 26;
   const footSize = 28;
-  const lead = { mast: 34, time: 44, name: 30, wave: 44, hair: 30, foot: 36 };
+  const lead = { mast: 34, time: 44, name: 30, hair: 44, foot: 36 };
   const block =
     mastSize * 0.72 + lead.mast + 6 +
     timeSize * 0.72 + lead.time +
     nameSize * 0.72 + lead.name +
-    waveSize * 0.72 + lead.wave +
     lead.hair + 2 +
     lead.foot + footSize * 0.72;
   let y = Math.max(M, (H - block) / 2);
@@ -2349,12 +2349,6 @@ function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: Sha
   y += lead.name + nameSize * 0.72;
   ctx.font = `${nameSize}px ${fonts.black}`;
   ctx.fillText(name, M, y, measure);
-
-  /* The wave. */
-  y += lead.wave + waveSize * 0.72;
-  ctx.font = `${waveSize}px ${fonts.black}`;
-  ctx.fillStyle = dim;
-  ctx.fillText(waveText, M, y, measure);
 
   /* The hairline and the foot: the split, and the one tag the sheet gave
    * this time, drawn as the page draws it — mono caps in a 2px box. */

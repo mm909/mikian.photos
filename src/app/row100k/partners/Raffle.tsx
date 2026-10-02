@@ -165,7 +165,7 @@ export function Raffle({
             </span>
           </div>
         ) : (
-          <a className="rf-call go" href={joined ? "/#log" : "/#join"}>
+          <a className="rf-call go" href={joined ? "/#log" : "/join"}>
             <span className="big">Log a row to enter →</span>
             <span className="mono">
               {joined ? "" : "Opt in, then "}

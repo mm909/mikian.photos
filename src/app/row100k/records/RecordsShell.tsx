@@ -628,7 +628,7 @@ function FlatTable({
             /* The search found nobody: said inside the table so the head
                — the search itself — stays where it is. */
             <tr className="lockrow">
-              <td colSpan={dist ? 5 : 4}>NOBODY ON THIS BOARD MATCHES.</td>
+              <td colSpan={dist ? 5 : 4}>NOBODY MATCHES.</td>
             </tr>
           ) : (
             shown.map(({ r, place }) => (
@@ -716,7 +716,7 @@ function PeriodTable({
         <tbody>
           {finding && eliteShown.length === 0 && rankedShown.length === 0 && (
             <tr className="lockrow">
-              <td colSpan={4}>NOBODY ON THIS BOARD MATCHES.</td>
+              <td colSpan={4}>NOBODY MATCHES.</td>
             </tr>
           )}
           {eliteShown.length > 0 && (

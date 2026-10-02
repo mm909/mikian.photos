@@ -160,7 +160,7 @@ export function ShirtPreorder({
       )}
       {signedIn && !joined && (
         <p className="sp-visitor">
-          <Link className="sp-go" href="/#join">
+          <Link className="sp-go" href="/join">
             Opt in
           </Link>
         </p>

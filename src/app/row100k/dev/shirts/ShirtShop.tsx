@@ -129,7 +129,7 @@ export function ShirtShop({
     );
   } else if (!joined) {
     action = (
-      <Link className="sh-buy" href="/#join">
+      <Link className="sh-buy" href="/join">
         Opt in to buy
       </Link>
     );

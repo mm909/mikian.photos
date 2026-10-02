@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: JOIN_PAGE_LIVE ? "Opt in — Rowtember" : "Opt in (dev) — Rowtember",
+  /* A form behind a sign-in: nothing for a search engine either way. */
   robots: { index: false, follow: false },
 };
 

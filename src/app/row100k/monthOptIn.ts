@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { CHALLENGE, MONTH } from "@/lib/row100k";
 
 /* THE MONTH'S 100K OPT-IN (owner, 2026-10-01, the board redesign): who is
- * on this month's board. The 100K board (dev/board/page.tsx) lists only the
+ * on this month's board. The 100K board (board/page.tsx) lists only the
  * rowers with a live RowMonthOptIn row for the month; everyone else's rows
  * still count everywhere else (the stats, the records, the profile) — the
  * opt-in is about the board, not the meters. SERVER ONLY.

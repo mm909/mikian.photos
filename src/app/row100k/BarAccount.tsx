@@ -83,7 +83,7 @@ export function BarAccount({
       <button
         type="button"
         className="acct-chip opt"
-        onClick={() => signIn("google", { callbackUrl: "/#join" })}
+        onClick={() => signIn("google", { callbackUrl: "/join" })}
       >
         Opt in
       </button>
@@ -142,7 +142,7 @@ export function BarAccount({
                 </Link>
               </>
             ) : (
-              <Link className="acct-item" href="/#join" onClick={close}>
+              <Link className="acct-item" href="/join" onClick={close}>
                 Join the challenge →
               </Link>
             )}
@@ -170,6 +170,12 @@ export function BarAccount({
                 {/* The shirt pre-orders, with the CSV (shirts/admin/page.tsx). */}
                 <Link className="acct-item" href="/shirts/admin" onClick={close}>
                   Shirt pre-orders →
+                </Link>
+                {/* THE SIGN-UP PAGE as a new account gets it (join/page.tsx,
+                 * live since 2026-10-01): an admin is a rower already, so the
+                 * link is the preview, with an OPT IN that saves nothing. */}
+                <Link className="acct-item" href="/join?preview=1" onClick={close}>
+                  Sign-up page →
                 </Link>
 
                 {/* RACE DAY, ITS OWN GROUP (owner, 2026-09-21: "I need all my
@@ -230,21 +236,6 @@ export function BarAccount({
                  * production until the owner says it goes live. */}
                 <Link className="acct-item" href="/shirts" onClick={close}>
                   Shirts →
-                </Link>
-                {/* THE 100K BOARD in the opt-in look (owner, 2026-10-01: "the
-                 * board should be for specifically the 100K monthly challenge
-                 * with the opt-in") — dev/board/page.tsx, in development
-                 * until the owner has seen it on his phone. */}
-                <Link className="acct-item" href="/dev/board" onClick={close}>
-                  The 100K board →
-                </Link>
-                {/* THE SIGN-UP PAGE (owner, 2026-10-01: "once you log in, it
-                 * brings you to a dedicated sign up page") — join/page.tsx,
-                 * in development behind join/live.ts. An admin is a rower
-                 * already, so the link is the preview: the page as a new
-                 * account gets it, with an OPT IN that saves nothing. */}
-                <Link className="acct-item" href="/join?preview=1" onClick={close}>
-                  Sign-up page →
                 </Link>
               </>
             )}

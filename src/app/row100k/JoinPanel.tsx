@@ -48,7 +48,7 @@ export function JoinPanel(props: {
 
   if (props.mode === "signedOut") {
     // Sign-in lands back on #join, where the form is waiting.
-    return <OptIn onClick={() => signIn("google", { callbackUrl: "/#join" })}>Opt in</OptIn>;
+    return <OptIn onClick={() => signIn("google", { callbackUrl: "/join" })}>Opt in</OptIn>;
   }
 
   const submit = async () => {

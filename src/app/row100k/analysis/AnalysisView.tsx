@@ -80,7 +80,7 @@ export function AnalysisView({
               Log a row to see yours →
             </a>
           ) : viewer === "unjoined" ? (
-            <a className="hint" href="/#join">
+            <a className="hint" href="/join">
               Join the challenge to overlay yours →
             </a>
           ) : (

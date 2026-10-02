@@ -14,20 +14,28 @@
  * keeps its own 20px gutter (the footer rule in theme.ts carries none), so
  * the wordmark starts on the measure, not 20px left of it. */
 export function RowFooter({ front }: { front?: boolean }) {
+  /* The spacer ahead of the footer takes up whatever a short page leaves,
+   * so the footer sits at the foot of the screen instead of halfway up it
+   * (owner, 2026-10-01: if there is not enough content, the footer should
+   * still be at the bottom). theme.ts makes a root that holds one a flex
+   * column; a long page leaves it nothing and it is 0px tall. */
   return (
-    <footer>
-      <div className={front ? "wrap front" : "wrap"}>
-        <div className="big">ROWTEMBER</div>
-        <p className="mono">
-          <a href="https://instagram.com/rowtember" target="_blank" rel="noopener noreferrer">
-            @rowtember
-          </a>{" "}
-          · <a href="mailto:row@rowtember.com">row@rowtember.com</a>
-        </p>
-        <p className="mono" style={{ marginTop: 18 }}>
-          for yourself and others
-        </p>
-      </div>
-    </footer>
+    <>
+      <div className="foot-push" aria-hidden="true" />
+      <footer>
+        <div className={front ? "wrap front" : "wrap"}>
+          <div className="big">ROWTEMBER</div>
+          <p className="mono">
+            <a href="https://instagram.com/rowtember" target="_blank" rel="noopener noreferrer">
+              @rowtember
+            </a>{" "}
+            · <a href="mailto:row@rowtember.com">row@rowtember.com</a>
+          </p>
+          <p className="mono" style={{ marginTop: 18 }}>
+            for yourself and others
+          </p>
+        </div>
+      </footer>
+    </>
   );
 }

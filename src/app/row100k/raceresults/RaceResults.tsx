@@ -200,8 +200,17 @@ function Freshness({ board }: { board: ResultBoard }) {
  * WOMEN in Archivo Black; the mono caps label style the rest of the page
  * uses). Two weights of the same thing: a section word over a 2px rule,
  * and a bracket word over a hairline inside it. */
-function Section({ children }: { children: ReactNode }) {
-  return <p className="rr-sec">{children}</p>;
+/* A section head; `right` puts a control at the end of its line (SHARE
+ * YOUR TIME on RESULTS), and the head is then a div, since the control can
+ * open a panel under itself and a panel may not sit in a paragraph. */
+function Section({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  if (right === undefined) return <p className="rr-sec">{children}</p>;
+  return (
+    <div className="rr-sec rr-sech">
+      <span>{children}</span>
+      {right}
+    </div>
+  );
 }
 
 function Label({ children, right }: { children: ReactNode; right?: ReactNode }) {
@@ -625,11 +634,13 @@ function NameCell({
 }) {
   /* The signed ON BEST clause came off this line with every other plus and
    * minus; the split stays, and the tag above it carries what the sign was
-   * for. On a phone this sub-line IS the seed, /500 and wave columns. */
+   * for. On a phone this sub-line IS the seed and /500 columns. No wave
+   * (owner, 2026-10-01: "I don't think I care about which wave on the
+   * results"); the field table mid-race is grouped by wave already. */
   const seed = fmtSeed(racer.best5k);
   const sub =
     racer.status === "finished" && racer.seconds !== null
-      ? `${fmtSplitFor(board.meters, racer.seconds)} /500 · wave ${racer.wave}${seed ? ` · was ${seed}` : ""}`
+      ? `${fmtSplitFor(board.meters, racer.seconds)} /500${seed ? ` · was ${seed}` : ""}`
       : seed
         ? `Best in ${seed}`
         : "First 5k";
@@ -769,9 +780,6 @@ export function BracketTable({ board, view }: { board: ResultBoard; view: Bracke
           <th className="col-split rr-hx" scope="col" style={{ textAlign: "right" }}>
             /500
           </th>
-          <th className="col-wave rr-hx" scope="col" style={{ textAlign: "right" }}>
-            Wave
-          </th>
         </tr>
       </thead>
       <tbody>
@@ -784,12 +792,11 @@ export function BracketTable({ board, view }: { board: ResultBoard; view: Bracke
             <SeedCell racer={r} />
             <TimeCell racer={r} />
             <td className="dim rr-hx">{fmtSplitFor(board.meters, r.seconds ?? 0)}</td>
-            <td className="dim rr-hx">{r.wave}</td>
           </tr>
         ))}
         {view.ranked.length === 0 && (
           <tr>
-            <td className="dim" colSpan={6} style={{ textAlign: "left" }}>
+            <td className="dim" colSpan={5} style={{ textAlign: "left" }}>
               {DASH}
             </td>
           </tr>
@@ -1003,7 +1010,10 @@ export function RaceResults({
           <div className="rr-wrap">
             {note}
             {head}
-            <Section>Results</Section>
+            {/* SHARE YOUR TIME on the RESULTS line (owner, 2026-10-01: "put
+                the share your time on the same line as the results"; in the
+                ticket corner it looked silly on a phone). */}
+            <Section right={<ArchiveShare board={board} />}>Results</Section>
             <Label>Men</Label>
             <BracketTable board={board} view={men} />
             <Label>Women</Label>

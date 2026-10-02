@@ -80,7 +80,7 @@ export function RaffleBanner({
         ) : (
           <a
             className="rfb-cta"
-            href={joined ? "/#log" : "/#join"}
+            href={joined ? "/#log" : "/join"}
             onClick={(e) => {
               // The same in-place trick as BarLog: on a page that carries the
               // log form, tell it to open rather than hopping to the front.

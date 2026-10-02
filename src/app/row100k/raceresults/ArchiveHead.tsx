@@ -60,17 +60,16 @@ export function ArchiveHead({ race, act }: { race: RaceDef; act?: ReactNode }) {
   );
 }
 
-/* THE SPONSOR LINE, at the foot of the sheet (owner, 2026-10-01: the Las
- * Vegas Sports and Spine Center mark leaves the header for the bottom of
- * the page, a small ruled line above the footer). A mono caps label and
- * the white mark at about a third of the size it had in the header; a
- * hairline over it. Nothing when the race has no sponsor. */
+/* THE SPONSOR, at the foot of the sheet (owner, 2026-10-01: the Las Vegas
+ * Sports and Spine Center mark leaves the header for the bottom of the
+ * page; later the same day: "remove the copy RACE DAY SPONSOR and just put
+ * the logo centered in the bottom middle of the page"). The white mark,
+ * centred, nothing else. Nothing when the race has no sponsor. */
 export function ArchiveFoot({ race }: { race: RaceDef }) {
   if (!race.sponsor) return null;
   const m = race.sponsor.mark;
   return (
     <p className="rr-spon">
-      <span>Race day sponsor</span>
       <a href={race.sponsor.url} target="_blank" rel="noopener noreferrer">
         <img src={m.src} alt={m.alt} width={1000} height={Math.round(1000 / m.ratio)} />
       </a>

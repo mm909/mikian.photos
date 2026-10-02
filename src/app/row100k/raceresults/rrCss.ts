@@ -89,31 +89,26 @@ export const rrCss = `
 
 /* ---- THE ARCHIVE (owner, 2026-10-01) ----
  * THE HEADER, cut to a third (owner, the same night: the ticket took too
- * much room). A thick rule, the name one step above the section words
- * with SHARE YOUR TIME flush right of it, ONE mono line under both — the
- * day, the house, the room, the piece — and the 2px rule the sheet is
- * ruled with. No marks: the house is words now and the sponsor closed the
- * sheet (.rr-spon). A grid, not a flex row, because the share control
- * hands in two things — the button and the list it opens — and the list
- * has to land under the mono line whatever the DOM order: row 1 is the
- * name and the button, row 2 the line across both columns, row 3 the
- * list across both. The poster-size name went with the marks. */
+ * much room). A thick rule, the name one step above the section words,
+ * ONE mono line under it — the day, the house, the room, the piece — and
+ * the 2px rule the sheet is ruled with. No marks: the house is words now
+ * and the sponsor closes the sheet (.rr-spon). SHARE YOUR TIME sat flush
+ * right of the name until the owner moved it to the RESULTS line
+ * (.rr-sech, 2026-10-01). The poster-size name went with the marks. */
 .row100k .rr-arch{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px;border-top:6px solid #fff;border-bottom:2px solid #fff;padding:10px 0 12px}
 .row100k .rr-archt{grid-column:1;grid-row:1;font-family:var(--row-archivo-black),sans-serif;font-size:20px;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:#fff;margin:0;min-width:0}
 .row100k .rr-archp{grid-column:1/-1;grid-row:2;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:8px 0 0;line-height:1.9}
 /* A cell of the line never breaks inside itself; the line wraps between
  * cells, after a dot. */
 .row100k .rr-archp span{white-space:nowrap}
-.row100k .rr-arch .rr-act{grid-column:2;grid-row:1;justify-self:end}
-.row100k .rr-arch .rr-sharep{grid-column:1/-1;grid-row:3}
 
-/* THE SPONSOR LINE at the foot of the sheet, above the footer: a hairline,
- * the label in the quiet mono, the white mark beside it at a third of the
- * width it had in the header. */
-.row100k .rr-spon{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:44px 0 0;padding-top:14px;border-top:1px solid rgba(255,255,255,.3);font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+/* THE SPONSOR at the foot of the sheet, above the footer: the white mark
+ * alone, centred (owner, 2026-10-01: no RACE DAY SPONSOR label, the logo
+ * in the bottom middle of the page). */
+.row100k .rr-spon{display:flex;justify-content:center;margin:72px 0 0;padding:0}
 .row100k .rr-spon a{display:block;line-height:0;flex:none}
 .row100k .rr-spon a:hover{opacity:.8}
-.row100k .rr-spon img{display:block;width:clamp(64px,9vw,80px);height:auto}
+.row100k .rr-spon img{display:block;width:clamp(140px,30vw,200px);height:auto}
 
 /* THE LABELS: mono caps, two weights. A section word over a 2px rule, a
  * bracket word over a hairline inside it — never the display face (owner:
@@ -125,6 +120,10 @@ export const rrCss = `
  * the ticket closes on the same 2px, and two of them an inch apart with
  * nothing between read as an empty band. */
 .row100k .rr-arch+.rr-sec{border-top:0;margin-top:10px}
+/* RESULTS with SHARE YOUR TIME at the end of its line (owner, 2026-10-01).
+ * The picker the button opens drops to a line of its own under both. */
+.row100k .rr-sech{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+.row100k .rr-sech .rr-sharep{flex-basis:100%;margin-top:4px}
 .row100k .rr-lab .rt{letter-spacing:.14em}
 .row100k .rr-sec+.rr-pick .rr-pickk{margin-top:16px}
 .row100k .rr-lab+.rr-pod{margin-top:8px}
@@ -398,7 +397,6 @@ export const rrCss = `
 .row100k table.rr-t.sheet th.col-seed{width:128px}
 .row100k table.rr-t.sheet th.col-time{width:92px}
 .row100k table.rr-t.sheet th.col-split{width:72px}
-.row100k table.rr-t.sheet th.col-wave{width:64px}
 .row100k table.rr-t td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .row100k table.rr-t td.nm{font-family:var(--row-archivo),sans-serif;font-weight:700;color:#fff;min-width:0}
 .row100k table.rr-t td.br{color:rgba(255,255,255,.5);width:34px}

@@ -96,7 +96,7 @@ export default async function SettingsPage() {
           ) : !me ? (
             <p className="board-empty">
               YOU HAVE NOT JOINED YET.{" "}
-              <a href="/#join" style={{ color: "var(--water)" }}>
+              <a href="/join" style={{ color: "var(--water)" }}>
                 JOIN THE CHALLENGE →
               </a>
             </p>

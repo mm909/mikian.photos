@@ -1,7 +1,9 @@
 /* THE SWITCH for the sign-up page (/join, join/page.tsx — owner,
  * 2026-10-01: "once you log in, it brings you to a dedicated sign up page").
+ * LIVE since the same evening (owner: "I like the sign up page. We can make
+ * that live").
  *
- * false, today: the page is IN DEVELOPMENT (CLAUDE.md) — admin-only in
+ * false, as it was: the page is IN DEVELOPMENT (CLAUDE.md) — admin-only in
  * production, "(dev)" in its title, reached from the DEVELOPMENT group of
  * the account menu — and every new account still joins through the
  * JoinPanel at the foot of the front page, exactly as before.
@@ -18,4 +20,4 @@
  *
  * Typed boolean, not the literal, so the branches it guards type-check
  * both ways. */
-export const JOIN_PAGE_LIVE: boolean = false;
+export const JOIN_PAGE_LIVE: boolean = true;

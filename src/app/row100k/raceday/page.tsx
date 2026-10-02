@@ -12,7 +12,7 @@ import { raceWithSettings } from "../racedaySettings";
 import { listRacers } from "../racedayData";
 import { postingWindow, resultBoard } from "../raceResults";
 import { ArchiveFoot, ArchiveHead } from "../raceresults/ArchiveHead";
-import { ArchiveShare, RaceResults } from "../raceresults/RaceResults";
+import { RaceResults } from "../raceresults/RaceResults";
 import { rrCss } from "../raceresults/rrCss";
 import { FIELD_SHOWS_AT, Field } from "./Field";
 import { RaceShare, type RaceFacts } from "./RaceShare";
@@ -240,7 +240,7 @@ export default async function RaceDayPage() {
         <RowBar active="raceday" {...barProps(viewer)} />
         <RaceResults
           board={board}
-          head={<ArchiveHead race={race} act={<ArchiveShare board={board} />} />}
+          head={<ArchiveHead race={race} />}
           foot={<ArchiveFoot race={race} />}
         />
         <RowFooter />

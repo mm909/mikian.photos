@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { CHALLENGE, MONTH, isRow100kAdmin } from "@/lib/row100k";
+import { CHALLENGE, MONTH } from "@/lib/row100k";
 
 export const runtime = "nodejs";
 
@@ -23,16 +23,13 @@ export const runtime = "nodejs";
  * This month only — the board is the month the clock is in. Signed in AND
  * on the roster (a participant row), the shirt pre-orders' rule.
  *
- * IN DEVELOPMENT with the page (CLAUDE.md): admin-only in production, a
- * 404 for anyone else, the same answer the page gives. Open in local dev. */
+ * LIVE with the board (owner, 2026-10-01: "Same with the board. Let's make
+ * that live"): any signed-in rower on the roster. */
 
 const bad = (error: string, status = 400) => NextResponse.json({ ok: false, error }, { status });
 
 export async function POST() {
   const actor = await getEffectiveActor();
-  if (process.env.NODE_ENV === "production" && !(actor && isRow100kAdmin(actor.email, actor.roles))) {
-    return new NextResponse(null, { status: 404 });
-  }
   if (!actor) return bad("Sign in first.", 401);
   const p = await db.rowParticipant.findUnique({
     where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },

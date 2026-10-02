@@ -14,16 +14,20 @@ import { MONTH } from "@/lib/row100k";
  * is BOARD, not THE BOARD, since 2026-10-01 (owner: "look at the header. We
  * need to condense it into one line") — the article was three characters a
  * phone did not have. */
-export type NavKey = "home" | "raceday" | "board" | "stats" | "feed" | "gallery" | "partners";
+export type NavKey = "home" | "raceday" | "board" | "rankings" | "stats" | "feed" | "gallery" | "partners";
 
 export type NavItem = { key: NavKey; href: string; label: string };
 
 export const ITEMS: NavItem[] = [
   /* Ahead of every section link: the rail reads race, then sections. */
   { key: "raceday", href: "/raceday", label: "RACE DAY" },
-  /* No ?m= and no ?d=: the records page reads the plain URL as this month,
-   * All (records/[record]/page.tsx hrefFor). */
-  { key: "board", href: "/records/total", label: "BOARD" },
+  /* BOARD is the month's 100K, the rowers who opted in (owner, 2026-10-01:
+   * "we have the board, which is what's currently in dev, and then we have
+   * rankings, which is what the current board is going to be renamed to").
+   * RANKINGS is the full rankings, opened on total meters; no ?m= and no
+   * ?d=, so the records page reads the plain URL as this month, All. */
+  { key: "board", href: "/board", label: "BOARD" },
+  { key: "rankings", href: "/records/total", label: "RANKINGS" },
   { key: "stats", href: "/stats", label: "STATS" },
   { key: "feed", href: "/feed", label: "FEED" },
   { key: "partners", href: "/partners", label: "PARTNERS" },
