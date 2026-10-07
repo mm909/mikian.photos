@@ -28,6 +28,13 @@ const ALLOWED_PREFIXES = [
   "/api/cron/backfill-detection",
   "/api/cron/backup-db",
   "/api/cron/row100k-daily",
+  /* The live tracker (TRACKER_SPEC.md, 2026-10-06): the public page, the
+   * crew/van/join pages and the APIs they poll and post to. The pages
+   * themselves are admin-only in production while in development
+   * (src/lib/tracker/gate.ts); the webhook and crew writes carry their own
+   * secrets, so they have to pass the door here. */
+  "/track",
+  "/api/track",
   /* public/ folders, in case a request for one slips past the extension
    * rule in the matcher */
   "/assets",

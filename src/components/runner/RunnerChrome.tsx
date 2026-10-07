@@ -37,7 +37,11 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
      * over it offered a rower on a gym laptop links to Rowtember and the
      * crew call, which is the opposite of the point. */
     pathname === "/erg" ||
-    pathname.startsWith("/erg/");
+    pathname.startsWith("/erg/") ||
+    /* The live tracker (/track/<slug> and its crew, van and join pages):
+     * mobile-first dark pages with their own header, no marketplace nav. */
+    pathname === "/track" ||
+    pathname.startsWith("/track/");
 
   return (
     <>

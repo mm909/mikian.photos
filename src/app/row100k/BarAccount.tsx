@@ -238,6 +238,16 @@ export function BarAccount({
                 <Link className="acct-item" href="/shirts" onClick={close}>
                   Shirts →
                 </Link>
+                {/* THE LIVE TRACKER (TRACKER_SPEC.md, 2026-10-06): where the
+                 * LASD26 runners are, for friends and family. In development
+                 * — the /track pages 404 for non-admins in production
+                 * (src/lib/tracker/gate.ts) until the owner says live. */}
+                <Link className="acct-item" href="/track/lasd26" onClick={close}>
+                  Live tracker →
+                </Link>
+                <Link className="acct-item" href="/track/lasd26/join" onClick={close}>
+                  Tracker: runner setup →
+                </Link>
               </>
             )}
             <button

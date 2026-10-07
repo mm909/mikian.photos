@@ -975,3 +975,194 @@ model CrewApplication {
 
   @@index([page, createdAt])
 }
+
+// ─── Live tracker (TRACKER_SPEC.md, built from 2026-10-06) ─────────────────
+//
+// Where runners are during a long event: live position, progress, ETA and
+// per-runner stats, for friends and family on a phone. Event-agnostic: every
+// event-specific fact lives in events/<slug>.yaml (+ its GPX) and is UPSERTED
+// into these rows by src/lib/tracker/sync.ts; nothing below names an event.
+// Legs and stats are DERIVED from TrackerPosition + TrackerHandoff on every
+// snapshot build (src/lib/tracker/compute.ts); TrackerSnapshot is a cache,
+// never a source of truth. Distances are metres, times UTC.
+
+model TrackerEvent {
+  // The slug (events/<id>.yaml) — the public address is /track/<id>.
+  id             String   @id
+  name           String
+  kind           String // 'relay' | 'solo'
+  startTime      DateTime
+  timezone       String
+  units          String // 'imperial' | 'metric'
+  defaultRouteId String?
+  publicDelayS   Int      @default(0)
+  // The crew key is resolved from an env var named in the YAML (the repo is
+  // public) and mirrored here so pages can print the crew/van links.
+  crewKey        String   @default("")
+  // 'live' (the default: status is derived from the clock and progress) |
+  // 'archived' (webhook fixes for its devices are dropped).
+  status         String   @default("live")
+  // "config=<16>;route=<16>;key=<16>": the parsed YAML, the GPX text(s) and the
+  // resolved crew key, so swapping a course file or rotating the key re-syncs.
+  configHash     String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  routes   TrackerRoute[]
+  entries  TrackerEntry[]
+  devices  TrackerDevice[]
+  snapshot TrackerSnapshot?
+
+  @@index([status])
+}
+
+model TrackerRoute {
+  // `${slug}:route:${file-stem}`
+  id         String @id
+  eventId    String
+  name       String
+  lengthM    Float
+  pointCount Int
+  // Densified to <= 25 m spacing: [[lat, lon, cumM, eleM], ...] in order.
+  // One JSON blob (~400 KB for 215 km) rather than a row per point: the
+  // whole index is loaded into memory on every snapshot build anyway.
+  points     Json
+  // [minLat, minLon, maxLat, maxLon]
+  bbox       Json
+  sourceHash String @default("")
+
+  event       TrackerEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  checkpoints TrackerCheckpoint[]
+
+  @@index([eventId])
+}
+
+// The unit that moves along a route: a team, or a solo runner. Never "a team".
+model TrackerEntry {
+  // `${slug}:entry:${short_name}`
+  id        String  @id
+  eventId   String
+  name      String
+  shortName String
+  color     String
+  // NULL = the event's default route (per-entry routes are phase 6).
+  routeId   String?
+  sortOrder Int     @default(0)
+
+  event        TrackerEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participants TrackerParticipant[]
+  devices      TrackerDevice[]
+  handoffs     TrackerHandoff[]
+
+  @@index([eventId])
+}
+
+model TrackerParticipant {
+  // `${slug}:p:${entry short_name}:${tail}` — tail = an explicit `id:` in the YAML,
+  // else the runner device external_id (the device IS the runner identity for the
+  // event), else the 1-based position. See config.ts participantId().
+  id        String @id
+  entryId   String
+  name      String
+  initials  String
+  sortOrder Int    @default(0)
+
+  entry    TrackerEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  devices  TrackerDevice[]
+  handoffs TrackerHandoff[]
+
+  @@index([entryId])
+}
+
+model TrackerDevice {
+  // `${slug}:dev:${source}:${externalId}`
+  id            String  @id
+  eventId       String
+  source        String // 'traccar' | 'web' | 'satellite' | 'manual'
+  externalId    String // e.g. the Traccar uniqueId the runner types into the app
+  participantId String?
+  entryId       String?
+  role          String // 'runner' | 'vehicle' | 'baton'
+
+  event       TrackerEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participant TrackerParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  entry       TrackerEntry?       @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  positions   TrackerPosition[]
+
+  @@unique([eventId, source, externalId])
+  @@index([source, externalId])
+}
+
+// One GPS fix. Device time (fixTime) is the truth; receivedTime is only kept
+// to measure lag. Late and out-of-order arrival is normal (phones buffer).
+model TrackerPosition {
+  id           Int      @id @default(autoincrement())
+  deviceId     String
+  fixTime      DateTime
+  receivedTime DateTime @default(now())
+  lat          Float
+  lon          Float
+  accuracyM    Float?
+  speedMps     Float?
+  batteryPct   Float?
+  altitudeM    Float?
+  // Best-effort snap at ingest (for the map); the snapshot build re-snaps
+  // on-course fixes in time order, which is what progress is computed from.
+  routeM       Float?
+  offRouteM    Float?
+
+  device TrackerDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  // Idempotent ingest: a duplicate delivery is ignored, not an error.
+  @@unique([deviceId, fixTime])
+  @@index([deviceId, fixTime(sort: Desc)])
+}
+
+// A crew tap: "this runner is on course from `time`". A relay leg is the span
+// between two of these. Buffered offline on the crew page and accepted late.
+model TrackerHandoff {
+  id            String   @id @default(cuid())
+  entryId       String
+  participantId String
+  // When the tap happened on the client, corrected for clock skew > 5 s.
+  time          DateTime
+  // UUID minted by the client, so a retried POST is one handoff, not two.
+  clientEventId String   @unique
+  receivedTime  DateTime @default(now())
+  source        String // 'crew' | 'runner' | 'admin' | 'simulator'
+  voided        Boolean  @default(false)
+  // Server clock minus client clock at receipt (seconds), when it was applied.
+  clockOffsetS  Float?
+
+  entry       TrackerEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  participant TrackerParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, time])
+}
+
+model TrackerCheckpoint {
+  // `${slug}:cp:${1-based index}`
+  id        String @id
+  routeId   String
+  name      String
+  kind      String // 'start' | 'town' | 'exchange' | 'aid' | 'finish'
+  routeM    Float
+  sortOrder Int    @default(0)
+
+  route TrackerRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId])
+}
+
+// The one file spectators read (section 10 of the spec). Rebuilt on demand
+// when older than 15 s and after ingest (debounced to once per 5 s).
+model TrackerSnapshot {
+  eventId     String   @id
+  generatedAt DateTime
+  // The instant the snapshot describes: generatedAt minus the public delay.
+  asOf        DateTime
+  json        Json
+  buildMs     Int      @default(0)
+
+  event TrackerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}

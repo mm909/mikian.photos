@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local database dumps (npm run db:backup -- --local ./backups)
 /backups/
+
+# MapLibre worker, copied from node_modules by scripts/copy-maplibre-worker.mjs
+/public/track/maplibre-gl-worker.mjs

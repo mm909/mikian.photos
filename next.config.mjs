@@ -16,6 +16,13 @@ const nextConfig = {
   // import. v7 bundles cleanly, so it does NOT need to be externalized.)
   experimental: {
     serverComponentsExternalPackages: ["tesseract.js", "sharp"],
+    // The live tracker's event files (events/<slug>.yaml + .gpx) are read
+    // from disk by the sync route, which upserts them into the database;
+    // nothing else reads the files at runtime. Output tracing would not
+    // otherwise ship them to the serverless function.
+    outputFileTracingIncludes: {
+      "/api/track/sync": ["./events/**/*"],
+    },
   },
 
   // /rowtember is a second front door to the challenge. The challenge was

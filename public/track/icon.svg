@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Crew page app icon: a route dot on ink. Plain shapes so it reads at 48 px. -->
+  <rect width="512" height="512" rx="96" fill="#101214"/>
+  <path d="M96 392 C 160 300, 200 300, 256 256 S 352 170, 416 120" fill="none" stroke="#2C3137" stroke-width="28" stroke-linecap="round"/>
+  <path d="M96 392 C 160 300, 200 300, 256 256" fill="none" stroke="#F1F1EC" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="64" fill="#D4FF3A" stroke="#101214" stroke-width="14"/>
+</svg>

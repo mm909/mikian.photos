@@ -1,0 +1,87 @@
+# LASD26 — No Shortcuts Time Trial, Santa Monica → San Diego, 2026-10-23.
+#
+# One file per event (TRACKER_SPEC.md §7). Loaded by `npm run track:sync`
+# (or POST /api/track/sync as an admin), which upserts it into the Tracker*
+# tables; the GPX named under `route` sits next to this file.
+#
+# PLACEHOLDERS the owner fills before race week (spec §15):
+#   - start_time (the crew call page says 5:00 AM Pacific)
+#   - team names, the 16 runner names (device ids may stay as they are:
+#     each runner types theirs into Traccar Client — see /track/lasd26/join)
+#   - checkpoint towns and miles from the REAL route
+#   - events/lasd26.gpx is a BRouter-generated stand-in, not the official course
+#
+# Secrets: the repo is public. `$TRACKER_CREW_KEY_LASD26` is read from the
+# environment (Vercel → Settings → Environment Variables; .env.local on a
+# laptop). Unset, the key syncs as "" and the crew/van pages refuse every
+# key — sync prints a banner. The predictable "dev-lasd26-crew" fallback is
+# used ONLY when POSTGRES_URL points at a local database (the laptop's
+# .env.local points at the live one, so there it is never used).
+#
+# Participant ids (what handoffs hang off): an explicit `id:` on the line
+# ([a-z0-9-]) wins; else a line WITH a device is identified by its device's
+# external_id — the phone IS the runner for this event, so a runner who
+# swaps phones gets the new external_id written on THEIR line (not a new
+# line); else the 1-based position. Deleting or reordering lines therefore
+# never re-attributes anyone's legs; a line that leaves the file keeps its
+# row in the database (sync warns, with its handoff count).
+
+slug: lasd26
+name: "No Shortcuts TT · LA to SD"
+kind: relay
+start_time: "2026-10-23T05:00:00-07:00"
+timezone: America/Los_Angeles
+units: imperial
+route: lasd26.gpx
+public_delay_s: 0
+crew_key: "$TRACKER_CREW_KEY_LASD26"
+
+entries:
+  - name: "Team A"
+    short_name: A
+    color: "#D4FF3A"
+    participants:
+      - { name: "Runner A1", initials: "A1", device: { source: traccar, external_id: "lasd26-a1" } }
+      - { name: "Runner A2", initials: "A2", device: { source: traccar, external_id: "lasd26-a2" } }
+      - { name: "Runner A3", initials: "A3", device: { source: traccar, external_id: "lasd26-a3" } }
+      - { name: "Runner A4", initials: "A4", device: { source: traccar, external_id: "lasd26-a4" } }
+      - { name: "Runner A5", initials: "A5", device: { source: traccar, external_id: "lasd26-a5" } }
+      - { name: "Runner A6", initials: "A6", device: { source: traccar, external_id: "lasd26-a6" } }
+      - { name: "Runner A7", initials: "A7", device: { source: traccar, external_id: "lasd26-a7" } }
+      - { name: "Runner A8", initials: "A8", device: { source: traccar, external_id: "lasd26-a8" } }
+    vehicle_device: { source: web, external_id: "lasd26-van-a" }
+
+  - name: "Team B"
+    short_name: B
+    color: "#FF6A3D"
+    participants:
+      - { name: "Runner B1", initials: "B1", device: { source: traccar, external_id: "lasd26-b1" } }
+      - { name: "Runner B2", initials: "B2", device: { source: traccar, external_id: "lasd26-b2" } }
+      - { name: "Runner B3", initials: "B3", device: { source: traccar, external_id: "lasd26-b3" } }
+      - { name: "Runner B4", initials: "B4", device: { source: traccar, external_id: "lasd26-b4" } }
+      - { name: "Runner B5", initials: "B5", device: { source: traccar, external_id: "lasd26-b5" } }
+      - { name: "Runner B6", initials: "B6", device: { source: traccar, external_id: "lasd26-b6" } }
+      - { name: "Runner B7", initials: "B7", device: { source: traccar, external_id: "lasd26-b7" } }
+      - { name: "Runner B8", initials: "B8", device: { source: traccar, external_id: "lasd26-b8" } }
+    vehicle_device: { source: web, external_id: "lasd26-van-b" }
+
+# Miles are measured along the STAND-IN GPX (142.4 mi, BRouter, coast-hugging
+# — the official course is ~134 mi); the owner replaces towns / exchange
+# points and miles from the real route (spec §15.4). `kind: town` rows feed
+# the Meet us tab; a mile past the route end is clamped to the finish.
+checkpoints:
+  - { name: "Santa Monica Pier", kind: start, mile: 0 }
+  - { name: "Manhattan Beach", kind: town, mile: 12.7 }
+  - { name: "Long Beach", kind: town, mile: 34.9 }
+  - { name: "Huntington Beach", kind: town, mile: 48.3 }
+  - { name: "Newport Beach", kind: town, mile: 53.6 }
+  - { name: "Laguna Beach", kind: town, mile: 64.1 }
+  - { name: "Dana Point", kind: town, mile: 71.6 }
+  - { name: "San Clemente", kind: town, mile: 78.6 }
+  - { name: "Oceanside", kind: town, mile: 103.9 }
+  - { name: "Carlsbad", kind: town, mile: 107.4 }
+  - { name: "Encinitas", kind: town, mile: 116.2 }
+  - { name: "Del Mar", kind: town, mile: 123.0 }
+  - { name: "La Jolla", kind: town, mile: 131.4 }
+  - { name: "Pacific Beach", kind: town, mile: 137.5 }
+  - { name: "Ocean Beach Pier", kind: finish, mile: 142.4 }
