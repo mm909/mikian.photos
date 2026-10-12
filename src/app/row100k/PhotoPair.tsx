@@ -22,7 +22,7 @@ const UPLOAD_FAILED = "Upload failed — check your signal and try again.";
  * (iPhone HEIC arrives as whatever the browser hands the canvas) and keeps
  * uploads small on gym wifi. Called twice per photo: once for the main
  * upload, once for its grid thumbnail. */
-async function downscaleToJpeg(file: Blob, maxEdge: number, quality: number): Promise<Blob> {
+export async function downscaleToJpeg(file: Blob, maxEdge: number, quality: number): Promise<Blob> {
   const srcUrl = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {

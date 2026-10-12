@@ -754,6 +754,35 @@ model RowMonthOptIn {
   @@index([challenge, month])
 }
 
+/// A RUNNER WHO WANTS PHOTOS from a race the owner is shooting (owner,
+/// 2026-10-12, the Longhorn Last Person Standing: "a page where runners
+/// can let me know that they are running"). Scoped by `race` so the next
+/// race reuses the table. One row per Google account per race — the
+/// runner comes back to fill in the bib once they have one. The photo is
+/// an R2 key under <race>/<userId>/, the row-photo convention (a thumb
+/// beside it). Pushed with `prisma db push`.
+model RaceRunnerSignup {
+  id            String   @id @default(cuid())
+  race          String   @default("longhorn-lms")
+  /// Photographer.id of the signed-in Google account.
+  userId        String
+  name          String
+  email         String   @default("")
+  phone         String   @default("")
+  /// Instagram handle without the "@".
+  instagram     String   @default("")
+  /// Bib number as the race prints it, once they have one.
+  bib           String   @default("")
+  photoKey      String   @default("")
+  /// How many loops they expect to run; null when they did not say.
+  expectedLoops Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([race, userId])
+  @@index([race, createdAt])
+}
+
 /// A signup for RACE DAY — the timed 5,000 m trial on Sunday Sep 27 2026 at
 /// The Strip Barbell, Las Vegas (owner, 2026-09-10). Free: a rower registers
 /// and the owner puts them in a wave, then tells them by email. The race
