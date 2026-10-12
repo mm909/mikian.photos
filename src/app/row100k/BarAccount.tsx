@@ -248,6 +248,14 @@ export function BarAccount({
                 <Link className="acct-item" href="/track/lasd26/join" onClick={close}>
                   Tracker: runner setup →
                 </Link>
+                {/* LONGHORN LMS (owner, 2026-10-12): the page where runners of
+                 * the Longhorn Last Person Standing say they are running and
+                 * want photos (src/app/longhorn-lms). Owner-only in
+                 * production until reviewed; the owner reads the list from
+                 * the account control on the page itself. */}
+                <Link className="acct-item" href="/longhorn-lms" onClick={close}>
+                  Longhorn LMS →
+                </Link>
               </>
             )}
             <button
