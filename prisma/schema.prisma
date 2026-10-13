@@ -783,6 +783,44 @@ model RaceRunnerSignup {
   @@index([race, createdAt])
 }
 
+/// An entry on a HYROX BOARD (owner, 2026-10-13): one person saying what
+/// they are racing at one Hyrox weekend — the event by slug
+/// (src/app/hyrox/events.ts), the category as the rulebook sells it
+/// (format × division × gender), the day, the partner or teammates by name,
+/// a team name, and a start time once Hyrox announces them. An account can
+/// hold several entries on one event (a singles one day, a doubles the
+/// next); the route caps how many. The board prints everything but the
+/// email, which only the owner's list shows.
+model HyroxEntry {
+  id        String   @id @default(cuid())
+  /// events.ts slug, e.g. "las-vegas-2027".
+  event     String
+  /// Photographer.id of the signed-in Google account.
+  userId    String
+  name      String
+  email     String   @default("")
+  /// Instagram handle without the "@".
+  instagram String   @default("")
+  /// "singles" | "doubles" | "relay"
+  format    String
+  /// "open" | "pro" | "adaptive" (relay: "open")
+  division  String   @default("open")
+  /// "men" | "women" | "mixed"
+  gender    String
+  /// ISO day, one of the event's days: "2027-03-13".
+  day       String
+  /// The partner (doubles) or teammates (relay) by name, as typed.
+  partners  String[] @default([])
+  teamName  String   @default("")
+  /// As typed, once announced: "9:40 AM". Blank until then.
+  startTime String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([event, day])
+  @@index([event, userId])
+}
+
 /// A signup for RACE DAY — the timed 5,000 m trial on Sunday Sep 27 2026 at
 /// The Strip Barbell, Las Vegas (owner, 2026-09-10). Free: a rower registers
 /// and the owner puts them in a wave, then tells them by email. The race
