@@ -18,9 +18,10 @@
  *   forest  #256E45 on paper 5.6   #3F9E5A on ink 5.3
  * (the water on paper is the site's own blue of 2026-09-05, kept as it is).
  *
- * OCTOBER ORANGE IS THE DEFAULT (owner, 2026-10-01: "instead of red, let's
+ * OCTOBER ORANGE WAS THE DEFAULT from 2026-10-01 ("instead of red, let's
  * pick like October orange. Let's pick a month theme color. Like Halloween
- * orange"). A pumpkin on ink; on paper the same hue burnt down until a mono
+ * orange") until 2026-10-13, when the blue came back (see PALETTES). The
+ * orange: a pumpkin on ink; on paper the same hue burnt down until a mono
  * label in it reads — and still reads on the dimmed paper a dark-mode
  * phone gets (theme.ts, #E9E7DF: 4.6:1). White caps do not hold on the
  * pumpkin (2.6:1), so a slab of it carries ink caps (capsOn below); the
@@ -67,18 +68,23 @@ const WATER = { accentOnPaper: "#0077B6", accentOnPaperHover: "#1a90d4", accentO
 const MUSTARD = { accentOnPaper: "#85661A", accentOnPaperHover: "#A07C1F", accentOnPaperPale: "#F3EAD0", accentOnInk: "#E0B32B", accentOnInkHover: "#EAC455", accentOnInkPale: "#2A2410" };
 const FOREST = { accentOnPaper: "#256E45", accentOnPaperHover: "#2F8A56", accentOnPaperPale: "#E0EFE5", accentOnInk: "#3F9E5A", accentOnInkHover: "#5BB876", accentOnInkPale: "#142A1B" };
 
-/* In the order the control lists them. The first is the default. */
+/* In the order the control lists them. The first is the default.
+ *
+ * THE BLUE IS THE DEFAULT AGAIN (owner, 2026-10-13: "revert Rowtember's
+ * main color to that blue again, the older Rowtember blue, just everywhere
+ * — for shareables, for the accent ... LASD can stay orange"). October
+ * orange stays a preset the control can pick. */
 export const PALETTES: readonly Palette[] = [
+  { id: "ink-water", name: "Ink water", ground: "ink", ...WATER },
   { id: "ink-orange", name: "Ink orange", ground: "ink", ...ORANGE },
   { id: "ink-red", name: "Ink red", ground: "ink", ...RED },
-  { id: "ink-water", name: "Ink water", ground: "ink", ...WATER },
   { id: "paper-red", name: "Paper red", ground: "paper", ...RED },
   { id: "paper-water", name: "Paper water", ground: "paper", ...WATER },
   { id: "ink-yellow", name: "Ink yellow", ground: "ink", ...MUSTARD },
   { id: "ink-green", name: "Ink green", ground: "ink", ...FOREST },
 ];
 
-export const DEFAULT_PALETTE: PaletteId = "ink-orange";
+export const DEFAULT_PALETTE: PaletteId = "ink-water";
 
 export function isPaletteId(v: unknown): v is PaletteId {
   return typeof v === "string" && PALETTES.some((p) => p.id === v);

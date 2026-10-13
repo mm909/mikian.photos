@@ -44,7 +44,7 @@ export const css = `
 .home,.home *{margin:0;padding:0;box-sizing:border-box}
 .home{
   --paper:#F4F3EE; --ink:#15171a; --ink-soft:#3b3e42; --gray:#8a8a85;
-  --water:#FF7A1A; --water-hover:#FF9A4D; --safety:#FF4B00; --safety-hover:#ff6a2b;
+  --water:#0077B6; --water-hover:#1a90d4; --safety:#FF4B00; --safety-hover:#ff6a2b;
   background:var(--paper) url(${NOISE}) repeat;
   color:var(--ink);
   font-family:var(--home-archivo),sans-serif;
@@ -61,8 +61,9 @@ export const css = `
 .home .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* The bar: MIKIAN MUSSER wordmark, then the two campaign chips right after
- * it, each in its own page colour (ROWTEMBER October orange with ink type,
- * LASD26 safety orange with white) — one run from the left with nothing
+ * it, each in its own page colour (ROWTEMBER the Rowtember blue with white
+ * — October orange with ink type from 2026-10-01 to 2026-10-13, when the
+ * owner sent the blue back everywhere — LASD26 safety orange with white) — one run from the left with nothing
  * parked on the right (owner, 2026-09-05). The chips are bold mono so they
  * read heavier than before yet never like the wordmark, which is Archivo
  * Black; the ink rule under the bar stays as it was. Below 560px the run
@@ -71,7 +72,7 @@ export const css = `
 .home .bar .brand{font-family:var(--home-archivo-black),sans-serif;font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;line-height:1;white-space:nowrap}
 .home .bar nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .home .bar nav a{font-family:var(--home-mono),monospace;font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;white-space:nowrap;color:#fff;padding:4px 9px;border-radius:0}
-.home .bar nav a.row{background:var(--water);color:var(--ink)}
+.home .bar nav a.row{background:var(--water)}
 .home .bar nav a.row:hover{background:var(--water-hover)}
 .home .bar nav a.lasd{background:var(--safety)}
 .home .bar nav a.lasd:hover{background:var(--safety-hover)}

@@ -25,7 +25,8 @@ import { Landing } from "@/components/home/Landing";
  * homepage the same — it should be light"). It wore Rowtember's
  * paper-or-ink switch from 2026-09-16 and went black the day Rowtember's
  * default did; it no longer reads that setting. Rowtember's colour is its
- * October orange here (components/home/theme.ts --water).
+ * blue here again (components/home/theme.ts --water; October orange from
+ * 2026-10-01 to 2026-10-13).
  */
 export const dynamic = "force-dynamic";
 

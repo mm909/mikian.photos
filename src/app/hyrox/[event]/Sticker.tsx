@@ -9,13 +9,13 @@ import { BLACK, YELLOW } from "../theme";
  * times are announced, we'll have a sticker for their start time as
  * well").
  *
- * Painted on a canvas. THREE LOOKS (owner, 2026-10-13: "shareable with a
+ * Painted on a canvas. FOUR LOOKS (owner, 2026-10-13: "shareable with a
  * transparent background and black and yellow text, or like one with
  * black text, one with yellow text. And then also with the opaque
- * background. So both of them"): YELLOW — the opaque yellow block, black
- * type; BLACK — the same type on nothing, for a light story; CLEAR YELLOW
- * — yellow type on nothing, for a dark one. The year sits in a box whose
- * colours flip with the look. Two cards: THE RACE — city, year, category,
+ * background"; then "make sure there's a black on yellow and a yellow on
+ * black"): BLACK ON YELLOW and YELLOW ON BLACK, the opaque blocks; BLACK
+ * ON CLEAR and YELLOW ON CLEAR, the same type on nothing, for a light or
+ * a dark story. The year sits in a box whose colours flip with the type. Two cards: THE RACE — city, year, category,
  * day, the names — and START, the same block with the start time huge,
  * once the entry carries one. The same three exits as ShareMenu: the share
  * sheet on a phone, copy where the clipboard can take an image, download
@@ -39,12 +39,15 @@ export type StickerFacts = {
 };
 
 type Card = "race" | "start";
-type Look = "yellow" | "black" | "clear";
+/* yellow: black type on a yellow block. black: yellow type on a black
+ * block. clear-black / clear-yellow: the same type on nothing. */
+type Look = "yellow" | "black" | "clear-black" | "clear-yellow";
 
 const LOOKS: { id: Look; label: string }[] = [
-  { id: "yellow", label: "Yellow" },
-  { id: "black", label: "Black on clear" },
-  { id: "clear", label: "Yellow on clear" },
+  { id: "yellow", label: "Black on yellow" },
+  { id: "black", label: "Yellow on black" },
+  { id: "clear-black", label: "Black on clear" },
+  { id: "clear-yellow", label: "Yellow on clear" },
 ];
 
 const W = 1080;
@@ -78,10 +81,11 @@ function paint(
   const inner = W - PAD * 2;
   const up = (s: string) => s.toUpperCase();
   /* The type colour, the box behind the year and the year's colour. */
-  const ink = look === "clear" ? YELLOW : BLACK;
-  const box = look === "clear" ? YELLOW : BLACK;
-  const onBox = look === "clear" ? BLACK : YELLOW;
-  const dim = look === "clear" ? "rgba(255,237,0,.7)" : "rgba(10,10,10,.7)";
+  const yellowType = look === "black" || look === "clear-yellow";
+  const ink = yellowType ? YELLOW : BLACK;
+  const box = yellowType ? YELLOW : BLACK;
+  const onBox = yellowType ? BLACK : YELLOW;
+  const dim = yellowType ? "rgba(255,237,0,.7)" : "rgba(10,10,10,.7)";
   let y = PAD;
 
   const line = (text: string, family: string, weight: number, size: number, color: string, gapAfter: number, track = 0) => {
@@ -193,8 +197,8 @@ export function Sticker({ facts }: { facts: StickerFacts }) {
     canvas.width = W;
     canvas.height = h;
     ctx.clearRect(0, 0, W, h);
-    if (look === "yellow") {
-      ctx.fillStyle = YELLOW;
+    if (look === "yellow" || look === "black") {
+      ctx.fillStyle = look === "yellow" ? YELLOW : BLACK;
       ctx.fillRect(0, 0, W, h);
     }
     paint(ctx, facts, card, look, fonts, true);
@@ -274,7 +278,7 @@ export function Sticker({ facts }: { facts: StickerFacts }) {
           </button>
         ))}
       </div>
-      <canvas ref={canvasRef} width={W} height={W} aria-label="Your Hyrox sticker" className={look === "yellow" ? "" : "clear"} />
+      <canvas ref={canvasRef} width={W} height={W} aria-label="Your Hyrox sticker" className={look.startsWith("clear") ? "clear" : ""} />
       <div className="hx-stk-btns">
         {canShareFiles ? (
           <button type="button" className={handheld ? "primary" : ""} onClick={() => void onShare()}>
