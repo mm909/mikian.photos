@@ -22,20 +22,19 @@ import { BLACK, anton, barlowCondensed, css } from "../theme";
  * OTHERS — "the same footer across the board"). No link to the ticket
  * page (owner: "things are going to sell out ... I don't really care").
  *
- * IN DEVELOPMENT (CLAUDE.md; owner: "make this page live, but behind my
- * admin account"): admin-only in production, a 404 for anyone else; open
- * in local dev. */
+ * LIVE AND PUBLIC (owner, 2026-10-13, evening: "let's just make it live
+ * so there's no more gated behind admin or anything like that"). It wore
+ * the development gate for its first day. */
 
 export const dynamic = "force-dynamic";
 export const viewport: Viewport = { themeColor: BLACK };
 
 export async function generateMetadata({ params }: { params: { event: string } }): Promise<Metadata> {
   const ev = eventBySlug(params.event);
-  if (!ev) return { title: "Hyrox (dev)" };
+  if (!ev) return { title: "Hyrox" };
   return {
-    title: `${ev.name} (dev) — Who is racing`,
+    title: `${ev.name} — Who is racing`,
     description: `Racing ${ev.name}? Put your name on the board and see who else is.`,
-    robots: { index: false, follow: false },
   };
 }
 
@@ -44,7 +43,6 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
   if (!ev) notFound();
   const actor = await getEffectiveActor();
   const admin = actor ? isAdmin(actor) : false;
-  if (process.env.NODE_ENV === "production" && !admin) notFound();
 
   let rows: BoardRow[] = [];
   let mine: MyEntry[] = [];

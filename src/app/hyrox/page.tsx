@@ -1,25 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { notFound } from "next/navigation";
-import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { EVENTS, eventPath, shortDay } from "./events";
 import { BLACK, anton, barlowCondensed, css } from "./theme";
 
 /* THE HYROX INDEX: one line per event in events.ts (owner, 2026-10-13:
  * "ideally, this can be made for other Hyrox events"). With one event it
- * is a door; with more it is the list. The same gate as the event pages. */
+ * is a door; with more it is the list. Public, like the event pages. */
 
 export const metadata: Metadata = {
-  title: "Hyrox (dev) — Who is racing",
-  robots: { index: false, follow: false },
+  title: "Hyrox — Who is racing",
 };
 export const viewport: Viewport = { themeColor: BLACK };
 export const dynamic = "force-dynamic";
 
-export default async function HyroxIndexPage() {
-  const actor = await getEffectiveActor();
-  if (process.env.NODE_ENV === "production" && !(actor && isAdmin(actor))) notFound();
-
+export default function HyroxIndexPage() {
   return (
     <div className={`hx ${anton.variable} ${barlowCondensed.variable}`}>
       <style>{css}</style>
