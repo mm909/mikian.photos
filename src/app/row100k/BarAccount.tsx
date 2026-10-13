@@ -256,13 +256,6 @@ export function BarAccount({
                 <Link className="acct-item" href="/longhorn-lms" onClick={close}>
                   Longhorn LMS →
                 </Link>
-                {/* HYROX LAS VEGAS (owner, 2026-10-13): the board where people
-                 * say what they are racing at Hyrox Las Vegas 2027 and with
-                 * whom (src/app/hyrox). Admin-only in production until the
-                 * owner says live; the list with emails is in the bar there. */}
-                <Link className="acct-item" href="/hyrox/las-vegas-2027" onClick={close}>
-                  Hyrox Las Vegas →
-                </Link>
               </>
             )}
             <button

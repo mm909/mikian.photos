@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
-import { getEffectiveActor, isAdmin } from "@/lib/permissions";
+import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { categoryLabel, dayOf, eventBySlug, isClosed, partnersToColumns, readEntry, shortDay } from "@/app/hyrox/events";
 
@@ -17,7 +17,7 @@ import { categoryLabel, dayOf, eventBySlug, isClosed, partnersToColumns, readEnt
  *          a failed email is logged, never surfaced.
  *   DELETE { id } — takes that account's own entry off the board.
  *
- * IN DEVELOPMENT (CLAUDE.md): admin-only in production, with the page. */
+ * Public, with the page (owner, 2026-10-13: no gate). */
 export const runtime = "nodejs";
 
 const MAX_PER_ACCOUNT = 6;
@@ -28,9 +28,6 @@ async function gate(slug: string) {
   const ev = eventBySlug(slug);
   if (!ev) return { res: new NextResponse(null, { status: 404 }) } as const;
   const actor = await getEffectiveActor();
-  if (process.env.NODE_ENV === "production" && !(actor && isAdmin(actor))) {
-    return { res: new NextResponse(null, { status: 404 }) } as const;
-  }
   if (!actor) return { res: bad("Sign in with Google first.", 401) } as const;
   if (isClosed(ev)) return { res: bad("Sign-ups closed — the race has been run.", 410) } as const;
   const limit = await rateLimit({ key: `hyrox-entry:${actor.photographerId}`, limit: 30, windowSec: 3600 });

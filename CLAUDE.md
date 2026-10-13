@@ -15,17 +15,17 @@ A new page under `/row100k` is not live until the owner says it is. In developme
 
 When the owner says a page goes live, lift the gate, drop the `(dev)` tag and move the link.
 
-## The site is mikianmusser.com
+## Two hosts: mikianmusser.com and rowtember.com
 
-Owner, 2026-10-13: "remember that the base URL is mikianmusser.com, not mikian.photos."
+Owner, 2026-10-13: "remember that the base URL is mikianmusser.com, not mikian.photos"; "we separate: there's mikianmusser.com, there's also rowtember.com that hosts the Rowtember sites."
 
-The production site is https://mikianmusser.com (Rowtember is https://www.rowtember.com). Give the owner addresses on that host; `mikian.photos` is the repository's name, not the site's.
+The production site is https://mikianmusser.com; Rowtember lives at https://www.rowtember.com, and the middleware sends every /row100k path on mikianmusser.com there. A Google session belongs to its host, so being signed in on one says nothing about the other. Give the owner addresses on the right host; `mikian.photos` is the repository's name, not the site's.
 
-## Live means on main, gated — never a Vercel preview
+## Live means merged to main — never a Vercel preview
 
-Owner, 2026-10-13: "Never send a Vercel preview. Always just make it live, gated behind the admin login."
+Owner, 2026-10-13: "Never send a Vercel preview. Always just make it live." Later the same day, on the Hyrox board: "let's just make it live so there's no more gated behind admin or anything like that."
 
-When the owner says make it live, merge to `main` so it deploys to mikianmusser.com, with the page still wearing the development gate above (admin-only in production). Do not hand him a Vercel preview URL: Google sign-in does not work on preview hosts and the gate 404s him there. A new table still needs `prisma db push` against production, which only the owner can run (`npx dotenv -e .env.proddb.local -- prisma db push`); say so plainly.
+When the owner says make it live, merge to `main` so it deploys to mikianmusser.com, lift the development gate, drop the `(dev)` tag and put the link where the public finds it. Do not hand him a Vercel preview URL: Google sign-in does not work on preview hosts. A new table reaches production through the build (`scripts/db-push-prod.mjs`: `prisma db push` on a production deploy only, never with `--accept-data-loss`); a change that would drop data fails that build on purpose and is the owner's to run by hand.
 
 ## Every sign-up emails the owner
 
