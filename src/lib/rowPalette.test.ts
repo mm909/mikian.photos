@@ -22,7 +22,7 @@ async function main() {
   assert.equal(PALETTES[0].id, DEFAULT_PALETTE);
   assert.deepEqual(
     PALETTES.map((p) => p.id),
-    ["ink-orange", "ink-red", "ink-water", "paper-red", "paper-water", "ink-yellow", "ink-green"],
+    ["ink-water", "ink-orange", "ink-red", "paper-red", "paper-water", "ink-yellow", "ink-green"],
   );
   assert.equal(paletteOf("paper-water").accentOnPaper, "#0077B6", "the September blue stands");
 
@@ -48,9 +48,16 @@ async function main() {
     }
   }
 
-  /* October orange (owner, 2026-10-01): the default, a pumpkin on ink that
-   * holds ink caps and not white, a burnt cut on paper that holds white. */
-  assert.equal(DEFAULT_PALETTE, "ink-orange");
+  /* The blue is the default again (owner, 2026-10-13: "the older Rowtember
+   * blue, just everywhere"): white caps on either cut. */
+  assert.equal(DEFAULT_PALETTE, "ink-water");
+  const water = paletteOf("ink-water");
+  assert.equal(capsOn(water.accentOnInk), "#ffffff", "the blue on ink takes white caps");
+  assert.equal(capsOn(water.accentOnPaper), "#ffffff", "the blue on paper takes white caps");
+  assert.ok(contrast(water.accentOnInk, INK) >= 4.5, "the blue on ink");
+
+  /* October orange (owner, 2026-10-01): a pumpkin on ink that holds ink
+   * caps and not white, a burnt cut on paper that holds white. */
   const orange = paletteOf("ink-orange");
   assert.equal(capsOn(orange.accentOnInk), INK, "the pumpkin takes ink caps");
   assert.equal(capsOn(orange.accentOnPaper), "#ffffff", "the burnt orange takes white caps");

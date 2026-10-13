@@ -94,7 +94,8 @@ export const DEFAULT_BLACKOUT_POLICY: BlackoutPolicy = { scope: "division", coun
 export const BLACKOUT_COUNT_MAX = 100;
 
 /* The look and the palette the site wears unless the owner has picked
- * another SINCE: ink, in October orange (rowPalette.ts DEFAULT_PALETTE). */
+ * another SINCE: ink, in the Rowtember blue (rowPalette.ts DEFAULT_PALETTE;
+ * October orange from 2026-10-01 to 2026-10-13). */
 export const DEFAULT_SETTINGS: SiteSettings = {
   look: "ink",
   palette: DEFAULT_PALETTE,

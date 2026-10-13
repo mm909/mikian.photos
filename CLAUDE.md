@@ -14,3 +14,21 @@ A new page under `/row100k` is not live until the owner says it is. In developme
 - any API route that only that page writes through wears the same gate
 
 When the owner says a page goes live, lift the gate, drop the `(dev)` tag and move the link.
+
+## The site is mikianmusser.com
+
+Owner, 2026-10-13: "remember that the base URL is mikianmusser.com, not mikian.photos."
+
+The production site is https://mikianmusser.com (Rowtember is https://www.rowtember.com). Give the owner addresses on that host; `mikian.photos` is the repository's name, not the site's.
+
+## Live means on main, gated — never a Vercel preview
+
+Owner, 2026-10-13: "Never send a Vercel preview. Always just make it live, gated behind the admin login."
+
+When the owner says make it live, merge to `main` so it deploys to mikianmusser.com, with the page still wearing the development gate above (admin-only in production). Do not hand him a Vercel preview URL: Google sign-in does not work on preview hosts and the gate 404s him there. A new table still needs `prisma db push` against production, which only the owner can run (`npx dotenv -e .env.proddb.local -- prisma db push`); say so plainly.
+
+## Every sign-up emails the owner
+
+Owner, 2026-10-13: "Give me an email every single time someone signs up."
+
+A sign-up or entry route (Longhorn LMS, the Hyrox board, race day) calls `sendOwnerNotification` on every save — new and updated — and logs, never surfaces, a failed send.

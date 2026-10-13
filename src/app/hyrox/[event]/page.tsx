@@ -104,7 +104,6 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
           <span className="yr">{yr}</span>
         </h1>
         <p className="hx-tag">Let us know you’re racing.</p>
-        <p className="hx-lede">Racing it? Put your name on the board.</p>
 
         <div className="hx-facts">
           <div className="hx-fact">

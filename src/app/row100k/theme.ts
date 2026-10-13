@@ -57,7 +57,7 @@ html:has(.row100k){scroll-behavior:smooth}
 }
 .row100k{
   --paper:#F4F3EE; --ink:#15171a; --ink-soft:#3b3e42; --gray:#8a8a85; --line:#c9c8c0;
-  --water:#B04506; --water-hover:#D2580F; --water-pale:#FBE7D6; --on-water:#fff; --frame:#1f2226;
+  --water:#0077B6; --water-hover:#1a90d4; --water-pale:#e3eef5; --on-water:#fff; --frame:#1f2226;
   background:var(--paper) url(${NOISE}) repeat;
   color:var(--ink);
   font-family:var(--row-archivo),sans-serif;
@@ -68,12 +68,13 @@ html:has(.row100k){scroll-behavior:smooth}
 /* THE ACCENT IS THE PALETTE (src/lib/rowPalette.ts): RowSite writes the
  * preset into --water, --water-hover, --water-pale and --on-water (the type
  * a filled slab of it carries) for the ground the look gives the page.
- * What the root above and this rule hold is October orange, the default
- * preset, for a page outside the /row100k layout (the rowing machine
- * pages wear this sheet with no RowSite over them): the burnt cut on
- * paper, the pumpkin on either ink ground. --frame, the mat a photo sits
- * on, was a blue-black and is a plain one. */
-.row100k.chrome-ink,.row-ink .row100k{--water:#FF7A1A;--water-hover:#FF9A4D;--water-pale:#2E1C0E;--on-water:#15171a}
+ * What the root above and this rule hold is the Rowtember blue, the
+ * default preset again (owner, 2026-10-13; October orange held it from
+ * 2026-10-01), for a page outside the /row100k layout (the rowing machine
+ * pages wear this sheet with no RowSite over them): the September blue on
+ * paper, the lighter cut on either ink ground. --frame, the mat a photo
+ * sits on, was a blue-black and is a plain one. */
+.row100k.chrome-ink,.row-ink .row100k{--water:#1A90D4;--water-hover:#4FB3EA;--water-pale:#1c2b33;--on-water:#fff}
 .row100k .mono{font-family:var(--row-mono),monospace}
 .row100k .wrap{max-width:760px;margin:0 auto;padding:0 20px}
 .row100k a{color:inherit}
