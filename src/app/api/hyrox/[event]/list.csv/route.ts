@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/permissions";
-import { categoryLabel, eventBySlug, readCategory } from "@/app/hyrox/events";
+import { categoryLabel, eventBySlug, partnersFromColumns, readCategory } from "@/app/hyrox/events";
 
 /* GET /api/hyrox/<event>/list.csv — the entries as a CSV, owner only (the
  * Longhorn list's idiom: RFC 4180 quoting, CRLF, a BOM so Excel opens it
- * clean). */
+ * clean). Partners as "Name (@handle); Name". */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -22,12 +22,15 @@ export async function GET(_req: Request, { params }: { params: { event: string }
   if (!actor) return new NextResponse(null, { status: 404 });
 
   const rows = await db.hyroxEntry.findMany({ where: { event: ev.slug }, orderBy: { createdAt: "asc" } });
-  const head = ["name", "email", "instagram", "category", "format", "division", "gender", "day", "partners", "team", "start_time", "created_at"];
+  const head = ["name", "email", "instagram", "category", "format", "division", "gender", "day", "partners", "start_time", "created_at"];
   const lines = [head.join(",")];
   for (const r of rows) {
     const cat = readCategory(r.format, r.division, r.gender);
+    const partners = partnersFromColumns(r.partners, r.partnerIgs)
+      .map((p) => p.name + (p.instagram ? ` (@${p.instagram})` : ""))
+      .join("; ");
     lines.push(
-      [r.name, r.email, r.instagram, cat ? categoryLabel(cat) : "", r.format, r.division, r.gender, r.day, r.partners.join("; "), r.teamName, r.startTime, r.createdAt.toISOString()]
+      [r.name, r.email, r.instagram, cat ? categoryLabel(cat) : "", r.format, r.division, r.gender, r.day, partners, r.startTime, r.createdAt.toISOString()]
         .map(csvField)
         .join(","),
     );

@@ -75,6 +75,8 @@ export const css = `
 .home .bar nav a.row:hover{background:var(--water-hover)}
 .home .bar nav a.lasd{background:var(--safety)}
 .home .bar nav a.lasd:hover{background:var(--safety-hover)}
+.home .bar nav a.hyrox{background:#FFED00;color:var(--ink)}
+.home .bar nav a.hyrox:hover{background:#FFF27A}
 @media(max-width:560px){ .home .bar{gap:8px 10px} .home .bar .brand{font-size:13px} .home .bar nav{gap:8px} .home .bar nav a{font-size:11px;padding:3px 8px} }
 
 /* Live pulse next to the status line. */

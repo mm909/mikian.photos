@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
+import { HomeFooter } from "@/components/home/HomeFooter";
 import { AccountControl } from "../EntryForm";
-import { categoryLabel, dayOf, eventBySlug, readCategory, shortDay } from "../../events";
+import { categoryLabel, dayOf, eventBySlug, partnersFromColumns, readCategory, shortDay } from "../../events";
 import { BLACK, anton, barlowCondensed, css } from "../../theme";
 
 /* THE LIST — the admin's: every entry on the event with the email, which
@@ -35,7 +36,7 @@ export default async function TheListPage({ params }: { params: { event: string 
     gender: string;
     day: string;
     partners: string[];
-    teamName: string;
+    partnerIgs: string[];
     startTime: string;
     createdAt: Date;
   }[] = [];
@@ -52,8 +53,10 @@ export default async function TheListPage({ params }: { params: { event: string 
       <style>{css}</style>
       <div className="hx-bar">
         <a href={`/hyrox/${ev.slug}`} className="hx-wm">
-          {ev.city} ’{String(ev.year).slice(-2)}
-          <small>Hyrox · the board</small>
+          Hyrox
+          <small>
+            {ev.city} ’{String(ev.year).slice(-2)} · the list
+          </small>
         </a>
         <AccountControl ev={ev} signedIn name={actor.name} admin />
       </div>
@@ -83,7 +86,6 @@ export default async function TheListPage({ params }: { params: { event: string 
                   <th>Category</th>
                   <th>Day</th>
                   <th>With</th>
-                  <th>Team</th>
                   <th>Start</th>
                   <th>When</th>
                 </tr>
@@ -92,6 +94,7 @@ export default async function TheListPage({ params }: { params: { event: string 
                 {rows.map((r, i) => {
                   const cat = readCategory(r.format, r.division, r.gender);
                   const d = dayOf(ev, r.day);
+                  const partners = partnersFromColumns(r.partners, r.partnerIgs);
                   return (
                     <tr key={r.id}>
                       <td className="n">{i + 1}</td>
@@ -110,8 +113,24 @@ export default async function TheListPage({ params }: { params: { event: string 
                       </td>
                       <td>{cat ? categoryLabel(cat) : `${r.format}/${r.division}/${r.gender}`}</td>
                       <td>{d ? shortDay(d) : r.day}</td>
-                      <td>{r.partners.length ? r.partners.join(", ") : "—"}</td>
-                      <td>{r.teamName || "—"}</td>
+                      <td>
+                        {partners.length
+                          ? partners.map((p, j) => (
+                              <span key={j}>
+                                {j > 0 ? <br /> : null}
+                                {p.name}
+                                {p.instagram ? (
+                                  <>
+                                    {" "}
+                                    <a href={`https://instagram.com/${p.instagram}`} target="_blank" rel="noopener noreferrer">
+                                      @{p.instagram}
+                                    </a>
+                                  </>
+                                ) : null}
+                              </span>
+                            ))
+                          : "—"}
+                      </td>
                       <td>{r.startTime || "—"}</td>
                       <td className="when">{when.format(r.createdAt)}</td>
                     </tr>
@@ -122,6 +141,7 @@ export default async function TheListPage({ params }: { params: { event: string 
           </div>
         ) : null}
       </section>
+      <HomeFooter />
     </div>
   );
 }

@@ -39,6 +39,11 @@ export type HyroxEvent = {
   timeZone: string;
   /* Sign-ups close here (ms since epoch); the board stays up. */
   closeMs: number;
+  /* Once Hyrox announces start times the form takes one (owner,
+   * 2026-10-13: "they won't know their start time when they originally
+   * fill out this form ... we will send out a thing to fill out your start
+   * time later on"). Off until then. */
+  startTimesOpen: boolean;
 };
 
 export const EVENTS: HyroxEvent[] = [
@@ -58,6 +63,7 @@ export const EVENTS: HyroxEvent[] = [
     timeZone: "America/Los_Angeles",
     /* The day after the last race day, end of day Pacific (UTC−7 in March). */
     closeMs: Date.UTC(2027, 2, 16, 7, 0, 0),
+    startTimesOpen: false,
   },
 ];
 
@@ -159,24 +165,28 @@ export function categoryRank(c: Category): number {
 
 /* --------------------------------------------------------------- the row */
 
-/* What the form sends and the route checks. Partners are names as typed,
- * blanks dropped; a doubles entry can be sent before the partner is known. */
+/* A partner or teammate: the name as typed and the handle, bare (owner,
+ * 2026-10-13: "for the partner, I also want their Instagram"). */
+export type Partner = { name: string; instagram: string };
+
+/* What the form sends and the route checks. The email is the account's,
+ * not a field (owner, 2026-10-13: "we won't need them to fill out their
+ * email, because they'll be signed in"). Partners are names as typed,
+ * blanks dropped; a doubles entry can be sent before the partner is known.
+ * No team name (owner, 2026-10-13: "we're not going to have team names"). */
 export type EntryInput = {
   name: string;
-  email: string;
   instagram: string;
   format: Format;
   division: Division;
   gender: Gender;
   day: string;
-  partners: string[];
-  teamName: string;
+  partners: Partner[];
   startTime: string;
 };
 
 export const ERR = {
   name: "Add your name first.",
-  email: "Add an email I can reach you at.",
   category: "Pick a category — singles, doubles or relay, and which one.",
   day: "Pick the day you are racing.",
   partner: "Add your partner's name, or leave it blank if you do not know yet.",
@@ -210,8 +220,6 @@ export function cleanStartTime(raw: unknown): string | null {
 export function readEntry(ev: HyroxEvent, body: Record<string, unknown>): { ok: true; entry: EntryInput } | { ok: false; error: string } {
   const name = cleanName(body.name, 120);
   if (!name) return { ok: false, error: ERR.name };
-  const email = typeof body.email === "string" ? body.email.trim().slice(0, 200) : "";
-  if (!/^\S+@\S+\.\S+$/.test(email)) return { ok: false, error: ERR.email };
   const instagram = igHandle(body.instagram);
   const cat = readCategory(body.format, body.division, body.gender);
   if (!cat) return { ok: false, error: ERR.category };
@@ -219,12 +227,23 @@ export function readEntry(ev: HyroxEvent, body: Record<string, unknown>): { ok: 
   if (!day) return { ok: false, error: ERR.day };
   const slots = partnerSlots(cat.format);
   const rawPartners = Array.isArray(body.partners) ? body.partners : [];
-  const partners = rawPartners
+  const partners: Partner[] = rawPartners
     .slice(0, slots)
-    .map((p) => cleanName(p))
-    .filter(Boolean);
-  const teamName = slots > 0 ? cleanName(body.teamName, 60) : "";
-  const startTime = cleanStartTime(body.startTime);
+    .map((p) => {
+      const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
+      return { name: cleanName(o.name), instagram: igHandle(o.instagram) };
+    })
+    .filter((p) => p.name);
+  /* A start time is taken only once the event opens them. */
+  const startTime = ev.startTimesOpen ? cleanStartTime(body.startTime) : "";
   if (startTime === null) return { ok: false, error: ERR.startTime };
-  return { ok: true, entry: { name, email, instagram, ...cat, day, partners, teamName, startTime } };
+  return { ok: true, entry: { name, instagram, ...cat, day, partners, startTime } };
+}
+
+/* The two columns a row stores partners in, aligned by index. */
+export function partnersToColumns(partners: Partner[]): { partners: string[]; partnerIgs: string[] } {
+  return { partners: partners.map((p) => p.name), partnerIgs: partners.map((p) => p.instagram) };
+}
+export function partnersFromColumns(names: string[], igs: string[]): Partner[] {
+  return names.map((name, i) => ({ name, instagram: igs[i] ?? "" }));
 }

@@ -2,11 +2,12 @@
  *   npx tsx src/app/hyrox/fields.test.ts
  * (plain asserts, exit 1 on the first miss, the join form's idiom). */
 import assert from "node:assert/strict";
-import { ERR, EVENTS, categoryLabel, cleanStartTime, igHandle, partnerSlots, readCategory, readEntry } from "./events";
+import { ERR, EVENTS, categoryLabel, cleanStartTime, igHandle, partnerSlots, partnersFromColumns, partnersToColumns, readCategory, readEntry } from "./events";
 
 const ev = EVENTS[0];
 assert.equal(ev.slug, "las-vegas-2027");
 assert.equal(ev.days.length, 3);
+assert.equal(ev.startTimesOpen, false, "start times are not taken until announced");
 
 /* ---------------------------------------------------------- categories */
 assert.deepEqual(readCategory("singles", "open", "men"), { format: "singles", division: "open", gender: "men" });
@@ -38,13 +39,13 @@ assert.equal(cleanStartTime("25:00"), null);
 /* ----------------------------------------------------------- the entry */
 const good = {
   name: "  Ada   Byron ",
-  email: "ada@example.com",
+  email: "ignored@example.com",
   instagram: "@ada",
   format: "doubles",
   division: "pro",
   gender: "women",
   day: "2027-03-13",
-  partners: ["Grace Hopper", "", "Extra Name"],
+  partners: [{ name: "Grace Hopper", instagram: "https://instagram.com/grace" }, { name: "", instagram: "@nobody" }, { name: "Extra Name" }],
   teamName: "Loops",
   startTime: "9:40 am",
 };
@@ -53,21 +54,33 @@ assert.ok(r.ok);
 if (r.ok) {
   assert.equal(r.entry.name, "Ada Byron");
   assert.equal(r.entry.instagram, "ada");
-  assert.deepEqual(r.entry.partners, ["Grace Hopper"], "doubles keeps one partner, blanks dropped");
-  assert.equal(r.entry.teamName, "Loops");
-  assert.equal(r.entry.startTime, "9:40 AM");
+  assert.ok(!("email" in r.entry), "the email is the account's, not the form's");
+  assert.ok(!("teamName" in r.entry), "no team names");
+  assert.deepEqual(r.entry.partners, [{ name: "Grace Hopper", instagram: "grace" }], "doubles keeps one partner, blanks dropped, handle cleaned");
+  assert.equal(r.entry.startTime, "", "a start time is not taken while the event has them closed");
 }
 
-const singles = readEntry(ev, { ...good, format: "singles", division: "open", gender: "men", partners: ["Someone"], teamName: "X" });
+/* Once the event opens start times, the field is read. */
+const open = { ...ev, startTimesOpen: true };
+const timed = readEntry(open, good);
+assert.ok(timed.ok);
+if (timed.ok) assert.equal(timed.entry.startTime, "9:40 AM");
+const badTime = readEntry(open, { ...good, startTime: "soon" });
+assert.ok(!badTime.ok);
+if (!badTime.ok) assert.equal(badTime.error, ERR.startTime);
+
+const singles = readEntry(ev, { ...good, format: "singles", division: "open", gender: "men", partners: [{ name: "Someone" }] });
 assert.ok(singles.ok);
-if (singles.ok) {
-  assert.deepEqual(singles.entry.partners, [], "singles carries no partner");
-  assert.equal(singles.entry.teamName, "", "or a team name");
-}
+if (singles.ok) assert.deepEqual(singles.entry.partners, [], "singles carries no partner");
 
-const relay = readEntry(ev, { ...good, format: "relay", division: "open", gender: "mixed", partners: ["A", "B", "C", "D"] });
+const relay = readEntry(ev, { ...good, format: "relay", division: "open", gender: "mixed", partners: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }] });
 assert.ok(relay.ok);
-if (relay.ok) assert.deepEqual(relay.entry.partners, ["A", "B", "C"], "relay keeps three teammates");
+if (relay.ok) assert.deepEqual(relay.entry.partners.map((p) => p.name), ["A", "B", "C"], "relay keeps three teammates");
+
+/* Old-shape partners (plain strings) are not names. */
+const strings = readEntry(ev, { ...good, partners: ["Grace Hopper"] });
+assert.ok(strings.ok);
+if (strings.ok) assert.deepEqual(strings.entry.partners, []);
 
 const fail = (body: Record<string, unknown>, err: string, why: string) => {
   const x = readEntry(ev, body);
@@ -75,13 +88,16 @@ const fail = (body: Record<string, unknown>, err: string, why: string) => {
   if (!x.ok) assert.equal(x.error, err, why);
 };
 fail({ ...good, name: "   " }, ERR.name, "no name");
-fail({ ...good, email: "ada" }, ERR.email, "bad email");
 fail({ ...good, gender: "mixed", format: "singles" }, ERR.category, "no mixed singles");
 fail({ ...good, day: "2027-03-15" }, ERR.day, "not a race day");
-fail({ ...good, startTime: "soon" }, ERR.startTime, "start time is a time");
 
 /* An entry sent before the partner is known is fine. */
 const solo = readEntry(ev, { ...good, partners: [] });
 assert.ok(solo.ok);
+
+/* ----------------------------------------------------------- the columns */
+const cols = partnersToColumns([{ name: "A", instagram: "a" }, { name: "B", instagram: "" }]);
+assert.deepEqual(cols, { partners: ["A", "B"], partnerIgs: ["a", ""] });
+assert.deepEqual(partnersFromColumns(["A", "B"], ["a"]), [{ name: "A", instagram: "a" }, { name: "B", instagram: "" }]);
 
 console.log("hyrox fields: ok");

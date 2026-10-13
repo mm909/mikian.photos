@@ -44,14 +44,16 @@ export const css = `
 .hx .disp{font-family:var(--hx-display),Impact,sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.01em}
 .hx .y{color:var(--yellow)}
 
-/* THE BAR: the house mark on the left, the account control on the right. */
-.hx .hx-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid var(--rule)}
-.hx .hx-wm{font-family:var(--hx-display),Impact,sans-serif;font-size:18px;letter-spacing:.14em;text-transform:uppercase;line-height:1;text-decoration:none}
-.hx .hx-wm small{display:block;font-family:var(--hx-cond),sans-serif;font-size:10px;letter-spacing:.3em;color:var(--mute);margin-top:5px;font-weight:600}
-.hx .hx-acct{display:flex;align-items:center;gap:14px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--white-dim);white-space:nowrap}
-.hx .hx-acct a,.hx .hx-acct button{text-decoration:none;border-bottom:2px solid var(--yellow);padding-bottom:1px;color:var(--white)}
-.hx .hx-acct a:hover,.hx .hx-acct button:hover{color:var(--yellow)}
-.hx .hx-acct .who{border:0;color:var(--mute);overflow:hidden;text-overflow:ellipsis;max-width:36vw}
+/* THE BAR, the Rowtember way: the wordmark on the left, chips on the
+ * right (owner, 2026-10-13: really similar to the Rowtember and LASD
+ * headers). Sticky, black, a rule under it. */
+.hx .hx-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;border-bottom:2px solid var(--yellow);position:sticky;top:0;background:var(--ground);z-index:50}
+.hx .hx-wm{font-family:var(--hx-display),Impact,sans-serif;font-size:22px;letter-spacing:.12em;text-transform:uppercase;line-height:1;text-decoration:none;color:var(--yellow)}
+.hx .hx-wm small{display:block;font-family:var(--hx-cond),sans-serif;font-size:11px;letter-spacing:.24em;color:var(--white-dim);margin-top:4px;font-weight:600}
+.hx .hx-acct{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.hx .hx-acct .who{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);overflow:hidden;text-overflow:ellipsis;max-width:34vw;margin-right:6px}
+.hx .hx-chip{border:2px solid var(--white);background:transparent;color:var(--white);font-family:var(--hx-cond),sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;line-height:16px;text-transform:uppercase;padding:5px 11px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.hx .hx-chip:hover{border-color:var(--yellow);color:var(--yellow)}
 
 /* THE HERO: a yellow stripe, the city huge, the year in a black box. */
 .hx .hx-stripe{height:8px;background:repeating-linear-gradient(135deg,var(--yellow) 0 18px,var(--ground) 18px 28px)}
@@ -137,10 +139,11 @@ export const css = `
 
 /* THE STICKER: the canvas on a panel, the three buttons under it. */
 .hx .hx-stk{margin-top:22px;background:var(--panel);border:1px solid var(--rule);padding:16px}
-.hx .hx-stk-pick{display:flex;gap:6px;margin-bottom:12px}
+.hx .hx-stk-pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .hx .hx-stk-pick button{border:1px solid var(--rule);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px;color:var(--white-dim)}
 .hx .hx-stk-pick button[aria-pressed=true]{background:var(--white);color:var(--ground);border-color:var(--white)}
-.hx .hx-stk canvas{display:block;width:100%;max-width:420px;height:auto;margin:0 auto;background:repeating-conic-gradient(#222 0 25%,#1a1a1a 0 50%) 0 0/24px 24px}
+.hx .hx-stk canvas{display:block;width:100%;max-width:420px;height:auto;margin:0 auto}
+.hx .hx-stk canvas.clear{background:repeating-conic-gradient(#2a2a2a 0 25%,#1c1c1c 0 50%) 0 0/24px 24px}
 .hx .hx-stk-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .hx .hx-stk-btns button{flex:1 1 auto;border:2px solid var(--white);font-family:var(--hx-display),Impact,sans-serif;font-size:15px;letter-spacing:.1em;text-transform:uppercase;padding:11px 14px}
 .hx .hx-stk-btns button.primary{background:var(--yellow);border-color:var(--yellow);color:var(--ground)}
@@ -167,9 +170,12 @@ export const css = `
 .hx .hx-event .t{font-family:var(--hx-display),Impact,sans-serif;font-size:28px;text-transform:uppercase;line-height:1}
 .hx .hx-event small{display:block;font-size:13px;font-weight:500;color:var(--white-dim);margin-top:6px;letter-spacing:.04em}
 
-/* THE FOOT. */
-.hx footer{margin-top:64px;border-top:1px solid var(--rule);padding:30px 0 56px}
-.hx footer p{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);line-height:2}
+/* THE FOOT: the house footer (HomeFooter.tsx — MIKIAN MUSSER, @mikian_,
+ * the email, FOR YOURSELF AND OTHERS), its classes styled for the ground. */
+.hx footer{margin-top:64px;border-top:1px solid var(--rule);padding:30px 20px 56px}
+.hx footer .wrap{max-width:720px;margin:0 auto}
+.hx footer .big{font-family:var(--hx-display),Impact,sans-serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px;color:var(--white)}
+.hx footer p.mono{font-family:var(--hx-cond),sans-serif;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);line-height:2}
 .hx footer a{color:var(--white);text-decoration:none;border-bottom:2px solid var(--yellow)}
 .hx footer a:hover{color:var(--yellow)}
 
