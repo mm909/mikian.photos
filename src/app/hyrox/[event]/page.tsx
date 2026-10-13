@@ -147,7 +147,6 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
           </span>
         </div>
         <Board ev={ev} rows={rows} />
-        <p className="hx-board-note">Names and categories as people entered them. Start times go up once Hyrox announces them.</p>
       </section>
 
       <HomeFooter />
