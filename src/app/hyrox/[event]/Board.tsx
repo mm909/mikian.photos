@@ -1,11 +1,11 @@
-import { categoryLabel, categoryRank, partnerSlots, readCategory, shortDay, type HyroxEvent } from "../events";
+import { categoryLabel, categoryRank, partnerSlots, readCategory, shortDay, type HyroxEvent, type Partner } from "../events";
 
 /* THE BOARD (owner, 2026-10-13: "a public sign-up board ... I want to be
  * able to go on a page and see that my friends are running these doubles
  * on this day, or this person's running a singles on this day"). Every
  * entry on the event, by day, then by category, then by name. Names, the
- * handle if given, the team name and the start time once there is one.
- * Never the email. A server component: the page hands it the rows. */
+ * handles given, and the start time once there is one. Never the email. A
+ * server component: the page hands it the rows. */
 
 export type BoardRow = {
   id: string;
@@ -15,16 +15,24 @@ export type BoardRow = {
   division: string;
   gender: string;
   day: string;
-  partners: string[];
-  teamName: string;
+  partners: Partner[];
   startTime: string;
 };
+
+function Handle({ h }: { h: string }) {
+  return (
+    <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener noreferrer">
+      @{h}
+    </a>
+  );
+}
 
 function Names({ r }: { r: BoardRow }) {
   const cat = readCategory(r.format, r.division, r.gender);
   const slots = cat ? partnerSlots(cat.format) : 0;
-  const names = [r.name, ...r.partners];
+  const names = [r.name, ...r.partners.map((p) => p.name)];
   const missing = Math.max(0, slots - r.partners.length);
+  const handles = [r.instagram, ...r.partners.map((p) => p.instagram)].filter(Boolean);
   return (
     <div className="names">
       {names.map((n, i) => (
@@ -39,15 +47,14 @@ function Names({ r }: { r: BoardRow }) {
           {missing === 1 ? "TBD" : `${missing} TBD`}
         </span>
       ) : null}
-      {r.teamName || r.instagram ? (
+      {handles.length > 0 ? (
         <small>
-          {r.teamName ? r.teamName : null}
-          {r.teamName && r.instagram ? " · " : null}
-          {r.instagram ? (
-            <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noopener noreferrer">
-              @{r.instagram}
-            </a>
-          ) : null}
+          {handles.map((h, i) => (
+            <span key={h + i}>
+              {i > 0 ? " · " : null}
+              <Handle h={h} />
+            </span>
+          ))}
         </small>
       ) : null}
     </div>

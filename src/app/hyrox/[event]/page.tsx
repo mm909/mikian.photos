@@ -2,9 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
+import { HomeFooter } from "@/components/home/HomeFooter";
 import { Board, type BoardRow } from "./Board";
 import { AccountControl, EntryForm, type MyEntry } from "./EntryForm";
-import { eventBySlug, isClosed, readCategory, shortDay } from "../events";
+import { eventBySlug, eventPath, isClosed, partnersFromColumns, readCategory, shortDay } from "../events";
 import { BLACK, anton, barlowCondensed, css } from "../theme";
 
 /* THE HYROX EVENT PAGE (owner, 2026-10-13): the weekend's facts in the
@@ -13,6 +14,13 @@ import { BLACK, anton, barlowCondensed, css } from "../theme";
  * category (Board.tsx). One page per event in events.ts, by slug. Google
  * sign-in is required to post; the board is read by anyone the page lets
  * in. The admin sees THE LIST, with emails, in the bar.
+ *
+ * THE BAR is the page's own, the Rowtember way — a wordmark and a chip —
+ * and the marketplace header stays off (RunnerChrome.tsx; owner,
+ * 2026-10-13: "we especially do not want that Mikian.Musser"). The footer
+ * is the house footer (HomeFooter: @mikian_, the email, FOR YOURSELF AND
+ * OTHERS — "the same footer across the board"). No link to the ticket
+ * page (owner: "things are going to sell out ... I don't really care").
  *
  * IN DEVELOPMENT (CLAUDE.md; owner: "make this page live, but behind my
  * admin account"): admin-only in production, a 404 for anyone else; open
@@ -26,7 +34,7 @@ export async function generateMetadata({ params }: { params: { event: string } }
   if (!ev) return { title: "Hyrox (dev)" };
   return {
     title: `${ev.name} (dev) — Who is racing`,
-    description: `Racing ${ev.name}? Put your name on the board, see who else is, and grab a sticker.`,
+    description: `Racing ${ev.name}? Put your name on the board and see who else is.`,
     robots: { index: false, follow: false },
   };
 }
@@ -51,8 +59,7 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
       division: r.division,
       gender: r.gender,
       day: r.day,
-      partners: r.partners,
-      teamName: r.teamName,
+      partners: partnersFromColumns(r.partners, r.partnerIgs),
       startTime: r.startTime,
     }));
     if (actor) {
@@ -61,7 +68,7 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
         .flatMap((r) => {
           const cat = readCategory(r.format, r.division, r.gender);
           if (!cat) return [];
-          return [{ id: r.id, name: r.name, email: r.email, instagram: r.instagram, ...cat, day: r.day, partners: r.partners, teamName: r.teamName, startTime: r.startTime }];
+          return [{ id: r.id, name: r.name, instagram: r.instagram, ...cat, day: r.day, partners: partnersFromColumns(r.partners, r.partnerIgs), startTime: r.startTime }];
         });
     }
   } catch (err) {
@@ -72,15 +79,18 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
   const closed = isClosed(ev);
   const first = ev.days[0];
   const last = ev.days[ev.days.length - 1];
+  const yr = `’${String(ev.year).slice(-2)}`;
 
   return (
     <div className={`hx ${anton.variable} ${barlowCondensed.variable}`}>
       <style>{css}</style>
 
       <div className="hx-bar">
-        <a href="/" className="hx-wm">
-          Mikian
-          <small>Musser · Photographs</small>
+        <a href={eventPath(ev)} className="hx-wm">
+          Hyrox
+          <small>
+            {ev.city} {yr}
+          </small>
         </a>
         <AccountControl ev={ev} signedIn={actor !== null} name={actor?.name ?? ""} admin={admin} />
       </div>
@@ -91,12 +101,10 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
         <h1 className="disp">
           {ev.city}
           <br />
-          <span className="yr">’{String(ev.year).slice(-2)}</span>
+          <span className="yr">{yr}</span>
         </h1>
-        <p className="hx-tag">Who is racing, what, and which day.</p>
-        <p className="hx-lede">
-          {ev.name} is {shortDay(first)} to {shortDay(last)} at the {ev.venue}. <b>Racing it? Put your name on the board</b> — your category, your day, your partner — and see who else is in. Then grab a sticker for your story.
-        </p>
+        <p className="hx-tag">Let us know you’re racing.</p>
+        <p className="hx-lede">Racing it? Put your name on the board.</p>
 
         <div className="hx-facts">
           <div className="hx-fact">
@@ -123,10 +131,6 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
             </div>
           </div>
         </div>
-
-        <a className="hx-cta quiet" href={ev.url} target="_blank" rel="noopener noreferrer">
-          The event, at hyrox.com →
-        </a>
       </header>
 
       <section className="wrap" id="in">
@@ -135,7 +139,7 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
           <span>{closed ? "Closed" : `Closes ${shortDay(last).replace(/^\w+, /, "")}`}</span>
         </div>
         {unreadable ? <p className="hx-err">The board could not be read — has the table been pushed?</p> : null}
-        <EntryForm ev={ev} signedIn={actor !== null} closed={closed} defaults={{ name: actor?.name ?? "", email: actor?.email ?? "" }} mine={mine} />
+        <EntryForm ev={ev} signedIn={actor !== null} closed={closed} defaults={{ name: actor?.name ?? "" }} mine={mine} />
       </section>
 
       <section className="wrap" id="board">
@@ -146,24 +150,10 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
           </span>
         </div>
         <Board ev={ev} rows={rows} />
-        <p className="hx-board-note">Names and categories as people entered them. Start times go up as Hyrox announces them and people add theirs.</p>
+        <p className="hx-board-note">Names and categories as people entered them. Start times go up once Hyrox announces them.</p>
       </section>
 
-      <footer>
-        <div className="wrap">
-          <p>
-            Not registered yet?{" "}
-            <a href={ev.url} target="_blank" rel="noopener noreferrer">
-              Tickets at hyrox.com
-            </a>
-            <br />
-            Photos and questions →{" "}
-            <a href="https://instagram.com/mikian_" target="_blank" rel="noopener noreferrer">
-              @mikian_
-            </a>
-          </p>
-        </div>
-      </footer>
+      <HomeFooter />
     </div>
   );
 }

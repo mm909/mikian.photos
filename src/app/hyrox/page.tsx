@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
+import { HomeFooter } from "@/components/home/HomeFooter";
 import { EVENTS, eventPath, shortDay } from "./events";
 import { BLACK, anton, barlowCondensed, css } from "./theme";
 
@@ -23,9 +24,9 @@ export default async function HyroxIndexPage() {
     <div className={`hx ${anton.variable} ${barlowCondensed.variable}`}>
       <style>{css}</style>
       <div className="hx-bar">
-        <a href="/" className="hx-wm">
-          Mikian
-          <small>Musser · Photographs</small>
+        <a href="/hyrox" className="hx-wm">
+          Hyrox
+          <small>Who is racing</small>
         </a>
       </div>
       <div className="hx-stripe" />
@@ -36,7 +37,7 @@ export default async function HyroxIndexPage() {
           <br />
           <span className="yr">racing</span>
         </h1>
-        <p className="hx-lede">Pick the event. Put your name on its board, see who else is in, grab a sticker.</p>
+        <p className="hx-lede">Pick the event. Put your name on its board and see who else is in.</p>
         <div className="hx-events">
           {EVENTS.map((ev) => (
             <a className="hx-event" href={eventPath(ev)} key={ev.slug}>
@@ -48,6 +49,7 @@ export default async function HyroxIndexPage() {
           ))}
         </div>
       </header>
+      <HomeFooter />
     </div>
   );
 }

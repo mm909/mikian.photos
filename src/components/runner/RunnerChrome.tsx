@@ -41,7 +41,12 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     /* The live tracker (/track/<slug> and its crew, van and join pages):
      * mobile-first dark pages with their own header, no marketplace nav. */
     pathname === "/track" ||
-    pathname.startsWith("/track/");
+    pathname.startsWith("/track/") ||
+    /* The Hyrox board (owner, 2026-10-13: not the marketplace header —
+     * "the header should be really similar to the Rowtember and LASD
+     * headers"): its own bar, src/app/hyrox. */
+    pathname === "/hyrox" ||
+    pathname.startsWith("/hyrox/");
 
   return (
     <>

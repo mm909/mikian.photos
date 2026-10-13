@@ -786,36 +786,39 @@ model RaceRunnerSignup {
 /// An entry on a HYROX BOARD (owner, 2026-10-13): one person saying what
 /// they are racing at one Hyrox weekend — the event by slug
 /// (src/app/hyrox/events.ts), the category as the rulebook sells it
-/// (format × division × gender), the day, the partner or teammates by name,
-/// a team name, and a start time once Hyrox announces them. An account can
+/// (format × division × gender), the day, the partner or teammates by name
+/// and handle, and a start time once Hyrox announces them. An account can
 /// hold several entries on one event (a singles one day, a doubles the
 /// next); the route caps how many. The board prints everything but the
 /// email, which only the owner's list shows.
 model HyroxEntry {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   /// events.ts slug, e.g. "las-vegas-2027".
-  event     String
+  event      String
   /// Photographer.id of the signed-in Google account.
-  userId    String
-  name      String
-  email     String   @default("")
+  userId     String
+  name       String
+  /// The account's email at the time of the save; the owner's list only.
+  email      String   @default("")
   /// Instagram handle without the "@".
-  instagram String   @default("")
+  instagram  String   @default("")
   /// "singles" | "doubles" | "relay"
-  format    String
+  format     String
   /// "open" | "pro" | "adaptive" (relay: "open")
-  division  String   @default("open")
+  division   String   @default("open")
   /// "men" | "women" | "mixed"
-  gender    String
+  gender     String
   /// ISO day, one of the event's days: "2027-03-13".
-  day       String
-  /// The partner (doubles) or teammates (relay) by name, as typed.
-  partners  String[] @default([])
-  teamName  String   @default("")
+  day        String
+  /// The partner (doubles) or teammates (relay) by name, as typed, and
+  /// their Instagram handles without the "@", aligned by index ("" when
+  /// not given).
+  partners   String[] @default([])
+  partnerIgs String[] @default([])
   /// As typed, once announced: "9:40 AM". Blank until then.
-  startTime String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  startTime  String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([event, day])
   @@index([event, userId])
