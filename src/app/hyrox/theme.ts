@@ -135,7 +135,6 @@ export const css = `
 .hx .hx-row .names small a{text-decoration:none;border-bottom:1px solid var(--yellow)}
 .hx .hx-row .start{flex:none;font-family:var(--hx-display),Impact,sans-serif;font-size:16px;letter-spacing:.06em;color:var(--white-dim);white-space:nowrap}
 .hx .hx-empty{margin-top:24px;color:var(--mute)}
-.hx .hx-board-note{margin-top:14px;font-size:14px;color:var(--mute)}
 
 /* THE STICKER: the canvas on a panel, the three buttons under it. */
 .hx .hx-stk{margin-top:22px;background:var(--panel);border:1px solid var(--rule);padding:16px}
@@ -153,15 +152,20 @@ export const css = `
 .hx .hx-probe.d{font-family:var(--hx-display),Impact,sans-serif}
 .hx .hx-probe.c{font-family:var(--hx-cond),sans-serif}
 
-/* THE LIST (the owner). */
-.hx .hx-table{width:100%;border-collapse:collapse;margin-top:22px;font-size:14px}
-.hx .hx-table th{text-align:left;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);font-weight:600;padding:0 10px 10px 0;border-bottom:2px solid var(--white)}
-.hx .hx-table td{padding:10px 10px 10px 0;border-bottom:1px solid var(--rule);vertical-align:top}
-.hx .hx-table td.n{color:var(--mute);width:28px}
-.hx .hx-table td.who{font-weight:700}
-.hx .hx-table td a{text-decoration:none;border-bottom:1px solid var(--yellow)}
-.hx .hx-table td.when{white-space:nowrap;color:var(--mute);font-size:12px}
-.hx .hx-list-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* THE LIST (the owner), for a phone: one card per entry, no table, nothing
+ * wider than the screen. */
+.hx .hx-roster{margin-top:8px}
+.hx .hx-roster-day{font-size:clamp(22px,5.5vw,30px);line-height:1;background:var(--yellow);color:var(--ground);padding:8px 12px;margin-top:26px}
+.hx .hx-card{background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--yellow);padding:12px 14px;margin-top:10px;overflow-wrap:anywhere}
+.hx .hx-card-top{display:flex;align-items:baseline;gap:10px;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--yellow)}
+.hx .hx-card-top .n{color:var(--mute);flex:none}
+.hx .hx-card-top .cat{flex:1 1 auto;min-width:0}
+.hx .hx-card-top .start{flex:none;color:var(--white)}
+.hx .hx-card-name{font-size:24px;line-height:1.1;margin-top:6px}
+.hx .hx-card-line{font-size:15px;font-weight:500;color:var(--white-dim);margin-top:4px;line-height:1.4}
+.hx .hx-card-line a{text-decoration:none;color:var(--white);border-bottom:1px solid var(--yellow)}
+.hx .hx-card-line .amp{color:var(--yellow)}
+.hx .hx-card-with{margin-top:6px}
 
 /* THE EVENTS INDEX. */
 .hx .hx-events{margin-top:24px;display:grid;gap:10px}

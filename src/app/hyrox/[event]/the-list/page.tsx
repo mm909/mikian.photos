@@ -4,11 +4,20 @@ import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { AccountControl } from "../EntryForm";
-import { categoryLabel, dayOf, eventBySlug, partnersFromColumns, readCategory, shortDay } from "../../events";
+import { categoryLabel, categoryRank, dayOf, eventBySlug, partnersFromColumns, readCategory, shortDay } from "../../events";
 import { BLACK, anton, barlowCondensed, css } from "../../theme";
 
-/* THE LIST — the admin's: every entry on the event with the email, which
- * the board never shows. Oldest first; a CSV link. A 404 for anyone else. */
+/* THE LIST — the owner's, and only his (owner, 2026-10-13: "make the list
+ * button up on the top only accessible by me for now"; a 404 for anyone
+ * else, and the bar shows THE LIST to the admin alone).
+ *
+ * REDESIGNED FOR THE PHONE (same day: "we're going to be viewing it from
+ * a phone, not from a computer, 90% of the time ... I don't want to
+ * scroll left or right ... we don't need the runner's email, we don't
+ * need to know when they signed up"): no table. One card per entry, by
+ * day then category then name — the name, the handle, the race, who with
+ * and their handles, the start time once there is one. The CSV keeps
+ * every column for a spreadsheet. */
 
 export const viewport: Viewport = { themeColor: BLACK };
 export const dynamic = "force-dynamic";
@@ -18,18 +27,23 @@ export async function generateMetadata({ params }: { params: { event: string } }
   return { title: `${ev?.name ?? "Hyrox"} — The list`, robots: { index: false, follow: false } };
 }
 
+function Handle({ h }: { h: string }) {
+  return (
+    <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener noreferrer">
+      @{h}
+    </a>
+  );
+}
+
 export default async function TheListPage({ params }: { params: { event: string } }) {
   const ev = eventBySlug(params.event);
   if (!ev) notFound();
   const actor = await getEffectiveActor();
   if (!actor || !isAdmin(actor)) notFound();
 
-  const when = new Intl.DateTimeFormat("en-US", { timeZone: ev.timeZone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-
   let rows: {
     id: string;
     name: string;
-    email: string;
     instagram: string;
     format: string;
     division: string;
@@ -38,15 +52,27 @@ export default async function TheListPage({ params }: { params: { event: string 
     partners: string[];
     partnerIgs: string[];
     startTime: string;
-    createdAt: Date;
   }[] = [];
   let unreadable = false;
   try {
-    rows = await db.hyroxEntry.findMany({ where: { event: ev.slug }, orderBy: { createdAt: "asc" } });
+    rows = await db.hyroxEntry.findMany({
+      where: { event: ev.slug },
+      select: { id: true, name: true, instagram: true, format: true, division: true, gender: true, day: true, partners: true, partnerIgs: true, startTime: true },
+    });
   } catch (err) {
     console.error("hyrox: failed to read the list (table pushed?)", err);
     unreadable = true;
   }
+
+  const dayIndex = (d: string) => {
+    const i = ev.days.findIndex((x) => x.date === d);
+    return i === -1 ? 99 : i;
+  };
+  const rank = (r: (typeof rows)[number]) => {
+    const cat = readCategory(r.format, r.division, r.gender);
+    return cat ? categoryRank(cat) : 999;
+  };
+  const sorted = rows.slice().sort((a, b) => dayIndex(a.day) - dayIndex(b.day) || rank(a) - rank(b) || a.name.localeCompare(b.name));
 
   return (
     <div className={`hx ${anton.variable} ${barlowCondensed.variable}`}>
@@ -74,70 +100,47 @@ export default async function TheListPage({ params }: { params: { event: string 
         </div>
         {unreadable ? <p className="hx-err">The list could not be read — has the table been pushed?</p> : null}
         {rows.length === 0 && !unreadable ? <p className="hx-empty">Nobody yet.</p> : null}
-        {rows.length > 0 ? (
-          <div className="hx-list-wrap">
-            <table className="hx-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Instagram</th>
-                  <th>Category</th>
-                  <th>Day</th>
-                  <th>With</th>
-                  <th>Start</th>
-                  <th>When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => {
-                  const cat = readCategory(r.format, r.division, r.gender);
-                  const d = dayOf(ev, r.day);
-                  const partners = partnersFromColumns(r.partners, r.partnerIgs);
-                  return (
-                    <tr key={r.id}>
-                      <td className="n">{i + 1}</td>
-                      <td className="who">{r.name}</td>
-                      <td>
-                        <a href={`mailto:${r.email}`}>{r.email}</a>
-                      </td>
-                      <td>
-                        {r.instagram ? (
-                          <a href={`https://instagram.com/${r.instagram}`} target="_blank" rel="noopener noreferrer">
-                            @{r.instagram}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td>{cat ? categoryLabel(cat) : `${r.format}/${r.division}/${r.gender}`}</td>
-                      <td>{d ? shortDay(d) : r.day}</td>
-                      <td>
-                        {partners.length
-                          ? partners.map((p, j) => (
-                              <span key={j}>
-                                {j > 0 ? <br /> : null}
-                                {p.name}
-                                {p.instagram ? (
-                                  <>
-                                    {" "}
-                                    <a href={`https://instagram.com/${p.instagram}`} target="_blank" rel="noopener noreferrer">
-                                      @{p.instagram}
-                                    </a>
-                                  </>
-                                ) : null}
-                              </span>
-                            ))
-                          : "—"}
-                      </td>
-                      <td>{r.startTime || "—"}</td>
-                      <td className="when">{when.format(r.createdAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {sorted.length > 0 ? (
+          <div className="hx-roster">
+            {sorted.map((r, i) => {
+              const cat = readCategory(r.format, r.division, r.gender);
+              const d = dayOf(ev, r.day);
+              const partners = partnersFromColumns(r.partners, r.partnerIgs);
+              const newDay = i === 0 || sorted[i - 1].day !== r.day;
+              return (
+                <div key={r.id}>
+                  {newDay ? <h3 className="hx-roster-day disp">{d ? shortDay(d) : r.day}</h3> : null}
+                  <div className="hx-card">
+                    <div className="hx-card-top">
+                      <span className="n">{i + 1}</span>
+                      <span className="cat">{cat ? categoryLabel(cat) : `${r.format} / ${r.division} / ${r.gender}`}</span>
+                      {r.startTime ? <span className="start">{r.startTime}</span> : null}
+                    </div>
+                    <div className="hx-card-name disp">{r.name}</div>
+                    {r.instagram ? (
+                      <div className="hx-card-line">
+                        <Handle h={r.instagram} />
+                      </div>
+                    ) : null}
+                    {partners.length > 0 ? (
+                      <div className="hx-card-with">
+                        {partners.map((p, j) => (
+                          <div className="hx-card-line" key={j}>
+                            <span className="amp">&amp;</span> {p.name}
+                            {p.instagram ? (
+                              <>
+                                {" "}
+                                <Handle h={p.instagram} />
+                              </>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </section>
