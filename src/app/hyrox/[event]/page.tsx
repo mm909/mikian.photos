@@ -132,7 +132,7 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
         </div>
         {/* THE EVENT'S STICKERS (owner, 2026-10-14): the mark alone, and
          * the days-away count, for anyone. */}
-        <EventStickers ev={ev} />
+        <EventStickers ev={ev} mine={mine} />
       </header>
 
       <section className="wrap" id="in">

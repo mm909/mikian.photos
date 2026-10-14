@@ -25,7 +25,7 @@ import {
   type HyroxEvent,
   type Partner,
 } from "../events";
-import { Sticker, type StickerFacts } from "./Sticker";
+import { Sticker, entryFacts } from "./Sticker";
 
 /* THE FORM (owner, 2026-10-13): name, what they are racing — singles,
  * doubles or relay; open, pro or adaptive; men's, women's or mixed —
@@ -76,20 +76,6 @@ export function AccountControl({ ev, signedIn, name, admin }: { ev: HyroxEvent; 
       )}
     </div>
   );
-}
-
-function facts(ev: HyroxEvent, e: MyEntry): StickerFacts {
-  const d = dayOf(ev, e.day);
-  return {
-    city: ev.city,
-    year: ev.year,
-    slug: ev.slug,
-    category: categoryLabel(e),
-    day: d ? shortDay(d) : e.day,
-    name: e.name,
-    partners: e.partners.map((p) => p.name),
-    startTime: e.startTime,
-  };
 }
 
 type Draft = Omit<MyEntry, "id">;
@@ -241,7 +227,7 @@ export function EntryForm({
             {categoryLabel(e)} <span className="y">{d ? shortDay(d) : e.day}</span>
           </h3>
         )}
-        <Sticker facts={facts(ev, e)} />
+        <Sticker facts={entryFacts(ev, e)} />
         <button type="button" className="hx-cta quiet" onClick={() => setView({ kind: "list" })}>
           My races
         </button>

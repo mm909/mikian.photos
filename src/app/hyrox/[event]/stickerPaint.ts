@@ -1,11 +1,12 @@
 import { BLACK, YELLOW } from "../theme";
+import type { HyroxEvent } from "../events";
 
 /* WHAT EVERY HYROX STICKER SHARES: the canvas width, the padding, the four
  * looks and the colours each puts on the type and the year box, a fitter
- * that shrinks a line until it holds, and the header — HYROX, the city
- * huge, the year in a box, a rule — that the entry sticker (Sticker.tsx)
- * and the roster (RosterSticker.tsx) both open with. No React here, so a
- * harness can paint a card on its own. */
+ * that shrinks a line until it holds, the header — HYROX, the city huge,
+ * the year in a box, a rule — and the cards more than one surface paints:
+ * the title, DAYS AWAY, LET US KNOW YOU'RE RACING, and a rower's own race
+ * card. No React here, so a harness can paint a card on its own. */
 
 export type Fonts = { display: string; cond: string };
 
@@ -48,7 +49,7 @@ export function palette(look: Look): { ink: string; box: string; onBox: string; 
 }
 
 /* The largest size, stepping down by 2 to `min`, at which `text` fits
- * `width` in the display face. Leaves ctx.font set to it. */
+ * `width`. Leaves ctx.font set to it. */
 export function fit(ctx: CanvasRenderingContext2D, text: string, family: string, max: number, min: number, width: number, weight = 400): number {
   let size = max;
   for (; size > min; size -= 2) {
@@ -81,6 +82,27 @@ export function line(
     if (track) ctx.letterSpacing = "0px";
   }
   return y + size + gapAfter;
+}
+
+/* A word in a filled box, the way the year sits — PRO on a category
+ * (owner, 2026-10-14: "you know how 27 is opposite from the rest of the
+ * sticker ... let's do the same thing with pro"). Condensed caps, tracked.
+ * Returns the box's width. */
+export function tag(ctx: CanvasRenderingContext2D, draw: boolean, x: number, y: number, text: string, fonts: Fonts, look: Look, size = 26): number {
+  const { box, onBox } = palette(look);
+  ctx.font = `700 ${size}px ${fonts.cond}`;
+  ctx.letterSpacing = "4px";
+  const w = ctx.measureText(text).width + 4 + size * 0.9;
+  const h = size * 1.5;
+  if (draw) {
+    ctx.fillStyle = box;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = onBox;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(text, x + size * 0.45, y + size * 0.86 + (h - size) / 2);
+  }
+  ctx.letterSpacing = "0px";
+  return w;
 }
 
 /* HYROX, then the city huge and the year in a box — "Las Vegas Hyrox 2027
@@ -117,3 +139,115 @@ export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: L
   }
   return y + 6 + 26;
 }
+
+/* ---------------------------------------------------------- the cards */
+
+/* A card painter: lays out from `y0`, paints when `draw`, returns the y
+ * it ended at. */
+type CardPainter = (ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, draw: boolean, y0: number) => number;
+
+/* Paints a card either at its own height (frame = null: the canvas is
+ * the card plus the padding) or centred in a frame of a fixed height (a
+ * story or a post). Returns the canvas height. */
+export function placeCard(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, draw: boolean, frame: number | null, card: CardPainter): number {
+  const h = card(ctx, fonts, look, false, 0);
+  if (frame === null) {
+    if (draw) card(ctx, fonts, look, true, PAD);
+    return h + PAD * 2;
+  }
+  if (draw) card(ctx, fonts, look, true, Math.max(PAD, Math.round((frame - h) / 2)));
+  return frame;
+}
+
+/* THE MARK: the header without its rule, nothing else. */
+export const titleCard =
+  (city: string, year: number): CardPainter =>
+  (ctx, fonts, look, draw, y0) =>
+    paintHeader(ctx, fonts, look, city, year, draw, y0, false) - 26;
+
+/* Whole days from the viewer's today to the event's first day. */
+export function daysUntil(ev: HyroxEvent, now = new Date()): number {
+  const [y, m, d] = ev.days[0].date.split("-").map(Number);
+  const first = Date.UTC(y, m - 1, d);
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((first - today) / 86_400_000);
+}
+
+/* DAYS AWAY: the mark over the count, huge. TODAY on the day, RACE WEEKEND
+ * after. The count is taken when the card paints, from the phone's own
+ * calendar, so a story posted tonight says tonight's number. */
+export const daysCard =
+  (ev: HyroxEvent): CardPainter =>
+  (ctx, fonts, look, draw, y0) => {
+    const { ink } = palette(look);
+    let y = paintHeader(ctx, fonts, look, ev.city, ev.year, draw, y0);
+    const n = daysUntil(ev);
+    const big = n > 0 ? String(n) : n === 0 ? "TODAY" : "RACE WEEKEND";
+    const under = n > 1 ? "DAYS AWAY" : n === 1 ? "DAY AWAY" : n === 0 ? "IT IS HERE" : "";
+    const bs = fit(ctx, big, fonts.display, 320, 90, INNER);
+    y = line(ctx, draw, y + 6, big, fonts.display, 400, bs, ink, 6);
+    if (under) y = line(ctx, draw, y, under, fonts.cond, 700, 48, ink, 0, 10);
+    return y;
+  };
+
+/* LET US KNOW YOU'RE RACING: the mark, the ask, where to go. */
+export const signUpCard =
+  (ev: HyroxEvent): CardPainter =>
+  (ctx, fonts, look, draw, y0) => {
+    const { ink, dim } = palette(look);
+    let y = paintHeader(ctx, fonts, look, ev.city, ev.year, draw, y0);
+    y += 14;
+    const lines = ["LET US KNOW", "YOU’RE RACING."];
+    const size = Math.min(...lines.map((t) => fit(ctx, t, fonts.display, 200, 80, INNER)));
+    for (const t of lines) y = line(ctx, draw, y, t, fonts.display, 400, size, ink, 6);
+    y = line(ctx, draw, y + 28, "PUT YOUR NAME ON THE BOARD", fonts.cond, 700, 40, ink, 14, 6);
+    y = line(ctx, draw, y, "MIKIANMUSSER.COM/HYROX", fonts.cond, 700, 36, dim, 0, 4);
+    return y;
+  };
+
+/* A ROWER'S OWN RACE (Sticker.tsx): THE RACE — category, day, the names
+ * — or START, the same block with the start time huge. */
+export type EntryFacts = {
+  city: string;
+  year: number;
+  /* "Women's Pro Doubles". */
+  category: string;
+  /* "Sat, Mar 13". */
+  day: string;
+  name: string;
+  partners: string[];
+  startTime: string;
+  /* For the file name. */
+  slug: string;
+};
+
+export const entryCard =
+  (facts: EntryFacts, card: "race" | "start"): CardPainter =>
+  (ctx, fonts, look, draw, y0) => {
+    const { ink, dim } = palette(look);
+    const up = (s: string) => s.toUpperCase();
+    let y = paintHeader(ctx, fonts, look, facts.city, facts.year, draw, y0);
+    if (card === "start") {
+      y = line(ctx, draw, y, "START", fonts.cond, 700, 40, ink, 4, 10);
+      const t = up(facts.startTime || "TBA");
+      const ts = fit(ctx, t, fonts.display, 220, 80, INNER);
+      y = line(ctx, draw, y, t, fonts.display, 400, ts, ink, 18);
+      y = line(ctx, draw, y, up(facts.day), fonts.cond, 700, 48, ink, 22, 4);
+      const who = [facts.name, ...facts.partners].filter(Boolean).map(up).join("  ·  ");
+      const ws = fit(ctx, who, fonts.cond, 44, 24, INNER, 600);
+      y = line(ctx, draw, y, who, fonts.cond, 600, ws, ink, 8, 2);
+      y = line(ctx, draw, y, up(facts.category), fonts.cond, 600, 32, dim, 0, 4);
+      return y;
+    }
+    const cat = up(facts.category);
+    const cs = fit(ctx, cat, fonts.display, 72, 40, INNER);
+    y = line(ctx, draw, y, cat, fonts.display, 400, cs, ink, 6);
+    y = line(ctx, draw, y, up(facts.day) + (facts.startTime ? `  ·  ${up(facts.startTime)}` : ""), fonts.cond, 700, 44, ink, 26, 4);
+    const names = [facts.name, ...facts.partners].filter(Boolean);
+    names.forEach((n, i) => {
+      const text = (i === 0 ? "" : "& ") + up(n);
+      const ns = fit(ctx, text, fonts.display, 92, 44, INNER);
+      y = line(ctx, draw, y, text, fonts.display, 400, ns, ink, 4);
+    });
+    return y - 4;
+  };

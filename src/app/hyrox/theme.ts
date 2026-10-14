@@ -141,6 +141,12 @@ export const css = `
 .hx .hx-stk-pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .hx .hx-stk-pick button{border:1px solid var(--rule);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px;color:var(--white-dim)}
 .hx .hx-stk-pick button[aria-pressed=true]{background:var(--white);color:var(--ground);border-color:var(--white)}
+.hx .hx-stk-pick.looks{flex-wrap:nowrap}
+.hx .hx-stk-pick.looks button{flex:1 1 0;min-width:0;padding:7px 4px;font-size:10px;letter-spacing:.1em;line-height:1.25;white-space:normal}
+.hx .hx-stk-btns.deck{margin-top:8px}
+.hx .hx-stk-btns.deck button{border-color:var(--rule);color:var(--white-dim);font-size:13px}
+.hx .hx-stk-btns.deck button:hover{border-color:var(--yellow);color:var(--white)}
+.hx .hx-stk-btns button:disabled{opacity:.5;cursor:default}
 .hx .hx-stk canvas{display:block;width:100%;max-width:420px;height:auto;margin:0 auto}
 .hx .hx-stk canvas.clear{background:repeating-conic-gradient(#2a2a2a 0 25%,#1c1c1c 0 50%) 0 0/24px 24px}
 .hx .hx-stk-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
