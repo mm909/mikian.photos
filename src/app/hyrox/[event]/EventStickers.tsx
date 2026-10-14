@@ -13,9 +13,14 @@ import { daysCard, entryCard, placeCard, signUpCard, titleCard, type Fonts, type
  * RACING — the one filler worth having), and, for a rower who is on the
  * board, each of their races (same day: "when I click stickers and I've
  * already signed up, I should also get the option to select my bib").
- * Every card at its own height, in the four looks. */
+ * Every card in the four looks, at its own height as a STICKER or at the
+ * top of a STORY (1080 × 1920) or a POST (1080 × 1350) frame (same day:
+ * "sign up / mark / days away and my race need a story and post size as
+ * well"). */
 
 type Card = { id: string; label: string; paint: ReturnType<typeof titleCard> };
+type Format = "sticker" | "story" | "post";
+const FRAME: Record<Format, number | null> = { sticker: null, story: 1920, post: 1350 };
 
 export function EventStickers({ ev, mine }: { ev: HyroxEvent; mine: MyEntry[] }) {
   const [open, setOpen] = useState(false);
@@ -30,11 +35,12 @@ export function EventStickers({ ev, mine }: { ev: HyroxEvent; mine: MyEntry[] })
     })),
   ];
   const [cardId, setCardId] = useState(mine.length > 0 ? `race-${mine[0].id}` : "days");
+  const [format, setFormat] = useState<Format>("sticker");
   const card = cards.find((c) => c.id === cardId) ?? cards[0];
 
   const paint = useCallback(
-    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => placeCard(ctx, fonts, look, draw, null, card.paint),
-    [card],
+    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => placeCard(ctx, fonts, look, draw, FRAME[format], card.paint),
+    [card, format],
   );
 
   if (!open) {
@@ -48,16 +54,25 @@ export function EventStickers({ ev, mine }: { ev: HyroxEvent; mine: MyEntry[] })
   return (
     <StickerFrame
       paint={paint}
-      filename={(look) => `hyrox-${ev.slug}-${card.id}-${look}.png`}
+      filename={(look) => `hyrox-${ev.slug}-${card.id}-${format}-${look}.png`}
       label="Event sticker"
       pickers={
-        <div className="hx-stk-pick" role="group" aria-label="Card">
-          {cards.map((c) => (
-            <button key={c.id} type="button" aria-pressed={card.id === c.id} onClick={() => setCardId(c.id)}>
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="hx-stk-pick" role="group" aria-label="Card">
+            {cards.map((c) => (
+              <button key={c.id} type="button" aria-pressed={card.id === c.id} onClick={() => setCardId(c.id)}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="hx-stk-pick" role="group" aria-label="Format">
+            {(["sticker", "story", "post"] as Format[]).map((f) => (
+              <button key={f} type="button" aria-pressed={format === f} onClick={() => setFormat(f)}>
+                {f}
+              </button>
+            ))}
+          </div>
+        </>
       }
     />
   );
