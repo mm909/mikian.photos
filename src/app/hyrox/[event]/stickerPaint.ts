@@ -147,16 +147,13 @@ export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: L
 type CardPainter = (ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, draw: boolean, y0: number) => number;
 
 /* Paints a card either at its own height (frame = null: the canvas is
- * the card plus the padding) or centred in a frame of a fixed height (a
- * story or a post). Returns the canvas height. */
+ * the card plus the padding) or at the top of a frame of a fixed height
+ * (a story or a post — owner, 2026-10-14: "the header is always at the
+ * top and not centered vertically"). Returns the canvas height. */
 export function placeCard(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, draw: boolean, frame: number | null, card: CardPainter): number {
-  const h = card(ctx, fonts, look, false, 0);
-  if (frame === null) {
-    if (draw) card(ctx, fonts, look, true, PAD);
-    return h + PAD * 2;
-  }
-  if (draw) card(ctx, fonts, look, true, Math.max(PAD, Math.round((frame - h) / 2)));
-  return frame;
+  if (draw) card(ctx, fonts, look, true, PAD);
+  if (frame !== null) return frame;
+  return card(ctx, fonts, look, false, 0) + PAD * 2;
 }
 
 /* THE MARK: the header without its rule, nothing else. */

@@ -20,8 +20,8 @@ import { INNER, PAD, W, daysCard, fit, paintHeader, palette, placeCard, tag, tit
  * count, no entry count on the day bars; the roster sticks to the top of
  * every page rather than centring a short one; more air between the
  * names; and the category is called out — MEN'S DOUBLES with PRO in a
- * filled box the way the year sits ("let's do the same thing with pro"),
- * OPEN plain beside it.
+ * filled box the way the year sits ("let's do the same thing with pro");
+ * open says nothing ("we don't have to specify open, just pro").
  *
  * THE PAGES: the roster is laid out as blocks — a day bar, a category, an
  * entry — and packed into pages of the frame; a page never ends on a day
@@ -42,13 +42,14 @@ const HEIGHT: Record<Format, number> = { story: 1920, post: 1350 };
  * breaks. */
 type Block = { h: number; kind: "day" | "cat" | "entry"; paint: (y: number) => void };
 
-/* "MEN'S DOUBLES" and the tag beside it: PRO or ADAPTIVE boxed, OPEN
- * plain. */
-function catWords(cat: Category | null): { words: string; tag: string; boxed: boolean } {
-  if (!cat) return { words: "OTHER", tag: "", boxed: false };
+/* "MEN'S DOUBLES" and the tag beside it: PRO or ADAPTIVE in a box; open
+ * says nothing (owner, 2026-10-14: "we don't have to specify open on the
+ * stickers, just pro"). */
+function catWords(cat: Category | null): { words: string; tag: string } {
+  if (!cat) return { words: "OTHER", tag: "" };
   const words = `${GENDER_LABEL[cat.gender]} ${FORMAT_LABEL[cat.format]}`.toUpperCase();
-  if (cat.format === "relay") return { words, tag: "", boxed: false };
-  return { words, tag: DIVISION_LABEL[cat.division].toUpperCase(), boxed: cat.division !== "open" };
+  if (cat.format === "relay" || cat.division === "open") return { words, tag: "" };
+  return { words, tag: DIVISION_LABEL[cat.division].toUpperCase() };
 }
 
 export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }) {
@@ -62,7 +63,7 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
   /* The roster's pages for a day pick, laid out against the fonts. */
   const layout = useCallback(
     (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, H: number, pick: DayPick): Block[][] => {
-      const { ink, dim, ground } = palette(look);
+      const { ink, ground } = palette(look);
       /* The type a filled day bar carries: the ground under an opaque
        * look, the opposite of the ink on a clear one. */
       const onBar = ground ?? (ink === "#FFED00" ? "#0A0A0A" : "#FFED00");
@@ -100,7 +101,7 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
           groups.set(key, g);
         }
         for (const g of [...groups.values()].sort((a, b) => a.rank - b.rank)) {
-          const { words, tag: tagWord, boxed } = catWords(g.cat);
+          const { words, tag: tagWord } = catWords(g.cat);
           blocks.push({
             h: 30 + 40 + 14,
             kind: "cat",
@@ -111,8 +112,7 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
               ctx.letterSpacing = "6px";
               const ww = ctx.measureText(words).width;
               ctx.letterSpacing = "0px";
-              if (tagWord && boxed) tag(ctx, true, PAD + ww + 22, top, tagWord, fonts, look, 26);
-              else if (tagWord) text(PAD + ww + 22, top + 32 * 0.86 + 4, tagWord, `700 26px ${fonts.cond}`, dim, 6);
+              if (tagWord) tag(ctx, true, PAD + ww + 22, top, tagWord, fonts, look, 26);
             },
           });
           for (const r of g.rows.slice().sort((a, b) => a.name.localeCompare(b.name))) {
