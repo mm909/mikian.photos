@@ -142,7 +142,9 @@ export function EntryForm({
       partners: p.partners.slice(0, partnerSlots(format)),
     }));
 
-  const submit = async (id: string | null) => {
+  type Duplicate = { names: string[]; entry: string; category: string; day: string };
+
+  const submit = async (id: string | null, confirmed = false) => {
     if (status !== "idle") return;
     setError(null);
     if (!f.name.trim()) return setError(ERR.name);
@@ -158,13 +160,23 @@ export function EntryForm({
           ...f,
           instagram: igHandle(f.instagram),
           partners: f.partners.map((p) => ({ name: p.name, instagram: igHandle(p.instagram) })),
+          confirmed,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; created?: boolean; entry?: MyEntry; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; created?: boolean; entry?: MyEntry; error?: string; duplicate?: Duplicate[] };
       if (res.ok && data.ok && data.entry) {
         setView({ kind: "done", entry: data.entry, created: data.created === true });
         setStatus("idle");
         router.refresh();
+        return;
+      }
+      /* THE SAME NAME TWICE (owner, 2026-10-14): a partner may already
+       * have put this race on the board. Say who, and let them decide. */
+      if (res.status === 409 && data.duplicate && data.duplicate.length > 0) {
+        setStatus("idle");
+        const lines = data.duplicate.map((d) => `${d.names.join(" and ")} — already on the board as ${d.entry} (${d.category}, ${d.day})`);
+        const ok = window.confirm(`${lines.join("\n")}\n\nIf your partner already added this race, you do not need to. Add your entry anyway?`);
+        if (ok) await submit(id, true);
         return;
       }
       setError(data.error ?? "Something went wrong — try again.");
