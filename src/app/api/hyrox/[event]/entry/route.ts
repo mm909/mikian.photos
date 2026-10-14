@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
-import { getEffectiveActor } from "@/lib/permissions";
+import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
-import { categoryLabel, dayOf, eventBySlug, isClosed, partnersToColumns, readEntry, shortDay } from "@/app/hyrox/events";
+import { categoryLabel, dayOf, eventBySlug, isClosed, partnersToColumns, readCategory, readEntry, shortDay } from "@/app/hyrox/events";
 
 /* /api/hyrox/<event>/entry — someone says what they are racing (owner,
  * 2026-10-13). Signed in with Google; the email on the row is the
@@ -11,11 +11,19 @@ import { categoryLabel, dayOf, eventBySlug, isClosed, partnersToColumns, readEnt
  * Saturday and a doubles Sunday), capped so the board cannot be flooded.
  *
  *   POST   { id?, name, instagram?, format, division, gender, day,
- *            partners?: [{ name, instagram? }], startTime? }
+ *            partners?: [{ name, instagram? }], startTime?, confirmed? }
  *          With `id`, an update of that account's own entry; without, a
  *          new one. Every save emails the owner; the row is the truth and
  *          a failed email is logged, never surfaced.
- *   DELETE { id } — takes that account's own entry off the board.
+ *          THE SAME NAME TWICE (owner, 2026-10-14: "be prepped to handle
+ *          cases where both partners fill it out ... just a confirm box
+ *          that notices that racers with the same name were put on the
+ *          list"): a name on the new entry — the racer's or a partner's
+ *          — that another account's entry already carries comes back as
+ *          409 { duplicate: [...] } until the form sends `confirmed`.
+ *   DELETE { id } — takes that account's own entry off the board; the
+ *          admin may take any entry off ("allow me, only me, to remove
+ *          any entries").
  *
  * Public, with the page (owner, 2026-10-13: no gate). */
 export const runtime = "nodejs";
@@ -57,6 +65,31 @@ export async function POST(req: Request, { params }: { params: { event: string }
   const id = typeof body.id === "string" && body.id.trim() ? body.id.trim().slice(0, 64) : null;
   const { partners, ...rest } = entry;
   const data = { ...rest, ...partnersToColumns(partners), email: actor.email };
+
+  /* The names this entry carries, against every other account's entries
+   * on the event. A match is a reason to ask, not to refuse. */
+  if (body.confirmed !== true) {
+    const norm = (n: string) => n.toLowerCase().replace(/\s+/g, " ").trim();
+    const mine = new Set([entry.name, ...partners.map((p) => p.name)].map(norm).filter(Boolean));
+    try {
+      const others = await db.hyroxEntry.findMany({
+        where: { event: ev.slug, userId: { not: actor.photographerId } },
+        select: { id: true, name: true, partners: true, format: true, division: true, gender: true, day: true },
+      });
+      const duplicate = others
+        .map((o) => {
+          const hits = [o.name, ...o.partners].filter((n) => mine.has(norm(n)));
+          if (hits.length === 0) return null;
+          const cat = readCategory(o.format, o.division, o.gender);
+          const d = dayOf(ev, o.day);
+          return { names: hits, entry: [o.name, ...o.partners].join(" & "), category: cat ? categoryLabel(cat) : "", day: d ? shortDay(d) : o.day };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      if (duplicate.length > 0) return NextResponse.json({ ok: false, duplicate }, { status: 409 });
+    } catch (err) {
+      console.error("hyrox: duplicate check failed", err);
+    }
+  }
 
   let created = false;
   let saved: { id: string } | null = null;
@@ -102,7 +135,8 @@ export async function DELETE(req: Request, { params }: { params: { event: string
   const id = body && typeof body.id === "string" ? body.id.trim().slice(0, 64) : "";
   if (!id) return bad("Which entry?");
   try {
-    const gone = await db.hyroxEntry.deleteMany({ where: { id, event: ev.slug, userId: actor.photographerId } });
+    const where = isAdmin(actor) ? { id, event: ev.slug } : { id, event: ev.slug, userId: actor.photographerId };
+    const gone = await db.hyroxEntry.deleteMany({ where });
     if (gone.count === 0) return bad("That entry is not yours to remove.", 404);
   } catch (err) {
     console.error("hyrox: entry delete failed", err);

@@ -167,6 +167,10 @@ export const css = `
 .hx .hx-card-top .n{color:var(--mute);flex:none}
 .hx .hx-card-top .cat{flex:1 1 auto;min-width:0}
 .hx .hx-card-top .start{flex:none;color:var(--white)}
+.hx .hx-card-remove{flex:none;display:inline-flex;align-items:baseline;gap:8px}
+.hx .hx-card-remove button{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);border-bottom:2px solid var(--rule);padding-bottom:1px}
+.hx .hx-card-remove button:hover{color:var(--yellow);border-color:var(--yellow)}
+.hx .hx-card-remove em{font-style:normal;font-size:11px;color:var(--yellow)}
 .hx .hx-card-name{font-size:24px;line-height:1.1;margin-top:6px}
 .hx .hx-card-line{font-size:15px;font-weight:500;color:var(--white-dim);margin-top:4px;line-height:1.4}
 .hx .hx-card-line a{text-decoration:none;color:var(--white);border-bottom:1px solid var(--yellow)}

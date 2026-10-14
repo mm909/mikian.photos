@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { AccountControl } from "../EntryForm";
+import { RemoveEntry } from "../RemoveEntry";
 import { categoryLabel, categoryRank, dayOf, eventBySlug, partnersFromColumns, readCategory, shortDay } from "../../events";
 import { BLACK, anton, barlowCondensed, css } from "../../theme";
 
@@ -115,6 +116,7 @@ export default async function TheListPage({ params }: { params: { event: string 
                       <span className="n">{i + 1}</span>
                       <span className="cat">{cat ? categoryLabel(cat) : `${r.format} / ${r.division} / ${r.gender}`}</span>
                       {r.startTime ? <span className="start">{r.startTime}</span> : null}
+                      <RemoveEntry slug={ev.slug} id={r.id} label={`${r.name} (${cat ? categoryLabel(cat) : r.format}, ${d ? shortDay(d) : r.day})`} />
                     </div>
                     <div className="hx-card-name disp">{r.name}</div>
                     {r.instagram ? (
