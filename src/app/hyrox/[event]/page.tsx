@@ -5,6 +5,7 @@ import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { Board, type BoardRow } from "./Board";
 import { AccountControl, EntryForm, type MyEntry } from "./EntryForm";
+import { RosterSticker } from "./RosterSticker";
 import { eventBySlug, eventPath, isClosed, partnersFromColumns, readCategory, shortDay } from "../events";
 import { BLACK, anton, barlowCondensed, css } from "../theme";
 
@@ -147,6 +148,10 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
           </span>
         </div>
         <Board ev={ev} rows={rows} />
+        {/* THE ROSTER AS A STICKER (owner, 2026-10-14: "a way to share a
+         * whole schedule for everyone who signed up ... the Vegas roster"):
+         * the whole board, or one day of it, in the four looks. */}
+        <RosterSticker ev={ev} rows={rows} />
       </section>
 
       <HomeFooter />
