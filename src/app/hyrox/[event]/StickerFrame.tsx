@@ -3,25 +3,79 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LOOKS, W, palette, type Fonts, type Look } from "./stickerPaint";
 
-/* THE FRAME AROUND A STICKER: the look picker, the canvas, the three
- * exits (the share sheet on a phone, copy where the clipboard can take
- * an image, download always — the ShareMenu way), and the font probes.
- * next/font hands out hashed family names, so the real names are read
- * off two probe spans and handed to the painter.
+/* THE FRAME AROUND A STICKER: the pickers, the look row, the canvas, the
+ * three exits (the share sheet on a phone, copy where the clipboard can
+ * take an image, download always — the ShareMenu way), and the font
+ * probes. next/font hands out hashed family names, so the real names are
+ * read off two probe spans and handed to the painter.
  *
  * `paint` lays the card out and returns the height it used; it is called
  * once to measure and once to draw, so a sticker is exactly as tall as
- * its content. Anything a sticker wants above the look picker (a card or
- * a day picker) comes in as `pickers`. */
+ * its content. Anything a sticker wants above the look row (a card or a
+ * day picker) comes in as `pickers`.
+ *
+ * A DECK (owner, 2026-10-14: "one button to download all story/post
+ * slides to my phone so I don't have to click on them individually"):
+ * `deck` names every slide of the current pick; SHARE ALL hands them to
+ * the share sheet together (on a phone, Save Images puts the lot in the
+ * camera roll) and DOWNLOAD ALL saves them one after another. Each slide
+ * paints on an offscreen canvas in the look on screen. */
 
 export type Painter = (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean) => number;
+export type Deck = (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts) => { paint: Painter; name: string }[];
 
-export function StickerFrame({ paint, filename, pickers, label }: { paint: Painter; filename: (look: Look) => string; pickers?: ReactNode; label: string }) {
+async function loadFonts(d: HTMLSpanElement | null, c: HTMLSpanElement | null): Promise<Fonts> {
+  const fonts: Fonts = {
+    display: d ? window.getComputedStyle(d).fontFamily : "Impact, sans-serif",
+    cond: c ? window.getComputedStyle(c).fontFamily : "sans-serif",
+  };
+  try {
+    await Promise.all([document.fonts.load(`400 100px ${fonts.display}`), document.fonts.load(`700 40px ${fonts.cond}`), document.fonts.ready]);
+  } catch {
+    /* paint in the fallback */
+  }
+  return fonts;
+}
+
+function render(canvas: HTMLCanvasElement, paint: Painter, look: Look, fonts: Fonts): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const h = Math.ceil(paint(ctx, look, fonts, false));
+  canvas.width = W;
+  canvas.height = h;
+  ctx.clearRect(0, 0, W, h);
+  const ground = palette(look).ground;
+  if (ground) {
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, 0, W, h);
+  }
+  paint(ctx, look, fonts, true);
+}
+
+const blobOf = (canvas: HTMLCanvasElement) =>
+  new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/png");
+  });
+
+export function StickerFrame({
+  paint,
+  filename,
+  pickers,
+  label,
+  deck,
+}: {
+  paint: Painter;
+  filename: (look: Look) => string;
+  pickers?: ReactNode;
+  label: string;
+  deck?: Deck;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dProbe = useRef<HTMLSpanElement | null>(null);
   const cProbe = useRef<HTMLSpanElement | null>(null);
   const [look, setLook] = useState<Look>("yellow");
   const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
   const [canShareFiles, setCanShareFiles] = useState(false);
   const [canCopy, setCanCopy] = useState(false);
   const [handheld, setHandheld] = useState(false);
@@ -36,27 +90,8 @@ export function StickerFrame({ paint, filename, pickers, label }: { paint: Paint
   const repaint = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const fonts: Fonts = {
-      display: dProbe.current ? window.getComputedStyle(dProbe.current).fontFamily : "Impact, sans-serif",
-      cond: cProbe.current ? window.getComputedStyle(cProbe.current).fontFamily : "sans-serif",
-    };
-    try {
-      await Promise.all([document.fonts.load(`400 100px ${fonts.display}`), document.fonts.load(`700 40px ${fonts.cond}`), document.fonts.ready]);
-    } catch {
-      /* paint in the fallback */
-    }
-    const h = Math.ceil(paint(ctx, look, fonts, false));
-    canvas.width = W;
-    canvas.height = h;
-    ctx.clearRect(0, 0, W, h);
-    const ground = palette(look).ground;
-    if (ground) {
-      ctx.fillStyle = ground;
-      ctx.fillRect(0, 0, W, h);
-    }
-    paint(ctx, look, fonts, true);
+    const fonts = await loadFonts(dProbe.current, cProbe.current);
+    render(canvas, paint, look, fonts);
   }, [paint, look]);
 
   useEffect(() => {
@@ -64,22 +99,21 @@ export function StickerFrame({ paint, filename, pickers, label }: { paint: Paint
   }, [repaint]);
 
   const name = filename(look);
-  const toBlob = () =>
-    new Promise<Blob | null>((resolve) => {
-      const c = canvasRef.current;
-      if (!c) return resolve(null);
-      c.toBlob(resolve, "image/png");
-    });
+  const toBlob = () => (canvasRef.current ? blobOf(canvasRef.current) : Promise.resolve(null));
+
+  const download = (blob: Blob, file: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
 
   const onDownload = async () => {
     const blob = await toBlob();
     if (!blob) return setMsg("Couldn't make the image");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
+    download(blob, name);
     setMsg("Saved");
   };
   const onCopy = async () => {
@@ -108,6 +142,47 @@ export function StickerFrame({ paint, filename, pickers, label }: { paint: Paint
     }
   };
 
+  /* Every slide of the deck as a file, painted offscreen. */
+  const deckFiles = async (): Promise<File[]> => {
+    if (!deck) return [];
+    const fonts = await loadFonts(dProbe.current, cProbe.current);
+    const off = document.createElement("canvas");
+    const ctx = off.getContext("2d");
+    if (!ctx) return [];
+    const slides = deck(ctx, look, fonts);
+    const files: File[] = [];
+    for (const s of slides) {
+      render(off, s.paint, look, fonts);
+      const blob = await blobOf(off);
+      if (blob) files.push(new File([blob], s.name, { type: "image/png" }));
+    }
+    return files;
+  };
+  const onShareAll = async () => {
+    setBusy(true);
+    try {
+      const files = await deckFiles();
+      if (!files.length) throw new Error("none");
+      if (!navigator.canShare?.({ files })) throw new Error("unsupported");
+      await navigator.share({ files });
+      setMsg("");
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) setMsg("Sharing all isn't available here — download all instead");
+    }
+    setBusy(false);
+  };
+  const onDownloadAll = async () => {
+    setBusy(true);
+    const files = await deckFiles();
+    for (let i = 0; i < files.length; i++) {
+      download(files[i], files[i].name);
+      /* Browsers drop downloads fired in the same instant. */
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    setMsg(files.length ? `Saved ${files.length} ${files.length === 1 ? "slide" : "slides"}` : "Nothing to save");
+    setBusy(false);
+  };
+
   return (
     <div className="hx-stk">
       <span ref={dProbe} aria-hidden className="hx-probe d">
@@ -117,7 +192,7 @@ export function StickerFrame({ paint, filename, pickers, label }: { paint: Paint
         A
       </span>
       {pickers}
-      <div className="hx-stk-pick" role="group" aria-label="Look">
+      <div className="hx-stk-pick looks" role="group" aria-label="Look">
         {LOOKS.map((l) => (
           <button key={l.id} type="button" aria-pressed={look === l.id} onClick={() => setLook(l.id)}>
             {l.label}
@@ -140,6 +215,18 @@ export function StickerFrame({ paint, filename, pickers, label }: { paint: Paint
           Download
         </button>
       </div>
+      {deck ? (
+        <div className="hx-stk-btns deck">
+          {canShareFiles ? (
+            <button type="button" disabled={busy} onClick={() => void onShareAll()}>
+              {busy ? "Making…" : "Share all slides"}
+            </button>
+          ) : null}
+          <button type="button" disabled={busy} onClick={() => void onDownloadAll()}>
+            {busy ? "Making…" : "Download all slides"}
+          </button>
+        </div>
+      ) : null}
       <p className="hx-stk-msg">{msg}</p>
     </div>
   );

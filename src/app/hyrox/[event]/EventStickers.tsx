@@ -1,49 +1,40 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { HyroxEvent } from "../events";
+import { categoryLabel, dayOf, type HyroxEvent } from "../events";
+import type { MyEntry } from "./EntryForm";
+import { entryFacts } from "./Sticker";
 import { StickerFrame } from "./StickerFrame";
-import { INNER, PAD, fit, line, paintHeader, palette, type Fonts, type Look } from "./stickerPaint";
+import { daysCard, entryCard, placeCard, signUpCard, titleCard, type Fonts, type Look } from "./stickerPaint";
 
-/* THE EVENT'S OWN STICKERS, for anyone (owner, 2026-10-14: "add a sticker
- * that is just the Hyrox, Las Vegas 27 part of the sticker ... also put
- * a x days away sticker"). Two cards on the shared frame: THE MARK —
- * HYROX, the city, the year in its box, nothing else — and DAYS AWAY,
- * the mark over the count to the first race day, huge. The count is
- * taken when the card paints, from the phone's own calendar, so a story
- * posted tonight says tonight's number. */
+/* THE STICKERS PANEL, under the facts, for anyone (owner, 2026-10-14:
+ * "add a sticker that is just the Hyrox, Las Vegas 27 part ... also a x
+ * days away sticker"). DAYS AWAY, THE MARK, SIGN UP (LET US KNOW YOU'RE
+ * RACING — the one filler worth having), and, for a rower who is on the
+ * board, each of their races (same day: "when I click stickers and I've
+ * already signed up, I should also get the option to select my bib").
+ * Every card at its own height, in the four looks. */
 
-type Card = "mark" | "days";
+type Card = { id: string; label: string; paint: ReturnType<typeof titleCard> };
 
-/* Whole days from the viewer's today to the event's first day. */
-function daysUntil(ev: HyroxEvent, now = new Date()): number {
-  const [y, m, d] = ev.days[0].date.split("-").map(Number);
-  const first = Date.UTC(y, m - 1, d);
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((first - today) / 86_400_000);
-}
-
-export function EventStickers({ ev }: { ev: HyroxEvent }) {
+export function EventStickers({ ev, mine }: { ev: HyroxEvent; mine: MyEntry[] }) {
   const [open, setOpen] = useState(false);
-  const [card, setCard] = useState<Card>("days");
+  const cards: Card[] = [
+    { id: "days", label: "Days away", paint: daysCard(ev) },
+    { id: "mark", label: "The mark", paint: titleCard(ev.city, ev.year) },
+    { id: "signup", label: "Sign up", paint: signUpCard(ev) },
+    ...mine.map((e) => ({
+      id: `race-${e.id}`,
+      label: mine.length === 1 ? "My race" : `${categoryLabel(e)} · ${dayOf(ev, e.day)?.dow ?? e.day}`,
+      paint: entryCard(entryFacts(ev, e), "race"),
+    })),
+  ];
+  const [cardId, setCardId] = useState(mine.length > 0 ? `race-${mine[0].id}` : "days");
+  const card = cards.find((c) => c.id === cardId) ?? cards[0];
 
   const paint = useCallback(
-    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => {
-      const { ink } = palette(look);
-      if (card === "mark") {
-        /* The header without its rule, and nothing under it. */
-        return paintHeader(ctx, fonts, look, ev.city, ev.year, draw, PAD, false) + PAD - 26;
-      }
-      let y = paintHeader(ctx, fonts, look, ev.city, ev.year, draw);
-      const n = daysUntil(ev);
-      const big = n > 0 ? String(n) : n === 0 ? "TODAY" : "RACE WEEKEND";
-      const under = n > 1 ? "DAYS AWAY" : n === 1 ? "DAY AWAY" : n === 0 ? "IT IS HERE" : "";
-      const bs = fit(ctx, big, fonts.display, 320, 90, INNER);
-      y = line(ctx, draw, y + 6, big, fonts.display, 400, bs, ink, 6);
-      if (under) y = line(ctx, draw, y, under, fonts.cond, 700, 48, ink, 0, 10);
-      return y + PAD;
-    },
-    [ev, card],
+    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => placeCard(ctx, fonts, look, draw, null, card.paint),
+    [card],
   );
 
   if (!open) {
@@ -57,16 +48,15 @@ export function EventStickers({ ev }: { ev: HyroxEvent }) {
   return (
     <StickerFrame
       paint={paint}
-      filename={(look) => `hyrox-${ev.slug}-${card}-${look}.png`}
+      filename={(look) => `hyrox-${ev.slug}-${card.id}-${look}.png`}
       label="Event sticker"
       pickers={
         <div className="hx-stk-pick" role="group" aria-label="Card">
-          <button type="button" aria-pressed={card === "days"} onClick={() => setCard("days")}>
-            Days away
-          </button>
-          <button type="button" aria-pressed={card === "mark"} onClick={() => setCard("mark")}>
-            The mark
-          </button>
+          {cards.map((c) => (
+            <button key={c.id} type="button" aria-pressed={card.id === c.id} onClick={() => setCardId(c.id)}>
+              {c.label}
+            </button>
+          ))}
         </div>
       }
     />

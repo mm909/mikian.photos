@@ -1,47 +1,67 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { categoryLabel, categoryRank, partnerSlots, readCategory, shortDay, type HyroxEvent } from "../events";
+import { DIVISION_LABEL, FORMAT_LABEL, GENDER_LABEL, categoryRank, partnerSlots, readCategory, shortDay, type Category, type HyroxEvent } from "../events";
 import type { BoardRow } from "./Board";
-import { StickerFrame } from "./StickerFrame";
-import { INNER, PAD, W, fit, paintHeader, palette, type Fonts, type Look } from "./stickerPaint";
+import { StickerFrame, type Deck, type Painter } from "./StickerFrame";
+import { INNER, PAD, W, daysCard, fit, paintHeader, palette, placeCard, tag, titleCard, type Fonts, type Look } from "./stickerPaint";
 
 /* THE ROSTER STICKER (owner, 2026-10-14: "a way to share a whole schedule
  * for everyone who signed up ... just the dates and then who's running,
- * with which partners and which events. Really similar to how it is on
- * the web page ... the Vegas roster"). The board as an image: the header,
- * WHO IS RACING, then each day as a filled bar, its categories, and every
- * entry — the names joined with an ampersand, TBD for a partner not yet
- * named. For anyone, on the board itself, with the four looks, and a day
- * picker for one day at a time.
+ * with which partners and which events ... the Vegas roster"). The board
+ * as pages of a STORY (1080 × 1920) or a POST (1080 × 1350): the header,
+ * then each day as a filled bar, its categories, and every entry — the
+ * names joined with an ampersand, TBD for a partner not yet named. For
+ * anyone, on the board itself, with the four looks, a day picker for one
+ * day at a time, and the same frame carrying a TITLE and a DAYS AWAY page
+ * at the same size.
  *
- * TWO FORMATS, and PAGES (owner, same day: "make it fit on a story post
- * ... formatted like a story and as a post ... automatically split the
- * list when it gets too long"): STORY is 1080 × 1920, POST 1080 × 1350.
- * The roster is laid out as blocks — a day bar, a category label, an
+ * After the owner's first look (same day): no WHO IS RACING, no page
+ * count, no entry count on the day bars; the roster sticks to the top of
+ * every page rather than centring a short one; more air between the
+ * names; and the category is called out — MEN'S DOUBLES with PRO in a
+ * filled box the way the year sits ("let's do the same thing with pro"),
+ * OPEN plain beside it.
+ *
+ * THE PAGES: the roster is laid out as blocks — a day bar, a category, an
  * entry — and packed into pages of the frame; a page never ends on a day
- * bar or a category label, and a page that starts mid-day repeats the day
- * bar (and the category) it continues. A short roster sits centred in its
- * frame. No address line (same day: "remove the mikianmusser/Hyrox part"). */
+ * bar or a category, and a page that starts mid-day repeats the day bar
+ * (and the category) it continues.
+ *
+ * THE DECK: SHARE ALL / DOWNLOAD ALL hand over the title page, the days-
+ * away page and every roster page of the day pick, in the format and the
+ * look on screen ("one button that generates me a post that is the title
+ * screen ... and then each of the slides showing the athletes"). */
 
 type DayPick = "all" | string;
 type Format = "story" | "post";
+type Card = "roster" | "title" | "days";
 const HEIGHT: Record<Format, number> = { story: 1920, post: 1350 };
 
 /* One thing on the roster and how tall it is; `kind` drives the page
  * breaks. */
 type Block = { h: number; kind: "day" | "cat" | "entry"; paint: (y: number) => void };
 
+/* "MEN'S DOUBLES" and the tag beside it: PRO or ADAPTIVE boxed, OPEN
+ * plain. */
+function catWords(cat: Category | null): { words: string; tag: string; boxed: boolean } {
+  if (!cat) return { words: "OTHER", tag: "", boxed: false };
+  const words = `${GENDER_LABEL[cat.gender]} ${FORMAT_LABEL[cat.format]}`.toUpperCase();
+  if (cat.format === "relay") return { words, tag: "", boxed: false };
+  return { words, tag: DIVISION_LABEL[cat.division].toUpperCase(), boxed: cat.division !== "open" };
+}
+
 export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }) {
   const [open, setOpen] = useState(false);
   const [day, setDay] = useState<DayPick>("all");
   const [format, setFormat] = useState<Format>("story");
+  const [card, setCard] = useState<Card>("roster");
   const [page, setPage] = useState(0);
   const [pages, setPages] = useState(1);
 
-  const paint = useCallback(
-    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => {
-      const H = HEIGHT[format];
+  /* The roster's pages for a day pick, laid out against the fonts. */
+  const layout = useCallback(
+    (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, H: number, pick: DayPick): Block[][] => {
       const { ink, dim, ground } = palette(look);
       /* The type a filled day bar carries: the ground under an opaque
        * look, the opposite of the ink on a clear one. */
@@ -56,46 +76,47 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
         if (track) ctx.letterSpacing = "0px";
       };
 
-      /* THE BLOCKS, measured once. */
       const blocks: Block[] = [];
-      const days = ev.days.filter((d) => day === "all" || d.date === day);
+      const days = ev.days.filter((d) => pick === "all" || d.date === pick);
       for (const d of days) {
         const today = rows.filter((r) => r.day === d.date);
         if (today.length === 0) continue;
-        const count = `${today.length} ${today.length === 1 ? "ENTRY" : "ENTRIES"}`;
-        const dayBlock: Block = {
-          h: 22 + 64,
+        blocks.push({
+          h: 34 + 68,
           kind: "day",
           paint: (y) => {
             ctx.fillStyle = ink;
-            ctx.fillRect(PAD, y + 22, INNER, 64);
-            text(PAD + 18, y + 22 + 44 * 0.86 + 10, up(shortDay(d)), `400 44px ${fonts.display}`, onBar);
-            ctx.font = `700 22px ${fonts.cond}`;
-            ctx.letterSpacing = "4px";
-            const cw = ctx.measureText(count).width;
-            ctx.letterSpacing = "0px";
-            text(W - PAD - 18 - cw, y + 22 + 22 * 0.86 + 21, count, `700 22px ${fonts.cond}`, onBar, 4);
+            ctx.fillRect(PAD, y + 34, INNER, 68);
+            text(PAD + 20, y + 34 + 46 * 0.86 + 11, up(shortDay(d)), `400 46px ${fonts.display}`, onBar);
           },
-        };
-        blocks.push(dayBlock);
+        });
 
-        const groups = new Map<string, { rank: number; rows: BoardRow[] }>();
+        const groups = new Map<string, { rank: number; cat: Category | null; rows: BoardRow[] }>();
         for (const r of today) {
           const cat = readCategory(r.format, r.division, r.gender);
-          const label = cat ? categoryLabel(cat) : "Other";
-          const g = groups.get(label) ?? { rank: cat ? categoryRank(cat) : 999, rows: [] };
+          const key = cat ? `${cat.format}/${cat.division}/${cat.gender}` : "other";
+          const g = groups.get(key) ?? { rank: cat ? categoryRank(cat) : 999, cat, rows: [] };
           g.rows.push(r);
-          groups.set(label, g);
+          groups.set(key, g);
         }
-        for (const [label, g] of [...groups.entries()].sort((a, b) => a[1].rank - b[1].rank)) {
+        for (const g of [...groups.values()].sort((a, b) => a.rank - b.rank)) {
+          const { words, tag: tagWord, boxed } = catWords(g.cat);
           blocks.push({
-            h: 18 + 28 + 6,
+            h: 30 + 40 + 14,
             kind: "cat",
-            paint: (y) => text(PAD, y + 18 + 28 * 0.86, up(label), `700 28px ${fonts.cond}`, dim, 6),
+            paint: (y) => {
+              const top = y + 30;
+              text(PAD, top + 32 * 0.86 + 4, words, `700 32px ${fonts.cond}`, ink, 6);
+              ctx.font = `700 32px ${fonts.cond}`;
+              ctx.letterSpacing = "6px";
+              const ww = ctx.measureText(words).width;
+              ctx.letterSpacing = "0px";
+              if (tagWord && boxed) tag(ctx, true, PAD + ww + 22, top, tagWord, fonts, look, 26);
+              else if (tagWord) text(PAD + ww + 22, top + 32 * 0.86 + 4, tagWord, `700 26px ${fonts.cond}`, dim, 6);
+            },
           });
           for (const r of g.rows.slice().sort((a, b) => a.name.localeCompare(b.name))) {
-            const cat = readCategory(r.format, r.division, r.gender);
-            const missing = Math.max(0, (cat ? partnerSlots(cat.format) : 0) - r.partners.length);
+            const missing = Math.max(0, (g.cat ? partnerSlots(g.cat.format) : 0) - r.partners.length);
             const names = [r.name, ...r.partners.map((p) => p.name)].map(up);
             for (let i = 0; i < missing; i++) names.push("TBD");
             const joined = names.join(" & ");
@@ -103,13 +124,13 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
              * line when it does not. */
             const size = fit(ctx, joined, fonts.display, 52, 36, INNER);
             if (ctx.measureText(joined).width <= INNER) {
-              blocks.push({ h: size + 6, kind: "entry", paint: (y) => text(PAD, y + size * 0.86, joined, `400 ${size}px ${fonts.display}`, ink) });
+              blocks.push({ h: size + 16, kind: "entry", paint: (y) => text(PAD, y + size * 0.86, joined, `400 ${size}px ${fonts.display}`, ink) });
             } else {
               const lines = names.map((n, i) => {
                 const t = (i === 0 ? "" : "& ") + n;
                 return { t, size: fit(ctx, t, fonts.display, 44, 30, INNER) };
               });
-              const h = lines.reduce((a, l) => a + l.size + 2, 0) + 4;
+              const h = lines.reduce((a, l) => a + l.size + 4, 0) + 12;
               blocks.push({
                 h,
                 kind: "entry",
@@ -117,7 +138,7 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
                   let yy = y;
                   for (const l of lines) {
                     text(PAD, yy + l.size * 0.86, l.t, `400 ${l.size}px ${fonts.display}`, ink);
-                    yy += l.size + 2;
+                    yy += l.size + 4;
                   }
                 },
               });
@@ -126,11 +147,10 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
         }
       }
       if (blocks.length === 0) {
-        blocks.push({ h: 16 + 52, kind: "entry", paint: (y) => text(PAD, y + 16 + 52 * 0.86, "NOBODY YET — BE THE FIRST", `400 52px ${fonts.display}`, ink) });
+        blocks.push({ h: 30 + 52, kind: "entry", paint: (y) => text(PAD, y + 30 + 52 * 0.86, "NOBODY YET — BE THE FIRST", `400 52px ${fonts.display}`, ink) });
       }
 
-      /* THE PAGES. The header and WHO IS RACING open every page. */
-      const headerH = paintHeader(ctx, fonts, look, ev.city, ev.year, false, 0) + 40 + 8;
+      const headerH = paintHeader(ctx, fonts, look, ev.city, ev.year, false, 0);
       const avail = H - PAD * 2 - headerH;
       const pageList: Block[][] = [];
       let cur: Block[] = [];
@@ -148,8 +168,6 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
         const need = b.kind === "entry" ? b.h : b.h + (blocks[i + 1]?.h ?? 0) + (b.kind === "day" && blocks[i + 2] ? blocks[i + 2].h : 0);
         if (used + need > avail && cur.length > 0) {
           close();
-          /* A page that starts mid-day repeats the day, and mid-category
-           * the category, it continues. */
           if (b.kind !== "day" && lastDay) {
             cur.push(lastDay);
             used += lastDay.h;
@@ -167,26 +185,55 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
         } else if (b.kind === "cat") lastCat = b;
       }
       close();
-      if (pageList.length !== pages) setPages(pageList.length);
-      const p = Math.min(page, pageList.length - 1);
-      const content = pageList[p] ?? [];
-      const contentH = content.reduce((a, b) => a + b.h, 0);
-
-      if (draw) {
-        /* A short page sits centred; a full one starts at the top. */
-        const y0 = Math.max(PAD, Math.round((H - headerH - contentH) / 2));
-        let y = paintHeader(ctx, fonts, look, ev.city, ev.year, true, y0);
-        const who = pageList.length > 1 ? `WHO IS RACING  ·  ${p + 1} / ${pageList.length}` : "WHO IS RACING";
-        text(PAD, y + 40 * 0.86, who, `700 40px ${fonts.cond}`, ink, 10);
-        y += 40 + 8;
-        for (const b of content) {
-          b.paint(y);
-          y += b.h;
-        }
-      }
-      return H;
+      return pageList;
     },
-    [ev, rows, day, format, page, pages],
+    [ev, rows],
+  );
+
+  /* One roster page, stuck to the top. */
+  const pagePainter = useCallback(
+    (H: number, pick: DayPick, p: number): Painter =>
+      (ctx, look, fonts, draw) => {
+        const pageList = layout(ctx, look, fonts, H, pick);
+        if (draw) {
+          let y = paintHeader(ctx, fonts, look, ev.city, ev.year, true, PAD);
+          for (const b of pageList[Math.min(p, pageList.length - 1)] ?? []) {
+            b.paint(y);
+            y += b.h;
+          }
+        }
+        return H;
+      },
+    [layout, ev],
+  );
+
+  const paint = useCallback<Painter>(
+    (ctx, look, fonts, draw) => {
+      const H = HEIGHT[format];
+      if (card === "title") return placeCard(ctx, fonts, look, draw, H, titleCard(ev.city, ev.year));
+      if (card === "days") return placeCard(ctx, fonts, look, draw, H, daysCard(ev));
+      const n = layout(ctx, look, fonts, H, day).length;
+      if (n !== pages) setPages(n);
+      return pagePainter(H, day, page)(ctx, look, fonts, draw);
+    },
+    [format, card, day, page, pages, layout, pagePainter, ev],
+  );
+
+  const deck = useCallback<Deck>(
+    (ctx, look, fonts) => {
+      const H = HEIGHT[format];
+      const stem = `hyrox-${ev.slug}-${format}-${look}`;
+      const slides = [
+        { name: `${stem}-01-title.png`, paint: ((c, l, f, d) => placeCard(c, f, l, d, H, titleCard(ev.city, ev.year))) as Painter },
+        { name: `${stem}-02-days-away.png`, paint: ((c, l, f, d) => placeCard(c, f, l, d, H, daysCard(ev))) as Painter },
+      ];
+      const n = layout(ctx, look, fonts, H, day).length;
+      for (let i = 0; i < n; i++) {
+        slides.push({ name: `${stem}-${String(i + 3).padStart(2, "0")}-roster-${day}-${i + 1}.png`, paint: pagePainter(H, day, i) });
+      }
+      return slides;
+    },
+    [format, day, ev, layout, pagePainter],
   );
 
   if (!open) {
@@ -197,15 +244,19 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
     );
   }
 
-  const pick = (d: DayPick) => {
+  const pickDay = (d: DayPick) => {
     setDay(d);
     setPage(0);
   };
+  const shownPage = Math.min(page, pages - 1);
 
   return (
     <StickerFrame
       paint={paint}
-      filename={(look) => `hyrox-${ev.slug}-roster-${day}-${format}${pages > 1 ? `-${page + 1}of${pages}` : ""}-${look}.png`}
+      deck={deck}
+      filename={(look) =>
+        card === "roster" ? `hyrox-${ev.slug}-roster-${day}-${format}${pages > 1 ? `-${shownPage + 1}of${pages}` : ""}-${look}.png` : `hyrox-${ev.slug}-${card}-${format}-${look}.png`
+      }
       label="The roster, as a sticker"
       pickers={
         <>
@@ -217,22 +268,33 @@ export function RosterSticker({ ev, rows }: { ev: HyroxEvent; rows: BoardRow[] }
               Post
             </button>
           </div>
-          {ev.days.length > 1 ? (
+          <div className="hx-stk-pick" role="group" aria-label="Card">
+            <button type="button" aria-pressed={card === "roster"} onClick={() => setCard("roster")}>
+              Roster
+            </button>
+            <button type="button" aria-pressed={card === "title"} onClick={() => setCard("title")}>
+              Title
+            </button>
+            <button type="button" aria-pressed={card === "days"} onClick={() => setCard("days")}>
+              Days away
+            </button>
+          </div>
+          {card === "roster" && ev.days.length > 1 ? (
             <div className="hx-stk-pick" role="group" aria-label="Day">
-              <button type="button" aria-pressed={day === "all"} onClick={() => pick("all")}>
+              <button type="button" aria-pressed={day === "all"} onClick={() => pickDay("all")}>
                 All days
               </button>
               {ev.days.map((d) => (
-                <button key={d.date} type="button" aria-pressed={day === d.date} onClick={() => pick(d.date)}>
+                <button key={d.date} type="button" aria-pressed={day === d.date} onClick={() => pickDay(d.date)}>
                   {d.dow}
                 </button>
               ))}
             </div>
           ) : null}
-          {pages > 1 ? (
+          {card === "roster" && pages > 1 ? (
             <div className="hx-stk-pick" role="group" aria-label="Page">
               {Array.from({ length: pages }, (_, i) => (
-                <button key={i} type="button" aria-pressed={Math.min(page, pages - 1) === i} onClick={() => setPage(i)}>
+                <button key={i} type="button" aria-pressed={shownPage === i} onClick={() => setPage(i)}>
                   {i + 1} / {pages}
                 </button>
               ))}
