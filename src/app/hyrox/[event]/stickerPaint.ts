@@ -84,9 +84,9 @@ export function line(
 }
 
 /* HYROX, then the city huge and the year in a box — "Las Vegas Hyrox 2027
- * or just 27", the owner's own suggestion — and a rule. Returns the y
- * under the rule. */
-export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, city: string, year: number, draw: boolean, y0 = PAD): number {
+ * or just 27", the owner's own suggestion — and a rule, unless `rule` is
+ * off (the mark alone). Returns the y under it. */
+export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, city: string, year: number, draw: boolean, y0 = PAD, rule = true): number {
   const { ink, box, onBox } = palette(look);
   let y = line(ctx, draw, y0, "HYROX", fonts.cond, 700, 40, ink, 10, 10);
 
@@ -109,6 +109,7 @@ export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: L
     ctx.fillText(yr, W - PAD - yw + 18, baseline);
   }
   y = boxTop + boxH + 26;
+  if (!rule) return y;
 
   if (draw) {
     ctx.fillStyle = ink;

@@ -5,6 +5,7 @@ import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { Board, type BoardRow } from "./Board";
 import { AccountControl, EntryForm, type MyEntry } from "./EntryForm";
+import { EventStickers } from "./EventStickers";
 import { RosterSticker } from "./RosterSticker";
 import { eventBySlug, eventPath, isClosed, partnersFromColumns, readCategory, shortDay } from "../events";
 import { BLACK, anton, barlowCondensed, css } from "../theme";
@@ -129,6 +130,9 @@ export default async function HyroxEventPage({ params }: { params: { event: stri
             </div>
           </div>
         </div>
+        {/* THE EVENT'S STICKERS (owner, 2026-10-14): the mark alone, and
+         * the days-away count, for anyone. */}
+        <EventStickers ev={ev} />
       </header>
 
       <section className="wrap" id="in">
