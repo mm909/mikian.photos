@@ -32,3 +32,9 @@ When the owner says make it live, merge to `main` so it deploys to mikianmusser.
 Owner, 2026-10-13: "Give me an email every single time someone signs up."
 
 A sign-up or entry route (Longhorn LMS, the Hyrox board, race day) calls `sendOwnerNotification` on every save — new and updated — and logs, never surfaces, a failed send.
+
+## No address on a sticker
+
+Owner, 2026-10-14: "Never put mikianmusser.com on any stickers unless I ask for it."
+
+A sticker or shareable card (the Hyrox cards in `src/app/hyrox/[event]/stickerPaint.ts`, the roster pages, anything painted on a canvas to be posted) carries no site address, no handle and no URL unless the owner asks for one on that card. The page's own footer is not a sticker.
