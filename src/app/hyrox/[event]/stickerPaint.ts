@@ -190,18 +190,19 @@ export const daysCard =
     return y;
   };
 
-/* LET US KNOW YOU'RE RACING: the mark, the ask, where to go. */
+/* LET US KNOW YOU'RE RACING: the mark and the ask. No address (owner,
+ * 2026-10-14: "never put mikianmusser.com on any stickers unless I ask
+ * for it"). */
 export const signUpCard =
   (ev: HyroxEvent): CardPainter =>
   (ctx, fonts, look, draw, y0) => {
-    const { ink, dim } = palette(look);
+    const { ink } = palette(look);
     let y = paintHeader(ctx, fonts, look, ev.city, ev.year, draw, y0);
     y += 14;
     const lines = ["LET US KNOW", "YOU’RE RACING."];
     const size = Math.min(...lines.map((t) => fit(ctx, t, fonts.display, 200, 80, INNER)));
     for (const t of lines) y = line(ctx, draw, y, t, fonts.display, 400, size, ink, 6);
-    y = line(ctx, draw, y + 28, "PUT YOUR NAME ON THE BOARD", fonts.cond, 700, 40, ink, 14, 6);
-    y = line(ctx, draw, y, "MIKIANMUSSER.COM/HYROX", fonts.cond, 700, 36, dim, 0, 4);
+    y = line(ctx, draw, y + 28, "PUT YOUR NAME ON THE BOARD", fonts.cond, 700, 40, ink, 0, 6);
     return y;
   };
 
