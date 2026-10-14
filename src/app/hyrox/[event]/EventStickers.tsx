@@ -29,7 +29,7 @@ export function EventStickers({ ev }: { ev: HyroxEvent }) {
 
   const paint = useCallback(
     (ctx: CanvasRenderingContext2D, look: Look, fonts: Fonts, draw: boolean): number => {
-      const { ink, dim } = palette(look);
+      const { ink } = palette(look);
       if (card === "mark") {
         /* The header without its rule, and nothing under it. */
         return paintHeader(ctx, fonts, look, ev.city, ev.year, draw, PAD, false) + PAD - 26;
@@ -41,7 +41,6 @@ export function EventStickers({ ev }: { ev: HyroxEvent }) {
       const bs = fit(ctx, big, fonts.display, 320, 90, INNER);
       y = line(ctx, draw, y + 6, big, fonts.display, 400, bs, ink, 6);
       if (under) y = line(ctx, draw, y, under, fonts.cond, 700, 48, ink, 0, 10);
-      y = line(ctx, draw, y + 24, "MIKIANMUSSER.COM/HYROX", fonts.cond, 700, 30, dim, 0, 4);
       return y + PAD;
     },
     [ev, card],
