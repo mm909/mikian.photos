@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { getTeamViewer, TEAM } from "@/lib/lasd26/team";
+import { TEAM } from "@/lib/lasd26/team";
+import { gateLasdDev } from "@/lib/lasd26/devGate";
+import { lasdPath } from "@/lib/lasd26/paths";
 import { dueFor, memberDue, paidStamp, viaLabel } from "@/lib/lasd26/settle";
 import { fmtUsd } from "@/lib/lasd26/money";
 import { isPaymentsOpen } from "@/lib/paymentLock";
@@ -8,9 +10,11 @@ import { payCss } from "../payCss";
 import { PayShare } from "./PayShare";
 
 /**
- * /lasd26/pay — SETTLE UP (owner, 2026-10-15: "each person's share payable
- * on the site by card after the race … the pay button visible only to me
- * for now").
+ * SETTLE UP, the dev copy (lasdPath("/pay") = /lasd26/dev/pay;
+ * lib/lasd26/paths.ts; owner, 2026-10-15: "each person's share payable on
+ * the site by card after the race … the pay button visible only to me for
+ * now"). Behind the dev gate in production (admin-only) like the rest of
+ * the dev tree.
  *
  * Who sees what:
  *   - signed out / not on the team → a notice (the bar has SIGN IN)
@@ -23,7 +27,7 @@ import { PayShare } from "./PayShare";
  */
 
 export const metadata: Metadata = {
-  title: "Settle up — LASD26",
+  title: "Settle up — LASD26 (dev)",
   description: "Your share of the crossing.",
   robots: { index: false, follow: false },
 };
@@ -47,7 +51,7 @@ function Foot() {
 }
 
 export default async function PayPage() {
-  const viewer = await getTeamViewer(TEAM);
+  const viewer = await gateLasdDev();
 
   // The calm doors first: nobody off the team sees a number.
   if (!viewer.actor) {
@@ -105,7 +109,7 @@ export default async function PayPage() {
             </div>
             <div className="pay-notice">
               <b>Settling up opens after the race.</b>
-              The crew will send the word. Until then every cost is on the <a href="/lasd26/expenses">expenses page</a> — add yours there.
+              The crew will send the word. Until then every cost is on the <a href={lasdPath("/expenses")}>expenses page</a> — add yours there.
             </div>
           </div>
         </section>
@@ -129,7 +133,7 @@ export default async function PayPage() {
 
           {viewer.owner && !due.settleOpen && (
             <p className="pay-owner mono">
-              Only you can see this page until you open settling up (<a href="/lasd26/team">Team → settings</a>).
+              Only you can see this page until you open settling up (<a href={lasdPath("/team")}>Team → settings</a>).
             </p>
           )}
 
@@ -150,7 +154,7 @@ export default async function PayPage() {
           {!viewer.member ? (
             <div className="pay-notice" style={{ marginTop: 22 }}>
               <b>You are not on the roster yet.</b>
-              Join through the invite link (<a href="/lasd26/team">Team → invite link</a>) to carry a share yourself. Everyone else&rsquo;s marks live on the members list there.
+              Join through the invite link (<a href={lasdPath("/team")}>Team → invite link</a>) to carry a share yourself. Everyone else&rsquo;s marks live on the members list there.
             </div>
           ) : mine?.paid ? (
             <div className="pay-paid mono">
@@ -169,7 +173,7 @@ export default async function PayPage() {
           <p className="pay-alt mono">
             Prefer Venmo/Zelle? Tell Mikian and he&rsquo;ll mark you paid.
             <br />
-            Every line behind the number is on the <a href="/lasd26/expenses">expenses page</a>.
+            Every line behind the number is on the <a href={lasdPath("/expenses")}>expenses page</a>.
           </p>
         </div>
       </section>

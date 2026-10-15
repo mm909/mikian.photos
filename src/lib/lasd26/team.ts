@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isOwner, type Actor } from "@/lib/permissions";
+import { lasdPath } from "./paths";
 
 /**
  * The crew's team site (owner, 2026-10-15): who is signed in, whether they
@@ -120,9 +121,13 @@ export async function inviteByToken(token: string, team: string = TEAM): Promise
   return db.teamInvite.findFirst({ where: { team, token: t, disabledAt: null }, select: { id: true } });
 }
 
-/** The invite link for the page the owner copies. */
+/**
+ * The invite link for the page the owner copies. The join page's address
+ * comes from paths.ts, so the link follows the site when it moves out of
+ * /lasd26/dev (and, while it is there, points at the gated dev copy).
+ */
 export function inviteUrl(origin: string, token: string): string {
-  return `${origin.replace(/\/$/, "")}/lasd26/join?t=${encodeURIComponent(token)}`;
+  return `${origin.replace(/\/$/, "")}${lasdPath("/join")}?t=${encodeURIComponent(token)}`;
 }
 
 /* ─── Joining ─────────────────────────────────────────────────────────────── */

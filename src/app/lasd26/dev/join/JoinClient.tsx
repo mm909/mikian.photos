@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { lasdPath } from "@/lib/lasd26/paths";
 
 /**
- * The client half of /lasd26/join: the sign-in button, the join form, and
- * the change-role control for someone already on the team. The server page
- * decides which one renders; these only talk to /api/lasd26/team/join.
+ * The client half of the join page (lasdPath("/join"), lib/lasd26/paths.ts):
+ * the sign-in button, the join form, and the change-role control for
+ * someone already on the team. The server page decides which one renders;
+ * these only talk to /api/lasd26/team/join, and every page address they
+ * send the browser to comes from lasdPath so they stay inside the dev copy.
  */
 
 type Role = "runner" | "crew";
@@ -35,7 +38,7 @@ export function SignInToJoin({ token }: { token: string }) {
       disabled={busy}
       onClick={() => {
         setBusy(true);
-        void signIn("google", { callbackUrl: `/lasd26/join?t=${encodeURIComponent(token)}` });
+        void signIn("google", { callbackUrl: `${lasdPath("/join")}?t=${encodeURIComponent(token)}` });
       }}
     >
       {busy ? "Opening Google…" : "Sign in with Google to join →"}
@@ -80,7 +83,7 @@ export function JoinForm({ token, defaultName, email }: { token: string; default
     setError("");
     const r = await postJoin({ token, role, name: name.trim() });
     if (r.ok) {
-      window.location.assign("/lasd26/expenses");
+      window.location.assign(lasdPath("/expenses"));
       return;
     }
     setError(r.error.toUpperCase());
@@ -158,7 +161,7 @@ export function ChangeRole({ token, current, name }: { token: string; current: R
   if (!open) {
     return (
       <div className="tm-actions">
-        <a className="tm-btn fill" href="/lasd26/expenses">
+        <a className="tm-btn fill" href={lasdPath("/expenses")}>
           Expenses →
         </a>
         <button type="button" className="tm-btn quiet" onClick={() => setOpen(true)}>

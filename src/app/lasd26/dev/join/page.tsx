@@ -1,24 +1,33 @@
 import type { Metadata, Viewport } from "next";
-import { getTeamViewer, inviteByToken } from "@/lib/lasd26/team";
+import { inviteByToken } from "@/lib/lasd26/team";
+import { gateLasdDev } from "@/lib/lasd26/devGate";
+import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
 import { ChangeRole, JoinForm, SignInToJoin } from "./JoinClient";
 
 /**
- * /lasd26/join?t=<token> — the link the owner drops in the group chat
+ * JOIN, the dev copy: lasdPath("/join")?t=<token> = /lasd26/dev/join?t=…
+ * (lib/lasd26/paths.ts) — the link the owner drops in the group chat
  * (owner, 2026-10-15: "they'll have to sign in with their Google accounts
  * and then join the team … only accessible by an invite link").
+ *
+ * WHILE THE DEV GATE IS ON (lib/lasd26/devGate.ts): in production this
+ * page answers 404 to anyone but the owner, so the invite link works for
+ * him alone and the crew CANNOT join yet — joining stays untestable by
+ * others until the owner says the site goes live and the gate lifts. On a
+ * laptop it is open and any account can walk the four states.
  *
  * Four states, decided here on the server:
  *   1. no token / dead token → "not valid", and nothing else. The link is
  *      the only key to the team pages, so a bad one learns nothing.
  *   2. signed out → sign in with Google, back to this exact URL.
  *   3. already a member → "you're on the team as …", expenses, change role.
- *   4. the join form → POST /api/lasd26/team/join → /lasd26/expenses.
+ *   4. the join form → POST /api/lasd26/team/join → the expenses page.
  */
 
 export const metadata: Metadata = {
-  title: "LASD26 — Join the crew",
+  title: "LASD26 — Join the crew (dev)",
   description: "Sign in and join the LASD26 team.",
   robots: { index: false, follow: false },
 };
@@ -37,7 +46,7 @@ function tokenFrom(searchParams: { t?: string | string[] } | undefined): string 
 }
 
 export default async function JoinPage({ searchParams }: { searchParams?: { t?: string | string[] } }) {
-  const viewer = await getTeamViewer();
+  const viewer = await gateLasdDev();
   const token = tokenFrom(searchParams);
 
   let invite: { id: string } | null = null;
@@ -60,7 +69,7 @@ export default async function JoinPage({ searchParams }: { searchParams?: { t?: 
             </div>
             {viewer.onTeam && (
               <div className="tm-actions">
-                <a className="tm-btn fill" href="/lasd26/expenses">
+                <a className="tm-btn fill" href={lasdPath("/expenses")}>
                   You&rsquo;re already on the team — expenses →
                 </a>
               </div>
@@ -88,7 +97,7 @@ export default async function JoinPage({ searchParams }: { searchParams?: { t?: 
             costs and the receipts, so nobody chases anybody.
           </p>
           <div className="jn-brand" aria-hidden>
-            <img src="/lasd26/brand/jf-mark.png" width={150} height={150} alt="" />
+            <img src={`${LASD_ASSETS}/brand/jf-mark.png`} width={150} height={150} alt="" />
             <span className="x">JUST FRIENDS LV × NO SHORTCUTS</span>
           </div>
         </div>

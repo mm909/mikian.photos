@@ -1,24 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import { CrewForm } from "./CrewForm";
 import { Countdown } from "./Countdown";
-import { LasdPage } from "./LasdPage";
-import { getTeamViewer } from "@/lib/lasd26/team";
-
-/**
- * /lasd26 — the crew-call landing, now CLOSED (owner, 2026-10-15: "the van
- * is full"). The page stays as the front of the team site: the race, the
- * weekend, the photos, the countdown; the form block is a closed notice
- * that sends the team to expenses. The crew runs it with Just Friends LV,
- * the Las Vegas run club, so they are on the page beside No Shortcuts.
- */
+import { isOwnerActor } from "@/lib/permissions";
+import { archivo, archivoBlack, spaceMono, css } from "./theme";
 
 export const metadata: Metadata = {
   title: "LASD26 — Crew Call",
   description:
-    "A Vegas crew at the No Shortcuts Time Trial — a ~130-mile unsanctioned relay from Santa Monica Pier to San Diego, with Just Friends LV. Crew call is closed: the van is full.",
+    "We're taking a Vegas crew to the No Shortcuts Time Trial — a ~130-mile unsanctioned relay from Santa Monica Pier to San Diego. One van. One long Friday. A whole weekend together.",
   openGraph: {
     title: "LASD26 — Crew Call",
     description:
-      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–25. Crew call is closed: the van is full.",
+      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–25.",
     images: [{ url: "/lasd26/golden-hour.jpg", width: 1100, height: 1375 }],
   },
 };
@@ -27,14 +20,26 @@ export const viewport: Viewport = {
   themeColor: "#F4F3EE",
 };
 
-// Session-gated (the bar's account button) — never render statically.
+// Session-gated (owner-only simulate + list link) — never render statically.
 export const dynamic = "force-dynamic";
 
 export default async function Lasd26Page() {
-  const viewer = await getTeamViewer();
+  // Owner-only extras: the simulate button on the form and the link to
+  // /lasd26/the-list. Sign in happens on the main site — this page keeps no
+  // auth UI of its own.
+  const owner = await isOwnerActor();
 
   return (
-    <LasdPage viewer={viewer} active="crew-call">
+    <div
+      className={`lasd26 ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}
+    >
+      <style>{css}</style>
+
+      <div className="bar">
+        <span className="mono">NO SHORTCUTS TT · 7TH EDITION</span>
+        <span className="mono tag">LASD26</span>
+      </div>
+
       <header className="hero">
         <div className="wrap" style={{ padding: 0 }}>
           <h1>
@@ -49,16 +54,7 @@ export default async function Lasd26Page() {
             ~130-mile unsanctioned relay from Santa Monica Pier to San Diego.
             One van. One long Friday. A whole weekend together.
           </p>
-          <p className="with mono">
-            <img
-              src="/lasd26/brand/jf-mark.png"
-              width={150}
-              height={150}
-              alt="Just Friends LV"
-            />
-            <span>No Shortcuts × Just Friends LV</span>
-          </p>
-          <span className="cc-mark">Crew call is closed — the van is full</span>
+          <span className="cc-mark">This is crew call</span>
         </div>
       </header>
 
@@ -86,18 +82,15 @@ export default async function Lasd26Page() {
             <div className="v">SM Pier → San Diego</div>
           </div>
           <div className="cell">
-            <div className="k mono">Crew</div>
+            <div className="k mono">Crew size</div>
             <div className="v">
-              18<small>16 runners + 2 crew · 2 teams</small>
+              10<small>8 runners + 2 crew</small>
             </div>
           </div>
           <div className="cell">
             <div className="k mono">Est. cost</div>
             <div className="v">
-              ~$371
-              <small>
-                per person · <a href="/lasd26/expenses">see expenses</a>
-              </small>
+              $450–550<small>per person</small>
             </div>
           </div>
         </div>
@@ -182,23 +175,21 @@ export default async function Lasd26Page() {
         </div>
       </div>
 
-      {/* Where the form stood. The crew-call list lives in the account
-       * menu's DEVELOPMENT group now, not on the page. */}
       <div className="form-sec" id="apply">
         <div className="wrap">
           <div className="sec-head">
-            <h2>Crew call is closed</h2>
-            <span className="mono">THE VAN IS FULL</span>
+            <h2>Put your name in</h2>
+            <span className="mono">CLOSES WHEN THE VAN IS FULL</span>
           </div>
-          <p className="closed-p">
-            The van is full. <strong>On the team?</strong> Sign in and open
-            expenses.
-          </p>
-          <a className="send" href="/lasd26/expenses">
-            Open expenses →
-          </a>
+          <CrewForm simulate={owner} />
         </div>
       </div>
+
+      {owner && (
+        <p className="owner-link mono">
+          <a href="/lasd26/the-list">THE LIST → /lasd26/the-list</a>
+        </p>
+      )}
 
       <footer>
         <div className="wrap" style={{ padding: 0 }}>
@@ -211,15 +202,6 @@ export default async function Lasd26Page() {
               rel="noopener noreferrer"
             >
               @noshortcutstt
-            </a>
-            <br />
-            with Just Friends LV →{" "}
-            <a
-              href="https://instagram.com/justfriends.lv"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              @justfriends.lv
             </a>
             <br />
             Crew questions →{" "}
@@ -244,6 +226,6 @@ export default async function Lasd26Page() {
           </p>
         </div>
       </footer>
-    </LasdPage>
+    </div>
   );
 }

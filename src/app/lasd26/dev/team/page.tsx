@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { currentInvite, getSettings, getTeamViewer, inviteUrl, listMembers, type Member } from "@/lib/lasd26/team";
+import { currentInvite, getSettings, inviteUrl, listMembers, type Member } from "@/lib/lasd26/team";
+import { gateLasdDev } from "@/lib/lasd26/devGate";
+import { lasdPath } from "@/lib/lasd26/paths";
 import { fmtUsd, perPersonCents, totalCents } from "@/lib/lasd26/money";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
@@ -12,16 +14,18 @@ import { PaidButton } from "./PaidButton";
 import { SettingsForm } from "./SettingsForm";
 
 /**
- * /lasd26/team — the owner's console (owner, 2026-10-15: "a link for me to
- * send out"). Three blocks: THE INVITE LINK (copy, rotate, uses), MEMBERS
- * (who joined, as what, when, and whether they have paid — with a hand
- * "mark paid" for cash), SETTINGS (how many ways the total splits, and
- * whether settle up is open to everyone). Owner only: anyone else gets 404,
- * the same answer as a page that does not exist.
+ * TEAM, the dev copy (lasdPath("/team") = /lasd26/dev/team;
+ * lib/lasd26/paths.ts) — the owner's console (owner, 2026-10-15: "a link
+ * for me to send out"). Three blocks: THE INVITE LINK (copy, rotate,
+ * uses), MEMBERS (who joined, as what, when, and whether they have paid —
+ * with a hand "mark paid" for cash), SETTINGS (how many ways the total
+ * splits, and whether settle up is open to everyone). Owner only in every
+ * environment, over and above the dev gate: anyone else gets 404, the same
+ * answer as a page that does not exist.
  */
 
 export const metadata: Metadata = {
-  title: "LASD26 — Team",
+  title: "LASD26 — Team (dev)",
   description: "Invite link, members and settings.",
   robots: { index: false, follow: false },
 };
@@ -58,7 +62,7 @@ async function expenseTotal(): Promise<{ total: number; estimated: number } | nu
 }
 
 export default async function TeamPage() {
-  const viewer = await getTeamViewer();
+  const viewer = await gateLasdDev();
   if (!viewer.owner) notFound();
 
   const h = headers();
@@ -166,7 +170,7 @@ export default async function TeamPage() {
       <footer>
         <div className="wrap" style={{ padding: 0 }}>
           <p className="mono">
-            <a href="/lasd26/expenses">EXPENSES →</a> · <a href="/lasd26/the-list">THE LIST (CREW CALL) →</a>
+            <a href={lasdPath("/expenses")}>EXPENSES →</a> · <a href={lasdPath("/the-list")}>THE LIST (CREW CALL) →</a>
           </p>
         </div>
       </footer>

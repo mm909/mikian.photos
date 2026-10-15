@@ -3,6 +3,7 @@
 import { useCallback, useId, useState, type ChangeEvent } from "react";
 import { signIn } from "next-auth/react";
 import type { ExpenseView, ExpensesPayload } from "@/lib/lasd26/expenses";
+import { lasdPath } from "@/lib/lasd26/paths";
 
 /**
  * The invoice (owner, 2026-10-15: "kind of like an invoice … they can see
@@ -51,7 +52,8 @@ export function SignInNotice() {
       <br />
       Not on the team? You need the invite link from the group chat.
       <br />
-      <button type="button" className="xp-btn" onClick={() => signIn("google", { callbackUrl: "/lasd26/expenses" })}>
+      {/* Back to THIS copy of the page after Google (lasdPath, lib/lasd26/paths.ts). */}
+      <button type="button" className="xp-btn" onClick={() => signIn("google", { callbackUrl: lasdPath("/expenses") })}>
         Sign in with Google →
       </button>
     </div>

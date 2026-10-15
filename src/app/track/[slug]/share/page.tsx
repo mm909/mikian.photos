@@ -9,8 +9,8 @@ import { shareCss } from "./shareCss";
 import { ShareApp } from "./ShareApp";
 
 /* STICKERS — /track/<slug>/share (owner, 2026-10-15: "share a sticker
- * that's No Shortcuts and Just Friends … create several and we can remove
- * the ones we don't like").
+ * that's No Shortcuts and Just Friends … these are stickers to place on
+ * stories … try again").
  *
  * The server does the gate and hands over the event shell (name, units,
  * zone, start) so THE MARK paints before any snapshot; everything with a
@@ -19,9 +19,10 @@ import { ShareApp } from "./ShareApp";
  * production for anyone who is not an admin while the tracker is in
  * development, open on a laptop) and the same dark theme. */
 
-/* Archivo Black: the LASD page's headline face and the nearest thing to
- * the Just Friends wordmark. The tracker's own faces (Barlow Condensed,
- * Barlow, IBM Plex Mono) come with fontClass. */
+/* Archivo Black: the LASD page's headline face, and the face our own
+ * marks are drawn in (shareMarks.ts) — no logo files load here. The
+ * tracker's own faces (Barlow Condensed, Barlow, IBM Plex Mono) come with
+ * fontClass. */
 const archivoBlack = Archivo_Black({
   subsets: ["latin"],
   weight: "400",

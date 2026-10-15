@@ -2,17 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
+import { lasdPath } from "@/lib/lasd26/paths";
 
 /**
- * The account button, top right of every /lasd26 page (owner, 2026-10-15:
- * "a profile button, just like we have on the other sites"). Signed out it
- * is SIGN IN, an ink pill (Google, back to the same page). Signed in it is a
- * bordered pill — the member's initial in a lime dot and a first name —
- * that opens a small paper panel: who they are and their role, the team
- * pages, and the owner's groups — TEAM (invite link, members) and
- * DEVELOPMENT (the crew-call list, the tracker's pages; owner, 2026-10-15:
- * "in a dev tab only that I can see"), which nobody else sees. All plain
- * links. Closes on an outside click or Escape.
+ * The account button, top right of every page of the team site (owner,
+ * 2026-10-15: "a profile button, just like we have on the other sites").
+ * Signed out it is SIGN IN, an ink pill (Google, back to the same page).
+ * Signed in it is a bordered pill — the member's initial in a lime dot and
+ * a first name — that opens a small paper panel: who they are and their
+ * role, the team pages, and the owner's groups — TEAM (invite link,
+ * members) and DEVELOPMENT (the crew-call list, the tracker's pages;
+ * owner, 2026-10-15: "in a dev tab only that I can see"), which nobody
+ * else sees. All plain links, through lasdPath (lib/lasd26/paths.ts) so
+ * they stay inside the dev copy while the site lives there. Closes on an
+ * outside click or Escape.
  */
 
 export type AccountViewer = {
@@ -48,7 +51,7 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
       <button
         type="button"
         className="acct-btn in mono"
-        onClick={() => signIn("google", { callbackUrl: typeof window === "undefined" ? "/lasd26" : window.location.href })}
+        onClick={() => signIn("google", { callbackUrl: typeof window === "undefined" ? lasdPath("") : window.location.href })}
       >
         Sign in
       </button>
@@ -84,10 +87,10 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
           </div>
           {viewer.onTeam && (
             <>
-              <a className="acct-item" href="/lasd26/expenses" role="menuitem" onClick={close}>
+              <a className="acct-item" href={lasdPath("/expenses")} role="menuitem" onClick={close}>
                 Expenses →
               </a>
-              <a className="acct-item" href="/lasd26/pay" role="menuitem" onClick={close}>
+              <a className="acct-item" href={lasdPath("/pay")} role="menuitem" onClick={close}>
                 Settle up →
               </a>
             </>
@@ -97,13 +100,13 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               <div className="acct-eyebrow mono" aria-hidden="true">
                 Team
               </div>
-              <a className="acct-item" href="/lasd26/team" role="menuitem" onClick={close}>
+              <a className="acct-item" href={lasdPath("/team")} role="menuitem" onClick={close}>
                 Invite link &amp; members →
               </a>
               <div className="acct-eyebrow mono" aria-hidden="true">
                 Development
               </div>
-              <a className="acct-item" href="/lasd26/the-list" role="menuitem" onClick={close}>
+              <a className="acct-item" href={lasdPath("/the-list")} role="menuitem" onClick={close}>
                 The list (crew call) →
               </a>
               <a className="acct-item" href="/track/lasd26" role="menuitem" onClick={close}>
@@ -117,7 +120,7 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               </a>
             </>
           )}
-          <button type="button" className="acct-item danger" role="menuitem" onClick={() => signOut({ callbackUrl: "/lasd26" })}>
+          <button type="button" className="acct-item danger" role="menuitem" onClick={() => signOut({ callbackUrl: lasdPath("") })}>
             Sign out
           </button>
         </div>

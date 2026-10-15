@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentInvite, inviteUrl, rotateInvite } from "@/lib/lasd26/team";
 import { getEffectiveActor, isOwner } from "@/lib/permissions";
-import { originFrom } from "@/app/lasd26/team/fmt";
+import { originFrom } from "@/app/lasd26/dev/team/fmt";
 
 /**
  * /api/lasd26/team/invite — the owner's link.
