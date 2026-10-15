@@ -256,6 +256,15 @@ export function BarAccount({
                 <Link className="acct-item" href="/longhorn-lms" onClick={close}>
                   Longhorn LMS →
                 </Link>
+                {/* THE HYROX BOARD, THE DEV COPY (owner, 2026-10-15: "make
+                 * these changes live but under a /dev path"): the board
+                 * with the record from hyresult, admin-only in production,
+                 * on mikianmusser.com (src/app/hyrox/dev). The public board
+                 * stays at /hyrox/las-vegas-2027 until he says this one
+                 * replaces it. */}
+                <Link className="acct-item" href="https://mikianmusser.com/hyrox/dev/las-vegas-2027" onClick={close}>
+                  Hyrox board (dev) →
+                </Link>
               </>
             )}
             <button

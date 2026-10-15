@@ -817,6 +817,22 @@ model HyroxEntry {
   partnerIgs String[] @default([])
   /// As typed, once announced: "9:40 AM". Blank until then.
   startTime  String   @default("")
+  /// THE RECORD, read off hyresult.com by name (owner, 2026-10-15: "this
+  /// is a debut or this is their PR ... that should just be automatic"):
+  /// how many times the athlete, the pair or the team has raced THIS
+  /// category before (0 = a debut; a doubles with a new partner is a
+  /// debut), their best time in it ("1:12:34"), and, once the race is
+  /// run, their finish time and the id of that result on hyresult
+  /// (/result/<idp>). null / "" until looked up or until there is one.
+  /// `hyresultSlug` is the page the lookup read (/athlete/<slug>) and
+  /// `recordAt` when; the lookup runs on every save and on REFRESH from
+  /// the owner's list (src/app/hyrox/record.ts).
+  priorRaces   Int?
+  pr           String    @default("")
+  finishTime   String    @default("")
+  resultIdp    String    @default("")
+  hyresultSlug String    @default("")
+  recordAt     DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

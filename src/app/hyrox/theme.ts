@@ -136,6 +136,38 @@ export const css = `
 .hx .hx-row .start{flex:none;font-family:var(--hx-display),Impact,sans-serif;font-size:16px;letter-spacing:.06em;color:var(--white-dim);white-space:nowrap}
 .hx .hx-empty{margin-top:24px;color:var(--mute)}
 
+/* THE PICKS over the board: a row of day chips, a row of race chips, the
+ * chosen one yellow (owner, 2026-10-15: select the dates and the events). */
+.hx .hx-filter{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.hx .hx-filter + .hx-filter{margin-top:8px}
+.hx .hx-filter button{border:1px solid var(--rule);background:var(--panel);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;padding:8px 11px;color:var(--white-dim);transition:background 120ms ease,color 120ms ease,border-color 120ms ease}
+.hx .hx-filter button:hover{border-color:var(--white);color:var(--white)}
+.hx .hx-filter button[aria-pressed=true]{background:var(--yellow);border-color:var(--yellow);color:var(--ground)}
+.hx .hx-filter-count{margin-top:12px;font-size:12px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--mute)}
+
+/* THE RECORD: DEBUT in a yellow box on the name line (owner, 2026-10-15:
+ * not under the handles — beside the names or on the same line); the PR
+ * under the start time, on the right; the finish, once run, in yellow
+ * where the start time was. Results links as chips over the board. */
+.hx .debut{display:inline-block;vertical-align:middle;background:var(--yellow);color:var(--ground);font-family:var(--hx-cond),sans-serif;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;line-height:1.3;padding:3px 7px 2px;margin-left:12px;position:relative;top:-2px}
+.hx .hx-row .names a{text-decoration:none}
+.hx .hx-row .names a:hover{color:var(--yellow)}
+.hx .hx-row .start{text-align:right}
+.hx .hx-row .start small{display:block;font-family:var(--hx-cond),sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--mute);margin-top:3px}
+.hx .hx-row .start.done{color:var(--yellow)}
+.hx .hx-row .start.done a{text-decoration:none}
+.hx .hx-row .start.done small{color:var(--white-dim)}
+.hx .hx-board-links{display:flex;gap:8px;margin-top:16px}
+.hx .hx-row .start .t{display:block}
+/* PRO on a category: an outlined box, white on the black ground, so it
+ * reads apart from DEBUT (owner, 2026-10-15: maybe pro is white text on
+ * black ... they should look a little different). PR beside a finish
+ * that beat the old one, filled like DEBUT. */
+.hx .pro{display:inline-block;vertical-align:middle;border:1.5px solid var(--white);color:var(--white);font-family:var(--hx-cond),sans-serif;font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;line-height:1.3;padding:2px 6px 1px;margin-left:10px;position:relative;top:-1px}
+.hx .hx-cat h4 .pro{top:-2px}
+.hx .hx-card-top .pro{top:-1px;margin-left:8px}
+.hx .newpr{display:inline-block;vertical-align:middle;background:var(--yellow);color:var(--ground);font-family:var(--hx-cond),sans-serif;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;line-height:1.3;padding:3px 7px 2px;margin-left:8px;position:relative;top:-3px}
+
 /* THE STICKER: the canvas on a panel, the three buttons under it. */
 .hx .hx-stk{margin-top:22px;background:var(--panel);border:1px solid var(--rule);padding:16px}
 .hx .hx-stk-pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
@@ -159,7 +191,46 @@ export const css = `
 .hx .hx-probe.c{font-family:var(--hx-cond),sans-serif}
 
 /* THE LIST (the owner), for a phone: one card per entry, no table, nothing
- * wider than the screen. */
+ * wider than the screen. The names set the way the board sets them; EDIT
+ * and REMOVE on the top line; the edit form opens in the card; the
+ * record and where it came from under the names; REFRESH over the list
+ * re-reads every entry from hyresult. */
+.hx .hx-list-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
+.hx .hx-list-tools .hx-chip:disabled{opacity:.5;cursor:default}
+.hx .hx-list-tools em{font-style:normal;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+/* THE LIST CARD: the names left, THE TIME big on the right (owner,
+ * 2026-10-15: I want to be able to scan this list and say, this
+ * persons running at this time); the finish in yellow once run. */
+.hx .hx-card-main{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:6px}
+.hx .hx-card-main .hx-card-name{margin-top:0;flex:1 1 auto;min-width:0}
+.hx .hx-card-main .start{flex:none;text-align:right;font-family:var(--hx-display),Impact,sans-serif;font-size:26px;letter-spacing:.04em;color:var(--white);line-height:1.1;white-space:nowrap;padding-top:2px}
+.hx .hx-card-main .start .t{display:block}
+.hx .hx-card-main .start small{display:block;font-family:var(--hx-cond),sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--mute);margin-top:3px;text-transform:uppercase}
+.hx .hx-card-main .start.done{color:var(--yellow)}
+.hx .hx-card-main .start.done a{text-decoration:none}
+.hx .hx-card-main .start.done small{color:var(--white-dim)}
+.hx .hx-card-acts{flex:none;display:inline-flex;align-items:baseline;gap:12px}
+.hx .hx-card-acts button{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);border-bottom:2px solid var(--rule);padding-bottom:1px}
+.hx .hx-card-acts button:hover{color:var(--yellow);border-color:var(--yellow)}
+.hx .hx-card-name .amp{color:var(--yellow);padding:0 .25em}
+.hx .hx-card-name .tbd{color:var(--mute)}
+.hx .hx-card-name .names a{text-decoration:none}
+.hx .hx-card-name .names a:hover{color:var(--yellow)}
+.hx .hx-card-name .names small{display:block;font-family:var(--hx-cond),sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;color:var(--white-dim);text-transform:none;margin-top:4px}
+.hx .hx-card-name .names small a{border-bottom:1px solid var(--yellow)}
+.hx .hx-edit{margin-top:12px;border-top:1px solid var(--rule)}
+.hx .hx-edit label.fl{display:block;font-size:11px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:var(--mute);margin:14px 0 5px}
+.hx .hx-edit input,.hx .hx-edit select{width:100%;background:var(--panel-2);border:1px solid var(--rule);color:var(--white);font-family:var(--hx-cond),sans-serif;font-size:17px;font-weight:500;padding:10px 12px;border-radius:0;appearance:none;-webkit-appearance:none;line-height:1.3}
+.hx .hx-edit select:disabled{color:var(--mute)}
+.hx .hx-edit input:focus,.hx .hx-edit select:focus{outline:none;border-color:var(--yellow)}
+.hx .hx-edit input::placeholder{color:var(--mute);font-weight:400}
+.hx .hx-edit .two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.hx .hx-edit .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px}
+.hx .hx-edit .hx-hint{margin-top:8px}
+.hx .hx-edit-btns{display:flex;gap:8px;margin-top:16px}
+.hx .hx-edit-btns button{flex:1 1 auto;border:2px solid var(--white);font-family:var(--hx-display),Impact,sans-serif;font-size:15px;letter-spacing:.1em;text-transform:uppercase;padding:10px 14px}
+.hx .hx-edit-btns button.primary{background:var(--yellow);border-color:var(--yellow);color:var(--ground)}
+.hx .hx-edit-btns button:disabled{opacity:.5;cursor:default}
 .hx .hx-roster{margin-top:8px}
 .hx .hx-roster-day{font-size:clamp(22px,5.5vw,30px);line-height:1;background:var(--yellow);color:var(--ground);padding:8px 12px;margin-top:26px}
 .hx .hx-card{background:var(--panel);border:1px solid var(--rule);border-left:4px solid var(--yellow);padding:12px 14px;margin-top:10px;overflow-wrap:anywhere}
@@ -195,6 +266,9 @@ export const css = `
 
 @media(max-width:460px){
   .hx .hx-form .two{grid-template-columns:1fr}
+  .hx .hx-edit .two{grid-template-columns:1fr}
+  .hx .hx-edit .three{grid-template-columns:1fr 1fr}
+  .hx .hx-card-main .start{font-size:22px}
   .hx .hx-acct .who{display:none}
   .hx .hx-facts{grid-template-columns:1fr}
   .hx .hx-fact + .hx-fact{border-left:0;padding-left:0;border-top:1px solid var(--rule)}

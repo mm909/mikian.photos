@@ -42,8 +42,15 @@ export type HyroxEvent = {
   /* Once Hyrox announces start times the form takes one (owner,
    * 2026-10-13: "they won't know their start time when they originally
    * fill out this form ... we will send out a thing to fill out your start
-   * time later on"). Off until then. */
+   * time later on"). Off until then. The lookup (record.ts) fills them
+   * in from the published start list either way. */
   startTimesOpen: boolean;
+  /* hyresult.com's slug for the weekend — its event page is where the
+   * results show live and after (owner, 2026-10-15: "if hyresult has a
+   * page where you can see someone's position live during the race, link
+   * to that"). The pattern is s<season>-<year>-<city>; Las Vegas 2027 is
+   * expected at s9-2027-las-vegas and is checked when hyresult lists it. */
+  hyresultEvent: string;
 };
 
 export const EVENTS: HyroxEvent[] = [
@@ -64,8 +71,24 @@ export const EVENTS: HyroxEvent[] = [
     /* The day after the last race day, end of day Pacific (UTC−7 in March). */
     closeMs: Date.UTC(2027, 2, 16, 7, 0, 0),
     startTimesOpen: false,
+    hyresultEvent: "s9-2027-las-vegas",
   },
 ];
+
+/* Where the weekend stands for a viewer now, by the calendar day in the
+ * event's own zone: before the first race day, on one of them (live), or
+ * after the last. */
+export function raceWeekendState(ev: HyroxEvent, now = new Date()): "before" | "live" | "after" {
+  let today: string;
+  try {
+    today = new Intl.DateTimeFormat("en-CA", { timeZone: ev.timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  } catch {
+    today = now.toISOString().slice(0, 10);
+  }
+  if (today < ev.days[0].date) return "before";
+  if (today > ev.days[ev.days.length - 1].date) return "after";
+  return "live";
+}
 
 export function eventBySlug(slug: string): HyroxEvent | null {
   return EVENTS.find((e) => e.slug === slug) ?? null;
@@ -92,6 +115,44 @@ export function eventPath(ev: HyroxEvent): string {
 }
 export function listPath(ev: HyroxEvent): string {
   return `${PATH}/${ev.slug}/the-list`;
+}
+
+/* ------------------------------------------------------------- the links */
+
+/* WHERE THE RECORD AND THE LINKS COME FROM (researched 2026-10-15; owner:
+ * "we should be able to look up hyresult.com/athlete/mikian-musser ...
+ * that should show past results, how many times they've ran, their PRs,
+ * if they're debuting"; "if you click on the name then it takes you to
+ * the hyresult page"):
+ *   hyresult.com — a page per athlete, by name: every race with its
+ *     division, partner and time, and the upcoming wave once published.
+ *     Read by record.ts; every name on the board links to it, a finish
+ *     to its result page, the board to the event page (live results).
+ *   results.hyrox.com / startlist.hyrox.com — the official site; HTML
+ *     only, searchable by name only with an event code that exists once
+ *     the start list is out. Not linked.
+ *   ROXFIT (roxfit.app) is the race-day app people use; it has no web
+ *     profile and nothing to link to. */
+
+/* hyresult.com's event page — the results, live during the weekend — and
+ * one result's page (the finish, the splits). */
+export function hyresultEventUrl(ev: HyroxEvent): string {
+  return `https://www.hyresult.com/event/${ev.hyresultEvent}`;
+}
+export function hyresultResultUrl(idp: string): string {
+  return `https://www.hyresult.com/result/${encodeURIComponent(idp)}`;
+}
+
+/* hyresult.com's page for a name: lowercase, accents dropped, hyphens
+ * between the words — "José García" → /athlete/jose-garcia. */
+export function hyresultUrl(name: string): string {
+  const slug = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `https://www.hyresult.com/athlete/${slug}`;
 }
 
 /* ------------------------------------------------------------ categories */
@@ -216,8 +277,83 @@ export function cleanStartTime(raw: unknown): string | null {
   return s.toUpperCase().replace(/\./g, "");
 }
 
+/* ------------------------------------------------------------ the record */
+
+/* WHAT THE BOARD SAYS ABOUT A RACE BESIDES WHO AND WHEN (owner, 2026-10-15:
+ * "this person is running at this time and this is a debut or this is
+ * their PR"). The row carries, per entry — the athlete, the pair or the
+ * team in THIS category — how many times they have raced it before
+ * (`priorRaces`; 0 is a DEBUT, and a doubles with a new partner is one),
+ * their best time in it (`pr`), and once the race is run their finish
+ * (`finishTime`, `resultIdp`). All of it is read off hyresult.com by the
+ * lookup in record.ts — on every save and on REFRESH from the owner's
+ * list — never typed (owner: "that should just be automatic"). Printed:
+ * DEBUT, and the PR; not the count (owner: "we only want to highlight
+ * debuts, not the times before ... but we do want to include the PR"). */
+export type RecordView = { priorRaces?: number | null; pr?: string; finishTime?: string };
+
+export function isDebut(r: RecordView): boolean {
+  return r.priorRaces === 0;
+}
+
+/* "PR 1:12:34", or "" when none is known. */
+export function prLabel(r: RecordView): string {
+  return r.pr ? `PR ${r.pr}` : "";
+}
+
+/* "1:12:34" or "58:12" → seconds; anything else NaN. */
+export function toSeconds(t: string): number {
+  const m = t.trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);
+  if (!m) return NaN;
+  return (m[1] ? Number(m[1]) * 3600 : 0) + Number(m[2]) * 60 + Number(m[3]);
+}
+
+/* A finish that beat the PR hyresult had before the race (owner,
+ * 2026-10-15: "we can denote if they PR'd"). */
+export function isNewPr(r: RecordView): boolean {
+  if (!r.finishTime || !r.pr) return false;
+  const f = toSeconds(r.finishTime);
+  const p = toSeconds(r.pr);
+  return Number.isFinite(f) && Number.isFinite(p) && f < p;
+}
+
+/* "9:40 AM" (or "14:05") → minutes since midnight, to put the list in
+ * wave order; blank or odd sorts after everything. */
+export function startMinutes(s: string): number {
+  const m = s.trim().toUpperCase().match(/^(\d{1,2})(?::(\d{2}))?\s?(AM|PM)?$/);
+  if (!m) return 100_000;
+  let h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  if (m[3] === "PM" && h < 12) h += 12;
+  if (m[3] === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+/* "MEN'S DOUBLES" and the tag beside it: PRO or ADAPTIVE in a box; open
+ * says nothing (owner, 2026-10-14: "we don't have to specify open on the
+ * stickers, just pro"; 2026-10-15: the board and the list the same way,
+ * "highlight the pro on the board"). */
+export function catWords(cat: Category | null): { words: string; tag: string } {
+  if (!cat) return { words: "OTHER", tag: "" };
+  const words = `${GENDER_LABEL[cat.gender]} ${FORMAT_LABEL[cat.format]}`.toUpperCase();
+  if (cat.format === "relay" || cat.division === "open") return { words, tag: "" };
+  return { words, tag: DIVISION_LABEL[cat.division].toUpperCase() };
+}
+
+/* ----------------------------------------------------------- reading it */
+
+/* What a save may write besides the entry's own fields: a start time is
+ * taken once the event opens them, or from the owner any time (he keys
+ * them in from the start list). The route writes only what was taken, so
+ * a rower re-saving their entry never blanks what the owner put on it. */
+export type Taken = { startTime: boolean };
+
 /* The body → a clean row, or the first thing wrong with it. */
-export function readEntry(ev: HyroxEvent, body: Record<string, unknown>): { ok: true; entry: EntryInput } | { ok: false; error: string } {
+export function readEntry(
+  ev: HyroxEvent,
+  body: Record<string, unknown>,
+  opts: { admin?: boolean } = {},
+): { ok: true; entry: EntryInput; taken: Taken } | { ok: false; error: string } {
   const name = cleanName(body.name, 120);
   if (!name) return { ok: false, error: ERR.name };
   const instagram = igHandle(body.instagram);
@@ -234,10 +370,11 @@ export function readEntry(ev: HyroxEvent, body: Record<string, unknown>): { ok: 
       return { name: cleanName(o.name), instagram: igHandle(o.instagram) };
     })
     .filter((p) => p.name);
-  /* A start time is taken only once the event opens them. */
-  const startTime = ev.startTimesOpen ? cleanStartTime(body.startTime) : "";
+  const admin = opts.admin === true;
+  const taken: Taken = { startTime: ev.startTimesOpen || admin };
+  const startTime = taken.startTime ? cleanStartTime(body.startTime) : "";
   if (startTime === null) return { ok: false, error: ERR.startTime };
-  return { ok: true, entry: { name, instagram, ...cat, day, partners, startTime } };
+  return { ok: true, entry: { name, instagram, ...cat, day, partners, startTime }, taken };
 }
 
 /* The two columns a row stores partners in, aligned by index. */

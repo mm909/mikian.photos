@@ -2,7 +2,25 @@
  *   npx tsx src/app/hyrox/fields.test.ts
  * (plain asserts, exit 1 on the first miss, the join form's idiom). */
 import assert from "node:assert/strict";
-import { ERR, EVENTS, categoryLabel, cleanStartTime, igHandle, partnerSlots, partnersFromColumns, partnersToColumns, readCategory, readEntry } from "./events";
+import {
+  ERR,
+  EVENTS,
+  catWords,
+  categoryLabel,
+  cleanStartTime,
+  hyresultUrl,
+  igHandle,
+  isDebut,
+  isNewPr,
+  partnerSlots,
+  partnersFromColumns,
+  partnersToColumns,
+  prLabel,
+  readCategory,
+  readEntry,
+  startMinutes,
+  toSeconds,
+} from "./events";
 
 const ev = EVENTS[0];
 assert.equal(ev.slug, "las-vegas-2027");
@@ -94,6 +112,64 @@ fail({ ...good, day: "2027-03-15" }, ERR.day, "not a race day");
 /* An entry sent before the partner is known is fine. */
 const solo = readEntry(ev, { ...good, partners: [] });
 assert.ok(solo.ok);
+
+/* ------------------------------------------------------------ the record */
+assert.equal(isDebut({ priorRaces: 0 }), true);
+assert.equal(isDebut({ priorRaces: 1 }), false);
+assert.equal(isDebut({ priorRaces: null }), false, "not looked up is not a debut");
+assert.equal(isDebut({}), false);
+assert.equal(prLabel({ pr: "" }), "");
+assert.equal(prLabel({}), "");
+assert.equal(prLabel({ pr: "1:12:34" }), "PR 1:12:34");
+
+/* A rower's save takes no start time before the event opens them; the
+ * owner's does, any time. The record is never read from a body. */
+const rower = readEntry(ev, good);
+assert.ok(rower.ok);
+if (rower.ok) {
+  assert.deepEqual(rower.taken, { startTime: false });
+  assert.equal(rower.entry.startTime, "");
+  assert.ok(!("priorRaces" in rower.entry) && !("pr" in rower.entry), "the record is hyresult's, not the form's");
+}
+const rowerOpen = readEntry(open, good);
+assert.ok(rowerOpen.ok);
+if (rowerOpen.ok) assert.deepEqual(rowerOpen.taken, { startTime: true });
+const owner = readEntry(ev, good, { admin: true });
+assert.ok(owner.ok);
+if (owner.ok) {
+  assert.deepEqual(owner.taken, { startTime: true });
+  assert.equal(owner.entry.startTime, "9:40 AM", "the owner keys a start time in before the event opens them");
+}
+
+/* ------------------------------------------------------------- the links */
+assert.equal(hyresultUrl("Ada Byron"), "https://www.hyresult.com/athlete/ada-byron");
+assert.equal(hyresultUrl("  José  García-Lopez "), "https://www.hyresult.com/athlete/jose-garcia-lopez");
+
+/* ------------------------------------------------------------- the words */
+assert.deepEqual(catWords({ format: "singles", division: "pro", gender: "men" }), { words: "MEN'S SINGLES", tag: "PRO" });
+assert.deepEqual(catWords({ format: "singles", division: "open", gender: "women" }), { words: "WOMEN'S SINGLES", tag: "" }, "open says nothing");
+assert.deepEqual(catWords({ format: "doubles", division: "pro", gender: "mixed" }), { words: "MIXED DOUBLES", tag: "PRO" });
+assert.deepEqual(catWords({ format: "singles", division: "adaptive", gender: "men" }), { words: "MEN'S SINGLES", tag: "ADAPTIVE" });
+assert.deepEqual(catWords({ format: "relay", division: "open", gender: "mixed" }), { words: "MIXED RELAY", tag: "" });
+assert.deepEqual(catWords(null), { words: "OTHER", tag: "" });
+
+assert.equal(toSeconds("1:12:34"), 4354);
+assert.equal(toSeconds("58:12"), 3492);
+assert.ok(Number.isNaN(toSeconds("fast")));
+assert.equal(isNewPr({ finishTime: "1:10:00", pr: "1:12:34" }), true);
+assert.equal(isNewPr({ finishTime: "1:12:34", pr: "1:12:34" }), false, "equal is not a new PR");
+assert.equal(isNewPr({ finishTime: "1:15:00", pr: "1:12:34" }), false);
+assert.equal(isNewPr({ finishTime: "1:15:00", pr: "" }), false, "a debut has no PR to beat");
+assert.equal(isNewPr({ finishTime: "", pr: "1:12:34" }), false);
+
+assert.equal(startMinutes("9:40 AM"), 580);
+assert.equal(startMinutes("12:05 PM"), 725);
+assert.equal(startMinutes("12:30 AM"), 30);
+assert.equal(startMinutes("2:15 PM"), 855);
+assert.equal(startMinutes("14:05"), 845);
+assert.equal(startMinutes("9 PM"), 1260);
+assert.equal(startMinutes(""), 100_000, "no time sorts last");
+assert.ok(startMinutes("8:00 AM") < startMinutes("8:10 AM"));
 
 /* ----------------------------------------------------------- the columns */
 const cols = partnersToColumns([{ name: "A", instagram: "a" }, { name: "B", instagram: "" }]);

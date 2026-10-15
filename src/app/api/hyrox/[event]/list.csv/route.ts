@@ -5,7 +5,11 @@ import { categoryLabel, eventBySlug, partnersFromColumns, readCategory } from "@
 
 /* GET /api/hyrox/<event>/list.csv — the entries as a CSV, owner only (the
  * Longhorn list's idiom: RFC 4180 quoting, CRLF, a BOM so Excel opens it
- * clean). Partners as "Name (@handle); Name". */
+ * clean). Partners as "Name (@handle); Name". The start time and the
+ * record ride along (owner, 2026-10-15: "whenever we get start times and
+ * PRs and stuff, let's include that in the CSV"): debut as yes/no once
+ * looked up (never a count — "we're only showing debuts"), pr and
+ * finish_time as times, hyresult as the page the lookup read. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -22,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: { event: string }
   if (!actor) return new NextResponse(null, { status: 404 });
 
   const rows = await db.hyroxEntry.findMany({ where: { event: ev.slug }, orderBy: { createdAt: "asc" } });
-  const head = ["name", "email", "instagram", "category", "format", "division", "gender", "day", "partners", "start_time", "created_at"];
+  const head = ["name", "email", "instagram", "category", "format", "division", "gender", "day", "partners", "start_time", "debut", "pr", "finish_time", "hyresult", "created_at"];
   const lines = [head.join(",")];
   for (const r of rows) {
     const cat = readCategory(r.format, r.division, r.gender);
@@ -30,7 +34,23 @@ export async function GET(_req: Request, { params }: { params: { event: string }
       .map((p) => p.name + (p.instagram ? ` (@${p.instagram})` : ""))
       .join("; ");
     lines.push(
-      [r.name, r.email, r.instagram, cat ? categoryLabel(cat) : "", r.format, r.division, r.gender, r.day, partners, r.startTime, r.createdAt.toISOString()]
+      [
+        r.name,
+        r.email,
+        r.instagram,
+        cat ? categoryLabel(cat) : "",
+        r.format,
+        r.division,
+        r.gender,
+        r.day,
+        partners,
+        r.startTime,
+        r.priorRaces === null ? "" : r.priorRaces === 0 ? "yes" : "no",
+        r.pr,
+        r.finishTime,
+        r.hyresultSlug ? `https://www.hyresult.com/athlete/${r.hyresultSlug}` : "",
+        r.createdAt.toISOString(),
+      ]
         .map(csvField)
         .join(","),
     );
