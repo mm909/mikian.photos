@@ -352,6 +352,18 @@ export function loadEventConfig(slug: string, dir: string = EVENTS_DIR): LoadedE
       if (deviceIds.has(key)) problems.push(`${where}: vehicle_device ${key} is assigned twice`);
       deviceIds.add(key);
     }
+    /* Extra vehicle devices (owner, 2026-10-15: the van phone runs Traccar
+     * Client with the screen off; the web van page stays as the fallback). */
+    const vehicle_devices: DeviceRef[] = [];
+    const rawVehicles = Array.isArray(raw.vehicle_devices) ? raw.vehicle_devices : [];
+    rawVehicles.forEach((v, k) => {
+      const d = parseDevice(v, `${where}.vehicle_devices[${k}]`, problems);
+      if (!d) return;
+      const key = `${d.source}:${d.external_id}`;
+      if (deviceIds.has(key)) problems.push(`${where}.vehicle_devices[${k}]: device ${key} is assigned twice`);
+      deviceIds.add(key);
+      vehicle_devices.push(d);
+    });
     const baton_device = parseDevice(raw.baton_device, `${where}.baton_device`, problems);
     if (baton_device) {
       const key = `${baton_device.source}:${baton_device.external_id}`;
@@ -361,7 +373,28 @@ export function loadEventConfig(slug: string, dir: string = EVENTS_DIR): LoadedE
     const entryRoute = str(raw.route) || undefined;
     if (entryRoute) hashRoute(entryRoute, `${where}: `);
 
-    entries.push({ name: ename, short_name, color, route: entryRoute, participants, vehicle_device, baton_device });
+    /* Slots (owner, 2026-10-15: "we are running two by two"): how many
+     * runners hold the course at once. 1 is the classic relay; a solo entry
+     * is always 1. Labels default to "1", "2", … */
+    const slots = raw.slots === undefined || raw.slots === null ? 1 : Number(raw.slots);
+    if (!Number.isInteger(slots) || slots < 1 || slots > 8) problems.push(`${where}: slots must be a whole number 1–8`);
+    if (kind === "solo" && slots !== 1) problems.push(`${where}: a solo entry has one slot`);
+    const rawSlotNames = Array.isArray(raw.slot_names) ? raw.slot_names.map((s) => str(s)) : [];
+    if (rawSlotNames.length && rawSlotNames.length !== slots) problems.push(`${where}: slot_names must list exactly ${slots} labels`);
+    if (rawSlotNames.some((s) => !s || s.length > 12)) problems.push(`${where}: each slot name is 1–12 characters`);
+    /* Distinct, case-insensitively (review 2026-10-15, finding #9): the
+     * crew page's slot picker, the "already on course in A" refusal and
+     * the stickers all name a slot by its label, and "A" and "a" would be
+     * one word for two runners. */
+    const seenSlotNames = new Set<string>();
+    for (const s of rawSlotNames) {
+      const key = s.toLowerCase();
+      if (seenSlotNames.has(key)) problems.push(`${where}: slot_names must be distinct ("${s}" is used twice)`);
+      seenSlotNames.add(key);
+    }
+    const slot_names = rawSlotNames.length ? rawSlotNames : Array.from({ length: Math.max(1, slots) }, (_, k) => String(k + 1));
+
+    entries.push({ name: ename, short_name, color, route: entryRoute, participants, vehicle_device, vehicle_devices, baton_device, slots, slot_names });
   });
 
   /* Checkpoints */

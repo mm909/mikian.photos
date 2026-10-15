@@ -128,6 +128,32 @@ event start minus one hour are dropped.
   web adapter, keeps the screen awake, queues offline. The public page shows
   the van ("showing support van") only when the runner's phone has gone quiet
   for 3 minutes, and the van never advances a team's progress.
+- **Van with the screen off** (owner, 2026-10-15): run Traccar Client on the
+  van phone instead — a `vehicle_device` with `source: traccar` in the YAML
+  (LASD26 has both: the app phone and the web page as `vehicle_devices`).
+  Then no page has to stay open.
+
+## Pairs (slots)
+
+Owner, 2026-10-15: "we are running two by two … it's just the current
+runner … we just have the roster". An entry can have `slots: 2` with
+`slot_names: ["A", "B"]`: ONE entry, one shared progress, two runners on
+course at once, any roster runner in either slot.
+
+- The crew page shows a slot picker (A / B, remembered on the phone); a tap
+  puts the runner into the picked slot and replaces whoever held it. One
+  person holds one slot: tapping a runner into B while they hold A moves
+  them (the server also refuses a tap for someone already on course).
+- Progress advances from either runner's phone; legs are per slot, numbered
+  across the entry; per-runner totals add up across slots; "next up" per
+  slot walks the roster two at a time.
+- The public page lists RUNNING NOW per slot, the Legs tab tags each leg with
+  its slot, and elevation gained / to go (from the GPX) sits beside the race
+  clock. The stickers page (`/track/<slug>/share`, STICKERS → on the public
+  page) paints story cards — miles in, ETA, the clock, running now, a
+  runner, elevation, the mark, finish — in four looks with the No Shortcuts
+  and Just Friends marks; share, copy or download, story / post / sticker.
+- A classic relay (`slots: 1`, the default) behaves exactly as before.
 
 ## Test runs
 

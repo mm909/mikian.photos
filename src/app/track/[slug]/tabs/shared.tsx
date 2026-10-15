@@ -109,6 +109,50 @@ export function etaWindowLabel(units: Units): string {
   return units === "imperial" ? "the last 10 miles" : "the last 16 km";
 }
 
+/* ─── Elevation ──────────────────────────────────────────────────────────── */
+
+const FT_PER_M = 3.28084;
+
+/**
+ * Metres of climb as the event's unit, whole numbers with a thousands
+ * separator: "1,240" (feet when imperial, m × 3.28084) / "378" (metres).
+ * The unit is set beside it as a label (elevUnit) or joined by fmtElev.
+ * Hand-rolled separator rather than toLocaleString so the server and the
+ * client print the same string whatever locale the phone runs.
+ */
+export function elevValue(m: number | null | undefined, units: Units): string {
+  if (m === null || m === undefined || !Number.isFinite(m)) return "—";
+  const v = Math.max(0, Math.round(units === "imperial" ? m * FT_PER_M : m));
+  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function elevUnit(units: Units): string {
+  return units === "imperial" ? "ft" : "m";
+}
+
+/** "1,240 ft" / "378 m". */
+export function fmtElev(m: number | null | undefined, units: Units): string {
+  const v = elevValue(m, units);
+  return v === "—" ? v : `${v} ${elevUnit(units)}`;
+}
+
+/* ─── Slots (pairs) ──────────────────────────────────────────────────────── */
+
+/**
+ * The label of a 1-based slot: the event file's slot_names ("A", "B") or
+ * the number. LASD26 runs in pairs (owner, 2026-10-15: "we are running two
+ * by two … it should say … this is the runner for team A"), so the label
+ * rides on every on-course line, leg row and runner row.
+ */
+export function slotLabel(e: Pick<SnapshotEntry, "slot_names">, slot: number): string {
+  return e.slot_names[slot - 1] ?? String(slot);
+}
+
+/** The 1-based slot numbers of an entry: [1] for a classic relay, [1, 2] for pairs. */
+export function slotNos(e: Pick<SnapshotEntry, "slots">): number[] {
+  return Array.from({ length: Math.max(1, e.slots) }, (_, i) => i + 1);
+}
+
 /** A rough span for the gap card: "~40 s", "~5 min", "~1 h 12 min". */
 export function fmtApprox(s: number | null | undefined): string {
   if (s === null || s === undefined || !Number.isFinite(s)) return "";
@@ -217,6 +261,19 @@ export function EntryTag({ entry }: { entry: EntryLike }) {
   return (
     <span className="etag" style={{ background: entry.color }} title={entry.name} aria-label={entry.name ?? entry.short_name}>
       {entry.short_name}
+    </span>
+  );
+}
+
+/**
+ * The slot chip: the slot's label ("A" / "B") on the entry colour, the same
+ * size as EntryTag so the two sit on one line. Only rendered when the entry
+ * has more than one slot — a classic relay never shows a "1".
+ */
+export function SlotChip({ label, color, title }: { label: string; color: string; title?: string }) {
+  return (
+    <span className="slot" style={{ background: color }} title={title ?? `Runner ${label}`}>
+      {label}
     </span>
   );
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ClientShell } from "@/lib/tracker/eventData";
 import { fmtAgo } from "@/lib/tracker/format";
-import { CopyButton, OnlinePill, TrackHeader, apiUrl, fetchJson, freshness, useStoredChoice, useTick, useVisiblePoll } from "../crew/ui";
+import { CopyButton, OnlinePill, TrackHeader, apiUrl, fetchJson, freshness, slotInfoOf, slotNameOf, useStoredChoice, useTick, useVisiblePoll, type SlotInfoByEntry } from "../crew/ui";
 
 /**
  * Runner setup (TRACKER_SPEC.md §11 Runner setup): pick your name, see
@@ -14,6 +14,10 @@ import { CopyButton, OnlinePill, TrackHeader, apiUrl, fetchJson, freshness, useS
  *
  * No key: this page is for the runners, who have no crew link. It reads
  * only /api/track/[slug]/devices, which is behind the tracker's read gate.
+ *
+ * Pairs (owner, 2026-10-15: "we are running two by two"): the setup is the
+ * same — one phone, one device id — so the page only adds one line saying
+ * the crew marks who is in A and who is in B.
  */
 
 /** One row of GET /api/track/[slug]/devices (the URL contract). */
@@ -32,7 +36,7 @@ interface DeviceRow {
 
 const POLL_MS = 10_000;
 
-export function JoinApp({ shell, traccarUrl, admin }: { shell: ClientShell; traccarUrl: string | null; admin: boolean }) {
+export function JoinApp({ shell, traccarUrl, admin, slotInfo }: { shell: ClientShell; traccarUrl: string | null; admin: boolean; slotInfo: SlotInfoByEntry }) {
   const slug = shell.id;
   const now = useTick(1000);
 
@@ -43,6 +47,16 @@ export function JoinApp({ shell, traccarUrl, admin }: { shell: ClientShell; trac
   const [pid, setPid, loaded] = useStoredChoice(`trk:join:${slug}`);
   const me = useMemo(() => people.find((x) => x.p.id === pid) ?? null, [people, pid]);
   const device = me?.p.device ?? null;
+
+  /* "Running in pairs: the crew taps who is in A and who is in B" — only
+   * for an entry with more than one slot; a classic relay says nothing. */
+  const pairsLine = useMemo(() => {
+    const info = slotInfoOf(slotInfo, me?.e.id);
+    if (info.slots < 2) return null;
+    const names = Array.from({ length: info.slots }, (_, i) => slotNameOf(info, i + 1));
+    if (info.slots === 2) return `Running in pairs: the crew taps who is in ${names[0]} and who is in ${names[1]}.`;
+    return `Running ${info.slots} at a time: the crew taps who is in each of ${names.join(", ")}.`;
+  }, [slotInfo, me]);
 
   /* Live check */
   const [devices, setDevices] = useState<DeviceRow[] | null>(null);
@@ -119,6 +133,7 @@ export function JoinApp({ shell, traccarUrl, admin }: { shell: ClientShell; trac
                   <div className="since">{device ? "Your phone is the tracker. Set it up below." : "Your phone is not set up for tracking yet."}</div>
                 </div>
               </div>
+              {pairsLine && <p className="c-sub">{pairsLine}</p>}
             </section>
 
             {!device ? (

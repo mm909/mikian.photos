@@ -440,6 +440,95 @@ crew_key: literal-key
     expect(problems).toContain("participants[2]: id must be lowercase");
   });
 
+  it("pairs: slots, slot_names and the extra vehicle_devices (owner, 2026-10-15) load; a one-slot entry gets slot \"1\"", () => {
+    write(
+      "ev",
+      head +
+        `entries:
+  - name: Pairs
+    short_name: JF
+    color: "#D0F858"
+    slots: 2
+    slot_names: ["A", "B"]
+    participants:
+      - { name: One, device: { source: traccar, external_id: ev-r1 } }
+      - { name: Two, device: { source: traccar, external_id: ev-r2 } }
+    vehicle_device: { source: traccar, external_id: ev-van }
+    vehicle_devices:
+      - { source: web, external_id: ev-van-web }
+  - name: Classic
+    short_name: C
+    color: "#FF6A3D"
+    participants:
+      - { name: Solo, device: { source: traccar, external_id: ev-c1 } }
+`,
+    );
+    const cfg = loadEventConfig("ev", dir);
+    expect(cfg.entries[0]).toMatchObject({ slots: 2, slot_names: ["A", "B"] });
+    expect(cfg.entries[0].vehicle_device).toEqual({ source: "traccar", external_id: "ev-van" });
+    expect(cfg.entries[0].vehicle_devices).toEqual([{ source: "web", external_id: "ev-van-web" }]);
+    expect(cfg.entries[1]).toMatchObject({ slots: 1, slot_names: ["1"], vehicle_devices: [] });
+    // The sync writes both vans as vehicle devices with distinct ids.
+    expect(ids.device("ev", cfg.entries[0].vehicle_device!)).toBe("ev:dev:traccar:ev-van");
+    expect(ids.device("ev", cfg.entries[0].vehicle_devices![0])).toBe("ev:dev:web:ev-van-web");
+  });
+
+  it("pairs: the slot count and labels must agree, and a solo entry has one slot", () => {
+    write(
+      "ev",
+      head +
+        `entries:
+  - name: Pairs
+    short_name: JF
+    color: "#D0F858"
+    slots: 2
+    slot_names: ["A"]
+    participants:
+      - { name: One }
+  - name: Nine
+    short_name: N
+    color: "#D0F858"
+    slots: 9
+    participants:
+      - { name: One }
+`,
+    );
+    let err: unknown;
+    try {
+      loadEventConfig("ev", dir);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(ConfigError);
+    const problems = (err as ConfigError).problems.join("\n");
+    expect(problems).toContain("slot_names must list exactly 2 labels");
+    expect(problems).toContain("slots must be a whole number 1–8");
+  });
+
+  it("pairs: slot names must be distinct, whatever their case", () => {
+    write(
+      "ev",
+      head +
+        `entries:
+  - name: Pairs
+    short_name: JF
+    color: "#D0F858"
+    slots: 2
+    slot_names: ["A", "a"]
+    participants:
+      - { name: One }
+`,
+    );
+    let err: unknown;
+    try {
+      loadEventConfig("ev", dir);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(ConfigError);
+    expect((err as ConfigError).problems.join("\n")).toContain('slot_names must be distinct ("a" is used twice)');
+  });
+
   it("the hash moves with the GPX text and with the resolved key, and names the part", () => {
     write(
       "ev",

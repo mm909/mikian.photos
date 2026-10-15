@@ -106,11 +106,18 @@ export function TrackerApp({ slug, initial, admin, dev }: { slug: string; initia
    * with a delay of 0 none of this renders and the page is as before. */
   const delayS = snap?.event.public_delay_s ?? initial.public_delay_s;
 
+  /* STICKERS → the story-sticker page (owner, 2026-10-15: "create several
+   * and we can remove the ones we don't like"); built under /track/<slug>/share. */
+  const shareHref = `/track/${encodeURIComponent(slug)}/share`;
+
   return (
     <div className="app">
       <header className="hdr">
         <div className="hdr-in">
           <h1>{initial.name}</h1>
+          <a className="hdr-link" href={shareHref}>
+            Stickers →
+          </a>
           <div className="hdr-right">
             <span style={{ display: "inline-flex", gap: 6 }}>
               {dev && <span className="pill is-dev">dev</span>}
@@ -156,6 +163,10 @@ export function TrackerApp({ slug, initial, admin, dev }: { slug: string; initia
       <footer className="foot">
         Positions come from runners&rsquo; phones; times are estimates.
         {delayS > 0 && <> Positions are shown with a {fmtDelayProse(delayS)} delay.</>}
+        <br />
+        <a className="foot-link" href={shareHref}>
+          Story stickers →
+        </a>
       </footer>
     </div>
   );

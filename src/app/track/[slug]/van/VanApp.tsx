@@ -17,6 +17,15 @@ import { HttpError, OnlinePill, TrackHeader, apiUrl, keyedStatusMessage, useStor
  * web adapter at most every 10 s, a Screen Wake Lock so the screen stays
  * on — and the one rule said plainly on screen, because a browser tab
  * cannot track from the background: keep this page open and the screen on.
+ *
+ * WHICH DEVICE (owner, 2026-10-15, "the van with the screen off"): an entry
+ * may have several vehicle devices — LASD26 has the van phone on Traccar
+ * Client (source traccar, "lasd26-van") AND this page's own device (source
+ * web, "lasd26-van-web"). Only a WEB device can be driven from here: a
+ * traccar vehicle device IS the app on the van phone, reporting on its
+ * own. So the page lists every vehicle device, offers only the web ones to
+ * broadcast from, and says so: the van phone can run Traccar Client
+ * instead — then this page is not needed.
  */
 
 interface Fix {
@@ -59,7 +68,8 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
   useServiceWorker();
   const now = useTick(1000);
 
-  const vans = useMemo(
+  /* Every vehicle device of every entry … */
+  const vehicles = useMemo(
     () =>
       shell.entries.flatMap((e) =>
         e.vehicleDevices.map((d) => ({
@@ -70,6 +80,9 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
       ),
     [shell.entries],
   );
+  /* … but only the WEB ones can be driven from this page (see the header). */
+  const vans = useMemo(() => vehicles.filter((v) => v.device.source === "web"), [vehicles]);
+  const appVans = useMemo(() => vehicles.filter((v) => v.device.source !== "web"), [vehicles]);
   const [vanKey, setVanKey, vanLoaded] = useStoredChoice(`trk:van:${slug}`);
   const van = useMemo(() => {
     if (vans.length === 1) return vans[0];
@@ -291,6 +304,39 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
 
   const entryStyle = van ? ({ "--entry": van.entry.color } as React.CSSProperties) : undefined;
 
+  /* The entry's vehicle devices, every source, with what each one is. */
+  const deviceList = vehicles.length > 0 && (
+    <section className="c-section">
+      <div className="c-h">
+        <span className="mono">Vehicle devices</span>
+        <span className="mono">{vehicles.length === 1 ? "1 device" : `${vehicles.length} devices`}</span>
+      </div>
+      <div className="c-settings">
+        {vehicles.map((v) => {
+          const web = v.device.source === "web";
+          const active = web && van?.key === v.key;
+          return (
+            <div className="c-kv" key={v.key} style={{ "--entry": v.entry.color } as React.CSSProperties}>
+              <span style={{ minWidth: 0 }}>
+                <span className="c-code" style={{ fontSize: 16 }}>
+                  {v.device.externalId}
+                </span>
+                <small style={{ display: "block", color: "var(--muted)", fontSize: 14, marginTop: 2 }}>
+                  {shell.entries.length > 1 && <>{v.entry.name} · </>}
+                  {web ? (active ? "this page, this phone" : "a web page like this one") : v.device.source === "traccar" ? "Traccar Client on the van phone — reports on its own" : `${v.device.source} tracker — reports on its own`}
+                </small>
+              </span>
+              <b style={{ fontSize: 15, color: active ? "var(--ok)" : "var(--muted)" }}>{web ? (active ? "ACTIVE" : "WEB") : "APP"}</b>
+            </div>
+          );
+        })}
+      </div>
+      <p className="c-sub" style={{ marginTop: 10 }}>
+        The van phone can run Traccar Client instead — then this page is not needed. Both report as the van; the public page shows whichever spoke last.
+      </p>
+    </section>
+  );
+
   return (
     <div className="c-page" style={entryStyle}>
       <TrackHeader
@@ -311,7 +357,7 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
       <main className="c-main">
         {!vanLoaded ? (
           <div className="c-section c-sub">…</div>
-        ) : vans.length === 0 ? (
+        ) : vehicles.length === 0 ? (
           <div className="c-section">
             <p className="c-lead">No van is set up for this event.</p>
             <p className="c-sub">
@@ -319,24 +365,39 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
               <span className="c-code" style={{ fontSize: 16 }}>events/{slug}.yaml</span> and run the sync.
             </p>
           </div>
-        ) : !van ? (
-          <section className="c-section">
-            <p className="c-lead">Which van is this phone in?</p>
-            <div className="c-teams">
-              {vans.map((v) => (
-                <button key={v.key} type="button" className="c-team" style={{ "--entry": v.entry.color } as React.CSSProperties} onClick={() => setVanKey(v.key)}>
-                  <span className="dot">{v.entry.shortName}</span>
-                  <span>
-                    {v.entry.name}
-                    <small>{v.device.externalId}</small>
-                  </span>
-                </button>
-              ))}
+        ) : vans.length === 0 ? (
+          <>
+            <div className="c-section">
+              <p className="c-lead">The van phone runs Traccar Client — there is nothing to start here.</p>
+              <p className="c-sub">
+                This event&rsquo;s {appVans.length === 1 ? "vehicle device is" : "vehicle devices are"} the app, not a web page. To use this page as a fallback, ask the owner to add a{" "}
+                <span className="c-code" style={{ fontSize: 16 }}>source: web</span> vehicle device under <span className="c-code" style={{ fontSize: 16 }}>vehicle_devices</span> in{" "}
+                <span className="c-code" style={{ fontSize: 16 }}>events/{slug}.yaml</span> and run the sync.
+              </p>
             </div>
-            <p className="c-sub" style={{ marginTop: 14 }}>
-              Remembered on this phone.
-            </p>
-          </section>
+            {deviceList}
+          </>
+        ) : !van ? (
+          <>
+            <section className="c-section">
+              <p className="c-lead">Which van is this phone in?</p>
+              <div className="c-teams">
+                {vans.map((v) => (
+                  <button key={v.key} type="button" className="c-team" style={{ "--entry": v.entry.color } as React.CSSProperties} onClick={() => setVanKey(v.key)}>
+                    <span className="dot">{v.entry.shortName}</span>
+                    <span>
+                      {v.entry.name}
+                      <small>{v.device.externalId}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="c-sub" style={{ marginTop: 14 }}>
+                Remembered on this phone. Only web devices are listed — a Traccar Client device is the app on the van phone, not this page.
+              </p>
+            </section>
+            {deviceList}
+          </>
         ) : (
           <>
             <section className="c-section">
@@ -491,6 +552,8 @@ export function VanApp({ shell, crewKey, admin }: { shell: ClientShell; crewKey:
                 </div>
               )}
             </section>
+
+            {deviceList}
           </>
         )}
 

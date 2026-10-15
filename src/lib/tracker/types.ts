@@ -118,7 +118,17 @@ export interface EntryConfig {
   route?: string;
   participants: ParticipantConfig[];
   vehicle_device?: DeviceRef;
+  /** More vehicle devices (e.g. the van phone on Traccar Client AND the web van page). */
+  vehicle_devices?: DeviceRef[];
   baton_device?: DeviceRef;
+  /**
+   * Runners on course at once (owner, 2026-10-15: "we are running two by
+   * two"). 1 (default) = a classic relay; 2 = pairs sharing one progress.
+   * Every handoff names its slot; progress advances from any slot's runner.
+   */
+  slots?: number;
+  /** Labels per slot, e.g. ["A", "B"]; defaults to "1", "2", … */
+  slot_names?: string[];
 }
 
 export interface CheckpointConfig {
@@ -178,6 +188,10 @@ export interface SnapshotOnCourse {
   participant_id: string;
   name: string;
   initials: string;
+  /** 1-based slot this runner holds; 1 for a classic relay. */
+  slot: number;
+  /** The slot's label ("A"), from the event file. */
+  slot_name: string;
   leg_no: number;
   leg_started: string;
   leg_distance_m: number;
@@ -219,7 +233,9 @@ export interface SnapshotParticipant {
   distance_m: number;
   time_s: number;
   avg_pace_s_per_km: number | null;
-  /** True while this participant is the one on course. */
+  /** Route elevation gained over this participant's legs (metres). */
+  elevation_gain_m: number;
+  /** True while this participant is on course (in any slot). */
   on_course: boolean;
   /** Last fix from THIS participant's own device, for the join page check. */
   device_last_seen: string | null;
@@ -229,12 +245,16 @@ export interface SnapshotParticipant {
 export interface SnapshotLeg {
   no: number;
   participant_id: string;
+  /** 1-based slot (1 for a classic relay); legs are numbered per entry across slots. */
+  slot: number;
   start: string;
   /** Null while live. */
   end: string | null;
   distance_m: number;
   time_s: number;
   pace_s_per_km: number | null;
+  /** Route elevation gained between the leg's start and end progress (metres). */
+  elevation_gain_m: number;
   live: boolean;
   /** For checkpoint-split (solo) legs: which checkpoint ended it. */
   checkpoint_id?: string | null;
@@ -261,8 +281,18 @@ export interface SnapshotEntry {
   /** True once progress reaches the route end. */
   finished: boolean;
   finished_at: string | null;
-  on_course: SnapshotOnCourse | null;
-  next_up: SnapshotNextUp | null;
+  /** How many runners are on course at once (1 = classic relay, 2 = pairs). */
+  slots: number;
+  /** Labels per slot, index 0 = slot 1. */
+  slot_names: string[];
+  /** Who holds each slot right now, slot order; empty when nobody is marked. */
+  on_course: SnapshotOnCourse[];
+  /** Per slot, the next participant in roster order after the current one (null = unknown). */
+  next_up: (SnapshotNextUp | null)[];
+  /** Route elevation gained from the start to the entry's progress (metres). */
+  elevation_gain_m: number;
+  /** Route elevation still to climb from the entry's progress to the finish (metres). */
+  elevation_remaining_m: number;
   eta: SnapshotEta;
   checkpoints: SnapshotCheckpoint[];
   participants: SnapshotParticipant[];
@@ -322,6 +352,8 @@ export interface HandoffRequest {
   /** UTC ISO, the client's clock at send time, for skew correction. */
   client_now: string;
   source?: HandoffSource;
+  /** 1-based slot the runner takes; defaults to 1. */
+  slot?: number;
 }
 
 export interface HandoffDto {
@@ -334,6 +366,7 @@ export interface HandoffDto {
   source: HandoffSource;
   voided: boolean;
   client_event_id: string;
+  slot: number;
 }
 
 /** Freshness threshold for "where the dot is" (section 9). */

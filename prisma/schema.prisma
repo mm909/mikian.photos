@@ -1134,6 +1134,11 @@ model TrackerEntry {
   // NULL = the event's default route (per-entry routes are phase 6).
   routeId   String?
   sortOrder Int     @default(0)
+  // How many runners are on course at once (owner, 2026-10-15: "we are
+  // running two by two"). 1 = a classic relay; 2 = pairs sharing one
+  // progress. Each handoff names its slot. Labels live in slotNames.
+  slots     Int      @default(1)
+  slotNames String[] @default([])
 
   event        TrackerEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participants TrackerParticipant[]
@@ -1219,6 +1224,8 @@ model TrackerHandoff {
   voided        Boolean  @default(false)
   // Server clock minus client clock at receipt (seconds), when it was applied.
   clockOffsetS  Float?
+  // Which of the entry's slots this runner took (1-based; 1 for a classic relay).
+  slot          Int      @default(1)
 
   entry       TrackerEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
   participant TrackerParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
@@ -1251,4 +1258,96 @@ model TrackerSnapshot {
   buildMs     Int      @default(0)
 
   event TrackerEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ─── A crew's team site (LASD26 first, 2026-10-15) ───────────────────────────
+//
+// Owner, 2026-10-15: members sign in with Google and join through an invite
+// link, pick runner or crew, see and add the shared expenses with receipts,
+// and settle their share on the site after the race. One `team` slug per
+// crew ("lasd26") so a later crossing reuses the tables. Money is whole
+// cents, like Event.bundlePriceCents.
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  team      String
+  // Photographer.id — the account every sign-in resolves to (lib/permissions).
+  userId    String
+  email     String
+  name      String
+  role      String   @default("runner") // 'runner' | 'crew'
+  joinedAt  DateTime @default(now())
+  // Settling up: when, how much (cents) and how ('paypal' | 'manual').
+  paidAt          DateTime?
+  paidCents       Int?
+  paidVia         String?
+  paypalCaptureId String?
+  // Who took the group chat invite (TeamInvite.id), for the audit trail.
+  inviteId  String?
+
+  expenses TeamExpense[]
+
+  @@unique([team, userId])
+  @@index([team, joinedAt])
+}
+
+model TeamInvite {
+  id        String    @id @default(cuid())
+  team      String
+  // The secret in the link: /lasd26/join?t=<token>. Rotating it is the
+  // only revocation there is (owner: "a link for me to send out").
+  token     String    @unique
+  createdBy String
+  createdAt DateTime  @default(now())
+  disabledAt DateTime?
+  uses      Int       @default(0)
+
+  @@index([team])
+}
+
+model TeamExpense {
+  id          String    @id @default(cuid())
+  team        String
+  title       String
+  amountCents Int
+  note        String    @default("")
+  // A round number nobody has a receipt for yet ("Gas $600"); shown as such.
+  estimate    Boolean   @default(false)
+  // The member who added it (null when seeded by the owner from the sheet).
+  addedById   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  addedBy  TeamMember?   @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  receipts TeamReceipt[]
+
+  @@index([team, createdAt])
+}
+
+model TeamReceipt {
+  id          String   @id @default(cuid())
+  expenseId   String
+  // R2 keys: the original and, for an image, a small jpeg beside it.
+  key         String
+  thumbKey    String?
+  contentType String
+  bytes       Int
+  addedById   String?
+  createdAt   DateTime @default(now())
+
+  expense TeamExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([expenseId])
+}
+
+model TeamSettings {
+  team       String   @id
+  // How many ways the total splits (the cost sheet's "Team size 18"); the
+  // member count is shown beside it, this number is what divides.
+  splitCount Int      @default(18)
+  // Owner flips this after the race; until then only the owner sees the
+  // pay button.
+  settleOpen Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
 }

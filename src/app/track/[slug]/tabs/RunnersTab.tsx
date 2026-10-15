@@ -2,14 +2,16 @@
 
 import type { Snapshot, SnapshotEntry, SnapshotParticipant } from "@/lib/tracker/types";
 import { distUnit, distValue, fmtAgo, fmtPace } from "@/lib/tracker/format";
-import { EntryDot, EntryTag, LoadingBlock, TeamFilter } from "./shared";
+import { EntryDot, EntryTag, LoadingBlock, SlotChip, TeamFilter, elevUnit, elevValue, slotLabel } from "./shared";
 
 /**
  * RUNNERS (TRACKER_SPEC.md §11): per-participant rows — legs, distance,
- * pace — grouped by entry in the entry's sort order, with the team filter
- * when there is more than one entry. The row's chip is the participant's
- * initials on the entry colour; the entry SHORT NAME rides beside the name
- * so a row never relies on colour alone.
+ * pace, elevation gained — grouped by entry in the entry's sort order, with
+ * the team filter when there is more than one entry; with ONE entry there
+ * is no group header either, just the roster. The row's chip is the
+ * participant's initials on the entry colour; the entry SHORT NAME rides
+ * beside the name so a row never relies on colour alone, and in a pairs
+ * entry an on-course row carries its slot chip ("A" / "B").
  *
  * Admin only: a dim "phone: 45 s ago · 72%" line from device_last_seen, the
  * same check /join shows each runner — kept subtle, it is not for spectators.
@@ -86,6 +88,9 @@ function ParticipantRow({
 }) {
   const [pace, paceUnit] = splitPace(p.avg_pace_s_per_km, units);
   const phoneAge = p.device_last_seen && now ? (now - Date.parse(p.device_last_seen)) / 1000 : null;
+  /* Which slot this runner holds right now (pairs only): from the entry's
+   * on_course list, which is the source for the slot label as well. */
+  const held = e.slots > 1 && p.on_course ? e.on_course.find((o) => o.participant_id === p.id) ?? null : null;
   return (
     <div className={`row${p.on_course ? " is-live" : ""}`}>
       <span className="chip" style={{ background: e.color }} aria-hidden>
@@ -94,6 +99,7 @@ function ParticipantRow({
       <div className="who">
         <div className="n">
           {multi && <EntryTag entry={e} />}
+          {held && <SlotChip label={held.slot_name || slotLabel(e, held.slot)} color={e.color} />}
           <span className="nm">{p.name}</span>
         </div>
         <div className={`s${p.on_course ? " is-on" : ""}`}>
@@ -126,6 +132,10 @@ function ParticipantRow({
         <div className="c">
           <div className="v">{pace}</div>
           <div className="k">{paceUnit}</div>
+        </div>
+        <div className="c">
+          <div className="v">{elevValue(p.elevation_gain_m, units)}</div>
+          <div className="k">↑ {elevUnit(units)}</div>
         </div>
       </div>
     </div>

@@ -3,17 +3,23 @@
  * handoff times, leg math across gaps, backfill determinism, the fallback
  * chain, the ETA function, gaps, solo checkpoint-split legs, public delay,
  * voided handoffs, the clock rules, duplicate taps, the finish clamp, a
- * finished entry's dot and the per-device newest fix (`latestFix`).
+ * finished entry's dot, the per-device newest fix (`latestFix`), PAIRS
+ * (two slots on one entry, owner 2026-10-15) and route elevation.
  * Everything is synthetic: a straight 20 km route, constant-pace fixes,
  * scripted handoffs.
  */
 
 import { describe, expect, it } from "vitest";
 import {
+  carriesAt,
   computeGaps,
   computeSnapshot,
+  cumulativeGain,
   estimateEta,
   etaPaceParts,
+  gainAtRouteM,
+  gainBetween,
+  holdersAt,
   onCourseAt,
   onCourseTimeline,
   progressAt,
@@ -23,8 +29,9 @@ import {
   type ComputeInput,
   type Fix,
 } from "./compute";
+import { buildRouteIndex, densify } from "./routeIndex";
 import { FRESH_FIX_S } from "./types";
-import { at, atIso, fixOnRoute, mkCheckpoints, mkEntry, mkHandoff, mkInput, northRoute, stand, T0, walk } from "./computeFixtures";
+import { at, atIso, fixOnRoute, LAT0, LON0, M_PER_DEG_LAT, mkCheckpoints, mkEntry, mkHandoff, mkInput, northRoute, profileRoute, stand, T0, walk } from "./computeFixtures";
 import type { Snapshot, SnapshotEntry } from "./types";
 
 const near = (v: number, target: number, tol = 3) => expect(Math.abs(v - target)).toBeLessThanOrEqual(tol);
@@ -127,13 +134,13 @@ describe("who is on course", () => {
     expect(onCourseTimeline("relay", mkEntry("A", 3), [h[0], h[1], mkHandoff("e:A", "p:A3", 25 + 2.5 / 60)], at(0), at(60))).toHaveLength(3);
     // Correcting a mistaken tap back to the runner already on course: nothing happened, that leg stays open.
     expect(onCourseTimeline("relay", mkEntry("A", 3), [h[0], h[1], mkHandoff("e:A", "p:A1", 25 + 1 / 60)], at(0), at(60))).toEqual([
-      { participantId: "p:A1", fromMs: T0, toMs: null, handoffId: h[0].id },
+      { participantId: "p:A1", slot: 1, fromMs: T0, toMs: null, handoffId: h[0].id },
     ]);
   });
 
   it("solo: the one participant from the event start, handoffs ignored", () => {
     const segs = onCourseTimeline("solo", mkEntry("S", 1), [mkHandoff("e:S", "p:S1", 5)], at(0), at(60));
-    expect(segs).toEqual([{ participantId: "p:S1", fromMs: T0, toMs: null, handoffId: null }]);
+    expect(segs).toEqual([{ participantId: "p:S1", slot: 1, fromMs: T0, toMs: null, handoffId: null }]);
   });
 });
 
@@ -182,10 +189,24 @@ describe("the reference relay snapshot", () => {
     expect(a3).toMatchObject({ id: "p:A3", legs: 0, distance_m: 0, time_s: 0, avg_pace_s_per_km: null, on_course: false, device_last_seen: null, device_battery_pct: null });
   });
 
-  it("on course, next up", () => {
-    expect(A.on_course).toMatchObject({ participant_id: "p:A2", initials: "A2", leg_no: 2, leg_started: atIso(25), leg_time_s: 1440 });
-    near(A.on_course?.leg_distance_m as number, 4000);
-    expect(A.next_up).toMatchObject({ participant_id: "p:A3" });
+  it("on course, next up: one slot, labelled \"1\"", () => {
+    expect(A.slots).toBe(1);
+    expect(A.slot_names).toEqual(["1"]);
+    expect(A.on_course).toHaveLength(1);
+    expect(A.on_course[0]).toMatchObject({ participant_id: "p:A2", initials: "A2", slot: 1, slot_name: "1", leg_no: 2, leg_started: atIso(25), leg_time_s: 1440 });
+    near(A.on_course[0].leg_distance_m, 4000);
+    expect(A.next_up).toHaveLength(1);
+    expect(A.next_up[0]).toMatchObject({ participant_id: "p:A3" });
+  });
+
+  it("a flat route climbs nothing; legs carry their slot", () => {
+    expect(A.elevation_gain_m).toBe(0);
+    expect(A.elevation_remaining_m).toBe(0);
+    expect(A.legs.map((l) => [l.slot, l.elevation_gain_m])).toEqual([
+      [1, 0],
+      [1, 0],
+    ]);
+    expect(A.participants.map((p) => p.elevation_gain_m)).toEqual([0, 0, 0]);
   });
 
   it("the dot is the fresh runner, on route", () => {
@@ -346,8 +367,8 @@ describe("what does not advance progress", () => {
     const A = entryA(snap);
     expect(A.progress_m).toBe(0);
     expect(A.legs).toEqual([]);
-    expect(A.on_course).toBeNull();
-    expect(A.next_up).toMatchObject({ participant_id: "p:A1" });
+    expect(A.on_course).toEqual([]);
+    expect(A.next_up[0]).toMatchObject({ participant_id: "p:A1" });
     expect(A.participants[0]).toMatchObject({ legs: 0, distance_m: 0, device_last_seen: atIso(20) });
     expect(A.position).toBeNull(); // no van fixes either; the runner is not on course so his phone is not the dot
     expect(A.eta).toEqual({ finish: null, earliest: null, latest: null, pace_s_per_km: null });
@@ -370,7 +391,7 @@ describe("what does not advance progress", () => {
     const A = entryA(snap);
     near(A.progress_m, 4000);
     expect(A.legs).toHaveLength(1);
-    expect(A.on_course?.participant_id).toBe("p:A1");
+    expect(A.on_course[0]?.participant_id).toBe("p:A1");
     expect(A.participants[1].legs).toBe(0);
   });
 
@@ -497,7 +518,7 @@ describe("a finished entry's dot", () => {
   it("is the finisher's, fresh, even beside a fresh van", () => {
     const A = build({ "d:van-A": [fixOnRoute(route, 12_000, at(101))] }, 101);
     expect(A.finished).toBe(true);
-    expect(A.on_course).toBeNull();
+    expect(A.on_course).toEqual([]);
     expect(A.position).toMatchObject({ source: "runner", participant_id: "p:A2", stale: false, age_s: 60, fix_time: atIso(100) });
   });
 
@@ -644,8 +665,10 @@ describe("solo: checkpoint-split legs", () => {
     near(live.distance_m, 3000);
     expect(S.participants[0]).toMatchObject({ legs: 3, time_s: 4500, on_course: true });
     near(S.participants[0].distance_m, 15_000);
-    expect(S.on_course).toMatchObject({ participant_id: "p:S1", leg_no: 3 });
-    expect(S.next_up).toBeNull();
+    expect(S.on_course).toHaveLength(1);
+    expect(S.on_course[0]).toMatchObject({ participant_id: "p:S1", slot: 1, leg_no: 3 });
+    expect(S.next_up).toEqual([null]);
+    expect(S.legs.every((l) => l.slot === 1)).toBe(true);
     expect(S.bests.longest_leg).toMatchObject({ leg_no: 2 });
   });
 });
@@ -669,7 +692,7 @@ describe("public delay", () => {
     expect(snap.event.public_delay_s).toBe(600);
     const A = entryA(snap);
     near(A.progress_m, 4000);
-    expect(A.on_course?.participant_id).toBe("p:A1");
+    expect(A.on_course[0]?.participant_id).toBe("p:A1");
     expect(A.legs).toHaveLength(1);
     expect(A.position).toMatchObject({ fix_time: atIso(20), age_s: 0, stale: false });
     expect(A.elapsed_s).toBe(1200);
@@ -698,8 +721,9 @@ describe("finishing and status", () => {
     expect(A.eta.latest).toBe(A.finished_at);
     expect(A.remaining_m).toBe(0);
     expect(A.percent).toBe(100);
-    expect(A.on_course).toBeNull();
-    expect(A.next_up).toBeNull();
+    expect(A.on_course).toEqual([]);
+    expect(A.next_up).toEqual([null]);
+    expect(A.elevation_remaining_m).toBe(0);
     expect(A.legs[0]).toMatchObject({ live: false, end: A.finished_at });
     expect(A.participants[0].on_course).toBe(false);
     near(A.elapsed_s, 5985, 2); // the clock stopped at the finish
@@ -753,8 +777,8 @@ describe("finishing and status", () => {
     near(A.participants[1].time_s, 49.75 * 60, 2);
     expect(A.participants[2]).toMatchObject({ legs: 0, distance_m: 0, time_s: 0 });
     expect(A.participants[0]).toMatchObject({ legs: 1 });
-    expect(A.on_course).toBeNull();
-    expect(A.next_up).toBeNull();
+    expect(A.on_course).toEqual([]);
+    expect(A.next_up).toEqual([null]);
     expect(A.position).toMatchObject({ source: "runner", participant_id: "p:A2" }); // the finisher, not the 104 min tap
     // Without the stray taps the entry computes identically.
     expect(A).toEqual(build([mkHandoff("e:A", "p:A1", 0), mkHandoff("e:A", "p:A2", 50)]));
@@ -786,5 +810,493 @@ describe("bests", () => {
 
   it("nothing completed → both null", () => {
     expect(entryA(computeSnapshot(standardRelay(10))).bests).toEqual({ fastest_leg: null, longest_leg: null });
+  });
+});
+
+/* ─── Pairs (owner, 2026-10-15: "we are running two by two … we just have the roster") ── */
+
+describe("pairs: two slots on one entry", () => {
+  const route = northRoute(20_000);
+  const pair = () => mkEntry("A", 6, { slots: 2, slotNames: ["A", "B"] });
+  /**
+   * The reference pair: R1 takes A and R2 takes B at the start and run side
+   * by side 0→5 km at 5:00/km; at 25 min R3 takes A and R4 takes B (taps a
+   * second apart, as a crew really does) and run to 9 km at 6:00/km, as of
+   * 49 min. Same progress curve as the one-slot reference relay.
+   */
+  const pairRelay = (asOfMin = 49, extra: Partial<ComputeInput> = {}): ComputeInput => ({
+    ...mkInput({
+      route,
+      entries: [pair()],
+      positions: {
+        "d:A1": walk(route, { fromM: 0, toM: 5000, fromMin: 0, paceSPerKm: 300 }),
+        "d:A2": walk(route, { fromM: 0, toM: 5000, fromMin: 0, paceSPerKm: 300, battery: 70 }),
+        "d:A3": walk(route, { fromM: 5000, toM: 9000, fromMin: 25, paceSPerKm: 360 }),
+        "d:A4": walk(route, { fromM: 5000, toM: 9000, fromMin: 25, paceSPerKm: 360, battery: 61 }),
+      },
+      handoffs: [
+        mkHandoff("e:A", "p:A1", 0, false, 1),
+        mkHandoff("e:A", "p:A2", 0, false, 2),
+        mkHandoff("e:A", "p:A3", 25, false, 1),
+        mkHandoff("e:A", "p:A4", 25 + 1 / 60, false, 2),
+      ],
+      asOfMin,
+    }),
+    ...extra,
+  });
+
+  it("the timeline is per slot: a tap for slot B replaces the holder of slot B only, and the 2 s rule is per slot", () => {
+    const entry = pair();
+    const taps = pairRelay().handoffs;
+    const segs = onCourseTimeline("relay", entry, taps, at(0), at(60));
+    expect(segs.map((s) => [s.participantId, s.slot, s.fromMs, s.toMs])).toEqual([
+      ["p:A1", 1, T0, at(25).getTime()],
+      ["p:A2", 2, T0, at(25 + 1 / 60).getTime()],
+      ["p:A3", 1, at(25).getTime(), null],
+      ["p:A4", 2, at(25 + 1 / 60).getTime(), null], // one second after A's tap: NOT merged into one exchange
+    ]);
+    expect(onCourseAt(segs, at(10).getTime(), 1)?.participantId).toBe("p:A1");
+    expect(onCourseAt(segs, at(10).getTime(), 2)?.participantId).toBe("p:A2");
+    expect(onCourseAt(segs, at(25).getTime(), 1)?.participantId).toBe("p:A3");
+    expect(onCourseAt(segs, at(25).getTime(), 2)?.participantId).toBe("p:A2"); // B's tap lands a second later
+    expect(holdersAt(segs, at(30).getTime(), 2).map((s) => s?.participantId)).toEqual(["p:A3", "p:A4"]);
+    expect(holdersAt(segs, at(-1).getTime(), 2)).toEqual([null, null]);
+    // The per-slot rules still hold inside a slot: a replay in B and a corrected B tap touch nothing in A.
+    const replayed = onCourseTimeline("relay", entry, [...taps, mkHandoff("e:A", "p:A4", 26, false, 2)], at(0), at(60));
+    expect(replayed).toEqual(segs);
+    const corrected = onCourseTimeline("relay", entry, [...taps, mkHandoff("e:A", "p:A5", 25 + 2 / 60, false, 2)], at(0), at(60));
+    expect(corrected.map((s) => [s.participantId, s.slot])).toEqual([
+      ["p:A1", 1],
+      ["p:A2", 2],
+      ["p:A3", 1],
+      ["p:A5", 2], // the later runner at the earlier time, in B only
+    ]);
+    expect(carriesAt(segs, at(10).getTime(), "p:A2")).toBe(true);
+    expect(carriesAt(segs, at(10).getTime(), "p:A3")).toBe(false);
+    expect(carriesAt(segs, at(10).getTime(), null)).toBe(true); // a baton: anyone is on course
+    expect(carriesAt(segs, at(-1).getTime(), null)).toBe(false);
+  });
+
+  it("a slot-B tap does not evict slot A", () => {
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: {
+            "d:A1": walk(route, { fromM: 0, toM: 4000, fromMin: 0, paceSPerKm: 300 }),
+            "d:A2": walk(route, { fromM: 0, toM: 2000, fromMin: 0, paceSPerKm: 300 }),
+            "d:A4": walk(route, { fromM: 2000, toM: 4000, fromMin: 10, paceSPerKm: 300 }),
+          },
+          handoffs: [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2), mkHandoff("e:A", "p:A4", 10, false, 2)],
+          asOfMin: 20,
+        }),
+      ),
+    );
+    expect(A.on_course.map((o) => [o.participant_id, o.slot, o.slot_name, o.leg_no])).toEqual([
+      ["p:A1", 1, "A", 1], // still running leg 1
+      ["p:A4", 2, "B", 3],
+    ]);
+    expect(A.legs.map((l) => [l.no, l.participant_id, l.slot, l.live])).toEqual([
+      [3, "p:A4", 2, true],
+      [2, "p:A2", 2, false],
+      [1, "p:A1", 1, true],
+    ]);
+    near(A.legs[1].distance_m, 2000);
+    expect(A.legs[1].end).toBe(atIso(10));
+    near(A.on_course[0].leg_distance_m, 4000);
+    expect(A.on_course[0].leg_time_s).toBe(1200);
+  });
+
+  it("one runner, one slot: tapped into A and later into B, the runner leaves A — A is empty, the A leg closes at the B tap", () => {
+    const entry = pair();
+    const taps = [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2), mkHandoff("e:A", "p:A1", 10, false, 2)];
+    const segs = onCourseTimeline("relay", entry, taps, at(0), at(60));
+    expect(segs.map((s) => [s.participantId, s.slot, s.fromMs, s.toMs])).toEqual([
+      ["p:A1", 1, T0, at(10).getTime()],
+      ["p:A2", 2, T0, at(10).getTime()],
+      ["p:A1", 2, at(10).getTime(), null],
+    ]);
+    expect(holdersAt(segs, at(15).getTime(), 2).map((s) => s?.participantId ?? null)).toEqual([null, "p:A1"]);
+    expect(onCourseAt(segs, at(9.99).getTime(), 1)?.participantId).toBe("p:A1");
+    expect(onCourseAt(segs, at(10).getTime(), 1)).toBeNull();
+    // A tap into the emptied slot opens a fresh leg there; the released one is not re-extended.
+    const refilled = onCourseTimeline("relay", entry, [...taps, mkHandoff("e:A", "p:A3", 12, false, 1)], at(0), at(60));
+    expect(refilled.map((s) => [s.participantId, s.slot, s.fromMs, s.toMs])).toEqual([
+      ["p:A1", 1, T0, at(10).getTime()],
+      ["p:A2", 2, T0, at(10).getTime()],
+      ["p:A1", 2, at(10).getTime(), null],
+      ["p:A3", 1, at(12).getTime(), null],
+    ]);
+    // The snapshot counts the runner once: one live leg (in B), and their
+    // time is the clock — not the B leg on top of an A leg still running.
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [entry],
+          positions: { "d:A1": walk(route, { fromM: 0, toM: 4000, fromMin: 0, paceSPerKm: 300 }) },
+          handoffs: taps,
+          asOfMin: 20,
+        }),
+      ),
+    );
+    expect(A.on_course.map((o) => [o.participant_id, o.slot, o.leg_no])).toEqual([["p:A1", 2, 3]]);
+    expect(A.legs.map((l) => [l.no, l.participant_id, l.slot, l.live, l.end])).toEqual([
+      [3, "p:A1", 2, true, null],
+      [2, "p:A2", 2, false, atIso(10)],
+      [1, "p:A1", 1, false, atIso(10)],
+    ]);
+    expect(A.participants[0]).toMatchObject({ legs: 2, time_s: 1200, on_course: true }); // 0→10 in A, 10→20 in B: 20 min, not 30
+    near(A.participants[0].distance_m, 4000);
+    expect(A.participants[1]).toMatchObject({ legs: 1, time_s: 600, on_course: false });
+    near(A.progress_m, 4000);
+    expect(A.next_up.map((n) => n?.participant_id)).toEqual(["p:A2", "p:A3"]);
+  });
+
+  it("two crew phones tapping the same runner into A and B a second apart: one holding, in the later tap's slot, the other slot untouched", () => {
+    const entry = pair();
+    const start = [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2)];
+    const aThenB = [...start, mkHandoff("e:A", "p:A3", 25, false, 1), mkHandoff("e:A", "p:A3", 25 + 1 / 60, false, 2)];
+    const segsAB = onCourseTimeline("relay", entry, aThenB, at(0), at(60));
+    expect(segsAB.map((s) => [s.participantId, s.slot, s.fromMs, s.toMs])).toEqual([
+      ["p:A1", 1, T0, null], // the A tap never happened there: R1 is still running
+      ["p:A2", 2, T0, at(25 + 1 / 60).getTime()],
+      ["p:A3", 2, at(25 + 1 / 60).getTime(), null],
+    ]);
+    expect(holdersAt(segsAB, at(30).getTime(), 2).map((s) => s?.participantId)).toEqual(["p:A1", "p:A3"]);
+    const bThenA = [...start, mkHandoff("e:A", "p:A3", 25, false, 2), mkHandoff("e:A", "p:A3", 25 + 1 / 60, false, 1)];
+    const segsBA = onCourseTimeline("relay", entry, bThenA, at(0), at(60));
+    expect(segsBA).toHaveLength(3);
+    expect(holdersAt(segsBA, at(30).getTime(), 2).map((s) => s?.participantId)).toEqual(["p:A3", "p:A2"]);
+    // No sliver leg: the snapshot is the one a single B tap gives — the runner has one leg, counted once.
+    const build = (handoffs: ComputeHandoff[]) =>
+      entryA(
+        computeSnapshot(
+          mkInput({ route, entries: [entry], positions: { "d:A1": walk(route, { fromM: 0, toM: 6000, fromMin: 0, paceSPerKm: 300 }) }, handoffs, asOfMin: 30 }),
+        ),
+      );
+    const A = build(aThenB);
+    expect(A).toEqual(build([...start, mkHandoff("e:A", "p:A3", 25 + 1 / 60, false, 2)]));
+    expect(A.participants[2]).toMatchObject({ legs: 1, on_course: true });
+    expect(A.on_course.map((o) => [o.participant_id, o.slot])).toEqual([
+      ["p:A1", 1],
+      ["p:A3", 2],
+    ]);
+    // Three seconds apart is a move, not a mis-slot: the A leg closes at the B tap and A is empty.
+    const moved = onCourseTimeline(
+      "relay",
+      entry,
+      [...start, mkHandoff("e:A", "p:A3", 25, false, 1), mkHandoff("e:A", "p:A3", 25 + 3 / 60, false, 2)],
+      at(0),
+      at(60),
+    );
+    expect(moved.map((s) => [s.participantId, s.slot, s.fromMs, s.toMs])).toEqual([
+      ["p:A1", 1, T0, at(25).getTime()],
+      ["p:A2", 2, T0, at(25 + 3 / 60).getTime()],
+      ["p:A3", 1, at(25).getTime(), at(25 + 3 / 60).getTime()],
+      ["p:A3", 2, at(25 + 3 / 60).getTime(), null],
+    ]);
+    expect(holdersAt(moved, at(30).getTime(), 2).map((s) => s?.participantId ?? null)).toEqual([null, "p:A3"]);
+  });
+
+  it("legs are numbered in time order across slots, one live per occupied slot; on_course is in slot order", () => {
+    const A = entryA(computeSnapshot(pairRelay()));
+    expect(A.slots).toBe(2);
+    expect(A.slot_names).toEqual(["A", "B"]);
+    expect(A.legs.map((l) => [l.no, l.participant_id, l.slot, l.live])).toEqual([
+      [4, "p:A4", 2, true],
+      [3, "p:A3", 1, true],
+      [2, "p:A2", 2, false],
+      [1, "p:A1", 1, false],
+    ]);
+    const [l4, l3, l2, l1] = A.legs;
+    near(l1.distance_m, 5000);
+    expect(l1.time_s).toBe(1500);
+    near(l2.distance_m, 5000, 4); // the pair shares progress: R2's leg is the pair's distance (a second longer)
+    expect(l2.time_s).toBe(1501);
+    near(l3.distance_m, 4000);
+    near(l4.distance_m, 4000, 4);
+    expect(A.on_course.map((o) => [o.participant_id, o.slot, o.slot_name, o.leg_no])).toEqual([
+      ["p:A3", 1, "A", 3],
+      ["p:A4", 2, "B", 4],
+    ]);
+    // The entry's numbers are the one-slot relay's: shared progress, one clock.
+    near(A.progress_m, 9000);
+    expect(A.elapsed_s).toBe(49 * 60);
+    expect(A.avg_pace_s_per_km).toBe(Math.round((49 * 60) / 9));
+    expect(A.eta.pace_s_per_km).toBe(Math.round(2940 / 9));
+  });
+
+  it("on_course order is slot order whatever the tap order", () => {
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: { "d:A1": walk(route, { fromM: 0, toM: 1000, fromMin: 0, paceSPerKm: 300 }) },
+          handoffs: [mkHandoff("e:A", "p:A2", 0, false, 2), mkHandoff("e:A", "p:A1", 0.1, false, 1)],
+          asOfMin: 5,
+        }),
+      ),
+    );
+    expect(A.on_course.map((o) => [o.participant_id, o.slot])).toEqual([
+      ["p:A1", 1],
+      ["p:A2", 2],
+    ]);
+    expect(A.legs.map((l) => [l.no, l.participant_id])).toEqual([
+      [2, "p:A1"],
+      [1, "p:A2"], // tapped first, so leg 1
+    ]);
+  });
+
+  it("progress advances from either runner's phone; the pair shares the distance", () => {
+    // R1's phone is dead; only R2 (slot B) reports. The pair still moves and R1's leg is the pair's.
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: { "d:A2": walk(route, { fromM: 0, toM: 3000, fromMin: 0, paceSPerKm: 300 }) },
+          handoffs: [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2)],
+          asOfMin: 15,
+        }),
+      ),
+    );
+    near(A.progress_m, 3000);
+    near(A.participants[0].distance_m, 3000);
+    near(A.participants[1].distance_m, 3000);
+    expect(A.participants[0]).toMatchObject({ legs: 1, time_s: 900, on_course: true, device_last_seen: null });
+    expect(A.participants[1]).toMatchObject({ legs: 1, time_s: 900, on_course: true, device_last_seen: atIso(15) });
+    // The dot: slot A's phone is silent, so slot B's is the runner dot.
+    expect(A.position).toMatchObject({ source: "runner", participant_id: "p:A2", stale: false });
+    // A runner not on course in any slot moves nothing, even with a fresh phone.
+    const B = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: { "d:A5": walk(route, { fromM: 0, toM: 3000, fromMin: 0, paceSPerKm: 300 }) },
+          handoffs: [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2)],
+          asOfMin: 15,
+        }),
+      ),
+    );
+    expect(B.progress_m).toBe(0);
+  });
+
+  it("the dot prefers slot A's phone while it is fresh, then slot B's, then the van", () => {
+    const base = pairRelay();
+    const A = entryA(computeSnapshot(base));
+    expect(A.position).toMatchObject({ source: "runner", participant_id: "p:A3", stale: false });
+    // Slot A's phone went quiet 10 min ago; B's is fresh.
+    const positions = new Map(base.positions);
+    positions.set(
+      "d:A3",
+      walk(route, { fromM: 5000, toM: 7000, fromMin: 25, paceSPerKm: 360 }).filter((f) => f.fixTime.getTime() <= at(39).getTime()),
+    );
+    const quietA = entryA(computeSnapshot({ ...base, positions }));
+    expect(quietA.position).toMatchObject({ source: "runner", participant_id: "p:A4", stale: false, battery_pct: 61 });
+    near(quietA.progress_m, 9000); // B's phone carried progress on
+    // Both phones quiet since 39 min: a fresh van fix is the dot, labelled, not stale — and moves nothing.
+    const quietBoth = new Map(positions);
+    quietBoth.set("d:A4", (base.positions.get("d:A4") ?? []).filter((f) => f.fixTime.getTime() <= at(39).getTime()));
+    const withVan = new Map(quietBoth);
+    withVan.set("d:van-A", [fixOnRoute(route, 12_000, at(48))]); // driven ahead to the next exchange
+    const van = entryA(computeSnapshot({ ...base, positions: withVan }));
+    expect(van.position).toMatchObject({ source: "vehicle", participant_id: null, stale: false, age_s: 60, fix_time: atIso(48) });
+    near(van.position?.route_m as number, 12_000);
+    near(van.progress_m, 7333, 5); // the pair's last fix: 14 min at 6:00/km past 5 km
+    // No van fix either: the newest runner fix across the chain, marked stale.
+    const silent = entryA(computeSnapshot({ ...base, positions: quietBoth }));
+    expect(silent.position).toMatchObject({ source: "runner", participant_id: "p:A4", stale: true, age_s: 600, fix_time: atIso(39) });
+    near(silent.progress_m, 7333, 5);
+  });
+
+  it("stats aggregate per participant across slots; bests see every slot's legs", () => {
+    const A = entryA(computeSnapshot(pairRelay()));
+    const [a1, a2, a3, a4, a5, a6] = A.participants;
+    expect(a1).toMatchObject({ legs: 1, time_s: 1500, on_course: false });
+    near(a1.distance_m, 5000);
+    expect(a2).toMatchObject({ legs: 1, time_s: 1501, on_course: false, device_battery_pct: 70 });
+    near(a2.distance_m, 5000, 4);
+    expect(a3).toMatchObject({ legs: 1, time_s: 1440, on_course: true });
+    near(a3.distance_m, 4000);
+    expect(a4).toMatchObject({ legs: 1, on_course: true, device_battery_pct: 61 });
+    near(a4.distance_m, 4000, 4);
+    expect(a5).toMatchObject({ legs: 0, distance_m: 0, on_course: false });
+    expect(a6).toMatchObject({ legs: 0, distance_m: 0, on_course: false });
+    // B's first leg closed a second after A's, with the pair ~3 m further on: the longest by a hair, not the fastest.
+    expect(A.bests.longest_leg).toMatchObject({ leg_no: 2, participant_id: "p:A2" });
+    expect(A.bests.fastest_leg).toMatchObject({ leg_no: 1, participant_id: "p:A1" });
+    // A runner who held both slots over the day has both legs counted once each.
+    const twice = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: {
+            "d:A1": [...walk(route, { fromM: 0, toM: 2000, fromMin: 0, paceSPerKm: 300 }), ...walk(route, { fromM: 4000, toM: 6000, fromMin: 20, paceSPerKm: 300 })],
+            "d:A2": walk(route, { fromM: 0, toM: 4000, fromMin: 0, paceSPerKm: 300 }),
+            "d:A3": walk(route, { fromM: 2000, toM: 6000, fromMin: 10, paceSPerKm: 300 }),
+          },
+          handoffs: [
+            mkHandoff("e:A", "p:A1", 0, false, 1),
+            mkHandoff("e:A", "p:A2", 0, false, 2),
+            mkHandoff("e:A", "p:A3", 10, false, 1),
+            mkHandoff("e:A", "p:A1", 20, false, 2), // R1 again, in B this time
+          ],
+          asOfMin: 30,
+        }),
+      ),
+    );
+    expect(twice.participants[0]).toMatchObject({ legs: 2, time_s: 1200, on_course: true });
+    near(twice.participants[0].distance_m, 4000);
+    expect(twice.on_course.map((o) => [o.participant_id, o.slot])).toEqual([
+      ["p:A3", 1],
+      ["p:A1", 2],
+    ]);
+  });
+
+  it("next_up is the next roster runner not on course, per slot and two different people; an empty slot names the runner it starts with", () => {
+    const A = entryA(computeSnapshot(pairRelay()));
+    expect(A.next_up.map((n) => n?.participant_id)).toEqual(["p:A5", "p:A6"]);
+    // Before any tap: the first pair.
+    const fresh = entryA(computeSnapshot(mkInput({ route, entries: [pair()], positions: {}, asOfMin: 1 })));
+    expect(fresh.on_course).toEqual([]);
+    expect(fresh.next_up.map((n) => n?.participant_id)).toEqual(["p:A1", "p:A2"]);
+    // Only slot A has been tapped: A's next is the runner after its holder, B's is still its first runner.
+    const half = entryA(computeSnapshot(mkInput({ route, entries: [pair()], positions: {}, handoffs: [mkHandoff("e:A", "p:A3", 0, false, 1)], asOfMin: 1 })));
+    expect(half.next_up.map((n) => n?.participant_id)).toEqual(["p:A4", "p:A2"]);
+    // Holders out of phase, [R1, R3]: A's next is R2 and B's is R4 — not R3 and R1, who are running
+    // (review 2026-10-15, finding #3: walking the roster two at a time named them and skipped R2 and R4).
+    const phase = entryA(
+      computeSnapshot(
+        mkInput({ route, entries: [pair()], positions: {}, handoffs: [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A3", 0, false, 2)], asOfMin: 1 }),
+      ),
+    );
+    expect(phase.on_course.map((o) => o.participant_id)).toEqual(["p:A1", "p:A3"]);
+    expect(phase.next_up.map((n) => n?.participant_id)).toEqual(["p:A2", "p:A4"]);
+    // Wrapping: with four runners the pair after R3+R4 is R1+R2.
+    const four = mkEntry("A", 4, { slots: 2, slotNames: ["A", "B"] });
+    const wrap = entryA(computeSnapshot({ ...pairRelay(), entries: [four] }));
+    expect(wrap.next_up.map((n) => n?.participant_id)).toEqual(["p:A1", "p:A2"]);
+    // Two runners in two slots: nobody is next.
+    const two = mkEntry("A", 2, { slots: 2 });
+    const none = entryA(computeSnapshot({ ...pairRelay(10), entries: [two] }));
+    expect(none.next_up).toEqual([null, null]);
+    expect(none.slot_names).toEqual(["1", "2"]); // no labels in the file → numbers
+  });
+
+  it("a pair finishes together: both finishing legs close at finished_at, the dot is slot A's runner", () => {
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [pair()],
+          positions: {
+            "d:A1": walk(route, { fromM: 0, toM: 20_000, fromMin: 0, paceSPerKm: 300 }),
+            "d:A2": walk(route, { fromM: 0, toM: 20_000, fromMin: 0, paceSPerKm: 300 }),
+          },
+          handoffs: [mkHandoff("e:A", "p:A1", 0, false, 1), mkHandoff("e:A", "p:A2", 0, false, 2), mkHandoff("e:A", "p:A3", 102, false, 1)],
+          asOfMin: 105,
+        }),
+      ),
+    );
+    expect(A.finished).toBe(true);
+    nearIso(A.finished_at, 5985 / 60, 2);
+    expect(A.on_course).toEqual([]);
+    expect(A.next_up).toEqual([null, null]);
+    expect(A.legs.map((l) => [l.participant_id, l.slot, l.live, l.end])).toEqual([
+      ["p:A2", 2, false, A.finished_at],
+      ["p:A1", 1, false, A.finished_at],
+    ]);
+    expect(A.position).toMatchObject({ source: "runner", participant_id: "p:A1" });
+    expect(A.participants[2]).toMatchObject({ legs: 0 }); // the 102 min tap opened nothing
+  });
+
+  it("a one-slot entry is today's relay: a tap stored for slot 2 folds into slot 1", () => {
+    const base = standardRelay();
+    const folded = { ...base, handoffs: base.handoffs.map((h) => ({ ...h, slot: 2 })) };
+    expect(computeSnapshot(folded)).toEqual(computeSnapshot(base));
+    const junk = { ...base, handoffs: base.handoffs.map((h) => ({ ...h, slot: Number.NaN })) };
+    expect(computeSnapshot(junk)).toEqual(computeSnapshot(base));
+  });
+});
+
+/* ─── Elevation (owner, 2026-10-15: elevation on the stickers and runner cards) ── */
+
+describe("elevation", () => {
+  // 0 → 100 m over the first 5 km, down to 50 m by 10 km, up to 120 m at 20 km: 170 m of gain in all.
+  const route = profileRoute([
+    [0, 0],
+    [5000, 100],
+    [10_000, 50],
+    [20_000, 120],
+  ]);
+
+  it("the cumulative gain counts climbs only", () => {
+    const gain = cumulativeGain(route);
+    near(gain[gain.length - 1], 170, 1.5);
+    near(gainAtRouteM(route, gain, 5000), 100, 1.5);
+    near(gainAtRouteM(route, gain, 7500), 100, 1.5); // descending: nothing added
+    near(gainAtRouteM(route, gain, 2500), 50, 1.5); // interpolated inside the climb
+    expect(gainAtRouteM(route, gain, 0)).toBe(0);
+    expect(gainAtRouteM(route, gain, -5)).toBe(0);
+    near(gainAtRouteM(route, gain, 99_999), 170, 1.5); // past the end: the whole route
+    near(gainBetween(route, gain, 9000, 20_000), 70, 1.5);
+    expect(gainBetween(route, gain, 7000, 7000)).toBe(0);
+    expect(gainBetween(route, gain, 9000, 1000)).toBe(0); // backwards: nothing
+  });
+
+  it("1 m of hysteresis ignores jitter but keeps a slow steady climb", () => {
+    const raw = (ele: (i: number) => number) => Array.from({ length: 51 }, (_, i) => ({ lat: LAT0 + (i * 20) / M_PER_DEG_LAT, lon: LON0, ele: ele(i) }));
+    const wobbly = buildRouteIndex(densify(raw((i) => (i % 2 ? 0.4 : 0))));
+    expect(cumulativeGain(wobbly)[wobbly.eleM.length - 1]).toBe(0);
+    const steady = buildRouteIndex(densify(raw((i) => i * 0.5))); // 25 m over 1 km, half a metre a point
+    near(cumulativeGain(steady)[steady.eleM.length - 1], 25, 1.5);
+    const staircase = buildRouteIndex(densify(raw((i) => Math.floor(i / 10) * 3))); // five 3 m steps
+    near(cumulativeGain(staircase)[staircase.eleM.length - 1], 15, 0.01);
+    expect(cumulativeGain(buildRouteIndex([]))).toHaveLength(0);
+  });
+
+  it("entry, leg and participant gain follow progress on the route", () => {
+    // A1 0→5 km (the whole climb), A2 5→9 km (downhill), as of 49 min.
+    const A = entryA(
+      computeSnapshot(
+        mkInput({
+          route,
+          entries: [mkEntry("A", 3)],
+          positions: {
+            "d:A1": walk(route, { fromM: 0, toM: 5000, fromMin: 0, paceSPerKm: 300 }),
+            "d:A2": walk(route, { fromM: 5000, toM: 9000, fromMin: 25, paceSPerKm: 360 }),
+          },
+          handoffs: [mkHandoff("e:A", "p:A1", 0), mkHandoff("e:A", "p:A2", 25)],
+          asOfMin: 49,
+        }),
+      ),
+    );
+    near(A.elevation_gain_m, 100, 2);
+    near(A.elevation_remaining_m, 70, 2);
+    near(A.legs.find((l) => l.no === 1)!.elevation_gain_m, 100, 2);
+    expect(A.legs.find((l) => l.no === 2)!.elevation_gain_m).toBe(0);
+    near(A.participants[0].elevation_gain_m, 100, 2);
+    expect(A.participants[1].elevation_gain_m).toBe(0);
+    expect(A.participants[2].elevation_gain_m).toBe(0);
+    // Solo legs climb too, and a finished entry has nothing left to climb.
+    const S = computeSnapshot(
+      mkInput({
+        kind: "solo",
+        route,
+        entries: [mkEntry("S", 1, { vehicle: false })],
+        positions: { "d:S1": walk(route, { fromM: 0, toM: 20_000, fromMin: 0, paceSPerKm: 300 }) },
+        asOfMin: 105,
+      }),
+    ).entries[0];
+    expect(S.finished).toBe(true);
+    near(S.elevation_gain_m, 170, 2);
+    expect(S.elevation_remaining_m).toBe(0);
+    near(S.participants[0].elevation_gain_m, 170, 2);
+    near(S.legs.reduce((n, l) => n + l.elevation_gain_m, 0), 170, 3);
   });
 });

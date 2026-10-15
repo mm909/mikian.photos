@@ -27,10 +27,16 @@ export const viewport: Viewport = { themeColor: "#101214" };
 type Params = { params: { slug: string } };
 
 async function loadShell(slug: string): Promise<InitialEvent | null> {
-  const ev = await db.trackerEvent.findUnique({
-    where: { id: slug },
-    include: { entries: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, shortName: true, color: true } } },
-  });
+  // A database blip is a 404, not a crash.
+  const ev = await db.trackerEvent
+    .findUnique({
+      where: { id: slug },
+      include: { entries: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, shortName: true, color: true } } },
+    })
+    .catch((err) => {
+      console.error("track: event lookup failed", err);
+      return null;
+    });
   if (!ev) return null;
   return {
     slug: ev.id,
@@ -47,7 +53,7 @@ async function loadShell(slug: string): Promise<InitialEvent | null> {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   // Not even the event name leaks to a viewer the gate will 404.
   const { allowed } = await trackerReadAllowed();
-  const ev = allowed ? await db.trackerEvent.findUnique({ where: { id: params.slug }, select: { name: true } }) : null;
+  const ev = allowed ? await db.trackerEvent.findUnique({ where: { id: params.slug }, select: { name: true } }).catch(() => null) : null;
   return {
     title: devTitle(`${ev?.name ?? "Live tracker"} — Live`),
     description: ev ? `Where the runners are right now: ${ev.name}.` : undefined,

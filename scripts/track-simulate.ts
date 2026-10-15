@@ -15,6 +15,14 @@
  * pace by ~3 % so a gap forms. The hard cases of §12 are flags; see
  * scripts/track-sim/args.ts (--help) for all of them.
  *
+ * PAIRS (owner, 2026-10-15: "we are running two by two"): an entry with
+ * `slots: 2` has two runners on course at once. They run side by side —
+ * the slot B runner's phone reports ~15 m behind A's on the same progress —
+ * and at every exchange BOTH slots swap to the next two roster runners,
+ * one crew tap per slot (slot A's a second before B's, as a crew really
+ * taps). The roster rotates two at a time across everyone. An entry with
+ * one slot behaves exactly as before.
+ *
  * CLOCKS — three, and they must not be confused:
  *   - the SIM clock stamps fixes and taps (fix_time, handoff.time). It
  *     starts at --start and runs at --speed × real time.
@@ -45,6 +53,8 @@ const TEAM_SPREAD = 0.03; // entry i runs (1 + 0.03·i)× the base pace: a gap f
 const RUNNER_SPREAD = 0.06; // each runner's own offset, ± up to this around the team pace
 const VAN_MPS = 18; // ≈ 40 mph: a 6 km hop takes 5–6 min, "a few minutes"
 const IN_VAN_EVERY = 4; // --all-phones: off-course phones report every 4th tick
+const PAIR_GAP_M = 15; // pairs: each further slot's runner reports this far behind the one before
+const PAIR_TAP_GAP_S = 1; // pairs: the crew taps slot B this long after slot A
 
 interface Runner {
   n1: number;
@@ -67,10 +77,14 @@ interface EntrySim {
   paceFactor: number;
   runners: Runner[];
   progressM: number;
+  /** The exchange counter: leg 1 runs to exchanges[1]; with pairs every slot's leg shares it. */
   legNo: number;
   legStartMs: number;
   legStartM: number;
-  onCourse: number;
+  /** Runners on course at once (1 = a classic relay, 2 = pairs), capped by the roster. */
+  slots: number;
+  /** Roster index of the runner holding each slot (index 0 = slot 1). */
+  onCourse: number[];
   vanM: number;
   vanTargetM: number;
   vanBattery: number;
@@ -169,36 +183,41 @@ class Simulation {
     ex.push(index.lengthM);
     this.exchanges = ex;
 
-    this.entries = cfg.entries.map((e, i) => ({
-      cfg: e,
-      id: ids.entry(cfg.slug, e.short_name),
-      short: e.short_name.toUpperCase(),
-      paceFactor: 1 + TEAM_SPREAD * i,
-      runners: e.participants.map((p, j) => ({
-        n1: j + 1,
-        id: ids.participant(cfg.slug, e.short_name, j + 1, p),
-        name: p.name,
-        initials: p.initials,
-        tag: `${e.short_name.toUpperCase()}${j + 1}`,
-        device: p.device,
-        paceFactor: 1 + (this.rand() * 2 - 1) * RUNNER_SPREAD,
-        battery: 60 + 40 * this.rand(),
-        legs: 0,
-        distanceM: 0,
-      })),
-      progressM: 0,
-      legNo: 1,
-      legStartMs: startMs,
-      legStartM: 0,
-      onCourse: 0,
-      vanM: 0,
+    this.entries = cfg.entries.map((e, i) => {
+      // A slot needs a runner: two slots on a one-runner roster is one slot.
+      const slots = Math.max(1, Math.min(e.slots ?? 1, e.participants.length));
+      return {
+        cfg: e,
+        id: ids.entry(cfg.slug, e.short_name),
+        short: e.short_name.toUpperCase(),
+        paceFactor: 1 + TEAM_SPREAD * i,
+        runners: e.participants.map((p, j) => ({
+          n1: j + 1,
+          id: ids.participant(cfg.slug, e.short_name, j + 1, p),
+          name: p.name,
+          initials: p.initials,
+          tag: `${e.short_name.toUpperCase()}${j + 1}`,
+          device: p.device,
+          paceFactor: 1 + (this.rand() * 2 - 1) * RUNNER_SPREAD,
+          battery: 60 + 40 * this.rand(),
+          legs: 0,
+          distanceM: 0,
+        })),
+        progressM: 0,
+        legNo: 1,
+        legStartMs: startMs,
+        legStartM: 0,
+        slots,
+        onCourse: Array.from({ length: slots }, (_, s) => s),
+        vanM: 0,
       vanTargetM: ex[1],
       vanBattery: 70 + 30 * this.rand(),
-      finished: false,
-      finishedMs: null,
-      hold: null,
-      offrouteDone: false,
-    }));
+        finished: false,
+        finishedMs: null,
+        hold: null,
+        offrouteDone: false,
+      };
+    });
 
     const entryFor = (spec: string | null, flag: string): EntrySim => {
       if (spec === null) return this.entries[0];
@@ -308,37 +327,63 @@ class Simulation {
     return (this.lateTap?.min ?? 0) * 60e3;
   }
 
-  private speedOf(en: EntrySim, r: Runner): number {
-    const secPerM = this.basePaceSecPerM * en.paceFactor * r.paceFactor;
+  /** The runners on course right now, slot order. */
+  private onCourse(en: EntrySim): Runner[] {
+    return en.onCourse.map((i) => en.runners[i]);
+  }
+
+  /** "A3" for one slot, "A3+A4" for a pair. */
+  private tags(en: EntrySim): string {
+    return this.onCourse(en)
+      .map((r) => r.tag)
+      .join("+");
+  }
+
+  /** The label of slot `s` (1-based) as the yaml names it, else its number. */
+  private slotLabel(en: EntrySim, s: number): string {
+    return en.cfg.slot_names?.[s - 1] ?? String(s);
+  }
+
+  /**
+   * This tick's speed: the entry's pace factor times the on-course
+   * runners' (a pair runs at the mean of theirs — side by side, one
+   * progress), with per-tick noise. One slot: exactly the old draw.
+   */
+  private speedOf(en: EntrySim): number {
+    const rs = this.onCourse(en);
+    const runnerFactor = rs.reduce((a, r) => a + r.paceFactor, 0) / rs.length;
+    const secPerM = this.basePaceSecPerM * en.paceFactor * runnerFactor;
     return Math.max(0.5, (1 / secPerM) * (1 + PACE_NOISE * this.gauss()));
   }
 
   private advance(en: EntrySim, tPrev: number, t: number, out: Delivery[]): void {
     if (en.finished) return;
-    let r = en.runners[en.onCourse];
-    const v = this.speedOf(en, r);
+    const v = this.speedOf(en);
     let mPrev = en.progressM;
     let tFrom = tPrev;
     const mNew = mPrev + (v * (t - tPrev)) / 1000;
 
-    // Crossing an exchange inside this tick: the finishing runner's phone
-    // reports once more from the exchange, the crew taps, and the next
-    // runner carries on for the rest of the tick. Never at the finish line.
+    // Crossing an exchange inside this tick: the finishing runners' phones
+    // report once more from the exchange, the crew taps (one tap per slot),
+    // and the next runners carry on for the rest of the tick. Never at the
+    // finish line.
     while (en.legNo < this.exchanges.length - 1 && mNew >= this.exchanges[en.legNo] && this.exchanges[en.legNo] < this.stopM) {
       const xM = this.exchanges[en.legNo];
       const tapMs = tFrom + ((xM - mPrev) / (mNew - mPrev)) * (t - tFrom);
-      this.runnerFix(en, r, xM, tapMs, v, out);
-      r.distanceM += xM - en.legStartM;
+      const done = this.onCourse(en);
+      this.runnerFixes(en, xM, tapMs, v, out);
+      for (const r of done) r.distanceM += xM - en.legStartM;
       const legTime = tapMs - en.legStartMs;
       const legDist = xM - en.legStartM;
       en.legNo += 1;
-      en.onCourse = (en.onCourse + 1) % en.runners.length;
+      // The roster rotates `slots` at a time: R1+R2, then R3+R4, … and round again.
+      en.onCourse = en.onCourse.map((i) => (i + en.slots) % en.runners.length);
       en.legStartMs = tapMs;
       en.legStartM = xM;
       en.vanTargetM = this.exchanges[en.legNo]; // the van leaves for the next exchange
-      this.note(tapMs, `${en.short}  exchange ${en.legNo - 1} at ${this.dist(xM)}: ${r.tag} ran ${(legDist / 1000).toFixed(1)} km in ${fmtDur(legTime)} (${this.pace(legTime / 1000 / legDist)})`);
+      const who = done.map((r) => r.tag).join("+");
+      this.note(tapMs, `${en.short}  exchange ${en.legNo - 1} at ${this.dist(xM)}: ${who} ran ${(legDist / 1000).toFixed(1)} km in ${fmtDur(legTime)} (${this.pace(legTime / 1000 / legDist)})`);
       this.tap(en, tapMs, out);
-      r = en.runners[en.onCourse];
       mPrev = xM;
       tFrom = tapMs;
     }
@@ -348,54 +393,75 @@ class Simulation {
       en.progressM = this.stopM;
       en.finished = true;
       en.finishedMs = finMs;
-      r.distanceM += this.stopM - en.legStartM;
-      this.runnerFix(en, r, this.stopM, finMs, v, out);
+      for (const r of this.onCourse(en)) r.distanceM += this.stopM - en.legStartM;
+      this.runnerFixes(en, this.stopM, finMs, v, out);
       const what = this.stopM >= this.index.lengthM ? "FINISHED" : `reached ${Math.round(this.args.fraction * 100)} % of the route (--fraction)`;
-      this.note(finMs, `${en.short}  ${what} after ${fmtDur(finMs - this.startMs)} — ${en.legNo} legs`);
+      this.note(finMs, `${en.short}  ${what} after ${fmtDur(finMs - this.startMs)} — ${en.legNo} legs${en.slots > 1 ? ` × ${en.slots} slots` : ""}`);
     } else {
       en.progressM = mNew;
-      this.runnerFix(en, r, mNew, t, v, out);
+      this.runnerFixes(en, mNew, t, v, out);
     }
     this.vanTick(en, tPrev, t, out);
     if (this.args.allPhones && this.tickNo % IN_VAN_EVERY === 0) this.inVanFixes(en, t, out);
   }
 
-  /** The crew tap that starts the entry's current leg, at `tapMs`. */
+  /**
+   * The crew taps that start the entry's current leg, at `tapMs`: one per
+   * slot, slot B's a second after A's (PAIR_TAP_GAP_S) the way two thumbs
+   * really land. A classic relay sends no `slot` at all, as its crew page
+   * does. --miss-tap and --late-tap act on slot A's tap of that exchange;
+   * the other slots' taps go out normally, which is what a crew that forgot
+   * one of two taps looks like.
+   */
   private tap(en: EntrySim, tapMs: number, out: Delivery[]): void {
-    const r = en.runners[en.onCourse];
-    r.legs++;
     const legNo = en.legNo;
-    const d: HandoffDelivery = {
-      kind: "handoff",
-      entryShort: en.short,
-      legNo,
-      tapMs,
-      label: `${en.short} leg ${legNo} → ${r.tag} ${r.name}`,
-      req: {
-        client_event_id: randomUUID(),
-        entry_id: en.id,
-        participant_id: r.id,
-        // The crew phone's clock is off by --skew, so the time IT recorded is
-        // off by the same amount; the server corrects it from client_now.
-        time: new Date(tapMs + this.args.skewS * 1000).toISOString(),
-        client_now: "", // stamped at send time (Poster)
-        source: "simulator",
-      },
-    };
-    if (this.missTap && this.missTap.entry === en && this.missTap.legNo === legNo) {
-      this.note(tapMs, `${d.label} — tap NOT sent (--miss-tap)`);
-      return;
+    for (let s = 1; s <= en.slots; s++) {
+      const r = en.runners[en.onCourse[s - 1]];
+      r.legs++;
+      const slotTapMs = tapMs + (s - 1) * PAIR_TAP_GAP_S * 1000;
+      const slotTag = en.slots > 1 ? `/${this.slotLabel(en, s)}` : "";
+      const d: HandoffDelivery = {
+        kind: "handoff",
+        entryShort: en.short,
+        legNo,
+        tapMs: slotTapMs,
+        label: `${en.short} leg ${legNo}${slotTag} → ${r.tag} ${r.name}`,
+        req: {
+          client_event_id: randomUUID(),
+          entry_id: en.id,
+          participant_id: r.id,
+          // The crew phone's clock is off by --skew, so the time IT recorded is
+          // off by the same amount; the server corrects it from client_now.
+          time: new Date(slotTapMs + this.args.skewS * 1000).toISOString(),
+          client_now: "", // stamped at send time (Poster)
+          source: "simulator",
+          ...(en.slots > 1 ? { slot: s } : {}),
+        },
+      };
+      if (s === 1 && this.missTap && this.missTap.entry === en && this.missTap.legNo === legNo) {
+        this.note(slotTapMs, `${d.label} — tap NOT sent (--miss-tap)`);
+        continue;
+      }
+      if (s === 1 && this.lateTap && this.lateTap.entry === en && this.lateTap.legNo === legNo) {
+        this.note(slotTapMs, `${d.label} — tap held for ${this.lateTap.min} min (--late-tap)`);
+        this.pending.push({ dueMs: slotTapMs + this.lateTap.min * 60e3, d });
+        continue;
+      }
+      this.note(slotTapMs, `${d.label} — tap sent`);
+      out.push(d);
     }
-    if (this.lateTap && this.lateTap.entry === en && this.lateTap.legNo === legNo) {
-      this.note(tapMs, `${d.label} — tap held for ${this.lateTap.min} min (--late-tap)`);
-      this.pending.push({ dueMs: tapMs + this.lateTap.min * 60e3, d });
-      return;
-    }
-    this.note(tapMs, `${d.label} — tap sent`);
-    out.push(d);
   }
 
-  /** A fix from the on-course runner's own phone (unless it is dead / held). */
+  /**
+   * A fix from every on-course runner's phone at progress `m`: slot A's
+   * runner at `m`, each further slot's PAIR_GAP_M behind (never before the
+   * start line) — side by side on the road, one progress for the entry.
+   */
+  private runnerFixes(en: EntrySim, m: number, tMs: number, v: number, out: Delivery[]): void {
+    en.onCourse.forEach((idx, s) => this.runnerFix(en, en.runners[idx], Math.max(0, m - s * PAIR_GAP_M), tMs, v, out));
+  }
+
+  /** A fix from one on-course runner's own phone (unless it is dead / held). */
   private runnerFix(en: EntrySim, r: Runner, m: number, tMs: number, v: number, out: Delivery[]): void {
     if (!r.device) return;
     // --deadphone: silent while on course, on the first leg (or all of them).
@@ -427,8 +493,9 @@ class Simulation {
 
   /** --all-phones: everyone not running is in the van, phone still tracking. */
   private inVanFixes(en: EntrySim, t: number, out: Delivery[]): void {
+    const running = new Set(this.onCourse(en));
     for (const r of en.runners) {
-      if (!r.device || r === en.runners[en.onCourse]) continue;
+      if (!r.device || running.has(r)) continue;
       r.battery = Math.max(1, r.battery - (0.02 * this.args.interval * IN_VAN_EVERY) / 60);
       this.emit(en, this.fix(r.device, en.vanM, t, 0, r.battery, `${en.short} · ${r.tag} in van`), out);
     }
@@ -484,8 +551,7 @@ class Simulation {
 
   private statusLine(t: number): string {
     const parts = this.entries.map((en) => {
-      const r = en.runners[en.onCourse];
-      const bits = [`${en.short} ${this.dist(en.progressM).padStart(7)} L${en.legNo} ${r.tag}`];
+      const bits = [`${en.short} ${this.dist(en.progressM).padStart(7)} L${en.legNo} ${this.tags(en)}`];
       if (en.cfg.vehicle_device) bits.push(`van ${this.dist(en.vanM)}`);
       if (en.hold) bits.push(`held ${en.hold.items.length}`);
       if (en.finished) bits.push("done");
@@ -503,7 +569,8 @@ class Simulation {
     console.log(`  route ${km(index.lengthM)} km (${this.dist(index.lengthM)}) · stop at ${Math.round(args.fraction * 100)} % (${this.dist(this.stopM)}) · ${legLens.length} legs of ${km(Math.min(...legLens))}–${km(Math.max(...legLens))} km`);
     for (const en of this.entries) {
       const dev = en.cfg.vehicle_device;
-      console.log(`  ${en.short}  ${en.cfg.name} · ${en.runners.length} runners (${en.runners.filter((r) => r.device).length} with phones) · ${dev ? `van ${dev.source}:${dev.external_id}` : "no van"} · pace ×${en.paceFactor.toFixed(2)}`);
+      const pairs = en.slots > 1 ? ` · ${en.slots} on course at once (slots ${Array.from({ length: en.slots }, (_, s) => this.slotLabel(en, s + 1)).join("+")}, roster rotates ${en.slots} at a time)` : "";
+      console.log(`  ${en.short}  ${en.cfg.name} · ${en.runners.length} runners (${en.runners.filter((r) => r.device).length} with phones)${pairs} · ${dev ? `van ${dev.source}:${dev.external_id}` : "no van"} · pace ×${en.paceFactor.toFixed(2)}`);
     }
     const est = this.estimatedMs();
     const real = args.speed > 0 ? ` (≈ ${fmtDur(est / args.speed)} real at ${args.speed}×)` : " (as fast as the server takes it)";
@@ -526,8 +593,9 @@ class Simulation {
     const look: string[] = [];
     for (const z of this.deadzones) look.push(`deadzone ${z.entry.short} ${this.clock(z.startMs)}–${this.clock(z.endMs)}: the dot should go stale / "showing support van", then the burst lands and legs + pace correct themselves`);
     if (args.deadphone) look.push(`deadphone ${args.deadphone.who}${args.deadphone.all ? " (all legs)" : " (first leg)"}: only the van reports — the dot shows the van waiting AHEAD at the next exchange and progress must hold until the next runner reports`);
-    if (this.missTap) look.push(`miss-tap ${this.missTap.entry.short} leg ${this.missTap.legNo}: never sent — the previous runner appears to run two legs back to back until the crew adds it`);
-    if (this.lateTap) look.push(`late-tap ${this.lateTap.entry.short} leg ${this.lateTap.legNo}: arrives ${this.lateTap.min} min late with the true time — Legs tab shows the old runner on course until then, then corrects`);
+    const slotA = (en: EntrySim) => (en.slots > 1 ? ` (slot ${this.slotLabel(en, 1)}'s tap; the other slot's goes out)` : "");
+    if (this.missTap) look.push(`miss-tap ${this.missTap.entry.short} leg ${this.missTap.legNo}${slotA(this.missTap.entry)}: never sent — the previous runner appears to run two legs back to back until the crew adds it`);
+    if (this.lateTap) look.push(`late-tap ${this.lateTap.entry.short} leg ${this.lateTap.legNo}${slotA(this.lateTap.entry)}: arrives ${this.lateTap.min} min late with the true time — Legs tab shows the old runner on course until then, then corrects`);
     if (args.dupes) look.push(`dupes: every fix and tap goes twice — expect "duplicate" for each second copy and no doubled totals`);
     if (this.offroute) look.push(`offroute ${this.offroute.entry.short} at minute ${this.offroute.min}: one fix ${this.offroute.metres} m off — may show off-route on the map, must not move progress`);
     if (args.skewS) look.push(`skew ${args.skewS} s: tap times arrive ${args.skewS} s off with client_now off by the same — stored time must equal the sim tap time ("handoff skew corrected" in the tally)`);
@@ -549,7 +617,8 @@ class Simulation {
       const elapsed = (en.finishedMs ?? this.endMs) - this.startMs;
       const avg = en.progressM > 0 && elapsed > 0 ? this.pace(elapsed / 1000 / en.progressM) : "—";
       const state = en.finished ? `${this.stopM >= this.index.lengthM ? "finished" : "stopped"} ${this.clock(en.finishedMs!)}` : `at ${Math.round((100 * en.progressM) / this.index.lengthM)} %`;
-      console.log(`  ${en.short}  ${en.cfg.name.padEnd(12)} ${this.dist(en.progressM).padStart(8)}  ${String(en.legNo).padStart(2)} legs  ${state}  elapsed ${fmtDur(elapsed)}  avg ${avg}`);
+      const legs = en.slots > 1 ? `${String(en.legNo).padStart(2)} legs × ${en.slots}` : `${String(en.legNo).padStart(2)} legs`;
+      console.log(`  ${en.short}  ${en.cfg.name.padEnd(12)} ${this.dist(en.progressM).padStart(8)}  ${legs}  ${state}  elapsed ${fmtDur(elapsed)}  avg ${avg}`);
       console.log(`      ${en.runners.map((r) => `${r.tag} ${r.legs}L ${this.dist(r.distanceM)}`).join(" · ")}`);
     }
     if (this.entries.length > 1) {
@@ -570,7 +639,8 @@ class Simulation {
       }
       console.log(`\n── would post: all ${rec.handoffs.length} handoffs (POST /api/track/${this.cfg.slug}/handoffs?k=…) ──`);
       for (const h of rec.handoffs) {
-        console.log(`  ${this.clock(h.tapMs)}  ${h.label.padEnd(28)} time=${h.req.time}  participant_id=${h.req.participant_id}  client_event_id=${h.req.client_event_id.slice(0, 8)}…`);
+        const slot = h.req.slot !== undefined ? `  slot=${h.req.slot}` : "";
+        console.log(`  ${this.clock(h.tapMs)}  ${h.label.padEnd(30)} time=${h.req.time}${slot}  participant_id=${h.req.participant_id}  client_event_id=${h.req.client_event_id.slice(0, 8)}…`);
       }
     }
   }
@@ -599,6 +669,7 @@ async function main(): Promise<void> {
   const startMs = parseStart(args.start, nowWall) ?? (eventStartMs <= nowWall ? eventStartMs : nowWall);
 
   const secret = args.secret ?? (process.env.TRACKER_TRACCAR_SECRET ?? "").trim();
+  // The sim drives the one `vehicle_device`; the extra `vehicle_devices` (the web van page's fallback) stay silent.
   const usesTraccar = cfg.entries.some((e) => e.participants.some((p) => p.device?.source === "traccar") || e.vehicle_device?.source === "traccar");
   if (!secret && usesTraccar && !args.dryRun) {
     throw new Error("no Traccar secret: pass --secret or set TRACKER_TRACCAR_SECRET in .env.local (the dev server reads the same file)");

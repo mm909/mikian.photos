@@ -222,6 +222,8 @@ export class Poster {
       this.tally.add("handoff ok");
       if (dto && Math.abs(Date.parse(dto.time) - d.tapMs) > 1000) this.tally.add("handoff time ≠ tap (skew not corrected?)");
       else if (dto && this.o.skewMs !== 0) this.tally.add("handoff skew corrected");
+      // Pairs: the server must store the slot the tap named (1 when none was sent).
+      if (dto && dto.slot !== (d.req.slot ?? 1)) this.tally.add("handoff slot ≠ sent");
     }
   }
 

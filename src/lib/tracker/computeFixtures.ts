@@ -37,6 +37,16 @@ export function northRoute(lengthM: number): RouteIndex {
 }
 
 /**
+ * A straight route due north with an elevation profile: `[metres along,
+ * elevation]` breakpoints, interpolated linearly between them by densify.
+ * `profileRoute([[0, 0], [5000, 100], [10_000, 50]])` climbs 100 m over the
+ * first 5 km and drops 50 m over the next 5.
+ */
+export function profileRoute(profile: [number, number][]): RouteIndex {
+  return buildRouteIndex(densify(profile.map(([m, ele]) => ({ lat: LAT0 + m / M_PER_DEG_LAT, lon: LON0, ele }))));
+}
+
+/**
  * North `legM`, a `gapM` jog east, then back south: the outbound and return
  * passes run `gapM` apart, which is what the snapping window must resolve.
  * Length ≈ 2·legM + gapM.
@@ -106,8 +116,14 @@ export function stand(route: RouteIndex, o: { m: number; fromMin: number; toMin:
 /**
  * An entry with `n` participants. Ids: entry `e:A`, participants `p:A1…`,
  * runner devices `d:A1…`, vehicle `d:van-A`, baton `d:baton-A` (if asked).
+ * One slot (a classic relay) unless `slots` says otherwise; `slotNames`
+ * default to none, so compute labels the slots "1", "2", …
  */
-export function mkEntry(short: string, n: number, opts: { vehicle?: boolean; baton?: boolean; sortOrder?: number; routeId?: string | null } = {}): ComputeEntry {
+export function mkEntry(
+  short: string,
+  n: number,
+  opts: { vehicle?: boolean; baton?: boolean; sortOrder?: number; routeId?: string | null; slots?: number; slotNames?: string[] } = {},
+): ComputeEntry {
   const participants = Array.from({ length: n }, (_, i) => ({
     id: `p:${short}${i + 1}`,
     name: `Runner ${short}${i + 1}`,
@@ -125,6 +141,8 @@ export function mkEntry(short: string, n: number, opts: { vehicle?: boolean; bat
     participants,
     vehicleDeviceIds: opts.vehicle === false ? [] : [`d:van-${short}`],
     batonDeviceIds: opts.baton ? [`d:baton-${short}`] : [],
+    slots: opts.slots ?? 1,
+    slotNames: opts.slotNames ?? [],
   };
 }
 
@@ -140,8 +158,9 @@ export function mkCheckpoints(lengthM: number): ComputeCheckpoint[] {
 }
 
 let handoffSeq = 0;
-export function mkHandoff(entryId: string, participantId: string, minutes: number, voided = false): ComputeHandoff {
-  return { id: `h:${++handoffSeq}`, entryId, participantId, time: at(minutes), voided };
+/** A tap at `minutes` after T0; `slot` 1 unless the entry runs pairs. */
+export function mkHandoff(entryId: string, participantId: string, minutes: number, voided = false, slot = 1): ComputeHandoff {
+  return { id: `h:${++handoffSeq}`, entryId, participantId, time: at(minutes), voided, slot };
 }
 
 export interface ScenarioOpts {

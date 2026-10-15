@@ -1,15 +1,22 @@
 "use client";
 
-import type { Snapshot, SnapshotEntry } from "@/lib/tracker/types";
+import type { Snapshot, SnapshotEntry, SnapshotOnCourse } from "@/lib/tracker/types";
 import { fmtClockDay, fmtClockRange, fmtDateTime, fmtDist, fmtDuration, fmtPace, fmtPercent } from "@/lib/tracker/format";
-import { EntryDot, LoadingBlock, driftS, entryById, entryElapsedS, fmtApprox, freshnessOf, type InitialEvent } from "./shared";
+import { EntryDot, LoadingBlock, SlotChip, driftS, entryById, entryElapsedS, fmtApprox, fmtElev, freshnessOf, slotLabel, slotNos, type InitialEvent } from "./shared";
 
 /**
  * LIVE (TRACKER_SPEC.md §11): under the map, one card per entry — who is
  * running now, the progress bar, race clock, average pace, finish ETA with
- * its window, and the position freshness line — plus the gap card when
- * there are two or more entries. Before the start, a countdown. The map
- * itself is rendered by TrackerApp so it survives tab switches.
+ * its window, elevation gained and to go, and the position freshness line
+ * — plus the gap card when there are two or more entries. Before the
+ * start, a countdown. The map itself is rendered by TrackerApp so it
+ * survives tab switches.
+ *
+ * PAIRS (owner, 2026-10-15: "we are running two by two … it should say …
+ * this is the runner for team A"): an entry with slots > 1 gets one
+ * RUNNING NOW line per slot — "A — Runner 3 · leg 7 · 2.1 mi · 7:40 /mi",
+ * "Nobody marked in B" when that slot is empty — and a next-up per slot.
+ * A classic relay (slots 1) reads exactly as before.
  */
 export function LiveTab({
   snap,
@@ -81,6 +88,20 @@ export function LiveTab({
   );
 }
 
+/** "Runner 3 · leg 7 · 2.1 mi · 7:40 /mi" — one on-course runner. */
+function OnCourseLine({ o, units }: { o: SnapshotOnCourse; units: Snapshot["event"]["units"] }) {
+  return (
+    <span className="oc-text">
+      <strong>{o.name}</strong>
+      <span className="sep">·</span>leg {o.leg_no}
+      <span className="sep">·</span>
+      {fmtDist(o.leg_distance_m, units)}
+      <span className="sep">·</span>
+      {fmtPace(o.leg_pace_s_per_km, units)}
+    </span>
+  );
+}
+
 /** "9:15:20", or "17d 4:05:10" when the start is days away. */
 function fmtCountdown(s: number): string {
   const days = Math.floor(s / 86400);
@@ -112,9 +133,14 @@ function EntryCard({ snap, e, now, mounted }: { snap: Snapshot; e: SnapshotEntry
    * for — and says so while the delay holds it back; a finished entry's
    * clock is its result and is not behind anything. */
   const clockDelayed = delayS > 0 && !e.finished && snap.event.status === "live";
+  /* on_course is in slot order; the pairs block looks each slot up by its
+   * number so an empty slot still gets its "Nobody marked in B" line. */
   const oc = e.on_course;
+  const pairs = e.slots > 1;
+  const anyOn = oc.length > 0;
   const pct = Math.max(0, Math.min(100, e.percent));
   const etaOk = !e.finished && e.eta.finish;
+  const nextUp = e.next_up.map((n, i) => ({ slot: i + 1, name: n?.name ?? null })).filter((n) => n.name);
 
   return (
     <section className="card" aria-label={e.name}>
@@ -123,7 +149,7 @@ function EntryCard({ snap, e, now, mounted }: { snap: Snapshot; e: SnapshotEntry
         <h2 className="ename">{e.name}</h2>
         {e.finished ? (
           <span className="pill is-finished">Finished</span>
-        ) : oc ? (
+        ) : anyOn ? (
           <span className="pill is-live">
             <span className="live-dot" aria-hidden /> On course
           </span>
@@ -131,27 +157,45 @@ function EntryCard({ snap, e, now, mounted }: { snap: Snapshot; e: SnapshotEntry
       </div>
 
       <div className="eyebrow">{e.finished ? "Result" : "Running now"}</div>
-      <div className="oncourse">
-        {e.finished ? (
-          <>
-            Finished <strong>{mounted ? fmtClockDay(e.finished_at, tz, snap.as_of) : "—"}</strong>
-            <span className="sep">·</span>
-            {fmtDuration(elapsed)}
-          </>
-        ) : oc ? (
-          <>
-            <strong>{oc.name}</strong>
-            <span className="sep">·</span>leg {oc.leg_no}
-            <span className="sep">·</span>
-            {fmtDist(oc.leg_distance_m, units)}
-            <span className="sep">·</span>
-            {fmtPace(oc.leg_pace_s_per_km, units)}
-          </>
-        ) : (
-          <span className="muted">Nobody marked on course yet</span>
-        )}
-      </div>
-      {e.next_up && !e.finished && <div className="nextup">Next up: {e.next_up.name}</div>}
+      {e.finished ? (
+        <div className="oncourse">
+          Finished <strong>{mounted ? fmtClockDay(e.finished_at, tz, snap.as_of) : "—"}</strong>
+          <span className="sep">·</span>
+          {fmtDuration(elapsed)}
+        </div>
+      ) : pairs ? (
+        <div className="oncourse is-pairs">
+          {slotNos(e).map((s) => {
+            const o = oc.find((x) => x.slot === s) ?? null;
+            const label = o?.slot_name || slotLabel(e, s);
+            return (
+              <div className="oc-line" key={s}>
+                <SlotChip label={label} color={e.color} />
+                {o ? <OnCourseLine o={o} units={units} /> : <span className="muted">Nobody marked in {label}</span>}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="oncourse">{oc[0] ? <OnCourseLine o={oc[0]} units={units} /> : <span className="muted">Nobody marked on course yet</span>}</div>
+      )}
+      {!e.finished && nextUp.length > 0 && (
+        <div className="nextup">
+          {pairs ? (
+            <>
+              Next up
+              {nextUp.map((n) => (
+                <span key={n.slot}>
+                  <span className="sep">·</span>
+                  {slotLabel(e, n.slot)}: {n.name}
+                </span>
+              ))}
+            </>
+          ) : (
+            <>Next up: {nextUp[0].name}</>
+          )}
+        </div>
+      )}
 
       <div className="prog">
         <div className="prog-row">
@@ -181,6 +225,11 @@ function EntryCard({ snap, e, now, mounted }: { snap: Snapshot; e: SnapshotEntry
               {e.finished ? (mounted ? fmtClockDay(e.finished_at, tz, snap.as_of) : "—") : etaOk && mounted ? `~${fmtClockDay(e.eta.finish, tz, snap.as_of)}` : "—"}
             </div>
             {etaOk && mounted && <div className="w">{fmtClockRange(e.eta.earliest, e.eta.latest, tz)}</div>}
+          </div>
+          <div className="stat">
+            <div className="k">Elevation</div>
+            <div className="v">↑ {fmtElev(e.elevation_gain_m, units)}</div>
+            <div className="w">{e.finished ? "gained" : `gained · ${fmtElev(e.elevation_remaining_m, units)} to go`}</div>
           </div>
         </div>
       )}

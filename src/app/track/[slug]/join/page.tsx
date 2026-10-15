@@ -4,6 +4,7 @@ import { devTitle, gateTrackerPage } from "@/lib/tracker/gate";
 import { clientShell, loadEventShell } from "@/lib/tracker/eventData";
 import { baseCss, fontClass } from "../../theme";
 import { crewCss } from "../../crewCss";
+import { loadSlotInfo } from "../crew/slots";
 import { JoinApp } from "./JoinApp";
 
 /* /track/[slug]/join — runner setup (TRACKER_SPEC.md §11). No crew key:
@@ -37,11 +38,13 @@ export default async function JoinPage({ params }: Props) {
   const shell = await loadEventShell(params.slug);
   if (!shell) notFound();
   const traccarUrl = (process.env.TRACKER_TRACCAR_PUBLIC_URL ?? "").trim() || null;
+  // Pairs (slots A / B) per entry, so the page can say how the crew marks runners.
+  const slotInfo = await loadSlotInfo(params.slug);
 
   return (
     <div className={`trk ${fontClass}`}>
       <style dangerouslySetInnerHTML={{ __html: baseCss + crewCss }} />
-      <JoinApp shell={clientShell(shell)} traccarUrl={traccarUrl} admin={admin} />
+      <JoinApp shell={clientShell(shell)} traccarUrl={traccarUrl} admin={admin} slotInfo={slotInfo} />
     </div>
   );
 }

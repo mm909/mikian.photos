@@ -84,6 +84,10 @@ hard cases (combine freely; [entry:] defaults to the first entry):
   --dupes                                  post every fix (and every tap) twice
   --offroute [entry:]<min>:<metres>        one fix at that minute sits that far off route, perpendicular to it
   --skew <sec>                             the crew phone's clock is off by this much (client_now and time shifted; the server corrects)
+
+pairs: an entry with \`slots: 2\` in its yaml runs two by two — both runners report (slot B ~15 m behind A),
+  every exchange swaps both slots to the next two roster runners with one tap per slot (B a second after A),
+  and --miss-tap / --late-tap act on slot A's tap of that exchange while slot B's goes out normally.
 `;
 
 class Flags {

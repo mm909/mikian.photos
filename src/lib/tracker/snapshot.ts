@@ -133,6 +133,10 @@ export async function loadComputeInput(slug: string, generatedAt: Date): Promise
     participants: e.participants.map((p): ComputeParticipant => ({ ...p, deviceIds: [] })),
     vehicleDeviceIds: [],
     batonDeviceIds: [],
+    // Pairs (owner, 2026-10-15): how many runners hold the course at once and
+    // what the slots are called; compute.ts labels unnamed slots "1", "2", …
+    slots: e.slots,
+    slotNames: e.slotNames,
   }));
   const byEntry = new Map(entries.map((e) => [e.id, e] as const));
   const byParticipant = new Map<string, ComputeParticipant>();
@@ -143,17 +147,19 @@ export async function loadComputeInput(slug: string, generatedAt: Date): Promise
     else if (d.role === "baton" && d.entryId) byEntry.get(d.entryId)?.batonDeviceIds.push(d.id);
   }
 
-  /* Handoffs first: they say when each participant was on course, which is
-   * the only time that participant's fixes can move progress. */
+  /* Handoffs first: they say when each participant was on course (and in
+   * which slot), which is the only time that participant's fixes can move
+   * progress. */
   const handoffs: ComputeHandoff[] = await db.trackerHandoff.findMany({
     where: { entryId: { in: entries.map((e) => e.id) }, time: { lte: asOf } },
-    select: { id: true, entryId: true, participantId: true, time: true, voided: true },
+    select: { id: true, entryId: true, participantId: true, time: true, voided: true, slot: true },
   });
 
   /* The on-course windows come from the same timeline compute.ts uses, so
-   * the two agree on voided and duplicate taps: relay → each non-voided
-   * handoff to the next, the last to as-of; solo → start to as-of. A
-   * participant may hold several. One clause per (runner device, window);
+   * the two agree on voided and duplicate taps: relay → per slot, each
+   * non-voided handoff to that slot's next, the last to as-of; solo → start
+   * to as-of. A participant may hold several, in any slot (the timeline is
+   * flat, one segment per span). One clause per (runner device, window);
    * the baton devices' whole history, since a baton fix moves progress
    * whoever is carrying it. The lower bound matches the ingest rule (start −
    * 1 h); the upper bound is the as-of instant, so a public delay hides

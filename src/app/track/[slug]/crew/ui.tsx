@@ -114,6 +114,35 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   return (await res.json()) as T;
 }
 
+/* ─── Slots (pairs) ──────────────────────────────────────────────────────── */
+
+/**
+ * How many runners an entry has on course at once and what the slots are
+ * called (TrackerEntry.slots / slotNames). LASD26 runs in PAIRS (owner,
+ * 2026-10-15: "we are running two by two"): one entry, slots A and B. The
+ * server pages load it (crew/slots.ts) and pass it down as a plain map.
+ */
+export interface EntrySlotInfo {
+  /** ≥ 1; 1 = a classic relay. */
+  slots: number;
+  /** Labels per slot, index 0 = slot 1; the number stands in when a label is missing. */
+  slotNames: string[];
+}
+
+/** Entry id → slot info. */
+export type SlotInfoByEntry = Record<string, EntrySlotInfo>;
+
+/** The slot info for one entry; a classic relay (1 slot, no names) when the map has none. */
+export function slotInfoOf(info: SlotInfoByEntry | undefined, entryId: string | null | undefined): EntrySlotInfo {
+  const i = entryId ? info?.[entryId] : undefined;
+  return { slots: Math.max(1, Math.floor(i?.slots ?? 1)), slotNames: i?.slotNames ?? [] };
+}
+
+/** "A" for slot 1 of an entry with slot_names ["A", "B"]; "1" without names. */
+export function slotNameOf(info: EntrySlotInfo, slot: number): string {
+  return info.slotNames[slot - 1] ?? String(slot);
+}
+
 /** Green under 2 min, amber under 10, red beyond — the join page's freshness colours. */
 export function freshness(ageS: number | null): "ok" | "warn" | "bad" | "" {
   if (ageS === null || !Number.isFinite(ageS)) return "";

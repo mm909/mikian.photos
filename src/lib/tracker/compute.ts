@@ -15,29 +15,44 @@
  * tests in compute.test.ts pin each one:
  *  1. Device time is the truth. Everything is ordered by fixTime; fixes and
  *     handoffs stamped after `asOf` do not exist yet (public delay).
- *  2. Who is on course: relay → the participant of the latest non-voided
- *     handoff at or before t; nobody before the first handoff. Solo → the
- *     one participant, from the event start. A second tap for the runner
- *     already on course (two crew phones, a replayed tap) is the same
- *     handoff, and two taps within 2 s are one exchange: the later runner
- *     at the earlier time.
- *  3. Progress advances ONLY from fixes of the on-course participant's own
- *     device(s) at that fix's time, or of a baton device. Vehicle fixes
- *     never do (the van drives ahead to the next exchange). A fix snapped
- *     more than SNAP_RULES.offRouteMaxM off the route stays on the map but
- *     does not advance progress. Progress is a running max: it never
- *     decreases.
- *  4. Legs: relay → handoff to handoff, the last open-ended and live; solo →
+ *  2. Who is on course: relay → PER SLOT, the participant of the latest
+ *     non-voided handoff for that slot at or before t; nobody before the
+ *     first handoff. A classic relay has one slot; the LASD26 crew runs
+ *     "two by two" (owner, 2026-10-15), one entry with slots A and B that
+ *     any roster runner can take, so a tap for slot B replaces the holder
+ *     of slot B only. Solo → the one participant, from the event start. A
+ *     second tap for the runner already in that slot (two crew phones, a
+ *     replayed tap) is the same handoff, and two taps for one slot within
+ *     2 s are one exchange: the later runner at the earlier time. Both rules
+ *     are per slot — the A and B taps of an exchange land a second apart
+ *     and are two legs. ONE RUNNER, ONE SLOT (review 2026-10-15): a tap
+ *     that puts a runner into slot B while they hold slot A ends their A
+ *     leg at that tap and leaves A empty until its next tap — unless the A
+ *     tap was within 2 s, the same tap mis-slotted (two crew phones), which
+ *     then never happened in A and A's previous runner is still on course.
+ *  3. Progress advances ONLY from fixes of a participant on course (in any
+ *     slot) at that fix's time, from their own device(s), or of a baton
+ *     device. Vehicle fixes never do (the van drives ahead to the next
+ *     exchange). A fix snapped more than SNAP_RULES.offRouteMaxM off the
+ *     route stays on the map but does not advance progress. Progress is a
+ *     running max: it never decreases, and a pair shares it (they run side
+ *     by side; each runner's leg is the pair's distance).
+ *  4. Legs: relay → handoff to handoff per slot, numbered per entry in time
+ *     order across slots, the open ones (one per occupied slot) live; solo →
  *     split at checkpoint crossings. Distances are route distance at
  *     interpolated instants, never summed GPS points, so they stay stable
  *     through gaps and late bursts.
- *  5. The dot: on-course runner → baton → vehicle, the first with a fix
- *     fresher than FRESH_FIX_S; else the newest of them all, marked stale.
- *     Once finished: the finisher → baton, never the vehicle (the van
- *     drives wherever it likes after the race).
+ *  5. The dot: the on-course runners in slot order → baton → vehicle, the
+ *     first with a fix fresher than FRESH_FIX_S; else the newest of them
+ *     all, marked stale. Once finished: the finishers → baton, never the
+ *     vehicle (the van drives wherever it likes after the race).
  *  6. A finished entry (progress within 50 m of the route end) freezes: its
  *     clock stops at finished_at, nobody is on course, its ETA is the fact,
  *     every leg ends by finished_at and a tap recorded after it opens none.
+ *  7. Elevation is read off the route's cumulative-gain curve
+ *     (elevation.ts): the entry's gain is 0 → progress, remaining is
+ *     progress → route end, a leg's is its start progress → end progress,
+ *     a participant's the sum of their legs.
  */
 
 import { FRESH_FIX_S, SNAP_RULES } from "./types";
@@ -70,11 +85,13 @@ import {
   type ProgressSeries,
 } from "./computeSeries";
 import { estimateEta, etaWindow, NO_ETA } from "./eta";
+import { climbFn } from "./elevation";
 
 export { EMPTY_SERIES, firstSampleMs, lastProgress, progressAt, seriesFromSamples, timeAtProgress } from "./computeSeries";
 export type { ProgressSeries } from "./computeSeries";
 export { ETA_RULES, estimateEta, etaPace, etaPaceParts, etaWindow, NO_ETA } from "./eta";
 export type { EtaEstimate, EtaInput } from "./eta";
+export { ELEVATION_RULES, climbFn, cumulativeGain, gainAtRouteM, gainBetween, routeGain } from "./elevation";
 
 /* ─── Input ───────────────────────────────────────────────────────────────── */
 
@@ -119,6 +136,10 @@ export interface ComputeEntry {
   participants: ComputeParticipant[];
   vehicleDeviceIds: string[];
   batonDeviceIds: string[];
+  /** Runners on course at once: 1 = a classic relay, 2 = pairs (TrackerEntry.slots). */
+  slots: number;
+  /** Labels per slot, index 0 = slot 1; missing labels fall back to "1", "2", … */
+  slotNames: string[];
 }
 
 export interface ComputeCheckpoint {
@@ -135,6 +156,8 @@ export interface ComputeHandoff {
   participantId: string;
   time: Date;
   voided: boolean;
+  /** 1-based slot the runner took (TrackerHandoff.slot); 1 for a classic relay. */
+  slot: number;
 }
 
 export interface ComputeInput {
@@ -173,7 +196,7 @@ export const COMPUTE_RULES = {
   finishToleranceM: 50,
   /** Bests consider completed legs at least this long. */
   bestLegMinM: 1000,
-  /** Two handoffs this close together are one exchange (two crew phones tapping). */
+  /** Two handoffs for ONE SLOT this close together are one exchange (two crew phones tapping). */
   sameExchangeS: 2,
 } as const;
 
@@ -193,6 +216,34 @@ const EMPTY_ROUTE: RouteIndex = {
   eleM: new Float64Array(0),
   bbox: [0, 0, 0, 0],
 };
+
+/** `(fromM, toM) → metres climbed`; the no-route stand-in climbs nothing. */
+export type Climb = (fromM: number, toM: number) => number;
+const NO_CLIMB: Climb = () => 0;
+
+/** How many slots an entry really has: a whole number ≥ 1 (bad data → 1). */
+export function slotCount(entry: Pick<ComputeEntry, "slots">): number {
+  const n = Math.floor(Number(entry.slots));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
+/** The label of a slot: from the file, else its number. */
+export function slotName(entry: Pick<ComputeEntry, "slotNames">, slot: number): string {
+  const s = entry.slotNames?.[slot - 1];
+  return typeof s === "string" && s.trim() ? s : String(slot);
+}
+
+/**
+ * A handoff's slot folded into the entry's range. A tap stored for a slot
+ * the entry no longer has (the file's `slots` edited down after race day)
+ * lands in the last slot rather than vanishing with its leg; anything
+ * unparsable is slot 1, which is every classic-relay tap.
+ */
+export function clampSlot(slot: number | null | undefined, slots: number): number {
+  const s = Math.floor(Number(slot));
+  if (!Number.isFinite(s) || s < 1) return 1;
+  return Math.min(slots, s);
+}
 
 /** Pace in s/km for a distance and a duration, or null below the distance floor. */
 export function paceSPerKm(distanceM: number, timeS: number, minDistanceM: number): number | null {
@@ -247,9 +298,11 @@ export function newestPerDevice(positions: Map<string, Fix[]>, latestFix: Map<st
 
 /* ─── Who is on course (§9) ───────────────────────────────────────────────── */
 
-/** A span during which one participant carries the entry's progress. */
+/** A span during which one participant holds one slot of the entry. */
 export interface CourseSegment {
   participantId: string;
+  /** 1-based; 1 for a classic relay and for a solo entry. */
+  slot: number;
   fromMs: number;
   /** Null while open (the live leg). */
   toMs: number | null;
@@ -258,18 +311,31 @@ export interface CourseSegment {
 }
 
 /**
- * Relay: one segment per non-voided handoff at or before `asOf`, in time
- * order, each ending where the next begins. Nobody is on course before the
- * first handoff. Solo: the one participant from the event start.
+ * Relay: per slot, one segment per non-voided handoff at or before `asOf`,
+ * in time order, each ending where that slot's next begins; the slots'
+ * segments are then merged, sorted by (fromMs, slot), which is the leg
+ * order. Nobody is on course before the first handoff. Solo: the one
+ * participant from the event start, in slot 1.
  *
  * Two taps are not always two legs. Review 2026-10-06: "a second non-voided
  * handoff for the participant who is ALREADY on course (two crew phones, or
  * a replayed tap) creates a sliver leg and inflates counts." So a tap for
- * the runner already on course is the same handoff (the earlier time
- * stands), and a tap within sameExchangeS of the one that opened the current
- * segment is the same exchange with the runner corrected: the later
+ * the runner already in that slot is the same handoff (the earlier time
+ * stands), and a tap within sameExchangeS of the one that opened the slot's
+ * current segment is the same exchange with the runner corrected: the later
  * participant at the earlier time. When that correction names the runner of
  * the segment before, nothing happened and that runner's leg stays open.
+ * Both rules look at ONE slot: with pairs the crew taps A and B a second
+ * apart on purpose.
+ *
+ * ONE RUNNER, ONE SLOT. Review 2026-10-15 (findings #2 and #4): a tap that
+ * put a runner into slot B while they held slot A left them on course
+ * twice — "two live legs for one person, their time and distance counted
+ * in both". So whenever a tap seats a runner in a slot, they are released
+ * from any other slot they hold at that instant (releaseOtherSlots): that
+ * leg closes and the slot is empty until its next tap. The taps are walked
+ * in time order across the slots, so "hold at that instant" is simply the
+ * other slot's open segment.
  */
 export function onCourseTimeline(
   kind: EventKind,
@@ -280,31 +346,70 @@ export function onCourseTimeline(
 ): CourseSegment[] {
   if (kind === "solo") {
     const p = [...entry.participants].sort(bySortOrder)[0];
-    return p ? [{ participantId: p.id, fromMs: startTime.getTime(), toMs: null, handoffId: null }] : [];
+    return p ? [{ participantId: p.id, slot: 1, fromMs: startTime.getTime(), toMs: null, handoffId: null }] : [];
   }
   const asOfMs = asOf.getTime();
+  const slots = slotCount(entry);
   const own = handoffs
     .filter((h) => h.entryId === entry.id && !h.voided && h.time.getTime() <= asOfMs)
     .sort((a, b) => a.time.getTime() - b.time.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const segments: CourseSegment[] = [];
+  const perSlot: CourseSegment[][] = Array.from({ length: slots }, () => []);
   for (const h of own) {
+    const slot = clampSlot(h.slot, slots);
+    const segs = perSlot[slot - 1];
     const tMs = h.time.getTime();
-    const last = segments[segments.length - 1];
-    if (last) {
-      if (h.participantId === last.participantId) continue;
-      if (tMs - last.fromMs <= COMPUTE_RULES.sameExchangeS * 1000) {
-        const before = segments[segments.length - 2];
-        if (before && before.participantId === h.participantId) {
-          segments.pop();
+    const last = segs[segs.length - 1];
+    // A segment closed by a release leaves the slot empty: the next tap
+    // opens a new one and the replay / 2 s rules have nothing to compare.
+    const open = last && last.toMs === null ? last : null;
+    if (open) {
+      if (h.participantId === open.participantId) continue;
+      if (tMs - open.fromMs <= COMPUTE_RULES.sameExchangeS * 1000) {
+        const before = segs[segs.length - 2];
+        // "Nothing happened" only when `before` is the runner this exchange
+        // replaced — closed by it, not released earlier into another slot.
+        if (before && before.participantId === h.participantId && before.toMs === open.fromMs) {
+          segs.pop();
           before.toMs = null;
-        } else last.participantId = h.participantId;
+        } else open.participantId = h.participantId;
+        releaseOtherSlots(perSlot, slot, h.participantId, open.fromMs);
         continue;
       }
-      last.toMs = tMs;
+      open.toMs = tMs;
     }
-    segments.push({ participantId: h.participantId, fromMs: tMs, toMs: null, handoffId: h.id });
+    segs.push({ participantId: h.participantId, slot, fromMs: tMs, toMs: null, handoffId: h.id });
+    releaseOtherSlots(perSlot, slot, h.participantId, tMs);
   }
-  return segments;
+  return mergeSlots(perSlot);
+}
+
+/**
+ * One runner, one slot: `participantId` has just taken `slot` at `atMs`, so
+ * an open segment of theirs in any OTHER slot ends. Opened within
+ * sameExchangeS of `atMs` it was this very tap mis-slotted — two crew
+ * phones with different slots picked tapping the same runner a second
+ * apart — and is dropped as if it never happened there, which reinstates
+ * the runner it had replaced (the one closed by its tap). Older, it closes
+ * at `atMs`: that slot is empty until its next tap.
+ */
+function releaseOtherSlots(perSlot: CourseSegment[][], slot: number, participantId: string, atMs: number): void {
+  for (let i = 0; i < perSlot.length; i++) {
+    if (i === slot - 1) continue;
+    const segs = perSlot[i];
+    const open = segs[segs.length - 1];
+    if (!open || open.toMs !== null || open.participantId !== participantId) continue;
+    if (atMs - open.fromMs <= COMPUTE_RULES.sameExchangeS * 1000) {
+      segs.pop();
+      const before = segs[segs.length - 1];
+      if (before && before.toMs === open.fromMs) before.toMs = null;
+    } else open.toMs = atMs;
+  }
+}
+
+/** The slots' segment lists as one timeline, sorted by (fromMs, slot). */
+function mergeSlots(perSlot: CourseSegment[][]): CourseSegment[] {
+  if (perSlot.length === 1) return perSlot[0];
+  return perSlot.flat().sort((a, b) => a.fromMs - b.fromMs || a.slot - b.slot);
 }
 
 /**
@@ -312,7 +417,8 @@ export function onCourseTimeline(
  * 2026-10-06: "a tap recorded after the finish [must] not extend the
  * finishing leg or add a 0 m leg." Every segment ends no later than
  * finished_at and one that would start at or after it is dropped, so the
- * last segment left is the finishing leg and its runner the finisher.
+ * segments left ending AT finished_at are the finishing legs and their
+ * runners the finishers.
  */
 export function clampToFinish(segments: CourseSegment[], finishedAtMs: number): CourseSegment[] {
   const out: CourseSegment[] = [];
@@ -323,21 +429,33 @@ export function clampToFinish(segments: CourseSegment[], finishedAtMs: number): 
   return out;
 }
 
-/** The segment covering instant `tMs`, or null when nobody is on course then. */
-export function onCourseAt(segments: CourseSegment[], tMs: number): CourseSegment | null {
-  let lo = 0;
-  let hi = segments.length - 1;
-  let found = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (segments[mid].fromMs <= tMs) {
-      found = mid;
-      lo = mid + 1;
-    } else hi = mid - 1;
+/** The segment of `slot` covering instant `tMs`, or null when that slot is empty then. */
+export function onCourseAt(segments: CourseSegment[], tMs: number, slot = 1): CourseSegment | null {
+  let found: CourseSegment | null = null;
+  for (const s of segments) {
+    if (s.fromMs > tMs) break; // sorted by fromMs
+    if (s.slot === slot) found = s;
   }
-  if (found < 0) return null;
-  const s = segments[found];
-  return s.toMs !== null && tMs >= s.toMs ? null : s;
+  if (!found) return null;
+  return found.toMs !== null && tMs >= found.toMs ? null : found;
+}
+
+/** The holder of every slot at `tMs`, slot order (null = empty). */
+export function holdersAt(segments: CourseSegment[], tMs: number, slots: number): (CourseSegment | null)[] {
+  return Array.from({ length: slots }, (_, i) => onCourseAt(segments, tMs, i + 1));
+}
+
+/**
+ * Is this fix's device carrying the entry at `tMs`? A runner's when they
+ * hold any slot then; a baton's (participantId null) when anyone does.
+ */
+export function carriesAt(segments: CourseSegment[], tMs: number, participantId: string | null): boolean {
+  for (const s of segments) {
+    if (s.fromMs > tMs) break;
+    if (s.toMs !== null && tMs >= s.toMs) continue;
+    if (participantId === null || s.participantId === participantId) return true;
+  }
+  return false;
 }
 
 /* ─── Progress series (§9 snapping + progress) ────────────────────────────── */
@@ -393,8 +511,7 @@ export function buildProgressSeries(
   let offRoute = 0;
   let notOnCourse = 0;
   for (const c of cands) {
-    const seg = onCourseAt(segments, c.t);
-    if (!seg || (c.participantId !== null && c.participantId !== seg.participantId)) {
+    if (!carriesAt(segments, c.t, c.participantId)) {
       notOnCourse++;
       continue;
     }
@@ -416,11 +533,15 @@ export function buildProgressSeries(
 export interface Leg {
   no: number;
   participantId: string;
+  /** 1-based slot; 1 for a classic relay and a solo entry. */
+  slot: number;
   startMs: number;
   endMs: number;
   distanceM: number;
   timeS: number;
   paceSPerKm: number | null;
+  /** Route metres climbed between the leg's start and end progress. */
+  elevationGainM: number;
   live: boolean;
   /** Solo: the checkpoint whose crossing ended this leg. */
   checkpointId: string | null;
@@ -429,26 +550,43 @@ export interface Leg {
 function makeLeg(
   no: number,
   participantId: string,
+  slot: number,
   startMs: number,
   endMs: number,
   series: ProgressSeries,
   live: boolean,
   checkpointId: string | null,
+  climb: Climb,
 ): Leg {
   const end = Math.max(startMs, endMs);
-  const distanceM = Math.max(0, progressAt(series, end) - progressAt(series, startMs));
+  const fromM = progressAt(series, startMs);
+  const toM = progressAt(series, end);
+  const distanceM = Math.max(0, toM - fromM);
   const timeS = (end - startMs) / 1000;
-  return { no, participantId, startMs, endMs: end, distanceM, timeS, paceSPerKm: paceSPerKm(distanceM, timeS, COMPUTE_RULES.legPaceMinM), live, checkpointId };
+  return {
+    no,
+    participantId,
+    slot,
+    startMs,
+    endMs: end,
+    distanceM,
+    timeS,
+    paceSPerKm: paceSPerKm(distanceM, timeS, COMPUTE_RULES.legPaceMinM),
+    elevationGainM: climb(fromM, toM),
+    live,
+    checkpointId,
+  };
 }
 
 /**
- * Relay legs: handoff i to handoff i+1; the last runs to `asOf` and is live
- * — unless the entry has finished, in which case the timeline is clamped
- * (clampToFinish) and the finishing leg closes at finished_at.
+ * Relay legs: one per segment, numbered in the timeline's order (time, then
+ * slot); the open ones run to `asOf` and are live — unless the entry has
+ * finished, in which case the timeline is clamped (clampToFinish) and the
+ * finishing legs close at finished_at.
  */
-export function relayLegs(segments: CourseSegment[], series: ProgressSeries, asOfMs: number, finishedAtMs: number | null): Leg[] {
+export function relayLegs(segments: CourseSegment[], series: ProgressSeries, asOfMs: number, finishedAtMs: number | null, climb: Climb = NO_CLIMB): Leg[] {
   const segs = finishedAtMs === null ? segments : clampToFinish(segments, finishedAtMs);
-  return segs.map((s, i) => makeLeg(i + 1, s.participantId, s.fromMs, s.toMs ?? asOfMs, series, s.toMs === null, null));
+  return segs.map((s, i) => makeLeg(i + 1, s.participantId, s.slot, s.fromMs, s.toMs ?? asOfMs, series, s.toMs === null, null, climb));
 }
 
 /** For passed/finish logic a checkpoint at the route end is reached at the finish tolerance. */
@@ -471,6 +609,7 @@ export function soloLegs(
   startMs: number,
   asOfMs: number,
   finishedAtMs: number | null,
+  climb: Climb = NO_CLIMB,
 ): Leg[] {
   const legs: Leg[] = [];
   let boundary = startMs;
@@ -479,13 +618,13 @@ export function soloLegs(
     if (cp.routeM <= 0) continue;
     const crossing = timeAtProgress(series, crossingTargetM(cp.routeM, lengthM));
     if (crossing === null || crossing > asOfMs || crossing <= boundary) continue;
-    legs.push(makeLeg(legs.length + 1, participantId, boundary, crossing, series, false, cp.id));
+    legs.push(makeLeg(legs.length + 1, participantId, 1, boundary, crossing, series, false, cp.id, climb));
     boundary = crossing;
   }
   if (finishedAtMs !== null) {
-    if (finishedAtMs > boundary) legs.push(makeLeg(legs.length + 1, participantId, boundary, finishedAtMs, series, false, null));
+    if (finishedAtMs > boundary) legs.push(makeLeg(legs.length + 1, participantId, 1, boundary, finishedAtMs, series, false, null, climb));
   } else if (asOfMs >= boundary) {
-    legs.push(makeLeg(legs.length + 1, participantId, boundary, asOfMs, series, true, null));
+    legs.push(makeLeg(legs.length + 1, participantId, 1, boundary, asOfMs, series, true, null, climb));
   }
   return legs;
 }
@@ -528,10 +667,11 @@ function newestBattery(latest: Map<string, Fix>, positions: Map<string, Fix[]>, 
   return best === null ? null : r0(best);
 }
 
+/** Per participant, aggregated across every slot they held. */
 export function participantStats(
   entry: ComputeEntry,
   legs: Leg[],
-  onCourseId: string | null,
+  onCourseIds: ReadonlySet<string>,
   latest: Map<string, Fix>,
   positions: Map<string, Fix[]>,
 ): SnapshotParticipant[] {
@@ -539,11 +679,13 @@ export function participantStats(
     let count = 0;
     let distanceM = 0;
     let timeS = 0;
+    let gainM = 0;
     for (const l of legs) {
       if (l.participantId !== p.id) continue;
       count++;
       distanceM += l.distanceM;
       timeS += l.timeS;
+      gainM += l.elevationGainM;
     }
     const last = newestFix(latest, p.deviceIds);
     return {
@@ -554,7 +696,8 @@ export function participantStats(
       distance_m: r0(distanceM),
       time_s: r0(timeS),
       avg_pace_s_per_km: roundOrNull(paceSPerKm(distanceM, timeS, COMPUTE_RULES.legPaceMinM)),
-      on_course: p.id === onCourseId,
+      elevation_gain_m: r0(gainM),
+      on_course: onCourseIds.has(p.id),
       device_last_seen: last ? last.fixTime.toISOString() : null,
       device_battery_pct: newestBattery(latest, positions, p.deviceIds),
     };
@@ -583,29 +726,33 @@ export function bestsOf(legs: Leg[]): SnapshotBests {
 /* ─── Where the dot is (§9 fallback chain) ────────────────────────────────── */
 
 /**
- * Chain: the runner's devices → baton → vehicle. The first group whose
- * newest fix is within FRESH_FIX_S of `asOf` wins; otherwise the newest fix
- * across the chain, flagged stale. Nothing at all → null. The chosen fix is
- * snapped with the window at the entry's progress.
+ * Chain: each on-course runner's devices, in slot order → baton → vehicle.
+ * The first group whose newest fix is within FRESH_FIX_S of `asOf` wins;
+ * otherwise the newest fix across the chain, flagged stale. Nothing at all
+ * → null. The chosen fix is snapped with the window at the entry's progress.
  *
- * `runnerId` is the participant on course — or, once the entry has
- * finished, the finisher — and a finished entry's chain stops at the baton.
- * Review 2026-10-06: "once an entry is finished, onCourseId is null so the
- * chain becomes baton → vehicle and the finished team's dot follows the van
- * wherever it drives after the race."
+ * `runnerIds` are the participants on course — or, once the entry has
+ * finished, the finishers — and a finished entry's chain stops at the
+ * baton. Review 2026-10-06: "once an entry is finished, onCourseId is null
+ * so the chain becomes baton → vehicle and the finished team's dot follows
+ * the van wherever it drives after the race." With pairs the slot A phone
+ * is the dot while it is fresh, so the dot does not hop between two phones
+ * fifteen metres apart on every build.
  */
 export function resolvePosition(
   route: RouteIndex,
   entry: ComputeEntry,
-  runnerId: string | null,
+  runnerIds: readonly string[],
   latest: Map<string, Fix>,
   asOfMs: number,
   progressM: number,
   finished = false,
 ): SnapshotPosition | null {
   const groups: Array<{ source: PositionSourceLabel; participantId: string | null; deviceIds: string[] }> = [];
-  const runner = runnerId ? entry.participants.find((p) => p.id === runnerId) : undefined;
-  if (runner) groups.push({ source: "runner", participantId: runner.id, deviceIds: runner.deviceIds });
+  for (const id of runnerIds) {
+    const runner = entry.participants.find((p) => p.id === id);
+    if (runner) groups.push({ source: "runner", participantId: runner.id, deviceIds: runner.deviceIds });
+  }
   groups.push({ source: "baton", participantId: null, deviceIds: entry.batonDeviceIds });
   if (!finished) groups.push({ source: "vehicle", participantId: null, deviceIds: entry.vehicleDeviceIds });
 
@@ -751,6 +898,10 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
   const checkpoints = input.checkpoints.get(routeId) ?? [];
   const lengthM = route.lengthM;
   const participants = [...entry.participants].sort(bySortOrder);
+  const byId = new Map(participants.map((p) => [p.id, p] as const));
+  const slots = slotCount(entry);
+  const slotNames = Array.from({ length: slots }, (_, i) => slotName(entry, i + 1));
+  const climb = route.cumM.length ? climbFn(route) : NO_CLIMB;
 
   const segments = onCourseTimeline(event.kind, entry, input.handoffs, event.startTime, asOf);
   const build = buildProgressSeries(route, segments, entry, positions);
@@ -761,20 +912,27 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
   const finished = lengthM > 0 && progressM >= finishTarget;
   const finishedAtMs = finished ? timeAtProgress(series, finishTarget) : null;
 
-  const current = finished ? null : onCourseAt(segments, asOfMs);
-  const onCourseId = current?.participantId ?? null;
-  /* The finisher ran the last leg left once the timeline is clamped at the
-   * finish. Nobody is on course any more, but the dot is still theirs. */
+  /* Who holds each slot right now (nobody once finished), and the ids of
+   * everyone on course for the participant flags and the dot. */
+  const holders = finished ? Array.from({ length: slots }, () => null) : holdersAt(segments, asOfMs, slots);
+  const holderIds = holders.map((h) => (h ? h.participantId : null));
+  const onCourseIds = new Set(holderIds.filter((id): id is string => id !== null));
+  /* The finishers ran the legs still open at the finish instant: after the
+   * clamp those are the segments ending exactly at finished_at, slot order.
+   * Nobody is on course any more, but the dot is still theirs. */
   const finishTimeline = finishedAtMs === null ? [] : clampToFinish(segments, finishedAtMs);
-  const finisherId = finishTimeline.length ? finishTimeline[finishTimeline.length - 1].participantId : null;
+  const finisherIds = finishTimeline
+    .filter((s) => s.toMs === finishedAtMs)
+    .sort((a, b) => a.slot - b.slot)
+    .map((s) => s.participantId);
 
   const legs =
     event.kind === "relay"
-      ? relayLegs(segments, series, asOfMs, finishedAtMs)
+      ? relayLegs(segments, series, asOfMs, finishedAtMs, climb)
       : participants[0]
-        ? soloLegs(participants[0].id, series, checkpoints, lengthM, startMs, asOfMs, finishedAtMs)
+        ? soloLegs(participants[0].id, series, checkpoints, lengthM, startMs, asOfMs, finishedAtMs, climb)
         : [];
-  const liveLeg = legs.find((l) => l.live) ?? null;
+  const liveLegs = legs.filter((l) => l.live).sort((a, b) => a.slot - b.slot);
 
   // A finished entry's clock stops at the finish; otherwise it runs to as-of.
   const clockEndMs = finishedAtMs ?? asOfMs;
@@ -796,24 +954,23 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
         : { finish: null, earliest: null, latest: null, pace_s_per_km: null };
   }
 
-  const onCourse: SnapshotOnCourse | null =
-    onCourseId && liveLeg
-      ? (() => {
-          const p = participants.find((x) => x.id === onCourseId);
-          return p
-            ? {
-                participant_id: p.id,
-                name: p.name,
-                initials: p.initials,
-                leg_no: liveLeg.no,
-                leg_started: iso(liveLeg.startMs),
-                leg_distance_m: r0(liveLeg.distanceM),
-                leg_time_s: r0(liveLeg.timeS),
-                leg_pace_s_per_km: roundOrNull(liveLeg.paceSPerKm),
-              }
-            : null;
-        })()
-      : null;
+  const onCourse: SnapshotOnCourse[] = [];
+  for (const l of liveLegs) {
+    const p = byId.get(l.participantId);
+    if (!p) continue;
+    onCourse.push({
+      participant_id: p.id,
+      name: p.name,
+      initials: p.initials,
+      slot: l.slot,
+      slot_name: slotNames[l.slot - 1] ?? String(l.slot),
+      leg_no: l.no,
+      leg_started: iso(l.startMs),
+      leg_distance_m: r0(l.distanceM),
+      leg_time_s: r0(l.timeS),
+      leg_pace_s_per_km: roundOrNull(l.paceSPerKm),
+    });
+  }
 
   const snapshotEntry: SnapshotEntry = {
     id: entry.id,
@@ -821,7 +978,7 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
     short_name: entry.shortName,
     color: entry.color,
     route_id: routeId,
-    position: resolvePosition(route, entry, finished ? finisherId : onCourseId, latest, asOfMs, progressM, finished),
+    position: resolvePosition(route, entry, finished ? finisherIds : holderIds.filter((id): id is string => id !== null), latest, asOfMs, progressM, finished),
     progress_m: r0(progressM),
     remaining_m: r0(remainingM),
     percent: finished ? 100 : lengthM > 0 ? r1(Math.max(0, Math.min(100, (progressM / lengthM) * 100))) : 0,
@@ -829,11 +986,15 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
     avg_pace_s_per_km: roundOrNull(avgPace),
     finished,
     finished_at: finishedAtMs === null ? null : iso(finishedAtMs),
+    slots,
+    slot_names: slotNames,
     on_course: onCourse,
-    next_up: nextUp(event.kind, participants, onCourseId, finished),
+    next_up: nextUp(event.kind, participants, holderIds, slots, finished),
+    elevation_gain_m: r0(climb(0, progressM)),
+    elevation_remaining_m: finished ? 0 : r0(climb(progressM, lengthM)),
     eta,
     checkpoints: checkpointRows(checkpoints, series, lengthM, progressM, etaPaceUsed, asOf),
-    participants: participantStats(entry, legs, onCourseId, latest, positions),
+    participants: participantStats(entry, legs, onCourseIds, latest, positions),
     legs: legs
       .slice()
       .sort((a, b) => b.no - a.no)
@@ -841,11 +1002,13 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
         (l): SnapshotLeg => ({
           no: l.no,
           participant_id: l.participantId,
+          slot: l.slot,
           start: iso(l.startMs),
           end: l.live ? null : iso(l.endMs),
           distance_m: r0(l.distanceM),
           time_s: r0(l.timeS),
           pace_s_per_km: roundOrNull(l.paceSPerKm),
+          elevation_gain_m: r0(l.elevationGainM),
           live: l.live,
           ...(event.kind === "solo" ? { checkpoint_id: l.checkpointId } : {}),
         }),
@@ -857,20 +1020,39 @@ export function computeEntry(input: ComputeInput, entry: ComputeEntry, positions
 }
 
 /**
- * Relay: the participant after the one on course, in sort order, wrapping
- * round; the first participant before the first handoff. Nobody once the
- * entry has finished, and never for a solo entry.
+ * Relay: per slot, the roster walked in sort order from the one holding it
+ * (from the slot's own place for an empty slot: the first runner before the
+ * first handoff, the second for slot B), wrapping round, to the first
+ * runner NOT on course in any slot — and not already named next for an
+ * earlier slot, so a pair's two "next"s are two people. Review 2026-10-15
+ * (finding #3): the old rule walked the roster `slots` places at a time,
+ * which with the holders out of phase ([R1, R3]) named A's next as R3, who
+ * was running, and skipped R2 and R4 altogether. One entry for every slot,
+ * null when nobody can be next: the entry has finished, the roster has
+ * nobody else, or it is a solo entry.
  */
-export function nextUp(kind: EventKind, participantsSorted: ComputeParticipant[], onCourseId: string | null, finished: boolean): SnapshotNextUp | null {
-  if (kind !== "relay" || finished || participantsSorted.length === 0) return null;
-  let next: ComputeParticipant | undefined;
-  if (onCourseId === null) next = participantsSorted[0];
-  else {
-    const i = participantsSorted.findIndex((p) => p.id === onCourseId);
-    if (participantsSorted.length < 2) return null;
-    next = participantsSorted[i < 0 ? 0 : (i + 1) % participantsSorted.length];
-  }
-  return next ? { participant_id: next.id, name: next.name, initials: next.initials } : null;
+export function nextUp(
+  kind: EventKind,
+  participantsSorted: ComputeParticipant[],
+  holderIds: readonly (string | null)[],
+  slots: number,
+  finished: boolean,
+): (SnapshotNextUp | null)[] {
+  const n = participantsSorted.length;
+  const taken = new Set(holderIds.filter((id): id is string => id !== null));
+  return Array.from({ length: slots }, (_, i): SnapshotNextUp | null => {
+    if (kind !== "relay" || finished || n === 0) return null;
+    const holderId = holderIds[i] ?? null;
+    const j = holderId === null ? -1 : participantsSorted.findIndex((p) => p.id === holderId);
+    const start = j < 0 ? i : j + 1;
+    for (let k = 0; k < n; k++) {
+      const cand = participantsSorted[(start + k) % n];
+      if (taken.has(cand.id)) continue;
+      taken.add(cand.id);
+      return { participant_id: cand.id, name: cand.name, initials: cand.initials };
+    }
+    return null;
+  });
 }
 
 /* ─── The snapshot ────────────────────────────────────────────────────────── */

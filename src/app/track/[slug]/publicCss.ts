@@ -27,6 +27,8 @@ export const publicCss = `
 .trk .pill.is-off{color:var(--warn);border-color:rgba(255,200,87,.5)}
 .trk .pill.is-dev{color:var(--warn)}
 .trk .pill.is-delayed{color:var(--text)}
+/* STICKERS → (/track/<slug>/share): a 44 px link in the header, beside the title. */
+.trk .hdr-link{flex:none;display:inline-flex;align-items:center;min-height:44px;padding:0 10px;border-radius:8px;border:1px solid var(--line);font-family:var(--trk-mono),ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text);text-decoration:none;white-space:nowrap;-webkit-tap-highlight-color:transparent}
 
 /* ─── Tab bar ────────────────────────────────────────────────────────────── */
 .trk .tabs{position:fixed;left:0;right:0;bottom:0;z-index:8;display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -68,14 +70,22 @@ export const publicCss = `
 .trk .oncourse{margin-top:4px;font-size:16px;line-height:1.35}
 .trk .oncourse strong{font-weight:600}
 .trk .oncourse .sep{color:var(--muted);margin:0 6px}
-.trk .nextup{margin-top:2px;font-size:13px;color:var(--muted)}
+/* Pairs: one line per slot, the slot chip leading each ("A — Runner 3 · leg 7 …"). */
+.trk .oncourse.is-pairs{display:flex;flex-direction:column;gap:6px}
+.trk .oc-line{display:flex;align-items:center;gap:8px;min-width:0}
+.trk .oc-line .oc-text,.trk .oc-line .muted{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trk .nextup{margin-top:4px;font-size:13px;color:var(--muted)}
+.trk .nextup .sep{margin:0 5px;opacity:.6}
 .trk .prog{margin-top:14px}
 .trk .prog-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}
 .trk .prog-row .pct{font-family:var(--trk-cond),sans-serif;font-weight:700;font-variant-numeric:tabular-nums;font-size:22px;line-height:1}
 .trk .prog-row .of{font-family:var(--trk-cond),sans-serif;font-weight:500;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted)}
 .trk .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
 .trk .bar i{display:block;height:100%;border-radius:4px;transition:width .6s ease}
-.trk .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+/* Four stats — race clock, avg pace, finish ETA, elevation — two by two on a
+ * phone, one row from 480 px up. */
+.trk .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px;margin-top:14px}
+@media (min-width:480px){.trk .stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .trk .stat{min-width:0}
 .trk .stat .k{font-family:var(--trk-mono),ui-monospace,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .trk .stat .v{font-family:var(--trk-cond),sans-serif;font-weight:700;font-variant-numeric:tabular-nums lining-nums;font-size:24px;line-height:1.1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -131,15 +141,20 @@ export const publicCss = `
 .trk .who .s{margin-top:2px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .trk .who .s.is-on{color:var(--ok)}
 .trk .who .s.dim{color:var(--muted);opacity:.7;font-size:12px}
-.trk .etag{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:5px;font-family:var(--trk-cond),sans-serif;font-weight:700;font-size:12px;color:#101214;flex:none}
-.trk .cols{display:grid;grid-auto-flow:column;gap:14px;text-align:right}
+.trk .etag,.trk .slot{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:5px;font-family:var(--trk-cond),sans-serif;font-weight:700;font-size:12px;color:#101214;flex:none}
+/* The slot chip ("A" / "B") is the same size as the entry tag; a hairline
+ * ring keeps it apart from the entry tag when both sit on one row. */
+.trk .slot{box-shadow:0 0 0 1px rgba(16,18,20,.9)}
+/* Four columns (legs · mi · pace · ↑ ft) at 375 px: a tighter gap than the
+ * three-column layout had, so a long name still gets ~100 px. */
+.trk .cols{display:grid;grid-auto-flow:column;gap:12px;text-align:right}
 .trk .cols .c{min-width:0}
 .trk .cols .v{font-family:var(--trk-cond),sans-serif;font-weight:700;font-variant-numeric:tabular-nums lining-nums;font-size:18px;line-height:1.1;white-space:nowrap}
 .trk .cols .k{font-family:var(--trk-mono),ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:2px}
 .trk .live-badge{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;border-radius:5px;border:1px solid rgba(123,228,149,.45);color:var(--ok);font-family:var(--trk-mono),ui-monospace,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
 .trk .legno{font-family:var(--trk-mono),ui-monospace,monospace;font-size:11px;letter-spacing:.06em;color:var(--muted)}
 .trk .empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:14px}
-@media (max-width:359px){.trk .cols{gap:10px}.trk .cols .v{font-size:16px}}
+@media (max-width:359px){.trk .cols{gap:8px}.trk .cols .v{font-size:16px}}
 
 /* ─── Meet us ────────────────────────────────────────────────────────────── */
 .trk .cp{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -164,4 +179,5 @@ export const publicCss = `
 
 /* ─── Footer ─────────────────────────────────────────────────────────────── */
 .trk .foot{padding:22px 16px 10px;text-align:center;color:var(--muted);font-size:13px}
+.trk .foot-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin-top:4px;padding:0 12px;color:var(--text);font-family:var(--trk-mono),ui-monospace,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;text-decoration:none}
 `;

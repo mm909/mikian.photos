@@ -38,7 +38,7 @@ import {
   type LoadedEventConfig,
 } from "./config";
 import { routeIndexFromGpx } from "./routeIndex";
-import type { EventConfig } from "./types";
+import type { DeviceRef, EntryConfig, EventConfig } from "./types";
 
 /** Where the event's crew key came from — the CLI prints a banner for "missing". */
 export type CrewKeyStatus = "env" | "dev-fallback" | "literal" | "missing";
@@ -72,11 +72,16 @@ type Tx = Prisma.TransactionClient;
 
 const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 
+/** The entry's vehicle devices: `vehicle_device` plus every `vehicle_devices` entry (owner, 2026-10-15: the van phone on Traccar Client AND the web van page). */
+function vehicleDevices(e: EntryConfig): DeviceRef[] {
+  return [...(e.vehicle_device ? [e.vehicle_device] : []), ...(e.vehicle_devices ?? [])];
+}
+
 function countDevices(config: EventConfig): number {
   let n = 0;
   for (const e of config.entries) {
     n += e.participants.filter((p) => p.device).length;
-    if (e.vehicle_device) n++;
+    n += vehicleDevices(e).length;
     if (e.baton_device) n++;
   }
   return n;
@@ -243,6 +248,10 @@ export async function syncEvent(slug: string, opts: SyncOptions = {}): Promise<S
           color: e.color,
           routeId: e.route && e.route !== config.route ? entryRouteIds.get(e.route) ?? null : null,
           sortOrder: i,
+          // Pairs (owner, 2026-10-15): 1 = a classic relay; the labels as the
+          // file lists them, empty when it does not (compute numbers them).
+          slots: e.slots ?? 1,
+          slotNames: e.slot_names ?? [],
         };
         await tx.trackerEntry.upsert({ where: { id: entryId }, create: { id: entryId, ...entryData }, update: entryData });
 
@@ -260,11 +269,11 @@ export async function syncEvent(slug: string, opts: SyncOptions = {}): Promise<S
             await tx.trackerDevice.upsert({ where: { id: did }, create: { id: did, ...dData }, update: dData });
           }
         }
-        for (const [ref, role] of [
-          [e.vehicle_device, "vehicle"],
-          [e.baton_device, "baton"],
-        ] as const) {
-          if (!ref) continue;
+        // Every vehicle device reports as the van (the dot's last fallback);
+        // the baton, if any, carries progress whoever holds it.
+        const entryDevices: Array<[DeviceRef, "vehicle" | "baton"]> = vehicleDevices(e).map((d) => [d, "vehicle"] as const);
+        if (e.baton_device) entryDevices.push([e.baton_device, "baton"]);
+        for (const [ref, role] of entryDevices) {
           const did = ids.device(slug, ref);
           deviceIds.push(did);
           const dData = { eventId: slug, source: ref.source, externalId: ref.external_id, participantId: null, entryId, role };

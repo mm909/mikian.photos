@@ -5,6 +5,7 @@ import { clientShell, loadEventShell } from "@/lib/tracker/eventData";
 import { baseCss, fontClass } from "../../theme";
 import { crewCss } from "../../crewCss";
 import { CrewApp } from "./CrewApp";
+import { loadSlotInfo } from "./slots";
 import { KeyWall } from "./ui";
 
 /* /track/[slug]/crew?k=<crew key> — the handoff page (TRACKER_SPEC.md §11).
@@ -55,11 +56,13 @@ export default async function CrewPage({ params, searchParams }: Props) {
   if (!shell) notFound();
   const k = keyOf(searchParams);
   const key = k && crewKeyOk(shell.crewKey, k) ? k.trim() : null;
+  // Pairs (slots A / B) per entry — the slot picker needs it; see crew/slots.ts.
+  const slotInfo = key ? await loadSlotInfo(params.slug) : {};
 
   return (
     <div className={`trk ${fontClass}`}>
       <style dangerouslySetInnerHTML={{ __html: baseCss + crewCss }} />
-      {key ? <CrewApp shell={clientShell(shell)} crewKey={key} admin={admin} /> : <KeyWall />}
+      {key ? <CrewApp shell={clientShell(shell)} crewKey={key} admin={admin} slotInfo={slotInfo} /> : <KeyWall />}
     </div>
   );
 }

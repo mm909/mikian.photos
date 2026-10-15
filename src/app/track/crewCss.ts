@@ -49,6 +49,28 @@ export const crewCss = `
 .trk .c-now .chip{flex:none;width:56px;height:56px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;background:var(--entry);color:#101214;font-family:var(--trk-cond),sans-serif;font-weight:700;font-size:24px}
 .trk .c-now .who{font-size:24px;font-weight:600;line-height:1.1}
 .trk .c-now .since{color:var(--muted);font-size:15px;margin-top:3px}
+/* Pairs: the on-course card is one line per slot, each led by its slot chip. */
+.trk .c-now.is-pairs{flex-direction:column;align-items:stretch;gap:12px}
+.trk .c-now .line{display:flex;align-items:center;gap:12px;min-width:0}
+.trk .c-now.is-pairs .chip{width:44px;height:44px;border-radius:11px;font-size:19px}
+.trk .c-now.is-pairs .who{font-size:20px}
+
+/* The SLOT PICKER (pairs only): one big pill per slot, the picked one in the
+ * entry colour, each showing who holds it now. 88 px tall — a thumb target
+ * for a crew member running up to the exchange. */
+.trk .c-slots{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.trk .c-slot{min-height:88px;width:100%;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:var(--panel);text-align:left;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s ease}
+.trk .c-slot:active{transform:scale(.985);background:#22262b}
+.trk .c-slot[aria-checked="true"]{border-color:var(--entry);box-shadow:inset 0 0 0 1px var(--entry)}
+.trk .c-slot .big{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;padding:0 12px;border-radius:12px;background:var(--line);color:var(--text);font-family:var(--trk-cond),sans-serif;font-weight:700;font-size:28px;line-height:1}
+.trk .c-slot[aria-checked="true"] .big{background:var(--entry);color:#101214}
+.trk .c-slot .holder{display:block;max-width:100%;font-size:15px;line-height:1.25;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trk .c-slot .holder b{color:var(--text);font-weight:600}
+/* The slot chip on rows and the on-course card: the label on the entry colour. */
+.trk .c-slotchip{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 8px;border-radius:8px;background:var(--entry);color:#101214;font-family:var(--trk-cond),sans-serif;font-weight:700;font-size:15px}
+.trk .c-slotchip.sm{min-width:24px;height:24px;padding:0 6px;border-radius:7px;font-size:13px}
+/* No slot picked yet: the roster is still there but dimmed, and a tap says "Pick A or B first". */
+.trk .c-runners.is-unpicked .c-runner{opacity:.55}
 
 .trk .c-queue{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0 0;padding:12px 14px;border-radius:12px;background:#2E2612;border:1px solid var(--warn);color:var(--warn);font-size:16px;font-weight:600}
 .trk .c-queue.err{background:#2E1616;border-color:var(--bad);color:var(--bad)}
@@ -59,7 +81,7 @@ export const crewCss = `
 .trk .c-hand{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);font-size:18px;min-height:56px}
 .trk .c-hand:first-child{border-top:0}
 .trk .c-hand.voided .who,.trk .c-hand.voided .t{opacity:.45;text-decoration:line-through}
-.trk .c-hand .t{font-family:var(--trk-cond),sans-serif;font-weight:700;font-variant-numeric:tabular-nums;font-size:20px;min-width:88px}
+.trk .c-hand .t{font-family:var(--trk-cond),sans-serif;font-weight:700;font-variant-numeric:tabular-nums;font-size:20px;min-width:80px}
 .trk .c-hand .tag{flex:none;background:var(--entry)}
 .trk .c-hand .who{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trk .c-hand .st{flex:none;font-family:var(--trk-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}

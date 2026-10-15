@@ -4,27 +4,32 @@
 # (or POST /api/track/sync as an admin), which upserts it into the Tracker*
 # tables; the GPX named under `route` sits next to this file.
 #
+# PAIRS, NOT TWO TEAMS (owner, 2026-10-15: "we are running two by two …
+# it's not like a track for team A, team B … we just have the roster").
+# ONE entry — the crew — with two slots, A and B, that any runner on the
+# roster can take. Progress is shared (the pair runs side by side); each
+# runner's legs and miles are their own. The two race registrations are
+# still real, so the slots are called A and B.
+#
 # PLACEHOLDERS the owner fills before race week (spec §15):
-#   - start_time (the crew call page says 5:00 AM Pacific)
-#   - team names, the 16 runner names (device ids may stay as they are:
-#     each runner types theirs into Traccar Client — see /track/lasd26/join)
+#   - the 16 runner names (device ids may stay as they are: each runner
+#     types theirs into Traccar Client — see /track/lasd26/join)
 #   - checkpoint towns and miles from the REAL route
 #   - events/lasd26.gpx is a BRouter-generated stand-in, not the official course
 #
+# Participant identity: a runner's id is their device external_id (swap a
+# phone = edit the external_id here, not the name); or give an explicit
+# `id:`. Reordering or renaming lines keeps everyone's legs.
+#
+# THE VAN WITH THE SCREEN OFF (owner, 2026-10-15): the van phone runs
+# Traccar Client too (source: traccar, a vehicle device) — a background
+# service, no page to keep open. The web van page (/track/lasd26/van)
+# stays as the fallback for any phone without the app.
+#
 # Secrets: the repo is public. `$TRACKER_CREW_KEY_LASD26` is read from the
 # environment (Vercel → Settings → Environment Variables; .env.local on a
-# laptop). Unset, the key syncs as "" and the crew/van pages refuse every
-# key — sync prints a banner. The predictable "dev-lasd26-crew" fallback is
-# used ONLY when POSTGRES_URL points at a local database (the laptop's
-# .env.local points at the live one, so there it is never used).
-#
-# Participant ids (what handoffs hang off): an explicit `id:` on the line
-# ([a-z0-9-]) wins; else a line WITH a device is identified by its device's
-# external_id — the phone IS the runner for this event, so a runner who
-# swaps phones gets the new external_id written on THEIR line (not a new
-# line); else the 1-based position. Deleting or reordering lines therefore
-# never re-attributes anyone's legs; a line that leaves the file keeps its
-# row in the database (sync warns, with its handoff count).
+# laptop). It is written to the database only when it comes from the env
+# var or the database is local.
 
 slug: lasd26
 name: "No Shortcuts TT · LA to SD"
@@ -37,33 +42,33 @@ public_delay_s: 0
 crew_key: "$TRACKER_CREW_KEY_LASD26"
 
 entries:
-  - name: "Team A"
-    short_name: A
-    color: "#D4FF3A"
+  - name: "No Shortcuts × Just Friends"
+    short_name: JF
+    color: "#D0F858"
+    slots: 2
+    slot_names: ["A", "B"]
     participants:
-      - { name: "Runner A1", initials: "A1", device: { source: traccar, external_id: "lasd26-a1" } }
-      - { name: "Runner A2", initials: "A2", device: { source: traccar, external_id: "lasd26-a2" } }
-      - { name: "Runner A3", initials: "A3", device: { source: traccar, external_id: "lasd26-a3" } }
-      - { name: "Runner A4", initials: "A4", device: { source: traccar, external_id: "lasd26-a4" } }
-      - { name: "Runner A5", initials: "A5", device: { source: traccar, external_id: "lasd26-a5" } }
-      - { name: "Runner A6", initials: "A6", device: { source: traccar, external_id: "lasd26-a6" } }
-      - { name: "Runner A7", initials: "A7", device: { source: traccar, external_id: "lasd26-a7" } }
-      - { name: "Runner A8", initials: "A8", device: { source: traccar, external_id: "lasd26-a8" } }
-    vehicle_device: { source: web, external_id: "lasd26-van-a" }
-
-  - name: "Team B"
-    short_name: B
-    color: "#FF6A3D"
-    participants:
-      - { name: "Runner B1", initials: "B1", device: { source: traccar, external_id: "lasd26-b1" } }
-      - { name: "Runner B2", initials: "B2", device: { source: traccar, external_id: "lasd26-b2" } }
-      - { name: "Runner B3", initials: "B3", device: { source: traccar, external_id: "lasd26-b3" } }
-      - { name: "Runner B4", initials: "B4", device: { source: traccar, external_id: "lasd26-b4" } }
-      - { name: "Runner B5", initials: "B5", device: { source: traccar, external_id: "lasd26-b5" } }
-      - { name: "Runner B6", initials: "B6", device: { source: traccar, external_id: "lasd26-b6" } }
-      - { name: "Runner B7", initials: "B7", device: { source: traccar, external_id: "lasd26-b7" } }
-      - { name: "Runner B8", initials: "B8", device: { source: traccar, external_id: "lasd26-b8" } }
-    vehicle_device: { source: web, external_id: "lasd26-van-b" }
+      - { name: "Runner 1", initials: "R1", device: { source: traccar, external_id: "lasd26-r01" } }
+      - { name: "Runner 2", initials: "R2", device: { source: traccar, external_id: "lasd26-r02" } }
+      - { name: "Runner 3", initials: "R3", device: { source: traccar, external_id: "lasd26-r03" } }
+      - { name: "Runner 4", initials: "R4", device: { source: traccar, external_id: "lasd26-r04" } }
+      - { name: "Runner 5", initials: "R5", device: { source: traccar, external_id: "lasd26-r05" } }
+      - { name: "Runner 6", initials: "R6", device: { source: traccar, external_id: "lasd26-r06" } }
+      - { name: "Runner 7", initials: "R7", device: { source: traccar, external_id: "lasd26-r07" } }
+      - { name: "Runner 8", initials: "R8", device: { source: traccar, external_id: "lasd26-r08" } }
+      - { name: "Runner 9", initials: "R9", device: { source: traccar, external_id: "lasd26-r09" } }
+      - { name: "Runner 10", initials: "R10", device: { source: traccar, external_id: "lasd26-r10" } }
+      - { name: "Runner 11", initials: "R11", device: { source: traccar, external_id: "lasd26-r11" } }
+      - { name: "Runner 12", initials: "R12", device: { source: traccar, external_id: "lasd26-r12" } }
+      - { name: "Runner 13", initials: "R13", device: { source: traccar, external_id: "lasd26-r13" } }
+      - { name: "Runner 14", initials: "R14", device: { source: traccar, external_id: "lasd26-r14" } }
+      - { name: "Runner 15", initials: "R15", device: { source: traccar, external_id: "lasd26-r15" } }
+      - { name: "Runner 16", initials: "R16", device: { source: traccar, external_id: "lasd26-r16" } }
+    # The van phone on Traccar Client (screen off), with the web page as a
+    # fallback: both report as the vehicle.
+    vehicle_device: { source: traccar, external_id: "lasd26-van" }
+    vehicle_devices:
+      - { source: web, external_id: "lasd26-van-web" }
 
 # Miles are measured along the STAND-IN GPX (142.4 mi, BRouter, coast-hugging
 # — the official course is ~134 mi); the owner replaces towns / exchange

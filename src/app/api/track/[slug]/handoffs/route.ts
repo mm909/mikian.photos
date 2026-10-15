@@ -16,7 +16,14 @@ export const maxDuration = 30;
  *   POST  body = HandoffRequest | { handoffs: HandoffRequest[] } → the DTOs
  *           for what was sent, in order. Idempotent on client_event_id, so
  *           the offline queue may retry freely; the tap time is corrected
- *           when the client clock is more than 5 s off the server's.
+ *           when the client clock is more than 5 s off the server's. A
+ *           request's optional `slot` (1-based, default 1) names which of
+ *           the entry's slots the runner takes — pairs run A and B (owner,
+ *           2026-10-15) — and is 400 when the entry has no such slot. A tap
+ *           for a runner who holds ANOTHER slot at that time is 409, "<name>
+ *           is already on course in <slot>" (handoffs.ts): the crew page
+ *           drops it rather than retrying. The DTO carries the slot back,
+ *           for GET and POST alike.
  */
 export async function GET(req: Request, { params }: { params: { slug: string } }) {
   const crew = await requireCrew(req, params.slug);
