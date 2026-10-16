@@ -69,6 +69,35 @@ export const expensesCss = `
 .lasd26 .xp-up .ok{color:var(--safety-ink)}
 .lasd26 .xp-up .bad{color:#b3261e}
 .lasd26 .xp-edit{border-left:3px solid var(--safety-ink);padding-left:14px;margin-top:4px}
+.lasd26 .xp-hint{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:14px;line-height:1.7}
+
+/* PART OF — the select, drawn like the inputs (underline, no chrome) with
+ * its own caret, since appearance:none takes the browser's away. */
+.lasd26 .xp-selw{position:relative}
+.lasd26 .xp-selw::after{content:"\\25BE";position:absolute;right:6px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-soft);font-size:14px}
+.lasd26 .xp-sel{width:100%;min-height:44px;background:transparent;border:none;border-bottom:2px solid var(--ink);color:var(--ink);font-family:var(--lasd-archivo),sans-serif;font-size:17px;padding:8px 28px 8px 2px;border-radius:0;appearance:none;-webkit-appearance:none;cursor:pointer}
+.lasd26 .xp-sel:focus{outline:none;border-bottom-color:var(--safety-ink)}
+.lasd26 .xp-sel:disabled{color:var(--gray);cursor:default}
+
+/* BUCKETS (owner, 2026-10-16: real costs under the gas / food estimates).
+ * The bucket card keeps the plain card look; what is filed under it hangs
+ * off a deep-green rule on the left, each child a smaller card, and the
+ * door to add one is a dashed green box at the foot — lime only as the
+ * fill on hover, green type on the paper otherwise. The muted line reads
+ * where the real costs stand against the estimate. */
+.lasd26 .xp-bucket-line{font-family:var(--lasd-mono),monospace;font-size:11px;color:var(--gray);margin-top:8px;letter-spacing:.02em;line-height:1.7}
+.lasd26 .xp-bucket-line b{color:var(--safety-ink);font-weight:700}
+.lasd26 .xp-kids{margin-top:16px;border-left:3px solid var(--safety-ink);padding-left:14px}
+.lasd26 .xp-kids .xp-card{padding:14px 0 16px;border-bottom:1px dashed var(--line)}
+.lasd26 .xp-kids .xp-card:last-of-type{border-bottom:none}
+.lasd26 .xp-kids .xp-title{font-size:15px}
+.lasd26 .xp-kids .xp-amt{font-size:18px}
+.lasd26 .xp-kids .xp-rcpt{width:72px;height:72px}
+.lasd26 .xp-kid-add{display:flex;width:100%;min-height:46px;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;background:transparent;border:2px dashed var(--safety-ink);color:var(--safety-ink);font-family:var(--lasd-archivo-black),sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.04em;padding:10px 14px;cursor:pointer;text-align:left}
+.lasd26 .xp-kid-add .mono{font-size:10px;letter-spacing:.1em;font-weight:400}
+.lasd26 .xp-kid-add:hover{background:var(--safety);color:#111;border-style:solid;border-color:#111}
+.lasd26 .xp-add.in-bucket{margin-top:10px;border-color:var(--safety-ink);padding-top:16px}
+.lasd26 .xp-add .under{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--safety-ink)}
 
 .lasd26 .xp-notice{border:2px solid var(--ink);padding:24px 20px;margin-top:6px;font-family:var(--lasd-mono),monospace;font-size:13px;line-height:1.8}
 .lasd26 .xp-notice strong{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:22px;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:1.1;margin-bottom:10px}

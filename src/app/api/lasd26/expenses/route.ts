@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { TEAM, type TeamViewer } from "@/lib/lasd26/team";
-import { expensesPayload, getExpense, parseExpenseInput, toView } from "@/lib/lasd26/expenses";
+import { checkBucket, expensesPayload, getExpense, parseExpenseInput, viewWithChildren } from "@/lib/lasd26/expenses";
 import { badJson, readJson, requireTeam, requireTeamWrite } from "./guard";
 
 /**
- * GET  /api/lasd26/expenses — the list + sums the page shows (team only).
+ * GET  /api/lasd26/expenses — the tree + sums the page shows (team only):
+ *      top-level lines newest first, each bucket with its children inside,
+ *      and the live buckets for the PART OF select.
  * POST /api/lasd26/expenses — add a line: { title ≤ 80, amount, note? ≤ 400,
- *      estimate?: boolean } → { ok, expense }. Receipts come after, through
- *      /[id]/receipts/sign then /[id]/receipts.
+ *      estimate?: boolean, parentId?: string | null } → { ok, expense }.
+ *      parentId files the line under a bucket (owner, 2026-10-16: "add real
+ *      expenses to the food/gas estimates"): it must be a live, top-level
+ *      ESTIMATE of this team, and the new line cannot be an estimate
+ *      itself — 400 otherwise (lib/lasd26/expenses checkBucket). Receipts
+ *      come after, through /[id]/receipts/sign then /[id]/receipts.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +56,12 @@ export async function POST(req: Request) {
   if (!body) return badJson();
   const parsed = parseExpenseInput(body);
   if (!parsed.ok) return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
-  const { title, amountCents, note, estimate } = parsed.data;
+  const { title, amountCents, note, estimate, parentId } = parsed.data;
+
+  if (parentId !== null) {
+    const bucket = await checkBucket(parentId, { estimate });
+    if (!bucket.ok) return NextResponse.json({ ok: false, error: bucket.error }, { status: 400 });
+  }
 
   const addedById = await addedByIdFor(gate.viewer);
   const created = await db.teamExpense.create({
@@ -60,6 +71,7 @@ export async function POST(req: Request) {
       amountCents,
       note,
       estimate,
+      parentId,
       // Never null for a line added here: the owner gets his member row
       // on the way in (addedByIdFor), so "FROM THE COST SHEET" is only
       // ever a seeded line.
@@ -69,5 +81,5 @@ export async function POST(req: Request) {
   });
   const expense = await getExpense(created.id);
   if (!expense) return NextResponse.json({ ok: false, error: "Saved, but could not read it back." }, { status: 500 });
-  return NextResponse.json({ ok: true, expense: toView(expense, gate.viewer) });
+  return NextResponse.json({ ok: true, expense: await viewWithChildren(expense, gate.viewer) });
 }

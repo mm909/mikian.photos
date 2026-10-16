@@ -44,7 +44,8 @@ export default async function ExpensesPage() {
   } else {
     const payload = await expensesPayload(viewer);
     body = <Expenses initial={payload} />;
-    eyebrow = `${payload.expenses.length} LINE${payload.expenses.length === 1 ? "" : "S"} · SPLIT ${payload.splitCount} WAYS`;
+    // Every live line, the real costs inside the buckets included.
+    eyebrow = `${payload.lineCount} LINE${payload.lineCount === 1 ? "" : "S"} · SPLIT ${payload.splitCount} WAYS`;
   }
 
   return (

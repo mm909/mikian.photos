@@ -7,9 +7,12 @@ import { lasdPath } from "@/lib/lasd26/paths";
 /**
  * The account button, top right of every page of the team site (owner,
  * 2026-10-15: "a profile button, just like we have on the other sites").
- * Signed out it is SIGN IN, an ink pill (Google, back to the same page).
- * Signed in it is a bordered pill — the member's initial in a lime dot and
- * a first name — that opens a small paper panel: who they are and their
+ * Signed out it is SIGN IN, a square ink block (Google, back to the same
+ * page). Signed in it is a square ink-bordered button — the member's
+ * initial in a square lime block and a first name in mono caps (owner,
+ * 2026-10-16: "I don't like the round buttons for the profile"; the
+ * corners are in theme.ts .acct-btn) — that opens a small paper panel,
+ * square too: who they are and their
  * role, the team pages, and the owner's groups — TEAM (invite link,
  * members) and DEVELOPMENT (the crew-call list, the tracker's pages;
  * owner, 2026-10-15: "in a dev tab only that I can see"), which nobody
@@ -74,7 +77,7 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
         aria-label={`${name || "Account"}, account menu`}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="acct-dot" aria-hidden>
+        <span className="acct-ini" aria-hidden>
           {initial}
         </span>
         <span className="acct-name">{first}</span>

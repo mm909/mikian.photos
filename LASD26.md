@@ -64,6 +64,21 @@ small. When the owner says the new site replaces `/lasd26`:
   receipt is whoever filled up: any member can attach to any line, and
   remove what they attached; a line is edited or deleted by whoever added it
   or the owner.
+- **Buckets** (owner, 2026-10-16: "How do I let people add real expenses to
+  the food/gas estimates"). An estimate line is a bucket real costs are
+  filed under: `TeamExpense.parentId` points "Chevron $62" at "Gas $600".
+  Only a live, top-level estimate can be a parent; a child is never an
+  estimate and never a parent (`checkBucket()` in
+  `src/lib/lasd26/expenses.ts`; the API answers 400). A bucket counts
+  max(its estimate, the sum of its live children) — the estimate stands
+  until the real costs pass it, so one early gas receipt does not drop
+  everyone's share — and "includes $X of estimates" is only the part the
+  real costs have not covered (`totalCents()` in `money.ts`, checked by
+  `npx tsx src/lib/lasd26/money.test.ts`). Every reader of the sums selects
+  `TOTAL_SELECT` (id + parentId) or it double counts. On the page the
+  bucket card lists what is in it and carries "+ ADD A REAL COST"; the
+  top-level add form has a PART OF select. Deleting a bucket detaches its
+  live children, which carry on as their own lines.
 - **The split** is a setting (18, the cost sheet's team size), not the
   member count, so the per-person number holds while people join. Each
   share is the total divided by it, rounded up to the cent.

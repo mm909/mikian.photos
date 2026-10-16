@@ -15,14 +15,18 @@ import { LasdAccount } from "./LasdAccount";
  * lands on the sign-in / invite notice behind it. The account button holds
  * sign in, the member's name and role, and the owner's DEV group.
  *
+ * The doors are the three words and nothing after them (owner, 2026-10-16:
+ * "Remove closed from the header") — no "closed", "race day" or "team".
+ * The greyed LIVE carries title="Race day" in their place.
+ *
  * Every door goes through lasdPath (lib/lasd26/paths.ts): while the site
  * is the dev copy at /lasd26/dev, the bar stays inside it. The DEV pill
  * beside the wordmark is how the owner tells this copy from the live page
  * (the tracker's bar wears the same); it goes when the site goes live.
  *
  * Layout is CSS order (theme.ts .bar): on a phone the wordmark and the
- * account button share the first row and the doors take a second; from
- * 720px it is one row with the doors in the middle.
+ * account button share the first row and the doors take a second, 18 px
+ * apart; from 960px it is one row with the doors centred in the middle.
  */
 
 export type BarKey = "crew-call" | "live" | "expenses" | "team" | "pay" | "join" | "none";
@@ -40,19 +44,19 @@ export function LasdBar({ viewer, active }: { viewer: TeamViewer; active: BarKey
       </a>
       <nav className="bar-nav mono" aria-label="LASD26">
         <a href={lasdPath("")} aria-current={active === "crew-call" ? "page" : undefined}>
-          Crew call <small>closed</small>
+          Crew call
         </a>
         {liveOpen ? (
           <a href="/track/lasd26" aria-current={active === "live" ? "page" : undefined}>
-            Live <small>race day</small>
+            Live
           </a>
         ) : (
-          <span className="off" aria-disabled="true" title="Live tracking opens on race day">
-            Live <small>race day</small>
+          <span className="off" aria-disabled="true" title="Race day">
+            Live
           </span>
         )}
         <a href={lasdPath("/expenses")} aria-current={active === "expenses" ? "page" : undefined}>
-          Expenses {viewer.onTeam ? null : <small>team</small>}
+          Expenses
         </a>
       </nav>
       <div className="bar-acct">

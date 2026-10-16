@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Countdown } from "../Countdown";
 import { LasdPage } from "./LasdPage";
+import { SignInLine } from "./SignInLine";
 import { gateLasdDev } from "@/lib/lasd26/devGate";
 import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
 
@@ -13,9 +14,13 @@ import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
  *
  * The crew call is CLOSED (owner, 2026-10-15: "the van is full"). The page
  * stays as the front of the team site: the race, the weekend, the photos,
- * the countdown; the form block is a closed notice that sends the team to
- * expenses. The crew runs it with Just Friends LV, the Las Vegas run club,
- * so they are on the page beside No Shortcuts.
+ * the countdown; where the form stood there is one line that sends the
+ * team to expenses. The crew runs it with Just Friends LV, the Las Vegas
+ * run club, so they are named beside No Shortcuts (text only — owner,
+ * 2026-10-16: "Remove the JF logo here").
+ *
+ * The weekend is Thursday to SATURDAY (owner, 2026-10-16: "We are actually
+ * coming back Saturday"): out Thursday, race Friday, home Saturday.
  */
 
 export const metadata: Metadata = {
@@ -26,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "LASD26 — Crew Call (dev)",
     description:
-      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–25. Crew call is closed: the van is full.",
+      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–24. Crew call is closed: the van is full.",
     images: [{ url: `${LASD_ASSETS}/golden-hour.jpg`, width: 1100, height: 1375 }],
   },
 };
@@ -50,23 +55,21 @@ export default async function Lasd26DevPage() {
             <br />
             down the
             <br />
-            coast<span className="o">.</span>
+            {/* The period is drawn as a lime disc (theme.ts .hero h1 .o;
+             * owner, 2026-10-16: "a circle instead of a square"); the
+             * real "." is there for a screen reader, visually hidden. */}
+            coast
+            <span className="o" aria-hidden="true" />
+            <span className="sr">.</span>
           </h1>
           <p className="sub">
             We&rsquo;re taking a Vegas crew to the No Shortcuts Time Trial — a
             ~130-mile unsanctioned relay from Santa Monica Pier to San Diego.
             One van. One long Friday. A whole weekend together.
           </p>
-          <p className="with mono">
-            <img
-              src={`${LASD_ASSETS}/brand/jf-mark.png`}
-              width={150}
-              height={150}
-              alt="Just Friends LV"
-            />
-            <span>No Shortcuts × Just Friends LV</span>
-          </p>
-          <span className="cc-mark">Crew call is closed — the van is full</span>
+          <p className="with mono">No Shortcuts × Just Friends LV</p>
+          {/* Owner, 2026-10-16: "Reduce the copy to just 'the van is full'". */}
+          <span className="cc-mark">The van is full</span>
         </div>
       </header>
 
@@ -115,7 +118,7 @@ export default async function Lasd26DevPage() {
         <div className="wrap">
           <div className="sec-head">
             <h2>The Weekend</h2>
-            <span className="mono">THU 10.22 → SUN 10.25</span>
+            <span className="mono">THU 10.22 → SAT 10.24</span>
           </div>
           <div className="day">
             <div className="d">
@@ -140,17 +143,8 @@ export default async function Lasd26DevPage() {
               SAT<span>10.24</span>
             </div>
             <div>
-              <h3>Recover, loudly</h3>
-              <p>All-day pool celebration at Town &amp; Country.</p>
-            </div>
-          </div>
-          <div className="day">
-            <div className="d">
-              SUN<span>10.25</span>
-            </div>
-            <div>
               <h3>SD → Vegas</h3>
-              <p>Checkout, breakfast, drive home.</p>
+              <p>Breakfast, then the drive home.</p>
             </div>
           </div>
         </div>
@@ -190,21 +184,12 @@ export default async function Lasd26DevPage() {
         </div>
       </div>
 
-      {/* Where the form stood. The crew-call list lives in the account
-       * menu's DEVELOPMENT group now, not on the page. */}
-      <div className="form-sec" id="apply">
+      {/* Where the form stood: one line (owner, 2026-10-16: "Reduce the
+       * bottom copy to just 'On the team -> Sign in'"). The crew-call list
+       * lives in the account menu's DEVELOPMENT group, not on the page. */}
+      <div className="form-sec">
         <div className="wrap">
-          <div className="sec-head">
-            <h2>Crew call is closed</h2>
-            <span className="mono">THE VAN IS FULL</span>
-          </div>
-          <p className="closed-p">
-            The van is full. <strong>On the team?</strong> Sign in and open
-            expenses.
-          </p>
-          <a className="send" href={lasdPath("/expenses")}>
-            Open expenses →
-          </a>
+          <SignInLine signedIn={viewer.actor !== null} />
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { inviteByToken } from "@/lib/lasd26/team";
 import { gateLasdDev } from "@/lib/lasd26/devGate";
-import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
+import { lasdPath } from "@/lib/lasd26/paths";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
 import { ChangeRole, JoinForm, SignInToJoin } from "./JoinClient";
@@ -96,8 +96,9 @@ export default async function JoinPage({ searchParams }: { searchParams?: { t?: 
             <strong>LASD26</strong> — the No Shortcuts Time Trial, Santa Monica to San Diego, Fri 10.23. One team page for the roster, the
             costs and the receipts, so nobody chases anybody.
           </p>
+          {/* No mark beside the line (owner, 2026-10-16: "remove the JF logo
+           * here" on the landing's twin of this line). */}
           <div className="jn-brand" aria-hidden>
-            <img src={`${LASD_ASSETS}/brand/jf-mark.png`} width={150} height={150} alt="" />
             <span className="x">JUST FRIENDS LV × NO SHORTCUTS</span>
           </div>
         </div>

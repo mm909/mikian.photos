@@ -1313,6 +1313,13 @@ model TeamExpense {
   note        String    @default("")
   // A round number nobody has a receipt for yet ("Gas $600"); shown as such.
   estimate    Boolean   @default(false)
+  // The bucket this real cost is filed under (owner, 2026-10-16: "How do I
+  // let people add real expenses to the food/gas estimates"). Null for a
+  // top-level line. Only an ESTIMATE line can be a parent, and a child is
+  // never an estimate and never a parent itself (lib/lasd26/expenses.ts
+  // checks; the db cannot). SetNull covers a hard delete; the soft delete
+  // the API does detaches the children by hand.
+  parentId    String?
   // The member who added it (null when seeded by the owner from the sheet).
   addedById   String?
   createdAt   DateTime  @default(now())
@@ -1321,8 +1328,11 @@ model TeamExpense {
 
   addedBy  TeamMember?   @relation(fields: [addedById], references: [id], onDelete: SetNull)
   receipts TeamReceipt[]
+  parent   TeamExpense?  @relation("ExpenseBucket", fields: [parentId], references: [id], onDelete: SetNull)
+  children TeamExpense[] @relation("ExpenseBucket")
 
   @@index([team, createdAt])
+  @@index([parentId])
 }
 
 model TeamReceipt {
