@@ -7,16 +7,19 @@ import { LasdAccount } from "./LasdAccount";
  * what this header looks like … crew call, live tracking, a receipts page
  * … a profile button, just like we have on the other sites").
  *
- * Two doors and the account button. CREW CALL is the landing (closed —
+ * Three doors and the account button. CREW CALL is the landing (closed —
  * the van is full — but the page stays). EXPENSES is for the team: a
  * visitor who is not on it sees the door and lands on the sign-in / invite
- * notice behind it. The account button holds sign in, the member's name
- * and role, and the owner's groups.
+ * notice behind it. ROUTE is the course map, the race's own directions,
+ * open to anyone (owner, 2026-10-16: "the route page can go live after
+ * those changes" — nothing on it is private). The account button holds
+ * sign in, the member's name and role, and the owner's groups.
  *
  * LIVE IS HIDDEN for now (owner, 2026-10-16: "Let's hide the 'live' page
- * for now. It's not ready."): no third door for anyone. The tracker is
+ * for now. It's not ready."): no LIVE door for anyone. The tracker is
  * still reachable by the owner from the DEVELOPMENT group of the account
- * menu (LasdAccount.tsx); when it is ready the door comes back here.
+ * menu (LasdAccount.tsx); when it is ready it joins the bar as a fourth
+ * door after ROUTE.
  *
  * The doors are the words and nothing after them (owner, 2026-10-16:
  * "Remove closed from the header") — no "closed" or "team".
@@ -31,7 +34,7 @@ import { LasdAccount } from "./LasdAccount";
  * justified like the other links on the mikianmusser home page").
  */
 
-export type BarKey = "crew-call" | "expenses" | "team" | "pay" | "join" | "none";
+export type BarKey = "crew-call" | "expenses" | "route" | "team" | "pay" | "join" | "none";
 
 export function LasdBar({ viewer, active }: { viewer: TeamViewer; active: BarKey }) {
   return (
@@ -46,6 +49,9 @@ export function LasdBar({ viewer, active }: { viewer: TeamViewer; active: BarKey
         </a>
         <a href={lasdPath("/expenses")} aria-current={active === "expenses" ? "page" : undefined}>
           Expenses
+        </a>
+        <a href={lasdPath("/route")} aria-current={active === "route" ? "page" : undefined}>
+          Route
         </a>
       </nav>
       <div className="bar-acct">

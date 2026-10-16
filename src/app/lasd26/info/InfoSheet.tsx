@@ -9,7 +9,9 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * THE SHEET on /lasd26/info (owner, 2026-10-16: "make a info page where we
  * can fill out addresses for airbnb, start line, van pick up etc."). Each
  * line is a mono eyebrow (the label) over the value in body type, line
- * breaks kept, links / handles / phone numbers made clickable, and
+ * breaks kept — a blank line is a paragraph gap, a "•" or "1." line hangs
+ * its bullet so the Airbnb's house rules and the pairs read as a list —
+ * links / handles / phone numbers made clickable, and
  * "— not yet —" in grey where nothing has been typed. The OWNER gets an
  * EDIT pencil on every line that swaps the value for a textarea with SAVE
  * / CANCEL (PATCH /api/lasd26/info { key, value }); a member reads. The
@@ -77,7 +79,8 @@ function InfoLine({ item, canEdit }: { item: WireItem; canEdit: boolean }) {
   }
 
   const empty = value.trim() === "";
-  const rows = Math.min(14, Math.max(3, draft.split("\n").length + 1));
+  // Tall enough for the Airbnb's house rules (two dozen lines) without a scrollbar.
+  const rows = Math.min(30, Math.max(3, draft.split("\n").length + 1));
 
   return (
     <div className="if-item">
@@ -131,9 +134,48 @@ function InfoLine({ item, canEdit }: { item: WireItem; canEdit: boolean }) {
             — not yet —{canEdit && item.hint ? <small>{item.hint}</small> : null}
           </span>
         ) : (
-          <span className="if-text">{linkify(value)}</span>
+          <Lines text={value} />
         )}
       </dd>
+    </div>
+  );
+}
+
+/* ─── The value, line by line ───────────────────────────────────────────── */
+
+/** A line that starts a list item: "• No pets.", "1. (Keith & Tasha) …", "- gas". */
+const BULLET = /^(?:[•\-–]|\d{1,2}\.)\s/;
+
+/**
+ * The value as the owner typed it, kept readable at any length: the lines
+ * split on "\n", a blank line closes a paragraph (a gap, not an empty
+ * line), and a line that starts with a bullet or a number hangs it, so a
+ * rule that wraps on a phone stays indented under its first word. Each
+ * line goes through linkify(), so the Airbnb's maps link is a link.
+ */
+function Lines({ text }: { text: string }) {
+  const paras: string[][] = [];
+  let cur: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") {
+      if (cur.length) paras.push(cur);
+      cur = [];
+    } else {
+      cur.push(line);
+    }
+  }
+  if (cur.length) paras.push(cur);
+  return (
+    <div className="if-text">
+      {paras.map((lines, p) => (
+        <div className="if-p" key={p}>
+          {lines.map((line, i) => (
+            <div className={BULLET.test(line) ? "if-line if-bullet" : "if-line"} key={i}>
+              {linkify(line)}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

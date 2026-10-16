@@ -10,8 +10,12 @@ import { LASD_ASSETS } from "@/lib/lasd26/paths";
  *
  * Miles are RUN miles: the drive through Camp Pendleton (San Mateo Point →
  * the Oceanside Chevron) adds nothing, so they match the organizer's
- * bathroom labels and half-mile checkpoints. The tracker's GPX miles run
- * ~17.5 ahead after the drive (`gpx_mile`).
+ * half-mile checkpoints. The tracker's GPX miles run ~17.5 ahead after the
+ * drive (`gpx_mile`).
+ *
+ * The file carries no bathroom stops and nothing past the finish (owner,
+ * 2026-10-16: "Remove the bathroom stops, and bathroom count", "Remove
+ * after the finish copy").
  */
 
 export const COURSE_URL = `${LASD_ASSETS}/route/course.json`;
@@ -38,25 +42,24 @@ export type CourseTurn = {
   note: string | null;
 };
 
-export type CourseBath = {
-  name: string;
-  /** The organizer's word: "window" is their pick for the 12-mile window, "option" an alternative. */
-  kind: "window" | "option";
-  target_mi: number;
-  mile: number;
-  lat: number;
-  lon: number;
-  address: string | null;
-  eta: string | null;
-};
-
 export type CourseDrive = {
   /** Index into coords of the last run point before the drive; coords[at + 1] is where the run resumes. */
   at: number;
   mile: number;
+  /** Pickup to restart as the crow flies, metres. */
   straight_m: number;
+  /** The road from pickup to restart, metres — null when the drive was not routed. */
+  road_m: number | null;
   from: [number, number];
   to: [number, number];
+  /**
+   * The drive by car along the road, [lon, lat] pairs (owner, 2026-10-16:
+   * "make the dotted line follow the route we are driving instead of
+   * cutting straight to the point"). null when neither router answered —
+   * the map then draws from → to straight.
+   */
+  coords: [number, number][] | null;
+  routed_by: "brouter" | "osrm" | null;
   note: string;
 };
 
@@ -75,10 +78,6 @@ export type CourseFile = {
   cum_m: number[];
   drives: CourseDrive[];
   turns: CourseTurn[];
-  /** Pins past the finish (the hotel). */
-  after: { name: string; lat: number; lon: number }[];
-  bathrooms: CourseBath[];
-  halfmiles: number;
   /** [run_m, ele_m] at each elevation segment's start, plus the end. */
   profile: [number, number][];
 };

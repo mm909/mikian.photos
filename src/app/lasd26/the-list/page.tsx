@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getTeamViewer } from "@/lib/lasd26/team";
 import { ClearPile } from "../ClearPile";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 
 /**
@@ -112,11 +113,7 @@ export default async function TheListPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <p className="mono">for yourself and others</p>
-        </div>
-      </footer>
+      <LasdFooter />
     </LasdPage>
   );
 }

@@ -2,16 +2,20 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { COURSE_URL, GOOGLE_MAP_URL, MI, feet, miles, type CourseBath, type CourseFile, type CourseTurn, type Focus } from "./course";
+import { COURSE_URL, GOOGLE_MAP_URL, MI, feet, miles, type CourseFile, type CourseTurn, type Focus } from "./course";
 
 /**
  * The route page's body (owner, 2026-10-16: "embed this route into the
- * site"): the map, the chips under it, the facts strip, the elevation
- * profile, the turn-by-turn list and — when its chip is on — the bathroom
- * stops. Loads public/lasd26/route/course.json once, on the client; the
- * map is a dynamic import with ssr off (MapLibre needs a window). A tap on
- * any row hands the map a `focus` and scrolls it back into view, so on a
- * phone the list is a remote control for the map above it.
+ * site"): the map, the Google Maps door under it, the facts strip, the
+ * elevation profile and the turn-by-turn list. Nothing else — the bathroom
+ * stops, their chip and count, the "after the finish" line and the credit
+ * line are gone (owner, 2026-10-16, on his phone: "Remove the bathroom
+ * stops, and bathroom count", "Remove after the finish copy and the 'from
+ * No Shortcuts' official…'"). Loads public/lasd26/route/course.json once,
+ * on the client; the map is a dynamic import with ssr off (MapLibre needs a
+ * window). A tap on any row hands the map a `focus` and scrolls it back
+ * into view, so on a phone the list is a remote control for the map above
+ * it.
  */
 
 const RouteMap = dynamic(() => import("./RouteMap"), {
@@ -22,7 +26,6 @@ const RouteMap = dynamic(() => import("./RouteMap"), {
 export function RouteView() {
   const [course, setCourse] = useState<CourseFile | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [baths, setBaths] = useState(false);
   const [focus, setFocus] = useState<Focus | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +56,7 @@ export function RouteView() {
     <>
       <div className="rt-map" ref={mapRef}>
         {course ? (
-          <RouteMap course={course} showBaths={baths} focus={focus} />
+          <RouteMap course={course} focus={focus} />
         ) : err ? (
           <div className="rt-loading mono">Course unavailable · {err}</div>
         ) : (
@@ -63,10 +66,6 @@ export function RouteView() {
 
       <div className="wrap">
         <div className="rt-chips">
-          <button type="button" className="rt-chip" aria-pressed={baths} onClick={() => setBaths((v) => !v)}>
-            <span className="dot" aria-hidden="true" />
-            Bathroom stops{course ? ` · ${course.bathrooms.length}` : ""}
-          </button>
           <a className="rt-chip" href={GOOGLE_MAP_URL} target="_blank" rel="noopener noreferrer">
             Open in Google Maps ↗
           </a>
@@ -78,29 +77,30 @@ export function RouteView() {
       <div className="wrap">
         {course && <Profile course={course} />}
         {course && <Turns course={course} focus={focus} onGo={go} />}
-        {course && baths && <Baths course={course} focus={focus} onGo={go} />}
-        {course && (
-          <p className="rt-src">
-            From No Shortcuts&apos; official directions map · {course.halfmiles} half-mile checkpoints · built {course.generated_at.slice(0, 10)}
-          </p>
-        )}
       </div>
     </>
   );
 }
 
+/** The drive's length for the page: the road when the script routed it, the straight line when not. */
+function vanMiles(course: CourseFile): string | null {
+  const d = course.drives[0];
+  if (!d) return null;
+  return miles(d.road_m ?? d.straight_m);
+}
+
 /* ─── The facts strip (the landing's .facts, four cells) ─────────────────── */
 
 function Facts({ course }: { course: CourseFile }) {
-  const drive = course.drives[0];
+  const van = vanMiles(course);
+  const routed = course.drives[0]?.coords != null;
   return (
     <div className="facts">
       <div className="in">
         <div className="cell">
           <div className="k">Run</div>
           <div className="v">
-            {miles(course.length_m)} mi
-            {drive && <small>+ {miles(drive.straight_m)} mi in the van</small>}
+            {miles(course.length_m)} mi<small>the van&apos;s miles don&apos;t count</small>
           </div>
         </div>
         <div className="cell">
@@ -117,10 +117,10 @@ function Facts({ course }: { course: CourseFile }) {
           </div>
         </div>
         <div className="cell">
-          <div className="k">Bathrooms</div>
+          <div className="k">Van</div>
           <div className="v">
-            {course.bathrooms.length}
-            <small>every 12 miles</small>
+            {van ? `${van} mi` : "—"}
+            <small>{routed ? "I-5 through Camp Pendleton" : "Camp Pendleton, as the crow flies"}</small>
           </div>
         </div>
       </div>
@@ -165,6 +165,7 @@ function Profile({ course }: { course: CourseFile }) {
 
 function Turns({ course, focus, onGo }: { course: CourseFile; focus: Focus | null; onGo: (f: Omit<Focus, "id">) => void }) {
   const drive = course.drives[0];
+  const van = vanMiles(course);
   return (
     <section className="rt-sec">
       <div className="sec-head">
@@ -181,9 +182,9 @@ function Turns({ course, focus, onGo }: { course: CourseFile; focus: Focus | nul
                 <span className="tx">
                   {t.name}
                   {t.note && <small>{t.note}</small>}
-                  {t.kind === "drive" && drive && (
+                  {t.kind === "drive" && drive && van && (
                     <small>
-                      {drive.note} {miles(drive.straight_m)} mi straight — the tracker&apos;s miles run ahead of these from here.
+                      {drive.note} {van} mi {drive.coords ? "by road" : "as the crow flies"}.
                     </small>
                   )}
                 </span>
@@ -192,55 +193,6 @@ function Turns({ course, focus, onGo }: { course: CourseFile; focus: Focus | nul
           );
         })}
       </ol>
-      {course.after.length > 0 && <p className="rt-after">AFTER THE FINISH: {course.after.map((a) => a.name).join(" · ")}</p>}
-    </section>
-  );
-}
-
-/* ─── Bathroom stops, grouped by the organizer's 12-mile windows ─────────── */
-
-function Baths({ course, focus, onGo }: { course: CourseFile; focus: Focus | null; onGo: (f: Omit<Focus, "id">) => void }) {
-  const groups = new Map<number, { b: CourseBath; i: number }[]>();
-  course.bathrooms.forEach((b, i) => {
-    const list = groups.get(b.target_mi) ?? [];
-    list.push({ b, i });
-    groups.set(b.target_mi, list);
-  });
-  const targets = Array.from(groups.keys()).sort((a, b) => a - b);
-  return (
-    <section className="rt-sec">
-      <div className="sec-head">
-        <h2>Bathroom stops</h2>
-        <span className="mono">EVERY 12 MI · THE ORGANIZER&apos;S LIST</span>
-      </div>
-      {targets.map((target) => (
-        <div key={target}>
-          <div className="rt-bhead">Mile {target} window</div>
-          <ul className="rt-list">
-            {groups.get(target)!.map(({ b, i }) => {
-              const key = `b${i}`;
-              return (
-                <li key={key} className={`rt-row${focus?.key === key ? " is-on" : ""}`}>
-                  <button type="button" onClick={() => onGo({ lon: b.lon, lat: b.lat, name: b.name, mile: b.mile, key })}>
-                    <span className="mi">{b.mile.toFixed(1)}</span>
-                    <span className="tx">
-                      {b.name}
-                      {b.kind === "window" && <span className="rt-tag">window</span>}
-                      {(b.address || b.eta) && (
-                        <small>
-                          {b.address}
-                          {b.address && b.eta ? " · " : ""}
-                          {b.eta ? `ETA ${b.eta}` : ""}
-                        </small>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
     </section>
   );
 }

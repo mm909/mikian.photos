@@ -1,9 +1,9 @@
 import { Archivo, Archivo_Black, Space_Mono } from "next/font/google";
 
 /* Shared look for the team site — /lasd26 and its sub-pages (the-list,
- * expenses, team, pay, join): fonts, the noise tile, and the full scoped
- * stylesheet under the .lasd26 wrapper. Page-only rules live with their
- * page and reach the sheet through LasdPage's extraCss. */
+ * expenses, team, pay, join, route, info): fonts, the noise tile, and the
+ * full scoped stylesheet under the .lasd26 wrapper. Page-only rules live
+ * with their page and reach the sheet through LasdPage's extraCss. */
 
 export const archivo = Archivo({
   subsets: ["latin"],
@@ -67,17 +67,18 @@ export const css = `
 .lasd26 .bar .wm-t{font-size:11px;letter-spacing:.1em}
 .lasd26 .bar-acct{order:2;position:relative;display:flex;align-items:center;min-height:56px}
 /* THE DOORS (owner, 2026-10-16: "Change the color of the link on the main
- * header to that green", "Remove closed from the header"). Two words,
- * nothing after them — CREW CALL · EXPENSES — 18 px apart, one tight
- * group, LEFT-justified on every width (owner, 2026-10-16: "left justified
- * like the other links on the mikianmusser home page", where the brand and
- * the chips run from the left with nothing centred). LIVE is hidden for
- * now (owner: "It's not ready"); it comes back as a third door. The link
- * text is --safety-ink, the deep cut of the lime: plain lime (#D0F858) on
- * the cream paper is unreadable (about 1.4:1), so the lime itself is kept
- * for the 3 px underline under the current page and under a hover. The
- * row is ~170 px, so it holds both at 320 px without scrolling; overflow
- * stays auto as a belt-and-braces for a zoomed font. */
+ * header to that green", "Remove closed from the header"). The words,
+ * nothing after them — CREW CALL · EXPENSES · ROUTE — 18 px apart, one
+ * tight group, LEFT-justified on every width (owner, 2026-10-16: "left
+ * justified like the other links on the mikianmusser home page", where the
+ * brand and the chips run from the left with nothing centred). LIVE is
+ * hidden for now (owner: "It's not ready"); it comes back as a fourth
+ * door. The link text is --safety-ink, the deep cut of the lime: plain
+ * lime (#D0F858) on the cream paper is unreadable (about 1.4:1), so the
+ * lime itself is kept for the 3 px underline under the current page and
+ * under a hover. The three words are ~230 px of text, so the row holds
+ * them at 320 px without scrolling; overflow stays auto as a
+ * belt-and-braces for a zoomed font. */
 .lasd26 .bar-nav{order:3;flex:0 0 100%;display:flex;justify-content:flex-start;gap:18px;border-top:1px dashed var(--line);margin:0 -20px;padding:0 20px;overflow-x:auto;scrollbar-width:none}
 .lasd26 .bar-nav::-webkit-scrollbar{display:none}
 .lasd26 .bar-nav a{display:inline-flex;align-items:center;min-height:44px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;color:var(--safety-ink);text-decoration-line:none;text-underline-offset:7px;text-decoration-thickness:3px;text-decoration-color:var(--safety)}

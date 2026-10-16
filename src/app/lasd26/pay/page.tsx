@@ -4,6 +4,7 @@ import { lasdPath } from "@/lib/lasd26/paths";
 import { dueFor, memberDue, paidStamp, viaLabel, type MemberRow } from "@/lib/lasd26/settle";
 import { fmtUsd } from "@/lib/lasd26/money";
 import { isPaymentsOpen } from "@/lib/paymentLock";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { payCss } from "../payCss";
 import { PayShare } from "./PayShare";
@@ -50,17 +51,6 @@ export const viewport: Viewport = {
 
 // Session-gated and the sheet moves — never render statically.
 export const dynamic = "force-dynamic";
-
-function Foot() {
-  return (
-    <footer>
-      <div className="wrap" style={{ padding: 0 }}>
-        <div className="big">NO SHORTCUTS TIME TRIAL — 7TH EDITION</div>
-        <p className="mono">for yourself and others</p>
-      </div>
-    </footer>
-  );
-}
 
 /** The eyebrow beside SETTLE UP: where this member stands, in two words. */
 function eyebrowFor(mine: MemberRow, settleOpen: boolean): string {
@@ -155,7 +145,7 @@ export default async function PayPage() {
             </div>
           </div>
         </section>
-        <Foot />
+        <LasdFooter />
       </LasdPage>
     );
   }
@@ -176,7 +166,7 @@ export default async function PayPage() {
             </div>
           </div>
         </section>
-        <Foot />
+        <LasdFooter />
       </LasdPage>
     );
   }
@@ -199,7 +189,7 @@ export default async function PayPage() {
             </div>
           </div>
         </section>
-        <Foot />
+        <LasdFooter />
       </LasdPage>
     );
   }
@@ -276,7 +266,7 @@ export default async function PayPage() {
           ) : null}
         </div>
       </section>
-      <Foot />
+      <LasdFooter />
     </LasdPage>
   );
 }

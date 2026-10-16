@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { devTitle, gateLasdDev } from "@/lib/lasd26/devGate";
 import { listInfoItems } from "@/lib/lasd26/info";
-import { lasdPath } from "@/lib/lasd26/paths";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { infoCss } from "../infoCss";
 import { InfoInvite, InfoSheet, InfoSignIn, type WireItem } from "./InfoSheet";
@@ -15,10 +15,14 @@ import { InfoInvite, InfoSheet, InfoSignIn, type WireItem } from "./InfoSheet";
  * runners need. Again put it behind a dev gate for now."
  *
  * One page the crew opens in the van: the race, the day, the start line,
- * the Airbnb, the van pick-up, who to call — a mono eyebrow over each
- * value, in the 720 px wrap. The list and the prefills are
- * lib/lasd26/info.ts (seeded on first read); the values are the owner's,
- * typed here through the EDIT pencil. Members read.
+ * the vans, the pairs, the Airbnb, the hotel rooms, who to call — a mono
+ * eyebrow over each value, in the 720 px wrap. The list and the text are
+ * lib/lasd26/infoSheet.ts (seeded on first read, brought in line by
+ * lib/lasd26/info.ts); the values are the owner's — the notes he sent on
+ * 2026-10-16, written by scripts/lasd26-info-fill.ts, and whatever he types
+ * here through the EDIT pencil. Members read. The foot is the shared
+ * LasdFooter (owner: "update the footer with my full footer, like all the
+ * other pages").
  *
  * IN DEVELOPMENT (CLAUDE.md): gateLasdDev() — admin-only in production,
  * open on a laptop; "(dev)" in the title; noindex; the only door is the
@@ -78,16 +82,7 @@ export default async function InfoPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <p className="mono">
-            <a href={lasdPath("/expenses")}>EXPENSES →</a> · <a href={lasdPath("")}>CREW CALL →</a>
-          </p>
-          <p className="mono" style={{ marginTop: 18 }}>
-            for yourself and others
-          </p>
-        </div>
-      </footer>
+      <LasdFooter />
     </LasdPage>
   );
 }

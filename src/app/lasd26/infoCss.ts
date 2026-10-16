@@ -23,10 +23,17 @@ export const infoCss = `
 .lasd26 .if-pencil{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:-10px -6px -10px 0;padding:0 6px;background:none;border:none;color:var(--gray);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 .lasd26 .if-pencil:hover{color:var(--safety-ink)}
 .lasd26 .if-pencil:disabled{opacity:.5;cursor:default}
-.lasd26 .if-v{margin:6px 0 0;font-size:16px;line-height:1.6}
-/* Line breaks as typed (an address on three lines), long links broken
- * rather than pushing the wrap. */
-.lasd26 .if-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.lasd26 .if-v{margin:8px 0 0;font-size:16px;line-height:1.65}
+/* The value line by line (InfoSheet's Lines): a paragraph per blank line
+ * with a gap between, a line as typed inside it, a bullet or a number
+ * hanging in the margin so a wrapped rule stays indented; a measure of
+ * ~64 characters so the Airbnb's house rules read as a page, not a slab;
+ * long links broken rather than pushing the wrap. */
+.lasd26 .if-text{max-width:64ch;overflow-wrap:anywhere}
+.lasd26 .if-p{margin:0 0 14px}
+.lasd26 .if-p:last-child{margin-bottom:0}
+.lasd26 .if-line{white-space:pre-wrap}
+.lasd26 .if-bullet{padding-left:1.35em;text-indent:-1.35em}
 .lasd26 .if-text a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px;text-decoration-color:var(--safety)}
 .lasd26 .if-text a:hover{color:var(--safety-ink)}
 .lasd26 .if-empty{font-family:var(--lasd-mono),monospace;font-size:13px;color:var(--gray)}

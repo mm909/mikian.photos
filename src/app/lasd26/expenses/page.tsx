@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { ensureOwnerMember, getTeamViewer } from "@/lib/lasd26/team";
 import { expensesPayload } from "@/lib/lasd26/expenses";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { expensesCss } from "../expensesCss";
 import { Expenses, InviteNotice, SignInNotice } from "./Expenses";
@@ -60,11 +61,7 @@ export default async function ExpensesPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <p className="mono">for yourself and others</p>
-        </div>
-      </footer>
+      <LasdFooter />
     </LasdPage>
   );
 }

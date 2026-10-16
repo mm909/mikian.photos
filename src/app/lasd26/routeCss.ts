@@ -3,24 +3,54 @@
  * the site"). Passed through LasdPage's extraCss; every rule sits under
  * .lasd26 .rt-* (and the MapLibre classes under .lasd26) so nothing leaks
  * into the other pages. The map takes the whole width, 60vh on a phone;
- * the route is the lime over an ink casing, the drive a dashed ink line;
- * popups and the attribution are redrawn as paper, ink and mono. Type and
- * thin borders on the paper use --safety-ink, never the lime (theme.ts). */
+ * the route is the lime over an ink casing, the drive a dashed ink line
+ * along the road; popups and the attribution are redrawn as paper, ink and
+ * mono. Type and thin borders on the paper use --safety-ink, never the lime
+ * (theme.ts). */
 
 export const routeCss = `
-.lasd26 .rt-top{padding:36px 0 18px}
-.lasd26 .rt-top .sec-head{margin-bottom:14px}
-.lasd26 .rt-lede{font-size:15px;color:var(--ink-soft);max-width:60ch}
-.lasd26 .rt-lede a{text-decoration:underline;text-underline-offset:3px}
-.lasd26 .rt-lede a:hover{color:var(--safety-ink)}
+/* The head sits right on the map: no intro under it (owner, 2026-10-16:
+ * "Remove the copy at the top of the routes page"), and its rule IS the
+ * map's top rule, so the two 2 px lines do not stack. */
+.lasd26 .rt-top{padding:36px 0 0}
+.lasd26 .rt-top .sec-head{margin-bottom:0;border-bottom:none;padding-bottom:12px}
 
 /* THE MAP — full width, between two ink rules. scroll-margin keeps the
  * sticky bar off it when a tap on the list scrolls it into view. */
 .lasd26 .rt-map{position:relative;height:60vh;height:60dvh;min-height:320px;max-height:720px;background:#e9e8e1;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);scroll-margin-top:120px}
-.lasd26 .rt-map .map-el{position:absolute;inset:0}
+/* The stage is what goes full screen: the map, the buttons and the notes
+ * together, so they all come along. */
+.lasd26 .rt-stage{position:absolute;inset:0;background:#e9e8e1}
+.lasd26 .rt-stage .map-el{position:absolute;inset:0}
 .lasd26 .rt-map canvas{outline:none}
 .lasd26 .rt-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 20px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray)}
-.lasd26 .rt-note{position:absolute;left:12px;top:12px;max-width:70%;background:var(--paper);border:2px solid var(--ink);padding:5px 9px;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
+.lasd26 .rt-notes{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 84px);pointer-events:none}
+.lasd26 .rt-note{background:var(--paper);border:2px solid var(--ink);padding:5px 9px;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+
+/* THE BUTTONS on the map, top right (owner, 2026-10-16: "Show the user's
+ * location on the map", "Give a button to full screen the map"): 44 px
+ * squares of paper with an ink border and the landing's hard shadow.
+ * LOCATE following = ink with the lime crosshair; watching but let go of =
+ * paper with the deep-green crosshair. In full screen the button turns
+ * into CLOSE and grows a word. */
+.lasd26 .rt-ctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:2}
+.lasd26 .rt-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:44px;min-height:44px;padding:0;border:2px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);box-shadow:3px 3px 0 rgba(17,17,16,.18);cursor:pointer;font-family:var(--lasd-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.lasd26 .rt-btn svg{display:block;flex:none}
+.lasd26 .rt-btn:hover{border-color:var(--safety-ink);color:var(--safety-ink)}
+.lasd26 .rt-btn.fs.is-on{padding:0 12px 0 10px;background:var(--ink);color:var(--safety)}
+.lasd26 .rt-btn.fs.is-on:hover{background:var(--safety-ink);color:var(--paper)}
+.lasd26 .rt-btn.locate[data-state=watch]{border-color:var(--safety-ink);color:var(--safety-ink)}
+.lasd26 .rt-btn.locate[data-state=follow]{background:var(--ink);color:var(--safety);border-color:var(--ink)}
+
+/* FULL SCREEN. The API way: the browser pins the stage itself; keep the
+ * paper behind the tiles and the box from clipping. The CSS way (iPhone
+ * Safari): the stage is fixed over the whole viewport, above the sticky bar
+ * (z 50) and the account menu (z 60); the buttons drop under the notch. */
+.lasd26 .rt-stage:fullscreen{background:#e9e8e1}
+.lasd26 .rt-stage.is-fs{position:fixed;inset:0;z-index:100;height:100vh;height:100dvh}
+.lasd26 .rt-stage.is-fs .rt-ctl{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+.lasd26 .rt-stage.is-fs .rt-notes{top:calc(12px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px))}
+
 /* START / FINISH: ink tags with lime type, the finish inverted. */
 .lasd26 .rt-mk{font-family:var(--lasd-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.14em;background:var(--ink);color:var(--safety);border:2px solid var(--ink);padding:4px 7px 3px;white-space:nowrap;box-shadow:3px 3px 0 rgba(17,17,16,.18);cursor:default;user-select:none}
 .lasd26 .rt-mk.finish{background:var(--safety);color:#111}
@@ -37,14 +67,10 @@ export const routeCss = `
 .lasd26 .maplibregl-ctrl-attrib a{color:var(--ink-soft)}
 .lasd26 .maplibregl-ctrl-bottom-left{bottom:0}
 
-/* THE CHIPS under the map: the bathroom layer's switch and the Google Maps
- * door. 44 px tall — thumbs in a van. Pressed = ink with lime type. */
+/* THE CHIP under the map: the Google Maps door. 44 px tall — thumbs in a van. */
 .lasd26 .rt-chips{display:flex;flex-wrap:wrap;gap:8px;padding:14px 0 0}
 .lasd26 .rt-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--lasd-mono),monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:9px 14px;cursor:pointer;text-decoration:none}
 .lasd26 .rt-chip:hover{border-color:var(--safety-ink);color:var(--safety-ink)}
-.lasd26 .rt-chip[aria-pressed=true]{background:var(--ink);color:var(--safety);border-color:var(--ink)}
-.lasd26 .rt-chip .dot{width:10px;height:10px;border-radius:50%;background:var(--safety-ink);flex:none}
-.lasd26 .rt-chip[aria-pressed=true] .dot{background:var(--safety)}
 
 /* The profile: lime under an ink line, the drive a dashed tick. */
 .lasd26 .rt-profile{margin-top:30px}
@@ -52,7 +78,7 @@ export const routeCss = `
 .lasd26 .rt-profile .k{display:flex;justify-content:space-between;gap:12px;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-top:6px}
 
 .lasd26 .rt-sec{padding:40px 0 0}
-/* THE LISTS: one row per call — the mile in mono, deep green, then the
+/* THE LIST: one row per call — the mile in mono, deep green, then the
  * instruction; a tap flies the map there. The van row is the ink block
  * the landing's race day wears. */
 .lasd26 .rt-list{list-style:none;border-top:2px solid var(--ink)}
@@ -71,10 +97,8 @@ export const routeCss = `
 .lasd26 .rt-row.drive .tx small{color:#c9c8c0;text-transform:none;font-weight:400;letter-spacing:.02em}
 .lasd26 .rt-row.drive button:hover .tx{color:var(--safety)}
 .lasd26 .rt-row.drive.is-on{box-shadow:inset 4px 0 0 var(--safety)}
-.lasd26 .rt-tag{display:inline-block;vertical-align:middle;font-family:var(--lasd-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:1.5px solid var(--safety-ink);color:var(--safety-ink);padding:1px 6px 0;margin-left:8px;line-height:1.5}
-.lasd26 .rt-bhead{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);padding:18px 0 6px}
-.lasd26 .rt-after{font-family:var(--lasd-mono),monospace;font-size:12px;color:var(--ink-soft);margin-top:18px;letter-spacing:.02em}
-.lasd26 .rt-src{font-family:var(--lasd-mono),monospace;font-size:11px;color:var(--gray);margin-top:14px;line-height:1.8}
+/* The list is the last thing on the page before the footer's rule. */
+.lasd26 .rt-sec:last-child{padding-bottom:56px}
 
 @media(min-width:960px){
   .lasd26 .rt-map{height:540px}

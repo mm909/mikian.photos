@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getTeamViewer, inviteByToken } from "@/lib/lasd26/team";
 import { lasdPath } from "@/lib/lasd26/paths";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
 import { ChangeRole, JoinForm, SignInToJoin } from "./JoinClient";
@@ -70,6 +71,7 @@ export default async function JoinPage({ searchParams }: { searchParams?: { t?: 
             )}
           </div>
         </section>
+        <LasdFooter />
       </LasdPage>
     );
   }
@@ -135,11 +137,7 @@ export default async function JoinPage({ searchParams }: { searchParams?: { t?: 
         </div>
       )}
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <p className="mono">for yourself and others</p>
-        </div>
-      </footer>
+      <LasdFooter />
     </LasdPage>
   );
 }

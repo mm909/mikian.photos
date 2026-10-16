@@ -5,6 +5,7 @@ import { currentInvite, ensureOwnerMember, getTeamViewer, listMembers, inviteUrl
 import { lasdPath } from "@/lib/lasd26/paths";
 import { dueFor, poolRow, type MemberRow } from "@/lib/lasd26/settle";
 import { fmtUsd } from "@/lib/lasd26/money";
+import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
 import { datePacific, originFrom, stampPacific } from "./fmt";
@@ -207,13 +208,7 @@ export default async function TeamPage() {
         </div>
       </section>
 
-      <footer>
-        <div className="wrap" style={{ padding: 0 }}>
-          <p className="mono">
-            <a href={expenses}>EXPENSES →</a> · <a href={lasdPath("/the-list")}>THE LIST (CREW CALL) →</a>
-          </p>
-        </div>
-      </footer>
+      <LasdFooter />
     </LasdPage>
   );
 }

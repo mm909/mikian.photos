@@ -14,10 +14,10 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * corners are in theme.ts .acct-btn) — that opens a small paper panel,
  * square too: who they are and their
  * role, the team pages, and the owner's groups — TEAM (invite link,
- * members) and DEVELOPMENT (the crew-call list, the route map and the
- * info sheet while they are "(dev)", the tracker's pages; owner,
- * 2026-10-15: "in a dev tab only that I can see"), which nobody else
- * sees. The tracker lives ONLY here while LIVE is hidden from the bar
+ * members) and DEVELOPMENT (the crew-call list, the info sheet while it
+ * is "(dev)", the tracker's pages; owner, 2026-10-15: "in a dev tab only
+ * that I can see"), which nobody else sees. The route map left this group
+ * for the bar on 2026-10-16 ("the route page can go live"). The tracker lives ONLY here while LIVE is hidden from the bar
  * (owner, 2026-10-16: "Let's hide the 'live' page for now. It's not
  * ready."). All plain links, through lasdPath (lib/lasd26/paths.ts), the
  * one place that knows where the site lives. Closes on an outside click or
@@ -116,12 +116,9 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
                 The list (crew call) →
               </a>
               {/* Not live yet (owner, 2026-10-16: "put it behind the dev
-               * gate"): the route map and the info sheet live here only
-               * until he says so — CLAUDE.md, new pages start in
-               * development. Then they move up and lose "(dev)". */}
-              <a className="acct-item" href={lasdPath("/route")} role="menuitem" onClick={close}>
-                Route (dev) →
-              </a>
+               * gate"): the info sheet lives here only until he says so —
+               * CLAUDE.md, new pages start in development. Then it moves
+               * up and loses "(dev)". */}
               <a className="acct-item" href={lasdPath("/info")} role="menuitem" onClick={close}>
                 Info sheet (dev) →
               </a>
