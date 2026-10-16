@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { TEAM, getSettings, type TeamViewer } from "./team";
-import { bucketSum, fmtUsd, parseUsd, perPersonCents, totalCents } from "./money";
+import { TEAM, getSettings, listMembers, type TeamViewer } from "./team";
+import { bucketSum, fmtUsd, parseUsd, perPersonCents, totalCents, type TotalOpts } from "./money";
 
 /**
  * The crew's expenses (owner, 2026-10-15: "kind of like an invoice" — every
@@ -15,13 +15,31 @@ import { bucketSum, fmtUsd, parseUsd, perPersonCents, totalCents } from "./money
  * and may take their own receipt back off any line (canRemoveReceipt),
  * whether or not they may edit the line itself.
  *
+ * PAID BY (owner, 2026-10-16: "Instead of having a note just make it a
+ * 'paid by' and auto fill the name of the user logged in"). Every real
+ * line carries paidById — the member who fronted it; the form defaults it
+ * to the signed-in member and what a member fronted comes off their share
+ * when they settle up (money.ts settlement, settle.ts). The note column
+ * stays in the schema and the API takes it, but nothing shows or edits it
+ * any more.
+ *
  * BUCKETS (owner, 2026-10-16: "How do I let people add real expenses to
  * the food/gas estimates"). An ESTIMATE line is a bucket; a real cost is
  * filed under it with parentId ("Chevron $62" under "Gas $600"). The rules
  * the db cannot hold, checked in checkBucket(): only a live, top-level
  * estimate of the same team can be a parent; a child is never an estimate
- * and never a parent itself. The totals apply the bucket rule in money.ts
- * (the estimate stands until the real costs pass it).
+ * and never a parent itself. The totals apply the bucket rule in money.ts:
+ * the estimate stands until the real costs pass it, and once settling up
+ * is open the estimate is dropped for the real costs (owner: "When I make
+ * settle up go live replace the estimate costs w/ the real cost"). The
+ * estimate itself is the owner's business (owner: "We don't need the
+ * estimate line visible to the other users (keep that for me)"): the
+ * payload says whether the viewer is the owner and the page shows the
+ * chip, the standing line and the checkbox to him alone — a member sees a
+ * bucket as a plain category card. The in-bucket "+ ADD A COST" door is
+ * the only way into a bucket on the page (owner: "We also don't need the
+ * part of line b/c we have the add a real cost button"); the API still
+ * takes parentId on PATCH so the owner can detach by hand if ever needed.
  *
  * Deleting is soft (deletedAt): the receipts stay in R2 and the row keeps
  * its history; totalCents() skips deleted lines. Deleting a bucket
@@ -55,12 +73,15 @@ export type BucketView = {
   /** The live children added up ("$124.10 in real costs so far"). */
   realCents: number;
   real: string;
-  /** What the bucket puts into the total: max(estimate, real). */
+  /** What the bucket puts into the total: max(estimate, real), or real alone once settleOpen. */
   countedCents: number;
   counted: string;
-  /** The part of the estimate the real costs have not covered yet. */
+  /** The part of the estimate the real costs have not covered yet (0 once settleOpen). */
   uncoveredCents: number;
 };
+
+/** The member who fronted a line, for the card and the PAID BY select. */
+export type PayerView = { id: string; name: string };
 
 export type ExpenseView = {
   id: string;
@@ -68,12 +89,15 @@ export type ExpenseView = {
   amountCents: number;
   /** fmtUsd(amountCents), so the client never re-formats money. */
   amount: string;
+  /** Kept in the API for old rows; no longer shown or edited. */
   note: string;
   estimate: boolean;
   /** The bucket this real cost is filed under, or null for a top-level line. */
   parentId: string | null;
   /** The member's name, or null for a line seeded from the cost sheet. */
   addedBy: string | null;
+  /** Who fronted it; null on an estimate, or on a seeded line until the owner sets it. */
+  paidBy: PayerView | null;
   createdAt: string;
   receipts: ReceiptView[];
   /** Owner, or the member who added it. */
@@ -84,18 +108,21 @@ export type ExpenseView = {
   children: ExpenseView[];
 };
 
-/** One option of the PART OF select: a live, top-level estimate. */
-export type BucketOption = { id: string; title: string; amount: string };
-
 export type ExpensesPayload = {
   /** The tree: top-level lines newest first, each bucket with its children inside. */
   expenses: ExpenseView[];
   /** Every live line, children included — the page's "N LINES". */
   lineCount: number;
-  /** The live buckets, for the PART OF select. */
-  buckets: BucketOption[];
+  /** The roster (id + name), for the PAID BY select. */
+  members: PayerView[];
+  /** The viewer's own member id — what PAID BY defaults to; null for an outsider (never, past the gate). */
+  meId: string | null;
+  /** The viewer is the owner: the estimate chip / line / checkbox are his alone. */
+  owner: boolean;
+  /** Settling up is open: the sums are the real costs only. */
+  settleOpen: boolean;
   totalCents: number;
-  /** The part of the estimates the real costs have not covered yet. */
+  /** The part of the estimates the real costs have not covered yet (0 once settleOpen). */
   estimatedCents: number;
   confirmedCents: number;
   /** TeamSettings.splitCount — what divides (18 on the cost sheet). */
@@ -116,9 +143,11 @@ const EXPENSE_SELECT = {
   estimate: true,
   parentId: true,
   addedById: true,
+  paidById: true,
   createdAt: true,
   deletedAt: true,
   addedBy: { select: { name: true } },
+  paidBy: { select: { id: true, name: true } },
   receipts: {
     orderBy: { createdAt: "asc" as const },
     select: { id: true, contentType: true, bytes: true, thumbKey: true, addedById: true, createdAt: true },
@@ -134,9 +163,11 @@ export type ExpenseRow = {
   estimate: boolean;
   parentId: string | null;
   addedById: string | null;
+  paidById: string | null;
   createdAt: Date;
   deletedAt: Date | null;
   addedBy: { name: string } | null;
+  paidBy: { id: string; name: string } | null;
   receipts: Array<{ id: string; contentType: string; bytes: number; thumbKey: string | null; addedById: string | null; createdAt: Date }>;
 };
 
@@ -145,20 +176,28 @@ export type ExpenseList = {
   expenses: ExpenseRow[];
   totals: { total: number; estimated: number; confirmed: number };
   splitCount: number;
+  settleOpen: boolean;
   perPerson: number;
-  memberCount: number;
+  members: PayerView[];
 };
 
 /** Live lines (not deleted), newest first, with the sums the summary block shows. */
 export async function listExpenses(team: string = TEAM): Promise<ExpenseList> {
-  const [rows, settings, memberCount] = await Promise.all([
+  const [rows, settings, members] = await Promise.all([
     db.teamExpense.findMany({ where: { team, deletedAt: null }, orderBy: { createdAt: "desc" }, select: EXPENSE_SELECT }),
     getSettings(team),
-    db.teamMember.count({ where: { team } }),
+    listMembers(team),
   ]);
   const expenses = rows as ExpenseRow[];
-  const totals = totalCents(expenses);
-  return { expenses, totals, splitCount: settings.splitCount, perPerson: perPersonCents(totals.total, settings.splitCount), memberCount };
+  const totals = totalCents(expenses, { settleOpen: settings.settleOpen });
+  return {
+    expenses,
+    totals,
+    splitCount: settings.splitCount,
+    settleOpen: settings.settleOpen,
+    perPerson: perPersonCents(totals.total, settings.splitCount),
+    members: members.map((m) => ({ id: m.id, name: m.name })),
+  };
 }
 
 /** One live line by id (team-scoped), or null. */
@@ -205,13 +244,14 @@ export function canRemoveReceipt(viewer: TeamViewer, expense: { addedById: strin
  * One line for the client. `children` are the live real costs under it
  * (already rows, newest first); an estimate line gets its bucket numbers
  * whether or not anything is filed under it yet, so the card can show the
- * "+ ADD A REAL COST" door either way.
+ * "+ ADD A COST" door either way. `opts.settleOpen` picks the bucket rule
+ * (the estimate stands / the real costs replace it).
  */
-export function toView(expense: ExpenseRow, viewer: TeamViewer, children: ExpenseRow[] = []): ExpenseView {
-  const kids = children.map((c) => toView(c, viewer));
+export function toView(expense: ExpenseRow, viewer: TeamViewer, children: ExpenseRow[] = [], opts: TotalOpts = {}): ExpenseView {
+  const kids = children.map((c) => toView(c, viewer, [], opts));
   let bucket: BucketView | null = null;
   if (expense.estimate && expense.parentId === null) {
-    const b = bucketSum(expense.amountCents, kids.map((k) => k.amountCents));
+    const b = bucketSum(expense.amountCents, kids.map((k) => k.amountCents), opts);
     bucket = { realCents: b.realCents, real: fmtUsd(b.realCents), countedCents: b.countedCents, counted: fmtUsd(b.countedCents), uncoveredCents: b.uncoveredCents };
   }
   return {
@@ -223,6 +263,7 @@ export function toView(expense: ExpenseRow, viewer: TeamViewer, children: Expens
     estimate: expense.estimate,
     parentId: expense.parentId,
     addedBy: expense.addedBy?.name ?? null,
+    paidBy: expense.paidBy ? { id: expense.paidBy.id, name: expense.paidBy.name } : null,
     createdAt: expense.createdAt.toISOString(),
     receipts: expense.receipts.map((r) => ({
       id: r.id,
@@ -238,10 +279,13 @@ export function toView(expense: ExpenseRow, viewer: TeamViewer, children: Expens
   };
 }
 
-/** A line with its live children fetched — what POST / PATCH hand back. */
+/** A line with its live children fetched, under the current settle mode — what POST / PATCH hand back. */
 export async function viewWithChildren(expense: ExpenseRow, viewer: TeamViewer): Promise<ExpenseView> {
-  const children = expense.estimate && expense.parentId === null ? await listChildren(expense.id, expense.team) : [];
-  return toView(expense, viewer, children);
+  const [children, settings] = await Promise.all([
+    expense.estimate && expense.parentId === null ? listChildren(expense.id, expense.team) : Promise.resolve([] as ExpenseRow[]),
+    getSettings(expense.team),
+  ]);
+  return toView(expense, viewer, children, { settleOpen: settings.settleOpen });
 }
 
 /**
@@ -251,7 +295,7 @@ export async function viewWithChildren(expense: ExpenseRow, viewer: TeamViewer):
  * happen through the API) is shown top-level, the same way totalCents()
  * counts it, so the page and the total never disagree.
  */
-export function toTree(rows: ExpenseRow[], viewer: TeamViewer): ExpenseView[] {
+export function toTree(rows: ExpenseRow[], viewer: TeamViewer, opts: TotalOpts = {}): ExpenseView[] {
   const byId = new Map(rows.map((r) => [r.id, r] as const));
   const isChild = (r: ExpenseRow) => r.parentId !== null && byId.has(r.parentId) && byId.get(r.parentId)?.parentId === null;
   const childrenOf = new Map<string, ExpenseRow[]>();
@@ -261,36 +305,48 @@ export function toTree(rows: ExpenseRow[], viewer: TeamViewer): ExpenseView[] {
     if (list) list.push(r);
     else childrenOf.set(r.parentId as string, [r]);
   }
-  return rows.filter((r) => !isChild(r)).map((r) => toView(r, viewer, childrenOf.get(r.id) ?? []));
+  return rows.filter((r) => !isChild(r)).map((r) => toView(r, viewer, childrenOf.get(r.id) ?? [], opts));
 }
 
 /** Everything the page (and GET /api/lasd26/expenses) hands the client. */
 export async function expensesPayload(viewer: TeamViewer, team: string = TEAM): Promise<ExpensesPayload> {
   const list = await listExpenses(team);
-  const expenses = toTree(list.expenses, viewer);
+  const expenses = toTree(list.expenses, viewer, { settleOpen: list.settleOpen });
   return {
     expenses,
     lineCount: list.expenses.length,
-    buckets: expenses.filter((e) => e.bucket !== null).map((e) => ({ id: e.id, title: e.title, amount: e.amount })),
+    members: list.members,
+    meId: viewer.member?.id ?? null,
+    owner: viewer.owner,
+    settleOpen: list.settleOpen,
     totalCents: list.totals.total,
     estimatedCents: list.totals.estimated,
     confirmedCents: list.totals.confirmed,
     splitCount: list.splitCount,
     perPersonCents: list.perPerson,
-    memberCount: list.memberCount,
+    memberCount: list.members.length,
   };
 }
 
 /* ─── Input ───────────────────────────────────────────────────────────────── */
 
-export type ExpenseInput = { title: string; amountCents: number; note: string; estimate: boolean; parentId: string | null };
+export type ExpenseInput = { title: string; amountCents: number; note: string; estimate: boolean; parentId: string | null; paidById: string | null };
+
+/** null / "" / "none" all mean nobody / top-level; anything else must look like an id. */
+function parseIdOrNull(raw: unknown): string | null | undefined {
+  if (raw === null || raw === "" || raw === "none" || raw === undefined) return null;
+  if (typeof raw === "string" && ID_RE.test(raw)) return raw;
+  return undefined;
+}
 
 /**
  * Check a POST (every field) or PATCH (`partial`: only the fields sent)
  * body. Amount goes through parseUsd so "1,415", "$505" and 600 all land
- * as cents; the message is what the form shows. parentId is only checked
- * for shape here — whether that bucket exists is checkBucket()'s job, it
- * needs the db.
+ * as cents; the message is what the form shows. parentId and paidById are
+ * only checked for shape here — whether that bucket exists is
+ * checkBucket()'s job and whether that payer is on the team is
+ * checkPayer()'s, they need the db. A POST without paidById gets null
+ * here and the route fills in the caller's member.
  */
 export function parseExpenseInput(body: Record<string, unknown>, opts: { partial: true }): { ok: true; data: Partial<ExpenseInput> } | { ok: false; error: string };
 export function parseExpenseInput(body: Record<string, unknown>, opts?: { partial?: false }): { ok: true; data: ExpenseInput } | { ok: false; error: string };
@@ -319,15 +375,24 @@ export function parseExpenseInput(body: Record<string, unknown>, opts: { partial
     data.estimate = body.estimate === true || body.estimate === "true" || body.estimate === 1;
   }
   if (has("parentId") || !opts.partial) {
-    // null / "" / "none" all mean top-level; anything else must look like an id.
-    const raw = body.parentId;
-    if (raw === null || raw === "" || raw === "none" || raw === undefined) data.parentId = null;
-    else if (typeof raw === "string" && ID_RE.test(raw)) data.parentId = raw;
-    else return { ok: false, error: "That bucket does not exist." };
+    const id = parseIdOrNull(body.parentId);
+    if (id === undefined) return { ok: false, error: "That bucket does not exist." };
+    data.parentId = id;
+  }
+  if (has("paidById") || !opts.partial) {
+    const id = parseIdOrNull(body.paidById);
+    if (id === undefined) return { ok: false, error: "Pick who paid from the team." };
+    data.paidById = id;
   }
   if (data.estimate === true && data.parentId) return { ok: false, error: "A real cost filed under an estimate cannot itself be an estimate." };
   if (opts.partial && Object.keys(data).length === 0) return { ok: false, error: "Nothing to change." };
   return { ok: true, data };
+}
+
+/** PAID BY must name a member of this team (any member — the gas receipt is whoever filled up). */
+export async function checkPayer(paidById: string, team: string = TEAM): Promise<{ ok: true } | { ok: false; error: string }> {
+  const row = await db.teamMember.findFirst({ where: { id: paidById, team }, select: { id: true } });
+  return row ? { ok: true } : { ok: false, error: "Pick who paid from the team." };
 }
 
 /**

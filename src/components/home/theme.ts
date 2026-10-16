@@ -45,6 +45,7 @@ export const css = `
 .home{
   --paper:#F4F3EE; --ink:#15171a; --ink-soft:#3b3e42; --gray:#8a8a85;
   --water:#0077B6; --water-hover:#1a90d4; --safety:#FF4B00; --safety-hover:#ff6a2b;
+  --jf:#D0F858; --jf-hover:#DFFF78;
   background:var(--paper) url(${NOISE}) repeat;
   color:var(--ink);
   font-family:var(--home-archivo),sans-serif;
@@ -60,22 +61,30 @@ export const css = `
 .home :focus-visible{outline:2px solid var(--water);outline-offset:3px}
 .home .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-/* The bar: MIKIAN MUSSER wordmark, then the two campaign chips right after
+/* The bar: MIKIAN MUSSER wordmark, then the campaign chips right after
  * it, each in its own page colour (ROWTEMBER the Rowtember blue with white
  * — October orange with ink type from 2026-10-01 to 2026-10-13, when the
- * owner sent the blue back everywhere — LASD26 safety orange with white) — one run from the left with nothing
- * parked on the right (owner, 2026-09-05). The chips are bold mono so they
- * read heavier than before yet never like the wordmark, which is Archivo
- * Black; the ink rule under the bar stays as it was. Below 560px the run
- * shrinks a size and may wrap onto a second line. */
+ * owner sent the blue back everywhere — LASD26 the Just Friends lime with
+ * ink type, see below) — one run from the left with nothing parked on the
+ * right (owner, 2026-09-05). The chips are bold mono so they read heavier
+ * than before yet never like the wordmark, which is Archivo Black; the
+ * ink rule under the bar stays as it was. Below 560px the run shrinks a
+ * size and may wrap onto a second line.
+ *
+ * LASD26 IS GREEN (owner, 2026-10-16: make the header link on the main
+ * mikianmusser page the green colour): the team site rebranded from safety
+ * orange to the Just Friends lime on 2026-10-15, and the chip follows it.
+ * The lime is --jf, its own token, so the orange --safety stays as it was
+ * for whatever still leans on it; lime under white type is unreadable, so
+ * the chip carries ink type like the HYROX yellow beside it. */
 .home .bar{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:10px 14px;padding:14px 20px;border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper) url(${NOISE}) repeat;z-index:50}
 .home .bar .brand{font-family:var(--home-archivo-black),sans-serif;font-size:15px;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;line-height:1;white-space:nowrap}
 .home .bar nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .home .bar nav a{font-family:var(--home-mono),monospace;font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;white-space:nowrap;color:#fff;padding:4px 9px;border-radius:0}
 .home .bar nav a.row{background:var(--water)}
 .home .bar nav a.row:hover{background:var(--water-hover)}
-.home .bar nav a.lasd{background:var(--safety)}
-.home .bar nav a.lasd:hover{background:var(--safety-hover)}
+.home .bar nav a.lasd{background:var(--jf);color:var(--ink)}
+.home .bar nav a.lasd:hover{background:var(--jf-hover)}
 .home .bar nav a.hyrox{background:#FFED00;color:var(--ink)}
 .home .bar nav a.hyrox:hover{background:#FFF27A}
 @media(max-width:560px){ .home .bar{gap:8px 10px} .home .bar .brand{font-size:13px} .home .bar nav{gap:8px} .home .bar nav a{font-size:11px;padding:3px 8px} }

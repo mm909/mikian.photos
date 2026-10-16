@@ -1,22 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { inviteByToken } from "@/lib/lasd26/team";
-import { gateLasdDev } from "@/lib/lasd26/devGate";
+import { getTeamViewer, inviteByToken } from "@/lib/lasd26/team";
 import { lasdPath } from "@/lib/lasd26/paths";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
 import { ChangeRole, JoinForm, SignInToJoin } from "./JoinClient";
 
 /**
- * JOIN, the dev copy: lasdPath("/join")?t=<token> = /lasd26/dev/join?t=…
- * (lib/lasd26/paths.ts) — the link the owner drops in the group chat
- * (owner, 2026-10-15: "they'll have to sign in with their Google accounts
- * and then join the team … only accessible by an invite link").
- *
- * WHILE THE DEV GATE IS ON (lib/lasd26/devGate.ts): in production this
- * page answers 404 to anyone but the owner, so the invite link works for
- * him alone and the crew CANNOT join yet — joining stays untestable by
- * others until the owner says the site goes live and the gate lifts. On a
- * laptop it is open and any account can walk the four states.
+ * JOIN: lasdPath("/join")?t=<token> = /lasd26/join?t=… (lib/lasd26/paths.ts)
+ * — the link the owner drops in the group chat (owner, 2026-10-15:
+ * "they'll have to sign in with their Google accounts and then join the
+ * team … only accessible by an invite link"). Live since 2026-10-16: the
+ * link works for anyone who has it; the token is the only key.
  *
  * Four states, decided here on the server:
  *   1. no token / dead token → "not valid", and nothing else. The link is
@@ -27,7 +21,7 @@ import { ChangeRole, JoinForm, SignInToJoin } from "./JoinClient";
  */
 
 export const metadata: Metadata = {
-  title: "LASD26 — Join the crew (dev)",
+  title: "LASD26 — Join the crew",
   description: "Sign in and join the LASD26 team.",
   robots: { index: false, follow: false },
 };
@@ -46,7 +40,7 @@ function tokenFrom(searchParams: { t?: string | string[] } | undefined): string 
 }
 
 export default async function JoinPage({ searchParams }: { searchParams?: { t?: string | string[] } }) {
-  const viewer = await gateLasdDev();
+  const viewer = await getTeamViewer();
   const token = tokenFrom(searchParams);
 
   let invite: { id: string } | null = null;

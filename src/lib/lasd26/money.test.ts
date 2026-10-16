@@ -1,22 +1,41 @@
-/* The bucket rule, checked by hand: npx tsx src/lib/lasd26/money.test.ts
+/* The money rules, checked by hand: npx tsx src/lib/lasd26/money.test.ts
  * (vitest's include is the tracker only — like src/lib/rowPalette.test.ts
- * this is plain asserts, exit 1 on the first miss). What money.ts promises
- * (owner, 2026-10-16: real costs filed under the gas / food estimates): a
- * bucket counts max(estimate, live children); "estimated" is only the part
- * of an estimate the real costs have not covered; a bucket with nothing in
- * it counts as before; deleted lines drop out; a child whose bucket is
- * gone, or a grandchild, counts as its own line rather than vanishing; a
- * flat list without ids sums flat; order does not matter. */
+ * this is plain asserts, exit 1 on the first miss).
+ *
+ * What money.ts promises:
+ *  - BUCKETS (owner, 2026-10-16: real costs filed under the gas / food
+ *    estimates): a bucket counts max(estimate, live children); "estimated"
+ *    is only the part of an estimate the real costs have not covered; a
+ *    bucket with nothing in it counts as before; deleted lines drop out; a
+ *    child whose bucket is gone, or a grandchild, counts as its own line
+ *    rather than vanishing; a flat list without ids sums flat; order does
+ *    not matter.
+ *  - SETTLE OPEN (owner: "replace the estimate costs w/ the real cost"):
+ *    an estimate counts for nothing — a bucket is its real costs, a lone
+ *    estimate is $0, estimated is 0.
+ *  - FRONTED (owner: "deduct that from their total … everyone pays their
+ *    fair share"): net = share − fronted, estimates never fronted.
+ *
+ * THE IDENTITY. Σ net over the roster = Σ share − Σ fronted. With settling
+ * up open and every real line carrying a payer, Σ fronted = total, and
+ * Σ share = splitCount × ceil(total / splitCount), so Σ net is only the
+ * rounding slack: 0 when the total divides evenly, else under splitCount
+ * cents. Nothing is owed twice and nothing goes missing. While estimates
+ * are ON the identity does not hold: Σ net = estimated + slack > 0,
+ * because the round numbers nobody has fronted are still in every share
+ * — which is why settling up replaces them with the real costs. */
 import assert from "node:assert/strict";
-import { bucketSum, totalCents, type ExpenseLine } from "./money";
+import { bucketSum, frontedCents, frontedLines, settlement, totalCents, type ExpenseLine } from "./money";
 
-const race: ExpenseLine = { id: "race", parentId: null, amountCents: 200_000, estimate: false };
-const gas = (kids: number[]): ExpenseLine[] => [
+const race: ExpenseLine = { id: "race", parentId: null, amountCents: 200_000, estimate: false, paidById: "o" };
+const gas = (kids: number[], payers: string[] = []): ExpenseLine[] => [
   { id: "gas", parentId: null, amountCents: 60_000, estimate: true },
-  ...kids.map((c, i) => ({ id: `k${i}`, parentId: "gas", amountCents: c, estimate: false })),
+  ...kids.map((c, i) => ({ id: `k${i}`, parentId: "gas", amountCents: c, estimate: false, paidById: payers[i] ?? null })),
 ];
+const food: ExpenseLine = { id: "food", parentId: null, amountCents: 50_000, estimate: true };
 
 function main() {
+  /* ── buckets, estimates on ─────────────────────────────────────────── */
   // 1. bucket below the estimate: $62 + $58 in, the $600 still stands
   assert.deepEqual(totalCents([race, ...gas([6_200, 5_800])]), { total: 260_000, estimated: 48_000, confirmed: 212_000 });
   // 2. bucket above the estimate: $350 + $300 = $650 takes over
@@ -49,6 +68,68 @@ function main() {
     estimated: 53_800,
     confirmed: 6_200,
   });
+
+  /* ── settle open: real costs only ──────────────────────────────────── */
+  const open = { settleOpen: true };
+  // the bucket is its real costs, the $600 is gone
+  assert.deepEqual(totalCents([race, ...gas([6_200, 5_800])], open), { total: 212_000, estimated: 0, confirmed: 212_000 });
+  // above the estimate: the same real sum either way
+  assert.deepEqual(totalCents([race, ...gas([35_000, 30_000])], open), { total: 265_000, estimated: 0, confirmed: 265_000 });
+  // a lone estimate counts for nothing
+  assert.deepEqual(totalCents([race, ...gas([]), food], open), { total: 200_000, estimated: 0, confirmed: 200_000 });
+  // a flat estimate without ids too
+  assert.deepEqual(totalCents([{ amountCents: 100, estimate: false }, { amountCents: 50, estimate: true }], open), { total: 100, estimated: 0, confirmed: 100 });
+  assert.deepEqual(bucketSum(60_000, [6_200, 5_800], open), { realCents: 12_000, countedCents: 12_000, uncoveredCents: 0 });
+  assert.deepEqual(bucketSum(60_000, [], open), { realCents: 0, countedCents: 0, uncoveredCents: 0 });
+
+  /* ── fronted ───────────────────────────────────────────────────────── */
+  const sheet = [race, ...gas([6_200, 5_800], ["m1", "m2"]), food];
+  assert.equal(frontedCents(sheet, "o"), 200_000);
+  assert.equal(frontedCents(sheet, "m1"), 6_200);
+  assert.equal(frontedCents(sheet, "m2"), 5_800);
+  assert.equal(frontedCents(sheet, "m3"), 0);
+  // an estimate is never fronted, whatever paidById says
+  assert.equal(frontedCents([{ id: "gas", parentId: null, amountCents: 60_000, estimate: true, paidById: "o" }], "o"), 0);
+  // a deleted line is not fronted
+  assert.equal(frontedCents([{ ...race, deletedAt: new Date() }], "o"), 0);
+  assert.deepEqual(frontedLines(sheet, "m1").map((l) => l.id), ["k0"]);
+
+  /* ── the statement: I would have paid x, I spent y, so I owe z ─────── */
+  // settling open, 4 people, $2,120 of real costs → $530 each; the owner
+  // fronted $2,000 so the pool owes him $1,470; m1 fronted $62 and owes
+  // $468; m3 fronted nothing and owes the whole $530.
+  const s = settlement(sheet, ["o", "m1", "m2", "m3"], 4, open);
+  assert.equal(s.total, 212_000);
+  assert.equal(s.perPersonCents, 53_000);
+  assert.deepEqual(s.rows, [
+    { memberId: "o", shareCents: 53_000, frontedCents: 200_000, netCents: -147_000 },
+    { memberId: "m1", shareCents: 53_000, frontedCents: 6_200, netCents: 46_800 },
+    { memberId: "m2", shareCents: 53_000, frontedCents: 5_800, netCents: 47_200 },
+    { memberId: "m3", shareCents: 53_000, frontedCents: 0, netCents: 53_000 },
+  ]);
+  // THE IDENTITY, settling open, every real line with a payer, total
+  // divides evenly: Σ net = 0 — what is owed in equals what is owed out.
+  assert.equal(s.frontedCents, s.total);
+  assert.equal(s.netCents, 0);
+  // the same with a total that does not divide: Σ net is the rounding slack only
+  const odd = settlement([{ ...race, amountCents: 200_001 }, ...gas([6_200, 5_800], ["m1", "m2"])], ["o", "m1", "m2", "m3"], 4, open);
+  assert.equal(odd.perPersonCents, 53_001);
+  assert.equal(odd.netCents, 4 * 53_001 - 212_001);
+  assert.ok(odd.netCents >= 0 && odd.netCents < 4);
+  // a line nobody has claimed (a seeded line before PAID BY is set) stays in
+  // the total but comes off nobody's share: Σ net = that line
+  const unclaimed = settlement([{ ...race, paidById: null }, ...gas([6_200, 5_800], ["m1", "m2"])], ["o", "m1", "m2", "m3"], 4, open);
+  assert.equal(unclaimed.netCents, 200_000);
+
+  // ESTIMATES ON: the identity does not hold. Σ net = estimated + slack,
+  // the round numbers nobody has fronted ($480 of gas, $500 of food):
+  //   total 310_000 → 77_500 each; Σ share 310_000; Σ fronted 212_000;
+  //   Σ net 98_000 = estimated 98_000 + slack 0  (> 0)
+  const est = settlement(sheet, ["o", "m1", "m2", "m3"], 4);
+  assert.equal(est.total, 310_000);
+  assert.equal(est.estimated, 98_000);
+  assert.equal(est.netCents, est.estimated);
+  assert.ok(est.netCents > 0);
 
   console.log("money.test: all ok");
 }

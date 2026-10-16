@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useState, type ChangeEvent } from "react";
 import { signIn } from "next-auth/react";
-import type { BucketOption, ExpenseView, ExpensesPayload } from "@/lib/lasd26/expenses";
+import type { ExpenseView, ExpensesPayload, PayerView } from "@/lib/lasd26/expenses";
 import { lasdPath } from "@/lib/lasd26/paths";
 
 /**
@@ -14,14 +14,26 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * write, so two people in the van adding gas at once never see a stale
  * total for long.
  *
+ * PAID BY (owner, 2026-10-16: "Instead of having a note just make it a
+ * 'paid by' and auto fill the name of the user logged in"). The note
+ * field is gone; in its place a select of the roster, already on the
+ * signed-in member. Who fronted a line comes off their share when they
+ * settle up, so the card says PAID BY NAME where it said "added by".
+ *
  * BUCKETS (owner, 2026-10-16: "How do I let people add real expenses to
- * the food/gas estimates"). An estimate line is a bucket: its card shows
- * the ESTIMATE chip, "$124.10 in real costs so far", the real costs filed
- * under it (each with its own receipts, edit and delete), and an "+ ADD A
- * REAL COST" door that opens the add form already pointed at it. The
- * top-level add form has a PART OF select for the same move. The estimate
- * stands until the real costs pass it (lib/lasd26/money.ts), and the card
- * says so in one muted line.
+ * the food/gas estimates"). An estimate line is a bucket: its card lists
+ * the real costs filed under it (each with its own receipts, edit and
+ * delete) and carries an "+ ADD A COST" door that opens the add form
+ * already pointed at it — the only way into a bucket (owner: "We also
+ * don't need the part of line b/c we have the add a real cost button").
+ * The estimate itself is the owner's (owner: "We don't need the estimate
+ * line visible to the other users (keep that for me)"): the ESTIMATE chip,
+ * the "real so far / the estimate stands" line and the ESTIMATE checkbox
+ * render for him alone; a member sees a plain category card with the
+ * counted amount. Once settling up is open the bucket counts its real
+ * costs only and the owner's line says the estimate has been replaced
+ * (owner: "When I make settle up go live replace the estimate costs w/
+ * the real cost").
  *
  * Receipts upload straight to R2: sign (presigned PUT) → PUT the file →
  * register. Per-file state shows under the card it belongs to. The picker
@@ -51,6 +63,9 @@ type UpState = "uploading" | "saving" | "done" | "failed";
 type Up = { id: number; expenseId: string; name: string; state: UpState; error?: string };
 let upSeq = 0;
 
+/** What every card and form needs to know about the viewer and the sheet. */
+type Ctx = { members: PayerView[]; meId: string | null; owner: boolean; settleOpen: boolean };
+
 /* ─── Notices (signed out / not on the team) ─────────────────────────────── */
 
 export function SignInNotice() {
@@ -61,7 +76,7 @@ export function SignInNotice() {
       <br />
       Not on the team? You need the invite link from the group chat.
       <br />
-      {/* Back to THIS copy of the page after Google (lasdPath, lib/lasd26/paths.ts). */}
+      {/* Back to this page after Google (lasdPath, lib/lasd26/paths.ts). */}
       <button type="button" className="xp-btn" onClick={() => signIn("google", { callbackUrl: lasdPath("/expenses") })}>
         Sign in with Google →
       </button>
@@ -136,6 +151,7 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
 
   const onAdded = useCallback(async (id: string, files: File[]) => (files.length ? uploadFiles(id, files) : refresh()), [uploadFiles, refresh]);
 
+  const ctx: Ctx = { members: data.members, meId: data.meId, owner: data.owner, settleOpen: data.settleOpen };
   const joined = `${data.memberCount} of ${data.splitCount} joined`;
   return (
     <>
@@ -151,22 +167,27 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
         <div className="c per">
           <div className="k">Per person</div>
           <div className="v">{usd(data.perPersonCents)}</div>
-          <small>{usd(data.totalCents)} ÷ {data.splitCount}, rounded up to the cent</small>
+          <small>
+            {usd(data.totalCents)} ÷ {data.splitCount}
+          </small>
         </div>
       </div>
       <div className="xp-foot">
-        {/* Only the part of each estimate the real costs have not covered yet (money.ts). */}
-        {data.estimatedCents > 0 && <span className="est">includes {usd(data.estimatedCents)} of estimates</span>}
+        {/* The estimates are the owner's business (see the header): only he
+         * reads how much of the total is still a round number, and once
+         * settling up is open there is none — the real costs replaced them. */}
+        {data.owner && !data.settleOpen && data.estimatedCents > 0 && <span className="est">includes {usd(data.estimatedCents)} of estimates</span>}
+        {data.settleOpen && <span className="est">settling up is open · real costs only</span>}
         <span>{joined}</span>
       </div>
 
-      <AddForm buckets={data.buckets} onAdded={onAdded} />
+      <AddForm ctx={ctx} onAdded={onAdded} />
       {err && <p className="xp-err">{err.toUpperCase()}</p>}
 
       <div className="xp-list">
         {data.expenses.length === 0 && <p className="list-empty">NOTHING ON THE SHEET YET.</p>}
         {data.expenses.map((e) => (
-          <ExpenseCard key={e.id} expense={e} buckets={data.buckets} ups={ups} onChanged={refresh} onFiles={uploadFiles} onAdded={onAdded} />
+          <ExpenseCard key={e.id} expense={e} ctx={ctx} ups={ups} onChanged={refresh} onFiles={uploadFiles} onAdded={onAdded} />
         ))}
       </div>
     </>
@@ -177,18 +198,19 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
 
 /**
  * The add form. Top-level (no `parent`): a collapsed door, then title /
- * amount / note / PART OF / ESTIMATE / photos. Inside a bucket (`parent`
- * set, opened by the "+ ADD A REAL COST" door): already open, pointed at
- * that bucket, no PART OF and no ESTIMATE — what goes in a bucket is a real
- * cost (lib/lasd26/expenses checkBucket says so on the server too).
+ * amount / PAID BY / (owner) ESTIMATE / photos. Inside a bucket (`parent`
+ * set, opened by the "+ ADD A COST" door): already open, pointed at that
+ * bucket, no ESTIMATE — what goes in a bucket is a real cost
+ * (lib/lasd26/expenses checkBucket says so on the server too). PAID BY
+ * starts on the signed-in member and hides while ESTIMATE is ticked: a
+ * round number has not been paid by anyone.
  */
-function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[]; parent?: BucketOption; onAdded: (id: string, files: File[]) => Promise<void>; onClose?: () => void }) {
+function AddForm({ ctx, parent, onAdded, onClose }: { ctx: Ctx; parent?: { id: string; title: string }; onAdded: (id: string, files: File[]) => Promise<void>; onClose?: () => void }) {
   const [open, setOpen] = useState(parent !== undefined);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  const [paidById, setPaidById] = useState(ctx.meId ?? "");
   const [estimate, setEstimate] = useState(false);
-  const [parentId, setParentId] = useState(parent?.id ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -197,9 +219,8 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
   const reset = () => {
     setTitle("");
     setAmount("");
-    setNote("");
+    setPaidById(ctx.meId ?? "");
     setEstimate(false);
-    setParentId(parent?.id ?? "");
     setFiles([]);
     setErr("");
   };
@@ -218,7 +239,7 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
     try {
       const res = await api<{ expense: ExpenseView }>(
         API,
-        json({ title: title.trim(), amount: amount.trim(), note: note.trim(), estimate: parentId ? false : estimate, parentId: parentId || null }),
+        json({ title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate: parent ? false : estimate, parentId: parent?.id ?? null }),
       );
       await onAdded(res.expense.id, files);
       close();
@@ -236,10 +257,9 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
       </button>
     );
   }
-  const inBucket = parentId !== "";
   return (
     <div className={`xp-add${parent ? " in-bucket" : ""}`}>
-      {parent && <div className="under">Real cost under {parent.title}</div>}
+      {parent && <div className="under">Cost under {parent.title}</div>}
       <div className="xp-row">
         <div>
           <label className="xp-l" htmlFor={`${uid}-t`}>
@@ -252,7 +272,7 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
             value={title}
             maxLength={80}
             disabled={busy}
-            placeholder={inBucket ? "Chevron, Costco run…" : "Gas, Costco run, tolls…"}
+            placeholder={parent ? "Chevron, Costco run…" : "Gas, Costco run, tolls…"}
             onChange={(e) => setTitle(e.target.value)}
           />
         </div>
@@ -263,12 +283,8 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
           <input id={`${uid}-a`} className="xp-in amt" type="text" inputMode="decimal" value={amount} disabled={busy} placeholder="$0.00" onChange={(e) => setAmount(e.target.value)} />
         </div>
       </div>
-      <label className="xp-l" htmlFor={`${uid}-n`}>
-        Note <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span>
-      </label>
-      <input id={`${uid}-n`} className="xp-in" type="text" value={note} maxLength={400} disabled={busy} placeholder="Where it came from, who paid" onChange={(e) => setNote(e.target.value)} />
-      {!parent && buckets.length > 0 && <PartOf id={`${uid}-p`} value={parentId} buckets={buckets} disabled={busy || estimate} onChange={setParentId} />}
-      {!inBucket && (
+      {!estimate && <PaidBy id={`${uid}-p`} value={paidById} members={ctx.members} disabled={busy} onChange={setPaidById} />}
+      {!parent && ctx.owner && (
         <label className="xp-check">
           <input type="checkbox" checked={estimate} disabled={busy} onChange={(e) => setEstimate(e.target.checked)} />
           ESTIMATE — a round number, no receipt yet
@@ -288,19 +304,24 @@ function AddForm({ buckets, parent, onAdded, onClose }: { buckets: BucketOption[
   );
 }
 
-/** PART OF: none, or one of the live buckets ("Gas (estimate)"). */
-function PartOf({ id, value, buckets, disabled, onChange }: { id: string; value: string; buckets: BucketOption[]; disabled: boolean; onChange: (v: string) => void }) {
+/**
+ * PAID BY: the roster, on the signed-in member by default. A line nobody
+ * has claimed yet (a seeded one) shows "— not set —" until someone is
+ * picked; the option is gone once a name is in.
+ */
+function PaidBy({ id, value, members, disabled, onChange }: { id: string; value: string; members: PayerView[]; disabled: boolean; onChange: (v: string) => void }) {
+  const known = members.some((m) => m.id === value);
   return (
     <>
       <label className="xp-l" htmlFor={id}>
-        Part of
+        Paid by
       </label>
       <div className="xp-selw">
-        <select id={id} className="xp-sel" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-          <option value="">— its own line —</option>
-          {buckets.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.title} ({b.amount} estimate)
+        <select id={id} className="xp-sel" value={known ? value : ""} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+          {!known && <option value="">— not set —</option>}
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
             </option>
           ))}
         </select>
@@ -325,16 +346,23 @@ function FilePick({ files, disabled, onPick, label }: { files: File[]; disabled:
 
 /* ─── One line ───────────────────────────────────────────────────────────── */
 
-/** The muted line under a bucket: where the real costs stand against the estimate. */
-function BucketLine({ e }: { e: ExpenseView }) {
+/**
+ * The owner's muted line under a bucket: where the real costs stand
+ * against the estimate — or, once settling up is open, that the estimate
+ * has been replaced by them (greyed, the round number struck through).
+ */
+function BucketLine({ e, settleOpen }: { e: ExpenseView; settleOpen: boolean }) {
   const b = e.bucket;
   if (!b) return null;
-  if (b.realCents === 0) {
+  if (settleOpen) {
     return (
-      <p className="xp-bucket-line">
-        No real costs filed yet · the estimate stands until the real costs pass it
+      <p className="xp-bucket-line off">
+        Estimate <s>{e.amount}</s> — replaced by the real costs
       </p>
     );
+  }
+  if (b.realCents === 0) {
+    return <p className="xp-bucket-line">No real costs filed yet · the estimate stands until the real costs pass it</p>;
   }
   if (b.realCents < e.amountCents) {
     return (
@@ -352,14 +380,14 @@ function BucketLine({ e }: { e: ExpenseView }) {
 
 function ExpenseCard({
   expense: e,
-  buckets,
+  ctx,
   ups,
   onChanged,
   onFiles,
   onAdded,
 }: {
   expense: ExpenseView;
-  buckets: BucketOption[];
+  ctx: Ctx;
   ups: Up[];
   onChanged: () => Promise<void>;
   onFiles: (expenseId: string, files: File[]) => Promise<void>;
@@ -388,7 +416,7 @@ function ExpenseCard({
   const remove = () => {
     const n = e.children.length;
     // Deleting a bucket detaches what is in it (the API's soft delete sets parentId null on the live children).
-    const tail = n > 0 ? ` Its ${n} real cost${n === 1 ? "" : "s"} stay${n === 1 ? "s" : ""} on the sheet as ${n === 1 ? "its" : "their"} own line${n === 1 ? "" : "s"}.` : "";
+    const tail = n > 0 ? ` Its ${n} cost${n === 1 ? "" : "s"} stay${n === 1 ? "s" : ""} on the sheet as ${n === 1 ? "its" : "their"} own line${n === 1 ? "" : "s"}.` : "";
     if (!window.confirm(`Remove "${e.title}" (${e.amount}) from the sheet?${tail}`)) return;
     void run(async () => {
       await api(`${API}/${e.id}`, { method: "DELETE" });
@@ -409,29 +437,38 @@ function ExpenseCard({
   };
 
   const busyUps = mine.some((u) => u.state === "uploading" || u.state === "saving");
-  // What the big number shows: a bucket's counted amount (the estimate until
-  // the real costs pass it, then the real sum), green while it is still the estimate.
+  // What the big number shows: a bucket's counted amount (the estimate
+  // until the real costs pass it, the real sum once they do or once
+  // settling up is open). Green while it is still the estimate — the
+  // owner's signal; a member just sees the number.
   const shown = e.bucket ? e.bucket.counted : e.amount;
-  const stillEstimate = e.estimate && (!e.bucket || e.bucket.realCents < e.amountCents);
+  const stillEstimate = ctx.owner && e.estimate && !ctx.settleOpen && (!e.bucket || e.bucket.realCents < e.amountCents);
+  const kids = e.children.length;
+  // The line under the title. A real cost: who fronted it. A bucket: the
+  // owner reads ESTIMATE, a member reads it as a category (see the header).
+  const meta = isBucket
+    ? ctx.owner
+      ? `ESTIMATE · ${when(e.createdAt).toUpperCase()}`
+      : `CATEGORY · ${kids} COST${kids === 1 ? "" : "S"}`
+    : `PAID BY ${(e.paidBy?.name ?? "—").toUpperCase()} · ${when(e.createdAt).toUpperCase()}`;
   return (
     <article className={`xp-card${isBucket ? " xp-bucket" : ""}${e.parentId ? " xp-kid" : ""}`}>
       {editing ? (
-        <EditForm expense={e} buckets={buckets} onDone={async () => { setEditing(false); await onChanged(); }} onCancel={() => setEditing(false)} />
+        <EditForm expense={e} ctx={ctx} onDone={async () => { setEditing(false); await onChanged(); }} onCancel={() => setEditing(false)} />
       ) : (
         <>
           <div className="xp-top">
             <h3 className="xp-title">
               {e.title}
-              {e.estimate && <span className="xp-chip">Estimate</span>}
+              {ctx.owner && e.estimate && <span className="xp-chip">Estimate</span>}
             </h3>
             <div className={`xp-amt${stillEstimate ? " est" : ""}`}>{shown}</div>
           </div>
           <div className="xp-meta">
-            {e.addedBy ? `ADDED BY ${e.addedBy.toUpperCase()}` : "FROM THE COST SHEET"} · {when(e.createdAt).toUpperCase()}
+            {meta}
             {e.receipts.length > 0 && ` · ${e.receipts.length} RECEIPT${e.receipts.length === 1 ? "" : "S"}`}
           </div>
-          {e.note && <p className="xp-note">{e.note}</p>}
-          <BucketLine e={e} />
+          {ctx.owner && <BucketLine e={e} settleOpen={ctx.settleOpen} />}
         </>
       )}
 
@@ -487,13 +524,13 @@ function ExpenseCard({
       {isBucket && (
         <div className="xp-kids">
           {e.children.map((c) => (
-            <ExpenseCard key={c.id} expense={c} buckets={buckets} ups={ups} onChanged={onChanged} onFiles={onFiles} onAdded={onAdded} />
+            <ExpenseCard key={c.id} expense={c} ctx={ctx} ups={ups} onChanged={onChanged} onFiles={onFiles} onAdded={onAdded} />
           ))}
           {adding ? (
-            <AddForm buckets={buckets} parent={{ id: e.id, title: e.title, amount: e.amount }} onAdded={onAdded} onClose={() => setAdding(false)} />
+            <AddForm ctx={ctx} parent={{ id: e.id, title: e.title }} onAdded={onAdded} onClose={() => setAdding(false)} />
           ) : (
             <button type="button" className="xp-kid-add" onClick={() => setAdding(true)}>
-              + Add a real cost <span className="mono">UNDER {e.title.toUpperCase()}</span>
+              + Add a cost <span className="mono">UNDER {e.title.toUpperCase()}</span>
             </button>
           )}
         </div>
@@ -502,28 +539,30 @@ function ExpenseCard({
   );
 }
 
-function EditForm({ expense: e, buckets, onDone, onCancel }: { expense: ExpenseView; buckets: BucketOption[]; onDone: () => Promise<void>; onCancel: () => void }) {
+/**
+ * Edit: title / amount / PAID BY / (owner) ESTIMATE. No PART OF — a line
+ * stays where it is (the API still takes parentId if the owner ever needs
+ * to detach one by hand). A bucket with real costs inside stays an
+ * estimate (the API refuses the change), so the checkbox gives way to a
+ * hint.
+ */
+function EditForm({ expense: e, ctx, onDone, onCancel }: { expense: ExpenseView; ctx: Ctx; onDone: () => Promise<void>; onCancel: () => void }) {
   const [title, setTitle] = useState(e.title);
   const [amount, setAmount] = useState((e.amountCents / 100).toFixed(2));
-  const [note, setNote] = useState(e.note);
+  const [paidById, setPaidById] = useState(e.paidBy?.id ?? "");
   const [estimate, setEstimate] = useState(e.estimate);
-  const [parentId, setParentId] = useState(e.parentId ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const uid = useId();
 
-  // A bucket with real costs inside stays an estimate and stays top-level
-  // (the API refuses both moves); the other lines may move in or out.
   const holds = e.children.length;
-  const options = buckets.filter((b) => b.id !== e.id);
-  const inBucket = parentId !== "";
 
   async function save() {
     if (busy) return;
     setBusy(true);
     setErr("");
     try {
-      await api(`${API}/${e.id}`, json({ title: title.trim(), amount: amount.trim(), note: note.trim(), estimate: inBucket ? false : estimate, parentId: parentId || null }, "PATCH"));
+      await api(`${API}/${e.id}`, json({ title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate }, "PATCH"));
       await onDone();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Something broke — try again.");
@@ -547,23 +586,20 @@ function EditForm({ expense: e, buckets, onDone, onCancel }: { expense: ExpenseV
           <input id={`${uid}-a`} className="xp-in amt" type="text" inputMode="decimal" value={amount} disabled={busy} onChange={(ev) => setAmount(ev.target.value)} />
         </div>
       </div>
-      <label className="xp-l" htmlFor={`${uid}-n`}>
-        Note
-      </label>
-      <input id={`${uid}-n`} className="xp-in" type="text" value={note} maxLength={400} disabled={busy} onChange={(ev) => setNote(ev.target.value)} />
-      {holds === 0 && options.length > 0 && <PartOf id={`${uid}-p`} value={parentId} buckets={options} disabled={busy || estimate} onChange={setParentId} />}
-      {holds > 0 ? (
-        <p className="xp-hint">
-          ESTIMATE · holds {holds} real cost{holds === 1 ? "" : "s"}, so it stays one
-        </p>
-      ) : (
-        !inBucket && (
-          <label className="xp-check">
-            <input type="checkbox" checked={estimate} disabled={busy} onChange={(ev) => setEstimate(ev.target.checked)} />
-            ESTIMATE
-          </label>
-        )
-      )}
+      {!estimate && <PaidBy id={`${uid}-p`} value={paidById} members={ctx.members} disabled={busy} onChange={setPaidById} />}
+      {ctx.owner &&
+        (holds > 0 ? (
+          <p className="xp-hint">
+            ESTIMATE · holds {holds} cost{holds === 1 ? "" : "s"}, so it stays one
+          </p>
+        ) : (
+          !e.parentId && (
+            <label className="xp-check">
+              <input type="checkbox" checked={estimate} disabled={busy} onChange={(ev) => setEstimate(ev.target.checked)} />
+              ESTIMATE
+            </label>
+          )
+        ))}
       <div className="xp-acts">
         <button type="button" className="xp-btn" onClick={save} disabled={busy}>
           {busy ? "Saving…" : "Save"}

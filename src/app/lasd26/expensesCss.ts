@@ -51,7 +51,6 @@ export const expensesCss = `
 .lasd26 .xp-amt.est{color:var(--safety-ink)}
 .lasd26 .xp-chip{display:inline-block;vertical-align:middle;font-family:var(--lasd-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:1.5px solid var(--safety-ink);color:var(--safety-ink);padding:2px 7px 1px;margin-left:8px;font-weight:400;line-height:1.5}
 .lasd26 .xp-meta{font-family:var(--lasd-mono),monospace;font-size:11px;color:var(--gray);margin-top:5px;letter-spacing:.04em}
-.lasd26 .xp-note{font-size:14px;color:var(--ink-soft);margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere}
 .lasd26 .xp-rcpts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .lasd26 .xp-rcpt{position:relative;width:92px;height:92px;border:2px solid var(--ink);background:#e7e6df;display:block;overflow:hidden;flex:none}
 .lasd26 .xp-rcpt a{display:block;width:100%;height:100%}
@@ -71,8 +70,9 @@ export const expensesCss = `
 .lasd26 .xp-edit{border-left:3px solid var(--safety-ink);padding-left:14px;margin-top:4px}
 .lasd26 .xp-hint{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.06em;color:var(--gray);margin-top:14px;line-height:1.7}
 
-/* PART OF — the select, drawn like the inputs (underline, no chrome) with
- * its own caret, since appearance:none takes the browser's away. */
+/* PAID BY (owner, 2026-10-16: "make it a 'paid by'") — the select, drawn
+ * like the inputs (underline, no chrome) with its own caret, since
+ * appearance:none takes the browser's away. */
 .lasd26 .xp-selw{position:relative}
 .lasd26 .xp-selw::after{content:"\\25BE";position:absolute;right:6px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-soft);font-size:14px}
 .lasd26 .xp-sel{width:100%;min-height:44px;background:transparent;border:none;border-bottom:2px solid var(--ink);color:var(--ink);font-family:var(--lasd-archivo),sans-serif;font-size:17px;padding:8px 28px 8px 2px;border-radius:0;appearance:none;-webkit-appearance:none;cursor:pointer}
@@ -83,10 +83,15 @@ export const expensesCss = `
  * The bucket card keeps the plain card look; what is filed under it hangs
  * off a deep-green rule on the left, each child a smaller card, and the
  * door to add one is a dashed green box at the foot — lime only as the
- * fill on hover, green type on the paper otherwise. The muted line reads
- * where the real costs stand against the estimate. */
+ * fill on hover, green type on the paper otherwise. The muted line (the
+ * owner's alone — a member sees a plain category card) reads where the
+ * real costs stand against the estimate; once settling up is open it goes
+ * grey with the round number struck through: the real costs replaced it
+ * (owner, 2026-10-16). */
 .lasd26 .xp-bucket-line{font-family:var(--lasd-mono),monospace;font-size:11px;color:var(--gray);margin-top:8px;letter-spacing:.02em;line-height:1.7}
 .lasd26 .xp-bucket-line b{color:var(--safety-ink);font-weight:700}
+.lasd26 .xp-bucket-line.off{color:#a3a39d}
+.lasd26 .xp-bucket-line.off s{text-decoration:line-through;text-decoration-thickness:1.5px}
 .lasd26 .xp-kids{margin-top:16px;border-left:3px solid var(--safety-ink);padding-left:14px}
 .lasd26 .xp-kids .xp-card{padding:14px 0 16px;border-bottom:1px dashed var(--line)}
 .lasd26 .xp-kids .xp-card:last-of-type{border-bottom:none}

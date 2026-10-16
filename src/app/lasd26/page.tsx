@@ -1,18 +1,37 @@
 import type { Metadata, Viewport } from "next";
-import { CrewForm } from "./CrewForm";
 import { Countdown } from "./Countdown";
-import { isOwnerActor } from "@/lib/permissions";
-import { archivo, archivoBlack, spaceMono, css } from "./theme";
+import { LasdPage } from "./LasdPage";
+import { SignInLine } from "./SignInLine";
+import { getTeamViewer } from "@/lib/lasd26/team";
+import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
+
+/**
+ * THE LANDING of the team site at /lasd26 (lib/lasd26/paths.ts). LIVE since
+ * 2026-10-16 (owner: "we are going to make some of this live now"); it was
+ * built one folder down as the dev copy and moved up over the old
+ * crew-call page. Open to everyone and indexable — the team pages behind
+ * it keep their own rules.
+ *
+ * The crew call is CLOSED (owner, 2026-10-15: "the van is full"). The page
+ * stays as the front of the team site: the race, the weekend, the photos,
+ * the countdown; where the form stood, a signed-out visitor gets one line
+ * that signs them in. The crew runs it with Just Friends LV, the Las Vegas
+ * run club, so they are named beside No Shortcuts (text only — owner,
+ * 2026-10-16: "Remove the JF logo here").
+ *
+ * The weekend is Thursday to SATURDAY (owner, 2026-10-16: "We are actually
+ * coming back Saturday"): out Thursday, race Friday, home Saturday.
+ */
 
 export const metadata: Metadata = {
   title: "LASD26 — Crew Call",
   description:
-    "We're taking a Vegas crew to the No Shortcuts Time Trial — a ~130-mile unsanctioned relay from Santa Monica Pier to San Diego. One van. One long Friday. A whole weekend together.",
+    "A Vegas crew at the No Shortcuts Time Trial — a ~130-mile unsanctioned relay from Santa Monica Pier to San Diego, with Just Friends LV. Crew call is closed: the van is full.",
   openGraph: {
     title: "LASD26 — Crew Call",
     description:
-      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–25.",
-    images: [{ url: "/lasd26/golden-hour.jpg", width: 1100, height: 1375 }],
+      "A Vegas crew for the No Shortcuts Time Trial — Santa Monica Pier to San Diego, Oct 22–24. Crew call is closed: the van is full.",
+    images: [{ url: `${LASD_ASSETS}/golden-hour.jpg`, width: 1100, height: 1375 }],
   },
 };
 
@@ -20,26 +39,14 @@ export const viewport: Viewport = {
   themeColor: "#F4F3EE",
 };
 
-// Session-gated (owner-only simulate + list link) — never render statically.
+// Session-aware (the bar's account button, the foot line) — never render statically.
 export const dynamic = "force-dynamic";
 
 export default async function Lasd26Page() {
-  // Owner-only extras: the simulate button on the form and the link to
-  // /lasd26/the-list. Sign in happens on the main site — this page keeps no
-  // auth UI of its own.
-  const owner = await isOwnerActor();
+  const viewer = await getTeamViewer();
 
   return (
-    <div
-      className={`lasd26 ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}
-    >
-      <style>{css}</style>
-
-      <div className="bar">
-        <span className="mono">NO SHORTCUTS TT · 7TH EDITION</span>
-        <span className="mono tag">LASD26</span>
-      </div>
-
+    <LasdPage viewer={viewer} active="crew-call">
       <header className="hero">
         <div className="wrap" style={{ padding: 0 }}>
           <h1>
@@ -47,21 +54,28 @@ export default async function Lasd26Page() {
             <br />
             down the
             <br />
-            coast<span className="o">.</span>
+            {/* The period is drawn as a lime disc (theme.ts .hero h1 .o;
+             * owner, 2026-10-16: "a circle instead of a square"); the
+             * real "." is there for a screen reader, visually hidden. */}
+            coast
+            <span className="o" aria-hidden="true" />
+            <span className="sr">.</span>
           </h1>
           <p className="sub">
             We&rsquo;re taking a Vegas crew to the No Shortcuts Time Trial — a
             ~130-mile unsanctioned relay from Santa Monica Pier to San Diego.
             One van. One long Friday. A whole weekend together.
           </p>
-          <span className="cc-mark">This is crew call</span>
+          <p className="with mono">No Shortcuts × Just Friends LV</p>
+          {/* Owner, 2026-10-16: "Reduce the copy to just 'the van is full'". */}
+          <span className="cc-mark">The van is full</span>
         </div>
       </header>
 
       <div className="frame">
         <div className="ph">
           <img
-            src="/lasd26/road-bw.jpg"
+            src={`${LASD_ASSETS}/road-bw.jpg`}
             width={1100}
             height={1375}
             alt="Runner from behind on an open road, arms out, black and white"
@@ -82,15 +96,18 @@ export default async function Lasd26Page() {
             <div className="v">SM Pier → San Diego</div>
           </div>
           <div className="cell">
-            <div className="k mono">Crew size</div>
+            <div className="k mono">Crew</div>
             <div className="v">
-              10<small>8 runners + 2 crew</small>
+              18<small>16 runners + 2 crew · 2 teams</small>
             </div>
           </div>
           <div className="cell">
             <div className="k mono">Est. cost</div>
             <div className="v">
-              $450–550<small>per person</small>
+              ~$371
+              <small>
+                per person · <a href={lasdPath("/expenses")}>see expenses</a>
+              </small>
             </div>
           </div>
         </div>
@@ -100,7 +117,7 @@ export default async function Lasd26Page() {
         <div className="wrap">
           <div className="sec-head">
             <h2>The Weekend</h2>
-            <span className="mono">THU 10.22 → SUN 10.25</span>
+            <span className="mono">THU 10.22 → SAT 10.24</span>
           </div>
           <div className="day">
             <div className="d">
@@ -125,17 +142,8 @@ export default async function Lasd26Page() {
               SAT<span>10.24</span>
             </div>
             <div>
-              <h3>Recover, loudly</h3>
-              <p>All-day pool celebration at Town &amp; Country.</p>
-            </div>
-          </div>
-          <div className="day">
-            <div className="d">
-              SUN<span>10.25</span>
-            </div>
-            <div>
               <h3>SD → Vegas</h3>
-              <p>Checkout, breakfast, drive home.</p>
+              <p>Breakfast, then the drive home.</p>
             </div>
           </div>
         </div>
@@ -144,7 +152,7 @@ export default async function Lasd26Page() {
       <div className="inter">
         <div className="ph">
           <img
-            src="/lasd26/golden-hour.jpg"
+            src={`${LASD_ASSETS}/golden-hour.jpg`}
             width={1100}
             height={1375}
             loading="lazy"
@@ -166,7 +174,7 @@ export default async function Lasd26Page() {
       <div className="inter">
         <div className="ph">
           <img
-            src="/lasd26/blur-hillside.jpg"
+            src={`${LASD_ASSETS}/blur-hillside.jpg`}
             width={1000}
             height={1250}
             loading="lazy"
@@ -175,20 +183,18 @@ export default async function Lasd26Page() {
         </div>
       </div>
 
-      <div className="form-sec" id="apply">
-        <div className="wrap">
-          <div className="sec-head">
-            <h2>Put your name in</h2>
-            <span className="mono">CLOSES WHEN THE VAN IS FULL</span>
+      {/* Where the form stood: one line for the signed-out (owner,
+       * 2026-10-16: "Reduce the bottom copy to just 'On the team -> Sign
+       * in'"), and NOTHING once signed in — the bar's doors and the account
+       * menu are the way to expenses (owner, 2026-10-16: "We can remove On
+       * the team → Expenses"). The crew-call list lives in the account
+       * menu's DEVELOPMENT group, not on the page. */}
+      {viewer.actor === null && (
+        <div className="form-sec">
+          <div className="wrap">
+            <SignInLine />
           </div>
-          <CrewForm simulate={owner} />
         </div>
-      </div>
-
-      {owner && (
-        <p className="owner-link mono">
-          <a href="/lasd26/the-list">THE LIST → /lasd26/the-list</a>
-        </p>
       )}
 
       <footer>
@@ -202,6 +208,15 @@ export default async function Lasd26Page() {
               rel="noopener noreferrer"
             >
               @noshortcutstt
+            </a>
+            <br />
+            with Just Friends LV →{" "}
+            <a
+              href="https://instagram.com/justfriends.lv"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              @justfriends.lv
             </a>
             <br />
             Crew questions →{" "}
@@ -226,6 +241,6 @@ export default async function Lasd26Page() {
           </p>
         </div>
       </footer>
-    </div>
+    </LasdPage>
   );
 }

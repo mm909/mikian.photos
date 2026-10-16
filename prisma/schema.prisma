@@ -1277,15 +1277,23 @@ model TeamMember {
   name      String
   role      String   @default("runner") // 'runner' | 'crew'
   joinedAt  DateTime @default(now())
-  // Settling up: when, how much (cents) and how ('paypal' | 'manual').
+  // Settling up: when, how much (cents) and how ('card' | 'paypal' | 'manual').
   paidAt          DateTime?
   paidCents       Int?
   paidVia         String?
   paypalCaptureId String?
+  // The other direction (owner, 2026-10-16: "if someone pays for something
+  // like gas and then has to settle up later there should be a way to
+  // deduct that from their total"). A member who fronted more than their
+  // share is OWED the difference; the owner pays them out of the pool
+  // after the race and marks it here — when, and how much went out.
+  settledAt    DateTime?
+  settledCents Int?
   // Who took the group chat invite (TeamInvite.id), for the audit trail.
   inviteId  String?
 
   expenses TeamExpense[]
+  fronted  TeamExpense[] @relation("ExpensePayer")
 
   @@unique([team, userId])
   @@index([team, joinedAt])
@@ -1322,17 +1330,25 @@ model TeamExpense {
   parentId    String?
   // The member who added it (null when seeded by the owner from the sheet).
   addedById   String?
+  // Who FRONTED it (owner, 2026-10-16: "Instead of having a note just make
+  // it a 'paid by' and auto fill the name of the user logged in"). What a
+  // member fronted comes off their share when they settle up
+  // (lib/lasd26/money.ts settlement). Null on an estimate (nobody has paid
+  // a round number) and on a seeded line until the owner sets it.
+  paidById    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   addedBy  TeamMember?   @relation(fields: [addedById], references: [id], onDelete: SetNull)
+  paidBy   TeamMember?   @relation("ExpensePayer", fields: [paidById], references: [id], onDelete: SetNull)
   receipts TeamReceipt[]
   parent   TeamExpense?  @relation("ExpenseBucket", fields: [parentId], references: [id], onDelete: SetNull)
   children TeamExpense[] @relation("ExpenseBucket")
 
   @@index([team, createdAt])
   @@index([parentId])
+  @@index([paidById])
 }
 
 model TeamReceipt {

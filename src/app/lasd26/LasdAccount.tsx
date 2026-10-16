@@ -16,9 +16,11 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * role, the team pages, and the owner's groups — TEAM (invite link,
  * members) and DEVELOPMENT (the crew-call list, the tracker's pages;
  * owner, 2026-10-15: "in a dev tab only that I can see"), which nobody
- * else sees. All plain links, through lasdPath (lib/lasd26/paths.ts) so
- * they stay inside the dev copy while the site lives there. Closes on an
- * outside click or Escape.
+ * else sees. The tracker lives ONLY here while LIVE is hidden from the bar
+ * (owner, 2026-10-16: "Let's hide the 'live' page for now. It's not
+ * ready."). All plain links, through lasdPath (lib/lasd26/paths.ts), the
+ * one place that knows where the site lives. Closes on an outside click or
+ * Escape.
  */
 
 export type AccountViewer = {

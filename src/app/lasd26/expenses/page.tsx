@@ -1,24 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { gateLasdDev } from "@/lib/lasd26/devGate";
+import { ensureOwnerMember, getTeamViewer } from "@/lib/lasd26/team";
 import { expensesPayload } from "@/lib/lasd26/expenses";
 import { LasdPage } from "../LasdPage";
 import { expensesCss } from "../expensesCss";
 import { Expenses, InviteNotice, SignInNotice } from "./Expenses";
 
 /**
- * EXPENSES, the dev copy (lasdPath("/expenses") = /lasd26/dev/expenses;
- * lib/lasd26/paths.ts) — the crew's invoice (owner, 2026-10-15: "kind of
- * like an invoice … they can see every cost and where it came from … add
- * costs … title, cost, and a picture"). Team pages are reached only
- * through the invite link: a visitor who is signed out sees the sign-in
- * notice, one who is signed in but not on the team sees the invite notice,
- * and the list itself renders only for a member (the owner counts). In
- * production the dev gate sits in front of all three (admin-only).
+ * EXPENSES (lasdPath("/expenses"); lib/lasd26/paths.ts) — the crew's
+ * invoice (owner, 2026-10-15: "kind of like an invoice … they can see
+ * every cost and where it came from … add costs … title, cost, and a
+ * picture"). Team pages are reached only through the invite link: a
+ * visitor who is signed out sees the sign-in notice, one who is signed in
+ * but not on the team sees the invite notice, and the list itself renders
+ * only for a member (the owner counts — and gets his member row made on
+ * the way in, so PAID BY can name him and his lines are his).
  */
 
 export const metadata: Metadata = {
-  title: "LASD26 — Expenses (dev)",
+  title: "LASD26 — Expenses",
   description: "Every cost of the crossing and each person's share.",
   robots: { index: false, follow: false },
 };
@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
-  const viewer = await gateLasdDev();
+  const viewer = await ensureOwnerMember(await getTeamViewer());
 
   let body: ReactNode;
   let eyebrow: string;

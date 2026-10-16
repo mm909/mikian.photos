@@ -66,9 +66,17 @@ export const teamCss = `
 .lasd26 .tm-err{font-family:var(--lasd-mono),monospace;font-size:12px;color:var(--safety-ink);margin-top:10px;letter-spacing:.04em}
 .lasd26 .tm-err::before{content:"! "}
 
+/* MEMBERS against the bill (owner, 2026-10-16: who fronted what comes off
+ * their share). Money columns right-aligned and tabular; OWES in ink,
+ * OWED in the deep green (the pool owes them), paid rows greyed. Under
+ * 560 px the share and fronted columns go — name, the net and PAID are
+ * what the owner checks on a phone. */
 .lasd26 table.pile td.tm-paid{white-space:nowrap}
 .lasd26 table.pile .tm-dim{color:var(--gray)}
-.lasd26 table.pile .tm-role{text-transform:uppercase;letter-spacing:.08em;font-size:11px}
+.lasd26 table.pile .tm-amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.lasd26 table.pile .tm-owes{color:var(--ink);font-weight:700}
+.lasd26 table.pile .tm-owed{color:var(--safety-ink);font-weight:700}
+.lasd26 table.pile .tm-role{display:block;text-transform:uppercase;letter-spacing:.08em;font-size:10px;color:var(--gray);margin-top:2px}
 .lasd26 table.pile .tm-email{display:block;font-size:11px;color:var(--gray);word-break:break-all}
 @media(max-width:559px){
   .lasd26 .tm-hide-sm{display:none}
@@ -92,6 +100,11 @@ export const teamCss = `
 .lasd26 .tm-toggle .t small{display:block;font-size:11px;color:var(--gray)}
 .lasd26 .tm-share{border-top:2px solid var(--ink);margin-top:22px;padding-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .lasd26 .tm-share .k{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}
-.lasd26 .tm-share .v{font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(22px,6vw,32px);line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums}
+/* The two numbers are links to the expenses page (owner, 2026-10-16: "if
+ * you click on the number that is your share or the total it takes you to
+ * the expenses page") — a lime underline is the tell, green on hover. */
+.lasd26 .tm-share .v{display:inline-block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(22px,6vw,32px);line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;color:var(--ink);text-decoration:none}
+.lasd26 .tm-share a.v{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:3px;text-decoration-color:var(--safety)}
+.lasd26 .tm-share a.v:hover{color:var(--safety-ink)}
 .lasd26 .tm-share .v.o{color:var(--safety-ink)}
 `;

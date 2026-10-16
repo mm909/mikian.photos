@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { canEdit, checkBucket, getExpense, liveChildCount, parseExpenseInput, viewWithChildren } from "@/lib/lasd26/expenses";
+import { canEdit, checkBucket, checkPayer, getExpense, liveChildCount, parseExpenseInput, viewWithChildren } from "@/lib/lasd26/expenses";
 import { badJson, notFound, notYours, readJson, requireTeamWrite } from "../guard";
 
 /**
- * PATCH  /api/lasd26/expenses/[id] — change title / amount / note /
- *        estimate / parentId (only the fields sent). Owner or whoever
- *        added it. parentId moves a line into a bucket (a live, top-level
- *        estimate of this team) or, as null, back out; the bucket rules
- *        (lib/lasd26/expenses checkBucket) answer 400: a child cannot be
- *        an estimate, a bucket with real costs inside cannot move into
- *        another bucket, and cannot stop being an estimate while it holds
- *        them.
+ * PATCH  /api/lasd26/expenses/[id] — change title / amount / paidById /
+ *        estimate / parentId / note (only the fields sent). Owner or
+ *        whoever added it. paidById names who fronted the line (a member
+ *        of this team, or null to clear it — 400 for anyone else).
+ *        parentId moves a line into a bucket (a live, top-level estimate
+ *        of this team) or, as null, back out — the page no longer offers
+ *        the move (owner, 2026-10-16: the in-bucket button is the only
+ *        way in), the API keeps it so the owner can detach by hand; the
+ *        bucket rules (lib/lasd26/expenses checkBucket) answer 400: a
+ *        child cannot be an estimate, a bucket with real costs inside
+ *        cannot move into another bucket, and cannot stop being an
+ *        estimate while it holds them. A line that becomes an estimate
+ *        drops its payer (nobody fronts a round number).
  * DELETE /api/lasd26/expenses/[id] — soft delete (deletedAt); the receipts
  *        stay in R2 with the row's history. A bucket's live children are
  *        detached in the same transaction and carry on as their own lines
@@ -48,6 +53,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (data.estimate === false && expense.estimate && (await liveChildCount(expense.id)) > 0) {
     return bad("This line holds real costs, so it stays an estimate — move them out first.");
   }
+  if (data.paidById !== undefined && data.paidById !== null && data.paidById !== expense.paidById) {
+    const payer = await checkPayer(data.paidById);
+    if (!payer.ok) return bad(payer.error);
+  }
+  if (nextEstimate) data.paidById = null;
 
   await db.teamExpense.update({ where: { id: expense.id }, data });
   const fresh = await getExpense(expense.id);

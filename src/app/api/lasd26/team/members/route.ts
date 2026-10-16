@@ -1,33 +1,56 @@
 import { NextResponse } from "next/server";
-import { getTeamViewer, listMembers } from "@/lib/lasd26/team";
+import { ensureOwnerMember, getTeamViewer } from "@/lib/lasd26/team";
+import { dueFor } from "@/lib/lasd26/settle";
 
 /**
- * GET /api/lasd26/team/members — the roster, for the team.
- * Members see names, roles, join times and a paid yes/no (so the group can
- * see who has settled); only the owner gets emails and the paid details
- * (when, how much, via). Outsiders get 403, signed-out 401.
+ * GET /api/lasd26/team/members — the roster against the bill, for the
+ * team. Members see names, roles, join times and where each person stands
+ * (share, fronted, net, status — the same numbers as the expenses page,
+ * so the group can see who has settled and who is owed); only the owner
+ * gets emails and the paid / paid-out details (when, how much, via).
+ * Outsiders get 403, signed-out 401.
  */
 export const runtime = "nodejs";
 
 export async function GET() {
-  const viewer = await getTeamViewer();
+  const viewer = await ensureOwnerMember(await getTeamViewer());
   if (!viewer.actor) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
   if (!viewer.onTeam) return NextResponse.json({ ok: false, error: "Not on the team." }, { status: 403 });
 
   try {
-    const rows = await listMembers();
-    const members = rows.map((m) => {
-      const base = { id: m.id, name: m.name, role: m.role, joinedAt: m.joinedAt.toISOString(), paid: m.paidAt !== null };
+    const due = await dueFor();
+    const members = due.members.map((m) => {
+      const base = {
+        id: m.memberId,
+        name: m.name,
+        role: m.role,
+        shareCents: m.shareCents,
+        frontedCents: m.frontedCents,
+        netCents: m.netCents,
+        status: m.status,
+        paid: m.status === "paid",
+      };
       if (!viewer.owner) return base;
       return {
         ...base,
-        email: m.email,
         paidAt: m.paidAt ? m.paidAt.toISOString() : null,
-        paidCents: m.paidCents,
+        paidCents: m.paidAt ? m.paidCents : null,
         paidVia: m.paidVia,
+        settledAt: m.settledAt ? m.settledAt.toISOString() : null,
+        settledCents: m.settledCents,
+        outstandingCents: m.outstandingCents,
+        owedCents: m.owedCents,
       };
     });
-    return NextResponse.json({ ok: true, members, count: members.length });
+    return NextResponse.json({
+      ok: true,
+      members,
+      count: members.length,
+      totalCents: due.totalCents,
+      perPersonCents: due.perPersonCents,
+      splitCount: due.splitCount,
+      settleOpen: due.settleOpen,
+    });
   } catch (err) {
     console.error("lasd26/team/members failed", err);
     return NextResponse.json({ ok: false, error: "Could not read the roster." }, { status: 500 });

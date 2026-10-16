@@ -37,7 +37,11 @@ export type Member = {
   joinedAt: Date;
   paidAt: Date | null;
   paidCents: number | null;
+  /** 'card' | 'paypal' | 'manual' | null. */
   paidVia: string | null;
+  /** The owner paid them out of the pool (they fronted more than their share): when, how much. */
+  settledAt: Date | null;
+  settledCents: number | null;
 };
 
 export type TeamViewer = {
@@ -61,10 +65,42 @@ const MEMBER_SELECT = {
   paidAt: true,
   paidCents: true,
   paidVia: true,
+  settledAt: true,
+  settledCents: true,
 } as const;
 
 function asMember(row: { role: string } & Omit<Member, "role">): Member {
   return { ...row, role: parseRole(row.role) ?? "runner" };
+}
+
+/**
+ * The owner's own member row, made on the way in. He runs the crossing and
+ * is on the crew, so every page that files money by member — expenses
+ * (PAID BY defaults to the signed-in member, owner, 2026-10-16: "auto fill
+ * the name of the user logged in"), the pay page (his share, what he
+ * fronted) and the team console (the roster with him on it) — needs him to
+ * have one before he has taken his own invite link. Same upsert joinTeam
+ * does, without a token: role "runner", name and email from the account;
+ * a later join through the link only updates the row. Anyone else is
+ * either a member already or not on the team, and comes back unchanged.
+ * Never throws: when the table is not there yet he is simply not a member.
+ */
+export async function ensureOwnerMember(viewer: TeamViewer, team: string = TEAM): Promise<TeamViewer> {
+  if (!viewer.owner || viewer.member || !viewer.actor) return viewer;
+  const actor = viewer.actor;
+  const name = actor.name.trim().slice(0, 80) || actor.email;
+  try {
+    const row = await db.teamMember.upsert({
+      where: { team_userId: { team, userId: actor.photographerId } },
+      create: { team, userId: actor.photographerId, email: actor.email, name, role: "runner" },
+      update: {},
+      select: MEMBER_SELECT,
+    });
+    return { ...viewer, member: asMember(row), onTeam: true };
+  } catch (err) {
+    console.error("lasd26/team: owner member upsert failed (table pushed?)", err);
+    return viewer;
+  }
 }
 
 /** Who is looking, resolved once per request. Never throws: a db hiccup = signed out. */
@@ -123,8 +159,7 @@ export async function inviteByToken(token: string, team: string = TEAM): Promise
 
 /**
  * The invite link for the page the owner copies. The join page's address
- * comes from paths.ts, so the link follows the site when it moves out of
- * /lasd26/dev (and, while it is there, points at the gated dev copy).
+ * comes from paths.ts (live at /lasd26/join since 2026-10-16).
  */
 export function inviteUrl(origin: string, token: string): string {
   return `${origin.replace(/\/$/, "")}${lasdPath("/join")}?t=${encodeURIComponent(token)}`;
