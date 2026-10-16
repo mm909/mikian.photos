@@ -15,8 +15,11 @@ import { badJson, notFound, notYours, readJson, requireTeamWrite } from "../guar
  *        bucket rules (lib/lasd26/expenses checkBucket) answer 400: a
  *        child cannot be an estimate, a bucket with real costs inside
  *        cannot move into another bucket, and cannot stop being an
- *        estimate while it holds them. A line that becomes an estimate
- *        drops its payer (nobody fronts a round number).
+ *        estimate while it holds them. A line with receipts on it cannot
+ *        become an estimate (400) — an estimate is a category and shows no
+ *        receipts (owner, 2026-10-16), so the flip would hide them. A line
+ *        that becomes an estimate drops its payer (nobody fronts a round
+ *        number).
  * DELETE /api/lasd26/expenses/[id] — soft delete (deletedAt); the receipts
  *        stay in R2 with the row's history. A bucket's live children are
  *        detached in the same transaction and carry on as their own lines
@@ -52,6 +55,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
   if (data.estimate === false && expense.estimate && (await liveChildCount(expense.id)) > 0) {
     return bad("This line holds real costs, so it stays an estimate — move them out first.");
+  }
+  if (data.estimate === true && !expense.estimate && expense.receipts.length > 0) {
+    return bad("This line has receipts on it, so it stays a real cost — receipts go on the real costs under a category.");
   }
   if (data.paidById !== undefined && data.paidById !== null && data.paidById !== expense.paidById) {
     const payer = await checkPayer(data.paidById);

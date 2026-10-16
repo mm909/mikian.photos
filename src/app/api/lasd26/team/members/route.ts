@@ -8,6 +8,8 @@ import { dueFor } from "@/lib/lasd26/settle";
  * (share, fronted, net, status — the same numbers as the expenses page,
  * so the group can see who has settled and who is owed); only the owner
  * gets emails and the paid / paid-out details (when, how much, via).
+ * The owner's row carries pool: true and status "pool" (2026-10-16:
+ * "People will be paying me") — it never owes, is never owed, never paid.
  * Outsiders get 403, signed-out 401.
  */
 export const runtime = "nodejs";
@@ -28,6 +30,7 @@ export async function GET() {
         frontedCents: m.frontedCents,
         netCents: m.netCents,
         status: m.status,
+        pool: m.pool,
         paid: m.status === "paid",
       };
       if (!viewer.owner) return base;

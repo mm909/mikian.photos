@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { currentInvite, ensureOwnerMember, getTeamViewer, listMembers, inviteUrl, type Member } from "@/lib/lasd26/team";
 import { lasdPath } from "@/lib/lasd26/paths";
-import { dueFor, type MemberRow } from "@/lib/lasd26/settle";
+import { dueFor, poolRow, type MemberRow } from "@/lib/lasd26/settle";
 import { fmtUsd } from "@/lib/lasd26/money";
 import { LasdPage } from "../LasdPage";
 import { teamCss } from "../teamCss";
@@ -23,6 +23,12 @@ import { SettingsForm } from "./SettingsForm";
  * the total splits, and whether settle up is open to everyone). Owner
  * only in every environment: anyone else gets 404, the same answer as a
  * page that does not exist.
+ *
+ * The owner's own row is THE POOL (owner, 2026-10-16: "I am not going to
+ * be 'paying out' myself. People will be paying me"): share and fronted
+ * as everyone, the net cell reads "— pool · collects", PAID is a dash,
+ * no mark button (REMOVE stays), and TO COLLECT / TO PAY OUT are the
+ * other rows only — settle.ts.
  */
 
 export const metadata: Metadata = {
@@ -38,8 +44,9 @@ export const viewport: Viewport = {
 // Owner session + live tables — never static.
 export const dynamic = "force-dynamic";
 
-/** The PAID cell: when, how much, how — in either direction. */
+/** The PAID cell: when, how much, how — in either direction; a dash on the pool. */
 function paidCell(r: MemberRow): string {
+  if (r.pool) return "—";
   if (r.paidAt) {
     const parts = [datePacific(r.paidAt), fmtUsd(r.paidCents)];
     if (r.paidVia) parts.push(`via ${r.paidVia}`);
@@ -49,8 +56,9 @@ function paidCell(r: MemberRow): string {
   return "—";
 }
 
-/** The OWES / OWED cell: the net in words, so the column reads at a glance. */
+/** The OWES / OWED cell: the net in words, so the column reads at a glance. The pool's row is the dash: nothing moves on it. */
 function netCell(r: MemberRow): { text: string; cls: string } {
+  if (r.pool) return { text: "— pool", cls: "tm-dim tm-pool" };
   if (r.netCents > 0) return { text: `owes ${fmtUsd(r.netCents)}`, cls: "tm-owes" };
   if (r.netCents < 0) return { text: `owed ${fmtUsd(-r.netCents)}`, cls: "tm-owed" };
   return { text: "square", cls: "tm-dim" };
@@ -80,6 +88,7 @@ export default async function TeamPage() {
   // join time. Same ids, same order (both roster order).
   const byId = new Map(roster.map((m) => [m.id, m] as const));
   const rows = due.members.map((r) => ({ r, m: byId.get(r.memberId) ?? null }));
+  const pool = poolRow(due);
   const expenses = lasdPath("/expenses");
 
   return (
@@ -133,18 +142,27 @@ export default async function TeamPage() {
                         </td>
                         <td className="tm-hide-sm tm-amt tm-dim">{fmtUsd(r.shareCents)}</td>
                         <td className="tm-hide-sm tm-amt">{r.frontedCents > 0 ? fmtUsd(r.frontedCents) : "—"}</td>
-                        <td className={`tm-amt ${r.status === "paid" ? "tm-dim" : net.cls}`}>{net.text}</td>
+                        <td className={`tm-amt ${r.status === "paid" ? "tm-dim" : net.cls}`}>
+                          {net.text}
+                          {r.pool && <span className="tm-sub">collects</span>}
+                        </td>
                         <td className="tm-paid">
                           {paidCell(r)}
-                          <br />
-                          <PaidButton memberId={r.memberId} status={r.status} name={r.name} amount={fmtUsd(r.status === "owed" ? r.owedCents : r.outstandingCents)} />
+                          {!r.pool && (
+                            <>
+                              <br />
+                              <PaidButton memberId={r.memberId} status={r.status} name={r.name} amount={fmtUsd(r.status === "owed" ? r.owedCents : r.outstandingCents)} />
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {/* The two directions of the pool, so the owner knows what is still to come in and what he still sends out. */}
+              {/* The pool in one line (owner, 2026-10-16: "People will be paying me"), only while he is on the roster to be it. */}
+              {pool && <p className="tm-note">Mikian is the pool: what people owe goes to him, what he fronted is the pool&rsquo;s spend.</p>}
+              {/* The two directions of the pool, so the owner knows what is still to come in and what he still sends out — the other rows only. */}
               <p className="tm-note">
                 TO COLLECT <strong>{fmtUsd(due.toCollectCents)}</strong> · TO PAY OUT <strong>{fmtUsd(due.toPayOutCents)}</strong> · FRONTED SO FAR{" "}
                 <strong>{fmtUsd(due.frontedCents)}</strong>

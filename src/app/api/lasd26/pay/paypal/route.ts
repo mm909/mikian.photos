@@ -22,7 +22,9 @@ export const runtime = "nodejs";
  * The amount is the OUTSTANDING NET from settle.ts — the share less what
  * they fronted — never the full share when something was fronted, and
  * never a number from the client. A member the pool owes, or one who is
- * square, has nothing to pay here and is told so.
+ * square, has nothing to pay here and is told so — and so is the pool
+ * itself, the owner's own row (owner, 2026-10-16: "People will be paying
+ * me"; settle.ts status "pool").
  *
  * Guards, in order: payments open (the owner's unlock cookie bypasses the
  * site-wide lock, as everywhere), signed in, on the team (a member row —
@@ -48,6 +50,7 @@ export async function POST(req: Request) {
   const due = await dueFor(TEAM);
   if (!due.settleOpen && !viewer.owner) return bad("Settling up opens after the race — the crew will send the word.", 403);
   const mine = memberDue(viewer.member, due);
+  if (mine.status === "pool") return bad("You're the pool — people pay you; nothing to pay here.", 409);
   if (mine.status === "paid") return bad("Already paid.", 409);
   if (mine.status === "owed") return bad(`Nothing to pay — you fronted more than your share, Mikian owes you ${fmtUsd(mine.owedCents)}.`, 409);
   if (mine.status === "square") return bad("All square — nothing to pay.", 409);

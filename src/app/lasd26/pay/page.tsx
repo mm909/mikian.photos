@@ -29,6 +29,12 @@ import { PayShare } from "./PayShare";
  *   - a member once it is open → the statement, PAID or the card button
  *   - the owner → always the full page; a note on top while it is closed
  *
+ * THE OWNER IS THE POOL (owner, 2026-10-16: "I am not going to be 'paying
+ * out' myself. People will be paying me. So that line can be $0 for me"):
+ * his statement is YOUR SHARE, YOU FRONTED, then "YOU'RE THE POOL" with a
+ * $0 — people pay him, nothing to pay here, no card button, never WE OWE
+ * YOU (settle.ts status "pool").
+ *
  * The numbers are settle.ts's from the live cost sheet.
  */
 
@@ -58,6 +64,7 @@ function Foot() {
 
 /** The eyebrow beside SETTLE UP: where this member stands, in two words. */
 function eyebrowFor(mine: MemberRow, settleOpen: boolean): string {
+  if (mine.status === "pool") return "THE POOL";
   if (mine.status === "paid") return mine.paidAt ? "PAID" : "PAID OUT";
   if (mine.status === "owed") return "YOU ARE OWED";
   if (mine.status === "square") return "ALL SQUARE";
@@ -66,6 +73,19 @@ function eyebrowFor(mine: MemberRow, settleOpen: boolean): string {
 
 /** The third line of the statement: the answer. */
 function Answer({ mine }: { mine: MemberRow }) {
+  if (mine.status === "pool") {
+    // The owner's own row: the $0 he asked for, and why (2026-10-16:
+    // "People will be paying me … that line can be $0 for me").
+    return (
+      <div className="row big">
+        <div className="k mono">You&rsquo;re the pool</div>
+        <div className="n">{fmtUsd(0, { whole: true })}</div>
+        <p className="m mono">
+          People pay you; nothing to pay here. What you fronted is the pool&rsquo;s spend — who owes what is on the <a href={lasdPath("/team")}>team console</a>.
+        </p>
+      </div>
+    );
+  }
   if (mine.status === "paid" && mine.paidAt) {
     return (
       <div className="row big">
@@ -232,6 +252,8 @@ export default async function PayPage() {
                     </li>
                   ))}
                 </ul>
+              ) : mine.status === "pool" ? (
+                <p className="m mono">Nothing yet — a cost you add with PAID BY you is the pool&rsquo;s spend.</p>
               ) : (
                 <p className="m mono">Nothing yet — a cost you add with PAID BY you comes off here.</p>
               )}

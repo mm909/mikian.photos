@@ -21,6 +21,8 @@ because the site did:
 | `/lasd26/pay` | the team once settling up is open (owner before) | your share, card, "paid" state |
 | `/lasd26/team` | owner | the invite link (copy / rotate), members, mark paid by hand, split count, open settling up |
 | `/lasd26/the-list` | owner | the crew-call applications — the DEVELOPMENT item in the account menu, 404 to anyone else |
+| `/lasd26/info` | the team — IN DEVELOPMENT (owner only in production) | the info sheet: addresses, times, who to call; the owner fills it in, members read |
+| `/lasd26/route` | the team — IN DEVELOPMENT (owner only in production) | the route, the race's Google My Maps embedded in the site's colours |
 
 **LIVE is hidden** (owner, 2026-10-16: "Let's hide the 'live' page for
 now. It's not ready."). The bar has two doors, CREW CALL and EXPENSES; the
@@ -37,6 +39,51 @@ still works. Nothing renders the old form.
 The owner makes it on `/lasd26/team` (copy / rotate) and drops it in the
 group chat; the token is the only key to the team, and making a new link
 retires the old one.
+
+## In development: the info sheet and the route
+
+Both built 2026-10-16 from the owner's notes and NOT live (owner: "put it
+behind the dev gate", "again put it behind a dev gate for now"). They wear
+the standing rule in CLAUDE.md through `gateLasdDev()` in
+`src/lib/lasd26/devGate.ts` — admin-only in production (anyone else gets
+the 404 a missing page gives), open on a laptop — `devTitle("…")` puts
+"(dev)" in the title, the metadata says noindex, and the only doors are
+"Route (dev) →" and "Info sheet (dev) →" in the owner's DEVELOPMENT group of
+the account menu (`LasdAccount.tsx`). When the owner says a page is live:
+swap the gate for `getTeamViewer()`/`ensureOwnerMember()`, drop the "(dev)"
+tag, move the link to the member pages (or a door in `LasdBar.tsx`), and
+on the info sheet take the production check off `GET /api/lasd26/info`.
+
+- **The info sheet** (`/lasd26/info`; owner, 2026-10-16: "make a info page
+  where we can fill out addresses for airbnb, start line, van pick up etc.
+  if you already know any of that please fill it in. I can give the rest.
+  What other info would the runners need."). One line per thing a runner
+  needs, a `TeamInfoItem` row each (team + key slug, label, value, hint,
+  sortOrder). THE LIST IS CODE — `DEFAULT_ITEMS` in `src/lib/lasd26/info.ts`,
+  in page order: Race, Race day, Start line, Finish, The weekend, Van
+  pick-up, Airbnb, Hotel Friday, Group chat, Crew phones, What to bring,
+  Food plan, Phone tracking, Pairs & rotation, Parking at the start,
+  Emergency, then three the runners will ask about — Leaving Vegas,
+  Exchange points, Money. What the site already knew is typed in (the race,
+  the day and start time, Santa Monica Pier, the Thu–Sat plan, a packing
+  list, Traccar Client, where the money is); every empty line carries a
+  hint. `ensureInfoItems()` seeds the MISSING keys on first read and never
+  touches a value, so the owner's text survives any change to the list. The
+  page: a mono eyebrow over each value in body type, line breaks kept,
+  URLs / @handles / phone numbers / emails made into links, "— not yet —"
+  in grey where nothing is typed; the OWNER gets an EDIT pencil per line
+  (textarea, SAVE / CANCEL, Ctrl+Enter saves, Escape backs out), a member
+  reads. API `/api/lasd26/info`: `GET` (team) the sheet in order; `PATCH`
+  (owner) `{ key, value }`, 404 for a key not on the sheet, 4000 characters
+  at most. Needs `npm run prisma:push` once for the `TeamInfoItem` table
+  (the page shows an empty sheet, not a crash, until then).
+- **The route** (`/lasd26/route`; owner, 2026-10-16: "I've attached a
+  google maps with the route, embed this route into the site, make it the
+  same color scheem at the rest of the site"). The race's Google My Maps
+  (`mid=1vsgSOGVJdwgvlBo3dPvUKCsPG6CL998`) embedded on the paper inside the
+  site's frame and colours; the official map is the race's and its pins
+  (START, the hospitals) are theirs, so the embed is the source of truth
+  and the page only frames it.
 
 ## How it works
 
@@ -56,7 +103,10 @@ retires the old one.
   presigned PUT, registered, thumbnailed with sharp, and served through a
   membership-checked redirect, so they are private to the team. The gas
   receipt is whoever filled up: any member can attach to any line, and
-  remove what they attached; a line is edited or deleted by whoever added it
+  remove only what they attached themselves (owner, 2026-10-16: "it's okay
+  for them to delete their own but not other people's"); an estimate takes
+  no receipts — they go on the real costs under it; a line is edited or
+  deleted by whoever added it
   or the owner.
 - **Buckets** (owner, 2026-10-16: "How do I let people add real expenses to
   the food/gas estimates"). An estimate line is a bucket real costs are
@@ -118,5 +168,5 @@ retires the old one.
 
 Code: `src/app/lasd26/**` (pages, `LasdPage`/`LasdBar`/`LasdAccount`,
 `SignInLine`, `theme.ts`, the `*Css.ts` files), `src/app/api/lasd26/**`,
-`src/lib/lasd26/{paths,team,money,expenses,receipts,settle}.ts`, models at
-the end of `prisma/schema.prisma`.
+`src/lib/lasd26/{paths,team,money,expenses,receipts,settle,info,devGate}.ts`,
+models at the end of `prisma/schema.prisma`.

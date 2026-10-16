@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { isOwner, isOwnerEmail, normalizeRoles } from "@/lib/permissions";
 import { TEAM, getSettings, listMembers, type Member, type TeamRole } from "./team";
 import { TOTAL_SELECT, frontedLines, perPersonCents, settlement, type ExpenseLine } from "./money";
 
@@ -30,12 +31,21 @@ import { TOTAL_SELECT, frontedLines, perPersonCents, settlement, type ExpenseLin
  * so what the crew pays in is exactly what was fronted — see the identity
  * in money.test.ts.
  *
+ * THE POOL (owner, 2026-10-16: "I am not going to be 'paying out' myself.
+ * People will be paying me. So that line can be $0 for me"). The owner's
+ * own row is the pool: everything people owe goes to him, and what he
+ * fronted is simply what the pool spent. His row carries a share and
+ * what he fronted like everyone else's, but its status is "pool" — he
+ * never owes, is never owed, is never marked paid; TO COLLECT and TO PAY
+ * OUT are the other rows only. The pool is the member whose email passes
+ * isOwnerEmail(), or whose account carries the owner role (poolIds()).
+ *
  * Nothing here decides who may SEE the numbers: the page and the API do
  * that from getTeamViewer + settleOpen. The pay button is the owner's
  * alone until he flips settleOpen (Team → settings).
  */
 
-export type MemberStatus = "owes" | "paid" | "owed" | "square";
+export type MemberStatus = "owes" | "paid" | "owed" | "square" | "pool";
 
 export type FrontedLine = { id: string; title: string; amountCents: number };
 
@@ -43,15 +53,17 @@ export type MemberRow = {
   memberId: string;
   name: string;
   role: TeamRole;
+  /** The owner: the pool itself (status "pool"), see the header. */
+  pool: boolean;
   /** Their share of the total (= Due.perPersonCents). */
   shareCents: number;
   /** What they fronted (money.ts frontedCents). */
   frontedCents: number;
   /** The lines behind it, newest first — "YOU FRONTED" lists them. */
   fronted: FrontedLine[];
-  /** share − fronted: > 0 they owe it, < 0 the pool owes them. */
+  /** share − fronted: > 0 they owe it, < 0 the pool owes them. On the pool's own row it is just the arithmetic — nothing moves on it. */
   netCents: number;
-  /** What they have paid in, cents (0 until they pay). */
+  /** What they have paid in, cents (0 until they pay; always 0 on the pool). */
   paidCents: number;
   paidAt: Date | null;
   /** 'card' | 'paypal' | 'manual' | null. */
@@ -60,9 +72,9 @@ export type MemberRow = {
   settledAt: Date | null;
   settledCents: number | null;
   status: MemberStatus;
-  /** Still to be paid in: net while they owe it, 0 once paid / owed / square. */
+  /** Still to be paid in: net while they owe it, 0 once paid / owed / square / pool. */
   outstandingCents: number;
-  /** Still to be paid out: −net while they are owed, 0 once settled. */
+  /** Still to be paid out: −net while they are owed, 0 once settled, 0 on the pool. */
   owedCents: number;
 };
 
@@ -80,53 +92,93 @@ export type Due = {
   settleOpen: boolean;
   /** Every member against the bill, roster order. */
   members: MemberRow[];
-  /** Σ fronted across the roster. */
+  /** Σ fronted across the roster, the pool's included (it is the pool's spend). */
   frontedCents: number;
-  /** Σ outstanding — what is still to come in. */
+  /** Σ outstanding over the non-pool rows — what is still to come in to the pool. */
   toCollectCents: number;
-  /** Σ owed — what the owner still pays out. */
+  /** Σ owed over the non-pool rows — what the pool still pays out. */
   toPayOutCents: number;
-  /** Members whose status is "paid". */
+  /** Members whose status is "paid" (never the pool). */
   paidCount: number;
 };
 
 type SettleLine = ExpenseLine & { id: string; title: string; paidById: string | null };
 
 /**
- * Where a member stands. A row with paidAt set is settled whatever the
- * cents say — the owner marks Venmo/Zelle by hand and may round, and a
- * share that moved a few cents after a card payment is not chased. A
- * member the pool owes is "paid" once the owner has marked the payout
- * (settledAt); net 0 is square either way.
+ * Where a member stands. The pool (the owner, see the header) is "pool"
+ * whatever the cents or the marks say — he collects, he never pays in or
+ * out. Otherwise a row with paidAt set is settled whatever the cents say —
+ * the owner marks Venmo/Zelle by hand and may round, and a share that
+ * moved a few cents after a card payment is not chased. A member the pool
+ * owes is "paid" once the owner has marked the payout (settledAt); net 0
+ * is square either way.
  */
-export function statusOf(m: Pick<Member, "paidAt" | "settledAt">, netCents: number): MemberStatus {
+export function statusOf(m: Pick<Member, "paidAt" | "settledAt">, netCents: number, pool = false): MemberStatus {
+  if (pool) return "pool";
   if (m.paidAt !== null) return "paid";
   if (netCents > 0) return "owes";
   if (netCents < 0) return m.settledAt !== null ? "paid" : "owed";
   return "square";
 }
 
-function rowFor(m: Member, share: number, fronted: number, lines: FrontedLine[]): MemberRow {
+/**
+ * The pool's row reads blank where the others carry marks: no paid-in, no
+ * paid-out, nothing outstanding, nothing owed (owner, 2026-10-16: "that
+ * line can be $0 for me"). A stale mark on his TeamMember row (one made
+ * before this rule) is simply not shown; the mark route still clears it.
+ */
+function rowFor(m: Member, share: number, fronted: number, lines: FrontedLine[], pool: boolean): MemberRow {
   const net = share - fronted;
-  const status = statusOf(m, net);
-  const paid = m.paidAt !== null;
+  const status = statusOf(m, net, pool);
+  const paid = !pool && m.paidAt !== null;
   return {
     memberId: m.id,
     name: m.name,
     role: m.role,
+    pool,
     shareCents: share,
     frontedCents: fronted,
     fronted: lines,
     netCents: net,
     paidCents: paid ? Math.max(0, m.paidCents ?? 0) : 0,
-    paidAt: m.paidAt,
+    paidAt: pool ? null : m.paidAt,
     paidVia: paid ? m.paidVia : null,
-    settledAt: m.settledAt,
-    settledCents: m.settledAt !== null ? m.settledCents : null,
+    settledAt: pool ? null : m.settledAt,
+    settledCents: !pool && m.settledAt !== null ? m.settledCents : null,
     status,
     outstandingCents: status === "owes" ? net : 0,
     owedCents: status === "owed" ? -net : 0,
   };
+}
+
+/**
+ * Which rows are the pool: the member whose email is one of the owner's
+ * (isOwnerEmail — both his Google accounts), or whose account carries the
+ * owner role (the roles column on Photographer, the same check
+ * getTeamViewer makes). The email test needs no query; the role test is
+ * one findMany over the rest of the roster, and a failed read there only
+ * means nobody is the pool by role this time.
+ */
+async function poolIds(members: Member[]): Promise<Set<string>> {
+  const pool = new Set<string>();
+  const byRole: Member[] = [];
+  for (const m of members) {
+    if (isOwnerEmail(m.email)) pool.add(m.id);
+    else byRole.push(m);
+  }
+  if (byRole.length > 0) {
+    try {
+      const rows = await db.photographer.findMany({
+        where: { id: { in: byRole.map((m) => m.userId) } },
+        select: { id: true, roles: true },
+      });
+      const owners = new Set(rows.filter((r) => isOwner({ roles: normalizeRoles(r.roles) })).map((r) => r.id));
+      for (const m of byRole) if (owners.has(m.userId)) pool.add(m.id);
+    } catch (err) {
+      console.error("lasd26/settle: owner-role lookup failed", err);
+    }
+  }
+  return pool;
 }
 
 /** The crew's bill today, member by member. Never throws: a db hiccup reads as an empty sheet / roster. */
@@ -145,17 +197,21 @@ export async function dueFor(team: string = TEAM): Promise<Due> {
   } catch (err) {
     console.error("lasd26/settle: sheet / roster read failed (tables pushed?)", err);
   }
-  const settings = await getSettings(team);
+  const [settings, pool] = await Promise.all([getSettings(team), poolIds(members)]);
   const s = settlement(lines, members.map((m) => m.id), settings.splitCount, { settleOpen: settings.settleOpen });
   const rows = members.map((m, i) => {
     const r = s.rows[i];
     const mine = frontedLines(lines, m.id).map((l) => ({ id: l.id, title: l.title, amountCents: l.amountCents }));
-    return rowFor(m, r.shareCents, r.frontedCents, mine);
+    return rowFor(m, r.shareCents, r.frontedCents, mine, pool.has(m.id));
   });
+  // The two directions of the pool are the OTHER rows only: the pool's own
+  // row never owes and is never owed (its outstanding / owed are 0 by
+  // status, the skip just says so).
   let toCollect = 0;
   let toPayOut = 0;
   let paidCount = 0;
   for (const r of rows) {
+    if (r.pool) continue;
     toCollect += r.outstandingCents;
     toPayOut += r.owedCents;
     if (r.status === "paid") paidCount++;
@@ -178,10 +234,17 @@ export async function dueFor(team: string = TEAM): Promise<Due> {
 /**
  * One member's row out of the bill, for the pay page and the PayPal route.
  * A member who is not on the roster the bill was drawn from (a row made
- * between the two reads) carries the plain share with nothing fronted.
+ * between the two reads) carries the plain share with nothing fronted —
+ * and is the pool when the email says so (no query here, so the role test
+ * waits for the next read).
  */
 export function memberDue(member: Member, due: Due): MemberRow {
-  return due.members.find((r) => r.memberId === member.id) ?? rowFor(member, due.perPersonCents, 0, []);
+  return due.members.find((r) => r.memberId === member.id) ?? rowFor(member, due.perPersonCents, 0, [], isOwnerEmail(member.email));
+}
+
+/** The pool's row on this bill, if the owner is on the roster. */
+export function poolRow(due: Due): MemberRow | null {
+  return due.members.find((r) => r.pool) ?? null;
 }
 
 /** Both at once, for a page or route that already has the member. */

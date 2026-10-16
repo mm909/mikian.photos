@@ -74,4 +74,9 @@ export async function readJson(req: Request): Promise<Record<string, unknown> | 
 export const badJson = () => NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
 export const notFound = () => NextResponse.json({ ok: false, error: "No such expense." }, { status: 404 });
 export const notYours = () => NextResponse.json({ ok: false, error: "Only the owner or whoever added it can change this line." }, { status: 403 });
-export const notYourReceipt = () => NextResponse.json({ ok: false, error: "Only the owner, whoever added the line, or whoever attached this receipt can remove it." }, { status: 403 });
+// A receipt comes off by its attacher or the owner only (owner, 2026-10-16:
+// "it's okay for them to delete their own but not other people's").
+export const notYourReceipt = () => NextResponse.json({ ok: false, error: "Only the owner or whoever attached this receipt can remove it." }, { status: 403 });
+// An estimate line is a category, not a cost (owner, 2026-10-16: "we don't
+// need a receipt button for that category, just for the items added under it").
+export const notOnEstimate = () => NextResponse.json({ ok: false, error: "Receipts go on the real costs under this category." }, { status: 400 });

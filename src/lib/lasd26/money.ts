@@ -34,6 +34,15 @@
  * it; negative, the pool owes them and the owner pays them out after the
  * race; nobody is paid back only to pay it in again. settlement() below is
  * the whole rule, pure, checked by money.test.ts.
+ *
+ * THE POOL (owner, 2026-10-16: "I am not going to be 'paying out' myself.
+ * People will be paying me. So that line can be $0 for me"). The owner's
+ * row is the pool itself: settlement() still gives it a share, what it
+ * fronted and the arithmetic net like any row — that is the pool's own
+ * spend and its own seat — but settle.ts reads that row as status "pool",
+ * never owing, never owed, and sums TO COLLECT / TO PAY OUT over the
+ * other rows. Over those rows Σ net = pool fronted − pool share (the
+ * identity in money.test.ts).
  */
 
 export type ExpenseLine = {

@@ -26,7 +26,7 @@ import { LASD_ASSETS, lasdPath } from "@/lib/lasd26/paths";
 export const metadata: Metadata = {
   title: "LASD26 — Crew Call",
   description:
-    "A Vegas crew at the No Shortcuts Time Trial — a ~130-mile unsanctioned relay from Santa Monica Pier to San Diego, with Just Friends LV. Crew call is closed: the van is full.",
+    "A Vegas crew at the No Shortcuts Time Trial — a ~120-mile unsanctioned relay from Santa Monica Pier to San Diego, with Just Friends LV. Crew call is closed: the van is full.",
   openGraph: {
     title: "LASD26 — Crew Call",
     description:
@@ -63,7 +63,7 @@ export default async function Lasd26Page() {
           </h1>
           <p className="sub">
             We&rsquo;re taking a Vegas crew to the No Shortcuts Time Trial — a
-            ~130-mile unsanctioned relay from Santa Monica Pier to San Diego.
+            ~120-mile unsanctioned relay from Santa Monica Pier to San Diego.
             One van. One long Friday. A whole weekend together.
           </p>
           <p className="with mono">No Shortcuts × Just Friends LV</p>
@@ -134,7 +134,7 @@ export default async function Lasd26Page() {
             </div>
             <div>
               <h3>Race day</h3>
-              <p>5:00am start · 130 miles from LA to SD.</p>
+              <p>5:00am start · ~120 miles from LA to SD.</p>
             </div>
           </div>
           <div className="day">

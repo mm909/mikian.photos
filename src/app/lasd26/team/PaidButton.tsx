@@ -14,13 +14,16 @@ import type { MemberStatus } from "@/lib/lasd26/settle";
  *   owed   → MARK SETTLED  {settled: true}  the owner has paid them out
  *   paid   → UNMARK        {paid: false}    clears either mark
  *   square → nothing to mark
+ *   pool   → nothing to mark: the owner's own row (2026-10-16: "I am not
+ *            going to be 'paying out' myself") — the page does not even
+ *            render the button there; this is the second guard
  */
 export function PaidButton({ memberId, status, name, amount }: { memberId: string; status: MemberStatus; name: string; amount: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  if (status === "square") return null;
+  if (status === "square" || status === "pool") return null;
 
   const body = status === "paid" ? { memberId, paid: false } : status === "owed" ? { memberId, settled: true } : { memberId, paid: true };
   const label = status === "paid" ? "Unmark" : status === "owed" ? "Mark settled" : "Mark paid";

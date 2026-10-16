@@ -23,9 +23,22 @@
  * cents. Nothing is owed twice and nothing goes missing. While estimates
  * are ON the identity does not hold: Σ net = estimated + slack > 0,
  * because the round numbers nobody has fronted are still in every share
- * — which is why settling up replaces them with the real costs. */
+ * — which is why settling up replaces them with the real costs.
+ *
+ * THE POOL (owner, 2026-10-16: "I am not going to be 'paying out' myself.
+ * People will be paying me"). The owner's row is the pool — settle.ts
+ * reads it as status "pool", never owing, never owed — so the identity
+ * that matters is over the OTHER rows:
+ *
+ *   Σ(non-pool nets) = what the pool collects − what it pays out
+ *                    = pool fronted − pool share
+ *                    = total − Σ(non-pool fronted) − pool share
+ *
+ * (settling open, every line claimed, no slack). The pool gets back
+ * exactly what it spent beyond its own seat; its own net is the mirror,
+ * −Σ(non-pool nets), and nobody pays it out. */
 import assert from "node:assert/strict";
-import { bucketSum, frontedCents, frontedLines, settlement, totalCents, type ExpenseLine } from "./money";
+import { bucketSum, frontedCents, frontedLines, settlement, totalCents, type ExpenseLine, type Settlement } from "./money";
 
 const race: ExpenseLine = { id: "race", parentId: null, amountCents: 200_000, estimate: false, paidById: "o" };
 const gas = (kids: number[], payers: string[] = []): ExpenseLine[] => [
@@ -120,6 +133,48 @@ function main() {
   // the total but comes off nobody's share: Σ net = that line
   const unclaimed = settlement([{ ...race, paidById: null }, ...gas([6_200, 5_800], ["m1", "m2"])], ["o", "m1", "m2", "m3"], 4, open);
   assert.equal(unclaimed.netCents, 200_000);
+
+  /* ── the pool: the owner's row (2026-10-16: "People will be paying me") ── */
+  // settle.ts marks "o" as the pool and sums the OTHER rows: what comes in
+  // (positive nets) minus what goes out (negative nets). The sums here are
+  // the same arithmetic over settlement()'s rows.
+  const others = (st: Settlement, poolId: string) => {
+    let net = 0;
+    let collects = 0;
+    let paysOut = 0;
+    let fronted = 0;
+    for (const r of st.rows) {
+      if (r.memberId === poolId) continue;
+      net += r.netCents;
+      fronted += r.frontedCents;
+      if (r.netCents > 0) collects += r.netCents;
+      else paysOut -= r.netCents;
+    }
+    return { net, collects, paysOut, fronted };
+  };
+  // THE POOL IDENTITY on the sheet above: the crew owes $1,470 between
+  // them, nobody is owed, and $1,470 is exactly the $2,000 the owner
+  // fronted beyond his own $530 share (= 212_000 − 12_000 − 53_000).
+  const me = s.rows[0];
+  const o1 = others(s, "o");
+  assert.equal(o1.net, 147_000);
+  assert.equal(o1.collects - o1.paysOut, o1.net);
+  assert.equal(o1.paysOut, 0);
+  assert.equal(o1.net, me.frontedCents - me.shareCents);
+  assert.equal(o1.net, s.total - o1.fronted - me.shareCents);
+  assert.equal(me.netCents, -o1.net);
+  // and when the pool OWES someone: m1 fronted $800 of gas, above the
+  // $714.50 share → the pool pays out $85.50, collects $656.50 + $714.50,
+  // and the difference is still what it fronted beyond its seat.
+  const t = settlement([race, ...gas([80_000, 5_800], ["m1", "m2"])], ["o", "m1", "m2", "m3"], 4, open);
+  assert.equal(t.total, 285_800);
+  assert.equal(t.perPersonCents, 71_450);
+  const o2 = others(t, "o");
+  assert.equal(o2.paysOut, 8_550);
+  assert.equal(o2.collects, 65_650 + 71_450);
+  assert.equal(o2.collects - o2.paysOut, 200_000 - 71_450);
+  assert.equal(o2.net, t.total - o2.fronted - 71_450);
+  assert.equal(t.rows[0].netCents, -o2.net);
 
   // ESTIMATES ON: the identity does not hold. Σ net = estimated + slack,
   // the round numbers nobody has fronted ($480 of gas, $500 of food):

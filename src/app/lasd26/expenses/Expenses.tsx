@@ -2,8 +2,9 @@
 
 import { useCallback, useId, useState, type ChangeEvent } from "react";
 import { signIn } from "next-auth/react";
-import type { ExpenseView, ExpensesPayload, PayerView } from "@/lib/lasd26/expenses";
+import type { ExpenseView, ExpensesPayload, PayerView, ReceiptView } from "@/lib/lasd26/expenses";
 import { lasdPath } from "@/lib/lasd26/paths";
+import { ReceiptLightbox } from "./ReceiptLightbox";
 
 /**
  * The invoice (owner, 2026-10-15: "kind of like an invoice … they can see
@@ -39,6 +40,21 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * register. Per-file state shows under the card it belongs to. The picker
  * lists jpeg / png / webp / pdf explicitly — that is what makes an iPhone
  * hand over a JPEG for a HEIC photo (see lib/lasd26/receipts.ts).
+ *
+ * RECEIPTS, three rules of 2026-10-16 (owner). "Since the estimates are
+ * more like categories, we don't need a receipt button for that category,
+ * just for the items added under it": a bucket card has no "+ RECEIPT"
+ * picker and no receipt list — its children keep theirs; the add form
+ * hides the photo box while ESTIMATE is ticked, and the sign / register
+ * routes answer 400 on an estimate anyway. "Make sure other people can't
+ * delete my receipts; it's okay for them to delete their own but not
+ * other people's": the × on a receipt shows for the owner and for whoever
+ * attached it — not for the line's author just because it is their line
+ * (lib/lasd26/expenses canRemoveReceipt says the same on the server).
+ * "When I click on the receipt it opens in another page; it should open
+ * in a preview like other images during Rowtember": an image thumbnail is
+ * a button that opens ReceiptLightbox over the page, stepping through
+ * that line's image receipts; a pdf stays a chip that opens in a new tab.
  */
 
 const API = "/api/lasd26/expenses";
@@ -65,6 +81,9 @@ let upSeq = 0;
 
 /** What every card and form needs to know about the viewer and the sheet. */
 type Ctx = { members: PayerView[]; meId: string | null; owner: boolean; settleOpen: boolean };
+
+/** A receipt the lightbox can show: an image, with or without its thumb (a pdf is a chip in a new tab). */
+const isImage = (r: ReceiptView) => r.contentType.startsWith("image/");
 
 /* ─── Notices (signed out / not on the team) ─────────────────────────────── */
 
@@ -202,8 +221,10 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
  * set, opened by the "+ ADD A COST" door): already open, pointed at that
  * bucket, no ESTIMATE — what goes in a bucket is a real cost
  * (lib/lasd26/expenses checkBucket says so on the server too). PAID BY
- * starts on the signed-in member and hides while ESTIMATE is ticked: a
- * round number has not been paid by anyone.
+ * and the photo box start on / for the signed-in member and hide while
+ * ESTIMATE is ticked: a round number has not been paid by anyone and
+ * takes no receipt (owner, 2026-10-16: receipts go on "the items added
+ * under" a category).
  */
 function AddForm({ ctx, parent, onAdded, onClose }: { ctx: Ctx; parent?: { id: string; title: string }; onAdded: (id: string, files: File[]) => Promise<void>; onClose?: () => void }) {
   const [open, setOpen] = useState(parent !== undefined);
@@ -241,7 +262,8 @@ function AddForm({ ctx, parent, onAdded, onClose }: { ctx: Ctx; parent?: { id: s
         API,
         json({ title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate: parent ? false : estimate, parentId: parent?.id ?? null }),
       );
-      await onAdded(res.expense.id, files);
+      // A file picked before ESTIMATE was ticked stays behind: the sign route would refuse it.
+      await onAdded(res.expense.id, estimate ? [] : files);
       close();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something broke — try again.");
@@ -290,7 +312,7 @@ function AddForm({ ctx, parent, onAdded, onClose }: { ctx: Ctx; parent?: { id: s
           ESTIMATE — a round number, no receipt yet
         </label>
       )}
-      <FilePick files={files} disabled={busy} onPick={setFiles} label="Photos of the receipt" />
+      {!estimate && <FilePick files={files} disabled={busy} onPick={setFiles} label="Photos of the receipt" />}
       <div className="acts">
         <button type="button" className="xp-btn" onClick={submit} disabled={busy}>
           {busy ? "Saving…" : "Add it →"}
@@ -397,8 +419,11 @@ function ExpenseCard({
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // The lightbox: which of this line's IMAGE receipts is up, or none.
+  const [lb, setLb] = useState<number | null>(null);
   const mine = ups.filter((u) => u.expenseId === e.id);
   const isBucket = e.bucket !== null;
+  const images = e.receipts.filter(isImage);
 
   async function run(fn: () => Promise<void>) {
     if (busy) return;
@@ -466,28 +491,48 @@ function ExpenseCard({
           </div>
           <div className="xp-meta">
             {meta}
-            {e.receipts.length > 0 && ` · ${e.receipts.length} RECEIPT${e.receipts.length === 1 ? "" : "S"}`}
+            {!isBucket && e.receipts.length > 0 && ` · ${e.receipts.length} RECEIPT${e.receipts.length === 1 ? "" : "S"}`}
           </div>
           {ctx.owner && <BucketLine e={e} settleOpen={ctx.settleOpen} />}
         </>
       )}
 
-      {e.receipts.length > 0 && (
+      {/* A bucket is a category and shows no receipts of its own — the real costs under it carry them (owner, 2026-10-16). */}
+      {!isBucket && e.receipts.length > 0 && (
         <div className="xp-rcpts">
-          {e.receipts.map((r) => (
-            <span className={`xp-rcpt${r.hasThumb ? "" : " pdf"}`} key={r.id}>
-              <a href={`${API}/receipt/${r.id}`} target="_blank" rel="noopener noreferrer" title="Open the receipt">
-                {r.hasThumb ? <img src={`${API}/receipt/${r.id}?thumb=1`} alt={`Receipt for ${e.title}`} loading="lazy" /> : r.contentType === "application/pdf" ? "PDF" : "FILE"}
-              </a>
-              {/* Whoever may edit the line, or whoever attached this receipt, may take it off (lib/lasd26/expenses canRemoveReceipt). */}
-              {(e.canEdit || r.addedByMe) && (
-                <button type="button" className="xp-rcpt-x" aria-label="Remove this receipt" disabled={busy} onClick={() => dropReceipt(r.id)}>
-                  ×
-                </button>
-              )}
-            </span>
-          ))}
+          {e.receipts.map((r) => {
+            const at = images.findIndex((i) => i.id === r.id);
+            return (
+              <span className={`xp-rcpt${r.hasThumb ? "" : " chip"}`} key={r.id}>
+                {at >= 0 ? (
+                  // An image opens the lightbox over the page (owner, 2026-10-16: "a preview like other images during Rowtember").
+                  <button type="button" className="xp-rcpt-open" title="Look at the receipt" aria-label={`Look at receipt ${at + 1} of ${images.length} for ${e.title}`} onClick={() => setLb(at)}>
+                    {r.hasThumb ? <img src={`${API}/receipt/${r.id}?thumb=1`} alt="" loading="lazy" /> : "IMAGE"}
+                  </button>
+                ) : (
+                  <a href={`${API}/receipt/${r.id}`} target="_blank" rel="noopener noreferrer" title="Open the receipt in a new tab">
+                    {r.contentType === "application/pdf" ? "PDF" : "FILE"}
+                  </a>
+                )}
+                {/* The owner, or whoever attached this receipt, may take it off — not the line's author (lib/lasd26/expenses canRemoveReceipt; owner, 2026-10-16). */}
+                {(ctx.owner || r.addedByMe) && (
+                  <button type="button" className="xp-rcpt-x" aria-label="Remove this receipt" disabled={busy} onClick={() => dropReceipt(r.id)}>
+                    ×
+                  </button>
+                )}
+              </span>
+            );
+          })}
         </div>
+      )}
+      {lb !== null && images[lb] && (
+        <ReceiptLightbox
+          title={e.title}
+          receipts={images.map((r, i) => ({ id: r.id, src: `${API}/receipt/${r.id}`, alt: `Receipt ${i + 1} of ${images.length} for ${e.title}` }))}
+          index={lb}
+          onIndex={setLb}
+          onClose={() => setLb(null)}
+        />
       )}
 
       {mine.length > 0 && (
@@ -500,12 +545,15 @@ function ExpenseCard({
         </div>
       )}
 
-      {!editing && (
+      {/* No "+ RECEIPT" on a bucket (owner, 2026-10-16: "we don't need a receipt button for that category, just for the items added under it"). */}
+      {!editing && (!isBucket || e.canEdit) && (
         <div className="xp-acts">
-          <label className="xp-files">
-            <input type="file" accept={ACCEPT} multiple disabled={busy || busyUps} onChange={pick} />
-            <span>{busyUps ? "UPLOADING…" : "+ RECEIPT"}</span>
-          </label>
+          {!isBucket && (
+            <label className="xp-files">
+              <input type="file" accept={ACCEPT} multiple disabled={busy || busyUps} onChange={pick} />
+              <span>{busyUps ? "UPLOADING…" : "+ RECEIPT"}</span>
+            </label>
+          )}
           {e.canEdit && (
             <>
               <button type="button" className="xp-ghost" disabled={busy} onClick={() => setEditing(true)}>
@@ -543,8 +591,9 @@ function ExpenseCard({
  * Edit: title / amount / PAID BY / (owner) ESTIMATE. No PART OF — a line
  * stays where it is (the API still takes parentId if the owner ever needs
  * to detach one by hand). A bucket with real costs inside stays an
- * estimate (the API refuses the change), so the checkbox gives way to a
- * hint.
+ * estimate, and a real cost with receipts on it stays a real cost (an
+ * estimate shows no receipts, so the flip would hide them) — the API
+ * refuses both changes, so the checkbox gives way to a hint.
  */
 function EditForm({ expense: e, ctx, onDone, onCancel }: { expense: ExpenseView; ctx: Ctx; onDone: () => Promise<void>; onCancel: () => void }) {
   const [title, setTitle] = useState(e.title);
@@ -588,17 +637,20 @@ function EditForm({ expense: e, ctx, onDone, onCancel }: { expense: ExpenseView;
       </div>
       {!estimate && <PaidBy id={`${uid}-p`} value={paidById} members={ctx.members} disabled={busy} onChange={setPaidById} />}
       {ctx.owner &&
+        !e.parentId &&
         (holds > 0 ? (
           <p className="xp-hint">
             ESTIMATE · holds {holds} cost{holds === 1 ? "" : "s"}, so it stays one
           </p>
+        ) : !e.estimate && e.receipts.length > 0 ? (
+          <p className="xp-hint">
+            REAL COST · has {e.receipts.length} receipt{e.receipts.length === 1 ? "" : "s"} on it, so it stays one
+          </p>
         ) : (
-          !e.parentId && (
-            <label className="xp-check">
-              <input type="checkbox" checked={estimate} disabled={busy} onChange={(ev) => setEstimate(ev.target.checked)} />
-              ESTIMATE
-            </label>
-          )
+          <label className="xp-check">
+            <input type="checkbox" checked={estimate} disabled={busy} onChange={(ev) => setEstimate(ev.target.checked)} />
+            ESTIMATE
+          </label>
         ))}
       <div className="xp-acts">
         <button type="button" className="xp-btn" onClick={save} disabled={busy}>

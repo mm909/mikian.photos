@@ -26,7 +26,11 @@ export const runtime = "nodejs";
  *
  * Owner only. Clearing a card payment does not refund it (nothing on this
  * site refunds a share); it only lets the row be paid again, which is
- * what you want when a capture was recorded against the wrong person. */
+ * what you want when a capture was recorded against the wrong person.
+ *
+ * The pool's own row (the owner's; settle.ts status "pool"; 2026-10-16:
+ * "I am not going to be 'paying out' myself") takes no paid / settled
+ * mark — 409 — but an unmark still clears a stale one. */
 
 const bad = (error: string, status = 400) => NextResponse.json({ ok: false, error }, { status });
 
@@ -65,6 +69,7 @@ export async function POST(req: Request) {
 
   const due = await dueFor(TEAM);
   const mine = due.members.find((r) => r.memberId === member.id);
+  if (mine?.pool) return bad("Mikian is the pool — nothing to mark on his row.", 409);
 
   if (paid === true) {
     let cents: number;

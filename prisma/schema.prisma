@@ -1377,3 +1377,30 @@ model TeamSettings {
   settleOpen Boolean  @default(false)
   updatedAt  DateTime @updatedAt
 }
+
+// THE INFO SHEET (owner, 2026-10-16: "make a info page where we can fill
+// out addresses for airbnb, start line, van pick up etc."). One row per
+// line of the sheet — the Airbnb, the start line, the van pick-up, who to
+// call. The LIST is code (lib/lasd26/info.ts DEFAULT_ITEMS, seeded on
+// first read); the VALUES are the owner's, typed on /lasd26/info and never
+// overwritten by a seed. Keyed by a slug so the code can find "airbnb"
+// whatever the label says.
+model TeamInfoItem {
+  id          String   @id @default(cuid())
+  team        String
+  // The slug ("airbnb", "van-pick-up"): stable while the label is free to change.
+  key         String
+  label       String
+  // What the owner typed. May run several lines; "" = not filled in yet.
+  value       String   @default("")
+  // What goes here — shown to the owner under an empty value, and as the
+  // textarea's placeholder.
+  hint        String   @default("")
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  // TeamMember.id of whoever last saved the value (the owner today).
+  updatedById String?
+
+  @@unique([team, key])
+  @@index([team, sortOrder])
+}

@@ -70,23 +70,33 @@ entries:
     vehicle_devices:
       - { source: web, external_id: "lasd26-van-web" }
 
-# Miles are measured along the STAND-IN GPX (142.4 mi, BRouter, coast-hugging
-# — the official course is ~134 mi); the owner replaces towns / exchange
-# points and miles from the real route (spec §15.4). `kind: town` rows feed
-# the Meet us tab; a mile past the route end is clamped to the finish.
+# Miles are measured along events/lasd26.gpx, which since 2026-10-16 is the
+# OFFICIAL course from No Shortcuts' Google My Maps (owner: "I've attached a
+# google maps with the route"; scripts/lasd26-route-from-kml.ts): 115.3 mi
+# of running — inland through Inglewood, Manchester/Firestone and the LA
+# River trail to Long Beach, then PCH south to Pacific Beach. The GPX line
+# is 132.8 mi because the DRIVE through Camp Pendleton (San Mateo Point →
+# the Oceanside Chevron, where the runner starts again) sits in it as a
+# 17.5 mi straight jump — the tracker's line has to be continuous — so
+# every mile after San Mateo Point here is the official runner mile + 17.5
+# (the official mile is in the trailing comment). The owner may rename the
+# towns / exchange points (spec §15.4). `kind: town` rows feed the Meet us
+# tab; a mile past the route end is clamped to the finish.
 checkpoints:
   - { name: "Santa Monica Pier", kind: start, mile: 0 }
-  - { name: "Manhattan Beach", kind: town, mile: 12.7 }
-  - { name: "Long Beach", kind: town, mile: 34.9 }
-  - { name: "Huntington Beach", kind: town, mile: 48.3 }
-  - { name: "Newport Beach", kind: town, mile: 53.6 }
-  - { name: "Laguna Beach", kind: town, mile: 64.1 }
-  - { name: "Dana Point", kind: town, mile: 71.6 }
-  - { name: "San Clemente", kind: town, mile: 78.6 }
-  - { name: "Oceanside", kind: town, mile: 103.9 }
-  - { name: "Carlsbad", kind: town, mile: 107.4 }
-  - { name: "Encinitas", kind: town, mile: 116.2 }
-  - { name: "Del Mar", kind: town, mile: 123.0 }
-  - { name: "La Jolla", kind: town, mile: 131.4 }
-  - { name: "Pacific Beach", kind: town, mile: 137.5 }
-  - { name: "Ocean Beach Pier", kind: finish, mile: 142.4 }
+  - { name: "Inglewood (Manchester & Crenshaw)", kind: town, mile: 12.4 }
+  - { name: "Lynwood (Atlantic & Rosecrans)", kind: town, mile: 24.6 }
+  - { name: "Long Beach (bike-path exit after PCH)", kind: town, mile: 33.5 }
+  - { name: "Seal Beach", kind: town, mile: 41.1 }
+  - { name: "Huntington Beach Pier", kind: town, mile: 49.6 }
+  - { name: "Newport Beach", kind: town, mile: 54.5 }
+  - { name: "Laguna Beach", kind: town, mile: 65.0 }
+  - { name: "Dana Point (Del Prado)", kind: town, mile: 72.1 }
+  - { name: "San Clemente", kind: town, mile: 78.2 }
+  - { name: "San Mateo Point (into the van)", kind: town, mile: 81.1 }
+  - { name: "Oceanside Chevron (runner restarts)", kind: town, mile: 98.7 } # official 81.2
+  - { name: "Carlsbad Village", kind: town, mile: 102.9 } # official 85.4
+  - { name: "Encinitas", kind: town, mile: 111.6 } # official 94.1
+  - { name: "Del Mar", kind: town, mile: 117.9 } # official 100.3
+  - { name: "La Jolla (Girard Ave)", kind: town, mile: 127.7 } # official 110.2
+  - { name: "Milestone Running Shop, Pacific Beach", kind: finish, mile: 132.8 } # official 115.3

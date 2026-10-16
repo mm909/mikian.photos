@@ -76,6 +76,11 @@ export const teamCss = `
 .lasd26 table.pile .tm-amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .lasd26 table.pile .tm-owes{color:var(--ink);font-weight:700}
 .lasd26 table.pile .tm-owed{color:var(--safety-ink);font-weight:700}
+/* The pool's own row (owner, 2026-10-16: "People will be paying me"):
+ * "— pool" muted, "collects" in small mono under it — the one row the
+ * money passes through rather than lands on. */
+.lasd26 table.pile .tm-pool{font-weight:400}
+.lasd26 table.pile .tm-sub{display:block;font-family:var(--lasd-mono),monospace;text-transform:uppercase;letter-spacing:.08em;font-size:10px;color:var(--gray);margin-top:2px}
 .lasd26 table.pile .tm-role{display:block;text-transform:uppercase;letter-spacing:.08em;font-size:10px;color:var(--gray);margin-top:2px}
 .lasd26 table.pile .tm-email{display:block;font-size:11px;color:var(--gray);word-break:break-all}
 @media(max-width:559px){

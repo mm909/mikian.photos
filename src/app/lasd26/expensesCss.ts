@@ -53,9 +53,14 @@ export const expensesCss = `
 .lasd26 .xp-meta{font-family:var(--lasd-mono),monospace;font-size:11px;color:var(--gray);margin-top:5px;letter-spacing:.04em}
 .lasd26 .xp-rcpts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .lasd26 .xp-rcpt{position:relative;width:92px;height:92px;border:2px solid var(--ink);background:#e7e6df;display:block;overflow:hidden;flex:none}
-.lasd26 .xp-rcpt a{display:block;width:100%;height:100%}
+/* The tile is the trigger (owner, 2026-10-16: a receipt opens "in a
+ * preview like other images during Rowtember"): an image is a BUTTON that
+ * opens the lightbox below, a pdf stays a link to a new tab. Both fill the
+ * 92 px (72 px in a bucket) square, well over the 44 px target. */
+.lasd26 .xp-rcpt a,.lasd26 .xp-rcpt-open{display:block;width:100%;height:100%;padding:0;margin:0;border:0;border-radius:0;background:none;appearance:none;-webkit-appearance:none;cursor:pointer;color:inherit;font:inherit}
 .lasd26 .xp-rcpt img{width:100%;height:100%;object-fit:cover;display:block}
-.lasd26 .xp-rcpt.pdf a{display:flex;align-items:center;justify-content:center;font-family:var(--lasd-mono),monospace;font-size:12px;letter-spacing:.12em;font-weight:700;text-decoration:none;color:var(--safety-ink)}
+.lasd26 .xp-rcpt-open:hover img{opacity:.82}
+.lasd26 .xp-rcpt.chip a,.lasd26 .xp-rcpt.chip .xp-rcpt-open{display:flex;align-items:center;justify-content:center;font-family:var(--lasd-mono),monospace;font-size:12px;letter-spacing:.12em;font-weight:700;text-decoration:none;color:var(--safety-ink)}
 /* The × on a receipt: a 30 px ink square in the corner, but a 44 × 44 hit
  * area (the review, 2026-10-15, finding #7). The tile clips overflow, so
  * the extra reach goes INWARD as padding on the left and bottom, and the
@@ -103,6 +108,38 @@ export const expensesCss = `
 .lasd26 .xp-kid-add:hover{background:var(--safety);color:#111;border-style:solid;border-color:#111}
 .lasd26 .xp-add.in-bucket{margin-top:10px;border-color:var(--safety-ink);padding-top:16px}
 .lasd26 .xp-add .under{font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--safety-ink)}
+
+/* THE RECEIPT LIGHTBOX (owner, 2026-10-16: "it should open in a preview
+ * like other images during Rowtember") — expenses/ReceiptLightbox.tsx.
+ * Ink at 96 % over the whole viewport (above the sticky bar's 50 and the
+ * account menu's 60), the receipt in the middle at its own ratio, fading
+ * in once it lands; LOADING in mono grey under it until then. The
+ * chevrons and the caption's link are lime — at home on ink (theme.ts) —
+ * the × is paper; every control is a 44 px target, and the focus ring is
+ * lime here too, since the deep green of the paper would vanish on ink.
+ * touch-action keeps vertical pans and pinch-zoom with the browser (a
+ * receipt gets pinched to read the small print) and leaves the sideways
+ * swipe to the pointer handlers. */
+.lasd26 .xp-lbx{position:fixed;inset:0;z-index:1000;background:rgba(17,17,16,.96);display:flex;align-items:center;justify-content:center;touch-action:pan-y pinch-zoom;color:var(--paper)}
+.lasd26 .xp-lbx img{max-width:92vw;max-height:84vh;width:auto;height:auto;object-fit:contain;display:block;user-select:none;-webkit-user-select:none;opacity:0;transition:opacity .18s ease}
+.lasd26 .xp-lbx img.in{opacity:1}
+.lasd26 .xp-lbx-wait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.14em;color:var(--gray);white-space:nowrap}
+.lasd26 .xp-lbx-btn{position:absolute;display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;appearance:none;-webkit-appearance:none;background:none;border:0;border-radius:0;margin:0;font-family:var(--lasd-archivo-black),sans-serif;line-height:1;cursor:pointer}
+.lasd26 .xp-lbx-prev,.lasd26 .xp-lbx-next{top:50%;transform:translateY(-50%);padding:18px 12px;font-size:48px;color:var(--safety)}
+.lasd26 .xp-lbx-prev{left:4px}
+.lasd26 .xp-lbx-next{right:4px}
+.lasd26 .xp-lbx-prev:hover,.lasd26 .xp-lbx-next:hover{color:var(--safety-hover)}
+.lasd26 .xp-lbx-close{top:8px;right:8px;padding:10px;font-size:24px;color:var(--paper);opacity:.85}
+.lasd26 .xp-lbx-close:hover{opacity:1}
+.lasd26 .xp-lbx :focus-visible{outline:2px solid var(--safety);outline-offset:2px}
+.lasd26 .xp-lbx-cap{position:absolute;left:16px;right:16px;bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray)}
+.lasd26 .xp-lbx-cap span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lasd26 .xp-lbx-cap a{flex:none;display:inline-flex;align-items:center;min-height:44px;color:var(--safety);text-decoration:underline;text-underline-offset:4px}
+.lasd26 .xp-lbx-cap a:hover{color:var(--safety-hover)}
+@media(max-width:599px){
+  .lasd26 .xp-lbx img{max-height:78vh}
+  .lasd26 .xp-lbx-prev,.lasd26 .xp-lbx-next{font-size:40px;padding:16px 8px}
+}
 
 .lasd26 .xp-notice{border:2px solid var(--ink);padding:24px 20px;margin-top:6px;font-family:var(--lasd-mono),monospace;font-size:13px;line-height:1.8}
 .lasd26 .xp-notice strong{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:22px;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:1.1;margin-bottom:10px}

@@ -10,10 +10,17 @@ import { bucketSum, fmtUsd, parseUsd, perPersonCents, totalCents, type TotalOpts
  *
  * Who may change a line: the owner, or the member who added it (canEdit).
  * A line seeded from the cost sheet has no addedBy, so only the owner
- * touches it. Any member may ATTACH a receipt to any line ("attach
+ * touches it. Any member may ATTACH a receipt to any REAL line ("attach
  * receipts to existing items") — the gas receipt is whoever filled up —
- * and may take their own receipt back off any line (canRemoveReceipt),
- * whether or not they may edit the line itself.
+ * and may take their own receipt back off (canRemoveReceipt), whether or
+ * not they may edit the line itself. Only their own: a receipt comes off
+ * by whoever attached it or the owner, never by the line's author just
+ * because it is their line (owner, 2026-10-16: "make sure other people
+ * can't delete my receipts; it's okay for them to delete their own but
+ * not other people's"). An ESTIMATE line takes no receipts at all
+ * (takesReceipts; owner, 2026-10-16: "the estimates are more like
+ * categories, we don't need a receipt button for that category, just for
+ * the items added under it").
  *
  * PAID BY (owner, 2026-10-16: "Instead of having a note just make it a
  * 'paid by' and auto fill the name of the user logged in"). Every real
@@ -64,7 +71,7 @@ export type ReceiptView = {
   /** An image got a 640 px jpeg beside it; a pdf did not. */
   hasThumb: boolean;
   createdAt: string;
-  /** The viewer attached it, so the × shows even when they cannot edit the line. */
+  /** The viewer attached it, so the × shows (the owner's shows on every receipt; nobody else's does — canRemoveReceipt). */
   addedByMe: boolean;
 };
 
@@ -230,14 +237,31 @@ export function addedByMe(viewer: TeamViewer, receipt: { addedById: string | nul
 }
 
 /**
- * Who may take a receipt off a line: anyone who may edit the line, or
- * whoever attached that receipt. The review (2026-10-15, finding #1): a
- * member who attached a receipt to someone else's line — a seeded one
- * included, addedById null — could not remove it, since only canEdit was
- * asked.
+ * Who may take a receipt off a line: the owner, or whoever attached that
+ * receipt — nobody else (owner, 2026-10-16: "make sure other people can't
+ * delete my receipts; it's okay for them to delete their own but not
+ * other people's"). Being able to edit the LINE does not count any more:
+ * the owner's receipt on a line a member added is not the member's to
+ * remove, and the gas receipt a member put on someone else's line — a
+ * seeded one included, addedById null — is still theirs to take back (the
+ * review, 2026-10-15, finding #1). A receipt the owner attached without a
+ * member row (addedById null) matches nobody but him.
  */
-export function canRemoveReceipt(viewer: TeamViewer, expense: { addedById: string | null }, receipt: { addedById: string | null }): boolean {
-  return canEdit(viewer, expense) || addedByMe(viewer, receipt);
+export function canRemoveReceipt(viewer: TeamViewer, receipt: { addedById: string | null }): boolean {
+  return viewer.owner || addedByMe(viewer, receipt);
+}
+
+/**
+ * Receipts go on REAL costs only (owner, 2026-10-16: "Since the estimates
+ * are more like categories, we don't need a receipt button for that
+ * category, just for the items added under it"). An estimate line is a
+ * bucket: the gas receipt is attached to the Chevron line filed under it,
+ * never to the Gas estimate itself. The sign and register routes answer
+ * 400 through this (guard.ts notOnEstimate) and the page draws no picker
+ * and no receipt list on a bucket card — its children keep theirs.
+ */
+export function takesReceipts(expense: { estimate: boolean }): boolean {
+  return !expense.estimate;
 }
 
 /**
