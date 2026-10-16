@@ -47,11 +47,21 @@ const LINES: Line[] = [
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** The owner's TeamMember on this team, if he has one yet (roles has "owner" → Photographer.id → TeamMember.userId). */
+/**
+ * The owner's TeamMember on this team (roles has "owner" → Photographer.id →
+ * TeamMember.userId), made on the spot when he has none yet: the seeded
+ * lines are his, and the pages create the same row the first time he opens
+ * one (ensureOwnerMember in src/lib/lasd26/team.ts), so the seed may as well.
+ */
 async function ownerMember(): Promise<{ id: string; name: string } | null> {
-  const owners = await db.photographer.findMany({ where: { roles: { has: "owner" } }, select: { id: true } });
-  if (owners.length === 0) return null;
-  return db.teamMember.findFirst({ where: { team: TEAM, userId: { in: owners.map((o) => o.id) } }, select: { id: true, name: true } });
+  const owner = await db.photographer.findFirst({ where: { roles: { has: "owner" } }, select: { id: true, name: true, email: true } });
+  if (!owner) return null;
+  return db.teamMember.upsert({
+    where: { team_userId: { team: TEAM, userId: owner.id } },
+    create: { team: TEAM, userId: owner.id, email: owner.email, name: owner.name.trim().slice(0, 80) || owner.email, role: "runner" },
+    update: {},
+    select: { id: true, name: true },
+  });
 }
 
 async function main() {
