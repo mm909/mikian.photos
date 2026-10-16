@@ -54,7 +54,12 @@ const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFracti
  * one (ensureOwnerMember in src/lib/lasd26/team.ts), so the seed may as well.
  */
 async function ownerMember(): Promise<{ id: string; name: string } | null> {
-  const owner = await db.photographer.findFirst({ where: { roles: { has: "owner" } }, select: { id: true, name: true, email: true } });
+  // The crew's owner is the mikianmusser@gmail.com account (owner,
+  // 2026-10-16: "mikianmusser@gmail.com is the right one" — the first run
+  // took another owner-role account and he stood on the roster twice).
+  const owner =
+    (await db.photographer.findFirst({ where: { email: "mikianmusser@gmail.com" }, select: { id: true, name: true, email: true } })) ??
+    (await db.photographer.findFirst({ where: { roles: { has: "owner" } }, select: { id: true, name: true, email: true } }));
   if (!owner) return null;
   return db.teamMember.upsert({
     where: { team_userId: { team: TEAM, userId: owner.id } },

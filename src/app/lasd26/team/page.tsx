@@ -10,6 +10,7 @@ import { teamCss } from "../teamCss";
 import { datePacific, originFrom, stampPacific } from "./fmt";
 import { InviteLink } from "./InviteLink";
 import { PaidButton } from "./PaidButton";
+import { RemoveMember } from "./RemoveMember";
 import { SettingsForm } from "./SettingsForm";
 
 /**
@@ -128,6 +129,7 @@ export default async function TeamPage() {
                             {r.role}
                             {m ? ` · joined ${stampPacific(m.joinedAt)}` : ""}
                           </span>
+                          <RemoveMember memberId={r.memberId} name={r.name} self={viewer.member?.id === r.memberId} />
                         </td>
                         <td className="tm-hide-sm tm-amt tm-dim">{fmtUsd(r.shareCents)}</td>
                         <td className="tm-hide-sm tm-amt">{r.frontedCents > 0 ? fmtUsd(r.frontedCents) : "—"}</td>
