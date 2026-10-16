@@ -17,13 +17,20 @@ import { getTeamViewer, type TeamViewer } from "./team";
  * "production") the pages are open, so the join / member / sign-in states
  * can be exercised with any account.
  *
- * That means, until the gate lifts, nobody but the owner can reach the
- * join page in production: the invite link works for him alone, and the
- * crew cannot join yet. When the owner says the site goes live, delete the
- * calls to this (back to getTeamViewer) and follow the note in paths.ts.
+ * OPEN FOR REVIEW (owner, 2026-10-16: "push the lasd changes live so I can
+ * review", after the admin-only copy answered him a 404 while he was not
+ * signed in). LASD_DEV_OPEN lifts the 404: anyone with a /lasd26/dev link
+ * can open the pages. They stay unlinked, "(dev)" and noindex, and each
+ * page keeps its own rule — the team console and the list are owner-only,
+ * expenses and pay need membership, join needs a live invite token — so
+ * nothing private opens with it. Set it back to false to return to the
+ * admin-only gate; when the site goes live, delete the calls to this (back
+ * to getTeamViewer) and follow the note in paths.ts.
  */
+export const LASD_DEV_OPEN = true;
+
 export async function gateLasdDev(): Promise<TeamViewer> {
   const viewer = await getTeamViewer();
-  if (process.env.NODE_ENV === "production" && !viewer.owner) notFound();
+  if (!LASD_DEV_OPEN && process.env.NODE_ENV === "production" && !viewer.owner) notFound();
   return viewer;
 }
