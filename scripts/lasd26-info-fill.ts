@@ -12,25 +12,32 @@
  *
  *   1. deletes the lines the owner struck off (RETIRED_KEYS — "no Group
  *      chat, no Food plan, no Phone tracking, no What to bring, no Parking
- *      at the start, no Exchange points, no Money"); they were the site's
- *      prefills, nothing of his;
- *   2. writes every line of the list into the table — a missing line is
- *      made, an existing one gets the list's text — EXCEPT a line the owner
- *      has edited by hand on /lasd26/info since (updatedById is his): that
- *      one is kept, his edit wins over the list (review, 2026-10-16: an
- *      earlier version overwrote it). `--force` writes those too.
- *   3. every existing row's label, hint and place on the page follow the
- *      list ("Hotel Friday" → "Hotel after the race", same key).
+ *      at the start, no Exchange points, no Money"; that night, "Remove
+ *      emergency"); they were the site's prefills, nothing of his;
+ *   2. writes every line of the list into the table — a line with no row
+ *      is made, an existing one gets the list's text — EXCEPT
+ *        - a line the owner has REMOVED on the page (removedAt set; owner,
+ *          2026-10-16 night: "Allow me to add / remove notes"): that row
+ *          stays as it is and is never made again, --force or not — a
+ *          removed built-in stays removed;
+ *        - a line the owner has edited by hand on /lasd26/info since
+ *          (updatedById is his): that one is kept, his edit wins over the
+ *          list (review, 2026-10-16: an earlier version overwrote it).
+ *          `--force` writes those too.
+ *   3. every live row's label, hint and place on the page follow the list
+ *      ("Hotel Friday" → "Hotel after the race", same key).
  *
- * Prints what it did per key and, at the end, what it wrote and what it
- * kept. Idempotent: a rerun writes the same text again and says so.
+ * The owner's own notes (keys "n-…") are not on the list and are left
+ * alone. Prints what it did per key and, at the end, what it wrote, what
+ * it kept and what he removed. Idempotent: a rerun writes the same text
+ * again and says so.
  *
  * Team slug is spelled out here rather than imported from
  * src/lib/lasd26/team.ts, which is "server-only" (the seed script does the
  * same).
  */
 import { PrismaClient } from "@prisma/client";
-import { DEFAULT_ITEMS, RETIRED_KEYS, cleanValue } from "../src/lib/lasd26/infoSheet";
+import { DEFAULT_ITEMS, NOTE_PREFIX, RETIRED_KEYS, cleanValue } from "../src/lib/lasd26/infoSheet";
 
 const db = new PrismaClient();
 const TEAM = "lasd26";
@@ -38,7 +45,7 @@ const TEAM = "lasd26";
 async function main() {
   console.log(`LASD26 info fill — team ${TEAM}, ${DEFAULT_ITEMS.length} lines on the list, ${RETIRED_KEYS.length} retired`);
 
-  // 1. The struck-off lines go.
+  // 1. The struck-off lines go — removed or not, the row is dropped for good.
   const gone = await db.teamInfoItem.findMany({ where: { team: TEAM, key: { in: [...RETIRED_KEYS] } }, select: { key: true } });
   if (gone.length > 0) {
     await db.teamInfoItem.deleteMany({ where: { team: TEAM, key: { in: gone.map((r) => r.key) } } });
@@ -51,11 +58,13 @@ async function main() {
   const force = process.argv.includes("--force");
   const wrote: string[] = [];
   const kept: string[] = [];
+  const removed: string[] = [];
   for (const [sortOrder, item] of DEFAULT_ITEMS.entries()) {
     const value = cleanValue(item.value);
+    // The lookup sees removed rows too: a removed built-in is NOT missing.
     const existing = await db.teamInfoItem.findUnique({
       where: { team_key: { team: TEAM, key: item.key } },
-      select: { id: true, label: true, value: true, updatedById: true, updatedAt: true },
+      select: { id: true, label: true, value: true, updatedById: true, updatedAt: true, removedAt: true },
     });
     if (!existing) {
       await db.teamInfoItem.create({
@@ -63,6 +72,12 @@ async function main() {
       });
       wrote.push(item.key);
       console.log(`  seed  ${item.key.padEnd(16)} "${item.label}"${value ? `  (${value.length} chars)` : "  (empty)"}`);
+      continue;
+    }
+    if (existing.removedAt !== null) {
+      // He took it off the sheet; it stays off, and nothing here recreates it.
+      removed.push(item.key);
+      console.log(`  gone  ${item.key.padEnd(16)} removed by hand ${existing.removedAt.toISOString().slice(0, 10)} — left as it is`);
       continue;
     }
     const relabel = existing.label !== item.label ? `  label "${existing.label}" → "${item.label}"` : "";
@@ -86,11 +101,17 @@ async function main() {
     console.log(`  ${same ? "same " : "write"} ${item.key.padEnd(16)} ${value.length} chars${byHand ? " (forced over a hand edit)" : ""}${relabel}`);
   }
 
-  const rows = await db.teamInfoItem.findMany({ where: { team: TEAM }, orderBy: { sortOrder: "asc" }, select: { key: true, value: true } });
+  const rows = await db.teamInfoItem.findMany({
+    where: { team: TEAM, removedAt: null },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    select: { key: true, value: true },
+  });
   const filled = rows.filter((r) => r.value.trim() !== "").length;
+  const notes = rows.filter((r) => r.key.startsWith(NOTE_PREFIX)).length;
   console.log(`done — wrote ${wrote.length} lines: ${wrote.join(", ")}`);
   if (kept.length > 0) console.log(`      kept ${kept.length} edited by hand: ${kept.join(", ")}`);
-  console.log(`      sheet: ${rows.map((r) => r.key).join(" · ")} (${filled} of ${rows.length} filled in)`);
+  if (removed.length > 0) console.log(`      removed ${removed.length} by hand, left off the sheet: ${removed.join(", ")}`);
+  console.log(`      sheet: ${rows.map((r) => r.key).join(" · ")} (${filled} of ${rows.length} filled in${notes > 0 ? `, ${notes} of them the owner's notes` : ""})`);
 }
 
 main()

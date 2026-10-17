@@ -6,8 +6,10 @@ import { COURSE_URL, GOOGLE_MAP_URL, MI, feet, miles, type CourseFile, type Cour
 
 /**
  * The route page's body (owner, 2026-10-16: "embed this route into the
- * site"): the map, the Google Maps door under it, the facts strip, the
- * elevation profile and the turn-by-turn list. Nothing else — the bathroom
+ * site"): the map, the facts strip, the elevation profile, the turn-by-turn
+ * list, then the Google Maps door at the foot (owner, that night: "Move the
+ * open in google maps button to the bottom of the page after the turn by
+ * turn"). Nothing else — the bathroom
  * stops, their chip and count, the "after the finish" line and the credit
  * line are gone (owner, 2026-10-16, on his phone: "Remove the bathroom
  * stops, and bathroom count", "Remove after the finish copy and the 'from
@@ -64,19 +66,19 @@ export function RouteView() {
         )}
       </div>
 
-      <div className="wrap">
-        <div className="rt-chips">
-          <a className="rt-chip" href={GOOGLE_MAP_URL} target="_blank" rel="noopener noreferrer">
-            Open in Google Maps ↗
-          </a>
-        </div>
-      </div>
-
       {course && <Facts course={course} />}
 
       <div className="wrap">
         {course && <Profile course={course} />}
         {course && <Turns course={course} focus={focus} onGo={go} />}
+        {/* The Google Maps door sits at the FOOT of the page, after the
+         * calls (owner, 2026-10-16: "Move the open in google maps button
+         * to the bottom of the page after the turn by turn"). */}
+        <div className="rt-chips">
+          <a className="rt-chip" href={GOOGLE_MAP_URL} target="_blank" rel="noopener noreferrer">
+            Open in Google Maps ↗
+          </a>
+        </div>
       </div>
     </>
   );

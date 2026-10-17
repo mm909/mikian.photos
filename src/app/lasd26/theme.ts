@@ -68,17 +68,18 @@ export const css = `
 .lasd26 .bar-acct{order:2;position:relative;display:flex;align-items:center;min-height:56px}
 /* THE DOORS (owner, 2026-10-16: "Change the color of the link on the main
  * header to that green", "Remove closed from the header"). The words,
- * nothing after them — CREW CALL · EXPENSES · ROUTE — 18 px apart, one
- * tight group, LEFT-justified on every width (owner, 2026-10-16: "left
+ * nothing after them — CREW CALL · EXPENSES · ROUTE · INFO — 18 px apart,
+ * one tight group, LEFT-justified on every width (owner, 2026-10-16: "left
  * justified like the other links on the mikianmusser home page", where the
  * brand and the chips run from the left with nothing centred). LIVE is
- * hidden for now (owner: "It's not ready"); it comes back as a fourth
+ * hidden for now (owner: "It's not ready"); it comes back as a fifth
  * door. The link text is --safety-ink, the deep cut of the lime: plain
  * lime (#D0F858) on the cream paper is unreadable (about 1.4:1), so the
  * lime itself is kept for the 3 px underline under the current page and
- * under a hover. The three words are ~230 px of text, so the row holds
- * them at 320 px without scrolling; overflow stays auto as a
- * belt-and-braces for a zoomed font. */
+ * under a hover. The four words are ~228 px of text; with 18 px gaps the
+ * row needs ~282 px, so under 400 px the gap drops to 13 px (~267 px,
+ * below) and a 320 px phone holds all four without a scroll; overflow
+ * stays auto as the belt-and-braces for a zoomed font. */
 .lasd26 .bar-nav{order:3;flex:0 0 100%;display:flex;justify-content:flex-start;gap:18px;border-top:1px dashed var(--line);margin:0 -20px;padding:0 20px;overflow-x:auto;scrollbar-width:none}
 .lasd26 .bar-nav::-webkit-scrollbar{display:none}
 .lasd26 .bar-nav a{display:inline-flex;align-items:center;min-height:44px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;color:var(--safety-ink);text-decoration-line:none;text-underline-offset:7px;text-decoration-thickness:3px;text-decoration-color:var(--safety)}
@@ -93,6 +94,9 @@ export const css = `
 /* Up to 440px (a 401px pane still wrapped the account button under the
  * wordmark): the wordmark text goes, the tag stays. */
 @media(max-width:440px){ .lasd26 .bar .wm-t{display:none} .lasd26 .acct-name{max-width:72px} }
+/* Four doors at 360 px measured 322 px against a 320 px row (2026-10-16):
+ * a tighter gap on a phone keeps INFO inside without a scroll. */
+@media(max-width:400px){ .lasd26 .bar-nav{gap:13px} }
 
 /* The account button (owner, 2026-10-16: "I don't like the round buttons
  * for the profile"): SQUARE, like the LASD26 tag beside it. Signed out it is

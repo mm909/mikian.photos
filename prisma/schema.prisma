@@ -1381,14 +1381,17 @@ model TeamSettings {
 // THE INFO SHEET (owner, 2026-10-16: "make a info page where we can fill
 // out addresses for airbnb, start line, van pick up etc."). One row per
 // line of the sheet — the Airbnb, the start line, the van pick-up, who to
-// call. The LIST is code (lib/lasd26/info.ts DEFAULT_ITEMS, seeded on
+// call. The LIST is code (lib/lasd26/infoSheet.ts DEFAULT_ITEMS, seeded on
 // first read); the VALUES are the owner's, typed on /lasd26/info and never
 // overwritten by a seed. Keyed by a slug so the code can find "airbnb"
-// whatever the label says.
+// whatever the label says. A line the owner adds himself is a NOTE: its
+// key starts with "n-" (owner, 2026-10-16 night: "Allow me to add / remove
+// notes on the info page").
 model TeamInfoItem {
   id          String   @id @default(cuid())
   team        String
-  // The slug ("airbnb", "van-pick-up"): stable while the label is free to change.
+  // The slug ("airbnb", "van-pick-up"; a note is "n-" + the label's slug):
+  // stable while the label is free to change.
   key         String
   label       String
   // What the owner typed. May run several lines; "" = not filled in yet.
@@ -1400,6 +1403,11 @@ model TeamInfoItem {
   updatedAt   DateTime @updatedAt
   // TeamMember.id of whoever last saved the value (the owner today).
   updatedById String?
+  // Set when the owner REMOVES the line from the sheet (owner, 2026-10-16
+  // night: "Allow me to add / remove notes"). A soft delete: the row stays
+  // so a built-in line he removed is never seeded again on the next read,
+  // and its key stays taken. Readers show removedAt null only.
+  removedAt   DateTime?
 
   @@unique([team, key])
   @@index([team, sortOrder])

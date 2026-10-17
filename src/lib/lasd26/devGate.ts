@@ -3,13 +3,17 @@ import { notFound } from "next/navigation";
 import { ensureOwnerMember, getTeamViewer, type TeamViewer } from "./team";
 
 /**
- * THE DEV GATE for pages of the team site that are not live yet (owner,
- * 2026-10-16: the info sheet — "put it behind the dev gate"; the route map
- * wore it for a day and went live the same evening). The standing rule in
- * CLAUDE.md: admin-only in production, "(dev)" in the title, noindex,
- * linked only from the owner's DEVELOPMENT group of the account menu. On a
- * laptop the pages are open. A page that goes live drops this call for
- * getTeamViewer()/ensureOwnerMember().
+ * THE DEV GATE for pages of the team site that are not live yet. The
+ * standing rule in CLAUDE.md: admin-only in production, "(dev)" in the
+ * title, noindex, linked only from the owner's DEVELOPMENT group of the
+ * account menu. On a laptop the pages are open. A page that goes live
+ * drops this call for getTeamViewer()/ensureOwnerMember().
+ *
+ * Nothing wears it right now: the route map wore it for a day (owner,
+ * 2026-10-16: "put it behind the dev gate") and went live that evening;
+ * the info sheet wore it the same day ("again put it behind a dev gate for
+ * now") and went live that night ("Make the info page live"). It stays
+ * here for the next new page.
  */
 export async function gateLasdDev(): Promise<TeamViewer> {
   const viewer = await ensureOwnerMember(await getTeamViewer());
@@ -17,7 +21,7 @@ export async function gateLasdDev(): Promise<TeamViewer> {
   return viewer;
 }
 
-/** "Info sheet (dev)" while the page sits behind the gate. */
+/** "Some page (dev)" while a page sits behind the gate. */
 export function devTitle(title: string): string {
   return `${title} (dev)`;
 }

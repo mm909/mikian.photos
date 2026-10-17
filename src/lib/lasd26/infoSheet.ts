@@ -26,6 +26,16 @@
  * flag let the script clobber them); the site's own prefills go in the
  * same way.
  *
+ * NOTES AND REMOVAL (owner, 2026-10-16, night: "Remove emergency. Allow me
+ * to add / remove notes on the info page."). "emergency" joined
+ * RETIRED_KEYS. A line the owner adds on the page is a NOTE: a row whose
+ * key is NOTE_PREFIX + slugLabel(label) ("n-gas-money"), sorted after every
+ * built-in line, with a label he may rename — a built-in line's label is
+ * the list's. Built-in keys never start with "n-", so a retired key can
+ * never hit a note. REMOVE (built-in or note alike) sets removedAt on the
+ * row instead of deleting it: a removed built-in is never seeded again,
+ * and the key stays taken, so a new note with the same name gets "-2".
+ *
  * Nothing here is public: the hotel confirmations, the phone numbers and
  * the Airbnb are read behind the team's sign-in only.
  */
@@ -40,9 +50,25 @@ export type DefaultItem = {
 /** A value may run a page (the Airbnb's house rules) — not an essay. */
 export const MAX_VALUE = 4000;
 
+/** A note's name is an eyebrow, not a sentence. */
+export const MAX_LABEL = 60;
+
+/** A key may be this long with its prefix; parseKey() refuses longer. */
+const MAX_KEY = 40;
+
 /**
- * Lines the owner struck off (2026-10-16). ensureInfoItems() and the fill
- * script delete these rows; a key listed here must not be in DEFAULT_ITEMS.
+ * Every note's key starts with this. No built-in key does (they are plain
+ * words: "airbnb", "van-pick-up"), which is how the client and the API tell
+ * a note from a built-in line without a column for it.
+ */
+export const NOTE_PREFIX = "n-";
+
+/**
+ * Lines the owner struck off (2026-10-16: "no Group chat, no Food plan, no
+ * Phone tracking, no What to bring, no Parking at the start, no Exchange
+ * points, no Money"; that night: "Remove emergency"). ensureInfoItems()
+ * and the fill script hard-delete these rows; a key listed here must not
+ * be in DEFAULT_ITEMS and can never be a note's (those start with "n-").
  */
 export const RETIRED_KEYS: readonly string[] = [
   "group-chat",
@@ -52,6 +78,7 @@ export const RETIRED_KEYS: readonly string[] = [
   "parking-at-the-start",
   "exchange-points",
   "money",
+  "emergency",
 ];
 
 export const DEFAULT_ITEMS: readonly DefaultItem[] = [
@@ -104,16 +131,21 @@ export const DEFAULT_ITEMS: readonly DefaultItem[] = [
   {
     key: "leaving-vegas",
     label: "Leaving Vegas",
+    // The owner's updated list (2026-10-16, late): the counts as he sent
+    // them (9 in the late van), the two flights' times, and the meeting
+    // spot from his screenshot ("Meeting at the phone screenshot address
+    // when leaving Vegas" — 1250 Wigwam Pkwy, Henderson NV 89074, Apt 6306).
     value: [
       "THURSDAY, OCTOBER 22 — Las Vegas → Los Angeles",
+      "Meet at 1250 Wigwam Pkwy, Henderson, NV 89074 — Apt 6306.",
       "",
       "EARLY VAN (7): Nat, Alli, Jasmine, Aizalyn, Mikian, Johnny, Jacob",
       "",
-      // The owner's note said "(8)" over these nine names; 7 + 9 + 2 flights
-      // = 18, the team, so the count is corrected here and flagged to him.
       "LATE VAN (9): Kelz (off at 1 PM), Ximena (off at 2 PM), Ruby (volunteering for the later van), Tasha (off at 1 PM), Karla (off at 1 PM), Cindy (off at 2 PM), Joe (off at 4 AM), Keith (off at 12 PM), Dann (off at 1 PM)",
       "",
-      "FLYING IN (2): Amy's flight — tbd · Faith's flight — tbd",
+      "FLYING IN (2): Amy's flight gets in at 12:05 AM on Friday · Faith's flight gets in at 9:50 PM on Thursday",
+      "",
+      "An itinerary with times and meeting spots is coming.",
     ].join("\n"),
     hint: "Thursday: what time, where we meet, who rides in which van",
   },
@@ -235,19 +267,52 @@ export const DEFAULT_ITEMS: readonly DefaultItem[] = [
     value: ["Mikian — (702) 540-4190", "Jazz — (702) 544-9097"].join("\n"),
     hint: "Mikian, the crew captains",
   },
-  {
-    key: "emergency",
-    label: "Emergency",
-    value: "",
-    hint: "who to call; the nearest hospitals along the route are on the race's official map",
-  },
+  // "Emergency" was the last line until the owner struck it (2026-10-16,
+  // night: "Remove emergency") — it is in RETIRED_KEYS now.
 ];
 
-/** A key is a slug: "airbnb", "van-pick-up". Null for anything else. */
+/** A key is a slug: "airbnb", "van-pick-up", "n-gas-money". Null for anything else. */
 export function parseKey(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const k = v.trim();
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(k) && k.length <= 40 ? k : null;
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(k) && k.length <= MAX_KEY ? k : null;
+}
+
+/** A note the owner added, as opposed to a built-in line of the list. */
+export function isNoteKey(key: string): boolean {
+  return key.startsWith(NOTE_PREFIX);
+}
+
+/**
+ * A note's label as stored: trimmed, runs of blanks folded to one space,
+ * 1–MAX_LABEL characters. Null when there is nothing usable in it — the
+ * API answers 400.
+ */
+export function cleanLabel(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.replace(/\s+/g, " ").trim();
+  return s.length >= 1 && s.length <= MAX_LABEL ? s : null;
+}
+
+/**
+ * The slug a note's key is built from: "Gas money!" → "gas-money" — lower
+ * case, accents stripped (é → e), every run of anything but a–z / 0–9 a
+ * single hyphen, no hyphen at either end, and short enough that
+ * NOTE_PREFIX + slug + a "-2" collision suffix still passes parseKey().
+ * "note" when nothing survives (a label of only punctuation or emoji).
+ */
+export function slugLabel(label: string): string {
+  // Room for the prefix and a "-NN" suffix inside MAX_KEY.
+  const room = MAX_KEY - NOTE_PREFIX.length - 3;
+  const slug = label
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, room)
+    .replace(/-+$/g, "");
+  return slug || "note";
 }
 
 /**

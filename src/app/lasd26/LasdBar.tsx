@@ -7,19 +7,20 @@ import { LasdAccount } from "./LasdAccount";
  * what this header looks like … crew call, live tracking, a receipts page
  * … a profile button, just like we have on the other sites").
  *
- * Three doors and the account button. CREW CALL is the landing (closed —
- * the van is full — but the page stays). EXPENSES is for the team: a
- * visitor who is not on it sees the door and lands on the sign-in / invite
- * notice behind it. ROUTE is the course map, the race's own directions,
- * open to anyone (owner, 2026-10-16: "the route page can go live after
- * those changes" — nothing on it is private). The account button holds
- * sign in, the member's name and role, and the owner's groups.
+ * Four doors and the account button. CREW CALL is the landing (closed —
+ * the van is full — but the page stays). EXPENSES and INFO are for the
+ * team: a visitor who is not on it sees the door and lands on the sign-in
+ * / invite notice behind it (INFO went live 2026-10-16: "Make the info
+ * page live"). ROUTE is the course map, the race's own directions, open to
+ * anyone (owner, 2026-10-16: "the route page can go live after those
+ * changes" — nothing on it is private). The account button holds sign in,
+ * the member's name and role, and the owner's groups.
  *
  * LIVE IS HIDDEN for now (owner, 2026-10-16: "Let's hide the 'live' page
  * for now. It's not ready."): no LIVE door for anyone. The tracker is
  * still reachable by the owner from the DEVELOPMENT group of the account
- * menu (LasdAccount.tsx); when it is ready it joins the bar as a fourth
- * door after ROUTE.
+ * menu (LasdAccount.tsx); when it is ready it joins the bar as a fifth
+ * door after INFO.
  *
  * The doors are the words and nothing after them (owner, 2026-10-16:
  * "Remove closed from the header") — no "closed" or "team".
@@ -34,7 +35,7 @@ import { LasdAccount } from "./LasdAccount";
  * justified like the other links on the mikianmusser home page").
  */
 
-export type BarKey = "crew-call" | "expenses" | "route" | "team" | "pay" | "join" | "none";
+export type BarKey = "crew-call" | "expenses" | "route" | "info" | "team" | "pay" | "join" | "none";
 
 export function LasdBar({ viewer, active }: { viewer: TeamViewer; active: BarKey }) {
   return (
@@ -52,6 +53,9 @@ export function LasdBar({ viewer, active }: { viewer: TeamViewer; active: BarKey
         </a>
         <a href={lasdPath("/route")} aria-current={active === "route" ? "page" : undefined}>
           Route
+        </a>
+        <a href={lasdPath("/info")} aria-current={active === "info" ? "page" : undefined}>
+          Info
         </a>
       </nav>
       <div className="bar-acct">

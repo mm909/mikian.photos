@@ -67,8 +67,10 @@ export const routeCss = `
 .lasd26 .maplibregl-ctrl-attrib a{color:var(--ink-soft)}
 .lasd26 .maplibregl-ctrl-bottom-left{bottom:0}
 
-/* THE CHIP under the map: the Google Maps door. 44 px tall — thumbs in a van. */
-.lasd26 .rt-chips{display:flex;flex-wrap:wrap;gap:8px;padding:14px 0 0}
+/* THE CHIP at the foot of the page, after the turn list: the Google Maps
+ * door (owner, 2026-10-16: "Move the open in google maps button to the
+ * bottom of the page after the turn by turn"). 44 px tall — thumbs in a van. */
+.lasd26 .rt-chips{display:flex;flex-wrap:wrap;gap:8px;padding:28px 0 56px}
 .lasd26 .rt-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;border:2px solid var(--ink);background:transparent;color:var(--ink);font-family:var(--lasd-mono),monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:9px 14px;cursor:pointer;text-decoration:none}
 .lasd26 .rt-chip:hover{border-color:var(--safety-ink);color:var(--safety-ink)}
 
@@ -97,8 +99,8 @@ export const routeCss = `
 .lasd26 .rt-row.drive .tx small{color:#c9c8c0;text-transform:none;font-weight:400;letter-spacing:.02em}
 .lasd26 .rt-row.drive button:hover .tx{color:var(--safety)}
 .lasd26 .rt-row.drive.is-on{box-shadow:inset 4px 0 0 var(--safety)}
-/* The list is the last thing on the page before the footer's rule. */
-.lasd26 .rt-sec:last-child{padding-bottom:56px}
+/* The Google Maps chip (.rt-chips, above) is the last thing on the page
+ * before the footer's rule; its 56 px bottom padding is the breathing room. */
 
 @media(min-width:960px){
   .lasd26 .rt-map{height:540px}
