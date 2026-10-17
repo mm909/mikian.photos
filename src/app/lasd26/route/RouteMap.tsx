@@ -37,7 +37,10 @@ import type { CourseFile, Focus } from "./course";
  * close on a tap anywhere else; START and FINISH as DOM tags. A tap on a
  * row of the list below hands a `focus` down and the map flies there.
  *
- * Two buttons sit on the map, top right (owner, 2026-10-16, on his phone):
+ * The map TURNS but never tilts (owner, 2026-10-16: "Let me rotate it") —
+ * two fingers on a phone, right-drag or Ctrl-drag on a laptop.
+ *
+ * Buttons on the map, top right (owner, 2026-10-16, on his phone):
  *   LOCATE — "Show the user's location on the map":
  *     navigator.geolocation.watchPosition → a lime dot in an ink ring over
  *     an accuracy circle. The map eases to the first fix and FOLLOWS the
@@ -50,6 +53,8 @@ import type { CourseFile, Focus } from "./course";
  *     (map.resize() after); where it does not — iPhone Safari — a CSS
  *     fallback pins the stage to the viewport above the bar, and the same
  *     button, now CLOSE, takes it down (Escape too).
+ *   NORTH — shows only once the map is turned: a needle that points north
+ *     as the map spins, and a tap eases it back to north-up.
  */
 
 if (typeof window !== "undefined") {
@@ -258,6 +263,13 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
     popupRef.current = new Popup({ closeButton: false, closeOnClick: true, maxWidth: "260px", offset: 10 }).setLngLat([lon, lat]).setDOMContent(body).addTo(map);
   }, []);
 
+  /* NORTH: the compass needle (turned straight from the map's rotate events,
+   * no re-render per frame) and whether the map is off north at all — the
+   * button only shows while it is. */
+  const needleRef = useRef<SVGGElement | null>(null);
+  const turnedRef = useRef(false);
+  const [turned, setTurned] = useState(false);
+
   /* LOCATE: the watch, the latest fix, and whether the map follows it. */
   const watchId = useRef<number | null>(null);
   const fixRef = useRef<Fix | null>(null);
@@ -292,13 +304,30 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
       ],
       fitBoundsOptions: { padding: { top: 36, bottom: 36, left: 28, right: 28 } },
       maxZoom: 18,
-      dragRotate: false,
+      // The map TURNS (owner, 2026-10-16: "Let me rotate it") — two fingers
+      // on a phone, a right-drag or Ctrl-drag on a laptop, Shift+arrows on a
+      // keyboard. It never TILTS: the line stays flat and the calls stay
+      // readable (pitchWithRotate / touchPitch off).
       pitchWithRotate: false,
       touchPitch: false,
       fadeDuration: 0,
     });
-    map.touchZoomRotate.disableRotation();
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
+
+    // The compass follows every turn, the button shows only while the map
+    // is off north (a hair under half a degree counts as north).
+    const syncNorth = () => {
+      const b = map.getBearing();
+      if (needleRef.current) needleRef.current.style.transform = `rotate(${-b}deg)`;
+      const off = Math.abs(b) >= 0.5;
+      if (off !== turnedRef.current) {
+        turnedRef.current = off;
+        setTurned(off);
+      }
+    };
+    map.on("rotate", syncNorth);
+    map.on("rotateend", syncNorth);
+    map.on("moveend", syncNorth);
     mapRef.current = map;
 
     const fallback = () => {
@@ -553,6 +582,11 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
     };
   }, [setFs, resizeSoon, exitFs]);
 
+  /* NORTH: the compass button puts the map back the right way up. */
+  const onNorth = useCallback(() => {
+    mapRef.current?.resetNorth({ duration: 500 });
+  }, []);
+
   const inFs = fs !== "off";
 
   return (
@@ -593,6 +627,23 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
             <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="2.5" />
             <circle cx="12" cy="12" r="1.8" fill="currentColor" />
             <path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          </svg>
+        </button>
+        {/* Always rendered (so the needle's ref is there to turn), hidden
+         * while the map points north. */}
+        <button
+          type="button"
+          className="rt-btn compass"
+          onClick={onNorth}
+          hidden={!turned}
+          aria-label="Point the map north"
+          title="Point the map north"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <g ref={needleRef} style={{ transformOrigin: "12px 12px", transformBox: "view-box" }}>
+              <path d="M12 2.5 L16 12 L8 12 Z" fill="currentColor" />
+              <path d="M12 21.5 L16 12 L8 12 Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+            </g>
           </svg>
         </button>
       </div>

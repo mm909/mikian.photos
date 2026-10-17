@@ -41,6 +41,12 @@ export const routeCss = `
 .lasd26 .rt-btn.fs.is-on:hover{background:var(--safety-ink);color:var(--paper)}
 .lasd26 .rt-btn.locate[data-state=watch]{border-color:var(--safety-ink);color:var(--safety-ink)}
 .lasd26 .rt-btn.locate[data-state=follow]{background:var(--ink);color:var(--safety);border-color:var(--ink)}
+/* NORTH (owner, 2026-10-16: "Let me rotate it"): under LOCATE, only while
+ * the map is turned — the [hidden] attribute needs saying, since .rt-btn's
+ * display would beat the browser's own rule. The needle's dark half points
+ * north. */
+.lasd26 .rt-btn[hidden]{display:none}
+.lasd26 .rt-btn.compass{color:var(--ink)}
 
 /* FULL SCREEN. The API way: the browser pins the stage itself; keep the
  * paper behind the tiles and the box from clipping. The CSS way (iPhone

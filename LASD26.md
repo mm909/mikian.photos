@@ -90,9 +90,13 @@ API route.
   re-used one), the drive dashed along the road, LOCATE (geolocation
   watch → lime dot in an ink ring over the accuracy circle; follows until
   you drag) and FULL SCREEN (the Fullscreen API, or on iPhone a fixed
-  stage with a CLOSE button), the facts strip (run, van, climb, turns),
-  the profile and the turn list, a chip to the Google map for the van, the
-  shared footer. No bathrooms, no credit line, nothing past the finish.
+  stage with a CLOSE button); the map TURNS (owner, 2026-10-16: "Let me
+  rotate it" — two fingers, right-drag / Ctrl-drag, Shift+arrows) but
+  never tilts, and a NORTH button with a needle shows under LOCATE only
+  while it is turned and eases it back to north-up; then the facts strip
+  (run, van, climb, turns), the profile and the turn list, and at the foot
+  the chip to the Google map for the van, then the shared footer. No
+  bathrooms, no credit line, nothing past the finish.
 
 - **The info sheet** (`/lasd26/info`; owner, 2026-10-16: "make a info page
   where we can fill out addresses for airbnb, start line, van pick up etc.
