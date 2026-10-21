@@ -1375,7 +1375,43 @@ model TeamSettings {
   // Owner flips this after the race; until then only the owner sees the
   // pay button.
   settleOpen Boolean  @default(false)
+  // THE ETAs on /lasd26/route (owner, 2026-10-21: "I also want etas added to
+  // the route page that will be filled in as we get more info"). The pace is
+  // INFERRED from the van's check-ins against the clock since the start
+  // (owner: "the pace should be inferred from the van's location and current
+  // duration of the race ... I don't want to have to input/guess an avg pace
+  // or have to click a 'start/end drive' button"); these three are the only
+  // knobs, all prefilled. etaDriveMin: the van ride through Camp Pendleton in
+  // minutes ("we can input a default value for the drive"). etaStartAt: the
+  // gun, null = the planned 5:00 AM PT Friday. etaPlanPaceSec: the pace the
+  // schedule assumes UNTIL the first van check-in, seconds per mile.
+  etaDriveMin    Int       @default(25)
+  etaStartAt     DateTime?
+  etaPlanPaceSec Int       @default(540)
   updatedAt  DateTime @updatedAt
+}
+
+// THE VAN'S PIN (owner, 2026-10-21: "a 'van location' button ... only
+// clickable/visible by team members ... put a pin/van indicator on the map so
+// the runners will be able to view where the van is ... It can just take the
+// location of the user who is clicking the button as the van's location").
+// One pin for the team (owner: "One van pin"); every tap writes a new row, the
+// newest live row is the pin, so the check-ins are a log the ETAs can read
+// back. CLEAR sets clearedAt on the live row. Lat/lon as sent by the phone;
+// the course mile is worked out by whoever reads it, from course.json.
+model TeamVanPin {
+  id        String    @id @default(cuid())
+  team      String
+  lat       Float
+  lon       Float
+  accuracyM Int       @default(0)
+  at        DateTime  @default(now())
+  // TeamMember.id and name of who tapped, for the "set by Jazz, 12 min ago" line.
+  byId      String?
+  byName    String    @default("")
+  clearedAt DateTime?
+
+  @@index([team, at])
 }
 
 // THE INFO SHEET (owner, 2026-10-16: "make a info page where we can fill

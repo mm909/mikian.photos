@@ -192,24 +192,45 @@ export async function joinTeam(args: { actor: Actor; token: string; role: TeamRo
 
 /* ─── Settings ────────────────────────────────────────────────────────────── */
 
-export type Settings = { splitCount: number; settleOpen: boolean };
+/**
+ * The split and the settle-up switch, plus the three ETA knobs of
+ * /lasd26/route (owner, 2026-10-21; src/app/lasd26/route/eta.ts): the van
+ * drive in minutes, the start (null = the planned 5:00 AM PT Friday, kept
+ * as ISO on the wire) and the planned pace in seconds a mile that holds
+ * until the van's first check-in.
+ */
+export type Settings = {
+  splitCount: number;
+  settleOpen: boolean;
+  etaDriveMin: number;
+  etaStartAt: string | null;
+  etaPlanPaceSec: number;
+};
+
+const SETTINGS_SELECT = { splitCount: true, settleOpen: true, etaDriveMin: true, etaStartAt: true, etaPlanPaceSec: true } as const;
+const DEFAULT_SETTINGS: Settings = { splitCount: 18, settleOpen: false, etaDriveMin: 25, etaStartAt: null, etaPlanPaceSec: 540 };
+
+function asSettings(row: { splitCount: number; settleOpen: boolean; etaDriveMin: number; etaStartAt: Date | null; etaPlanPaceSec: number }): Settings {
+  return { ...row, etaStartAt: row.etaStartAt ? row.etaStartAt.toISOString() : null };
+}
 
 export async function getSettings(team: string = TEAM): Promise<Settings> {
   try {
-    const row = await db.teamSettings.findUnique({ where: { team }, select: { splitCount: true, settleOpen: true } });
-    if (row) return row;
+    const row = await db.teamSettings.findUnique({ where: { team }, select: SETTINGS_SELECT });
+    if (row) return asSettings(row);
   } catch (err) {
     console.error("lasd26/team: settings lookup failed (table pushed?)", err);
   }
-  return { splitCount: 18, settleOpen: false };
+  return DEFAULT_SETTINGS;
 }
 
 export async function updateSettings(patch: Partial<Settings>, team: string = TEAM): Promise<Settings> {
+  const data = { ...patch, etaStartAt: patch.etaStartAt === undefined ? undefined : patch.etaStartAt === null ? null : new Date(patch.etaStartAt) };
   const row = await db.teamSettings.upsert({
     where: { team },
-    create: { team, splitCount: patch.splitCount ?? 18, settleOpen: patch.settleOpen ?? false },
-    update: patch,
-    select: { splitCount: true, settleOpen: true },
+    create: { team, ...DEFAULT_SETTINGS, ...data },
+    update: data,
+    select: SETTINGS_SELECT,
   });
-  return row;
+  return asSettings(row);
 }

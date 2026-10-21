@@ -103,6 +103,12 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               <a className="acct-item" href={lasdPath("/pay")} role="menuitem" onClick={close}>
                 Settle up →
               </a>
+              {/* The stickers live here, not in the bar (owner, 2026-10-21:
+               * "We can make stickers viewable as a link on the profile
+               * menu"). */}
+              <a className="acct-item" href={lasdPath("/stickers")} role="menuitem" onClick={close}>
+                Stickers →
+              </a>
             </>
           )}
           {viewer.owner && (

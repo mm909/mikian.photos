@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { getTeamViewer } from "@/lib/lasd26/team";
+import { ensureOwnerMember, getSettings, getTeamViewer } from "@/lib/lasd26/team";
+import { getVanPin, wirePin } from "@/lib/lasd26/van";
 import { LasdFooter } from "../LasdFooter";
 import { LasdPage } from "../LasdPage";
 import { routeCss } from "../routeCss";
@@ -23,6 +24,13 @@ import { RouteView } from "./RouteView";
  * course itself is a static file, public/lasd26/route/course.json, made
  * from the organizer's KML by scripts/lasd26-route-from-kml.ts — rerun it
  * when they move a turn.
+ *
+ * 2026-10-21 (owner): MILE MARKERS on the map, ETAs in the turn by turn with
+ * the expected finish under the list, and the VAN button for the team. The
+ * page hands the view what the ETAs run on — the three settings
+ * (TeamSettings.eta*) and, for a member, the van's pin — and the view polls
+ * /api/lasd26/eta for the rest. The owner's member row is made on the way
+ * in (ensureOwnerMember) so a pin he drops carries his name.
  */
 
 export const metadata: Metadata = {
@@ -39,7 +47,9 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 
 export default async function RoutePage() {
-  const viewer = await getTeamViewer();
+  const viewer = await ensureOwnerMember(await getTeamViewer());
+  const settings = await getSettings();
+  const pin = viewer.onTeam ? wirePin(await getVanPin()) : null;
 
   return (
     <LasdPage viewer={viewer} active="route" extraCss={routeCss}>
@@ -52,7 +62,11 @@ export default async function RoutePage() {
         </div>
       </section>
 
-      <RouteView />
+      <RouteView
+        onTeam={viewer.onTeam}
+        initialEta={{ driveMin: settings.etaDriveMin, startAt: settings.etaStartAt, planPaceSec: settings.etaPlanPaceSec }}
+        initialPin={pin}
+      />
 
       <LasdFooter />
     </LasdPage>

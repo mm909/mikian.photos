@@ -23,6 +23,7 @@ because the site did:
 | `/lasd26/the-list` | owner | the crew-call applications — the DEVELOPMENT item in the account menu, 404 to anyone else |
 | `/lasd26/route` | everyone | the official course on a map in the site's colours — the lime line, start and finish, the turns, the van drive by road, your location, full screen — and the turn-by-turn list |
 | `/lasd26/info` | the team | the info sheet: addresses, times, rooms, who to call; the owner fills it in, adds notes of his own and removes lines, members read |
+| `/lasd26/stickers` | the team | the stickers: Just Friends, No Shortcuts and both, nine cards in four looks at sticker / story / post sizes; the door is "Stickers →" in the account menu, not the bar |
 
 **LIVE is hidden** (owner, 2026-10-16: "Let's hide the 'live' page for
 now. It's not ready."). The bar has four doors, CREW CALL, EXPENSES,
@@ -167,6 +168,101 @@ API route.
   additive, so the production build's `prisma db push` applies it; the
   table itself needs `npm run prisma:push` once (the page shows an empty
   sheet, not a crash, until then).
+
+## Mile markers, ETAs and the van (2026-10-21)
+
+Owner, 2026-10-21: "I also need mile markers on the route page, they
+should be subtle. I also want etas added to the route page that will be
+filled in as we get more info like avg pace. We should include an expected
+finish time at the bottom. I dont think we need a new screen we can
+include the etas on the turn by turn area. Also, we need a 'van location'
+button. This should be only clickable/visable by team members. The van
+location button should put a pin/van indicator on the map so the runners
+will be able to view where the van is on their turn by turn. We dont need
+to make this live. It can just take the location of the user who is
+clicking the button as the van's location." Then: "the pace should be
+inferred from the van's location and current duration of the race. I can
+input the drive time but I don't want to have to input/guess an avg pace
+or have to click a 'start/end drive' button"; "we prob have to base ETA
+on the van's position? … maybe we assume that we have used the time since
+the start to get to the van's current location (even if the runners will
+be a mile behind)"; and "One van pin".
+
+- **Mile markers** (`RouteMap.tsx`, `mileMarkers()` in
+  `src/app/lasd26/route/eta.ts`): a grey numeral beside the line at every
+  whole run mile, a symbol layer in the basemap's own face (Noto Sans
+  from OpenFreeMap's glyphs; the raster fallback style names the same
+  glyphs) with a paper halo — no dots, no ticks. Three layers by tier:
+  every ten miles from the whole-course view, every five from zoom 9.2,
+  every mile from 11.2; the map's collision drops any that would pile up.
+- **ETAs** (`eta.ts`, pure; `npx tsx src/app/lasd26/route/eta.test.ts`):
+  NO PACE IS TYPED. The van's latest pin is snapped to the course
+  (`snapToCourse()`: the running line leg by leg, and the drive's road —
+  a pin clearly nearer the road than the line is ON THE DRIVE); the clock
+  since the start, less the Camp Pendleton ride where the van is past it,
+  divided by the van's run mile is the pace (`paceModel()`, source
+  "van"); every call after the van is that many minutes from the pin's
+  time, the restart is the pickup plus the ride, the list never runs
+  backwards (`rowEtas()`), the last row is the EXPECTED FINISH. A pin
+  before the start, still inside mile 1, more than a mile off the course,
+  or implying a pace outside 4:00–20:00/mi does not count and the PACE row
+  says why. Until a pin counts the list is PLANNED at the planned pace.
+  Three knobs, all prefilled, on `TeamSettings` (`etaDriveMin` 25,
+  `etaStartAt` null = Fri 5:00 AM PT, `etaPlanPaceSec` 540), read by
+  `getSettings()` and changed through `PATCH /api/lasd26/eta` by anyone
+  on the team (EDIT on the PACE row: the start as a time on race day, the
+  drive in minutes, the planned pace as m:ss). `GET /api/lasd26/eta` is
+  open (the settings) and carries the pin only for the team; the view
+  polls it every 30 s while the tab is in front and keeps the same state
+  object when nothing moved. Clock times are Pacific
+  (`Intl.DateTimeFormat`, `America/Los_Angeles`), with the weekday added
+  once the schedule crosses out of the race day ("12:40 AM SAT"). A call
+  the clock has passed goes grey. On the page: the PACE row over the list
+  ("FROM THE VAN · MI 42.3 AT 10:12 AM · 8:52/MI" or "PLANNED ·
+  9:00/MI until the van's first check-in", then "start 5:00 AM · drive 25
+  min"), the ETA at the right of every call, THE VAN as a lime row where
+  it sits in the list (`vanRowAfter()`), and the EXPECTED FINISH box.
+- **The van** (`TeamVanPin`; `src/lib/lasd26/van.ts`; `/api/lasd26/van`
+  GET / POST / DELETE, all sign-in + team): a fourth button on the map,
+  team only, asks "Pin the van at this phone?" (MOVE IT HERE / CLEAR /
+  CANCEL once a pin exists), reads the phone's position once (the LOCATE
+  fix when the watch is live) and POSTs it; every tap is a new row, the
+  old one gets `clearedAt`, so the rows are the check-in log. The pin is
+  an ink dot in a lime ring with a VAN tag; a tap on the tag says where
+  ("mi 42.3", "on I-5 through Camp Pendleton", "0.8 mi off the course"),
+  who set it and how long ago. The public never sees the pin — the page
+  hands it only to a member, the API answers 403 — so a visitor's list is
+  the planned schedule. Both new columns and the table are additive, so
+  the production build's `prisma db push` applies them; until then the
+  pin reads as none and the settings as their defaults.
+
+- **The stickers** (`/lasd26/stickers`; owner, 2026-10-21: "I need to
+  generate a bunch of stickers for Just Friends and No Shortcuts and a
+  combo of the 2 … a shareable of the route"; his picks the same day: the
+  marks as TYPE for now — "Type now, swap in the marks later" — NO
+  handles, and after the first look "Lets remove 'one van. one long
+  friday'", "Lets remove 'start' 'the van is full', the crew and done
+  stickers", "We can make stickers viewable as a link on the profile
+  menu"). LIVE FOR THE TEAM: `getTeamViewer()` / `ensureOwnerMember()`,
+  the sign-in / invite notices for anyone else, "Stickers →" in the
+  account menu's team group, nothing in the bar, noindex. Nine cards in
+  three families (`StickersPanel.tsx`), each family with four looks
+  (`LOOKS` in `src/app/lasd26/stickers/paint.ts`), at sticker (own
+  height) / story (1080 × 1920) / post (1080 × 1350), share / copy /
+  download and DOWNLOAD ALL for the family (`StickerFrame.tsx`, the Hyrox
+  frame in the team site's clothes). JUST FRIENDS, paper on ink with the
+  lime dot: the mark ("justfriends." with a lime disc for the period),
+  RUN IT DOWN THE COAST., LA → SD (lime arrow), DAYS AWAY (the phone's
+  own calendar). NO SHORTCUTS, their red (#C81E2E, sampled from their
+  avatar) on black with the arrow: the mark (NO / SHORTCUTS →), the race
+  (TIME TRIAL · 7TH EDITION · LA → SD · 10.23.26), 115 MILES. (the
+  measured course, not the poster's 120). BOTH, paper on ink with the
+  dot and the arrow: the lockup (NO SHORTCUTS → × justfriends. / LASD26 /
+  the line and the date) and THE ROUTE (the course line from
+  course.json, START and FINISH tags, the drive dashed, a tick every 25
+  miles, 115 MI). THE MARKS ARE THE SEAM: `jfMark()` and `nsMark()` set
+  type today; when the owner sends hi-res files they paint images and
+  every card follows. No address, no handle on any card (CLAUDE.md).
 
 ## How it works
 

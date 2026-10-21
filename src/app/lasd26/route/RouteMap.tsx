@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AttributionControl,
   Map as MlMap,
@@ -12,7 +12,8 @@ import {
   type StyleSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { CourseFile, Focus } from "./course";
+import { MI, type CourseFile, type Focus } from "./course";
+import { formatAgo, mileMarkers, snapToCourse, type Snap, type VanPin } from "./eta";
 
 /**
  * The course on a MapLibre map in the site's colours (owner, 2026-10-16:
@@ -55,6 +56,20 @@ import type { CourseFile, Focus } from "./course";
  *     button, now CLOSE, takes it down (Escape too).
  *   NORTH — shows only once the map is turned: a needle that points north
  *     as the map spins, and a tap eases it back to north-up.
+ *
+ * 2026-10-21 (owner): MILE MARKERS — "they should be subtle": a small grey
+ * numeral beside the line at every whole run mile (eta.ts mileMarkers), as
+ * a symbol layer so the tiles' own collision keeps them from piling up:
+ * every ten miles when the whole course is in view, every five closer in,
+ * every mile from street zoom. No dots, no ticks. The VAN — "a 'van
+ * location' button … only clickable/visible by team members … take the
+ * location of the user who is clicking the button as the van's location":
+ * a fourth button, for the team only (`canPin`), asks "Pin the van here?",
+ * reads this phone's position once (the LOCATE fix when there is a fresh
+ * one) and hands it up (`onPin`); the pin comes back down as `pin` and is
+ * drawn as an ink dot with a VAN tag that opens a popup saying who set it,
+ * when, and at what mile (the pin snapped to the course, eta.ts). CLEAR
+ * takes it down. One pin for the team (owner: "One van pin").
  */
 
 if (typeof window !== "undefined") {
@@ -66,9 +81,15 @@ const INK = "#111110";
 const LIME = "#D0F858";
 const GREEN = "#3C7A0B";
 const PAPER = "#F4F3EE";
+/** The mile numerals: the soft ink, bold (owner, 2026-10-21: "the mile markers are a little hard to see"). */
+const INK_SOFT = "#3d3d3a";
+/** The basemap's own glyphs, so the mile numerals have a face to set in. */
+const GLYPHS_URL = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
+const LABEL_FONT = ["Noto Sans Bold"];
 
 const FALLBACK_STYLE: StyleSpecification = {
   version: 8,
+  glyphs: GLYPHS_URL,
   sources: {
     osm: {
       type: "raster",
@@ -93,6 +114,13 @@ const LOCATE_ZOOM = 14;
 export type RouteMapProps = {
   course: CourseFile;
   focus: Focus | null;
+  /** On the team: the VAN button shows. */
+  canPin: boolean;
+  /** The team's van pin, drawn when there is one. */
+  pin: VanPin | null;
+  /** Saves this phone's position as the pin; resolves to an error to show, or null. */
+  onPin: (fix: Fix) => Promise<string | null>;
+  onClearPin: () => Promise<string | null>;
 };
 
 type Fix = { lon: number; lat: number; accuracyM: number };
@@ -138,6 +166,40 @@ function ensureLayers(map: MlMap) {
     map.addSource("drive", { type: "geojson", data: EMPTY });
     map.addLayer({ id: "drive-line", type: "line", source: "drive", layout: { "line-join": "round" }, paint: { "line-color": INK, "line-width": 2, "line-dasharray": [2, 2.5] } });
   }
+  if (!map.getSource("miles")) {
+    map.addSource("miles", { type: "geojson", data: EMPTY });
+    // Three layers, one per tier, so the whole-course view says 10, 20, 30…
+    // and the street view says every mile. The numeral sits beside the
+    // line (a variable anchor, half an em out) in the soft ink, bold, with
+    // a paper halo — subtle but legible (owner, 2026-10-21: "they should be
+    // subtle", then "the mile markers are a little hard to see"). The
+    // basemap's collision drops any that would overlap.
+    const tiers: [string, number, number, number][] = [
+      ["miles-10", 10, 0, 13],
+      ["miles-5", 5, 9, 12.5],
+      ["miles-1", 1, 11, 12],
+    ];
+    for (const [id, tier, minzoom, size] of tiers) {
+      map.addLayer({
+        id,
+        type: "symbol",
+        source: "miles",
+        minzoom,
+        filter: ["==", ["get", "tier"], tier],
+        layout: {
+          "text-field": ["to-string", ["get", "mile"]],
+          "text-font": LABEL_FONT,
+          "text-size": size,
+          "text-variable-anchor": ["left", "right", "top", "bottom"],
+          "text-radial-offset": 0.55,
+          "text-justify": "auto",
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+        },
+        paint: { "text-color": INK_SOFT, "text-halo-color": PAPER, "text-halo-width": 1.8 },
+      });
+    }
+  }
   if (!map.getSource("turns")) {
     map.addSource("turns", { type: "geojson", data: EMPTY });
     // The hit layer first: a wide, fully transparent circle that still answers
@@ -167,11 +229,25 @@ function ensureLayers(map: MlMap) {
       paint: { "circle-radius": 7, "circle-color": LIME, "circle-stroke-color": INK, "circle-stroke-width": 2.5 },
     });
   }
+  if (!map.getSource("van")) {
+    map.addSource("van", { type: "geojson", data: EMPTY });
+    // The van's spot: an ink dot in a lime ring, under its VAN tag (a DOM marker).
+    map.addLayer({
+      id: "van-dot",
+      type: "circle",
+      source: "van",
+      paint: { "circle-radius": 6, "circle-color": INK, "circle-stroke-color": LIME, "circle-stroke-width": 3 },
+    });
+  }
 }
 
 function applyData(map: MlMap, course: CourseFile) {
   const src = (id: string) => map.getSource(id) as GeoJSONSource | undefined;
   src("route")?.setData({ type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: legsOf(course) } });
+  src("miles")?.setData({
+    type: "FeatureCollection",
+    features: mileMarkers(course).map((m) => ({ type: "Feature", properties: { mile: m.mile, tier: m.tier }, geometry: { type: "Point", coordinates: [m.lon, m.lat] } })),
+  });
   src("drive")?.setData({
     type: "FeatureCollection",
     features: course.drives.map((d) => ({
@@ -203,6 +279,35 @@ function applyFix(map: MlMap, fix: Fix | null) {
       { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [fix.lon, fix.lat] } },
     ],
   });
+}
+
+function applyVan(map: MlMap, pin: VanPin | null) {
+  const src = map.getSource("van") as GeoJSONSource | undefined;
+  if (!src) return;
+  src.setData(pin ? { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [pin.lon, pin.lat] } } : EMPTY);
+}
+
+/** "mi 42.3", "on I-5 through Camp Pendleton", or "0.8 mi off the course". */
+function whereIs(snap: Snap, course: CourseFile): string {
+  if (snap.onDrive) return "on I-5 through Camp Pendleton";
+  if (snap.offM > MI) return `${(snap.offM / MI).toFixed(1)} mi off the course`;
+  const mile = snap.routeM / MI;
+  return `mi ${mile.toFixed(1)}${snap.afterDrives > 0 && Math.abs(mile - (course.drives[0]?.mile ?? -1)) < 0.3 ? " · past the restart" : ""}`;
+}
+
+/** The van's popup: where it is, who set it, how long ago. */
+function vanBody(pin: VanPin, snap: Snap, course: CourseFile): HTMLElement {
+  const el = document.createElement("div");
+  const m = document.createElement("span");
+  m.className = "m";
+  m.textContent = "VAN";
+  el.appendChild(m);
+  el.appendChild(document.createTextNode(whereIs(snap, course)));
+  const a = document.createElement("span");
+  a.className = "a";
+  a.textContent = `${pin.byName ? `set by ${pin.byName} · ` : ""}${formatAgo(new Date(pin.at), new Date())}`;
+  el.appendChild(a);
+  return el;
 }
 
 /** The popup body, built as DOM so nothing from the file is parsed as HTML. */
@@ -237,16 +342,24 @@ function geoMessage(code: number): string {
   return "Location unavailable";
 }
 
-export default function RouteMap({ course, focus }: RouteMapProps) {
+export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin }: RouteMapProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<Popup | null>(null);
   const styleReady = useRef(false);
   const fellBack = useRef(false);
-  const latest = useRef({ course });
-  latest.current = { course };
+  const latest = useRef({ course, pin });
+  latest.current = { course, pin };
   const [note, setNote] = useState<string | null>(null);
+
+  /* THE VAN: the pin snapped to the course, the ask before a tap pins, and
+   * the one-line answer after. */
+  const pinSnap = useMemo(() => (pin ? snapToCourse(course, pin.lat, pin.lon) : null), [course, pin]);
+  const [ask, setAsk] = useState(false);
+  const [pinning, setPinning] = useState(false);
+  const [vanNote, setVanNote] = useState<string | null>(null);
+  const vanNoteTimer = useRef<number | null>(null);
 
   /**
    * One FRESH popup per tap, the last one removed by hand. Not one popup
@@ -329,6 +442,8 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
     map.on("rotateend", syncNorth);
     map.on("moveend", syncNorth);
     mapRef.current = map;
+    // On a laptop the map is reachable from the console for a look at its layers.
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __rtMap?: MlMap }).__rtMap = map;
 
     const fallback = () => {
       if (fellBack.current) return;
@@ -348,6 +463,7 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
       ensureLayers(map);
       applyData(map, latest.current.course);
       applyFix(map, fixRef.current);
+      applyVan(map, latest.current.pin);
     });
     map.on("error", (e) => {
       if (styleReady.current) return;
@@ -413,6 +529,37 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
     ensureLayers(map);
     applyData(map, course);
   }, [course]);
+
+  /* THE VAN on the map: the dot in its layer and a VAN tag over it that
+   * opens the popup. Redrawn whenever the pin moves (another phone's tap
+   * arrives through the poll). */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (styleReady.current) applyVan(map, pin);
+    if (!pin || !pinSnap) return;
+    const el = tag("VAN", "rt-mk van");
+    el.setAttribute("role", "button");
+    el.tabIndex = 0;
+    const openIt = () => show(pin.lon, pin.lat, vanBody(pin, pinSnap, latest.current.course));
+    // The tag sits inside the map's canvas container, so its click would
+    // bubble up as a map click and the popup's close-on-click (registered
+    // during this same click) would take the popup straight down again.
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openIt();
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openIt();
+      }
+    });
+    const marker = new Marker({ element: el, anchor: "bottom", offset: [0, -10] }).setLngLat([pin.lon, pin.lat]).addTo(map);
+    return () => {
+      marker.remove();
+    };
+  }, [pin, pinSnap, show]);
 
   /* A row was tapped below: fly there and say what it is. */
   useEffect(() => {
@@ -498,6 +645,63 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
 
   /* The watch dies with the map. */
   useEffect(() => () => stopWatch(), [stopWatch]);
+
+  /* ─── THE VAN BUTTON ───────────────────────────────────────────────────── */
+
+  const sayVan = useCallback((msg: string | null, holdMs = 6000) => {
+    if (vanNoteTimer.current) window.clearTimeout(vanNoteTimer.current);
+    setVanNote(msg);
+    if (msg) vanNoteTimer.current = window.setTimeout(() => setVanNote(null), holdMs);
+  }, []);
+  useEffect(
+    () => () => {
+      if (vanNoteTimer.current) window.clearTimeout(vanNoteTimer.current);
+    },
+    [],
+  );
+
+  /** This phone's position: the LOCATE fix when the watch is live, a fresh one otherwise. */
+  const myFix = useCallback((): Promise<Fix> => {
+    if (geoRef.current !== "off" && fixRef.current) return Promise.resolve(fixRef.current);
+    return new Promise<Fix>((resolve, reject) => {
+      if (typeof navigator === "undefined" || !("geolocation" in navigator)) return reject(new Error("No location on this browser"));
+      if (typeof window !== "undefined" && !window.isSecureContext) return reject(new Error("Location needs https"));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lon: pos.coords.longitude, lat: pos.coords.latitude, accuracyM: Math.max(0, pos.coords.accuracy || 0) }),
+        (err) => reject(new Error(geoMessage(err.code))),
+        { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 },
+      );
+    });
+  }, []);
+
+  const doPin = useCallback(async () => {
+    if (pinning) return;
+    setPinning(true);
+    sayVan("Finding this phone…", 20_000);
+    try {
+      const fix = await myFix();
+      const err = await onPin(fix);
+      if (err) sayVan(err);
+      else {
+        const s = snapToCourse(latest.current.course, fix.lat, fix.lon);
+        sayVan(`Van pinned · ${whereIs(s, latest.current.course)}`);
+        setAsk(false);
+        mapRef.current?.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(mapRef.current.getZoom(), 13), duration: 700, essential: true });
+      }
+    } catch (e) {
+      sayVan(e instanceof Error ? e.message : "Could not find this phone");
+    }
+    setPinning(false);
+  }, [pinning, myFix, onPin, sayVan]);
+
+  const doClear = useCallback(async () => {
+    if (pinning) return;
+    setPinning(true);
+    const err = await onClearPin();
+    sayVan(err ?? "Van pin cleared");
+    if (!err) setAsk(false);
+    setPinning(false);
+  }, [pinning, onClearPin, sayVan]);
 
   /* ─── FULL SCREEN ──────────────────────────────────────────────────────── */
 
@@ -629,6 +833,25 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
             <path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
           </svg>
         </button>
+        {/* THE VAN (owner, 2026-10-21): team only. Ink with the lime van
+         * once a pin is down. */}
+        {canPin && (
+          <button
+            type="button"
+            className="rt-btn van"
+            data-state={pin ? "set" : "none"}
+            onClick={() => setAsk((v) => !v)}
+            aria-expanded={ask}
+            aria-label={pin ? "The van: move or clear its pin" : "Pin the van here"}
+            title={pin ? "The van: move or clear its pin" : "Pin the van here"}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M3 7h11l4 4h3v6h-2M3 7v10h2M9 17h6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+              <circle cx="7" cy="17.5" r="2" fill="none" stroke="currentColor" strokeWidth="2.2" />
+              <circle cx="17" cy="17.5" r="2" fill="none" stroke="currentColor" strokeWidth="2.2" />
+            </svg>
+          </button>
+        )}
         {/* Always rendered (so the needle's ref is there to turn), hidden
          * while the map points north. */}
         <button
@@ -647,12 +870,35 @@ export default function RouteMap({ course, focus }: RouteMapProps) {
           </svg>
         </button>
       </div>
-      {(note || geoNote) && (
+      {(note || geoNote || vanNote || (ask && canPin)) && (
         <div className="rt-notes">
+          {ask && canPin && (
+            <div className="rt-ask" role="dialog" aria-label="Pin the van">
+              <div className="q">{pin ? "Move the van to this phone?" : "Pin the van at this phone?"}</div>
+              <div className="acts">
+                <button type="button" className="rt-mini fill" onClick={() => void doPin()} disabled={pinning}>
+                  {pinning ? "Pinning…" : pin ? "Move it here" : "Pin it here"}
+                </button>
+                {pin && (
+                  <button type="button" className="rt-mini" onClick={() => void doClear()} disabled={pinning}>
+                    Clear
+                  </button>
+                )}
+                <button type="button" className="rt-mini" onClick={() => setAsk(false)} disabled={pinning}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {note && <div className="rt-note">{note}</div>}
           {geoNote && (
             <div className="rt-note" role="status">
               {geoNote}
+            </div>
+          )}
+          {vanNote && (
+            <div className="rt-note" role="status">
+              {vanNote}
             </div>
           )}
         </div>
