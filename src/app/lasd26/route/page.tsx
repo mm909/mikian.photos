@@ -50,6 +50,12 @@ export default async function RoutePage() {
   const viewer = await ensureOwnerMember(await getTeamViewer());
   const settings = await getSettings();
   const pin = viewer.onTeam ? wirePin(await getVanPin()) : null;
+  // LOCATE v2 (owner, 2026-10-23: "When sharing your location for the map
+  // keep it centered unless the user moves it and give a button to
+  // recenter. Can we deploy this to just my user first so I can test"):
+  // the RECENTER button, the owner's alone in production until he says it
+  // is good, everyone's on a laptop. Then this line goes to `true`.
+  const recenter = process.env.NODE_ENV !== "production" || viewer.owner;
 
   return (
     <LasdPage viewer={viewer} active="route" extraCss={routeCss}>
@@ -64,6 +70,7 @@ export default async function RoutePage() {
 
       <RouteView
         onTeam={viewer.onTeam}
+        recenter={recenter}
         initialEta={{ driveMin: settings.etaDriveMin, startAt: settings.etaStartAt, planPaceSec: settings.etaPlanPaceSec }}
         initialPin={pin}
       />

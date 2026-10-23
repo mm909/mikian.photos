@@ -59,6 +59,8 @@ const POLL_MS = 30_000;
 export type RouteViewProps = {
   /** Signed in and on the team: the VAN button, the pin and the settings' EDIT. */
   onTeam: boolean;
+  /** LOCATE v2: the map stays on you until you move it, then a RECENTER button (page.tsx says who gets it). */
+  recenter: boolean;
   initialEta: EtaSettings;
   initialPin: VanPin | null;
 };
@@ -71,7 +73,7 @@ type EtaWire = { ok: boolean; settings?: EtaSettings; pin?: VanPin | null; onTea
 const samePin = (a: VanPin | null, b: VanPin | null) => (a === b ? true : !!a && !!b && a.at === b.at && a.lat === b.lat && a.lon === b.lon && a.byName === b.byName);
 const sameEta = (a: EtaSettings, b: EtaSettings) => a.driveMin === b.driveMin && a.startAt === b.startAt && a.planPaceSec === b.planPaceSec;
 
-export function RouteView({ onTeam, initialEta, initialPin }: RouteViewProps) {
+export function RouteView({ onTeam, recenter, initialEta, initialPin }: RouteViewProps) {
   const [course, setCourse] = useState<CourseFile | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -167,7 +169,7 @@ export function RouteView({ onTeam, initialEta, initialPin }: RouteViewProps) {
     <>
       <div className="rt-map" ref={mapRef}>
         {course ? (
-          <RouteMap course={course} focus={focus} canPin={onTeam} pin={pin} onPin={onPin} onClearPin={onClearPin} />
+          <RouteMap course={course} focus={focus} canPin={onTeam} recenter={recenter} pin={pin} onPin={onPin} onClearPin={onClearPin} />
         ) : err ? (
           <div className="rt-loading mono">Course unavailable · {err}</div>
         ) : (

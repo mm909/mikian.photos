@@ -222,6 +222,16 @@ be a mile behind)"; and "One van pin".
   9:00/MI until the van's first check-in", then "start 5:00 AM · drive 25
   min"), the ETA at the right of every call, THE VAN as a lime row where
   it sits in the list (`vanRowAfter()`), and the EXPECTED FINISH box.
+- **LOCATE v2 / RECENTER** (owner, 2026-10-23: "When sharing your location
+  for the map keep it centered unless the user moves it and give a button
+  to recenter. Can we deploy this to just my user first so I can test"):
+  while the location is on the map follows every fix; a drag by hand stops
+  the following and a RECENTER button (ink, the lime arrow, the word)
+  shows under LOCATE until a tap puts the map back on the dot; LOCATE
+  itself is on / off only. The OWNER'S ALONE IN PRODUCTION (`recenter` in
+  `route/page.tsx`, open on a laptop) until he has tested it; then the
+  line goes to `true` and the older way (LOCATE re-follows from "watch")
+  can go.
 - **The van** (`TeamVanPin`; `src/lib/lasd26/van.ts`; `/api/lasd26/van`
   GET / POST / DELETE, all sign-in + team): a fourth button on the map,
   team only, asks "Pin the van at this phone?" (MOVE IT HERE / CLEAR /

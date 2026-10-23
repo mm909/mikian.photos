@@ -41,6 +41,14 @@ export const routeCss = `
 .lasd26 .rt-btn.fs.is-on:hover{background:var(--safety-ink);color:var(--paper)}
 .lasd26 .rt-btn.locate[data-state=watch]{border-color:var(--safety-ink);color:var(--safety-ink)}
 .lasd26 .rt-btn.locate[data-state=follow]{background:var(--ink);color:var(--safety);border-color:var(--ink)}
+/* RECENTER (owner, 2026-10-23: "keep it centered unless the user moves it
+ * and give a button to recenter"): under LOCATE, only while the location
+ * is on and the map has been moved off it. Ink with the lime arrow and
+ * the word, so it reads as the thing to tap; it sits at the right edge
+ * like the others and grows leftward with its word. */
+.lasd26 .rt-ctl{align-items:flex-end}
+.lasd26 .rt-btn.recenter{padding:0 12px 0 10px;background:var(--ink);color:var(--safety)}
+.lasd26 .rt-btn.recenter:hover{background:var(--safety-ink);color:var(--paper);border-color:var(--safety-ink)}
 /* NORTH (owner, 2026-10-16: "Let me rotate it"): under LOCATE, only while
  * the map is turned — the [hidden] attribute needs saying, since .rt-btn's
  * display would beat the browser's own rule. The needle's dark half points
