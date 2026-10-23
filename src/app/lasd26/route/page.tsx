@@ -31,6 +31,11 @@ import { RouteView } from "./RouteView";
  * (TeamSettings.eta*) and, for a member, the van's pin — and the view polls
  * /api/lasd26/eta for the rest. The owner's member row is made on the way
  * in (ensureOwnerMember) so a pin he drops carries his name.
+ *
+ * 2026-10-23 (owner): LOCATE keeps the map on you until you move it, then a
+ * RECENTER button (RouteMap.tsx). It went to the owner alone first ("deploy
+ * this to just my user first so I can test") and to everyone the same
+ * morning ("Push this to all users"), so there is no flag any more.
  */
 
 export const metadata: Metadata = {
@@ -50,12 +55,6 @@ export default async function RoutePage() {
   const viewer = await ensureOwnerMember(await getTeamViewer());
   const settings = await getSettings();
   const pin = viewer.onTeam ? wirePin(await getVanPin()) : null;
-  // LOCATE v2 (owner, 2026-10-23: "When sharing your location for the map
-  // keep it centered unless the user moves it and give a button to
-  // recenter. Can we deploy this to just my user first so I can test"):
-  // the RECENTER button, the owner's alone in production until he says it
-  // is good, everyone's on a laptop. Then this line goes to `true`.
-  const recenter = process.env.NODE_ENV !== "production" || viewer.owner;
 
   return (
     <LasdPage viewer={viewer} active="route" extraCss={routeCss}>
@@ -70,7 +69,6 @@ export default async function RoutePage() {
 
       <RouteView
         onTeam={viewer.onTeam}
-        recenter={recenter}
         initialEta={{ driveMin: settings.etaDriveMin, startAt: settings.etaStartAt, planPaceSec: settings.etaPlanPaceSec }}
         initialPin={pin}
       />

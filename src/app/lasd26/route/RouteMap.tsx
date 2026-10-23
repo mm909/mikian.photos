@@ -45,16 +45,13 @@ import { formatAgo, mileMarkers, snapToCourse, type Snap, type VanPin } from "./
  *   LOCATE — "Show the user's location on the map":
  *     navigator.geolocation.watchPosition → a lime dot in an ink ring over
  *     an accuracy circle. The map eases to the first fix and FOLLOWS the
- *     fixes after it; a drag by hand stops the following but keeps the dot.
- *     Permission denied (or no https, or no fix) → a small note. Client
- *     only — this module never runs on the server.
- *     With `recenter` (owner, 2026-10-23: "keep it centered unless the user
- *     moves it and give a button to recenter"): once the map has been moved
- *     off the dot a RECENTER button shows under LOCATE and a tap puts the
- *     map back on the dot and following again; LOCATE itself only switches
- *     the location on and off. Without it (the older way, everyone else's
- *     until the owner has tested): LOCATE re-follows from "watch", and
- *     switches off from "follow".
+ *     fixes after it; a drag by hand stops the following but keeps the dot
+ *     (owner, 2026-10-23: "keep it centered unless the user moves it and
+ *     give a button to recenter"), and a RECENTER button shows under LOCATE
+ *     until a tap puts the map back on the dot and following again. LOCATE
+ *     itself only switches the location on and off. Permission denied (or
+ *     no https, or no fix) → a small note. Client only — this module never
+ *     runs on the server.
  *   FULL SCREEN — "Give a button to full screen the map":
  *     element.requestFullscreen() on the stage where the browser has it
  *     (map.resize() after); where it does not — iPhone Safari — a CSS
@@ -122,8 +119,6 @@ export type RouteMapProps = {
   focus: Focus | null;
   /** On the team: the VAN button shows. */
   canPin: boolean;
-  /** LOCATE v2: a RECENTER button once the map has been moved off the dot; LOCATE is on/off only. */
-  recenter: boolean;
   /** The team's van pin, drawn when there is one. */
   pin: VanPin | null;
   /** Saves this phone's position as the pin; resolves to an error to show, or null. */
@@ -350,7 +345,7 @@ function geoMessage(code: number): string {
   return "Location unavailable";
 }
 
-export default function RouteMap({ course, focus, canPin, recenter, pin, onPin, onClearPin }: RouteMapProps) {
+export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin }: RouteMapProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -639,23 +634,17 @@ export default function RouteMap({ course, focus, canPin, recenter, pin, onPin, 
     if (map && fix) map.easeTo({ center: [fix.lon, fix.lat], zoom: Math.max(map.getZoom(), LOCATE_ZOOM), duration: 700, essential: true });
   }, [setGeo]);
 
+  /** On / off. Getting back on the dot is RECENTER's job. */
   const onLocate = useCallback(() => {
-    const g = geoRef.current;
-    if (g === "off") {
+    if (geoRef.current === "off") {
       startWatch();
-      return;
-    }
-    // The older way: from "watch" the button re-follows. With the RECENTER
-    // button that is its job, and LOCATE is on / off only.
-    if (g === "watch" && !recenter) {
-      onRecenter();
       return;
     }
     // Switched off by hand: a "still trying" note goes with it (a denial's
     // note comes through the error path and stays).
     setGeoNote(null);
     stopWatch();
-  }, [startWatch, stopWatch, onRecenter, recenter]);
+  }, [startWatch, stopWatch]);
 
   /* The watch dies with the map. */
   useEffect(() => () => stopWatch(), [stopWatch]);
@@ -837,9 +826,9 @@ export default function RouteMap({ course, focus, canPin, recenter, pin, onPin, 
           className="rt-btn locate"
           data-state={geo}
           onClick={onLocate}
-          aria-pressed={recenter ? geo !== "off" : geo === "follow"}
-          aria-label={geo === "off" ? "Show my location" : geo === "watch" && !recenter ? "Follow my location" : "Stop showing my location"}
-          title={geo === "off" ? "Show my location" : geo === "watch" && !recenter ? "Follow my location" : "Stop showing my location"}
+          aria-pressed={geo !== "off"}
+          aria-label={geo === "off" ? "Show my location" : "Stop showing my location"}
+          title={geo === "off" ? "Show my location" : "Stop showing my location"}
         >
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="2.5" />
@@ -850,7 +839,7 @@ export default function RouteMap({ course, focus, canPin, recenter, pin, onPin, 
         {/* RECENTER (owner, 2026-10-23): only once the map has been moved
          * off the dot while the location is on. Ink with the lime arrow, a
          * word beside it, like CLOSE. */}
-        {recenter && geo === "watch" && (
+        {geo === "watch" && (
           <button type="button" className="rt-btn recenter" onClick={onRecenter} aria-label="Put the map back on my location" title="Put the map back on my location">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path d="M12 3l7 18-7-4-7 4z" fill="currentColor" />
