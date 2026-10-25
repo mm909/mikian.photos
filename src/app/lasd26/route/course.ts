@@ -82,6 +82,26 @@ export type CourseFile = {
   profile: [number, number][];
 };
 
+/**
+ * THE BASEMAP for the route stickers (owner, 2026-10-25: "2 different map
+ * views of the route. One with cities or the coast line drawn. And another
+ * with the major roads drawn") — public/lasd26/route/basemap.json, written
+ * by scripts/lasd26-basemap.ts from OpenStreetMap: the coastline, the
+ * motorways / trunks / CA 1, and a curated list of places. [lon, lat].
+ */
+export const BASEMAP_URL = `${LASD_ASSETS}/route/basemap.json`;
+
+export type BasemapCity = { name: string; lon: number; lat: number; place: string };
+export type BasemapFile = {
+  generated_at: string;
+  source: string;
+  bbox: [number, number, number, number];
+  coast: [number, number][][];
+  /** The motorways, the trunks, and CA 1 / the Pacific Coast Highway ("coast"), each chained into long lines. */
+  roads: { motorway: [number, number][][]; trunk: [number, number][][]; coast: [number, number][][] };
+  cities: BasemapCity[];
+};
+
 /** What a tap on a list row asks the map to show. `id` changes on every tap so the same row re-fires. */
 export type Focus = { lon: number; lat: number; name: string; mile: number; key: string; id: number };
 

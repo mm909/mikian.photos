@@ -231,6 +231,18 @@ be a mile behind)"; and "One van pin".
   ("deploy this to just my user first so I can test") and to everyone the
   same morning ("Push this to all users"); the flag and the older way
   (LOCATE re-following from "watch") are gone.
+- **The way you face** (owner, 2026-10-23: "Can we show what direction we
+  are facing"): with LOCATE on, a lime cone out of the dot turned with the
+  phone's compass — iOS hands it over as `webkitCompassHeading` on
+  `deviceorientation` after `DeviceOrientationEvent.requestPermission()`,
+  which must be asked from the tap itself, so LOCATE's click asks; Android
+  as the absolute `alpha` of `deviceorientationabsolute` (360 − alpha), the
+  screen's turn added — eased a third of the way per reading so it does
+  not twitch; when the compass has said nothing for 3 s the GPS course
+  stands in while moving at 0.7 m/s or more. A MapLibre DOM marker
+  (`.rt-cone`, constant SVG, taps go through) aligned to the map, so it
+  turns with the map too; a device without a compass shows the dot alone;
+  LOCATE off takes it down.
 - **The van** (`TeamVanPin`; `src/lib/lasd26/van.ts`; `/api/lasd26/van`
   GET / POST / DELETE, all sign-in + team): a fourth button on the map,
   team only, asks "Pin the van at this phone?" (MOVE IT HERE / CLEAR /
@@ -263,13 +275,31 @@ be a mile behind)"; and "One van pin".
   lime dot: the mark ("justfriends." with a lime disc for the period),
   RUN IT DOWN THE COAST., LA → SD (lime arrow), DAYS AWAY (the phone's
   own calendar). NO SHORTCUTS, their red (#C81E2E, sampled from their
-  avatar) on black with the arrow: the mark (NO / SHORTCUTS →), the race
+  avatar) on black with the arrow: THE MARK — their own lettering, the
+  arrow, NO and SHORTCUTS upside down, lifted from the owner's screenshot
+  of the @noshortcutstt avatar (owner, 2026-10-25: "I need this red logo
+  lettering as a sticker") at five times the size with the black knocked
+  out, `public/lasd26/brand/ns-lettering.png` (red on transparent,
+  2445 × 813), painted tinted in the look's ink by `nsLetteringCard()`
+  (the type version, `nsMarkCard()`, stands in until it loads) — the race
   (TIME TRIAL · 7TH EDITION · LA → SD · 10.23.26), 115 MILES. (the
   measured course, not the poster's 120). BOTH, paper on ink with the
   dot and the arrow: the lockup (NO SHORTCUTS → × justfriends. / LASD26 /
-  the line and the date) and THE ROUTE (the course line from
-  course.json, START and FINISH tags, the drive dashed, a tick every 25
-  miles, 115 MI). THE MARKS ARE THE SEAM: `jfMark()` and `nsMark()` set
+  the line and the date), THE ROUTE (the course line from course.json,
+  START and FINISH tags, the drive dashed, a tick every 25 miles, 115 MI),
+  and four more route cards (owner, 2026-10-25: "a sticker of just the
+  route path. One w and without mile markers … 2 different map views of
+  the route. One with cities or the coast line drawn. And another with the
+  major roads drawn"): THE PATH (the line alone, lime over an ink casing),
+  PATH + MILES (a lime dot and numeral every ten miles, START and FINISH),
+  COAST & CITIES and MAJOR ROADS — the route over a basemap drawn in the
+  dimmed cut: `public/lasd26/route/basemap.json`, pulled once from
+  OpenStreetMap by `scripts/lasd26-basemap.ts` (Overpass: the coastline,
+  every motorway and trunk plus CA 1 / the Pacific Coast Highway, and a
+  curated list of places by name; lines simplified to ~70 m; run it with
+  `NODE_OPTIONS=--dns-result-order=ipv4first`). All four are square map
+  boxes with nothing under them; one `frameCourse()` projection serves
+  every route card. THE MARKS ARE THE SEAM: `jfMark()` and `nsMark()` set
   type today; when the owner sends hi-res files they paint images and
   every card follows. No address, no handle on any card (CLAUDE.md).
 

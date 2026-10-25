@@ -45,3 +45,4 @@ next-env.d.ts
 
 # MapLibre worker, copied from node_modules by scripts/copy-maplibre-worker.mjs
 /public/track/maplibre-gl-worker.mjs
+public/lasd26/route/.overpass-cache/

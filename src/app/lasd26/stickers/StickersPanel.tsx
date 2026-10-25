@@ -1,9 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { COURSE_URL, type CourseFile } from "../route/course";
+import { BASEMAP_URL, COURSE_URL, type BasemapFile, type CourseFile } from "../route/course";
 import { StickerFrame, type Deck, type Painter } from "./StickerFrame";
-import { LOOKS, jfCoastCard, jfDaysCard, jfLaSdCard, jfMarkCard, nsMarkCard, nsMilesCard, nsRaceCard, placeCard, xLockupCard, xRouteCard, type CardPainter, type Family, type Fonts, type Look } from "./paint";
+import {
+  LOOKS,
+  NS_LETTERING_URL,
+  jfCoastCard,
+  jfDaysCard,
+  jfLaSdCard,
+  jfMarkCard,
+  nsLetteringCard,
+  nsMilesCard,
+  nsRaceCard,
+  placeCard,
+  xCoastCard,
+  xLockupCard,
+  xPathCard,
+  xRoadsCard,
+  xRouteCard,
+  type CardPainter,
+  type Family,
+  type Fonts,
+  type Look,
+} from "./paint";
 
 /* THE STICKERS PAGE'S BODY (owner, 2026-10-21): three families — JUST
  * FRIENDS, NO SHORTCUTS, BOTH — each a row of cards, each card in the
@@ -28,10 +48,26 @@ const FAMILIES: { id: Family; label: string }[] = [
 
 export function StickersPanel() {
   const [course, setCourse] = useState<CourseFile | null>(null);
+  /* The coastline, roads and cities for the two map views (course.ts BASEMAP_URL). */
+  const [basemap, setBasemap] = useState<BasemapFile | null>(null);
   const [family, setFamily] = useState<Family>("x");
   const [cardId, setCardId] = useState("x-lockup");
   const [format, setFormat] = useState<Format>("sticker");
   const [lookId, setLookId] = useState<string>(LOOKS.x[0].id);
+  /* Their lettering for the No Shortcuts mark card (paint.ts NS_LETTERING_URL). */
+  const [lettering, setLettering] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    let on = true;
+    const img = new Image();
+    img.onload = () => {
+      if (on) setLettering(img);
+    };
+    img.src = NS_LETTERING_URL;
+    return () => {
+      on = false;
+    };
+  }, []);
 
   useEffect(() => {
     let on = true;
@@ -42,6 +78,14 @@ export function StickersPanel() {
       })
       .catch(() => {
         /* the route card paints without the line */
+      });
+    fetch(BASEMAP_URL)
+      .then((r) => (r.ok ? (r.json() as Promise<BasemapFile>) : Promise.reject(new Error(String(r.status)))))
+      .then((b) => {
+        if (on) setBasemap(b);
+      })
+      .catch(() => {
+        /* the map views paint the route alone */
       });
     return () => {
       on = false;
@@ -57,16 +101,20 @@ export function StickersPanel() {
         { id: "jf-days", label: "Days away", paint: jfDaysCard },
       ],
       ns: [
-        { id: "ns-mark", label: "The mark", paint: nsMarkCard },
+        { id: "ns-mark", label: "The mark", paint: nsLetteringCard(lettering) },
         { id: "ns-race", label: "The race", paint: nsRaceCard },
         { id: "ns-miles", label: "115 miles", paint: nsMilesCard },
       ],
       x: [
         { id: "x-lockup", label: "The lockup", paint: xLockupCard },
         { id: "x-route", label: "The route", paint: xRouteCard(course) },
+        { id: "x-path", label: "The path", paint: xPathCard(course, false) },
+        { id: "x-path-miles", label: "Path + miles", paint: xPathCard(course, true) },
+        { id: "x-coast", label: "Coast & cities", paint: xCoastCard(course, basemap) },
+        { id: "x-roads", label: "Major roads", paint: xRoadsCard(course, basemap) },
       ],
     }),
-    [course],
+    [course, basemap, lettering],
   );
 
   const looks = LOOKS[family];
