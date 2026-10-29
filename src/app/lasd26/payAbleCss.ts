@@ -60,7 +60,7 @@ export const payAbleCss = `
 .lasd-pay .btn:disabled{background:#2a2a28;color:#6f6f6a;cursor:default}
 .lasd-pay .back{display:block;margin-top:22px;background:none;border:none;color:var(--lime);opacity:.55;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:6px 0}
 .lasd-pay .back:hover{opacity:1}
-.lasd-pay .paypal{margin-top:36px;max-width:440px}
+.lasd-pay .paypal{margin-top:14px;max-width:440px}
 .lasd-pay .err{margin-top:14px;font-size:12px;color:var(--warn);line-height:1.7;border-left:3px solid var(--warn);padding-left:11px;max-width:52ch}
 .lasd-pay .notice{margin-top:28px;border:2px dashed var(--lime);padding:20px 22px;max-width:480px;color:var(--paper);font-size:15px;line-height:1.6}
 

@@ -24,7 +24,8 @@ import type { RouteArt } from "./routeArt";
  *      0") with no line under it (owner: "Remove the 'all of it' text or
  *      the x out of y text"); over the share the rule turns red and
  *      CONTINUE waits
- *   3  YOU'RE SENDING — the amount big, the card button under it; PayPal
+ *   3  YOU'RE SENDING — the amount big, one line and PayPal's card button
+ *      under it (PayPal draws the button; the line says what it is); PayPal
  *      processes, then
  *   4  SEE YOU AGAIN SO SOON — the amount and the day
  *
@@ -198,52 +199,55 @@ export function Steps(p: StepsProps) {
           ) : !PAYPAL_CLIENT_ID ? (
             <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card button cannot load.</p>
           ) : (
-            <div className="paypal">
-              <PayPalButtons
-                fundingSource="card"
-                forceReRender={[cents]}
-                style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
-                createOrder={async () => {
-                  setError(null);
-                  const amountCents = amountRef.current;
-                  if (amountCents === null) throw new Error(`$1 to ${share}.`);
-                  const res = await fetch("/api/lasd26/your-share", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "create", amountCents }),
-                  });
-                  const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-                  if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
-                  return data.id;
-                }}
-                onApprove={async (d) => {
-                  setPhase("processing");
-                  const res = await fetch("/api/lasd26/your-share", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "capture", orderId: d.orderID }),
-                  });
-                  const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
-                  setPhase("idle");
-                  if (!res.ok || !data.ok) {
-                    setError(data.error ?? "Couldn't finish the payment.");
-                    return;
-                  }
-                  setDone({ amount: data.paid ?? amount ?? share, via: "card" });
-                  setStep(4);
-                  router.refresh();
-                }}
-                onError={(err) => {
-                  // A guard the route answered on create ("Already paid.",
-                  // "opens after the race") is thrown from createOrder and
-                  // lands here as an Error with that message; show it.
-                  // Anything else — PayPal's own failures, long JSON — gets
-                  // the plain line.
-                  const msg = err instanceof Error && err.message ? err.message : "";
-                  setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
-                }}
-              />
-            </div>
+            <>
+              <p className="line mono">Pay by debit or credit card</p>
+              <div className="paypal">
+                <PayPalButtons
+                  fundingSource="card"
+                  forceReRender={[cents]}
+                  style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
+                  createOrder={async () => {
+                    setError(null);
+                    const amountCents = amountRef.current;
+                    if (amountCents === null) throw new Error(`$1 to ${share}.`);
+                    const res = await fetch("/api/lasd26/your-share", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "create", amountCents }),
+                    });
+                    const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
+                    if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
+                    return data.id;
+                  }}
+                  onApprove={async (d) => {
+                    setPhase("processing");
+                    const res = await fetch("/api/lasd26/your-share", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "capture", orderId: d.orderID }),
+                    });
+                    const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
+                    setPhase("idle");
+                    if (!res.ok || !data.ok) {
+                      setError(data.error ?? "Couldn't finish the payment.");
+                      return;
+                    }
+                    setDone({ amount: data.paid ?? amount ?? share, via: "card" });
+                    setStep(4);
+                    router.refresh();
+                  }}
+                  onError={(err) => {
+                    // A guard the route answered on create ("Already paid.",
+                    // "opens after the race") is thrown from createOrder and
+                    // lands here as an Error with that message; show it.
+                    // Anything else — PayPal's own failures, long JSON — gets
+                    // the plain line.
+                    const msg = err instanceof Error && err.message ? err.message : "";
+                    setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
+                  }}
+                />
+              </div>
+            </>
           )}
           {error && <p className="err mono">{error}</p>}
           {phase !== "processing" && (
