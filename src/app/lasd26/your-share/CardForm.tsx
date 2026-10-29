@@ -48,18 +48,29 @@ export type CardFormProps = {
   setPhase: (p: Phase) => void;
 };
 
-/* What PayPal lets us set inside its iframes. A system monospace, since
- * the page's web fonts do not reach into them. */
+/* What PayPal lets us set inside its iframes — type, colour, padding, the
+ * input's own border and corners, never its background (owner, 2026-10-29:
+ * "the fields are a weird color" — PayPal's inputs came up white with a
+ * grey rounded border inside our ink boxes). So the boxes are PAPER, like
+ * the Apple Pay button over them, the type is ink, and PayPal's own border
+ * and corners are taken off so the input fills our box. A system
+ * monospace, since the page's web fonts do not reach into the iframes. */
 const FIELD_STYLE = {
   input: {
     "font-family": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     "font-size": "18px",
-    color: "#D0F858",
+    color: "#111110",
     "letter-spacing": ".04em",
     padding: "0 12px",
+    border: "none",
+    borderRadius: "0",
+    outline: "none",
+    boxShadow: "none",
+    appearance: "none",
+    "-webkit-appearance": "none",
   },
-  ":focus": { color: "#DFFF78" },
-  ".invalid": { color: "#ff8a5c" },
+  ":focus": { color: "#111110", outline: "none", boxShadow: "none" },
+  ".invalid": { color: "#b3400f" },
 };
 
 function messageOf(err: unknown): string {

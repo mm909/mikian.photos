@@ -80,13 +80,16 @@ export const payAbleCss = `
 .lasd-pay .cf{margin-top:20px;max-width:440px}
 .lasd-pay .cf.busy .cf-own{opacity:.4;pointer-events:none}
 .lasd-pay .cf-l{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6;margin:14px 0 6px}
-.lasd-pay .cf-f{height:52px;border:2px solid rgba(208,248,88,.45);background:#161614}
+/* PAPER boxes (PayPal's inputs are white and cannot be recoloured; the box
+ * matches them and the Apple Pay button), a lime edge on focus. */
+.lasd-pay .cf-f{height:52px;border:2px solid var(--paper);background:var(--paper);display:flex;align-items:center;overflow:hidden}
 .lasd-pay .cf-f:focus-within{border-color:var(--lime)}
-.lasd-pay .cf-in,.lasd-pay .cf-in>div{height:100%}
-.lasd-pay .cf-in iframe{height:100%!important;min-height:0!important}
+.lasd-pay .cf-in{width:100%;height:100%}
+.lasd-pay .cf-in>div{height:100%}
+.lasd-pay .cf-in iframe{display:block;width:100%!important;height:100%!important;min-height:0!important;border:0}
 .lasd-pay .cf-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.lasd-pay .cf-zip{width:100%;height:52px;border:2px solid rgba(208,248,88,.45);background:#161614;color:var(--lime);font-size:18px;letter-spacing:.04em;padding:0 12px;border-radius:0;appearance:none}
-.lasd-pay .cf-zip::placeholder{color:rgba(208,248,88,.3)}
+.lasd-pay .cf-zip{width:100%;height:52px;border:2px solid var(--paper);background:var(--paper);color:#111110;font-size:18px;letter-spacing:.04em;padding:0 12px;border-radius:0;appearance:none}
+.lasd-pay .cf-zip::placeholder{color:rgba(17,17,16,.35)}
 .lasd-pay .cf-zip:focus{outline:none;border-color:var(--lime)}
 .lasd-pay .cf .btn{margin-top:22px;width:100%}
 @media(max-width:400px){ .lasd-pay .cf-row{grid-template-columns:1fr 1fr} .lasd-pay .cf-row>div:last-child{grid-column:1 / -1} }
