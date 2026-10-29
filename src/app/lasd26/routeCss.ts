@@ -79,11 +79,6 @@ export const routeCss = `
 .lasd26 .rt-stage.is-fs .rt-ctl{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
 .lasd26 .rt-stage.is-fs .rt-notes{top:calc(12px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px))}
 
-/* THE WAY YOU FACE (owner, 2026-10-23): the cone at the location dot, a DOM
- * marker aligned to the map; taps go through it to the map. */
-.lasd26 .rt-cone{width:112px;height:112px;pointer-events:none}
-.lasd26 .rt-cone svg{display:block;width:100%;height:100%}
-
 /* START / FINISH: ink tags with lime type, the finish inverted. */
 .lasd26 .rt-mk{font-family:var(--lasd-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.14em;background:var(--ink);color:var(--safety);border:2px solid var(--ink);padding:4px 7px 3px;white-space:nowrap;box-shadow:3px 3px 0 rgba(17,17,16,.18);cursor:default;user-select:none}
 .lasd26 .rt-mk.finish{background:var(--safety);color:#111}

@@ -52,16 +52,6 @@ import { formatAgo, mileMarkers, snapToCourse, type Snap, type VanPin } from "./
  *     itself only switches the location on and off. Permission denied (or
  *     no https, or no fix) → a small note. Client only — this module never
  *     runs on the server.
- *     THE WAY YOU FACE (owner, 2026-10-23: "Can we show what direction we
- *     are facing"): a lime cone out of the dot, turned with the phone's
- *     compass — iOS hands it over as webkitCompassHeading on the
- *     deviceorientation event (after DeviceOrientationEvent.requestPermission,
- *     which must be asked from the tap itself, so LOCATE asks), Android as
- *     the absolute alpha of deviceorientationabsolute — smoothed a little so
- *     it does not twitch; when the compass is quiet, the direction of travel
- *     the GPS reports while moving. A DOM marker aligned to the MAP, so the
- *     cone turns with the map too; nothing shows on a device without a
- *     compass. It goes with the location when LOCATE is switched off.
  *   FULL SCREEN — "Give a button to full screen the map":
  *     element.requestFullscreen() on the stage where the browser has it
  *     (map.resize() after); where it does not — iPhone Safari — a CSS
@@ -123,24 +113,6 @@ const LINE_LAYOUT = { "line-join": "round", "line-cap": "round" } as const;
 
 /** The map eases in to at least this zoom on the first fix — a street, not a county. */
 const LOCATE_ZOOM = 14;
-
-/**
- * The cone of the way you face: a sector 64° wide from just outside the dot
- * (r 11) to r 44 of a 100 × 100 box, lime fading out toward the rim, a thin
- * deep-green edge. Constant markup, nothing from outside goes in it.
- */
-const CONE_SVG =
-  '<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="rt-cone-g" x1="0" y1="0" x2="0" y2="1">' +
-  '<stop offset="0" stop-color="#D0F858" stop-opacity=".12"/><stop offset="1" stop-color="#D0F858" stop-opacity=".8"/></linearGradient></defs>' +
-  '<path d="M26.68 12.69A44 44 0 0 1 73.32 12.69L55.83 40.67A11 11 0 0 0 44.17 40.67Z" fill="url(#rt-cone-g)" stroke="#3C7A0B" stroke-opacity=".7" stroke-width="1.4" stroke-linejoin="round"/></svg>';
-/** A GPS course counts as a heading only while moving at least this fast, m/s. */
-const HEADING_MIN_SPEED = 0.7;
-/** The GPS course fills in only when the compass has said nothing for this long. */
-const COMPASS_QUIET_MS = 3000;
-
-type OrientationEventName = "deviceorientationabsolute" | "deviceorientation";
-type CompassEvent = DeviceOrientationEvent & { webkitCompassHeading?: number };
-type PermissionedOrientation = { requestPermission?: () => Promise<"granted" | "denied"> };
 
 export type RouteMapProps = {
   course: CourseFile;
@@ -605,104 +577,16 @@ export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin
     show(focus.lon, focus.lat, popupBody(focus.name, focus.mile, null));
   }, [focus, show, setGeo]);
 
-  /* ─── THE WAY YOU FACE ─────────────────────────────────────────────────── */
-
-  const coneRef = useRef<Marker | null>(null);
-  /** Smoothed heading, degrees clockwise from north; null until something has said. */
-  const headingRef = useRef<number | null>(null);
-  const compassAt = useRef(0);
-  const orientation = useRef<{ name: OrientationEventName; handler: EventListener } | null>(null);
-
-  /** The cone at the fix, pointing the heading; made on the first heading, moved with every fix, gone with either. */
-  const drawCone = useCallback(() => {
-    const map = mapRef.current;
-    const fix = fixRef.current;
-    const h = headingRef.current;
-    if (!map || !fix || h === null) {
-      coneRef.current?.remove();
-      coneRef.current = null;
-      return;
-    }
-    if (!coneRef.current) {
-      const el = document.createElement("div");
-      el.className = "rt-cone";
-      el.innerHTML = CONE_SVG;
-      coneRef.current = new Marker({ element: el, anchor: "center", rotationAlignment: "map", pitchAlignment: "map" }).setLngLat([fix.lon, fix.lat]).addTo(map);
-    }
-    coneRef.current.setLngLat([fix.lon, fix.lat]).setRotation(h);
-  }, []);
-
-  /** A new reading, eased toward (a third of the way, the short way round) so the cone does not twitch. */
-  const setHeading = useCallback(
-    (deg: number) => {
-      const d = ((deg % 360) + 360) % 360;
-      const prev = headingRef.current;
-      if (prev === null) headingRef.current = d;
-      else {
-        let delta = d - prev;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        headingRef.current = (prev + delta * 0.35 + 360) % 360;
-      }
-      drawCone();
-    },
-    [drawCone],
-  );
-
-  const stopCompass = useCallback(() => {
-    if (orientation.current) window.removeEventListener(orientation.current.name, orientation.current.handler);
-    orientation.current = null;
-    headingRef.current = null;
-    compassAt.current = 0;
-    drawCone();
-  }, [drawCone]);
-
-  /**
-   * Listen to the compass. iOS wants its permission asked from the tap
-   * itself, so this runs inside LOCATE's click, before anything async.
-   */
-  const startCompass = useCallback(() => {
-    if (typeof window === "undefined" || orientation.current) return;
-    const handler = (ev: Event) => {
-      const e = ev as CompassEvent;
-      let h: number | null = null;
-      if (typeof e.webkitCompassHeading === "number" && Number.isFinite(e.webkitCompassHeading)) h = e.webkitCompassHeading;
-      // The absolute event is absolute by name; the plain one only says so by its flag.
-      else if ((e.type === "deviceorientationabsolute" || e.absolute) && typeof e.alpha === "number" && Number.isFinite(e.alpha)) h = 360 - e.alpha;
-      if (h === null) return;
-      compassAt.current = Date.now();
-      // The reading is the top of the device; a turned screen moves the top.
-      const angle = typeof screen !== "undefined" && screen.orientation ? screen.orientation.angle : 0;
-      setHeading(h + (angle || 0));
-    };
-    const listen = () => {
-      const name: OrientationEventName = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
-      orientation.current = { name, handler };
-      window.addEventListener(name, handler);
-    };
-    const DOE = (window as unknown as { DeviceOrientationEvent?: PermissionedOrientation }).DeviceOrientationEvent;
-    if (DOE && typeof DOE.requestPermission === "function") {
-      DOE.requestPermission()
-        .then((r) => {
-          if (r === "granted") listen();
-        })
-        .catch(() => {
-          /* refused: no cone, the dot still shows */
-        });
-    } else listen();
-  }, [setHeading]);
-
   /* ─── LOCATE ───────────────────────────────────────────────────────────── */
 
   const stopWatch = useCallback(() => {
     if (watchId.current !== null && typeof navigator !== "undefined" && "geolocation" in navigator) navigator.geolocation.clearWatch(watchId.current);
     watchId.current = null;
     fixRef.current = null;
-    stopCompass();
     const map = mapRef.current;
     if (map && styleReady.current) applyFix(map, null);
     setGeo("off");
-  }, [setGeo, stopCompass]);
+  }, [setGeo]);
 
   const startWatch = useCallback(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
@@ -727,11 +611,6 @@ export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin
           ensureLayers(map);
           applyFix(map, fix);
         }
-        // The way you face: the GPS course while moving, when the compass is quiet.
-        const course = pos.coords.heading;
-        const speed = pos.coords.speed ?? 0;
-        if (Date.now() - compassAt.current > COMPASS_QUIET_MS && typeof course === "number" && Number.isFinite(course) && speed >= HEADING_MIN_SPEED) setHeading(course);
-        else drawCone();
         if (geoRef.current === "follow") {
           // The first fix pulls the map in to a street; after that it only pans.
           map.easeTo({ center: [fix.lon, fix.lat], zoom: first ? Math.max(map.getZoom(), LOCATE_ZOOM) : map.getZoom(), duration: 700, essential: true });
@@ -745,7 +624,7 @@ export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin
       },
       { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
     );
-  }, [setGeo, stopWatch, setHeading, drawCone]);
+  }, [setGeo, stopWatch]);
 
   /** Back to following: ease to the last fix now rather than wait for the next. */
   const onRecenter = useCallback(() => {
@@ -758,8 +637,6 @@ export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin
   /** On / off. Getting back on the dot is RECENTER's job. */
   const onLocate = useCallback(() => {
     if (geoRef.current === "off") {
-      // The compass first: iOS grants it only from inside the tap.
-      startCompass();
       startWatch();
       return;
     }
@@ -767,7 +644,7 @@ export default function RouteMap({ course, focus, canPin, pin, onPin, onClearPin
     // note comes through the error path and stays).
     setGeoNote(null);
     stopWatch();
-  }, [startCompass, startWatch, stopWatch]);
+  }, [startWatch, stopWatch]);
 
   /* The watch dies with the map. */
   useEffect(() => () => stopWatch(), [stopWatch]);
