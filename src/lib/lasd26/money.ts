@@ -211,6 +211,16 @@ export function settlement(lines: ExpenseLine[], memberIds: string[], splitCount
   return { total, estimated, perPersonCents: per, rows, frontedCents: fronted, netCents: net };
 }
 
+/**
+ * Cents rounded UP to the whole dollar: 37123 → 37200 (owner, 2026-10-29,
+ * on the pay-what-you're-able page: "make sure the dollar total rounded").
+ * Up, like perPersonCents, so the crew is never short; the page shows the
+ * figure and its route takes up to it.
+ */
+export function wholeDollarsUp(cents: number): number {
+  return Math.ceil(cents / 100) * 100;
+}
+
 /** Each person's share, rounded up to the cent so the crew is never short. */
 export function perPersonCents(total: number, splitCount: number): number {
   if (splitCount <= 0) return 0;

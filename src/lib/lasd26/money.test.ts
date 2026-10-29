@@ -38,7 +38,7 @@
  * exactly what it spent beyond its own seat; its own net is the mirror,
  * −Σ(non-pool nets), and nobody pays it out. */
 import assert from "node:assert/strict";
-import { bucketSum, frontedCents, frontedLines, settlement, totalCents, type ExpenseLine, type Settlement } from "./money";
+import { bucketSum, frontedCents, frontedLines, settlement, totalCents, type ExpenseLine, type Settlement, wholeDollarsUp } from "./money";
 
 const race: ExpenseLine = { id: "race", parentId: null, amountCents: 200_000, estimate: false, paidById: "o" };
 const gas = (kids: number[], payers: string[] = []): ExpenseLine[] => [
@@ -185,6 +185,12 @@ function main() {
   assert.equal(est.estimated, 98_000);
   assert.equal(est.netCents, est.estimated);
   assert.ok(est.netCents > 0);
+
+  // WHOLE DOLLARS, UP (the pay page, 2026-10-29): never short, round stays round.
+  assert.equal(wholeDollarsUp(37_123), 37_200);
+  assert.equal(wholeDollarsUp(30_923), 31_000);
+  assert.equal(wholeDollarsUp(47_500), 47_500);
+  assert.equal(wholeDollarsUp(0), 0);
 
   console.log("money.test: all ok");
 }

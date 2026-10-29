@@ -1,0 +1,90 @@
+/* /lasd26/dev/pay — PAY WHAT YOU'RE ABLE, step by step (owner, 2026-10-28
+ * and 29; the brief is in page.tsx). A BARE page: not LasdPage, no bar,
+ * no site footer. Ink, lime type, the brand's lime (#D0F858, theme.ts
+ * --safety) as TYPE — on ink it may be — with the small lines at reduced
+ * opacity so they read softer than the one big number. Four screens in one
+ * column: the marks and SIGN IN on top, the screen in the middle, the four
+ * dashes and LASD26 at the foot. The fonts are the site's (theme.ts
+ * variables, set on the wrapper by the page). */
+
+export const payAbleCss = `
+.lasd-pay,.lasd-pay *{margin:0;padding:0;box-sizing:border-box}
+.lasd-pay{
+  --ink:#111110; --paper:#F4F3EE; --lime:#D0F858; --lime-hover:#DFFF78; --red:#DE0614; --warn:#ff8a5c;
+  min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
+  background:var(--ink);color:var(--lime);
+  font-family:var(--lasd-archivo),sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;color-scheme:dark;
+}
+.lasd-pay .mono{font-family:var(--lasd-mono),monospace}
+.lasd-pay ::selection{background:var(--lime);color:#111}
+.lasd-pay :focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+/* The one link on the screens — the total, to the expenses sheet (owner,
+ * 2026-10-29: "link to the expenses sheet on the total"): the line's own
+ * lime, an underline the only tell. */
+.lasd-pay a{color:inherit;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
+.lasd-pay a:hover{color:var(--paper)}
+@media (prefers-reduced-motion: reduce){ .lasd-pay *{animation:none!important;transition:none!important} .lasd-pay .art .run{stroke-dashoffset:0} .lasd-pay .art .drive{opacity:.55} }
+
+/* ─── THE TOP: the two marks (type, like the stickers) and the one control ─── */
+.lasd-pay .top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;max-width:760px;width:100%;margin:0 auto}
+.lasd-pay .marks{display:flex;align-items:baseline;gap:12px;font-family:var(--lasd-archivo-black),sans-serif;font-size:13px;letter-spacing:.03em;color:var(--paper);white-space:nowrap}
+.lasd-pay .marks .ns{text-transform:uppercase}
+.lasd-pay .marks .arrow{color:var(--red);font-family:var(--lasd-archivo),sans-serif;font-weight:700;margin-left:.1em}
+.lasd-pay .marks .x{font-family:var(--lasd-archivo),sans-serif;font-weight:700;opacity:.5;font-size:12px}
+.lasd-pay .marks .jf{text-transform:lowercase;letter-spacing:-.01em}
+.lasd-pay .marks .dot{display:inline-block;width:.3em;height:.3em;border-radius:50%;background:var(--lime);margin-left:.1em;vertical-align:baseline}
+.lasd-pay .signin{background:transparent;border:2px solid var(--lime);color:var(--lime);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;cursor:pointer;white-space:nowrap}
+.lasd-pay .signin:hover{background:var(--lime);color:#111}
+.lasd-pay .who{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.6;white-space:nowrap}
+
+/* ─── THE STAGE: one screen at a time, vertically centred ─── */
+.lasd-pay .stage{flex:1;position:relative;display:flex;flex-direction:column;justify-content:center;max-width:760px;width:100%;margin:0 auto;padding:28px 20px 32px}
+.lasd-pay .step{position:relative;z-index:1}
+.lasd-pay h1{font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(30px,7.4vw,58px);line-height:.98;letter-spacing:-.02em;text-transform:uppercase;color:var(--lime);max-width:19ch}
+.lasd-pay .line{margin-top:18px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.75;line-height:1.8;max-width:52ch}
+.lasd-pay .k{margin-top:30px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6}
+.lasd-pay .big{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(64px,19vw,132px);line-height:.95;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--lime);margin-top:4px;word-break:break-word}
+
+/* THE FIELD (screen 2), the one big number there: typed, a $ in front, a lime rule under. */
+.lasd-pay .field{display:flex;align-items:baseline;gap:.06em;margin-top:28px;max-width:440px;border-bottom:3px solid var(--lime);font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(56px,16vw,120px);line-height:1.05;letter-spacing:-.03em;color:var(--lime)}
+.lasd-pay .field .cur{font-size:.55em;align-self:center;transform:translateY(-.06em)}
+.lasd-pay .field input{flex:1 1 auto;min-width:0;width:100%;background:transparent;border:none;border-radius:0;appearance:none;-moz-appearance:textfield;color:var(--lime);font:inherit;letter-spacing:inherit;font-variant-numeric:tabular-nums;padding:.04em 0 .02em;caret-color:var(--lime)}
+.lasd-pay .field input::-webkit-outer-spin-button,.lasd-pay .field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.lasd-pay .field input:focus{outline:none}
+.lasd-pay .field.bad{border-bottom-color:var(--warn)}
+.lasd-pay .hint{margin-top:10px;min-height:1.8em;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.6;line-height:1.8}
+.lasd-pay .hint.bad{color:var(--warn);opacity:1}
+
+/* THE BUTTONS: CONTINUE / PAY BY CARD solid lime; BACK a small mono word. */
+.lasd-pay .btn{display:inline-flex;justify-content:center;align-items:center;min-width:min(100%,320px);margin-top:30px;background:var(--lime);color:#111;border:none;font-family:var(--lasd-archivo-black),sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:.04em;padding:18px 28px;cursor:pointer;text-align:center}
+.lasd-pay .btn:hover{background:var(--lime-hover)}
+.lasd-pay .btn:disabled{background:#2a2a28;color:#6f6f6a;cursor:default}
+.lasd-pay .back{display:block;margin-top:22px;background:none;border:none;color:var(--lime);opacity:.55;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:6px 0}
+.lasd-pay .back:hover{opacity:1}
+.lasd-pay .paypal{margin-top:36px;max-width:440px}
+.lasd-pay .err{margin-top:14px;font-size:12px;color:var(--warn);line-height:1.7;border-left:3px solid var(--warn);padding-left:11px;max-width:52ch}
+.lasd-pay .notice{margin-top:28px;border:2px dashed var(--lime);padding:20px 22px;max-width:480px;color:var(--paper);font-size:15px;line-height:1.6}
+
+/* ─── THE ROUTE, drawing itself behind the first screen ─── */
+.lasd-pay .art{position:absolute;inset:0;display:flex;justify-content:flex-end;align-items:center;padding:0 0 0 12px;pointer-events:none;opacity:.45}
+.lasd-pay .art svg{height:100%;max-height:min(72vh,680px);width:auto;max-width:44%;overflow:visible}
+/* No vector-effect here: with non-scaling-stroke Chrome lays the dash in
+ * screen space and pathLength="1" no longer means the whole path, so the
+ * line came out dotted on a laptop and vanished on a phone. The width is
+ * in viewBox units (~900 wide) and scales with the drawing. */
+.lasd-pay .art .run{fill:none;stroke:var(--lime);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:lasd-draw 4.6s cubic-bezier(.45,0,.2,1) forwards}
+.lasd-pay .art .run.l1{animation-duration:1.6s;animation-delay:4.4s}
+.lasd-pay .art .drive{fill:none;stroke:var(--lime);stroke-width:4;stroke-dasharray:14 16;opacity:0;animation:lasd-fade .6s ease-out 4.2s forwards}
+@keyframes lasd-draw{to{stroke-dashoffset:0}}
+@keyframes lasd-fade{to{opacity:.55}}
+@media(max-width:640px){ .lasd-pay .art{opacity:.35;justify-content:center;padding:0} .lasd-pay .art svg{max-width:100%;max-height:min(80vh,620px)} }
+
+/* ─── THE FOOT: the four dashes, then LASD26 (owner: "I like LASD26 being the footer") ─── */
+.lasd-pay .dots{display:flex;gap:6px;max-width:760px;width:100%;margin:0 auto;padding:0 20px 22px}
+.lasd-pay .dots i{display:block;width:24px;height:3px;background:var(--lime);opacity:.22}
+.lasd-pay .dots i.on{opacity:1}
+.lasd-pay .foot{max-width:760px;width:100%;margin:0 auto;padding:0 20px 24px}
+.lasd-pay .foot .wm{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(40px,10vw,72px);line-height:.9;letter-spacing:-.02em;color:var(--lime)}
+.lasd-pay .owner{margin-top:16px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.4;line-height:1.8}
+`;

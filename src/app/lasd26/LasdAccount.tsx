@@ -122,6 +122,11 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               <div className="acct-eyebrow mono" aria-hidden="true">
                 Development
               </div>
+              {/* The pay-what-you're-able mock-up (owner, 2026-10-28), in
+               * development: it replaces Settle up when he says so. */}
+              <a className="acct-item" href={lasdPath("/dev/pay")} role="menuitem" onClick={close}>
+                Pay what you&rsquo;re able (dev) →
+              </a>
               <a className="acct-item" href={lasdPath("/the-list")} role="menuitem" onClick={close}>
                 The list (crew call) →
               </a>
