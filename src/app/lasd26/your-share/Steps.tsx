@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { fmtUsd, parseUsd } from "@/lib/lasd26/money";
 import { lasdPath } from "@/lib/lasd26/paths";
 import type { RouteArt } from "./routeArt";
+import { CardForm } from "./CardForm";
 
 /* THE FOUR SCREENS (owner, 2026-10-29: "What does it look like if we make
  * it a step by step screen"), one big number on each at most ("I only
@@ -27,10 +28,11 @@ import type { RouteArt } from "./routeArt";
  *      0") with no line under it (owner: "Remove the 'all of it' text or
  *      the x out of y text"); over the share the rule turns red and
  *      CONTINUE waits
- *   3  YOU'RE SENDING — the amount big, one line and PayPal's card button
- *      under it (PayPal draws the button; the line says what it is); the
- *      card fields open inline under it, untouched by us; approval shows
- *      PROCESSING YOUR PAYMENT (the status block, a sliding lime bar), then
+ *   3  YOU'RE SENDING — the amount big, then THE CARD FORM in our own UI
+ *      (CardForm.tsx: PayPal-hosted number, expiry and CVC inside our boxes,
+ *      our ZIP, our PAY button); the tap shows PROCESSING YOUR PAYMENT at
+ *      once (the status block, a sliding lime bar), PayPal takes the card
+ *      behind it, then
  *   4  SEE YOU AGAIN SO SOON — the amount and the day
  *
  * A row already paid opens on 4. The dashes at the foot are screens 0–3;
@@ -52,7 +54,7 @@ export type StepsProps = {
   splitCount: number;
   /** Each person's share, before anything fronted. */
   perPersonCents: number;
-  /** What this member fronted (comes off their share), and the lines behind it. */
+  /** What this member fronted (comes off their share); the lines behind it are not shown (owner, 2026-10-29: "just keep the total"). */
   frontedCents: number;
   fronted: { title: string; amountCents: number }[];
   /** The big number on screen 1 and the ceiling of the field: the share less what was fronted. */
@@ -111,58 +113,48 @@ export function Steps(p: StepsProps) {
   const next = () => setStep((s) => Math.min(4, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
 
-  // PayPal's card button, ONE element for screens 2 and 3 (keyed, so React
-  // keeps it mounted across them): it renders offscreen while the amount is
-  // typed and is already drawn when the pay screen opens (owner, 2026-10-29:
-  // "when clicking the pay w/ card there is a delay"). Its callbacks read
-  // the amount through amountRef, so it never needs re-rendering.
-  const paypal = PAYPAL_CLIENT_ID ? (
-    <PayPalButtons
-      fundingSource="card"
-      style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
-      onClick={() => setError(null)}
-      createOrder={async () => {
-        setError(null);
-        const amountCents = amountRef.current;
-        if (amountCents === null) throw new Error(`$1 to ${share}.`);
-        const res = await fetch("/api/lasd26/your-share", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "create", amountCents, test: p.testing }),
-        });
-        const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-        if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
-        return data.id;
-      }}
-      onApprove={async (d) => {
-        setPhase("processing");
-        const res = await fetch("/api/lasd26/your-share", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "capture", orderId: d.orderID }),
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
-        setPhase("idle");
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Couldn't finish the payment.");
-          return;
-        }
-        setDone({ amount: data.paid ?? money(amountRef.current ?? 0), via: "card" });
-        setStep(4);
-        router.refresh();
-      }}
-      onError={(err) => {
-        // A guard the route answered on create ("Already paid.",
-        // "opens after the race") is thrown from createOrder and
-        // lands here as an Error with that message; show it.
-        // Anything else — PayPal's own failures, long JSON — gets
-        // the plain line.
-        setPhase("idle");
-        const msg = err instanceof Error && err.message ? err.message : "";
-        setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
-      }}
-    />
-  ) : null;
+  // THE CARD FORM (CardForm.tsx), ONE element for screens 2 and 3 (keyed, so
+  // React keeps it mounted across them): PayPal's hosted inputs load
+  // offscreen while the amount is typed and are there when the pay screen
+  // opens. Its callbacks read the amount through amountRef.
+  const createOrder = async (): Promise<string> => {
+    setError(null);
+    const amountCents = amountRef.current;
+    if (amountCents === null) throw new Error(`$1 to ${share}.`);
+    const res = await fetch("/api/lasd26/your-share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create", amountCents, test: p.testing }),
+    });
+    const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
+    if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
+    return data.id;
+  };
+  const approve = async (orderID: string): Promise<void> => {
+    setPhase("processing");
+    const res = await fetch("/api/lasd26/your-share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "capture", orderId: orderID }),
+    });
+    const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
+    setPhase("idle");
+    if (!res.ok || !data.ok) {
+      setError(data.error ?? "Couldn't finish the payment.");
+      return;
+    }
+    setDone({ amount: data.paid ?? money(amountRef.current ?? 0), via: "card" });
+    setStep(4);
+    router.refresh();
+  };
+  // A guard the route answered on create ("Already paid.", "opens after the
+  // race") arrives as the message; PayPal's own failures get the plain line
+  // (CardForm.tsx messageOf).
+  const fail = (message: string) => {
+    setPhase("idle");
+    setError(message);
+  };
+  const paypal = PAYPAL_CLIENT_ID ? <CardForm amount={amount} createOrder={createOrder} onApprove={approve} onError={fail} phase={phase} setPhase={setPhase} /> : null;
 
   const screen = (() => {
     if (step === 0) {
@@ -187,9 +179,6 @@ export function Steps(p: StepsProps) {
 
     if (step === 1) {
       const numbers = p.gate === "ok" || p.gate === "covered" || p.gate === "owed" || p.gate === "square";
-      // The lines they covered, the first five by name.
-      const titles = p.fronted.map((l) => l.title);
-      const covered = titles.length > 5 ? `${titles.slice(0, 5).join(", ")} and ${titles.length - 5} more` : titles.join(", ");
       const notice =
         p.gate === "join"
           ? "This page is for the LASD26 team. Join through the link Mikian sent and your share shows here."
@@ -218,8 +207,7 @@ export function Steps(p: StepsProps) {
           )}
           {numbers && p.frontedCents > 0 && (
             <p className="note">
-              You already covered <b>{money(p.frontedCents)}</b>
-              {covered ? ` — ${covered}` : ""}. {p.gate === "ok" ? "That comes off your share." : "That’s more than your share."}
+              You already covered <b>{money(p.frontedCents)}</b>. {p.gate === "ok" ? "That comes off your share." : "That’s more than your share."}
             </p>
           )}
           {p.testing && <p className="line mono">A test — you’re paying yourself the whole share.</p>}
@@ -293,18 +281,13 @@ export function Steps(p: StepsProps) {
             </div>
           )}
           {p.viewingAs ? (
-            <p className="notice">Viewing as {p.viewingAs} — the card button is theirs.</p>
+            <p className="notice">Viewing as {p.viewingAs} — the card form is theirs.</p>
           ) : !PAYPAL_CLIENT_ID ? (
-            <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card button cannot load.</p>
+            <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card form cannot load.</p>
           ) : (
-            <>
-              {phase === "idle" && <p className="line mono">Pay by debit or credit card</p>}
-              {/* The button stays mounted while PayPal's flow runs — unmounting it
-               * would end that flow — and only goes quiet. */}
-              <div key="paypal" className={`paypal${phase !== "idle" ? " busy" : ""}`}>
-                {paypal}
-              </div>
-            </>
+            <div key="paypal" className="paypal">
+              {paypal}
+            </div>
           )}
           {error && <p className="err mono">{error}</p>}
           {phase === "idle" && (
@@ -340,9 +323,9 @@ export function Steps(p: StepsProps) {
     </>
   );
 
-  // The SDK loads once, early, only when a real card button can be needed.
+  // The SDK loads once, early, only when a real card form can be needed.
   if (p.gate === "ok" && PAYPAL_CLIENT_ID) {
-    return <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>{body}</PayPalScriptProvider>;
+    return <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture", components: "buttons,card-fields" }}>{body}</PayPalScriptProvider>;
   }
   return body;
 }
