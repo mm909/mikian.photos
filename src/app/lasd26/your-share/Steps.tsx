@@ -217,7 +217,7 @@ export function Steps(p: StepsProps) {
           )}
           {numbers && p.frontedCents > 0 && (
             <p className="note">
-              You already covered <b>{money(p.frontedCents)}</b>. {p.gate === "ok" ? "That comes off your share." : "That’s more than your share."}
+              You already covered <b>{money(p.frontedCents)}</b>.{p.gate === "ok" ? "" : " That’s more than your share."}
             </p>
           )}
           {p.testing && <p className="line mono">A test — you’re paying yourself the whole share.</p>}
