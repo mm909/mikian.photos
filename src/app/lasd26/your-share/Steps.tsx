@@ -8,6 +8,7 @@ import { fmtUsd, parseUsd } from "@/lib/lasd26/money";
 import { lasdPath } from "@/lib/lasd26/paths";
 import type { RouteArt } from "./routeArt";
 import { CardForm } from "./CardForm";
+import { ApplePayButton } from "./ApplePayButton";
 
 /* THE FOUR SCREENS (owner, 2026-10-29: "What does it look like if we make
  * it a step by step screen"), one big number on each at most ("I only
@@ -28,7 +29,8 @@ import { CardForm } from "./CardForm";
  *      0") with no line under it (owner: "Remove the 'all of it' text or
  *      the x out of y text"); over the share the rule turns red and
  *      CONTINUE waits
- *   3  YOU'RE SENDING — the amount big, then THE CARD FORM in our own UI
+ *   3  YOU'RE SENDING — the amount big, APPLE PAY where Safari and PayPal
+ *      allow it (ApplePayButton.tsx), then THE CARD FORM in our own UI
  *      (CardForm.tsx: PayPal-hosted number, expiry and CVC inside our boxes,
  *      our ZIP, our PAY button); the tap shows PROCESSING YOUR PAYMENT at
  *      once (the status block, a sliding lime bar), PayPal takes the card
@@ -285,9 +287,20 @@ export function Steps(p: StepsProps) {
           ) : !PAYPAL_CLIENT_ID ? (
             <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card form cannot load.</p>
           ) : (
-            <div key="paypal" className="paypal">
-              {paypal}
-            </div>
+            <>
+              <ApplePayButton
+                amountCents={valid ? cents : null}
+                label="LASD26 — your share"
+                createOrder={createOrder}
+                onApprove={approve}
+                onError={fail}
+                phase={phase}
+                setPhase={setPhase}
+              />
+              <div key="paypal" className="paypal">
+                {paypal}
+              </div>
+            </>
           )}
           {error && <p className="err mono">{error}</p>}
           {phase === "idle" && (
@@ -325,7 +338,9 @@ export function Steps(p: StepsProps) {
 
   // The SDK loads once, early, only when a real card form can be needed.
   if (p.gate === "ok" && PAYPAL_CLIENT_ID) {
-    return <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture", components: "buttons,card-fields" }}>{body}</PayPalScriptProvider>;
+    return (
+      <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture", components: "buttons,card-fields,applepay" }}>{body}</PayPalScriptProvider>
+    );
   }
   return body;
 }

@@ -72,6 +72,11 @@ export const payAbleCss = `
  * is set through PayPal's style options — our ZIP beside them, our PAY
  * button under. While the capture runs OUR form goes quiet — never the
  * fallback, PayPal's inline form, which must stay live. */
+/* APPLE PAY (ApplePayButton.tsx): Apple's own button, drawn by WebKit, white
+ * on the ink, over the card form; Safari only, nothing elsewhere. */
+.lasd-pay .apple-pay{display:block;width:100%;max-width:440px;height:48px;margin-top:22px;border:none;border-radius:0;cursor:pointer;-webkit-appearance:-apple-pay-button;-apple-pay-button-type:pay;-apple-pay-button-style:white}
+.lasd-pay .apple-pay:disabled{opacity:.4}
+.lasd-pay .or{margin:16px 0 -6px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.5}
 .lasd-pay .cf{margin-top:20px;max-width:440px}
 .lasd-pay .cf.busy .cf-own{opacity:.4;pointer-events:none}
 .lasd-pay .cf-l{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6;margin:14px 0 6px}
