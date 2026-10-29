@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { captureOrder, createOrder } from "@/lib/paypal";
+import { captureOrder, createOrder, getAccessToken } from "@/lib/paypal";
 import { isPaymentsOpen } from "@/lib/paymentLock";
 import { ensureOwnerMember, getTeamViewer, TEAM } from "@/lib/lasd26/team";
 import { dueFor, memberDue } from "@/lib/lasd26/settle";
@@ -45,6 +45,17 @@ const MIN_CENTS = 100;
 
 const bad = (error: string, status = 400) => NextResponse.json({ ok: false, error }, { status });
 
+/* WARM-UP (owner, 2026-10-29: "when clicking the pay w/ card there is a
+ * delay"): the amount screen pings this as it opens, so by the time the card
+ * button is tapped the function is awake, the database connected and
+ * PayPal's token cached. Answers nothing but ok; a stranger gets 401. */
+export async function GET() {
+  const viewer = await ensureOwnerMember(await getTeamViewer(TEAM));
+  if (!viewer.member) return NextResponse.json({ ok: false }, { status: 401 });
+  await Promise.all([dueFor(TEAM), getAccessToken().catch(() => null)]);
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: Request) {
   const viewer = await ensureOwnerMember(await getTeamViewer(TEAM));
   if (!isPaymentsOpen() && !viewer.owner) return bad("Payments are paused right now.", 503);
@@ -58,7 +69,9 @@ export async function POST(req: Request) {
     return bad("Send JSON.");
   }
 
-  const due = await dueFor(TEAM);
+  // The sheet and PayPal's token together — the token is cached after the
+  // first call, and the warm-up GET usually has it ready already.
+  const [due] = await Promise.all([dueFor(TEAM), body.action === "create" ? getAccessToken().catch(() => null) : null]);
   if (!due.settleOpen && !viewer.owner) return bad("Settling up opens after the race — the crew will send the word.", 403);
   const mine = memberDue(viewer.member, due);
   // The pool (the owner) pays the stand-in to himself as a live test

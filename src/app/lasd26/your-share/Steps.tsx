@@ -26,8 +26,9 @@ import type { RouteArt } from "./routeArt";
  *      the x out of y text"); over the share the rule turns red and
  *      CONTINUE waits
  *   3  YOU'RE SENDING — the amount big, one line and PayPal's card button
- *      under it (PayPal draws the button; the line says what it is); PayPal
- *      processes, then
+ *      under it (PayPal draws the button; the line says what it is); a tap
+ *      shows OPENING THE CARD FORM at once, approval PROCESSING YOUR
+ *      PAYMENT (the status block, a sliding lime bar), then
  *   4  SEE YOU AGAIN SO SOON — the amount and the day
  *
  * A row already paid opens on 4. The dashes at the foot are screens 0–3;
@@ -71,7 +72,9 @@ export function Steps(p: StepsProps) {
   const router = useRouter();
   const [step, setStep] = useState(p.gate === "paid" ? 4 : 0);
   const [raw, setRaw] = useState("");
-  const [phase, setPhase] = useState<"idle" | "processing">("idle");
+  // idle → opening (the card button tapped, PayPal's form on its way) →
+  // processing (approved, the capture running).
+  const [phase, setPhase] = useState<"idle" | "opening" | "processing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ amount: string; via: string } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -87,6 +90,14 @@ export function Steps(p: StepsProps) {
   useEffect(() => {
     if (step === 2) inputRef.current?.focus();
   }, [step]);
+
+  // WARM-UP (owner, 2026-10-29: "when clicking the pay w/ card there is a
+  // delay"): as the amount screen opens, one GET wakes the route — the
+  // function, the database and PayPal's token — so the order on the next
+  // screen is quick.
+  useEffect(() => {
+    if (step === 2 && p.gate === "ok") void fetch("/api/lasd26/your-share", { cache: "no-store" }).catch(() => undefined);
+  }, [step, p.gate]);
 
   const next = () => setStep((s) => Math.min(4, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
@@ -194,18 +205,29 @@ export function Steps(p: StepsProps) {
         <div className="step">
           <div className="k mono">You&rsquo;re sending</div>
           <div className="big">{amount}</div>
-          {phase === "processing" ? (
-            <p className="line mono">Processing…</p>
-          ) : !PAYPAL_CLIENT_ID ? (
+          {phase !== "idle" && (
+            <div className="status" role="status" aria-live="polite">
+              <span className="bar" aria-hidden="true" />
+              <span className="mono">{phase === "opening" ? "Opening the card form…" : "Processing your payment…"}</span>
+            </div>
+          )}
+          {!PAYPAL_CLIENT_ID ? (
             <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card button cannot load.</p>
           ) : (
             <>
-              <p className="line mono">Pay by debit or credit card</p>
-              <div className="paypal">
+              {phase === "idle" && <p className="line mono">Pay by debit or credit card</p>}
+              {/* The button stays mounted while PayPal's flow runs — unmounting it
+               * would end that flow — and only goes quiet. */}
+              <div className={`paypal${phase !== "idle" ? " busy" : ""}`}>
                 <PayPalButtons
                   fundingSource="card"
                   forceReRender={[cents]}
                   style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
+                  onClick={() => {
+                    setError(null);
+                    setPhase("opening");
+                  }}
+                  onCancel={() => setPhase("idle")}
                   createOrder={async () => {
                     setError(null);
                     const amountCents = amountRef.current;
@@ -242,6 +264,7 @@ export function Steps(p: StepsProps) {
                     // lands here as an Error with that message; show it.
                     // Anything else — PayPal's own failures, long JSON — gets
                     // the plain line.
+                    setPhase("idle");
                     const msg = err instanceof Error && err.message ? err.message : "";
                     setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
                   }}
@@ -250,7 +273,7 @@ export function Steps(p: StepsProps) {
             </>
           )}
           {error && <p className="err mono">{error}</p>}
-          {phase !== "processing" && (
+          {phase === "idle" && (
             <button type="button" className="back mono" onClick={back}>
               ← Back
             </button>

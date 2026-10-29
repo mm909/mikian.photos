@@ -62,6 +62,14 @@ export const payAbleCss = `
 .lasd-pay .back{display:block;margin-top:22px;background:none;border:none;color:var(--lime);opacity:.55;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:6px 0}
 .lasd-pay .back:hover{opacity:1}
 .lasd-pay .paypal{margin-top:14px;max-width:440px}
+/* While PayPal's form is opening or the capture runs the button goes quiet
+ * (it must stay mounted) and the STATUS block speaks: one mono line over a
+ * lime bar that slides until the answer comes. */
+.lasd-pay .paypal.busy{opacity:.3;pointer-events:none}
+.lasd-pay .status{margin-top:28px;max-width:440px;display:flex;flex-direction:column;gap:14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime)}
+.lasd-pay .status .bar{display:block;height:3px;background:rgba(208,248,88,.18);position:relative;overflow:hidden}
+.lasd-pay .status .bar::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:var(--lime);animation:lasd-slide 1.2s ease-in-out infinite}
+@keyframes lasd-slide{to{left:100%}}
 .lasd-pay .err{margin-top:14px;font-size:12px;color:var(--warn);line-height:1.7;border-left:3px solid var(--warn);padding-left:11px;max-width:52ch}
 .lasd-pay .notice{margin-top:28px;border:2px dashed var(--lime);padding:20px 22px;max-width:480px;color:var(--paper);font-size:15px;line-height:1.6}
 
