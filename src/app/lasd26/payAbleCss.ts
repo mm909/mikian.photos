@@ -111,5 +111,10 @@ export const payAbleCss = `
 .lasd-pay .dots i{display:block;width:24px;height:3px;background:var(--lime);opacity:.22}
 .lasd-pay .dots i.on{opacity:1}
 .lasd-pay .foot{max-width:760px;width:100%;margin:0 auto;padding:0 20px 24px}
+/* The owner's tools under the wordmark (ViewAs.tsx): VIEW AS a runner, TEST A PAYMENT. */
+.lasd-pay .tools{margin-top:18px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.7}
+.lasd-pay .tools select{margin-left:8px;background:#1c1c1a;color:var(--lime);border:1px solid rgba(208,248,88,.4);border-radius:0;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:6px 8px;max-width:200px}
+.lasd-pay .tools a{text-decoration:underline;text-underline-offset:3px}
+.lasd-pay .tools .sep{opacity:.5}
 .lasd-pay .foot .wm{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(40px,10vw,72px);line-height:.9;letter-spacing:-.02em;color:var(--lime)}
 `;

@@ -43,7 +43,7 @@ import type { RouteArt } from "./routeArt";
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 const MIN_CENTS = 100;
 
-export type Gate = "signin" | "join" | "closed" | "paused" | "owed" | "square" | "paid" | "ok";
+export type Gate = "signin" | "join" | "closed" | "paused" | "owed" | "square" | "covered" | "paid" | "ok";
 
 export type StepsProps = {
   gate: Gate;
@@ -64,6 +64,10 @@ export type StepsProps = {
   /** "Oct 29", for a payment made now. */
   stampToday: string;
   art: RouteArt;
+  /** The owner looking at a runner's numbers (their name): read-only, no card button. */
+  viewingAs: string | null;
+  /** The owner paying himself as a test: the route is told, so the ceiling is the whole share. */
+  testing: boolean;
 };
 
 /** $475 for a round figure, $50.50 otherwise (a typed amount may carry cents). */
@@ -124,7 +128,7 @@ export function Steps(p: StepsProps) {
         const res = await fetch("/api/lasd26/your-share", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "create", amountCents }),
+          body: JSON.stringify({ action: "create", amountCents, test: p.testing }),
         });
         const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
         if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
@@ -182,6 +186,10 @@ export function Steps(p: StepsProps) {
     }
 
     if (step === 1) {
+      const numbers = p.gate === "ok" || p.gate === "covered" || p.gate === "owed" || p.gate === "square";
+      // The lines they covered, the first five by name.
+      const titles = p.fronted.map((l) => l.title);
+      const covered = titles.length > 5 ? `${titles.slice(0, 5).join(", ")} and ${titles.length - 5} more` : titles.join(", ");
       const notice =
         p.gate === "join"
           ? "This page is for the LASD26 team. Join through the link Mikian sent and your share shows here."
@@ -190,30 +198,35 @@ export function Steps(p: StepsProps) {
             : p.gate === "paused"
               ? "Payments are paused. Try again in a bit — this page will be here."
               : p.gate === "owed"
-                ? `You fronted more than your share — Mikian sends you ${fmtUsd(p.owedCents)}. Nothing to pay here.`
+                ? `Mikian sends you ${fmtUsd(p.owedCents)}. Nothing to pay here.`
                 : p.gate === "square"
                   ? "What you fronted is exactly your share. Nothing to pay, nothing owed."
-                  : null;
+                  : p.gate === "covered"
+                    ? "Nothing to pay."
+                    : null;
       return (
         <div className="step">
           <h1>LASD26 is a pay what you&rsquo;re able experience.</h1>
+          {numbers && (
+            <p className="line mono">
+              The weekend came to{" "}
+              <a href={lasdPath("/expenses")} title="Every line behind it">
+                {dollars(p.totalCents)}
+              </a>{" "}
+              · split {p.splitCount} ways{p.frontedCents > 0 ? ` · ${money(p.perPersonCents)} each` : ""}
+            </p>
+          )}
+          {numbers && p.frontedCents > 0 && (
+            <p className="note">
+              You already covered <b>{money(p.frontedCents)}</b>
+              {covered ? ` — ${covered}` : ""}. {p.gate === "ok" ? "That comes off your share." : "That’s more than your share."}
+            </p>
+          )}
+          {p.testing && <p className="line mono">A test — you’re paying yourself the whole share.</p>}
           {notice ? (
             <p className="notice">{notice}</p>
           ) : (
             <>
-              <p className="line mono">
-                The weekend came to{" "}
-                <a href={lasdPath("/expenses")} title="Every line behind it">
-                  {dollars(p.totalCents)}
-                </a>{" "}
-                · split {p.splitCount} ways{p.frontedCents > 0 ? ` · ${money(p.perPersonCents)} each` : ""}
-              </p>
-              {p.frontedCents > 0 && (
-                <p className="note">
-                  You already covered <b>{money(p.frontedCents)}</b>
-                  {p.fronted.length > 0 ? ` — ${p.fronted.map((l) => l.title).join(", ")}` : ""}. That comes off your share.
-                </p>
-              )}
               <div className="k mono">Your share, up to</div>
               <div className="big">{share}</div>
               <button type="button" className="btn" onClick={next}>
@@ -259,7 +272,7 @@ export function Steps(p: StepsProps) {
           <button type="button" className="back mono" onClick={back}>
             ← Back
           </button>
-          {paypal && (
+          {paypal && !p.viewingAs && (
             <div key="paypal" className="paypal off" aria-hidden="true">
               {paypal}
             </div>
@@ -279,7 +292,9 @@ export function Steps(p: StepsProps) {
               <span className="mono">Processing your payment…</span>
             </div>
           )}
-          {!PAYPAL_CLIENT_ID ? (
+          {p.viewingAs ? (
+            <p className="notice">Viewing as {p.viewingAs} — the card button is theirs.</p>
+          ) : !PAYPAL_CLIENT_ID ? (
             <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card button cannot load.</p>
           ) : (
             <>

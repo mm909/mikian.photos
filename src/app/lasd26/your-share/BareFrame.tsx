@@ -9,10 +9,11 @@ import { Account } from "./Account";
  * or footers … I like LASD26 being the footer for this page"): ink, lime,
  * the two marks in type at the top (NO SHORTCUTS with the red arrow ×
  * justfriends. with the lime dot) and SIGN IN / the first name, then the
- * page, then LASD26 as the foot. Server component; the page resolves the
+ * page, then LASD26 as the foot — and under it whatever `tools` the page
+ * hands in (the owner's VIEW AS and TEST on your-share). Server component; the page resolves the
  * viewer and hands the name down. The stylesheet is payAbleCss.
  */
-export function BareFrame({ name, children }: { name: string | null; children: ReactNode }) {
+export function BareFrame({ name, tools, children }: { name: string | null; tools?: ReactNode; children: ReactNode }) {
   return (
     <div className={`lasd-pay ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
       <style dangerouslySetInnerHTML={{ __html: payAbleCss }} />
@@ -35,6 +36,7 @@ export function BareFrame({ name, children }: { name: string | null; children: R
 
       <footer className="foot">
         <span className="wm">LASD26</span>
+        {tools}
       </footer>
     </div>
   );
