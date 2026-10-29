@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   if (!viewer.actor) return bad("Sign in with Google first.", 401);
   if (!viewer.member) return bad("Join the team through the invite link first.", 403);
 
-  let body: { action?: unknown; orderId?: unknown; amountCents?: unknown; test?: unknown };
+  let body: { action?: unknown; orderId?: unknown; amountCents?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -74,16 +74,17 @@ export async function POST(req: Request) {
   if (!due.settleOpen && !viewer.owner) return bad("Settling up opens after the race — the crew will send the word.", 403);
   const mine = memberDue(viewer.member, due);
   const pool = mine.status === "pool";
-  // The owner's test (?test=1 on the page): the whole share, nothing taken
-  // off. Otherwise his row reads like anyone's — the share less what he
-  // fronted — and with more fronted than the share there is nothing to pay.
-  const test = pool && body.test === true;
-  if (pool && !test && mine.netCents <= 0) return bad("You covered more than your share — nothing to pay. Test a payment on yourself from the foot of the page.", 409);
+  // The pool paying is ALWAYS the owner's test of the page (nothing is
+  // recorded on his row), so his ceiling is the whole share whatever the
+  // page sent — a flag from the client is not trusted for it (2026-10-29: a
+  // soft navigation dropped ?test=1 under an open pay screen and the route
+  // refused him).
+  const test = pool;
   if (!pool && mine.status === "paid") return bad("Already paid — thank you.", 409);
   if (!pool && mine.status === "owed") return bad(`Nothing to pay — you fronted more than your share, Mikian owes you ${fmtUsd(mine.owedCents)}.`, 409);
   if (!pool && mine.status === "square") return bad("All square — nothing to pay.", 409);
   if (!pool && mine.outstandingCents <= 0) return bad("Nothing to pay yet — the cost sheet is empty.", 409);
-  const ceiling = wholeDollarsUp(test ? mine.shareCents : pool ? mine.netCents : mine.outstandingCents);
+  const ceiling = wholeDollarsUp(pool ? mine.shareCents : mine.outstandingCents);
 
   if (body.action === "create") {
     // Their figure: whole cents, $1 up to what they still owe.

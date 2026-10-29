@@ -104,6 +104,14 @@ export function Steps(p: StepsProps) {
     if (step === 2) inputRef.current?.focus();
   }, [step]);
 
+  // The owner's VIEW AS and STOP THE TEST re-render the page under an open
+  // flow (a soft navigation keeps this component's state): when the gate
+  // is no longer ok, fall back to the share screen rather than offer a pay
+  // screen the route would refuse.
+  useEffect(() => {
+    if (p.gate !== "ok" && step >= 2 && step <= 3) setStep(1);
+  }, [p.gate, step]);
+
   // WARM-UP (owner, 2026-10-29: "when clicking the pay w/ card there is a
   // delay"): as the amount screen opens, one GET wakes the route — the
   // function, the database and PayPal's token — so the order on the next
@@ -126,7 +134,7 @@ export function Steps(p: StepsProps) {
     const res = await fetch("/api/lasd26/your-share", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", amountCents, test: p.testing }),
+      body: JSON.stringify({ action: "create", amountCents }),
     });
     const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
     if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
