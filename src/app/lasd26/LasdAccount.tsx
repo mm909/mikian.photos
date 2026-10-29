@@ -115,6 +115,10 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               <a className="acct-item" href={lasdPath("/team")} role="menuitem" onClick={close}>
                 Invite link &amp; members →
               </a>
+              {/* Who paid, how much, what came back (owner, 2026-10-29): owner-only. */}
+              <a className="acct-item" href={lasdPath("/recovered")} role="menuitem" onClick={close}>
+                Recovered →
+              </a>
               <div className="acct-eyebrow mono" aria-hidden="true">
                 Development
               </div>

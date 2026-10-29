@@ -3,12 +3,9 @@ import { TEAM, ensureOwnerMember, getTeamViewer } from "@/lib/lasd26/team";
 import { dueFor, memberDue, paidStamp, viaLabel } from "@/lib/lasd26/settle";
 import { fmtUsd, wholeDollarsUp } from "@/lib/lasd26/money";
 import { isPaymentsOpen } from "@/lib/paymentLock";
-import { POOL_STAND_IN_CENTS } from "@/lib/lasd26/yourShare";
-import { archivo, archivoBlack, spaceMono } from "../theme";
 import type { CourseFile } from "../route/course";
 import courseJson from "../../../../public/lasd26/route/course.json";
-import { payAbleCss } from "../payAbleCss";
-import { Account } from "./Account";
+import { BareFrame } from "./BareFrame";
 import { routeArt } from "./routeArt";
 import { Steps, type Gate } from "./Steps";
 
@@ -32,11 +29,10 @@ import { Steps, type Gate } from "./Steps";
  * the owner's DEVELOPMENT group in the account menu, and robots stay off.
  * The old address, /lasd26/dev/pay, redirects here.
  *
- * BARE: no LasdPage, no bar, no site footer. Ink, lime type. The two marks
- * at the top (type, like the stickers: NO SHORTCUTS with the red arrow ×
- * justfriends. with the lime dot) and SIGN IN / the first name; the screens
- * (Steps.tsx); LASD26 as the foot and nothing under it (owner, 2026-10-29:
- * "Show me the text at the bottom like it's live"). The course
+ * BARE (BareFrame.tsx): no LasdPage, no bar, no site footer. Ink, lime
+ * type, the two marks and SIGN IN at the top, the screens (Steps.tsx),
+ * LASD26 as the foot and nothing under it (owner, 2026-10-29: "Show me the
+ * text at the bottom like it's live"). The course
  * (public/lasd26/route/course.json) is projected once here (routeArt.ts)
  * and drawn behind the first screen in one stroke.
  *
@@ -48,11 +44,17 @@ import { Steps, type Gate } from "./Steps";
  * field and nothing else, marks the row PAID at whatever it was, and
  * emails the owner.
  *
- * THE POOL'S STAND-IN (lib/lasd26/yourShare.ts): the owner's own row is the
- * pool and never owes, so for him the share is $475 (his "~$475"), the
- * total is that times the split, and the card button charges him for real
- * (owner, 2026-10-29: "Allow me to submit payment to my self to test it
- * live") — into his own PayPal, nothing recorded on his row.
+ * THE POOL (lib/lasd26/yourShare.ts): the owner's own row is the pool and
+ * never owes, but he sees the real share like anyone (owner, 2026-10-29:
+ * "grab the real cost numbers") and the card button charges him for real
+ * ("Allow me to submit payment to my self to test it live") — into his own
+ * PayPal, nothing recorded on his row.
+ *
+ * WHAT THEY ALREADY COVERED (owner, 2026-10-29: "some have used their own
+ * card to buy things during the race. we need a note about what they have
+ * already contributed and subtract that from their share"): the lines a
+ * member fronted (settle.ts MemberRow.fronted) go down to the share screen,
+ * which names them and shows the share less that sum.
  */
 
 export const metadata: Metadata = {
@@ -80,6 +82,7 @@ export default async function YourSharePage() {
   let splitCount = 0;
   let perPersonCents = 0;
   let frontedCents = 0;
+  let fronted: { title: string; amountCents: number }[] = [];
   let shareCents = 0;
   let owedCents = 0;
   let paid: { amount: string; stamp: string; via: string } | null = null;
@@ -92,10 +95,10 @@ export default async function YourSharePage() {
     splitCount = due.splitCount;
     if (!due.settleOpen && !viewer.owner) gate = "closed";
     else if (mine.status === "pool") {
-      // The stand-in, see the header.
-      shareCents = POOL_STAND_IN_CENTS;
-      perPersonCents = POOL_STAND_IN_CENTS;
-      totalCents = POOL_STAND_IN_CENTS * Math.max(1, splitCount);
+      // The owner: the real share, as a test (lib/lasd26/yourShare.ts).
+      totalCents = due.totalCents;
+      perPersonCents = wholeDollarsUp(mine.shareCents);
+      shareCents = wholeDollarsUp(mine.shareCents);
     } else if (mine.status === "paid" && mine.paidAt) {
       gate = "paid";
       paid = { amount: fmtUsd(mine.paidCents), stamp: paidStamp(mine.paidAt), via: viaLabel(mine.paidVia) };
@@ -108,44 +111,27 @@ export default async function YourSharePage() {
       totalCents = due.totalCents;
       perPersonCents = wholeDollarsUp(mine.shareCents);
       frontedCents = mine.frontedCents;
+      fronted = mine.fronted.map((l) => ({ title: l.title, amountCents: l.amountCents }));
       shareCents = wholeDollarsUp(mine.outstandingCents);
     }
   }
 
   return (
-    <div className={`lasd-pay ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
-      <style dangerouslySetInnerHTML={{ __html: payAbleCss }} />
-
-      <header className="top">
-        <div className="marks" aria-label="No Shortcuts × Just Friends LV">
-          <span className="ns">
-            No Shortcuts <span className="arrow">→</span>
-          </span>
-          <span className="x">×</span>
-          <span className="jf">
-            justfriends
-            <i className="dot" />
-          </span>
-        </div>
-        <Account name={viewer.actor ? (viewer.member?.name ?? viewer.actor.name) : null} />
-      </header>
-
+    <BareFrame name={viewer.actor ? (viewer.member?.name ?? viewer.actor.name) : null}>
+      {" "}
       <Steps
         gate={gate}
         totalCents={totalCents}
         splitCount={splitCount}
         perPersonCents={perPersonCents}
         frontedCents={frontedCents}
+        fronted={fronted}
         shareCents={shareCents}
         owedCents={owedCents}
         paid={paid}
         stampToday={paidStamp(new Date())}
         art={art}
       />
-
-      <footer className="foot">
-        <span className="wm">LASD26</span>
-      </footer>
-    </div>
+    </BareFrame>
   );
 }

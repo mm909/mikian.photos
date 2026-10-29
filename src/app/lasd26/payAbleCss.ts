@@ -44,6 +44,9 @@ export const payAbleCss = `
 .lasd-pay .step{position:relative;z-index:1}
 .lasd-pay h1{font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(30px,7.4vw,58px);line-height:.98;letter-spacing:-.02em;text-transform:uppercase;color:var(--lime);max-width:19ch}
 .lasd-pay .line{margin-top:18px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.75;line-height:1.8;max-width:52ch}
+/* WHAT THEY ALREADY COVERED (screen 1): paper type, the sum in lime. */
+.lasd-pay .note{margin-top:18px;max-width:46ch;font-size:15px;line-height:1.6;color:var(--paper)}
+.lasd-pay .note b{color:var(--lime);font-weight:700}
 .lasd-pay .k{margin-top:30px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6}
 .lasd-pay .big{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(64px,19vw,132px);line-height:.95;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--lime);margin-top:4px;word-break:break-word}
 
@@ -66,6 +69,9 @@ export const payAbleCss = `
  * (it must stay mounted) and the STATUS block speaks: one mono line over a
  * lime bar that slides until the answer comes. */
 .lasd-pay .paypal.busy{opacity:.3;pointer-events:none}
+/* On the amount screen the button is already mounted, offscreen, so it is
+ * drawn by the time the pay screen opens. */
+.lasd-pay .paypal.off{position:absolute;left:-9999px;top:0;width:440px;visibility:hidden}
 .lasd-pay .status{margin-top:28px;max-width:440px;display:flex;flex-direction:column;gap:14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime)}
 .lasd-pay .status .bar{display:block;height:3px;background:rgba(208,248,88,.18);position:relative;overflow:hidden}
 .lasd-pay .status .bar::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:var(--lime);animation:lasd-slide 1.2s ease-in-out infinite}
@@ -88,6 +94,15 @@ export const payAbleCss = `
 .lasd-pay .art .run{fill:none;stroke:var(--lime);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:lasd-draw 6s cubic-bezier(.45,0,.2,1) forwards}
 @keyframes lasd-draw{to{stroke-dashoffset:0}}
 @media(max-width:640px){ .lasd-pay .art{opacity:.32} .lasd-pay .art svg{width:100%} }
+
+/* ─── RECOVERED (/lasd26/recovered): who paid, a list, so the stage starts at the top ─── */
+.lasd-pay .stage.list{justify-content:flex-start}
+.lasd-pay .paid{list-style:none;margin-top:28px;max-width:520px;border-top:1px solid rgba(208,248,88,.25)}
+.lasd-pay .paid li{display:grid;grid-template-columns:1fr auto;gap:2px 16px;padding:12px 0;border-bottom:1px solid rgba(208,248,88,.25);align-items:baseline}
+.lasd-pay .paid .who{font-size:16px;color:var(--paper)}
+.lasd-pay .paid .amt{font-family:var(--lasd-archivo-black),sans-serif;font-size:20px;font-variant-numeric:tabular-nums;color:var(--lime);text-align:right}
+.lasd-pay .paid .when{grid-column:1 / -1;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.55}
+.lasd-pay .names{margin-top:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--lime);opacity:.55;line-height:1.9;max-width:520px}
 
 /* ─── THE FOOT: the four dashes, then LASD26 (owner: "I like LASD26 being the footer") ─── */
 .lasd-pay .dots{display:flex;gap:6px;max-width:760px;width:100%;margin:0 auto;padding:0 20px 22px}

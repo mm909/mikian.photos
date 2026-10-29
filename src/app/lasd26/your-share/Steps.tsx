@@ -16,7 +16,9 @@ import type { RouteArt } from "./routeArt";
  *      finish in one stroke, CONTINUE
  *      (SIGN IN TO CONTINUE while signed out)
  *   1  LASD26 IS A PAY WHAT YOU'RE ABLE EXPERIENCE — the total (a link to
- *      the expenses sheet), the split and their share — YOUR SHARE, UP TO
+ *      the expenses sheet), the split, a NOTE of what they already covered
+ *      on their own card (the lines they fronted; owner, 2026-10-29:
+ *      "subtract that from their share") and their share — YOUR SHARE, UP TO
  *      (owner, 2026-10-29: "include a 'up to' x call out") — the share the big
  *      number, whole dollars; or the calm notice when
  *      there is nothing to pay (not on the team, not open yet, owed, square)
@@ -50,8 +52,9 @@ export type StepsProps = {
   splitCount: number;
   /** Each person's share, before anything fronted. */
   perPersonCents: number;
-  /** What this member fronted (comes off their share). */
+  /** What this member fronted (comes off their share), and the lines behind it. */
   frontedCents: number;
+  fronted: { title: string; amountCents: number }[];
   /** The big number on screen 1 and the ceiling of the field: the share less what was fronted. */
   shareCents: number;
   /** What the pool owes them, when gate is "owed". */
@@ -102,6 +105,63 @@ export function Steps(p: StepsProps) {
   const next = () => setStep((s) => Math.min(4, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
 
+  // PayPal's card button, ONE element for screens 2 and 3 (keyed, so React
+  // keeps it mounted across them): it renders offscreen while the amount is
+  // typed and is already drawn when the pay screen opens (owner, 2026-10-29:
+  // "when clicking the pay w/ card there is a delay"). Its callbacks read
+  // the amount through amountRef, so it never needs re-rendering.
+  const paypal = PAYPAL_CLIENT_ID ? (
+    <PayPalButtons
+      fundingSource="card"
+      style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
+      onClick={() => {
+        setError(null);
+        setPhase("opening");
+      }}
+      onCancel={() => setPhase("idle")}
+      createOrder={async () => {
+        setError(null);
+        const amountCents = amountRef.current;
+        if (amountCents === null) throw new Error(`$1 to ${share}.`);
+        const res = await fetch("/api/lasd26/your-share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create", amountCents }),
+        });
+        const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
+        if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
+        return data.id;
+      }}
+      onApprove={async (d) => {
+        setPhase("processing");
+        const res = await fetch("/api/lasd26/your-share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "capture", orderId: d.orderID }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
+        setPhase("idle");
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Couldn't finish the payment.");
+          return;
+        }
+        setDone({ amount: data.paid ?? money(amountRef.current ?? 0), via: "card" });
+        setStep(4);
+        router.refresh();
+      }}
+      onError={(err) => {
+        // A guard the route answered on create ("Already paid.",
+        // "opens after the race") is thrown from createOrder and
+        // lands here as an Error with that message; show it.
+        // Anything else — PayPal's own failures, long JSON — gets
+        // the plain line.
+        setPhase("idle");
+        const msg = err instanceof Error && err.message ? err.message : "";
+        setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
+      }}
+    />
+  ) : null;
+
   const screen = (() => {
     if (step === 0) {
       return (
@@ -148,9 +208,14 @@ export function Steps(p: StepsProps) {
                 <a href={lasdPath("/expenses")} title="Every line behind it">
                   {dollars(p.totalCents)}
                 </a>{" "}
-                · split {p.splitCount} ways
-                {p.frontedCents > 0 ? ` · ${money(p.perPersonCents)} each · less ${money(p.frontedCents)} you fronted` : ""}
+                · split {p.splitCount} ways{p.frontedCents > 0 ? ` · ${money(p.perPersonCents)} each` : ""}
               </p>
+              {p.frontedCents > 0 && (
+                <p className="note">
+                  You already covered <b>{money(p.frontedCents)}</b>
+                  {p.fronted.length > 0 ? ` — ${p.fronted.map((l) => l.title).join(", ")}` : ""}. That comes off your share.
+                </p>
+              )}
               <div className="k mono">Your share, up to</div>
               <div className="big">{share}</div>
               <button type="button" className="btn" onClick={next}>
@@ -196,6 +261,11 @@ export function Steps(p: StepsProps) {
           <button type="button" className="back mono" onClick={back}>
             ← Back
           </button>
+          {paypal && (
+            <div key="paypal" className="paypal off" aria-hidden="true">
+              {paypal}
+            </div>
+          )}
         </div>
       );
     }
@@ -218,57 +288,8 @@ export function Steps(p: StepsProps) {
               {phase === "idle" && <p className="line mono">Pay by debit or credit card</p>}
               {/* The button stays mounted while PayPal's flow runs — unmounting it
                * would end that flow — and only goes quiet. */}
-              <div className={`paypal${phase !== "idle" ? " busy" : ""}`}>
-                <PayPalButtons
-                  fundingSource="card"
-                  forceReRender={[cents]}
-                  style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
-                  onClick={() => {
-                    setError(null);
-                    setPhase("opening");
-                  }}
-                  onCancel={() => setPhase("idle")}
-                  createOrder={async () => {
-                    setError(null);
-                    const amountCents = amountRef.current;
-                    if (amountCents === null) throw new Error(`$1 to ${share}.`);
-                    const res = await fetch("/api/lasd26/your-share", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "create", amountCents }),
-                    });
-                    const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-                    if (!res.ok || !data.ok || !data.id) throw new Error(data.error ?? "Couldn't start the payment.");
-                    return data.id;
-                  }}
-                  onApprove={async (d) => {
-                    setPhase("processing");
-                    const res = await fetch("/api/lasd26/your-share", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "capture", orderId: d.orderID }),
-                    });
-                    const data = (await res.json()) as { ok?: boolean; error?: string; paid?: string };
-                    setPhase("idle");
-                    if (!res.ok || !data.ok) {
-                      setError(data.error ?? "Couldn't finish the payment.");
-                      return;
-                    }
-                    setDone({ amount: data.paid ?? amount ?? share, via: "card" });
-                    setStep(4);
-                    router.refresh();
-                  }}
-                  onError={(err) => {
-                    // A guard the route answered on create ("Already paid.",
-                    // "opens after the race") is thrown from createOrder and
-                    // lands here as an Error with that message; show it.
-                    // Anything else — PayPal's own failures, long JSON — gets
-                    // the plain line.
-                    setPhase("idle");
-                    const msg = err instanceof Error && err.message ? err.message : "";
-                    setError(msg && msg.length < 160 ? msg : "The card could not be charged — nothing was taken.");
-                  }}
-                />
+              <div key="paypal" className={`paypal${phase !== "idle" ? " busy" : ""}`}>
+                {paypal}
               </div>
             </>
           )}
