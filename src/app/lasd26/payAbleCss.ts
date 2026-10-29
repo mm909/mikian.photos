@@ -53,8 +53,6 @@ export const payAbleCss = `
 .lasd-pay .field input::-webkit-outer-spin-button,.lasd-pay .field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .lasd-pay .field input:focus{outline:none}
 .lasd-pay .field.bad{border-bottom-color:var(--warn)}
-.lasd-pay .hint{margin-top:10px;min-height:1.8em;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.6;line-height:1.8}
-.lasd-pay .hint.bad{color:var(--warn);opacity:1}
 
 /* THE BUTTONS: CONTINUE / PAY BY CARD solid lime; BACK a small mono word. */
 .lasd-pay .btn{display:inline-flex;justify-content:center;align-items:center;min-width:min(100%,320px);margin-top:30px;background:var(--lime);color:#111;border:none;font-family:var(--lasd-archivo-black),sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:.04em;padding:18px 28px;cursor:pointer;text-align:center}

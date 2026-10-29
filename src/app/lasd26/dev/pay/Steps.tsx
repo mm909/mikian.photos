@@ -18,8 +18,11 @@ import type { RouteArt } from "./routeArt";
  *      the expenses sheet), the split and their share, the share the big
  *      number, whole dollars; or the calm notice when
  *      there is nothing to pay (not on the team, not open yet, owed, square)
- *   2  SEND ANY AMOUNT UP TO $X — one field, opening on the share,
- *      the field the big number
+ *   2  SEND ANY AMOUNT UP TO $X — one field, the big number there, opening
+ *      EMPTY on a 0 placeholder (owner, 2026-10-29: "start the value at
+ *      0") with no line under it (owner: "Remove the 'all of it' text or
+ *      the x out of y text"); over the share the rule turns red and
+ *      CONTINUE waits
  *   3  YOU'RE SENDING — the amount big, the card button under it; PayPal
  *      processes, then
  *   4  SEE YOU AGAIN SO SOON — the amount and the day
@@ -62,13 +65,11 @@ export type StepsProps = {
 const money = (c: number) => fmtUsd(c, { whole: c % 100 === 0 });
 /** The total, to the nearest dollar (owner, 2026-10-29: "make sure the dollar total rounded"). */
 const dollars = (c: number) => fmtUsd(Math.round(c / 100) * 100, { whole: true });
-/** "475" / "371.23" — what the field opens on. */
-const plain = (c: number) => (c % 100 === 0 ? String(c / 100) : (c / 100).toFixed(2));
 
 export function Steps(p: StepsProps) {
   const router = useRouter();
   const [step, setStep] = useState(p.gate === "paid" ? 4 : 0);
-  const [raw, setRaw] = useState(plain(p.shareCents));
+  const [raw, setRaw] = useState("");
   const [phase, setPhase] = useState<"idle" | "processing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ amount: string; via: string } | null>(null);
@@ -153,7 +154,6 @@ export function Steps(p: StepsProps) {
     }
 
     if (step === 2) {
-      const hint = cents !== null && cents > p.shareCents ? `Up to ${share}.` : !valid ? `$1 to ${share}.` : cents === p.shareCents ? "All of it." : `${amount} of ${share}.`;
       return (
         <div className="step">
           <h1>Send any amount up to {share}.</h1>
@@ -166,6 +166,7 @@ export function Steps(p: StepsProps) {
               type="text"
               inputMode="decimal"
               aria-label="Amount in dollars"
+              placeholder="0"
               value={raw}
               maxLength={9}
               onChange={(e) => {
@@ -177,7 +178,6 @@ export function Steps(p: StepsProps) {
               }}
             />
           </div>
-          <p className={`hint mono${bad ? " bad" : ""}`}>{hint}</p>
           <button type="button" className="btn" disabled={!valid} onClick={next}>
             Continue
           </button>
