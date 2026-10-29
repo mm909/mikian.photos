@@ -65,9 +65,11 @@ export const payAbleCss = `
 .lasd-pay .back{display:block;margin-top:22px;background:none;border:none;color:var(--lime);opacity:.55;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:6px 0}
 .lasd-pay .back:hover{opacity:1}
 .lasd-pay .paypal{margin-top:14px;max-width:440px}
-/* While PayPal's form is opening or the capture runs the button goes quiet
- * (it must stay mounted) and the STATUS block speaks: one mono line over a
- * lime bar that slides until the answer comes. */
+/* While the capture runs the button (and PayPal's inline card fields,
+ * which live in the same box) go quiet — it must stay mounted — and the
+ * STATUS block speaks: one mono line over a lime bar that slides until the
+ * answer comes. Never before approval: on a phone the card fields open
+ * inline here and must stay live. */
 .lasd-pay .paypal.busy{opacity:.3;pointer-events:none}
 /* On the amount screen the button is already mounted, offscreen, so it is
  * drawn by the time the pay screen opens. */

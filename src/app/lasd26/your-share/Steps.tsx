@@ -28,9 +28,9 @@ import type { RouteArt } from "./routeArt";
  *      the x out of y text"); over the share the rule turns red and
  *      CONTINUE waits
  *   3  YOU'RE SENDING — the amount big, one line and PayPal's card button
- *      under it (PayPal draws the button; the line says what it is); a tap
- *      shows OPENING THE CARD FORM at once, approval PROCESSING YOUR
- *      PAYMENT (the status block, a sliding lime bar), then
+ *      under it (PayPal draws the button; the line says what it is); the
+ *      card fields open inline under it, untouched by us; approval shows
+ *      PROCESSING YOUR PAYMENT (the status block, a sliding lime bar), then
  *   4  SEE YOU AGAIN SO SOON — the amount and the day
  *
  * A row already paid opens on 4. The dashes at the foot are screens 0–3;
@@ -75,9 +75,11 @@ export function Steps(p: StepsProps) {
   const router = useRouter();
   const [step, setStep] = useState(p.gate === "paid" ? 4 : 0);
   const [raw, setRaw] = useState("");
-  // idle → opening (the card button tapped, PayPal's form on its way) →
-  // processing (approved, the capture running).
-  const [phase, setPhase] = useState<"idle" | "opening" | "processing">("idle");
+  // idle → processing (approved, the capture running). NOTHING in between:
+  // on a phone PayPal opens its card fields INLINE under the button, inside
+  // the same box, so dimming or blocking that box while "the form opens"
+  // left the owner stuck on a greyed-out form (2026-10-29).
+  const [phase, setPhase] = useState<"idle" | "processing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ amount: string; via: string } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -114,11 +116,7 @@ export function Steps(p: StepsProps) {
     <PayPalButtons
       fundingSource="card"
       style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
-      onClick={() => {
-        setError(null);
-        setPhase("opening");
-      }}
-      onCancel={() => setPhase("idle")}
+      onClick={() => setError(null)}
       createOrder={async () => {
         setError(null);
         const amountCents = amountRef.current;
@@ -275,10 +273,10 @@ export function Steps(p: StepsProps) {
         <div className="step">
           <div className="k mono">You&rsquo;re sending</div>
           <div className="big">{amount}</div>
-          {phase !== "idle" && (
+          {phase === "processing" && (
             <div className="status" role="status" aria-live="polite">
               <span className="bar" aria-hidden="true" />
-              <span className="mono">{phase === "opening" ? "Opening the card form…" : "Processing your payment…"}</span>
+              <span className="mono">Processing your payment…</span>
             </div>
           )}
           {!PAYPAL_CLIENT_ID ? (
