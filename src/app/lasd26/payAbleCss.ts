@@ -64,44 +64,22 @@ export const payAbleCss = `
 .lasd-pay .btn:disabled{background:#2a2a28;color:#6f6f6a;cursor:default}
 .lasd-pay .back{display:block;margin-top:22px;background:none;border:none;color:var(--lime);opacity:.55;font-size:11px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:6px 0}
 .lasd-pay .back:hover{opacity:1}
-.lasd-pay .paypal{margin-top:14px;max-width:440px}
 
-/* THE CARD FORM (CardForm.tsx; owner, 2026-10-29: "make the form on our own
- * ui then submit it through PayPal"): PayPal's hosted inputs inside our
- * boxes — the box, its border and its focus ring are ours, the type inside
- * is set through PayPal's style options — our ZIP beside them, our PAY
- * button under. While the capture runs OUR form goes quiet — never the
- * fallback, PayPal's inline form, which must stay live. */
-/* APPLE PAY (ApplePayButton.tsx): Apple's own button, drawn by WebKit, white
- * on the ink, over the card form; Safari only, nothing elsewhere. */
-.lasd-pay .apple-pay{display:block;width:100%;max-width:440px;height:48px;margin-top:22px;border:none;border-radius:0;cursor:pointer;-webkit-appearance:-apple-pay-button;-apple-pay-button-type:pay;-apple-pay-button-style:white}
-.lasd-pay .apple-pay:disabled{opacity:.4}
-.lasd-pay .or{margin:16px 0 -6px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.5}
-.lasd-pay .cf{margin-top:20px;max-width:440px}
-.lasd-pay .cf.busy .cf-own{opacity:.4;pointer-events:none}
-.lasd-pay .cf-l{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6;margin:14px 0 6px}
-/* PAPER boxes (PayPal's inputs are white and cannot be recoloured; the box
- * matches them and the Apple Pay button), a lime edge on focus. */
-.lasd-pay .cf-f{height:52px;border:2px solid var(--paper);background:var(--paper);display:flex;align-items:center;overflow:hidden}
-.lasd-pay .cf-f:focus-within{border-color:var(--lime)}
-.lasd-pay .cf-in{width:100%;height:100%}
-.lasd-pay .cf-in>div{height:100%}
-.lasd-pay .cf-in iframe{display:block;width:100%!important;height:100%!important;min-height:0!important;border:0}
-.lasd-pay .cf-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.lasd-pay .cf-zip{width:100%;height:52px;border:2px solid var(--paper);background:var(--paper);color:#111110;font-size:18px;letter-spacing:.04em;padding:0 12px;border-radius:0;appearance:none}
-.lasd-pay .cf-zip::placeholder{color:rgba(17,17,16,.35)}
-.lasd-pay .cf-zip:focus{outline:none;border-color:var(--lime)}
-.lasd-pay .cf .btn{margin-top:22px;width:100%}
-@media(max-width:400px){ .lasd-pay .cf-row{grid-template-columns:1fr 1fr} .lasd-pay .cf-row>div:last-child{grid-column:1 / -1} }
-/* While the capture runs the button (and PayPal's inline card fields,
- * which live in the same box) go quiet — it must stay mounted — and the
- * STATUS block speaks: one mono line over a lime bar that slides until the
- * answer comes. Never before approval: on a phone the card fields open
- * inline here and must stay live. */
-.lasd-pay .paypal.busy{opacity:.3;pointer-events:none}
-/* On the amount screen the button is already mounted, offscreen, so it is
- * drawn by the time the pay screen opens. */
-.lasd-pay .paypal.off{position:absolute;left:-9999px;top:0;width:440px;visibility:hidden}
+/* VENMO AND ZELLE (screen 3; owner, 2026-10-29: "add my Venmo and Zelle with a
+ * note … PayPal fees were too high"): the ask in paper type, then two rows
+ * — the way, the handle big, the action at the right (OPEN VENMO, COPY) —
+ * the row they used lit in lime; I SENT IT under. */
+.lasd-pay .ask{margin-top:18px;max-width:40ch;font-size:17px;line-height:1.5;color:var(--paper)}
+.lasd-pay .ways{margin-top:22px;max-width:440px;border-top:1px solid rgba(208,248,88,.3)}
+.lasd-pay .way{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid rgba(208,248,88,.3)}
+.lasd-pay .way .w{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);opacity:.6;min-width:46px}
+.lasd-pay .way .to{font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(18px,5vw,24px);letter-spacing:-.01em;color:var(--paper);overflow-wrap:anywhere}
+.lasd-pay .way.on .to{color:var(--lime)}
+.lasd-pay .way .go{background:transparent;border:2px solid var(--lime);color:var(--lime);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:9px 12px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.lasd-pay .way .go:hover{background:var(--lime);color:#111}
+.lasd-pay .way.on .go{background:var(--lime);color:#111}
+/* On a phone the handle gets a line of its own under its label, the action beside it. */
+@media(max-width:480px){ .lasd-pay .way{grid-template-columns:1fr auto;grid-template-areas:"w w" "to go";row-gap:6px} .lasd-pay .way .w{grid-area:w} .lasd-pay .way .to{grid-area:to} .lasd-pay .way .go{grid-area:go} }
 .lasd-pay .status{margin-top:28px;max-width:440px;display:flex;flex-direction:column;gap:14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--lime)}
 .lasd-pay .status .bar{display:block;height:3px;background:rgba(208,248,88,.18);position:relative;overflow:hidden}
 .lasd-pay .status .bar::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:var(--lime);animation:lasd-slide 1.2s ease-in-out infinite}

@@ -41,9 +41,11 @@ import { ViewAs } from "./ViewAs";
  * member fronted, and the share less that — the big number and the field's
  * ceiling, rounded UP to the whole dollar (money.ts wholeDollarsUp; owner,
  * 2026-10-29: "make sure the dollar total rounded"); the route
- * /api/lasd26/your-share rounds the same way, charges the figure in the
- * field and nothing else, marks the row PAID at whatever it was, and
- * emails the owner.
+ * /api/lasd26/your-share rounds the same way. NOTHING IS CHARGED HERE
+ * (owner, 2026-10-29: "Instead of collecting payment through PayPal, add
+ * my Venmo and Zelle … PayPal fees were too high"): the pay screen shows
+ * Venmo and Zelle, I SENT IT emails the owner, and he marks the row paid
+ * on the team console once it lands.
  *
  * WHAT THEY ALREADY COVERED (owner, 2026-10-29: "some have used their own
  * card to buy things during the race. we need a note about what they have
@@ -58,10 +60,10 @@ import { ViewAs } from "./ViewAs";
  * it, and when that is more than the share, "nothing to pay" (gate
  * "covered"). Two owner-only tools sit under the foot (ViewAs.tsx):
  * VIEW AS a runner (?as=<member id>: their numbers and note, read-only,
- * no card button) and TEST A PAYMENT ON YOURSELF (?test=1: the whole share
- * with nothing taken off, charged to his own PayPal, recorded nowhere —
- * owner, 2026-10-29: "Allow me to submit payment to my self to test it
- * live"; lib/lasd26/yourShare.ts).
+ * no I SENT IT) and TEST A PAYMENT ON YOURSELF (?test=1: the whole share
+ * with nothing taken off; I SENT IT emails him his own test — owner,
+ * 2026-10-29: "Allow me to submit payment to my self to test it live";
+ * lib/lasd26/yourShare.ts).
  */
 
 export const metadata: Metadata = {

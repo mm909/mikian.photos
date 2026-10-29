@@ -8,9 +8,9 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * on his own screen: "I don't see my expenses that I paid being taken out
  * of this"): VIEW AS any runner — the page re-renders with their numbers,
  * their note of what they covered, read-only (?as=<member id>) — and TEST
- * A PAYMENT ON YOURSELF (?test=1), the whole share with nothing taken off,
- * charged to his own PayPal and recorded nowhere. Nobody but the owner
- * sees this.
+ * A PAYMENT ON YOURSELF (?test=1), the whole share with nothing taken off;
+ * I SENT IT then only emails him his own test. Nobody but the owner sees
+ * this.
  */
 export function ViewAs({ roster, current, testing }: { roster: { id: string; name: string }[]; current: string | null; testing: boolean }) {
   const router = useRouter();
