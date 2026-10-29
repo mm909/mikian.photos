@@ -67,10 +67,10 @@ export const payAbleCss = `
 
 /* ─── THE ROUTE, drawing itself behind the first screen ─── */
 /* The box is the viewport, the drawing its full height (owner, 2026-10-29:
- * "draw the route from top to bottom"), the right half of a laptop and the
- * whole width of a phone; preserveAspectRatio="none" on the client lets
- * the course stretch to it. Fixed, behind everything (the top, the dashes
- * and the foot sit above it). */
+ * "draw the route from top to bottom"): routeArt.ts draws the course in a
+ * tall box, so it fits the height and sits at the right of a laptop and
+ * across a phone. Fixed, behind everything (the top, the dashes and the
+ * foot sit above it). */
 .lasd-pay .art{position:fixed;inset:0;display:flex;justify-content:flex-end;align-items:stretch;pointer-events:none;opacity:.4;z-index:0}
 .lasd-pay .art svg{height:100%;width:56%;overflow:visible}
 /* No vector-effect here: with non-scaling-stroke Chrome lays the dash in

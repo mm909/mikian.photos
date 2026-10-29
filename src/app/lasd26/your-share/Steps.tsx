@@ -290,13 +290,13 @@ export function Steps(p: StepsProps) {
   return body;
 }
 
-/** The course, drawn in one stroke behind the first screen, stretched to
- * the screen's height (owner, 2026-10-29: "draw the route from top to
- * bottom"; the stylesheet fixes the box to the viewport). */
+/** The course, drawn in one stroke behind the first screen, the height of
+ * the screen (owner, 2026-10-29: "draw the route from top to bottom"; the
+ * tall shape is routeArt's, the stylesheet fixes the box to the viewport). */
 function RouteDrawing({ art }: { art: RouteArt }) {
   return (
     <div className="art" aria-hidden="true">
-      <svg viewBox={`0 0 ${art.w} ${art.h}`} preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${art.w} ${art.h}`} preserveAspectRatio="xMaxYMid meet">
         <path className="run" d={art.path} pathLength={1} />
       </svg>
     </div>

@@ -7,7 +7,11 @@ import type { CourseFile } from "../route/course";
  * sections"). The course (public/lasd26/route/course.json) projected into
  * an SVG viewBox the way the stickers frame it (src/app/lasd26/stickers/
  * paint.ts frameCourse): plate carrée with the longitude squeezed by
- * cos(mid-lat), fitted to a height. ONE path, Santa Monica to San Diego:
+ * cos(mid-lat), fitted to a height and SQUEEZED to a tall box (`aspect`,
+ * width over height, 0.48 — a phone's shape; owner, 2026-10-29: "draw the
+ * route from top to bottom") so the line runs the height of any screen;
+ * the squeeze is baked in here because Chrome drops the dash animation
+ * when the SVG itself is stretched (preserveAspectRatio none). ONE path, Santa Monica to San Diego:
  * the run, the drive through Camp Pendleton by road, the run again — so a
  * single stroke-dashoffset animation (pathLength="1" on the client) draws
  * it end to end. Pure, so the server computes it once per request and the
@@ -24,15 +28,16 @@ export type RouteArt = {
 
 type Course = Pick<CourseFile, "bbox" | "coords" | "drives">;
 
-export function routeArt(course: Course, h = 1000, inset = 40, keepEvery = 3): RouteArt {
+export function routeArt(course: Course, h = 1000, inset = 40, keepEvery = 3, aspect = 0.48): RouteArt {
   const [minLon, minLat, maxLon, maxLat] = course.bbox;
   const kx = Math.cos(((minLat + maxLat) / 2) * (Math.PI / 180));
   const spanX = (maxLon - minLon) * kx;
   const spanY = maxLat - minLat;
-  const s = (h - inset * 2) / spanY;
-  const w = Math.round(spanX * s + inset * 2);
-  const X = (lon: number) => (inset + (lon - minLon) * kx * s).toFixed(1);
-  const Y = (lat: number) => (inset + (maxLat - lat) * s).toFixed(1);
+  const w = Math.round(h * aspect);
+  const sy = (h - inset * 2) / spanY;
+  const sx = (w - inset * 2) / spanX;
+  const X = (lon: number) => (inset + (lon - minLon) * kx * sx).toFixed(1);
+  const Y = (lat: number) => (inset + (maxLat - lat) * sy).toFixed(1);
 
   // The whole way in order: each run leg, then the drive that follows it.
   const pts: [number, number][] = [];
