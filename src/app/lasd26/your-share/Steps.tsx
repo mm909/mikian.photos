@@ -16,7 +16,8 @@ import type { RouteArt } from "./routeArt";
  *      finish in one stroke, CONTINUE
  *      (SIGN IN TO CONTINUE while signed out)
  *   1  LASD26 IS A PAY WHAT YOU'RE ABLE EXPERIENCE — the total (a link to
- *      the expenses sheet), the split and their share, the share the big
+ *      the expenses sheet), the split and their share — YOUR SHARE, UP TO
+ *      (owner, 2026-10-29: "include a 'up to' x call out") — the share the big
  *      number, whole dollars; or the calm notice when
  *      there is nothing to pay (not on the team, not open yet, owed, square)
  *   2  SEND ANY AMOUNT UP TO $X — one field, the big number there, opening
@@ -33,9 +34,8 @@ import type { RouteArt } from "./routeArt";
  * BACK on 1–3. The same PayPal connection Settle up uses, card only,
  * white on the ink, against /api/lasd26/your-share, which takes the amount on
  * create and works the ceiling out again from the live cost sheet. The
- * owner's row is the pool: the route answers him "you're the pool" on
- * create, so he can look at the card screen without a charge (owner,
- * 2026-10-29: "Let me see the payment screen"). */
+ * owner's row is the pool: he pays the stand-in to himself as a live test
+ * (lib/lasd26/yourShare.ts). */
 
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 const MIN_CENTS = 100;
@@ -140,7 +140,7 @@ export function Steps(p: StepsProps) {
                 · split {p.splitCount} ways
                 {p.frontedCents > 0 ? ` · ${money(p.perPersonCents)} each · less ${money(p.frontedCents)} you fronted` : ""}
               </p>
-              <div className="k mono">Your share</div>
+              <div className="k mono">Your share, up to</div>
               <div className="big">{share}</div>
               <button type="button" className="btn" onClick={next}>
                 Continue
@@ -290,11 +290,13 @@ export function Steps(p: StepsProps) {
   return body;
 }
 
-/** The course, drawn in one stroke behind the first screen. */
+/** The course, drawn in one stroke behind the first screen, stretched to
+ * the screen's height (owner, 2026-10-29: "draw the route from top to
+ * bottom"; the stylesheet fixes the box to the viewport). */
 function RouteDrawing({ art }: { art: RouteArt }) {
   return (
     <div className="art" aria-hidden="true">
-      <svg viewBox={`0 0 ${art.w} ${art.h}`} preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={`0 0 ${art.w} ${art.h}`} preserveAspectRatio="none">
         <path className="run" d={art.path} pathLength={1} />
       </svg>
     </div>

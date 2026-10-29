@@ -3,6 +3,7 @@ import { TEAM, ensureOwnerMember, getTeamViewer } from "@/lib/lasd26/team";
 import { dueFor, memberDue, paidStamp, viaLabel } from "@/lib/lasd26/settle";
 import { fmtUsd, wholeDollarsUp } from "@/lib/lasd26/money";
 import { isPaymentsOpen } from "@/lib/paymentLock";
+import { POOL_STAND_IN_CENTS } from "@/lib/lasd26/yourShare";
 import { archivo, archivoBlack, spaceMono } from "../theme";
 import type { CourseFile } from "../route/course";
 import courseJson from "../../../../public/lasd26/route/course.json";
@@ -47,14 +48,12 @@ import { Steps, type Gate } from "./Steps";
  * field and nothing else, marks the row PAID at whatever it was, and
  * emails the owner.
  *
- * THE POOL'S STAND-IN: the owner's own row is the pool and never owes, so
- * for him the share is $475 (his "~$475") and the total is that times the
- * split, and the card button is the real one (owner, 2026-10-29: "Let me
- * see the payment screen") — the route answers him "you're the pool" if
- * he goes through with it, so nothing is charged.
+ * THE POOL'S STAND-IN (lib/lasd26/yourShare.ts): the owner's own row is the
+ * pool and never owes, so for him the share is $475 (his "~$475"), the
+ * total is that times the split, and the card button charges him for real
+ * (owner, 2026-10-29: "Allow me to submit payment to my self to test it
+ * live") — into his own PayPal, nothing recorded on his row.
  */
-
-const MOCK_SHARE_CENTS = 47500;
 
 export const metadata: Metadata = {
   title: "Your share — LASD26",
@@ -94,9 +93,9 @@ export default async function YourSharePage() {
     if (!due.settleOpen && !viewer.owner) gate = "closed";
     else if (mine.status === "pool") {
       // The stand-in, see the header.
-      shareCents = MOCK_SHARE_CENTS;
-      perPersonCents = MOCK_SHARE_CENTS;
-      totalCents = MOCK_SHARE_CENTS * Math.max(1, splitCount);
+      shareCents = POOL_STAND_IN_CENTS;
+      perPersonCents = POOL_STAND_IN_CENTS;
+      totalCents = POOL_STAND_IN_CENTS * Math.max(1, splitCount);
     } else if (mine.status === "paid" && mine.paidAt) {
       gate = "paid";
       paid = { amount: fmtUsd(mine.paidCents), stamp: paidStamp(mine.paidAt), via: viaLabel(mine.paidVia) };

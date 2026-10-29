@@ -6,6 +6,7 @@ import { ensureOwnerMember, getTeamViewer, TEAM } from "@/lib/lasd26/team";
 import { dueFor, memberDue } from "@/lib/lasd26/settle";
 import { fmtUsd, wholeDollarsUp } from "@/lib/lasd26/money";
 import { sendOwnerNotification } from "@/lib/email";
+import { POOL_STAND_IN_CENTS } from "@/lib/lasd26/yourShare";
 
 export const runtime = "nodejs";
 
@@ -37,8 +38,8 @@ export const runtime = "nodejs";
  * Guards, in order: payments open (the owner's unlock cookie
  * bypasses the site-wide lock, as everywhere), signed in, on the team,
  * settling up open OR the owner, and something still owed. The pool's own
- * row (the owner's) never pays — 409, so the owner can look at the card
- * screen and nothing is charged. */
+ * row (the owner's) pays the stand-in to himself — a live test, nothing
+ * recorded (lib/lasd26/yourShare.ts). */
 
 const MIN_CENTS = 100;
 
@@ -60,12 +61,14 @@ export async function POST(req: Request) {
   const due = await dueFor(TEAM);
   if (!due.settleOpen && !viewer.owner) return bad("Settling up opens after the race — the crew will send the word.", 403);
   const mine = memberDue(viewer.member, due);
-  if (mine.status === "pool") return bad("You're the pool — people pay you; nothing to pay here.", 409);
-  if (mine.status === "paid") return bad("Already paid — thank you.", 409);
-  if (mine.status === "owed") return bad(`Nothing to pay — you fronted more than your share, Mikian owes you ${fmtUsd(mine.owedCents)}.`, 409);
-  if (mine.status === "square") return bad("All square — nothing to pay.", 409);
-  if (mine.outstandingCents <= 0) return bad("Nothing to pay yet — the cost sheet is empty.", 409);
-  const ceiling = wholeDollarsUp(mine.outstandingCents);
+  // The pool (the owner) pays the stand-in to himself as a live test
+  // (lib/lasd26/yourShare.ts); everyone else what they still owe.
+  const pool = mine.status === "pool";
+  if (!pool && mine.status === "paid") return bad("Already paid — thank you.", 409);
+  if (!pool && mine.status === "owed") return bad(`Nothing to pay — you fronted more than your share, Mikian owes you ${fmtUsd(mine.owedCents)}.`, 409);
+  if (!pool && mine.status === "square") return bad("All square — nothing to pay.", 409);
+  if (!pool && mine.outstandingCents <= 0) return bad("Nothing to pay yet — the cost sheet is empty.", 409);
+  const ceiling = pool ? POOL_STAND_IN_CENTS : wholeDollarsUp(mine.outstandingCents);
 
   if (body.action === "create") {
     // Their figure: whole cents, $1 up to what they still owe.
@@ -116,6 +119,17 @@ ${new Date().toISOString()}`,
         );
         if (!odd.ok) console.error("lasd26/your-share: owner email failed", odd.error);
         return bad(`The card paid ${fmtUsd(paidCents)} — tell Mikian and he'll sort it.`, 402);
+      }
+      if (pool) {
+        const test = await sendOwnerNotification(
+          `LASD26 — your own test payment: ${fmtUsd(paidCents)}`,
+          `You paid ${fmtUsd(paidCents)} to yourself on /lasd26/your-share (the pool's live test). Nothing is recorded on your row.
+PayPal capture ${captureId}
+${new Date().toISOString()}`,
+          viewer.member.email,
+        );
+        if (!test.ok) console.error("lasd26/your-share: owner email failed", test.error);
+        return NextResponse.json({ ok: true, status: "paid", test: true, captureId, paidCents, paid: fmtUsd(paidCents) });
       }
       await db.teamMember.update({
         where: { id: viewer.member.id },

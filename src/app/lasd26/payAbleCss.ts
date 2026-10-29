@@ -27,6 +27,7 @@ export const payAbleCss = `
 @media (prefers-reduced-motion: reduce){ .lasd-pay *{animation:none!important;transition:none!important} .lasd-pay .art .run{stroke-dashoffset:0} }
 
 /* ─── THE TOP: the two marks (type, like the stickers) and the one control ─── */
+.lasd-pay .top,.lasd-pay .dots,.lasd-pay .foot{position:relative;z-index:1}
 .lasd-pay .top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;max-width:760px;width:100%;margin:0 auto}
 .lasd-pay .marks{display:flex;align-items:baseline;gap:12px;font-family:var(--lasd-archivo-black),sans-serif;font-size:13px;letter-spacing:.03em;color:var(--paper);white-space:nowrap}
 .lasd-pay .marks .ns{text-transform:uppercase}
@@ -65,15 +66,20 @@ export const payAbleCss = `
 .lasd-pay .notice{margin-top:28px;border:2px dashed var(--lime);padding:20px 22px;max-width:480px;color:var(--paper);font-size:15px;line-height:1.6}
 
 /* ─── THE ROUTE, drawing itself behind the first screen ─── */
-.lasd-pay .art{position:absolute;inset:0;display:flex;justify-content:flex-end;align-items:center;padding:0 0 0 12px;pointer-events:none;opacity:.45}
-.lasd-pay .art svg{height:100%;max-height:min(72vh,680px);width:auto;max-width:44%;overflow:visible}
+/* The box is the viewport, the drawing its full height (owner, 2026-10-29:
+ * "draw the route from top to bottom"), the right half of a laptop and the
+ * whole width of a phone; preserveAspectRatio="none" on the client lets
+ * the course stretch to it. Fixed, behind everything (the top, the dashes
+ * and the foot sit above it). */
+.lasd-pay .art{position:fixed;inset:0;display:flex;justify-content:flex-end;align-items:stretch;pointer-events:none;opacity:.4;z-index:0}
+.lasd-pay .art svg{height:100%;width:56%;overflow:visible}
 /* No vector-effect here: with non-scaling-stroke Chrome lays the dash in
  * screen space and pathLength="1" no longer means the whole path, so the
  * line came out dotted on a laptop and vanished on a phone. The width is
  * in viewBox units (~900 wide) and scales with the drawing. */
 .lasd-pay .art .run{fill:none;stroke:var(--lime);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:lasd-draw 6s cubic-bezier(.45,0,.2,1) forwards}
 @keyframes lasd-draw{to{stroke-dashoffset:0}}
-@media(max-width:640px){ .lasd-pay .art{opacity:.35;justify-content:center;padding:0} .lasd-pay .art svg{max-width:100%;max-height:min(80vh,620px)} }
+@media(max-width:640px){ .lasd-pay .art{opacity:.32} .lasd-pay .art svg{width:100%} }
 
 /* ─── THE FOOT: the four dashes, then LASD26 (owner: "I like LASD26 being the footer") ─── */
 .lasd-pay .dots{display:flex;gap:6px;max-width:760px;width:100%;margin:0 auto;padding:0 20px 22px}
