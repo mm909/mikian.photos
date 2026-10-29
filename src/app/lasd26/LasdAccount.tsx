@@ -55,11 +55,7 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
 
   if (!viewer.signedIn) {
     return (
-      <button
-        type="button"
-        className="acct-btn in mono"
-        onClick={() => signIn("google", { callbackUrl: typeof window === "undefined" ? lasdPath("") : window.location.href })}
-      >
+      <button type="button" className="acct-btn in mono" onClick={() => signIn("google", { callbackUrl: typeof window === "undefined" ? lasdPath("") : window.location.href })}>
         Sign in
       </button>
     );
@@ -122,10 +118,11 @@ export function LasdAccount({ viewer }: { viewer: AccountViewer }) {
               <div className="acct-eyebrow mono" aria-hidden="true">
                 Development
               </div>
-              {/* The pay-what-you're-able mock-up (owner, 2026-10-28), in
-               * development: it replaces Settle up when he says so. */}
-              <a className="acct-item" href={lasdPath("/dev/pay")} role="menuitem" onClick={close}>
-                Pay what you&rsquo;re able (dev) →
+              {/* YOUR SHARE, the pay-what-you're-able page (owner, 2026-10-28/29): live
+               * for the team but UNLISTED ("only if I send the link to someone"): this
+               * is the one link to it, and only the owner sees it. */}
+              <a className="acct-item" href={lasdPath("/your-share")} role="menuitem" onClick={close}>
+                Your share (unlisted) →
               </a>
               <a className="acct-item" href={lasdPath("/the-list")} role="menuitem" onClick={close}>
                 The list (crew call) →

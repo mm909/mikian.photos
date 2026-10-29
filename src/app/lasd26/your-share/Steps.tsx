@@ -12,7 +12,8 @@ import type { RouteArt } from "./routeArt";
  * it a step by step screen"), one big number on each at most ("I only
  * want one big number on the screen"):
  *
- *   0  THANK YOU FOR OPTING IN — the route drawing itself behind, CONTINUE
+ *   0  THANK YOU FOR OPTING IN — the route drawing itself behind, start to
+ *      finish in one stroke, CONTINUE
  *      (SIGN IN TO CONTINUE while signed out)
  *   1  LASD26 IS A PAY WHAT YOU'RE ABLE EXPERIENCE — the total (a link to
  *      the expenses sheet), the split and their share, the share the big
@@ -29,10 +30,11 @@ import type { RouteArt } from "./routeArt";
  *
  * A row already paid opens on 4. The dashes at the foot are screens 0–3;
  * BACK on 1–3. The same PayPal connection Settle up uses, card only,
- * white on the ink, against /api/lasd26/dev/pay, which takes the amount on
+ * white on the ink, against /api/lasd26/your-share, which takes the amount on
  * create and works the ceiling out again from the live cost sheet. The
- * owner's row is the pool and never pays, so for him the button is a lime
- * stand-in that simulates (standIn). */
+ * owner's row is the pool: the route answers him "you're the pool" on
+ * create, so he can look at the card screen without a charge (owner,
+ * 2026-10-29: "Let me see the payment screen"). */
 
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
 const MIN_CENTS = 100;
@@ -41,8 +43,6 @@ export type Gate = "signin" | "join" | "closed" | "paused" | "owed" | "square" |
 
 export type StepsProps = {
   gate: Gate;
-  /** The owner walking the page on stand-in numbers; the button simulates. */
-  standIn: boolean;
   /** What the weekend came to and how many ways it splits. */
   totalCents: number;
   splitCount: number;
@@ -195,23 +195,6 @@ export function Steps(p: StepsProps) {
           <div className="big">{amount}</div>
           {phase === "processing" ? (
             <p className="line mono">Processing…</p>
-          ) : p.standIn ? (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                if (cents === null) return;
-                setPhase("processing");
-                // The stand-in: a beat, then the thank-you. Nothing leaves the page.
-                window.setTimeout(() => {
-                  setDone({ amount: money(cents), via: "card (simulated)" });
-                  setPhase("idle");
-                  setStep(4);
-                }, 1200);
-              }}
-            >
-              Pay by card
-            </button>
           ) : !PAYPAL_CLIENT_ID ? (
             <p className="err mono">NEXT_PUBLIC_PAYPAL_CLIENT_ID is not set on this build — the card button cannot load.</p>
           ) : (
@@ -219,12 +202,12 @@ export function Steps(p: StepsProps) {
               <PayPalButtons
                 fundingSource="card"
                 forceReRender={[cents]}
-                style={{ layout: "horizontal", color: "white", shape: "rect", label: "pay", height: 48 }}
+                style={{ layout: "horizontal", color: "white", shape: "rect", height: 48 }}
                 createOrder={async () => {
                   setError(null);
                   const amountCents = amountRef.current;
                   if (amountCents === null) throw new Error(`$1 to ${share}.`);
-                  const res = await fetch("/api/lasd26/dev/pay", {
+                  const res = await fetch("/api/lasd26/your-share", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "create", amountCents }),
@@ -235,7 +218,7 @@ export function Steps(p: StepsProps) {
                 }}
                 onApprove={async (d) => {
                   setPhase("processing");
-                  const res = await fetch("/api/lasd26/dev/pay", {
+                  const res = await fetch("/api/lasd26/your-share", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "capture", orderId: d.orderID }),
@@ -297,21 +280,18 @@ export function Steps(p: StepsProps) {
   );
 
   // The SDK loads once, early, only when a real card button can be needed.
-  if (!p.standIn && p.gate === "ok" && PAYPAL_CLIENT_ID) {
+  if (p.gate === "ok" && PAYPAL_CLIENT_ID) {
     return <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>{body}</PayPalScriptProvider>;
   }
   return body;
 }
 
-/** The course, drawn leg by leg behind the first screen. */
+/** The course, drawn in one stroke behind the first screen. */
 function RouteDrawing({ art }: { art: RouteArt }) {
   return (
     <div className="art" aria-hidden="true">
       <svg viewBox={`0 0 ${art.w} ${art.h}`} preserveAspectRatio="xMidYMid meet">
-        {art.run.map((d, i) => (
-          <path key={i} className={`run l${i}`} d={d} pathLength={1} />
-        ))}
-        {art.drive && <path className="drive" d={art.drive} />}
+        <path className="run" d={art.path} pathLength={1} />
       </svg>
     </div>
   );

@@ -5,10 +5,11 @@ import { isPaymentsOpen } from "@/lib/paymentLock";
 import { ensureOwnerMember, getTeamViewer, TEAM } from "@/lib/lasd26/team";
 import { dueFor, memberDue } from "@/lib/lasd26/settle";
 import { fmtUsd, wholeDollarsUp } from "@/lib/lasd26/money";
+import { sendOwnerNotification } from "@/lib/email";
 
 export const runtime = "nodejs";
 
-/* PAY WHAT YOU'RE ABLE — the route behind /lasd26/dev/pay (owner,
+/* PAY WHAT YOU'RE ABLE — the route behind /lasd26/your-share (owner,
  * 2026-10-28: "if someone is only able to pay $100 then I want to only
  * take that 100"). The same two steps as /api/lasd26/pay/paypal, with one
  * difference: the amount is THEIRS.
@@ -27,14 +28,17 @@ export const runtime = "nodejs";
  * PayPal took (statusOf reads paidAt as paid, whatever the cents say), so
  * nobody is chased for the rest. The team console shows the figure.
  *
- * IN DEVELOPMENT (CLAUDE.md): the same gate as the page — a production
- * build answers 404 to anyone but the owner. When the page goes live this
- * body replaces /api/lasd26/pay/paypal.
+ * LIVE BUT UNLISTED, like the page (owner, 2026-10-29: "Make it 'live' but
+ * only if I send the link to someone"): no dev gate. EVERY CAPTURE EMAILS
+ * THE OWNER (CLAUDE.md; owner, 2026-10-29: "Make sure I get an email when
+ * someone submits something") — logged, never surfaced, when the send
+ * fails.
  *
- * Guards, in order: the dev gate, payments open (the owner's unlock cookie
+ * Guards, in order: payments open (the owner's unlock cookie
  * bypasses the site-wide lock, as everywhere), signed in, on the team,
  * settling up open OR the owner, and something still owed. The pool's own
- * row (the owner's) never pays — the page simulates for him. */
+ * row (the owner's) never pays — 409, so the owner can look at the card
+ * screen and nothing is charged. */
 
 const MIN_CENTS = 100;
 
@@ -42,7 +46,6 @@ const bad = (error: string, status = 400) => NextResponse.json({ ok: false, erro
 
 export async function POST(req: Request) {
   const viewer = await ensureOwnerMember(await getTeamViewer(TEAM));
-  if (process.env.NODE_ENV === "production" && !viewer.owner) return new NextResponse(null, { status: 404 });
   if (!isPaymentsOpen() && !viewer.owner) return bad("Payments are paused right now.", 503);
   if (!viewer.actor) return bad("Sign in with Google first.", 401);
   if (!viewer.member) return bad("Join the team through the invite link first.", 403);
@@ -82,7 +85,7 @@ export async function POST(req: Request) {
         amount: fmtUsd(cents),
       });
     } catch (err) {
-      console.error("lasd26/dev/pay: paypal create failed", err);
+      console.error("lasd26/your-share: paypal create failed", err);
       return bad("Couldn't start the payment — try again.", 502);
     }
   }
@@ -100,11 +103,18 @@ export async function POST(req: Request) {
       // handed to this route) is kept as a record and settles nothing.
       const paidCents = typeof captured.amountUsd === "number" && Number.isFinite(captured.amountUsd) ? Math.round(captured.amountUsd * 100) : 0;
       if (paidCents < MIN_CENTS) {
-        console.warn(`lasd26/dev/pay: capture ${captureId} paid ${paidCents} for member ${viewer.member.id} — not recorded as paid`);
+        console.warn(`lasd26/your-share: capture ${captureId} paid ${paidCents} for member ${viewer.member.id} — not recorded as paid`);
         await db.teamMember.update({
           where: { id: viewer.member.id },
           data: { paypalCaptureId: captureId },
         });
+        const odd = await sendOwnerNotification(
+          `LASD26 — ${viewer.member.name}: card paid ${fmtUsd(paidCents)}, NOT recorded as paid`,
+          `${viewer.member.name} <${viewer.member.email}> — PayPal capture ${captureId} came back as ${fmtUsd(paidCents)} on /lasd26/your-share. Their row is NOT marked paid; they owe ${fmtUsd(mine.outstandingCents)}.
+${new Date().toISOString()}`,
+          viewer.member.email,
+        );
+        if (!odd.ok) console.error("lasd26/your-share: owner email failed", odd.error);
         return bad(`The card paid ${fmtUsd(paidCents)} — tell Mikian and he'll sort it.`, 402);
       }
       await db.teamMember.update({
@@ -116,6 +126,18 @@ export async function POST(req: Request) {
           paypalCaptureId: captureId,
         },
       });
+      // Every payment emails the owner, whatever its size (CLAUDE.md; owner,
+      // 2026-10-29: "Make sure I get an email when someone submits something").
+      const sent = await sendOwnerNotification(
+        `LASD26 — ${viewer.member.name} paid ${fmtUsd(paidCents)}`,
+        `${viewer.member.name} <${viewer.member.email}> paid ${fmtUsd(paidCents)} by card on /lasd26/your-share.
+
+Share ${fmtUsd(mine.shareCents)} · fronted ${fmtUsd(mine.frontedCents)} · owed ${fmtUsd(mine.outstandingCents)} · could send up to ${fmtUsd(ceiling, { whole: true })}
+PayPal capture ${captureId}
+${new Date().toISOString()}`,
+        viewer.member.email,
+      );
+      if (!sent.ok) console.error("lasd26/your-share: owner email failed", sent.error);
       return NextResponse.json({
         ok: true,
         status: "paid",
@@ -124,7 +146,7 @@ export async function POST(req: Request) {
         paid: fmtUsd(paidCents),
       });
     } catch (err) {
-      console.error("lasd26/dev/pay: paypal capture failed", err);
+      console.error("lasd26/your-share: paypal capture failed", err);
       return bad("Couldn't finish the payment — if your card shows it went through, tell Mikian and he'll mark you paid.", 502);
     }
   }

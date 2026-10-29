@@ -1,10 +1,10 @@
-/* /lasd26/dev/pay — PAY WHAT YOU'RE ABLE, step by step (owner, 2026-10-28
+/* /lasd26/your-share — PAY WHAT YOU'RE ABLE, step by step (owner, 2026-10-28
  * and 29; the brief is in page.tsx). A BARE page: not LasdPage, no bar,
  * no site footer. Ink, lime type, the brand's lime (#D0F858, theme.ts
  * --safety) as TYPE — on ink it may be — with the small lines at reduced
  * opacity so they read softer than the one big number. Four screens in one
  * column: the marks and SIGN IN on top, the screen in the middle, the four
- * dashes and LASD26 at the foot. The fonts are the site's (theme.ts
+ * dashes and LASD26 at the foot, nothing under it. The fonts are the site's (theme.ts
  * variables, set on the wrapper by the page). */
 
 export const payAbleCss = `
@@ -24,7 +24,7 @@ export const payAbleCss = `
  * lime, an underline the only tell. */
 .lasd-pay a{color:inherit;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
 .lasd-pay a:hover{color:var(--paper)}
-@media (prefers-reduced-motion: reduce){ .lasd-pay *{animation:none!important;transition:none!important} .lasd-pay .art .run{stroke-dashoffset:0} .lasd-pay .art .drive{opacity:.55} }
+@media (prefers-reduced-motion: reduce){ .lasd-pay *{animation:none!important;transition:none!important} .lasd-pay .art .run{stroke-dashoffset:0} }
 
 /* ─── THE TOP: the two marks (type, like the stickers) and the one control ─── */
 .lasd-pay .top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;max-width:760px;width:100%;margin:0 auto}
@@ -71,11 +71,8 @@ export const payAbleCss = `
  * screen space and pathLength="1" no longer means the whole path, so the
  * line came out dotted on a laptop and vanished on a phone. The width is
  * in viewBox units (~900 wide) and scales with the drawing. */
-.lasd-pay .art .run{fill:none;stroke:var(--lime);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:lasd-draw 4.6s cubic-bezier(.45,0,.2,1) forwards}
-.lasd-pay .art .run.l1{animation-duration:1.6s;animation-delay:4.4s}
-.lasd-pay .art .drive{fill:none;stroke:var(--lime);stroke-width:4;stroke-dasharray:14 16;opacity:0;animation:lasd-fade .6s ease-out 4.2s forwards}
+.lasd-pay .art .run{fill:none;stroke:var(--lime);stroke-width:7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:lasd-draw 6s cubic-bezier(.45,0,.2,1) forwards}
 @keyframes lasd-draw{to{stroke-dashoffset:0}}
-@keyframes lasd-fade{to{opacity:.55}}
 @media(max-width:640px){ .lasd-pay .art{opacity:.35;justify-content:center;padding:0} .lasd-pay .art svg{max-width:100%;max-height:min(80vh,620px)} }
 
 /* ─── THE FOOT: the four dashes, then LASD26 (owner: "I like LASD26 being the footer") ─── */
@@ -84,5 +81,4 @@ export const payAbleCss = `
 .lasd-pay .dots i.on{opacity:1}
 .lasd-pay .foot{max-width:760px;width:100%;margin:0 auto;padding:0 20px 24px}
 .lasd-pay .foot .wm{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:clamp(40px,10vw,72px);line-height:.9;letter-spacing:-.02em;color:var(--lime)}
-.lasd-pay .owner{margin-top:16px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);opacity:.4;line-height:1.8}
 `;
