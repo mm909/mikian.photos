@@ -97,6 +97,11 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .bar-lead{display:flex;align-items:center;gap:12px;flex:none;min-width:0}
 .row100k .bar-brand{display:inline-flex;align-items:center;min-height:32px;font-family:var(--row-archivo-black),sans-serif;font-size:13px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:color 160ms ease}
 .row100k .bar-brand:hover{color:var(--water)}
+/* THE V OF ROWVEMBER in the accent (Mark.tsx) wherever the mark is type on
+ * a ground; on an accent slab (.share-mark) it is the slab's own type. */
+.row100k .mk-v{color:var(--water)}
+.row100k .share-mark .mk-v{color:inherit}
+.row100k .bar-brand:hover .mk-v{color:inherit}
 /* Nav rail + the one accent pill (owner call, 2026-09-05). The section
  * links share a strip; one straight rectangle in the accent rests under
  * the current page and slides to whatever the pointer is over (BarNav

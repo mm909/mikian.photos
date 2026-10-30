@@ -13,6 +13,8 @@
  * measure (home/theme.ts .home .wrap), so nothing changes there. The wrap
  * keeps its own 20px gutter (the footer rule in theme.ts carries none), so
  * the wordmark starts on the measure, not 20px left of it. */
+import { Mark } from "./Mark";
+
 export function RowFooter({ front }: { front?: boolean }) {
   /* The spacer ahead of the footer takes up whatever a short page leaves,
    * so the footer sits at the foot of the screen instead of halfway up it
@@ -24,7 +26,12 @@ export function RowFooter({ front }: { front?: boolean }) {
       <div className="foot-push" aria-hidden="true" />
       <footer>
         <div className={front ? "wrap front" : "wrap"}>
-          <div className="big">ROWTEMBER</div>
+          {/* The big word is the mark (Mark.tsx): ROWVEMBER in November,
+           * ROWTEMBER otherwise; the handles under it are the brand's and
+           * do not move. */}
+          <div className="big">
+            <Mark />
+          </div>
           <p className="mono">
             <a href="https://instagram.com/rowtember" target="_blank" rel="noopener noreferrer">
               @rowtember

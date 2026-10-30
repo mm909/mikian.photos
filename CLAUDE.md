@@ -38,3 +38,15 @@ A sign-up or entry route (Longhorn LMS, the Hyrox board, race day) calls `sendOw
 Owner, 2026-10-14: "Never put mikianmusser.com on any stickers unless I ask for it."
 
 A sticker or shareable card (the Hyrox cards in `src/app/hyrox/[event]/stickerPaint.ts`, the roster pages, anything painted on a canvas to be posted) carries no site address, no handle and no URL unless the owner asks for one on that card. The page's own footer is not a sticker.
+
+## The site is cream, in a fall brown — never dark by default
+
+Owner, 2026-10-30, of the black site on his phone: "Why is the site dark bro. Fix that. Terrible. Colors right now. Back to what the blue and cream was before. Well, now let's pick a fall color. A darker palette matte brown? Think Thanksgiving."
+
+The default look is `paper` and the default palette is `paper-brown` (`src/lib/rowSettings.ts`, `src/lib/rowPalette.ts`). A look or palette row saved on the settings page before 2026-10-30 is ignored (`COSMETIC_EPOCH_MS`), never deleted. Do not make ink the default again unless the owner says so; he can still pick it on the settings page.
+
+## A month with a name is an edition, and "reset" never deletes
+
+Owner, 2026-10-30: "I need a rowvember new logo and kick off everything that is needed to reset the site (get ready for) ROWVEMBER"; "When I say reset I mean make sure we are prepared for next month. I obviously don't want any data deleted."
+
+September is Rowtember and November is Rowvember (`src/lib/rowPeriod.ts` EDITIONS); the nameplate, the wordmark (`src/app/row100k/Mark.tsx`), the default row title and the mark on every share card read the edition off there, and a new one is a line in that table. Getting ready for a month means code and assets — never a delete, a truncate or a `--clear` against the live database. The Rowvember logo files live in `public/row100k/rowvember/`; the link card is `public/row100k/og-rowvember.png` (drawn by `scripts/og-rowvember.html`, rendered by `scripts/og-render.mjs`).

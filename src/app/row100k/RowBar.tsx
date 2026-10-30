@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { CHALLENGE, LOG_CLOSE_MS, isRow100kAdmin, nowMs } from "@/lib/row100k";
 import { BarAccount } from "./BarAccount";
+import { Mark } from "./Mark";
 import { BarLog } from "./BarLog";
 import { overflowItems, type NavKey } from "./barItems";
 import { BarNav } from "./BarNav";
@@ -128,9 +129,10 @@ export async function RowBar({
         {/* The line along the top that says a tap landed (NavProgress.tsx). */}
         <NavProgress />
         <span className="bar-lead">
-          {/* The wordmark, to the front page. */}
+          {/* The wordmark, to the front page — the month's edition or the
+           * brand (Mark.tsx). */}
           <Link className="bar-brand" href="/">
-            Rowtember
+            <Mark />
           </Link>
         </span>
         <BarNav active={active} raceOpen={raceOpen} signedIn={isSignedIn} />

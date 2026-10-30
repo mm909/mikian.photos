@@ -85,6 +85,27 @@ export function monthFromKey(key: string): Month | null {
 }
 
 /* The month a moment falls in, on the challenge clock. */
+/* THE EDITIONS (owner, 2026-10-30: "I need a Rowvember new logo and kick
+ * off everything that is needed to ... get ready for ROWVEMBER"). A month
+ * with a name of its own: September is Rowtember — the edition the whole
+ * site grew up as — and November is Rowvember. Every other month is just
+ * its month word (owner, 2026-09-25: no ROWTEMBER nameplate outside
+ * September). The nameplate, the default row title, the wordmark and the
+ * mark on every share card read the edition off here, so a new one is a
+ * line in this table and nothing else. */
+const EDITIONS: Readonly<Record<number, string>> = { 9: "Rowtember", 11: "Rowvember" };
+
+/* "Rowtember" | "Rowvember" | null for a month with no edition name. */
+export function editionOf(m: Pick<Month, "month">): string | null {
+  return EDITIONS[m.month] ?? null;
+}
+
+/* The month's name as the site says it: the edition when it has one,
+ * "October" otherwise. */
+export function monthName(m: Pick<Month, "month" | "label">): string {
+  return editionOf(m) ?? m.label.split(" ")[0];
+}
+
 export function monthOf(atMs: number): Month {
   return monthFromKey(pacificDayKey(atMs).slice(0, 7)) as Month;
 }

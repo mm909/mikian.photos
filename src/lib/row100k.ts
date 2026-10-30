@@ -1,4 +1,4 @@
-import { monthOf, prevMonth, weeksOf, FIRST_MONTH_KEY, type Month, type Week as PeriodWeek } from "./rowPeriod";
+import { editionOf, monthName, monthOf, prevMonth, weeksOf, FIRST_MONTH_KEY, type Month, type Week as PeriodWeek } from "./rowPeriod";
 /* Row 100k — September 2026 challenge (/row100k).
  *
  * All the challenge's rules live here as pure functions so the API routes,
@@ -90,15 +90,24 @@ export const END_MS = MONTH.endMs;
 export const LOG_CLOSE_MS = MONTH.logCloseMs;
 
 /* THE MONTH'S NAME as the site says it (owner, 2026-09-25: no ROWTEMBER
- * nameplate outside September). "Rowtember" in September, the bare month
- * word any other month — row titles, the default log title and every
- * caps label that used to say SEP 1 or OCT 3 read off these, so October
- * arrives without a rewrite. */
+ * nameplate outside September). The edition's name in a month that has
+ * one — "Rowtember" in September, "Rowvember" in November (rowPeriod.ts
+ * EDITIONS; owner, 2026-10-30) — the bare month word any other month: row
+ * titles, the default log title and every caps label that used to say
+ * SEP 1 or OCT 3 read off these, so a new month arrives without a rewrite. */
+/* "Rowtember" | "Rowvember" | null: the edition this month is, if any. */
+export const EDITION = editionOf(MONTH);
+/* True in September alone — the one month that still has rules of its
+ * own (barItems.ts: PARTNERS and FEED on the rail). */
 export const ROWTEMBER = MONTH.month === 9;
 /* "September", "October" */
 export const MONTH_WORD = MONTH.label.split(" ")[0];
-/* "Rowtember", "October" */
-export const MONTH_NAME = ROWTEMBER ? "Rowtember" : MONTH_WORD;
+/* "Rowtember", "October", "Rowvember" */
+export const MONTH_NAME = monthName(MONTH);
+/* THE MARK — the word on the wordmark, the footer, the share dialog and
+ * the slab every share card is stamped with: the edition's name while the
+ * month has one, ROWTEMBER — the brand's own name — any other month. */
+export const MARK = (EDITION ?? "Rowtember").toUpperCase();
 /* "SEP 1", "OCT 1" — the first-day tag in the caps labels. */
 export const FIRST_DAY_TAG = `${MONTH.short} 1`;
 /* "2026-10-03": the last day a late log for this month is taken, and its
@@ -111,13 +120,12 @@ export const LATE_LOGS_TAG = fmtDay(LATE_LOGS_THROUGH).toUpperCase();
  * of the row, which is this one unless given (rollover review, 2026-09-28:
  * a Sep 30 row filed on Oct 1 is last month's row and is counted there). */
 export function defaultRowTitle(n: number, m: Month = MONTH): string {
-  const name = m.month === 9 ? "Rowtember" : m.label.split(" ")[0];
-  return `${name} #${n}`;
+  return `${monthName(m)} #${n}`;
 }
 /* Every default title the site ever handed out, so the log form can swap a
  * stale one for the recomputed default without touching a typed title. */
 export const DEFAULT_TITLE_RE =
-  /^(Rowtember|January|February|March|April|May|June|July|August|September|October|November|December) #\d+$/;
+  /^(Rowtember|Rowvember|January|February|March|April|May|June|July|August|September|October|November|December) #\d+$/;
 
 /* How many September days the charts should draw: 1 on Sep 1, 30 from Sep 30
  * onward. Every calendar, curve and bar chart stops at TODAY rather than
