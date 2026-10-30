@@ -18,7 +18,9 @@
  * Rendered by scripts/og-render.mjs:
  *   node scripts/og-render.mjs "title-card.html?word=ROWTEMBER" public/row100k/title/rowtember-post.png 1080 1350 */
 const q = new URLSearchParams(location.search);
-const word = (q.get("word") || "ROWTEMBER").toUpperCase();
+/* ?case=lower keeps the word as typed (owner, 2026-10-30: "give me a
+ * rowtober lowercase"); the V device applies to the capital word only. */
+const word = q.get("case") === "lower" ? (q.get("word") || "rowtember").toLowerCase() : (q.get("word") || "ROWTEMBER").toUpperCase();
 const W = Number(q.get("w")) || 1080, H = Number(q.get("h")) || 1350;
 const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F";
 const c = document.getElementById("c"); c.width = W; c.height = H;
