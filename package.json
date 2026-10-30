@@ -11,6 +11,7 @@
     "dev:row100k:lan": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-09-20T19:00:00Z -- next dev -H 0.0.0.0",
     "dev:row100k:dec": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-12-15T19:00:00Z -- next dev",
     "dev:row100k:oct": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-10-05T19:00:00Z -- next dev",
+    "dev:row100k:nov": "dotenv -e .env.local -v NEXT_PUBLIC_ROW100K_DEMO=1 -v NEXT_PUBLIC_ROW100K_NOW=2026-11-05T19:00:00Z -- next dev",
     "prebuild": "node scripts/gallery-manifest.mjs && node scripts/copy-maplibre-worker.mjs",
     "build": "prisma generate && node scripts/db-push-prod.mjs && next build",
     "postinstall": "prisma generate && node scripts/copy-maplibre-worker.mjs",

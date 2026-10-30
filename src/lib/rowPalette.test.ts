@@ -22,7 +22,7 @@ async function main() {
   assert.equal(PALETTES[0].id, DEFAULT_PALETTE);
   assert.deepEqual(
     PALETTES.map((p) => p.id),
-    ["ink-water", "ink-orange", "ink-red", "paper-red", "paper-water", "ink-yellow", "ink-green"],
+    ["paper-brown", "ink-brown", "ink-water", "ink-orange", "ink-red", "paper-red", "paper-water", "ink-yellow", "ink-green"],
   );
   assert.equal(paletteOf("paper-water").accentOnPaper, "#0077B6", "the September blue stands");
 
@@ -48,9 +48,19 @@ async function main() {
     }
   }
 
-  /* The blue is the default again (owner, 2026-10-13: "the older Rowtember
-   * blue, just everywhere"): white caps on either cut. */
-  assert.equal(DEFAULT_PALETTE, "ink-water");
+  /* Paper brown is the default (owner, 2026-10-30: "back to what the blue
+   * and cream was before ... a darker palette matte brown? Think
+   * Thanksgiving"): the cream ground, white caps on the cocoa, and a cut
+   * on paper that still reads on the dimmed paper a dark-mode phone gets. */
+  assert.equal(DEFAULT_PALETTE, "paper-brown");
+  const brown = paletteOf("paper-brown");
+  assert.equal(brown.ground, "paper");
+  assert.equal(capsOn(brown.accentOnPaper), "#ffffff", "the cocoa takes white caps");
+  assert.ok(contrast(brown.accentOnPaper, "#E9E7DF") >= 4.5, "the cocoa on dimmed paper");
+  assert.ok(contrast(brown.accentOnInk, INK) >= 4.5, "the tan on ink");
+
+  /* The blue (owner, 2026-10-13: "the older Rowtember blue, just
+   * everywhere"; the default until 2026-10-30): white caps on either cut. */
   const water = paletteOf("ink-water");
   assert.equal(capsOn(water.accentOnInk), "#ffffff", "the blue on ink takes white caps");
   assert.equal(capsOn(water.accentOnPaper), "#ffffff", "the blue on paper takes white caps");

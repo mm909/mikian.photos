@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MARK } from "@/lib/row100k";
 import { useCardsOff } from "./RowSite";
 import { availableCards, prepareCard, type ShareData, type ShareFonts } from "./share/cards";
 
@@ -260,7 +261,7 @@ export function ShareDialog({
             {/* The mark, centred, where SHAREABLES used to sit (owner call,
                 2026-09-05). Straight — the dialog is chrome, not a sticker. */}
             <div className="share-head">
-              <span className="share-mark">ROWTEMBER</span>
+              <span className="share-mark">{MARK}</span>
               <button type="button" className="share-x" onClick={onClose} aria-label="Close">
                 ×
               </button>

@@ -21,7 +21,7 @@
  * "YYYY-MM-DD" strings on the challenge's fixed UTC-7 clock, like
  * rowPeriod.ts. */
 
-import { FIRST_MONTH_KEY, monthFromKey, pacificDayKey, type Period } from "@/lib/rowPeriod";
+import { FIRST_MONTH_KEY, monthFromKey, monthName, pacificDayKey, type Period } from "@/lib/rowPeriod";
 
 export type PosterSpan = {
   kind: "month" | "all";
@@ -83,7 +83,7 @@ export function spanOf(period: Period, atMs: number): PosterSpan {
     const m = period;
     const final = atMs >= m.endMs;
     const dayNumber = final || today > m.lastDay ? m.days : today < m.firstDay ? 1 : Number(today.slice(8, 10));
-    const word = m.month === 9 ? "Rowtember" : m.label.split(" ")[0];
+    const word = monthName(m);
     return {
       kind: "month",
       key: m.key,

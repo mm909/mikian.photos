@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@700&display=swap">
+<style>html,body{margin:0;background:#F4F3EE}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c" width="1200" height="630"></canvas>
+<script>
+/* THE ROWVEMBER LINK CARD (owner, 2026-10-30: "I need a Rowvember new
+ * logo"; the same day, "back to what the blue and cream was before ...
+ * a darker palette matte brown? Think Thanksgiving"). The mark as type on
+ * the cream: ROWVEMBER in Archivo Black ink, its V in the Rowvember brown
+ * (rowPalette.ts BROWN on paper), one mono line under it, the address in
+ * the corner. row100k/page.tsx serves it as the link card in November;
+ * every other month keeps og-rowtember.html's card.
+ *
+ * Render: open this file in a browser with the fonts reachable and save
+ * the canvas, or run scripts/og-render.mjs (Playwright) which writes
+ * public/row100k/og-rowvember.png. */
+const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F", GRAY = "#6B6A66";
+const W = 1200, H = 630;
+async function draw() {
+  await document.fonts.load('150px "Archivo Black"');
+  await document.fonts.load('bold 20px "Space Mono"');
+  await document.fonts.ready;
+  const ctx = document.getElementById("c").getContext("2d");
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  const word = "ROWVEMBER";
+  let size = 190;
+  for (;;) { ctx.font = `${size}px "Archivo Black"`; if (ctx.measureText(word).width <= W * 0.84 || size <= 40) break; size -= 1; }
+  ctx.font = `${size}px "Archivo Black"`; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  const tw = ctx.measureText(word).width;
+  const x0 = (W - tw) / 2, base = H / 2 + size * 0.72 / 2 - 30;
+  /* Letter by letter so the V takes the brown; the advance is measured as
+   * the pair so kerning is kept. */
+  let x = x0;
+  for (let i = 0; i < word.length; i++) {
+    ctx.fillStyle = word[i] === "V" ? BROWN : INK;
+    ctx.fillText(word[i], x, base);
+    x = x0 + ctx.measureText(word.slice(0, i + 1)).width;
+  }
+  /* A rule under the word in ink, the newspaper nameplate's own. */
+  ctx.fillStyle = INK; ctx.fillRect(x0, base + size * 0.16, tw, 4);
+  ctx.font = 'bold 22px "Space Mono"'; ctx.textAlign = "center"; ctx.fillStyle = GRAY;
+  ctx.save(); ctx.letterSpacing = "0.18em"; ctx.fillText("A FREE MONTHLY ROWING CHALLENGE · EVERY METER COUNTED", W / 2, base + size * 0.16 + 70); ctx.restore();
+  ctx.save(); ctx.letterSpacing = "0.18em"; ctx.textAlign = "right"; ctx.fillStyle = GRAY; ctx.font = 'bold 18px "Space Mono"'; ctx.fillText("ROWTEMBER.COM", W - 56, H - 48); ctx.restore();
+  ctx.save(); ctx.letterSpacing = "0.18em"; ctx.textAlign = "left"; ctx.fillStyle = BROWN; ctx.font = 'bold 18px "Space Mono"'; ctx.fillText("NOVEMBER 2026", 56, H - 48); ctx.restore();
+  document.title = "done";
+}
+draw();
+</script>
+</body>
+</html>

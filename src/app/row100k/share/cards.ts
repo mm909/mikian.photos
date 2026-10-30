@@ -6,6 +6,7 @@ import {
   MONTH,
   MONTH_KEY,
   MONTH_NAME,
+  MARK,
   dayTicks,
   daysElapsed,
   fmtDay,
@@ -24,6 +25,11 @@ import { ELITE_LABEL, clockShape, digitCount, shapeOf } from "@/lib/blackoutRule
  * Deliberately separate from the menu UI (ShareMenu.tsx): this file only
  * knows how to paint a card onto a canvas, so a new card is one entry in
  * CARDS and nothing else changes.
+ *
+ * THE MARK on every card is MARK (row100k.ts): ROWTEMBER, or the month's
+ * own edition — ROWVEMBER in November (owner, 2026-10-30) — set in the
+ * same slab with the same tilt, so a November sticker signs itself as
+ * Rowvember and the brand's word is nowhere written into a card.
  *
  * Every card paints on a TRANSPARENT canvas. They're stickers — they go on
  * top of an Instagram story, a photo, whatever the rower is already posting,
@@ -787,7 +793,7 @@ const rowtemberTotal: ShareCard = {
       tracking: 9,
     });
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 470,
       size: 112,
@@ -859,7 +865,7 @@ const rowtemberToday: ShareCard = {
       tracking: 9,
     });
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 470,
       size: 112,
@@ -952,7 +958,7 @@ const rowtemberClub: ShareCard = {
       color: "#ffffff",
     });
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: clubBaseline + G2 + markH / 2,
       size: markSize,
@@ -988,7 +994,7 @@ const rowtemberMonth: ShareCard = {
     const blockH = markH + monthGridHeight(span, mon) + totalH;
     const top = Math.max(40, (this.height - blockH) / 2);
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: top + 50,
       size: 84,
@@ -1086,7 +1092,7 @@ const rowtemberRow: ShareCard = {
       });
     }
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 490,
       size: 100,
@@ -1116,7 +1122,7 @@ const rowtemberBib: ShareCard = {
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 152,
       size: 62,
@@ -1334,7 +1340,7 @@ const rowtemberRowFull: ShareCard = {
       });
     }
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 645,
       size: 96,
@@ -1422,7 +1428,7 @@ const rowtemberNamed: ShareCard = {
       tracking: 9,
     });
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 560,
       size: 104,
@@ -1537,7 +1543,7 @@ const rowtemberBest: ShareCard = {
     // drawn at the total card's 112px (review, 2026-09-05) so a best and a
     // total posted in the same story wear the same mark. A placed best keeps
     // its medal even for one of the elite; an unplaced one wears their ink.
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 480,
       size: 112,
@@ -1564,7 +1570,7 @@ const rowtemberElite: ShareCard = {
     const cx = this.width / 2;
     const digits = data.digits ?? digitCount(data.meters);
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 150,
       size: 84,
@@ -1608,7 +1614,7 @@ const rowtemberLightsOut: ShareCard = {
   light: true,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 140,
       size: 72,
@@ -1651,11 +1657,11 @@ const rowtemberLogo: ShareCard = {
     const maxW = this.width - 70;
     for (;;) {
       ctx.font = `${size}px ${fonts.black}`;
-      const boxW = ctx.measureText("ROWTEMBER").width + size * 0.68;
+      const boxW = ctx.measureText(MARK).width + size * 0.68;
       if (boxW <= maxW || size <= 60) break;
       size -= 4;
     }
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx: this.width / 2,
       cy: this.height / 2,
       size,
@@ -1938,7 +1944,7 @@ const rowtemberRaceDayBill: ShareCard = {
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 130,
       size: 68,
@@ -2082,7 +2088,7 @@ const rowtemberRaceDayName: ShareCard = {
      * shrink loop, answered instead of iterated. */
     ctx.save();
     ctx.font = `100px ${fonts.black}`;
-    const em = ctx.measureText("ROWTEMBER").width / 100;
+    const em = ctx.measureText(MARK).width / 100;
     ctx.restore();
     const markSize = em > 0 ? Math.floor(measure / (em + 0.68)) : 120;
     const markH = markSize * 1.28; // drawMark: caps + its two paddings
@@ -2106,7 +2112,7 @@ const rowtemberRaceDayName: ShareCard = {
     ctx.shadowColor = "rgba(0,0,0,0.55)";
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: top + markH / 2,
       size: markSize,
@@ -2160,7 +2166,7 @@ const rowtemberRaceDayWave: ShareCard = {
     ctx.shadowBlur = 16;
     ctx.shadowOffsetY = 3;
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 100,
       size: 60,
@@ -2326,7 +2332,7 @@ function drawRaceTime(ctx: CanvasRenderingContext2D, data: ShareData, fonts: Sha
   ctx.textAlign = "left";
 
   /* The masthead: the event left, the day flush right, tracked mono caps. */
-  const mastL = `ROWTEMBER · ${race.title.toUpperCase()}`;
+  const mastL = `${MARK} · ${race.title.toUpperCase()}`;
   const mastR = t.day.toUpperCase();
   ctx.font = `bold ${mastSize}px ${fonts.mono}`;
   ctx.fillStyle = ink;
@@ -2465,7 +2471,7 @@ const rowtemberCommunityMonth: ShareCard = {
     const blockH = markH + monthGridHeight(span, mon) + totalH;
     const top = Math.max(40, (this.height - blockH) / 2);
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: top + 50,
       size: 84,
@@ -2532,7 +2538,7 @@ const rowtemberCommunityTotal: ShareCard = {
     if (!community) return;
     const cx = this.width / 2;
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 130,
       size: 88,
@@ -2595,7 +2601,7 @@ const rowtemberCommunityToday: ShareCard = {
     const meters = Math.max(0, community.byDay[key] ?? 0);
     if (meters <= 0) return;
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 130,
       size: 88,
@@ -2654,7 +2660,7 @@ const rowtemberCommunityCurve: ShareCard = {
     const cx = this.width / 2;
     const mon = monthFor(data);
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 120,
       size: 80,
@@ -2744,7 +2750,7 @@ const rowtemberCommunityDaily: ShareCard = {
     const cx = this.width / 2;
     const mon = monthFor(data);
 
-    drawMark(ctx, [{ text: "ROWTEMBER" }], {
+    drawMark(ctx, [{ text: MARK }], {
       cx,
       cy: 130,
       size: 88,

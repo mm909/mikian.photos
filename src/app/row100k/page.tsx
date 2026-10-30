@@ -23,6 +23,7 @@ import {
   type RecordBadge,
   type TotalRow,
   MONTH,
+  EDITION,
   defaultRowTitle,
 } from "@/lib/row100k";
 import { digitCount, fmtPacificDay } from "@/lib/blackoutRules";
@@ -36,6 +37,7 @@ import { myWaveShare } from "./shareables/waveShare";
 import { archivo, archivoBlack, spaceMono, css } from "./theme";
 import { frontCss } from "./frontCss";
 import { RowBar } from "./RowBar";
+import { Mark } from "./Mark";
 import { RowFooter } from "./RowFooter";
 import { JoinPanel } from "./JoinPanel";
 import { notJoined } from "./join/data";
@@ -61,11 +63,15 @@ import { L1 } from "./landings/L1";
 import { recordsHref } from "./records/recordsUrl";
 import { landingGround, sitePalette } from "./sitePalette";
 
-/* The nameplate is Rowtember in September and the month itself any other
- * time (owner, 2026-09-24), and the metadata says the same. */
-const ROWTEMBER = MONTH.month === 9;
-const PAGE_TITLE = ROWTEMBER ? `Rowtember ${MONTH.year}` : MONTH.label;
+/* The nameplate is the edition's name in a month that has one — Rowtember
+ * in September, Rowvember in November (rowPeriod.ts EDITIONS) — and the
+ * month itself any other time (owner, 2026-09-24); the metadata says the
+ * same. The link card follows: Rowvember unfurls with its own mark
+ * (public/row100k/og-rowvember.png, drawn by scripts/og-rowvember.html),
+ * every other month with the month-neutral ROWTEMBER card. */
+const PAGE_TITLE = EDITION ? `${EDITION} ${MONTH.year}` : MONTH.label;
 const PAGE_BLURB = `Every meter rowed in ${MONTH.label}, counted live.`;
+const OG_IMAGE = EDITION === "Rowvember" ? "/row100k/og-rowvember.png" : "/row100k/og.png";
 
 export const metadata: Metadata = {
   title: PAGE_TITLE,
@@ -73,13 +79,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: PAGE_TITLE,
     description: PAGE_BLURB,
-    images: [{ url: "/row100k/og.png", width: 1200, height: 630 }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: PAGE_TITLE,
     description: PAGE_BLURB,
-    images: ["/row100k/og.png"],
+    images: [OG_IMAGE],
   },
 };
 
@@ -495,15 +501,17 @@ export default async function Row100kPage() {
 
       <RowBar active="home" signedIn={!!actor} rowerNumber={me?.rowerNumber ?? null} admin={isAdmin} />
 
-      {/* The nameplate: ROWTEMBER in September, like a newspaper (owner
-       * call, 2026-09-05); any other month the month itself, alone — no
-       * date, no day count (owner, 2026-09-24: "the subtitle is just the
-       * month: December 2026"). */}
-      {ROWTEMBER ? (
+      {/* The nameplate: the edition's name in a month that has one —
+       * ROWTEMBER in September, like a newspaper (owner call, 2026-09-05),
+       * ROWVEMBER in November with its V in the accent (Mark.tsx; owner,
+       * 2026-10-30) — any other month the month itself, alone — no date, no
+       * day count (owner, 2026-09-24: "the subtitle is just the month:
+       * December 2026"). */}
+      {EDITION ? (
         <header className="front-head">
           <div className="wrap front">
             <h1>
-              Rowtember <span className="yr">{MONTH.year}</span>
+              <Mark /> <span className="yr">{MONTH.year}</span>
             </h1>
           </div>
         </header>

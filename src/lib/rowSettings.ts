@@ -94,10 +94,14 @@ export const DEFAULT_BLACKOUT_POLICY: BlackoutPolicy = { scope: "division", coun
 export const BLACKOUT_COUNT_MAX = 100;
 
 /* The look and the palette the site wears unless the owner has picked
- * another SINCE: ink, in the Rowtember blue (rowPalette.ts DEFAULT_PALETTE;
- * October orange from 2026-10-01 to 2026-10-13). */
+ * another SINCE: paper, in the Rowvember brown (rowPalette.ts
+ * DEFAULT_PALETTE). It was ink in the Rowtember blue from 2026-10-13
+ * (October orange from 2026-10-01) until 2026-10-30, when the owner saw
+ * the black site on his phone: "Why is the site dark bro. Fix that ...
+ * Back to what the blue and cream was before. Well, now let's pick a fall
+ * color. A darker palette matte brown? Think Thanksgiving." */
 export const DEFAULT_SETTINGS: SiteSettings = {
-  look: "ink",
+  look: "paper",
   palette: DEFAULT_PALETTE,
   cardsOff: [...DEFAULT_CARDS_OFF],
   blackout: { ...DEFAULT_BLACKOUT_POLICY },
@@ -178,7 +182,16 @@ export function parseSetting(
 
 /* ------------------------------------------------------------- reading */
 
-function fold(rows: { key: string; value: string }[]): SiteSettings {
+/* A LOOK OR PALETTE SAVED BEFORE THIS INSTANT IS THE OLD SITE'S and does
+ * not stand (owner, 2026-10-30, above): his word that day is the newer
+ * decision than any switch he set on the settings page before it, so a
+ * row from before it reads as the default — the row itself is kept, not
+ * deleted, and the next save on the settings page is newer than this and
+ * stands. Pacific midnight on the 30th. The other keys are untouched. */
+export const COSMETIC_EPOCH_MS = Date.parse("2026-10-30T07:00:00Z");
+const COSMETIC_KEYS: readonly SettingKey[] = ["look", "palette"];
+
+function fold(rows: { key: string; value: string; updatedAt?: Date }[]): SiteSettings {
   const out: SiteSettings = {
     look: DEFAULT_SETTINGS.look,
     palette: DEFAULT_SETTINGS.palette,
@@ -188,6 +201,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
   };
   for (const r of rows) {
     if (!isSettingKey(r.key)) continue;
+    if (COSMETIC_KEYS.includes(r.key) && r.updatedAt && r.updatedAt.getTime() < COSMETIC_EPOCH_MS) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(r.value);
@@ -208,7 +222,7 @@ function fold(rows: { key: string; value: string }[]): SiteSettings {
 const loadSettings = async (): Promise<SiteSettings> => {
   const rows = await db.rowSetting.findMany({
     where: { challenge: CHALLENGE },
-    select: { key: true, value: true },
+    select: { key: true, value: true, updatedAt: true },
   });
   return fold(rows);
 };

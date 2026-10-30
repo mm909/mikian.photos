@@ -38,7 +38,16 @@
 
 export type PaletteGround = "ink" | "paper";
 
-export type PaletteId = "ink-orange" | "ink-red" |"ink-water" | "paper-red" | "paper-water" | "ink-yellow" | "ink-green";
+export type PaletteId =
+  | "paper-brown"
+  | "ink-brown"
+  | "ink-orange"
+  | "ink-red"
+  | "ink-water"
+  | "paper-red"
+  | "paper-water"
+  | "ink-yellow"
+  | "ink-green";
 
 export type Palette = {
   id: PaletteId;
@@ -66,15 +75,26 @@ const ORANGE = { accentOnPaper: "#B04506", accentOnPaperHover: "#D2580F", accent
 const RED = { accentOnPaper: "#C8321F", accentOnPaperHover: "#E04A36", accentOnPaperPale: "#F7E1DC", accentOnInk: "#EC4530", accentOnInkHover: "#F26A5C", accentOnInkPale: "#2A1613" };
 const WATER = { accentOnPaper: "#0077B6", accentOnPaperHover: "#1a90d4", accentOnPaperPale: "#e3eef5", accentOnInk: "#1A90D4", accentOnInkHover: "#4FB3EA", accentOnInkPale: "#1c2b33" };
 const MUSTARD = { accentOnPaper: "#85661A", accentOnPaperHover: "#A07C1F", accentOnPaperPale: "#F3EAD0", accentOnInk: "#E0B32B", accentOnInkHover: "#EAC455", accentOnInkPale: "#2A2410" };
+/* ROWVEMBER BROWN (owner, 2026-10-30, of the black site: "Back to what the
+ * blue and cream was before. Well, now let's pick a fall color. A darker
+ * palette matte brown? Think Thanksgiving."): a matte cocoa on the cream,
+ * burnt enough that a mono label in it reads on the paper (7.0:1) and on
+ * the dimmed paper a dark-mode phone gets (6.3:1), with white caps on a
+ * slab of it (7.8:1); on ink the same earth as a tan (6.2:1), which holds
+ * ink caps only. The pale is a warm wash, not a gray. */
+const BROWN = { accentOnPaper: "#6F4A2F", accentOnPaperHover: "#8A5E3C", accentOnPaperPale: "#EFE6DC", accentOnInk: "#C98A5A", accentOnInkHover: "#D9A378", accentOnInkPale: "#2A1F16" };
 const FOREST = { accentOnPaper: "#256E45", accentOnPaperHover: "#2F8A56", accentOnPaperPale: "#E0EFE5", accentOnInk: "#3F9E5A", accentOnInkHover: "#5BB876", accentOnInkPale: "#142A1B" };
 
 /* In the order the control lists them. The first is the default.
  *
- * THE BLUE IS THE DEFAULT AGAIN (owner, 2026-10-13: "revert Rowtember's
- * main color to that blue again, the older Rowtember blue, just everywhere
- * — for shareables, for the accent ... LASD can stay orange"). October
- * orange stays a preset the control can pick. */
+ * PAPER BROWN IS THE DEFAULT (owner, 2026-10-30, see BROWN): the cream
+ * ground back, the accent a Thanksgiving brown, for Rowvember. The blue
+ * was the default from 2026-10-13 ("revert Rowtember's main color to that
+ * blue again, the older Rowtember blue, just everywhere") and October
+ * orange before it; both stay presets the control can pick. */
 export const PALETTES: readonly Palette[] = [
+  { id: "paper-brown", name: "Paper brown", ground: "paper", ...BROWN },
+  { id: "ink-brown", name: "Ink brown", ground: "ink", ...BROWN },
   { id: "ink-water", name: "Ink water", ground: "ink", ...WATER },
   { id: "ink-orange", name: "Ink orange", ground: "ink", ...ORANGE },
   { id: "ink-red", name: "Ink red", ground: "ink", ...RED },
@@ -84,7 +104,7 @@ export const PALETTES: readonly Palette[] = [
   { id: "ink-green", name: "Ink green", ground: "ink", ...FOREST },
 ];
 
-export const DEFAULT_PALETTE: PaletteId = "ink-water";
+export const DEFAULT_PALETTE: PaletteId = "paper-brown";
 
 export function isPaletteId(v: unknown): v is PaletteId {
   return typeof v === "string" && PALETTES.some((p) => p.id === v);
