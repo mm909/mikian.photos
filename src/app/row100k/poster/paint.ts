@@ -30,6 +30,7 @@
 import { clockShape } from "@/lib/blackoutRules";
 import { MONTH_FIRST_DOW } from "@/lib/row100k";
 import { drawBlockClock, drawBlockDigits } from "../share/cards";
+import { posterAccent } from "./accent";
 import type {
   Figure,
   FontBox,
@@ -270,8 +271,73 @@ export const POSTER_STOCKS: { key: PosterStock; label: string }[] = [
 
 export const isStock = (v: unknown): v is PosterStock => v === "cream" || v === "bw";
 
-export const paletteOf = (stock: PosterStock | undefined): PosterPalette =>
-  stock === "bw" ? BW : CREAM;
+/* THE CREAM SHEET FOLLOWS THE SITE'S ACCENT (owner, 2026-10-30, of a blue
+ * poster on the brown site: "Make sure to fix the poster colors!! Make
+ * them fall colors."). The constants above are the September blue the
+ * sheet shipped in; what the studio actually prints is CREAM with every
+ * water field — the figure, the rules, the peak bar, the washes and the
+ * calendar ramp — rebuilt from ONE hex, the palette's cut for paper
+ * (rowPalette.ts accentOnPaper), handed in by RowSite as it renders, the
+ * way share/accent.ts takes the card accent. The washes are the same
+ * alphas of the accent the blue used (.08 .32 .10 .06); the ramp is the
+ * accent let down into the paper at the same strengths as HEAT (about
+ * 12 / 34 / 68 / 100 %), each bucket's label ink or white by whichever
+ * reads better on it. The bw stock has no accent and does not move.
+ * Outside the layout (a harness) it is the blue. The hex itself lives in
+ * poster/accent.ts, a module with no imports, so RowSite can set it
+ * without carrying this file into every page. */
+function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
+  return `#${[16, 8, 0].map((sh) => ch(sh).toString(16).padStart(2, "0")).join("")}`;
+}
+function lum(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function contrast(a: string, b: string): number {
+  const x = lum(a);
+  const y = lum(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+const alpha = (hex: string, a: number): string => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+};
+
+export function creamWith(accent: string): PosterPalette {
+  const hex = /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : WATER;
+  const step = (t: number) => {
+    const fill = mix(PAPER, hex, t);
+    return { fill, on: contrast(WHITE, fill) >= contrast(INK, fill) ? WHITE : INK };
+  };
+  return {
+    ...CREAM,
+    water: hex,
+    waterArea: alpha(hex, 0.08),
+    waterBar: alpha(hex, 0.32),
+    waterBand: alpha(hex, 0.1),
+    waterBandSoft: alpha(hex, 0.06),
+    ramp: [step(0.12), step(0.34), step(0.68), step(1)],
+  };
+}
+
+/* The cream palette for the accent as it stands, built once per hex. */
+let creamFor: { hex: string | null; palette: PosterPalette } = { hex: null, palette: CREAM };
+
+export const paletteOf = (stock: PosterStock | undefined): PosterPalette => {
+  if (stock === "bw") return BW;
+  const hex = posterAccent();
+  if (hex !== creamFor.hex) {
+    creamFor = { hex, palette: hex === null || hex.toLowerCase() === WATER.toLowerCase() ? CREAM : creamWith(hex) };
+  }
+  return creamFor.palette;
+};
 
 /* share/cards.ts kLabel: "561k" for a day, rolling to "1.2M" past a
  * million combined meters. */
