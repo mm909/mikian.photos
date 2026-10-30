@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { accentOn, capsOn, paletteCss, paletteOf, type Palette } from "@/lib/rowPalette";
 import type { Look } from "@/lib/rowSettings";
 import { setCardAccent } from "./share/accent";
+import { setPosterAccent } from "./poster/accent";
 
 /* What every /row100k page inherits from the segment layout (owner,
  * 2026-09-16): the LOOK the site wears, the PALETTE (2026-09-30) and which
@@ -40,6 +41,10 @@ const Ctx = createContext<Site>({ look: "paper", palette: paletteOf("paper-water
 export function RowSite({ look, palette, cardsOff, children }: Site & { children: ReactNode }) {
   const cut = accentOn(palette, look);
   setCardAccent(cut.accent, capsOn(cut.accent));
+  /* The cream poster sheet is paper whatever the look, so it takes the
+   * paper cut (poster/accent.ts, read by poster/paint.ts; owner, 2026-10-30: "fix
+   * the poster colors!! Make them fall colors"). */
+  setPosterAccent(palette.accentOnPaper);
   return (
     <Ctx.Provider value={{ look, palette, cardsOff }}>
       <div className={look === "ink" ? "row-ink" : undefined} data-look={look} data-palette={palette.id}>
