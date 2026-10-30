@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@700&display=swap">
+<style>html,body{margin:0;background:#F4F3EE}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+/* THE TITLE SCREEN (owner, 2026-10-30, with a rower poster in the post
+ * format: "I need a title screen here. Just a post size rowtember with the
+ * white background"). The cover of an Instagram carousel of posters: the
+ * mark alone on the poster's own cream, in Archivo Black ink, with the
+ * nameplate rule under it and nothing else — no month, no address (the
+ * sticker rule). ?word=ROWVEMBER for the November edition, whose V is the
+ * fall brown (rowPalette.ts BROWN on paper); ?w=1080&h=1920 for a story.
+ * Rendered by scripts/og-render.mjs:
+ *   node scripts/og-render.mjs "title-card.html?word=ROWTEMBER" public/row100k/title/rowtember-post.png 1080 1350 */
+const q = new URLSearchParams(location.search);
+const word = (q.get("word") || "ROWTEMBER").toUpperCase();
+const W = Number(q.get("w")) || 1080, H = Number(q.get("h")) || 1350;
+const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F";
+const c = document.getElementById("c"); c.width = W; c.height = H;
+async function draw() {
+  await document.fonts.load('150px "Archivo Black"');
+  await document.fonts.ready;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  let size = 300;
+  for (;;) { ctx.font = `${size}px "Archivo Black"`; if (ctx.measureText(word).width <= W * 0.86 || size <= 40) break; size -= 1; }
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  const tw = ctx.measureText(word).width;
+  const cap = size * 0.72;
+  const x0 = (W - tw) / 2, base = H / 2 + cap / 2;
+  let x = x0;
+  for (let i = 0; i < word.length; i++) {
+    ctx.fillStyle = word === "ROWVEMBER" && word[i] === "V" ? BROWN : INK;
+    ctx.fillText(word[i], x, base);
+    x = x0 + ctx.measureText(word.slice(0, i + 1)).width;
+  }
+  ctx.fillStyle = INK; ctx.fillRect(x0, base + size * 0.14, tw, Math.max(3, Math.round(size * 0.03)));
+  document.title = "done";
+}
+draw();
+</script>
+</body>
+</html>
