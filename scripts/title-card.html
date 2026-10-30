@@ -18,7 +18,10 @@
  * Rendered by scripts/og-render.mjs:
  *   node scripts/og-render.mjs "title-card.html?word=ROWTEMBER" public/row100k/title/rowtember-post.png 1080 1350 */
 const q = new URLSearchParams(location.search);
-const word = (q.get("word") || "ROWTEMBER").toUpperCase();
+/* ?case=lower keeps the word as typed (owner, 2026-10-30: "give me a
+ * rowvember lowercase"; "It needs to have the color"): the v of rowvember
+ * is the brown in either case. */
+const word = q.get("case") === "lower" ? (q.get("word") || "rowtember").toLowerCase() : (q.get("word") || "ROWTEMBER").toUpperCase();
 const W = Number(q.get("w")) || 1080, H = Number(q.get("h")) || 1350;
 const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F";
 const c = document.getElementById("c"); c.width = W; c.height = H;
@@ -35,7 +38,7 @@ async function draw() {
   const x0 = (W - tw) / 2, base = H / 2 + cap / 2;
   let x = x0;
   for (let i = 0; i < word.length; i++) {
-    ctx.fillStyle = word === "ROWVEMBER" && word[i] === "V" ? BROWN : INK;
+    ctx.fillStyle = word.toUpperCase() === "ROWVEMBER" && word[i].toUpperCase() === "V" ? BROWN : INK;
     ctx.fillText(word[i], x, base);
     x = x0 + ctx.measureText(word.slice(0, i + 1)).width;
   }
