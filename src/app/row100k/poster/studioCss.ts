@@ -62,6 +62,18 @@ export const poCss = `
 .row100k .po-print{margin-top:22px;border-top:1px dashed var(--line);padding-top:14px;max-width:640px}
 .row100k .po-print p{font-family:var(--row-mono),monospace;font-size:11px;line-height:1.75;color:var(--ink-soft);margin:0 0 8px}
 .row100k .po-print .po-eye{margin-bottom:8px}
+/* THE CAROUSEL CARDS (posters/Carousel.tsx): three tiles, each a framed
+ * post-size preview over its three download links; one column on a
+ * phone. The frame is a link, so the preview itself downloads the post. */
+.row100k .po-car{padding-top:8px}
+.row100k .po-car-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 20px}
+.row100k .po-car-card{margin:0}
+.row100k .po-car-frame{margin-top:8px;aspect-ratio:4/5}
+.row100k .po-car .po-acts{margin-top:12px;gap:8px}
+.row100k .po-car .po-btn{padding:10px 12px;font-size:11px;text-decoration:none}
+@media (max-width:799px){
+  .row100k .po-car-grid{grid-template-columns:1fr;max-width:420px}
+}
 @media (max-width:599px){
   .row100k .po-btn{padding:14px 16px}
   .row100k .po-acts .po-btn.primary{flex:1 1 auto}

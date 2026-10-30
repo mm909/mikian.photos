@@ -12,6 +12,7 @@ import { raceDayPosterData } from "../poster/raceData";
 import { poCss } from "../poster/studioCss";
 import type { CommunityPoster, PosterRosterRower, RaceDayPoster, RowerPoster } from "../poster/types";
 import { PosterStudio } from "./PosterStudio";
+import { Carousel } from "./Carousel";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,9 @@ export default async function PostersPage({
           )}
         </div>
       </section>
+
+      {/* The title and end screens for a carousel of these (Carousel.tsx). */}
+      <Carousel />
 
       <RowFooter />
     </div>
