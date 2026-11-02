@@ -1448,3 +1448,67 @@ model TeamInfoItem {
   @@unique([team, key])
   @@index([team, sortOrder])
 }
+
+// ─── Pickleball double-elimination bracket (/pickleball, 2026-11-02) ─────────
+//
+// Owner: sign up to play, host a bracket, put in results — doubles, no
+// account, anyone with the link reports a score, one game to 11, single
+// grand final. The tournament itself (name, venue, the skill ladder) lives
+// in code (src/app/pickleball/tournament.ts, by slug, the raffle way);
+// `tourney` scopes every row so the next bracket reuses the tables. The
+// bracket is never stored: it is REPLAYED from the locked seeds plus the
+// reported results (src/app/pickleball/bracket.ts), so a corrected score
+// can never corrupt it. All additive → safe `db push`.
+
+/// A doubles team, two names typed on the public form. No userId — no
+/// account on this page. `seed` is the owner's, set before he locks the
+/// bracket; a withdrawal is kept, not deleted, the race-day way.
+model PickleTeam {
+  id          String    @id @default(cuid())
+  tourney     String    @default("pickleball-2026")
+  player1     String
+  player2     String
+  /// Self-rated: a key from tournament.ts SKILLS ("new", "3.0", …).
+  skill       String    @default("")
+  seed        Int?
+  withdrawnAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tourney, createdAt])
+}
+
+/// One reported score, keyed by the match's position in the bracket
+/// ("W1-0", "L3-1", "GF"). The two team ids are recorded AS THE MATCH
+/// STOOD when the score came in: replay ignores a row whose teams no
+/// longer stand in that match (an upstream correction), so stale results
+/// fall away instead of corrupting the rounds after them. Re-reporting
+/// upserts (anyone can fix a typo; the owner watches the mail).
+model PickleResult {
+  id         String   @id @default(cuid())
+  tourney    String   @default("pickleball-2026")
+  matchKey   String
+  teamAId    String
+  teamBId    String
+  scoreA     Int
+  scoreB     Int
+  /// Who says so, as typed. Optional — honor system.
+  reportedBy String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tourney, matchKey])
+  @@index([tourney])
+}
+
+/// What changes about a tournament without a deploy: whether the bracket
+/// is locked (signups close, play begins). One row per tourney; no row
+/// means open for signups, like RowRaceSettings' null-means-default.
+model PickleSetting {
+  id        String    @id @default(cuid())
+  tourney   String    @unique
+  lockedAt  DateTime?
+  updatedBy String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}

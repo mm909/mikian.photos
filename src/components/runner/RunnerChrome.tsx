@@ -46,7 +46,11 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
      * "the header should be really similar to the Rowtember and LASD
      * headers"): its own bar, src/app/hyrox. */
     pathname === "/hyrox" ||
-    pathname.startsWith("/hyrox/");
+    pathname.startsWith("/hyrox/") ||
+    /* The pickleball bracket (owner, 2026-11-02): its own bar, the hyrox
+     * way — live but unlinked, so no marketplace nav over it either. */
+    pathname === "/pickleball" ||
+    pathname.startsWith("/pickleball/");
 
   return (
     <>

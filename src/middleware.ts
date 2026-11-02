@@ -18,6 +18,10 @@ const ALLOWED_PREFIXES = [
   "/lasd26",
   "/longhorn-lms",
   "/hyrox",
+  /* The pickleball bracket (owner, 2026-11-02): live but unlinked — the
+   * address is handed out, not found, and the door still has to open. */
+  "/pickleball",
+  "/api/pickleball",
   "/tsp",
   "/moab240",
   "/privacy",
