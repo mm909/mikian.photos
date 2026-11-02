@@ -285,7 +285,13 @@ export const isStock = (v: unknown): v is PosterStock => v === "cream" || v === 
  * reads better on it. The bw stock has no accent and does not move.
  * Outside the layout (a harness) it is the blue. The hex itself lives in
  * poster/accent.ts, a module with no imports, so RowSite can set it
- * without carrying this file into every page. */
+ * without carrying this file into every page.
+ *
+ * A RENDER MAY ASK FOR ANOTHER ACCENT (owner, 2026-11-02: "Allow me to
+ * select the 'rowtember blue' color on the posters for ROWTEMBER"): the
+ * studio's ROWTEMBER BLUE chip hands WATER down through RenderInput →
+ * PaintInput, and paletteOf takes it over the site's hex. Cream only —
+ * the bw stock has no accent either way. */
 function mix(a: string, b: string, t: number): string {
   const pa = parseInt(a.slice(1), 16);
   const pb = parseInt(b.slice(1), 16);
@@ -330,9 +336,9 @@ export function creamWith(accent: string): PosterPalette {
 /* The cream palette for the accent as it stands, built once per hex. */
 let creamFor: { hex: string | null; palette: PosterPalette } = { hex: null, palette: CREAM };
 
-export const paletteOf = (stock: PosterStock | undefined): PosterPalette => {
+export const paletteOf = (stock: PosterStock | undefined, accent?: string): PosterPalette => {
   if (stock === "bw") return BW;
-  const hex = posterAccent();
+  const hex = accent ?? posterAccent();
   if (hex !== creamFor.hex) {
     creamFor = { hex, palette: hex === null || hex.toLowerCase() === WATER.toLowerCase() ? CREAM : creamWith(hex) };
   }
@@ -610,6 +616,10 @@ export type PaintInput = {
    * every caller that existed before the switch keeps drawing the sheet it
    * drew. */
   stock?: PosterStock;
+  /* An accent hex the cream sheet prints in INSTEAD of the site's — the
+   * studio's ROWTEMBER BLUE chip. Absent, the site's accent stands; the bw
+   * stock ignores it. */
+  accent?: string;
 };
 
 /* Face → ctx.font shorthand, the hashed family LAST so boxFor matches it
@@ -653,7 +663,7 @@ function chipColors(c: PosterPalette, kind: PosterChipKind): PosterChipPaint {
 
 export function makePaint(input: PaintInput): PosterPaint {
   const { tk, format, fonts, assets } = input;
-  const c = paletteOf(input.stock);
+  const c = paletteOf(input.stock, input.accent);
   const font = (face: PosterFace, size: number) => fontFor(fonts, face, size);
 
   const paint: PosterPaint = {

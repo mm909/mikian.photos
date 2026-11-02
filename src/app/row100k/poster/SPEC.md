@@ -96,7 +96,7 @@ Rules of type:
 
 ## 4. Colours, rules, texture — TWO STOCKS
 
-No drawing file names a colour any more. Every colour on either sheet comes off `paint.c` (`types.ts PosterPalette`), resolved once per render by `paint.ts paletteOf(stock)` — a module-level constant cannot be two things at once. The colour names are deliberately **not** imported by `charts.ts` / `rowerCharts.ts` / `rower.ts` / `community.ts`, so a missed site is a compile error rather than an invisible ink-on-ink pixel.
+No drawing file names a colour any more. Every colour on either sheet comes off `paint.c` (`types.ts PosterPalette`), resolved once per render by `paint.ts paletteOf(stock, accent?)` — a module-level constant cannot be two things at once. The cream sheet prints in the site's accent (`poster/accent.ts`, set by RowSite; owner, 2026-10-30), or in the accent the render asks for — the studio's ROWTEMBER BLUE chip (owner, 2026-11-02: "Allow me to select the 'rowtember blue' color on the posters for ROWTEMBER"), which hands `WATER` down and names its files `-blue` where `-bw` would go. The colour names are deliberately **not** imported by `charts.ts` / `rowerCharts.ts` / `rower.ts` / `community.ts`, so a missed site is a compile error rather than an invisible ink-on-ink pixel.
 
 Every ratio below is WCAG relative luminance, alpha composited over its ground first, **computed and not estimated**.
 

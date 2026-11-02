@@ -7,9 +7,10 @@ import { END_MS, LATE_LOGS_THROUGH, LOG_CLOSE_MS, fmtDay, fmtRowerNumber, nowMs 
 import { fileName, freeCanvas, ladder, previewTarget, render, toPdf, toPng } from "../poster/engine";
 import { FORMATS, INSTAGRAM_KEYS, PRINT_KEYS, isFormatKey } from "../poster/formats";
 import { communityLayout, rowerLayout, TOP_TEN_BOARDS, topTenMenLayout, topTenWomenLayout, type TopTenBoard } from "../poster/layouts";
-import { POSTER_STOCKS } from "../poster/paint";
+import { POSTER_STOCKS, WATER } from "../poster/paint";
 import { RACE_ARTWORKS, RACE_GROUNDS, raceFileName, renderRaceDay } from "../poster/raceGround";
 import { PeriodSelect } from "../PeriodSelect";
+import { useRowSite } from "../RowSite";
 import type {
   CommunityPoster,
   FontBox,
@@ -296,6 +297,15 @@ export function PosterStudio({
    * thing to open on. Race day is never offered one — it is the thing being
    * matched. */
   const [stock, setStock] = useState<PosterStock>(initialStock ?? (initialSubject === "top10" ? "bw" : "cream"));
+  /* ROWTEMBER BLUE (owner, 2026-11-02: "Allow me to select the 'rowtember
+   * blue' color on the posters for ROWTEMBER"): the September blue the
+   * sheet shipped in, back as a chip past the stock row's dot. Plain state
+   * like the stock — a per-artefact choice, and the site's own colour is
+   * the right thing to open on. Cream only (the bw stock has no accent),
+   * and not offered at all when the site's accent IS the blue: two chips
+   * that print the same sheet would be a lie. */
+  const [blue, setBlue] = useState(false);
+  const siteBlue = useRowSite().palette.accentOnPaper.toLowerCase() === WATER.toLowerCase();
   /* The overlay is judged over the real photograph by default; the chequer
    * is one chip away, because the transparency has to be judged too. */
   const [onPhoto, setOnPhoto] = useState(true);
@@ -317,6 +327,9 @@ export function PosterStudio({
   const data: PosterData | null = race ? null : subject === "top10" ? community : rower ? rower : community;
   /* Whatever is being drawn — the null check every effect below wants. */
   const drawing: PosterData | RaceDayPoster | null = race ?? data;
+  /* What render() is handed: the blue only on a cream sheet with the chip
+   * on; undefined otherwise, so the site's accent stands (paint.ts). */
+  const accent = stock === "cream" && blue && !siteBlue ? WATER : undefined;
 
   const blackProbe = useRef<HTMLDivElement | null>(null);
   const monoProbe = useRef<HTMLDivElement | null>(null);
@@ -485,9 +498,10 @@ export function PosterStudio({
               fonts,
               assets,
               stock,
+              accent,
             })
           : subject === "rower"
-          ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock })
+          ? render({ target: t, layout: rowerLayout, data: data as RowerPoster, fonts, assets, stock, accent })
           : render({
               target: t,
               layout: communityLayout,
@@ -495,6 +509,7 @@ export function PosterStudio({
               fonts,
               assets,
               stock,
+              accent,
             });
 
     // The preview, drawn immediately.
@@ -593,7 +608,7 @@ export function PosterStudio({
     return () => window.clearTimeout(timer);
     // The two data casts follow `subject`, which the layouts are picked by.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fonts, assets, data, race, ground, fieldOn, drawnArt, stock, subject, topBoard, format, bleed, refusePpi]);
+  }, [fonts, assets, data, race, ground, fieldOn, drawnArt, stock, accent, subject, topBoard, format, bleed, refusePpi]);
 
   useEffect(
     () => () => {
@@ -617,8 +632,9 @@ export function PosterStudio({
     const opts = { bleed: target.bleedIn > 0 };
     if (race) return raceFileName(race, format, ext, { ground, artwork: drawnArt, ...opts });
     // The stock leads the suffixes, so -bw is the first thing after the
-    // format and two letters he would type into a search box.
-    return data ? fileName(data, format, ext, { stock, ...opts }) : `rowtember.${ext}`;
+    // format and two letters he would type into a search box; the blue
+    // says so too, or the two cream accents would save over each other.
+    return data ? fileName(data, format, ext, { stock, blue: accent !== undefined, ...opts }) : `rowtember.${ext}`;
   };
 
   /* SHARE hands over the PNG only — Instagram's sheet takes images; the
@@ -710,6 +726,8 @@ export function PosterStudio({
   /* A PAPER sheet on the black stock. Race day is already black and has no
    * stock of its own, so it is excluded rather than folded in. */
   const bwSheet = subject !== "raceday" && stock === "bw";
+  /* A paper sheet printed in the blue; race day has no accent to swap. */
+  const blueSheet = subject !== "raceday" && accent !== undefined;
   // Null when the bucket cannot be read or the race has no gallery behind
   // it; the photo ground is not offered at all then.
   const photo = race?.photo.url ? race.photo : null;
@@ -1039,6 +1057,25 @@ export function PosterStudio({
               {s.label}
             </button>
           ))}
+          {/* ROWTEMBER BLUE (owner, 2026-11-02), the bleed chip's idiom:
+              the same row, past a dot. Only a cream sheet has an accent to
+              swap, and the chip is not offered when the site's own accent
+              is already the blue. */}
+          {stock === "cream" && !siteBlue ? (
+            <>
+              <span className="po-sep" aria-hidden="true">
+                ·
+              </span>
+              <button
+                type="button"
+                className={blue ? "on" : undefined}
+                aria-pressed={blue}
+                onClick={() => setBlue((v) => !v)}
+              >
+                Rowtember blue
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -1108,6 +1145,9 @@ export function PosterStudio({
       <ul className="po-notes">
         {format.kind === "print" ? <li>Print borderless or trim to size</li> : null}
         {bwSheet ? <li>Black and white — the same sheet on black stock, made to share</li> : null}
+        {blueSheet ? (
+          <li>Rowtember blue — the September blue the sheet shipped in, not the site&apos;s colour</li>
+        ) : null}
         {/* THE ONE RISK IN THIS JOB NO CODE CAN FIX, and the studio is the
             only place he meets it before he pays: a 24×36 at full black
             coverage costs differently at a shop, bands on a consumer inkjet

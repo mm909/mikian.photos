@@ -596,6 +596,9 @@ export type RenderInput<D extends PosterData> = {
   /* Which stock to print on (types.ts PosterStock); cream when nothing
    * says, so every existing caller draws the sheet it drew. */
   stock?: PosterStock;
+  /* An accent the cream sheet prints in instead of the site's — the
+   * studio's ROWTEMBER BLUE chip (paint.ts paletteOf). */
+  accent?: string;
 };
 
 /* One detached canvas at the target's pixels: THE STOCK'S GROUND over
@@ -607,15 +610,15 @@ export type RenderInput<D extends PosterData> = {
 export function render<D extends PosterData>(
   input: RenderInput<D>,
 ): { canvas: HTMLCanvasElement; log: PosterLayoutLog } {
-  const { target, layout, data, fonts, assets, stock } = input;
+  const { target, layout, data, fonts, assets, stock, accent } = input;
   const canvas = document.createElement("canvas");
   canvas.width = target.pxW;
   canvas.height = target.pxH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("poster: no 2d context");
-  ctx.fillStyle = paletteOf(stock).paper;
+  ctx.fillStyle = paletteOf(stock, accent).paper;
   ctx.fillRect(0, 0, target.pxW, target.pxH);
-  const paint = makePaint({ tk: tokensFor(target.format), format: target.format, fonts, assets, stock });
+  const paint = makePaint({ tk: tokensFor(target.format), format: target.format, fonts, assets, stock, accent });
   ctx.save();
   ctx.translate(target.offset.x, target.offset.y);
   ctx.scale(target.scale, target.scale);
@@ -666,22 +669,25 @@ export async function toPdf(canvas: HTMLCanvasElement, target: PosterRenderTarge
 /* ------------------------------------------------------------ filenames */
 
 /* rowtember-2026-poster-24x36.pdf · rower-013-story.png ·
- * rowtember-2026-story-bw.png · rower-013-poster-18x24-bw-bleed.pdf.
+ * rowtember-2026-story-bw.png · rower-013-poster-18x24-bw-bleed.pdf ·
+ * rowtember-2026-story-blue.png.
  *
  * THE STOCK LEADS THE SUFFIXES, the way raceGround.ts raceFileName puts
  * -overlay and -photo first, so all three subjects name their variants by
  * one grammar. Cream prints nothing, so every filename that exists today is
- * byte-identical tomorrow. Bleed appends -bleed (SPEC.md §2). There is no
- * ppi suffix any more: every print is PRINT_PPI (2026-09-16). */
+ * byte-identical tomorrow — except a cream sheet printed in ROWTEMBER BLUE,
+ * which says so where -bw would go (the two cream accents must not save
+ * over each other). Bleed appends -bleed (SPEC.md §2). There is no ppi
+ * suffix any more: every print is PRINT_PPI (2026-09-16). */
 export function fileName(
   data: PosterData,
   format: PosterFormat,
   ext: "png" | "pdf",
-  opts: { stock?: PosterStock; bleed?: boolean } = {},
+  opts: { stock?: PosterStock; blue?: boolean; bleed?: boolean } = {},
 ): string {
   const subject =
     data.kind === "community" ? `rowtember-${data.year}` : `rower-${fmtRowerNumber(data.rower.rowerNumber)}`;
-  let suffix = opts.stock === "bw" ? "-bw" : "";
+  let suffix = opts.stock === "bw" ? "-bw" : opts.blue ? "-blue" : "";
   if (format.kind === "print" && opts.bleed) suffix += "-bleed";
   return `${subject}-${format.stem}${suffix}.${ext}`;
 }
