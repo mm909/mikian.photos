@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEffectiveActor, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, isOwner, isOwnerEmail } from "@/lib/permissions";
 import { THEME_COLOR } from "../look";
 import { readLook } from "../readLook";
 import { RouteMap } from "../RouteMap";
@@ -29,7 +29,9 @@ export function generateViewport(): Viewport {
 
 export default async function DamToDamSettingsPage() {
   const actor = await getEffectiveActor();
-  const owner = actor ? isOwner(actor) : false;
+  /* Owner by role OR by sign-in email, as on the main page: a roles row
+   * can never lock the owner out. */
+  const owner = actor !== null && (isOwner(actor) || isOwnerEmail(actor.email));
   if (process.env.NODE_ENV === "production" && !owner) notFound();
   const { look, view } = readLook();
 

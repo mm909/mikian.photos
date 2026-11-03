@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getEffectiveActor, isOwner } from "@/lib/permissions";
+import { getEffectiveActor, isOwner, isOwnerEmail } from "@/lib/permissions";
 import { THEME_COLOR } from "./look";
 import { readLook } from "./readLook";
 import { RouteMap } from "./RouteMap";
@@ -46,7 +46,12 @@ const DEMO_METERS = 42_180;
 
 export default async function DamToDamPage() {
   const actor = await getEffectiveActor();
-  const owner = actor ? isOwner(actor) : false;
+  /* Owner by role OR by sign-in email (owner, 2026-11-03: "Still getting
+   * 404s even when logged in") — isOwnerEmail always knows both of the
+   * owner's Google accounts, so a roles row can never lock him out of his
+   * own dev page. Sessions are host-bound: he must be signed in on
+   * mikianmusser.com, not rowtember.com. */
+  const owner = actor !== null && (isOwner(actor) || isOwnerEmail(actor.email));
   if (process.env.NODE_ENV === "production" && !owner) notFound();
   const { look, view } = readLook();
 
