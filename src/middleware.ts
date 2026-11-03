@@ -22,6 +22,12 @@ const ALLOWED_PREFIXES = [
    * address is handed out, not found, and the door still has to open. */
   "/pickleball",
   "/api/pickleball",
+  /* Dam to Dam (owner, 2026-11-03): the standalone Hoover→Davis 100k row —
+   * the pre-race page, the donor page and the look settings
+   * (src/app/dam-to-dam). The pages are owner-only in production behind
+   * their own gate while in development; the door here has to open for
+   * the owner to reach them at all. */
+  "/dam-to-dam",
   "/tsp",
   "/moab240",
   "/privacy",
