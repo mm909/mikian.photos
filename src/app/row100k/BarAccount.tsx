@@ -265,6 +265,15 @@ export function BarAccount({
                 <Link className="acct-item" href="https://mikianmusser.com/hyrox/dev/las-vegas-2027" onClick={close}>
                   Hyrox board (dev) →
                 </Link>
+                {/* DAM TO DAM (owner, 2026-11-03): the standalone solo row,
+                 * Hoover Dam → Davis Dam, 100,000 m — pre-race page, donor
+                 * page and look settings (src/app/dam-to-dam). Fully
+                 * standalone, so it lives on mikianmusser.com (absolute URL:
+                 * this menu renders on rowtember.com); owner-only in
+                 * production until he says it goes live. */}
+                <Link className="acct-item" href="https://mikianmusser.com/dam-to-dam" onClick={close}>
+                  Dam to Dam (dev) →
+                </Link>
               </>
             )}
             <button
