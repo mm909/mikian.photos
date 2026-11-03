@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isAdmin } from "@/lib/permissions";
 import { HomeFooter } from "@/components/home/HomeFooter";
-import { AdminPanel, Bracket, type ResultRow, type TeamRow } from "./BracketView";
+import { AdminPanel, type TeamRow } from "./BracketView";
 import { Count, SignupForm } from "./SignupForm";
-import { BracketSticker, TeamStickers } from "./Stickers";
-import { skillLabel, TOURNEY } from "./tournament";
+import { TeamStickers } from "./Stickers";
+import { TOURNEY } from "./tournament";
 import { COURT, barlowCondensed, bungee, css } from "./theme";
 
 /* THE PICKLEBALL PAGE (owner, 2026-11-02): sign up to play, host a
@@ -33,18 +33,15 @@ export default async function PickleballPage() {
   const admin = actor ? isAdmin(actor) : false;
 
   let teams: TeamRow[] = [];
-  let results: ResultRow[] = [];
   let locked = false;
   let unreadable = false;
   try {
-    const [rows, setting, res] = await Promise.all([
+    const [rows, setting] = await Promise.all([
       db.pickleTeam.findMany({ where: { tourney: TOURNEY.slug }, orderBy: { createdAt: "asc" } }),
       db.pickleSetting.findUnique({ where: { tourney: TOURNEY.slug } }),
-      db.pickleResult.findMany({ where: { tourney: TOURNEY.slug } }),
     ]);
     teams = rows.map((t) => ({ id: t.id, player1: t.player1, player2: t.player2, skill: t.skill, seed: t.seed, withdrawn: t.withdrawnAt !== null }));
     locked = setting?.lockedAt != null;
-    results = res.map((r) => ({ matchKey: r.matchKey, teamAId: r.teamAId, teamBId: r.teamBId, scoreA: r.scoreA, scoreB: r.scoreB, reportedBy: r.reportedBy }));
   } catch (err) {
     console.error("pickleball: failed to read the tables (pushed?)", err);
     unreadable = true;
@@ -74,7 +71,7 @@ export default async function PickleballPage() {
           <a className="pb-chip" href="#in">
             Opt in
           </a>
-          <a className="pb-chip" href="#bracket">
+          <a className="pb-chip" href="/pickleball/bracket">
             The bracket
           </a>
         </nav>
@@ -90,10 +87,6 @@ export default async function PickleballPage() {
             {word("BALL", 120)} {word(yr, 260, "yr")}
           </h1>
           <p className="pb-tag">{TOURNEY.tagline}</p>
-          <p className="pb-lede">
-            Grab a partner, put your names in. The owner seeds the field and locks the bracket; from there every score goes in right here,
-            courtside. Lose once and you drop to the losers bracket — <b>nobody is out until they’ve lost twice.</b>
-          </p>
 
           <div className="pb-facts">
             <div className="pb-fact" style={{ "--i": 0 } as React.CSSProperties}>
@@ -119,9 +112,6 @@ export default async function PickleballPage() {
             </div>
           </div>
         </div>
-        <span className="pb-ball" aria-hidden>
-          <i />
-        </span>
         <span className="pb-baseline" aria-hidden />
       </header>
 
@@ -153,7 +143,6 @@ export default async function PickleballPage() {
                   <span className="amp">&amp;</span>
                   {t.player2}
                 </span>
-                {t.skill ? <span className="lvl">{skillLabel(t.skill)}</span> : null}
               </div>
             ))}
           </div>
@@ -167,21 +156,21 @@ export default async function PickleballPage() {
         {admin ? <AdminPanel teams={teams} locked={locked} /> : null}
       </section>
 
+      {/* THE BRACKET lives on its own page (owner, 2026-11-02: "show the
+       * bracket on its own page"); from here it is one door. */}
       <section className="wrap" id="bracket">
         <div className="pb-head">
           <h2 className="disp">The bracket</h2>
           <span>{locked ? "Live — tap a match to score it" : "Draws when the field locks"}</span>
         </div>
         {locked ? (
-          <>
-            <Bracket teams={teams} results={results} />
-            <p className="pb-sub">The bracket as a sticker</p>
-            <BracketSticker teams={teams} results={results} />
-          </>
+          <a className="pb-cta" href="/pickleball/bracket">
+            See the bracket
+          </a>
         ) : (
           <p className="pb-empty">
-            The draw goes up here once the field is seeded and locked. Lose your first match and you’re not done — the losers bracket runs all
-            the way back to the grand final.
+            The draw goes up once the field is seeded and locked. Lose your first match and you’re not done — the losers bracket runs all the
+            way back to the grand final.
           </p>
         )}
       </section>

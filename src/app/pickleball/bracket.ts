@@ -33,6 +33,10 @@ export type MatchState = {
    * seeded directly. */
   aFrom: string;
   bFrom: string;
+  /* The key of the match whose WINNER fills the slot — the advancement
+   * edge a drawn bracket connects; null for a seed or a loser-drop. */
+  aWinnerOf: string | null;
+  bWinnerOf: string | null;
   /* Oriented to (a, b); null until reported. */
   scoreA: number | null;
   scoreB: number | null;
@@ -209,6 +213,8 @@ export function replay(teamsInSeedOrder: string[], results: Reported[]): Bracket
       b,
       aFrom: aRaw === BYE ? "Bye" : fromLabel(s.a),
       bFrom: bRaw === BYE ? "Bye" : fromLabel(s.b),
+      aWinnerOf: s.a.kind === "winner" ? s.a.key : null,
+      bWinnerOf: s.b.kind === "winner" ? s.b.key : null,
       scoreA: oriented ? oriented[0] : null,
       scoreB: oriented ? oriented[1] : null,
       winner,

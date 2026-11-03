@@ -5,7 +5,7 @@ import { TOURNEY } from "@/app/pickleball/tournament";
 
 /* /api/pickleball/admin — the owner's buttons (owner, 2026-11-02: "you
  * seed manually"). seeds: save seed numbers while signups are open.
- * withdraw / restore: a team, kept not deleted, the race-day way. lock:
+ * remove: delete a team's signup outright (owner, 2026-11-02). lock:
  * normalize the seeds (seeded teams first in seed order, the rest behind
  * them in signup order), stamp lockedAt — signups close, the bracket
  * draws. unlock: reopen; the scores already reported stay and replay
@@ -45,14 +45,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    if (body.action === "withdraw" || body.action === "restore") {
+    if (body.action === "remove") {
+      /* Gone for good (owner, 2026-11-02: "let me remove teams") — his
+       * button, his data, while signups are open. */
       if (locked) return bad("Unlock first — the bracket is live.");
       const teamId = typeof body.teamId === "string" ? body.teamId : "";
       if (!teamId) return bad("Which team?");
-      await db.pickleTeam.updateMany({
-        where: { id: teamId, tourney: TOURNEY.slug },
-        data: { withdrawnAt: body.action === "withdraw" ? new Date() : null },
-      });
+      await db.pickleTeam.deleteMany({ where: { id: teamId, tourney: TOURNEY.slug } });
       return NextResponse.json({ ok: true });
     }
 

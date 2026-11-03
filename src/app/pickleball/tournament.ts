@@ -30,14 +30,14 @@ export const TOURNEYS: Tourney[] = [
 /* One for now (owner, 2026-11-02). */
 export const TOURNEY = TOURNEYS[0];
 
-/* The self-rated ladder the form offers (owner: collect skill level; the
- * seeding is his, by hand, so this is a hint, not a bracket input). */
+/* The self-rated ladder the form offers (owner, 2026-11-02: "just 3
+ * options beginner int. adv", and don't show it on the field or the
+ * stickers — it surfaces only in his signup email and on his seeding
+ * panel). */
 export const SKILLS: { id: string; label: string }[] = [
-  { id: "new", label: "New to it" },
-  { id: "3.0", label: "3.0" },
-  { id: "3.5", label: "3.5" },
-  { id: "4.0", label: "4.0" },
-  { id: "4.5", label: "4.5+" },
+  { id: "beginner", label: "Beginner" },
+  { id: "intermediate", label: "Intermediate" },
+  { id: "advanced", label: "Advanced" },
 ];
 
 export const NAME_MAX = 40;

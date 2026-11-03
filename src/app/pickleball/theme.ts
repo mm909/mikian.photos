@@ -41,7 +41,7 @@ export const css = `
   font-family:var(--pb-cond),sans-serif;font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;
   min-height:100vh;min-height:100dvh;width:100%;color-scheme:dark;
 }
-@media (prefers-reduced-motion: reduce){ .pb *{transition:none!important;animation:none!important} .pb h1 .wi{transform:none!important} .pb .pb-ball{display:none} }
+@media (prefers-reduced-motion: reduce){ .pb *{transition:none!important;animation:none!important} .pb h1 .wi{transform:none!important} .pb .pb-svg path{stroke-dashoffset:0!important} }
 .pb a{color:inherit}
 .pb button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;border-radius:0;-webkit-tap-highlight-color:transparent}
 .pb :focus-visible{outline:2px solid var(--ball);outline-offset:3px}
@@ -55,16 +55,12 @@ export const css = `
 @keyframes pbRise{from{transform:translateY(110%)}to{transform:translateY(0)}}
 @keyframes pbSlide{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
 @keyframes pbPop{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:none}}
-@keyframes pbStamp{0%{opacity:0;transform:scale(2.6) rotate(-18deg)}60%{opacity:1}100%{opacity:1;transform:scale(1) rotate(-5deg)}}
-@keyframes pbGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes pbDash{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 @keyframes pbPulse{0%,100%{box-shadow:0 0 0 0 rgba(223,255,63,.45)}50%{box-shadow:0 0 0 7px rgba(223,255,63,0)}}
 @keyframes pbShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
 @keyframes pbUp{from{transform:translateY(102%)}to{transform:translateY(0)}}
 @keyframes pbFade{from{opacity:0}to{opacity:1}}
 @keyframes pbFlash{0%{background:rgba(223,255,63,.35)}100%{background:transparent}}
-@keyframes pbBallX{0%{left:-6%}100%{left:103%}}
-@keyframes pbBallY{0%{transform:translateY(-240px) scale(1)}92%{transform:translateY(-4px) scale(1)}100%{transform:translateY(0) scaleY(.78) scaleX(1.12)}}
-@keyframes pbSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
 /* ------------------------------------------------------------ the bar */
 .pb .pb-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;border-bottom:2px solid var(--ball);position:sticky;top:0;background:var(--ground);z-index:50}
@@ -85,9 +81,6 @@ export const css = `
 .pb h1 .wi{display:inline-block;font-style:normal;transform:translateY(110%);animation:pbRise .7s cubic-bezier(.2,.9,.25,1) forwards;animation-delay:var(--d,0ms)}
 .pb h1 .yr{display:inline-block;background:var(--ball);color:var(--dark);padding:0 .14em;line-height:1.08;margin-top:.06em}
 .pb .pb-tag{font-size:clamp(20px,5vw,28px);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:20px;line-height:1.15;color:var(--ball);opacity:0;animation:pbFade .6s .5s forwards}
-.pb .pb-lede{margin-top:14px;font-size:17px;line-height:1.65;color:var(--line-dim);max-width:36em;opacity:0;animation:pbFade .6s .65s forwards}
-.pb .pb-ball{position:absolute;bottom:2px;left:-6%;width:34px;height:34px;pointer-events:none;animation:pbBallX 8s linear infinite}
-.pb .pb-ball i{display:block;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f2ff9e,var(--ball) 55%,#93aa17);animation:pbBallY 1.6s cubic-bezier(.45,0,.8,1) infinite alternate}
 .pb .pb-baseline{position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--line);opacity:.5}
 
 /* THE FACTS. */
@@ -125,9 +118,10 @@ export const css = `
 .pb .pb-cta.quiet:hover{border-color:var(--line);color:var(--line)}
 .pb .pb-cta.small{width:auto;display:inline-block;padding:10px 16px;font-size:14px;margin-top:0}
 
-/* THE CONFIRMATION, stamped. */
-.pb .pb-done{margin-top:30px;border-top:2px solid var(--line);padding-top:26px}
-.pb .pb-stamp{display:inline-block;border:6px double var(--ball);color:var(--ball);font-family:var(--pb-display),Impact,sans-serif;font-size:clamp(30px,8vw,52px);letter-spacing:.06em;text-transform:uppercase;line-height:1;padding:14px 24px;transform:rotate(-5deg);animation:pbStamp .55s cubic-bezier(.2,2.2,.4,1) both}
+/* THE CONFIRMATION — a quiet fade, no slam (owner, 2026-11-02: did not
+ * like the stamp animation on submit). */
+.pb .pb-done{margin-top:30px;border-top:2px solid var(--line);padding-top:26px;animation:pbFade .45s ease both}
+.pb .pb-stamp{display:inline-block;border:6px double var(--ball);color:var(--ball);font-family:var(--pb-display),Impact,sans-serif;font-size:clamp(30px,8vw,52px);letter-spacing:.06em;text-transform:uppercase;line-height:1;padding:14px 24px;transform:rotate(-3deg)}
 .pb .pb-done p{margin-top:18px;color:var(--line-dim);line-height:1.6}
 .pb .pb-done p b{color:var(--line)}
 
@@ -137,16 +131,19 @@ export const css = `
 .pb .pb-team .n{flex:none;font-family:var(--pb-display),Impact,sans-serif;font-size:15px;color:var(--mute);min-width:30px}
 .pb .pb-team .who{flex:1 1 auto;min-width:0;font-family:var(--pb-display),Impact,sans-serif;font-size:17px;letter-spacing:.03em;text-transform:uppercase;line-height:1.25}
 .pb .pb-team .who .amp{color:var(--ball);padding:0 .3em}
-.pb .pb-team .lvl{flex:none;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--dark);background:var(--line);padding:3px 8px}
-.pb .pb-team .out{flex:none;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
-.pb .pb-team.gone .who{color:var(--mute);text-decoration:line-through}
 
-/* THE BRACKET. */
+/* THE BRACKET, drawn like a real one (owner, 2026-11-02: like a real
+ * tourney bracket, drawn out, winners moving on): columns per round in
+ * a sideways scroll, and an SVG laid over them with the elbow lines a
+ * bracket sheet has — measured off the cards, so they always meet. A
+ * line whose match is decided turns neon: the winner moving on. Lines
+ * draw themselves in (pbDash over pathLength 1). */
 .pb .pb-sub{font-size:12px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--ball);margin-top:30px}
 .pb .pb-scroll{overflow-x:auto;margin-top:14px;padding-bottom:10px;-webkit-overflow-scrolling:touch}
-.pb .pb-grid{display:flex;gap:26px;min-width:min-content}
-.pb .pb-col{display:grid;gap:10px;min-width:210px;align-content:stretch}
-.pb .pb-col .rh{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);align-self:end}
+.pb .pb-tree{position:relative;display:flex;gap:46px;min-width:min-content}
+.pb .pb-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.pb .pb-svg path{fill:none;stroke-dasharray:1;stroke-dashoffset:1;animation:pbDash .7s ease forwards}
+.pb .pb-col{display:grid;gap:10px;min-width:216px;align-content:stretch}
 .pb .pb-m{position:relative;background:var(--panel);border:1px solid var(--rule);padding:8px 10px;animation:pbPop .45s both;animation-delay:calc(var(--i,0)*50ms);align-self:center;width:100%}
 .pb .pb-m .ml{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--mute);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
 .pb .pb-m .ml em{font-style:normal;color:var(--ball)}
@@ -161,7 +158,6 @@ export const css = `
 .pb .pb-m.fresh{animation:pbPop .45s both,pbFlash 1.2s .3s both}
 .pb .pb-m .fix{position:absolute;right:6px;bottom:4px;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 .pb .pb-m:hover .fix{color:var(--ball)}
-.pb .pb-j{position:absolute;right:-27px;top:50%;width:26px;height:2px;background:var(--rule);transform:scaleX(0);transform-origin:left;animation:pbGrow .5s .4s forwards}
 
 /* THE CHAMPIONS. */
 .pb .pb-champ{margin-top:26px;background:var(--ball);color:var(--dark);padding:20px 18px;position:relative;overflow:hidden}
@@ -193,6 +189,7 @@ export const css = `
 .pb .pb-admin .srow input{width:56px;background:var(--panel);border:1px solid var(--rule);color:var(--line);font-family:var(--pb-display),Impact,sans-serif;font-size:16px;text-align:center;padding:6px 4px;border-radius:0;appearance:none}
 .pb .pb-admin .srow input:focus{outline:none;border-color:var(--ball)}
 .pb .pb-admin .srow .who{flex:1 1 auto;min-width:0;font-family:var(--pb-display),Impact,sans-serif;font-size:14px;text-transform:uppercase}
+.pb .pb-admin .srow .sk{flex:none;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 .pb .pb-admin .srow button{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);border-bottom:2px solid var(--rule);padding-bottom:1px}
 .pb .pb-admin .srow button:hover{color:var(--ball);border-color:var(--ball)}
 .pb .pb-admin .abtns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
@@ -200,7 +197,11 @@ export const css = `
 .pb .pb-admin .abtns button.primary{background:var(--ball);border-color:var(--ball);color:var(--dark)}
 .pb .pb-admin .abtns button:disabled{opacity:.5;cursor:default}
 
-/* THE STICKERS. */
+/* THE STICKERS. The team is picked from one dropdown — not a row of
+ * buttons per team (owner, 2026-11-02) — and the sticker only shows
+ * once a team is chosen. */
+.pb .pb-sel{display:block;width:100%;margin-top:18px;background:var(--panel);border:1px solid var(--rule);color:var(--line);font-family:var(--pb-cond),sans-serif;font-size:17px;font-weight:600;padding:12px;border-radius:0;appearance:none;-webkit-appearance:none}
+.pb .pb-sel:focus{outline:none;border-color:var(--ball)}
 .pb .pb-stk{margin-top:22px;background:var(--panel);border:1px solid var(--rule);padding:16px}
 .pb .pb-stk-pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .pb .pb-stk-pick button{border:1px solid var(--rule);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px;color:var(--line-dim)}

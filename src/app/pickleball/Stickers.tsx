@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { replay } from "./bracket";
 import { LOOKS, W, bracketCard, optedInCard, palette, placeCard, type Fonts, type Look } from "./stickerPaint";
-import { TOURNEY, skillLabel, teamName } from "./tournament";
+import { TOURNEY, teamName } from "./tournament";
 import type { ResultRow, TeamRow } from "./BracketView";
 
 /* THE STICKERS (owner, 2026-11-02): the OPTED IN team card — "use the
@@ -157,7 +157,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 /* OPTED IN, for one team. */
 export function OptedInSticker({ team }: { team: TeamRow }) {
   const paint = useMemo<Painter>(() => {
-    const card = optedInCard({ player1: team.player1, player2: team.player2, skill: skillLabel(team.skill), year: TOURNEY.year });
+    const card = optedInCard({ player1: team.player1, player2: team.player2, year: TOURNEY.year });
     return (ctx, look, fonts, draw) => placeCard(ctx, fonts, look, draw, card);
   }, [team]);
   return (
@@ -169,30 +169,24 @@ export function OptedInSticker({ team }: { team: TeamRow }) {
   );
 }
 
-/* OPTED IN with a team picker over it, for anyone re-making theirs. */
+/* OPTED IN behind one dropdown (owner, 2026-11-02: the sticker appears
+ * once a team from the field is picked — "not a bunch of buttons per
+ * team"). */
 export function TeamStickers({ teams }: { teams: TeamRow[] }) {
-  const [teamId, setTeamId] = useState(teams[teams.length - 1]?.id ?? "");
-  const team = teams.find((t) => t.id === teamId) ?? teams[teams.length - 1];
-  if (!team) return null;
-  const paint: Painter = (ctx, look, fonts, draw) =>
-    placeCard(ctx, fonts, look, draw, optedInCard({ player1: team.player1, player2: team.player2, skill: skillLabel(team.skill), year: TOURNEY.year }));
+  const [teamId, setTeamId] = useState("");
+  const team = teams.find((t) => t.id === teamId) ?? null;
   return (
-    <PbStickerFrame
-      paint={paint}
-      label={`Opted-in sticker for ${teamName(team.player1, team.player2)}`}
-      filename={(look) => `pickleball-opted-in-${slug(team.player1)}-${slug(team.player2)}-${look}.png`}
-      pickers={
-        teams.length > 1 ? (
-          <div className="pb-stk-pick" role="group" aria-label="Team">
-            {teams.map((t) => (
-              <button key={t.id} type="button" aria-pressed={t.id === team.id} onClick={() => setTeamId(t.id)}>
-                {t.player1.split(" ")[0]} + {t.player2.split(" ")[0]}
-              </button>
-            ))}
-          </div>
-        ) : undefined
-      }
-    />
+    <>
+      <select className="pb-sel" value={teamId} onChange={(e) => setTeamId(e.target.value)} aria-label="Whose sticker?">
+        <option value="">Pick your team…</option>
+        {teams.map((t) => (
+          <option key={t.id} value={t.id}>
+            {teamName(t.player1, t.player2)}
+          </option>
+        ))}
+      </select>
+      {team ? <OptedInSticker team={team} /> : null}
+    </>
   );
 }
 

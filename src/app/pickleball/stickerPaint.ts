@@ -92,10 +92,12 @@ export function tag(ctx: CanvasRenderingContext2D, draw: boolean, x: number, y: 
   return w;
 }
 
-/* PICKLEBALL huge, the year in a box, a rule. Returns the y under it. */
+/* PICKLEBALL huge, the year in a box, a rule — nothing else (owner,
+ * 2026-11-02: no "doubles · double elimination" line on a sticker unless
+ * a singles category exists one day). Returns the y under it. */
 export function paintHeader(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Look, year: number, draw: boolean, y0 = PAD, rule = true): number {
   const { ink, box, onBox } = palette(look);
-  let y = line(ctx, draw, y0, "DOUBLES · DOUBLE ELIMINATION", fonts.cond, 700, 34, ink, 12, 8);
+  let y = y0;
 
   const yr = `’${String(year).slice(-2)}`;
   ctx.font = `400 ${YEAR}px ${fonts.display}`;
@@ -133,11 +135,11 @@ export function placeCard(ctx: CanvasRenderingContext2D, fonts: Fonts, look: Loo
 }
 
 /* OPTED IN (owner, 2026-11-02: that tone, not "we're in"): the mark, the
- * stamp, the two names huge, the skill small. */
+ * stamp, the two names huge. No skill level on it (owner, same day). */
 export const optedInCard =
-  (facts: { player1: string; player2: string; skill: string; year: number }): CardPainter =>
+  (facts: { player1: string; player2: string; year: number }): CardPainter =>
   (ctx, fonts, look, draw, y0) => {
-    const { ink, dim } = palette(look);
+    const { ink } = palette(look);
     const up = (s: string) => s.toUpperCase();
     let y = paintHeader(ctx, fonts, look, facts.year, draw, y0);
     y += 10;
@@ -156,7 +158,6 @@ export const optedInCard =
       const ns = fit(ctx, text, fonts.display, 108, 44, INNER);
       y = line(ctx, draw, y, text, fonts.display, 400, ns, ink, 8);
     });
-    if (facts.skill) y = line(ctx, draw, y + 14, up(facts.skill), fonts.cond, 700, 34, dim, 0, 8);
     return y;
   };
 

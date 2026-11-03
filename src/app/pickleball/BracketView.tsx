@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { matchLabel, replay, type MatchState } from "./bracket";
-import { teamName } from "./tournament";
+import { matchLabel, replay, type BracketState, type MatchState } from "./bracket";
+import { skillLabel, teamName } from "./tournament";
 
-/* THE BRACKET on screen (owner, 2026-11-02): winners rounds as columns in
- * a sideways scroll, the losers rounds under them, the grand final, the
- * champions banner. A match both teams stand in pulses — TAP TO SCORE —
- * and the score sheet slides up from the baseline; anyone with the link
- * reports (honor system), one game to 11, and a played match can be
- * fixed the same way (replay drops anything downstream that the fix
- * invalidates). The cards stagger in and a freshly scored match flashes. */
+/* THE BRACKET on screen, drawn like a real one (owner, 2026-11-02: "like
+ * a real tourny bracket, drawn out and show winners moving on etc"):
+ * columns per round in a sideways scroll, and an SVG laid over each
+ * section carrying the elbow lines a bracket sheet has. The lines are
+ * MEASURED off the cards after layout, so they always meet; a line whose
+ * match is decided turns neon — that is the winner moving on — and every
+ * line draws itself in. Loser drops are not drawn (a real sheet labels
+ * them too: "Loser of Winners R2 · 1", in the empty slot).
+ *
+ * A match both teams stand in pulses — TAP TO SCORE — and the score
+ * sheet slides up; anyone with the link reports, one game to 11, and a
+ * played match can be fixed the same way (replay drops whatever a fix
+ * invalidates downstream). */
 
 export type TeamRow = {
   id: string;
@@ -31,19 +37,110 @@ export type ResultRow = {
   reportedBy: string;
 };
 
+type Edge = { d: string; hot: boolean; delay: number };
+
+/* One section of the sheet (winners + the grand final, or losers): the
+ * columns, and the measured overlay. */
+function Tree({
+  cols,
+  card,
+  size,
+}: {
+  cols: { title: string; matches: MatchState[] }[];
+  card: (m: MatchState, i: number) => JSX.Element;
+  size: { w: number; h: number; edges: Edge[] } | null;
+}) {
+  return (
+    <div className="pb-tree">
+      {size ? (
+        <svg className="pb-svg" width={size.w} height={size.h} viewBox={`0 0 ${size.w} ${size.h}`} aria-hidden>
+          {size.edges.map((e, i) => (
+            <path
+              key={i}
+              d={e.d}
+              pathLength={1}
+              stroke={e.hot ? "#DFFF3F" : "rgba(244,247,242,.28)"}
+              strokeWidth={e.hot ? 3 : 2}
+              style={{ animationDelay: `${e.delay}ms` }}
+            />
+          ))}
+        </svg>
+      ) : null}
+      {cols.map((c, ci) => (
+        <div className="pb-col" key={c.title + ci}>
+          {c.matches.map((m, mi) => card(m, ci * 8 + mi))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* The elbow lines for every winner-advancement edge whose two cards both
+ * sit inside `root`. */
+function measureEdges(root: HTMLElement, matches: MatchState[]): Edge[] {
+  const base = root.getBoundingClientRect();
+  const rectOf = (key: string): DOMRect | null => {
+    const el = root.querySelector(`[data-mk="${CSS.escape(key)}"]`);
+    return el ? el.getBoundingClientRect() : null;
+  };
+  const winnerOf = new Map(matches.map((m) => [m.key, m.winner]));
+  const edges: Edge[] = [];
+  for (const m of matches) {
+    const dst = rectOf(m.key);
+    if (!dst) continue;
+    for (const feed of [m.aWinnerOf, m.bWinnerOf]) {
+      if (!feed) continue;
+      const src = rectOf(feed);
+      if (!src) continue;
+      const x1 = src.right - base.left;
+      const y1 = src.top - base.top + src.height / 2;
+      const x2 = dst.left - base.left;
+      const y2 = dst.top - base.top + dst.height / 2;
+      const mid = Math.round((x1 + x2) / 2);
+      edges.push({
+        d: `M ${Math.round(x1)} ${Math.round(y1)} H ${mid} V ${Math.round(y2)} H ${Math.round(x2)}`,
+        hot: !!winnerOf.get(feed),
+        delay: Math.round(x1),
+      });
+    }
+  }
+  return edges;
+}
+
+function useTreeEdges(matches: MatchState[]): [React.RefObject<HTMLDivElement>, { w: number; h: number; edges: Edge[] } | null] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number; edges: Edge[] } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const compute = () =>
+      setSize({ w: el.scrollWidth, h: el.offsetHeight, edges: measureEdges(el, matches) });
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [matches]);
+  return [ref, size];
+}
+
 export function Bracket({ teams, results }: { teams: TeamRow[]; results: ResultRow[] }) {
   const router = useRouter();
   const [sel, setSel] = useState<MatchState | null>(null);
   const [fresh, setFresh] = useState("");
 
   const byId = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
-  const state = useMemo(() => {
+  const state: BracketState = useMemo(() => {
     const seeded = teams
       .filter((t) => !t.withdrawn && t.seed !== null)
       .sort((a, b) => (a.seed ?? 0) - (b.seed ?? 0))
       .map((t) => t.id);
     return replay(seeded, results);
   }, [teams, results]);
+
+  const winnersMatches = useMemo(() => [...state.winners.flat(), state.final], [state]);
+  const losersMatches = useMemo(() => state.losers.flat(), [state]);
+  const [wRef, wSize] = useTreeEdges(winnersMatches);
+  const [lRef, lSize] = useTreeEdges(losersMatches);
 
   const nameOf = (id: string | null): string => {
     if (!id) return "";
@@ -58,14 +155,14 @@ export function Bracket({ teams, results }: { teams: TeamRow[]; results: ResultR
 
   const champion = state.champion ? fullName(state.champion) : null;
 
-  let i = 0;
-  const card = (m: MatchState, last: boolean) => {
+  const card = (m: MatchState, i: number) => {
     const open = m.ready || (m.winner !== null && !m.bye);
     return (
       <div
         key={m.key}
+        data-mk={m.key}
         className={`pb-m${m.ready ? " ready" : ""}${m.winner && !m.bye ? " played" : ""}${m.key === fresh ? " fresh" : ""}`}
-        style={{ "--i": i++ } as React.CSSProperties}
+        style={{ "--i": i } as React.CSSProperties}
         role={open ? "button" : undefined}
         tabIndex={open ? 0 : undefined}
         onClick={open ? () => setSel(m) : undefined}
@@ -84,7 +181,6 @@ export function Bracket({ teams, results }: { teams: TeamRow[]; results: ResultR
           {m.scoreB !== null ? <span className="sc">{m.scoreB}</span> : null}
         </div>
         {m.winner !== null && !m.bye ? <span className="fix">Fix</span> : null}
-        {!last ? <span className="pb-j" aria-hidden /> : null}
       </div>
     );
   };
@@ -101,15 +197,15 @@ export function Bracket({ teams, results }: { teams: TeamRow[]; results: ResultR
 
       <p className="pb-sub">Winners bracket</p>
       <div className="pb-scroll">
-        <div className="pb-grid">
-          {state.winners.map((round, r) => (
-            <div className="pb-col" key={`w${r}`}>
-              {round.map((m) => card(m, false))}
-            </div>
-          ))}
-          <div className="pb-col" key="gf">
-            {card(state.final, true)}
-          </div>
+        <div ref={wRef}>
+          <Tree
+            cols={[
+              ...state.winners.map((round, r) => ({ title: `W${r + 1}`, matches: round })),
+              { title: "GF", matches: [state.final] },
+            ]}
+            card={card}
+            size={wSize}
+          />
         </div>
       </div>
 
@@ -117,12 +213,8 @@ export function Bracket({ teams, results }: { teams: TeamRow[]; results: ResultR
         <>
           <p className="pb-sub">Losers bracket — nobody is out until they’ve lost twice</p>
           <div className="pb-scroll">
-            <div className="pb-grid">
-              {state.losers.map((round, d) => (
-                <div className="pb-col" key={`l${d}`}>
-                  {round.map((m) => card(m, d === state.losers.length - 1))}
-                </div>
-              ))}
+            <div ref={lRef}>
+              <Tree cols={state.losers.map((round, d) => ({ title: `L${d + 1}`, matches: round }))} card={card} size={lSize} />
             </div>
           </div>
         </>
@@ -219,9 +311,10 @@ function ScoreSheet({
 }
 
 /* THE OWNER PANEL (admin only — the page gates it): seed numbers by hand
- * (owner, 2026-11-02: "you seed manually"), withdraw or restore a team
- * while signups are open, then LOCK — signups close and the bracket
- * draws. UNLOCK reopens it; the scores already in stay. */
+ * with each team's self-rated level beside the name as the hint, REMOVE
+ * a team outright (owner, 2026-11-02: "let me remove teams"), then LOCK
+ * — signups close and the bracket draws. UNLOCK reopens it; the scores
+ * already in stay. */
 export function AdminPanel({ teams, locked }: { teams: TeamRow[]; locked: boolean }) {
   const router = useRouter();
   const [seeds, setSeeds] = useState<Record<string, string>>(() =>
@@ -275,13 +368,18 @@ export function AdminPanel({ teams, locked }: { teams: TeamRow[]; locked: boolea
                 value={seeds[t.id] ?? ""}
                 onChange={(e) => setSeeds((s) => ({ ...s, [t.id]: e.target.value }))}
                 aria-label={`Seed for ${teamName(t.player1, t.player2)}`}
-                disabled={t.withdrawn}
               />
-              <span className="who" style={t.withdrawn ? { textDecoration: "line-through", opacity: 0.5 } : undefined}>
-                {teamName(t.player1, t.player2)}
-              </span>
-              <button type="button" disabled={busy} onClick={() => void post({ action: t.withdrawn ? "restore" : "withdraw", teamId: t.id })}>
-                {t.withdrawn ? "Restore" : "Withdraw"}
+              <span className="who">{teamName(t.player1, t.player2)}</span>
+              {t.skill ? <span className="sk">{skillLabel(t.skill)}</span> : null}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(`Remove ${teamName(t.player1, t.player2)}? This deletes their signup.`))
+                    void post({ action: "remove", teamId: t.id }, "Removed");
+                }}
+              >
+                Remove
               </button>
             </div>
           ))}
