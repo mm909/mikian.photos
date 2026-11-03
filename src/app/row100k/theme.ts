@@ -462,7 +462,7 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-probe{position:absolute;width:0;height:0;overflow:hidden;visibility:hidden}
 .row100k .share-probe.blk{font-family:var(--row-archivo-black),sans-serif}
 .row100k .share-probe.mono{font-family:var(--row-mono),monospace}
-.row100k .share-overlay{position:fixed;inset:0;background:rgba(21,23,26,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
+.row100k .share-overlay{position:fixed;inset:0;background:rgba(21,23,26,.38);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
 .row100k .share-modal{background:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 rgba(21,23,26,.2);width:min(560px,100%);max-height:90vh;overflow-y:auto;padding:16px 18px 18px}
 .row100k .share-head{position:relative;display:flex;justify-content:center;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:10px;min-height:30px}
 .row100k .share-mark{display:inline-block;font-family:var(--row-archivo-black),sans-serif;font-size:14px;line-height:1;letter-spacing:.01em;text-transform:uppercase;color:var(--on-water);background:var(--water);padding:7px 12px 6px}
@@ -472,7 +472,18 @@ html:has(.row100k){scroll-behavior:smooth}
 .row100k .share-pick{border:2px solid var(--line);background:none;font-family:var(--row-mono),monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 11px;cursor:pointer;color:var(--ink-soft)}
 .row100k .share-pick.on{border-color:var(--ink);color:var(--ink)}
 .row100k .share-stage{margin-top:14px;border:2px solid var(--ink);padding:14px;background:var(--paper)}
-.row100k .share-stage.dark{background:var(--frame);background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
+/* THE LIGHTS ARE ON (owner, 2026-11-01: "Right when I submit a row and it
+ * goes to the shareables menu, it's all blacked out, like the lights are
+ * still off"). The dimmer and the stage were the black site's: a 62% black
+ * scrim and a near-black mat under the white cards. On the cream the
+ * dimmer is the log sheet's lighter one, and a white card sits on the
+ * palette's lighter accent (the fall brown's hover cut, #8A5E3C), a mid
+ * tone on purpose: under lights out the row card is white type AND black
+ * blocks (drawBlockDigits, the ink mark slab), and the deep brown hid the
+ * blocks the way the black mat did (owner's screenshot, 2026-11-03). White
+ * reads on it at 5.6:1 and the ink blocks at 3.2:1. The ink look keeps its
+ * darker dimmer and the plain black mat (the ink-look rules further down). */
+.row100k .share-stage.dark{background-color:var(--water-hover);background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
 .row100k .share-canvas{display:block;width:100%;height:auto}
 .row100k .share-note{margin-top:10px;font-size:11px;letter-spacing:.08em;color:var(--gray)}
 .row100k .share-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
@@ -1582,6 +1593,7 @@ ${INK} .mv.dn{color:rgba(244,243,238,.5)}
  * the dark card stage on the lift grey. */
 ${INK} .share-overlay{background:rgba(0,0,0,.72)}
 ${INK} .share-modal{box-shadow:none}
+${INK} .share-stage.dark{background-color:var(--frame)}
 ${INK} .share-mark{background:var(--ink);color:var(--paper)}
 ${INK} .share-status.bad{font-weight:700}
 
