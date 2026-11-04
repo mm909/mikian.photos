@@ -23,7 +23,11 @@ export const spaceMono = Space_Mono({
 });
 
 export const css = `
-.dd,.dd *{margin:0;padding:0;box-sizing:border-box}
+/* The font rides the universal reset, not just the root: globals.css
+ * styles h1/h2/p by element and an element rule beats inheritance, so on
+ * the live site the headings came out serif and the prose came out sans
+ * (seen 2026-11-04) until every descendant claimed the mono itself. */
+.dd,.dd *{margin:0;padding:0;box-sizing:border-box;font-family:var(--dd-mono),monospace}
 .dd{
   background:var(--ground);color:var(--ink);
   font-family:var(--dd-mono),monospace;font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;
