@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getEffectiveActor, isOwner, isOwnerEmail } from "@/lib/permissions";
 import { THEME_COLOR } from "../look";
 import { readLook } from "../readLook";
+import { GOAL, MATCH_POOL, RAISED, usd } from "../state";
 import { css, spaceMono } from "../theme";
 
 /* THE DONOR PAGE (owner, 2026-11-03: "This should be what we send
@@ -13,19 +12,18 @@ import { css, spaceMono } from "../theme";
  * paragraph, the $100,000 goal (a dollar a meter), the match pool, where
  * the money goes, and the two asks. Donations go DIRECTLY to
  * Candlelighters Childhood Cancer Foundation of Nevada — this site never
- * touches the money; match pledges and the totals below are updated by
- * hand until there is a reason to automate them.
+ * touches the money; the numbers come from state.ts, hand-updated until
+ * there is a reason to automate them.
  *
- * RAISED / MATCH_POOL are the hand-updated numbers the gauge draws. The
- * exact Candlelighters donation link, and whether they set up a dedicated
- * campaign page for the row, is an open question in SPEC.md — the owner
- * talks to them before this page goes anywhere.
+ * The exact Candlelighters donation link, and whether they set up a
+ * dedicated campaign page for the row, is an open question in SPEC.md —
+ * the owner talks to them before this page gets sent around.
  *
- * IN DEVELOPMENT with the rest of /dam-to-dam: owner-only in production,
- * open in local dev. */
+ * LIVE BUT UNLISTED with the rest of /dam-to-dam (owner, 2026-11-03):
+ * no gate, robots off, reached only by the link. */
 
 export const metadata: Metadata = {
-  title: "Donate (dev) — Dam to Dam",
+  title: "Donate — Dam to Dam",
   description:
     "100,000 meters of rowing, $100,000 for Candlelighters Childhood Cancer Foundation of Nevada. A dollar a meter.",
   robots: { index: false, follow: false },
@@ -39,13 +37,6 @@ export function generateViewport(): Viewport {
 
 const OWNER_IG = "mikian_";
 const CANDLELIGHTERS_URL = "https://www.candlelightersnv.org/";
-
-/* Hand-updated until the row has real numbers to show. */
-const GOAL = 100_000;
-const RAISED = 0;
-const MATCH_POOL = 0;
-
-const usd = (n: number) => "$" + n.toLocaleString("en-US");
 
 /* THE GAUGE: the money drawn as the river — a dam at each end, the raised
  * dollars filling the line meter for meter. */
@@ -71,12 +62,7 @@ function Gauge() {
   );
 }
 
-export default async function DamToDamDonatePage() {
-  const actor = await getEffectiveActor();
-  /* Owner by role OR by sign-in email, as on the main page: a roles row
-   * can never lock the owner out. */
-  const owner = actor !== null && (isOwner(actor) || isOwnerEmail(actor.email));
-  if (process.env.NODE_ENV === "production" && !owner) notFound();
+export default function DamToDamDonatePage() {
   const { look } = readLook();
 
   return (
@@ -91,7 +77,6 @@ export default async function DamToDamDonatePage() {
           <Link href="/dam-to-dam" className="dd-door">
             The row
           </Link>
-          <span className="dd-dev">Dev</span>
         </div>
       </div>
 

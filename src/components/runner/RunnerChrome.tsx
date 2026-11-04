@@ -50,7 +50,12 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     /* The pickleball bracket (owner, 2026-11-02): its own bar, the hyrox
      * way — live but unlinked, so no marketplace nav over it either. */
     pathname === "/pickleball" ||
-    pathname.startsWith("/pickleball/");
+    pathname.startsWith("/pickleball/") ||
+    /* Dam to Dam (owner, 2026-11-03: "how does this header still exist,
+     * remove it"): the standalone row carries its own bar
+     * (src/app/dam-to-dam), no marketplace nav over it. */
+    pathname === "/dam-to-dam" ||
+    pathname.startsWith("/dam-to-dam/");
 
   return (
     <>

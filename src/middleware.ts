@@ -24,9 +24,9 @@ const ALLOWED_PREFIXES = [
   "/api/pickleball",
   /* Dam to Dam (owner, 2026-11-03): the standalone Hoover→Davis 100k row —
    * the pre-race page, the donor page and the look settings
-   * (src/app/dam-to-dam). The pages are owner-only in production behind
-   * their own gate while in development; the door here has to open for
-   * the owner to reach them at all. */
+   * (src/app/dam-to-dam). Live but unlisted (owner, same day): open to
+   * anyone with the link, robots off, linked only from the DEVELOPMENT
+   * group of the row100k account menu. */
   "/dam-to-dam",
   "/tsp",
   "/moab240",

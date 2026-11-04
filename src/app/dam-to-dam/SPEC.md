@@ -86,7 +86,35 @@ absolute mikianmusser.com URL.
   stays paper/paper-brown per the standing rule; nothing about it changes.
 - No site address on any shareable/sticker output, per standing rule.
 
-## Page — v1 "pre-race" (as built, 2026-11-03; dev-gated per standing rule)
+## v2, same day (owner feedback round, 2026-11-03)
+
+- LIVE BUT UNLISTED (owner: "open this to everyone but keep it unlisted") —
+  the lasd26/your-share pattern: the owner gate is gone from all three
+  pages, robots stay off, the only link stays in the DEVELOPMENT group.
+  The (dev) titles and DEV chips went with it.
+- NO MARKETPLACE HEADER (owner: "how does this header still exist, remove
+  it") — /dam-to-dam joined RunnerChrome's bare list; the page carries only
+  its own bar.
+- THE HERO: "Dam TO Dam" highlights the TO; the sub line is the live one —
+  "One rower · <meters> m · <$raised> for children with cancer" — meters
+  flip to the boat's own on race day and the money reads state.ts
+  (hand-updated constants until Candlelighters provides a feed). Facts:
+  "every meter on the water" is gone, the date fact carries the ETA
+  (10–12 h, dawn start), and the crew fact became the cause fact
+  ($1 = 1 m, matched for Candlelighters).
+- THE PLAN SHOWS, NOT TELLS (owner: "break down the route/plan on a map")
+  — four leg detail charts (LegMap.tsx, legChart in map.ts): each leg
+  rotated to its own horizontal, fine NHD shorelines (riverDataFine.ts,
+  mixed resolution, ~2,450-point ring) clipped around it, km ticks at the
+  ends, one line of caption. The canyon leg runs EX 4.5 or its walls hide
+  under the route line.
+- ZOOM (owner: "allow me to zoom in to the main map as well") —
+  ZoomPan.tsx drives the overview SVG's viewBox: ctrl/cmd+wheel, pinch,
+  double-click, drag when zoomed, +/−/reset buttons. Vector all the way
+  down.
+- The iso chart got its pass: double canyon rim, sparser lake hatching.
+
+## Page — v1 "pre-race" (as built, 2026-11-03; superseded by v2 above)
 
 Route: `/dam-to-dam`. Owner-only in production (the longhorn-lms gate), open
 in local dev, `(dev)` in the title, robots noindex, linked only from the

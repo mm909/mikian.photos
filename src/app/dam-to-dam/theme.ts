@@ -102,6 +102,21 @@ export const css = `
 .dd .dd-cta{display:block;width:100%;margin-top:30px;background:var(--pop);color:var(--cta-ink);text-align:center;font-size:13px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;padding:18px 16px;text-decoration:none}
 .dd .dd-cta:hover{filter:brightness(1.08)}
 
+/* THE LEGS (LegMap.tsx): the plan as four detail charts. */
+.dd .dd-legs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:28px}
+@media (max-width:760px){ .dd .dd-legs{grid-template-columns:1fr} }
+.dd .dd-leg{border:1px solid var(--rule);padding:16px 16px 12px}
+.dd .dd-leg .t{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--pop);font-weight:700}
+.dd .dd-leg .r{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute);margin-top:2px}
+.dd .dd-leg p{font-size:12.5px;color:var(--ink-dim);margin-top:8px;line-height:1.7}
+
+/* ZOOM (ZoomPan.tsx): quiet corner buttons over the chart. */
+.dd .dd-zoomwrap{position:relative}
+.dd .dd-zoombox{overflow:hidden}
+.dd .dd-zoomui{position:absolute;right:10px;bottom:10px;display:flex;gap:6px}
+.dd .dd-zoomui button{font:inherit;font-size:15px;line-height:1;width:30px;height:30px;color:var(--ink);background:var(--ground);border:1px solid var(--rule);cursor:pointer}
+.dd .dd-zoomui button:hover{border-color:var(--pop);color:var(--pop)}
+
 /* SETTINGS (settings/page.tsx): plain ruled option rows. */
 .dd .dd-opt{display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid var(--rule);cursor:pointer}
 .dd .dd-opt input{accent-color:var(--pop);width:16px;height:16px;cursor:pointer}

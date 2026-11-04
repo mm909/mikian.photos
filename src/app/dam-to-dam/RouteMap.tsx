@@ -13,8 +13,8 @@ import { CHARTS, WAYPOINTS, hatchPath, linePath } from "./map";
  * ground plane, vertical hatching down to the waterline — high walls in
  * the canyon, low banks on the lake. The top view is the flat chart. */
 
-const CANYON_H = 18;
-const SHORE_H = 7;
+const CANYON_H = 20;
+const SHORE_H = 6;
 
 export function RouteMap({ view, live }: { view: View; live?: number }) {
   const c = CHARTS[view];
@@ -40,18 +40,20 @@ export function RouteMap({ view, live }: { view: View; live?: number }) {
         * the waterline; flat waterlines in the top view. */}
       {iso && (
         <>
-          <path d={linePath(c.shore, true)} fill="none" stroke="var(--m-rim)" strokeWidth={1} transform={`translate(0,${-SHORE_H})`} />
-          <path d={hatchPath(c.shore, SHORE_H, 4)} stroke="var(--m-hatch)" strokeWidth={0.8} />
+          <path d={linePath(c.shore, true)} fill="none" stroke="var(--m-rim)" strokeWidth={1} opacity={0.85} transform={`translate(0,${-SHORE_H})`} />
+          <path d={hatchPath(c.shore, SHORE_H, 5)} stroke="var(--m-hatch)" strokeWidth={0.8} opacity={0.75} />
         </>
       )}
-      <path d={linePath(c.shore, true)} fill="none" stroke="var(--m-shore)" strokeWidth={1.2} strokeLinejoin="round" />
+      <path d={linePath(c.shore, true)} fill="none" stroke="var(--m-shore)" strokeWidth={1.3} strokeLinejoin="round" />
       {iso && (
         <>
-          <path d={linePath(c.canyon, true)} fill="none" stroke="var(--m-rim)" strokeWidth={1} transform={`translate(0,${-CANYON_H})`} />
+          {/* Two lifted rims on the canyon — the walls read in steps. */}
+          <path d={linePath(c.canyon, true)} fill="none" stroke="var(--m-rim)" strokeWidth={1} opacity={0.6} transform={`translate(0,${-CANYON_H})`} />
+          <path d={linePath(c.canyon, true)} fill="none" stroke="var(--m-rim)" strokeWidth={1} transform={`translate(0,${-CANYON_H / 2})`} />
           <path d={hatchPath(c.canyon, CANYON_H, 2)} stroke="var(--m-hatch)" strokeWidth={0.8} />
         </>
       )}
-      <path d={linePath(c.canyon, true)} fill="none" stroke="var(--m-wall)" strokeWidth={1.2} strokeLinejoin="round" />
+      <path d={linePath(c.canyon, true)} fill="none" stroke="var(--m-wall)" strokeWidth={1.3} strokeLinejoin="round" />
 
       {/* The route: 100,000 m, crawling (theme.ts dd-flow). */}
       <path

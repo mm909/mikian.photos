@@ -1,33 +1,34 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getEffectiveActor, isOwner, isOwnerEmail } from "@/lib/permissions";
 import { THEME_COLOR } from "./look";
 import { readLook } from "./readLook";
+import { LegMap } from "./LegMap";
+import { LEGS, TOTAL_M } from "./map";
 import { RouteMap } from "./RouteMap";
+import { RAISED, liveMeters, usd } from "./state";
 import { css, spaceMono } from "./theme";
+import { ZoomPan } from "./ZoomPan";
 
 /* DAM TO DAM (owner, 2026-11-03: "I want to do a project named Dam to Dam.
  * Where I row from hover dam to davis dam. The goal is 100k meters. Point
- * to point.") — the pre-race page: the chart, the plan, the boat, the gear,
- * the safety case, what race day will look like here, the cause, and the
- * sponsor ask. FULLY STANDALONE (interview, 2026-11-03): its own look
- * (theme.ts, the viewer-chosen palette and projection from look.ts), not a
- * row100k edition, on mikianmusser.com. The donor page is ./donate, the
- * look controls are ./settings.
+ * to point.") — the pre-race page: the chart (zoomable, ZoomPan.tsx), the
+ * plan as four leg charts (owner: "show not tell"), the boat, the gear,
+ * the safety case, WATCH LIVE, the cause, the sponsor ask. FULLY
+ * STANDALONE: its own look (theme.ts, viewer-chosen palette and projection
+ * from look.ts), its own bar (RunnerChrome.tsx lists it bare), not a
+ * row100k edition. The donor page is ./donate, the look controls are
+ * ./settings.
  *
- * Facts and copy come from SPEC.md — the date is a stand-in the owner
- * chose to show plain, and the boat is IN EVALUATION until he picks.
- *
- * IN DEVELOPMENT (the standing rule): owner-only in production, a 404 for
- * everyone else; open in local dev. Reached from the DEVELOPMENT group of
- * the row100k account menu (BarAccount.tsx, absolute URL — that menu
- * renders on rowtember.com). */
+ * LIVE BUT UNLISTED (owner, 2026-11-03: "open this to everyone but keep it
+ * unlisted", the lasd26/your-share pattern): no gate any more, robots stay
+ * off, and nothing links here except the DEVELOPMENT group of the row100k
+ * account menu. The date is a stand-in the owner chose to show plain; the
+ * boat is IN EVALUATION until he picks. */
 
 export const metadata: Metadata = {
-  title: "Dam to Dam (dev) — 100,000 meters, Hoover to Davis",
+  title: "Dam to Dam — 100,000 meters, Hoover to Davis",
   description:
-    "One rower, one day: every meter of water from the Hoover Dam to the Davis Dam. 100,000 meters, point to point.",
+    "One rower, one day: every meter of water from the Hoover Dam to the Davis Dam. 100,000 meters, point to point, for Candlelighters.",
   robots: { index: false, follow: false },
 };
 
@@ -44,16 +45,11 @@ const OWNER_IG = "mikian_";
  * honestly as a demo next to its SIMULATION tag. */
 const DEMO_METERS = 42_180;
 
-export default async function DamToDamPage() {
-  const actor = await getEffectiveActor();
-  /* Owner by role OR by sign-in email (owner, 2026-11-03: "Still getting
-   * 404s even when logged in") — isOwnerEmail always knows both of the
-   * owner's Google accounts, so a roles row can never lock him out of his
-   * own dev page. Sessions are host-bound: he must be signed in on
-   * mikianmusser.com, not rowtember.com. */
-  const owner = actor !== null && (isOwner(actor) || isOwnerEmail(actor.email));
-  if (process.env.NODE_ENV === "production" && !owner) notFound();
+export default function DamToDamPage() {
   const { look, view } = readLook();
+  /* The hero line (owner: "One rower, 100,000m and $x for children with
+   * cancer", live): the meters flip to the boat's own on race day. */
+  const meters = liveMeters() ?? TOTAL_M;
 
   return (
     <div className={`dd dd-${look} ${spaceMono.variable}`}>
@@ -68,25 +64,27 @@ export default async function DamToDamPage() {
           <Link href="/dam-to-dam/settings" className="dd-door">
             Settings
           </Link>
-          <span className="dd-dev">Dev</span>
         </div>
       </div>
 
       <div className="wrap">
         <div className="dd-hero">
           <h1>
-            Dam to <span>Dam</span>
+            Dam <span>to</span> Dam
           </h1>
-          <div className="dd-sub">Hoover Dam → Davis Dam · Colorado River</div>
+          <div className="dd-sub">
+            One rower · {meters.toLocaleString("en-US")} m · {usd(RAISED)} for children with cancer
+          </div>
           <p className="dd-lede">
             One rower, one boat, one day: every meter of water between the Hoover Dam and the
-            Davis Dam. Through Black Canyon, down the length of Lake Mohave, point to point.
+            Davis Dam — through Black Canyon, down the length of Lake Mohave, point to point —
+            raising a dollar a meter for Candlelighters.
           </p>
           <div className="dd-facts">
             <div className="dd-fact">
               <div className="k">Distance</div>
               <div className="v">
-                100,000 m<small>point to point, every meter on the water</small>
+                100,000 m<small>point to point</small>
               </div>
             </div>
             <div className="dd-fact">
@@ -98,57 +96,42 @@ export default async function DamToDamPage() {
             <div className="dd-fact">
               <div className="k">Date</div>
               <div className="v">
-                Nov 21<small>one continuous push, dawn start</small>
+                Nov 21<small>dawn start · ETA 10–12 hours</small>
               </div>
             </div>
             <div className="dd-fact">
-              <div className="k">Crew</div>
+              <div className="k">The cause</div>
               <div className="v">
-                Solo<small>one rower, one support boat</small>
+                $1 = 1 m<small>donations matched 1:1 for Candlelighters</small>
               </div>
             </div>
           </div>
           <div className={`dd-chart ${view}`}>
-            <RouteMap view={view} />
+            <ZoomPan>
+              <RouteMap view={view} />
+            </ZoomPan>
           </div>
         </div>
 
         <section>
           <div className="dd-head">
             <h2>The plan</h2>
-            <span>three legs, one line</span>
+            <span>the river in four legs</span>
           </div>
-          <div className="dd-row">
-            <div className="k">0 – 19 k</div>
-            <p>
-              <b>Black Canyon.</b> Launch below the Hoover Dam at first light — the dam-base
-              launch is permit country, arranged through an authorized outfitter. Nineteen
-              kilometers of cold, moving water between canyon walls to Willow Beach.
-            </p>
+          <div className="dd-legs">
+            {LEGS.map((leg) => (
+              <div className="dd-leg" key={leg.title}>
+                <div className="t">{leg.title}</div>
+                <div className="r">{leg.range}</div>
+                <LegMap leg={leg} />
+                <p>{leg.blurb}</p>
+              </div>
+            ))}
           </div>
-          <div className="dd-row">
-            <div className="k">19 – 97 k</div>
-            <p>
-              <b>Lake Mohave.</b> The long middle: seventy-eight kilometers of open lake, past
-              Cottonwood Cove at the halfway-and-some mark. The water goes slack and the wind
-              becomes the adversary.
-            </p>
-          </div>
-          <div className="dd-row">
-            <div className="k">97 – 100 k</div>
-            <p>
-              <b>The finish.</b> Katherine Landing, then the last three thousand meters to the
-              Davis Dam line. November gives ten hours of daylight and the row does not fit
-              inside them — the finish happens under lights.
-            </p>
-          </div>
-          <div className="dd-row">
-            <div className="k">The clock</div>
-            <p>
-              Ten to twelve hours of rowing at an all-day pace. No current to speak of once the
-              canyon opens; no drafting, no relay, no shore breaks longer than a bottle swap.
-            </p>
-          </div>
+          <p className="dd-note">
+            No current once the canyon opens, no drafting, no shore breaks longer than a bottle
+            swap. Road access at Willow Beach, Cottonwood Cove and Katherine Landing.
+          </p>
         </section>
 
         <section>
@@ -248,7 +231,9 @@ export default async function DamToDamPage() {
             <span>race day, on this page</span>
           </div>
           <div className={`dd-chart ${view}`}>
-            <RouteMap view={view} live={DEMO_METERS} />
+            <ZoomPan>
+              <RouteMap view={view} live={liveMeters() ?? DEMO_METERS} />
+            </ZoomPan>
           </div>
           <p className="dd-lede">
             On race day this page goes live. The dot is the boat — pinged by satellite every few
@@ -256,7 +241,7 @@ export default async function DamToDamPage() {
             tracker does not care. A camera rides the support boat, and when coverage allows the
             stream embeds right here.
           </p>
-          <span className="dd-sim">Simulation — race day is not live yet</span>
+          {liveMeters() === null && <span className="dd-sim">Simulation — race day is not live yet</span>}
         </section>
 
         <section>
@@ -267,8 +252,8 @@ export default async function DamToDamPage() {
           <p className="dd-lede" style={{ marginTop: 24 }}>
             The row raises money for <b>Candlelighters Childhood Cancer Foundation of Nevada</b>.
             The goal mirrors the distance: $100,000 for 100,000 meters — a dollar a meter — with
-            individual donations matched from a pledge pool. The whole case for giving is on the
-            donor page.
+            individual donations matched from a pledge pool. {usd(RAISED)} raised so far; the
+            whole case for giving is on the donor page.
           </p>
           <Link className="dd-cta" href="/dam-to-dam/donate">
             The donor page →
@@ -291,7 +276,7 @@ export default async function DamToDamPage() {
         </section>
       </div>
 
-      <footer>Dam to Dam · 100,000 meters · one day</footer>
+      <footer>Dam to Dam · 100,000 meters · one day · for Candlelighters</footer>
     </div>
   );
 }

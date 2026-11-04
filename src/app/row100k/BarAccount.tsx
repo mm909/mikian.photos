@@ -269,10 +269,12 @@ export function BarAccount({
                  * Hoover Dam → Davis Dam, 100,000 m — pre-race page, donor
                  * page and look settings (src/app/dam-to-dam). Fully
                  * standalone, so it lives on mikianmusser.com (absolute URL:
-                 * this menu renders on rowtember.com); owner-only in
-                 * production until he says it goes live. */}
+                 * this menu renders on rowtember.com). LIVE BUT UNLISTED
+                 * (owner, same day: "open this to everyone but keep it
+                 * unlisted"): no gate, robots off, and this menu line stays
+                 * the only link anywhere. */}
                 <Link className="acct-item" href="https://mikianmusser.com/dam-to-dam" onClick={close}>
-                  Dam to Dam (dev) →
+                  Dam to Dam →
                 </Link>
               </>
             )}

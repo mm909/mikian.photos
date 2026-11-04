@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getEffectiveActor, isOwner, isOwnerEmail } from "@/lib/permissions";
 import { THEME_COLOR } from "../look";
 import { readLook } from "../readLook";
 import { RouteMap } from "../RouteMap";
@@ -13,11 +11,12 @@ import { LookPicker } from "./LookPicker";
  * palettes and the two projections as cookie-backed radios (LookPicker),
  * with the live chart underneath so a change shows itself at once.
  *
- * IN DEVELOPMENT with the rest of /dam-to-dam: owner-only in production,
- * open in local dev. */
+ * LIVE BUT UNLISTED with the rest of /dam-to-dam (owner, 2026-11-03): the
+ * cookies are the viewer's own, so the page is open to anyone who finds
+ * it; robots stay off. */
 
 export const metadata: Metadata = {
-  title: "Settings (dev) — Dam to Dam",
+  title: "Settings — Dam to Dam",
   robots: { index: false, follow: false },
 };
 
@@ -27,12 +26,7 @@ export function generateViewport(): Viewport {
   return { themeColor: THEME_COLOR[readLook().look] };
 }
 
-export default async function DamToDamSettingsPage() {
-  const actor = await getEffectiveActor();
-  /* Owner by role OR by sign-in email, as on the main page: a roles row
-   * can never lock the owner out. */
-  const owner = actor !== null && (isOwner(actor) || isOwnerEmail(actor.email));
-  if (process.env.NODE_ENV === "production" && !owner) notFound();
+export default function DamToDamSettingsPage() {
   const { look, view } = readLook();
 
   return (
@@ -47,7 +41,6 @@ export default async function DamToDamSettingsPage() {
           <Link href="/dam-to-dam" className="dd-door">
             Back to the page
           </Link>
-          <span className="dd-dev">Dev</span>
         </div>
       </div>
 
