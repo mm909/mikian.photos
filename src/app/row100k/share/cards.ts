@@ -136,6 +136,14 @@ export type ShareData = {
     /* "Sep 3" — the day the standings were read, for the sticker title. */
     asOf?: string;
   };
+  /* THE DAILY STICKERS (owner, 2026-11-04: "a really easy cut and paste way
+   * to add stats to my daily video ... here's what the leaderboard looks
+   * like ... It shouldn't say top 10. It should just be the board"; "I also
+   * want stickers for people that submitted meters that day"). Set only by
+   * the poster page, for an admin (poster/data.ts dailyStickerData), off
+   * the PUBLIC board: a hidden row arrives masked and unranked already.
+   * Unlocks the DAILY_CARD_IDS cards and nothing else. */
+  daily?: DailyShare;
   /* RACE DAY (owner, 2026-09-11: "just a shareable with the event name and
    * logo"). Set by the race day page — and, since 2026-09-16, by the front
    * page and a rower's own profile too, but ONLY with `mine` on it (see
@@ -225,6 +233,28 @@ export type ShareData = {
       tag: "PR" | "FIRST 5K" | null;
     };
   };
+};
+
+/* One line of a list sticker. `meters` is a real number unless `masked`,
+ * when it is nothing to print and `digits` says how many blocks to draw. */
+export type StickerRow = {
+  name: string;
+  rowerNumber: number;
+  meters: number;
+  masked?: boolean;
+  digits?: number;
+  /* One of the hidden elite: no place is printed for the row. */
+  unranked?: boolean;
+};
+
+export type DailyShare = {
+  /* One per board, in board order: "Men", "Women". Ten rows each, in
+   * PUBLIC order (the elite first, unranked, while the lights are out). */
+  boards: { key: "M" | "F"; label: string; asOf: string; rows: StickerRow[] }[];
+  /* Today and yesterday (Pacific): everyone who logged meters that day,
+   * their meters that day summed, biggest first, the hidden after them by
+   * name. `meters` is the day's whole, a public aggregate. */
+  days: { key: "today" | "yesterday"; asOf: string; meters: number; rows: StickerRow[] }[];
 };
 
 export type ShareFonts = { black: string; mono: string };
@@ -3217,6 +3247,157 @@ function boardCard(page: number): ShareCard {
 
 const boardCards = Array.from({ length: BOARD_PAGES }, (_, i) => boardCard(i));
 
+/* ---------------------------------------------------------- daily stickers */
+
+/* THE DAILY (owner, 2026-11-04, for the video he films straight off the
+ * erg: "here's what the leaderboard looks like ... It shouldn't say top 10.
+ * It should just be the board"; "stickers for people that submitted meters
+ * that day"). The board stickers' idiom exactly — bold mono date line, a
+ * dim section line, white mono name-left / meters-right with the soft
+ * shadow — on 1080 squares that sit over a phone video. No address, no
+ * handle (CLAUDE.md, the sticker rule). Opened from the poster page's
+ * DAILY section (posters/DailyStickers.tsx), an admin's. */
+
+/* The list itself, shared by both kinds. `places` false leaves the place
+ * column out and starts the names at the margin. */
+function drawStickerList(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  fonts: ShareFonts,
+  title: string,
+  section: string,
+  rows: StickerRow[],
+  places: boolean,
+): void {
+  const L = 70;
+  const R = width - 70;
+  ctx.save();
+  ctx.textBaseline = "alphabetic";
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 3;
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `bold 46px ${fonts.mono}`;
+  ctx.fillText(ellipsize(ctx, title, R - L), L, 118);
+
+  ctx.font = `30px ${fonts.mono}`;
+  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  ctx.fillText(ellipsize(ctx, section, R - L), L, 196);
+
+  const top = 292;
+  const step = 82;
+  const size = 42;
+  rows.forEach((r, i) => {
+    const y = top + i * step;
+    const place = i + 1;
+
+    ctx.font = `${size}px ${fonts.mono}`;
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#ffffff";
+    let metersW: number;
+    if (r.masked) {
+      const unit = " m";
+      ctx.fillText(unit, R, y);
+      const unitW = ctx.measureText(unit).width;
+      metersW =
+        unitW +
+        drawBlockDigits(ctx, R - unitW, y, r.digits ?? digitCount(r.meters), size, fonts, { align: "right" });
+    } else {
+      const metersText = fmtMeters(r.meters);
+      ctx.fillText(metersText, R, y);
+      metersW = ctx.measureText(metersText).width;
+    }
+
+    ctx.textAlign = "left";
+    let nameX = L;
+    if (places) {
+      const placeText = boardPlaceText(r, place);
+      if (placeText) {
+        ctx.font = `${size * 0.72}px ${fonts.mono}`;
+        ctx.fillStyle = (!r.unranked && medalColor(place)) || "rgba(255,255,255,0.55)";
+        ctx.fillText(placeText, L, y);
+      }
+      nameX = L + 86;
+    }
+    ctx.font = `${size}px ${fonts.mono}`;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(ellipsize(ctx, r.name, R - metersW - 36 - nameX), nameX, y);
+  });
+  ctx.restore();
+}
+
+/* THE BOARD, one per division: "Rowvember · Nov 3" over "The board · Men",
+ * then the ten. Never "top ten" (owner). A place is the row's place on the
+ * public board; a hidden row prints none (boardPlaceText), so under lights
+ * out the elite stay unranked here as they are everywhere. */
+function dailyBoardCard(key: "M" | "F", label: string): ShareCard {
+  const board = (d: ShareData) => d.daily?.boards.find((b) => b.key === key);
+  return {
+    id: `rowtember-daily-board-${key.toLowerCase()}`,
+    label: `The board · ${label}`,
+    width: 1080,
+    height: 1080,
+    light: true,
+    available: (d) => (board(d)?.rows.length ?? 0) > 0,
+    draw(ctx, data, fonts) {
+      const b = board(data);
+      if (!b || b.rows.length === 0) return;
+      const rows = b.rows.slice(0, 10);
+      const allHidden = rows.every((r) => r.unranked);
+      drawStickerList(
+        ctx,
+        this.width,
+        fonts,
+        `${MONTH_NAME} · ${b.asOf}`,
+        allHidden ? `The board · ${b.label} · ${ELITE_SECTION}` : `The board · ${b.label}`,
+        rows,
+        true,
+      );
+    },
+  };
+}
+
+/* ROWED TODAY (and yesterday — the morning video has a short today), ten
+ * names a page: "Rowed today · 7 rowers · 41,250 m". No places: it is who
+ * showed up, not a race. */
+const DAY_PAGE = 10;
+const DAY_PAGES = 4;
+function dailyDayCard(key: "today" | "yesterday", page: number): ShareCard {
+  const day = (d: ShareData) => d.daily?.days.find((x) => x.key === key);
+  const word = key === "today" ? "Rowed today" : "Rowed yesterday";
+  const pages = (d: ShareData) => Math.ceil((day(d)?.rows.length ?? 0) / DAY_PAGE);
+  return {
+    id: `rowtember-daily-${key}-${page + 1}`,
+    label: page === 0 ? word : `${word} · ${page + 1}`,
+    labelFor: (d) => (pages(d) > 1 ? `${word} · ${page + 1}/${pages(d)}` : word),
+    width: 1080,
+    height: 1080,
+    light: true,
+    available: (d) => (day(d)?.rows.length ?? 0) > page * DAY_PAGE,
+    draw(ctx, data, fonts) {
+      const x = day(data);
+      if (!x) return;
+      const rows = x.rows.slice(page * DAY_PAGE, (page + 1) * DAY_PAGE);
+      if (rows.length === 0) return;
+      const n = x.rows.length;
+      const head = `${word} · ${n} ${n === 1 ? "rower" : "rowers"} · ${fmtMeters(x.meters)}`;
+      const section = pages(data) > 1 ? `${head} · ${page + 1}/${pages(data)}` : head;
+      drawStickerList(ctx, this.width, fonts, `${MONTH_NAME} · ${x.asOf}`, section, rows, false);
+    },
+  };
+}
+
+const dailyCards: ShareCard[] = [
+  dailyBoardCard("M", "Men"),
+  dailyBoardCard("F", "Women"),
+  ...Array.from({ length: DAY_PAGES }, (_, i) => dailyDayCard("today", i)),
+  ...Array.from({ length: DAY_PAGES }, (_, i) => dailyDayCard("yesterday", i)),
+];
+
+export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
+
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
 
 export const CARDS: ShareCard[] = [
@@ -3257,6 +3438,7 @@ export const CARDS: ShareCard[] = [
   rowtemberCommunityHours,
   rowtemberCommunityHoursTall,
   ...boardCards,
+  ...dailyCards,
 ];
 
 export function availableCards(data: ShareData): ShareCard[] {

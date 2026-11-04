@@ -17,16 +17,17 @@
  * window is open, which fails CLOSED (assemble.ts). */
 
 import { db } from "@/lib/db";
-import { forcedBlackout } from "@/lib/blackoutRules";
+import { digitCount, forcedBlackout, maskStandings, type StandingRow } from "@/lib/blackoutRules";
 import { activeBlackout, listBlackouts, type BlackoutState } from "@/lib/blackout";
 import type { BlackoutPolicy } from "@/lib/blackoutRules";
-import { CHALLENGE, nowMs, type Boards } from "@/lib/row100k";
+import { CHALLENGE, fmtDay, nowMs, pacificDay, type Boards } from "@/lib/row100k";
 import { inPeriod, monthOf, type Period } from "@/lib/rowPeriod";
 import type { Viewer } from "@/lib/row100kViewer";
 import { boardView } from "../boardData";
 import { firstToGoal } from "../firstToGoal";
 import { assembleCommunity, assembleRower, forceBlackoutState } from "./assemble";
 import type { CommunityPoster, PosterRosterRower, RowerPoster } from "./types";
+import type { DailyShare, StickerRow } from "../share/cards";
 
 export type PosterDataOpts = {
   /* The admin's test blackout: treat the window as open for this request.
@@ -201,4 +202,103 @@ export async function posterRoster(): Promise<PosterRosterRower[]> {
     console.error("row100k/poster: failed to load the roster", err);
     return [];
   }
+}
+
+/* THE DAILY STICKERS (owner, 2026-11-04 — share/cards.ts DailyShare): the
+ * two boards, ten each, and who logged meters today and yesterday, for the
+ * video he films off the erg. Admin only, the poster page decides that.
+ *
+ * Off the PUBLIC board, the way every poster is: a row the board hides
+ * (the elite under a window, and a run-up row, whose low digits are gone)
+ * prints blocks here too, and its meters for the day with it — a day's
+ * meters next to yesterday's total is the total by subtraction. The masked
+ * rows of a day list go after the rest, by name, so their order says
+ * nothing about their meters either. Null when the board could not be read:
+ * a sticker leaves the site, so this fails closed like the board. */
+export async function dailyStickerData(opts?: PosterDataOpts | Viewer): Promise<DailyShare | null> {
+  const force = forceOf(opts);
+  const atMs = nowMs();
+  const today = pacificDay(atMs);
+  const yesterday = pacificDay(atMs - 86_400_000);
+  const [{ boards, blackout, policy }, entries] = await Promise.all([
+    publicBoard(force, "daily", monthOf(atMs)),
+    db.rowEntry
+      .findMany({
+        where: { challenge: CHALLENGE, day: { in: [today, yesterday] } },
+        select: { participantId: true, day: true, meters: true },
+      })
+      .catch((err: unknown) => {
+        console.error("row100k/poster: failed to load the day's rows for the daily stickers", err);
+        return null;
+      }),
+  ]);
+  if (!boards) return null;
+
+  const onBoard = boards.total.filter((r) => r.meters > 0 || r.masked);
+  const hidden = new Set(onBoard.filter((r) => r.masked || r.hideLow || r.unranked).map((r) => r.participantId));
+
+  // The boards: the standings order maskStandings gives the public page
+  // (it is idempotent over an already-masked board), ten per division.
+  type Row = StandingRow & { participantId: string; hideLow?: number };
+  const rows: Row[] = onBoard.map((r) => ({
+    participantId: r.participantId,
+    name: r.name,
+    rowerNumber: r.rowerNumber,
+    meters: r.meters,
+    division: r.division,
+    ...(r.masked ? { masked: true } : {}),
+    ...(r.digits != null ? { digits: r.digits } : {}),
+    ...(r.unranked ? { unranked: true } : {}),
+    ...(r.paceTag ? { paceTag: r.paceTag } : {}),
+    ...(r.hideLow ? { hideLow: r.hideLow } : {}),
+  }));
+  const safe = maskStandings(rows, { active: blackout.active, admin: false, policy }) as Row[];
+  const toSticker = (r: Row): StickerRow => {
+    const masked = !!r.masked || !!r.hideLow;
+    return {
+      name: r.name,
+      rowerNumber: r.rowerNumber,
+      meters: masked ? 0 : r.meters,
+      ...(masked ? { masked: true, digits: r.digits ?? digitCount(r.meters) } : {}),
+      ...(r.unranked ? { unranked: true } : {}),
+    };
+  };
+  const asOf = fmtDay(today);
+  const board = (key: "M" | "F", label: string) => ({
+    key,
+    label,
+    asOf,
+    rows: safe.filter((r) => r.division === key).slice(0, 10).map(toSticker),
+  });
+
+  // The days: meters summed per rower, names off the board.
+  const byId = new Map(boards.total.map((r) => [r.participantId, r]));
+  const dayOf = (key: "today" | "yesterday", dayKey: string) => {
+    const sums = new Map<string, number>();
+    for (const e of entries ?? []) {
+      if (e.day !== dayKey || !byId.has(e.participantId)) continue;
+      sums.set(e.participantId, (sums.get(e.participantId) ?? 0) + e.meters);
+    }
+    const list = [...sums.entries()].filter(([, m]) => m > 0);
+    const open: StickerRow[] = [];
+    const masked: StickerRow[] = [];
+    for (const [id, m] of list) {
+      const r = byId.get(id)!;
+      if (hidden.has(id)) masked.push({ name: r.name, rowerNumber: r.rowerNumber, meters: 0, masked: true, digits: digitCount(m) });
+      else open.push({ name: r.name, rowerNumber: r.rowerNumber, meters: m });
+    }
+    open.sort((a, b) => b.meters - a.meters || a.name.localeCompare(b.name));
+    masked.sort((a, b) => a.name.localeCompare(b.name));
+    return {
+      key,
+      asOf: fmtDay(dayKey),
+      meters: list.reduce((s, [, m]) => s + m, 0),
+      rows: [...open, ...masked],
+    };
+  };
+
+  return {
+    boards: [board("M", "Men"), board("F", "Women")],
+    days: entries ? [dayOf("today", today), dayOf("yesterday", yesterday)] : [],
+  };
 }

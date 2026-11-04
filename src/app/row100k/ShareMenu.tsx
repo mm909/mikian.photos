@@ -182,7 +182,12 @@ export function ShareDialog({
    * number in the name. Before the race card was added this was a prefix
    * test, and the bill came off a signed-out visitor's phone called
    * rowtember-0-rowtember-raceday-bill.png. */
-  const mine = card !== undefined && !ANYONES.has(card.id) && !card.id.startsWith("rowtember-community");
+  // The daily stickers (poster page) are everybody's too: no rower number.
+  const mine =
+    card !== undefined &&
+    !ANYONES.has(card.id) &&
+    !card.id.startsWith("rowtember-community") &&
+    !card.id.startsWith("rowtember-daily");
   const filename = !card ? "rowtember.png" : mine ? `rowtember-${data.rowerNumber}-${card.id}.png` : `${card.id}.png`;
 
   async function onCopy() {
