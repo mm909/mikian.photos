@@ -7,12 +7,14 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { communityPosterData, posterRoster, rowerPosterData } from "../poster/data";
+import { communityPosterData, dailyStickerData, posterRoster, rowerPosterData } from "../poster/data";
 import { raceDayPosterData } from "../poster/raceData";
 import { poCss } from "../poster/studioCss";
 import type { CommunityPoster, PosterRosterRower, RaceDayPoster, RowerPoster } from "../poster/types";
 import { PosterStudio } from "./PosterStudio";
 import { Carousel } from "./Carousel";
+import { DailyStickers } from "./DailyStickers";
+import type { DailyShare } from "../share/cards";
 
 export const dynamic = "force-dynamic";
 
@@ -83,8 +85,10 @@ export default async function PostersPage({
    * whatever the subject, because the chip flips without a navigation.
    * Never read for anyone else. */
   let raceday: RaceDayPoster | null = null;
+  /* THE DAILY (DailyStickers.tsx): an admin's, read for nobody else. */
+  let daily: DailyShare | null = null;
   if (!before) {
-    const [c, r, ro, rd] = await Promise.all([
+    const [c, r, ro, rd, dy] = await Promise.all([
       admin
         ? communityPosterData(opts).catch((err: unknown) => {
             console.error("row100k/posters: community payload failed", err);
@@ -104,7 +108,14 @@ export default async function PostersPage({
             return null;
           })
         : Promise.resolve(null),
+      admin
+        ? dailyStickerData(opts).catch((err: unknown) => {
+            console.error("row100k/posters: daily stickers payload failed", err);
+            return null;
+          })
+        : Promise.resolve(null),
     ]);
+    daily = dy;
     community = c;
     rower = r;
     roster = ro;
@@ -121,6 +132,9 @@ export default async function PostersPage({
       <style>{poCss}</style>
 
       <RowBar {...barProps(viewer)} />
+
+      {/* THE DAILY first: it is the one he opens every morning, on a phone. */}
+      {admin && !before ? <DailyStickers daily={daily} /> : null}
 
       <section>
         <div className="wrap">

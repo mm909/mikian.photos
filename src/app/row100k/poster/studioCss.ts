@@ -66,6 +66,8 @@ export const poCss = `
  * post-size preview over its three download links; one column on a
  * phone. The frame is a link, so the preview itself downloads the post. */
 .row100k .po-car{padding-top:8px}
+.row100k .po-daily .po-acts{margin-top:10px}
+.row100k .po-daily .po-eye{margin-top:4px}
 .row100k .po-car-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 20px}
 .row100k .po-car-card{margin:0}
 .row100k .po-car-frame{margin-top:8px;aspect-ratio:4/5}
