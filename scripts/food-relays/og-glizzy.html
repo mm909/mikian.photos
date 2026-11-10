@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- The link card for /glizzy-gauntlet, 1200 x 630. Rendered to
+     public/glizzy-gauntlet/og.png with headless Chrome:
+
+       chrome --headless=new --hide-scrollbars --window-size=1200,630 \
+         --virtual-time-budget=8000 \
+         --screenshot=public/glizzy-gauntlet/og.png scripts/food-relays/og-glizzy.html
+
+     No date (it is a stand-in and would go stale on every share already
+     sent) and no address: a card that gets posted carries no URL
+     (CLAUDE.md, "No address on a sticker"). -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vegas Glizzy Gauntlet</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,800&display=block" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; }
+      body {
+        width: 1200px; height: 630px; overflow: hidden; position: relative;
+        background: #fbf4e6; color: #1c1a17;
+        font-family: "Barlow Condensed", Impact, sans-serif;
+      }
+      .pad { position: absolute; inset: 0; padding: 46px 56px 0; }
+      .chips { display: flex; gap: 12px; }
+      .chip {
+        font-weight: 700; font-size: 26px; letter-spacing: 0.09em; text-transform: uppercase;
+        padding: 6px 18px; border: 3px solid #1c1a17; border-radius: 999px; background: #fffdf8; line-height: 1.2;
+      }
+      .chip.on { background: #d0202c; color: #fff; }
+      .chip.alt { background: #f4b400; }
+      h1 {
+        margin: 22px 0 0; font-style: italic; font-weight: 800; text-transform: uppercase;
+        font-size: 158px; line-height: 0.84; letter-spacing: 0;
+      }
+      h1 span { display: block; }
+      h1 .hl { color: #d0202c; }
+      .art { position: absolute; right: 26px; top: 96px; width: 500px; transform: rotate(-13deg); filter: drop-shadow(12px 14px 0 rgba(28, 26, 23, 0.16)); }
+      .bar {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 98px; background: #1c1a17; color: #fff;
+        display: flex; align-items: center; gap: 30px; padding: 0 56px;
+        font-style: italic; font-weight: 800; font-size: 44px; text-transform: uppercase; line-height: 1; white-space: nowrap;
+      }
+      .bar b { color: #f4b400; font-weight: 800; }
+      .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); flex: none; }
+    </style>
+  </head>
+  <body>
+    <div class="pad">
+      <div class="chips">
+        <span class="chip on">Las Vegas</span>
+        <span class="chip">Team relay</span>
+        <span class="chip alt">On foot</span>
+      </div>
+      <h1>
+        <span>Vegas</span>
+        <span class="hl">Glizzy</span>
+        <span>Gauntlet</span>
+      </h1>
+    </div>
+    <svg class="art" viewBox="0 0 248 132" aria-hidden="true">
+      <rect x="22" y="38" width="204" height="60" rx="30" fill="#d99a4e" stroke="#1c1a17" stroke-width="6" />
+      <rect x="6" y="26" width="236" height="46" rx="23" fill="#c8432b" stroke="#1c1a17" stroke-width="6" />
+      <path d="M34 49 q12 -15 24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t12 -6" fill="none" stroke="#f4b400" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="22" y="66" width="204" height="52" rx="26" fill="#f0c27a" stroke="#1c1a17" stroke-width="6" />
+    </svg>
+    <div class="bar"><b>5 Costcos</b><i></i><span>48 miles</span><i></i><span>One glizzy at every stop</span></div>
+  </body>
+</html>

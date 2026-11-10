@@ -55,7 +55,14 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
      * remove it"): the standalone row carries its own bar
      * (src/app/dam-to-dam), no marketplace nav over it. */
     pathname === "/dam-to-dam" ||
-    pathname.startsWith("/dam-to-dam/");
+    pathname.startsWith("/dam-to-dam/") ||
+    /* The food relays (2026-11-10): the Vegas Glizzy Gauntlet and Ring
+     * Every Bell carry their own bar (src/components/foodrelay), and the
+     * owner asked for no link in any header. */
+    pathname === "/glizzy-gauntlet" ||
+    pathname.startsWith("/glizzy-gauntlet/") ||
+    pathname === "/ring-every-bell" ||
+    pathname.startsWith("/ring-every-bell/");
 
   return (
     <>

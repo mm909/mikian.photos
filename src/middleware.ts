@@ -28,6 +28,14 @@ const ALLOWED_PREFIXES = [
    * anyone with the link, robots off, linked only from the DEVELOPMENT
    * group of the row100k account menu. */
   "/dam-to-dam",
+  /* The food relays (owner, 2026-11-10: "publish these sites live but dont
+   * add the link to the header. I want to be able to share"): the Vegas
+   * Glizzy Gauntlet and Ring Every Bell, the Taco Bell 100K
+   * (src/app/glizzy-gauntlet, src/app/ring-every-bell). Live but unlisted,
+   * the Dam to Dam way: open to anyone with the address, robots off, no
+   * link in any menu. */
+  "/glizzy-gauntlet",
+  "/ring-every-bell",
   "/tsp",
   "/moab240",
   "/privacy",
