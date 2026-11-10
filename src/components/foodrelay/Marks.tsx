@@ -1,6 +1,6 @@
-/* The two marks, drawn here so neither page borrows anybody's logo: a
- * glizzy for the Costco relay, a bell for the Taco Bell one. Sticker
- * style: flat fills, one ink outline. */
+/* The marks, drawn here so no page borrows anybody's logo: a glizzy for
+ * the Costco relay, a bell for the Taco Bell one, a double cheeseburger
+ * for the In-N-Out one. Sticker style: flat fills, one ink outline. */
 
 const INK = "#1c1a17";
 
@@ -25,6 +25,32 @@ export function GlizzyMark({ size = 28, className }: { size?: number; className?
         strokeLinejoin="round"
       />
       <rect x="22" y="66" width="204" height="52" rx="26" fill="#f0c27a" stroke={INK} strokeWidth="6" />
+    </svg>
+  );
+}
+
+export function BurgerMark({ size = 28, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={(size * 184) / 200}
+      viewBox="0 0 200 184"
+      role="img"
+      aria-label="A double cheeseburger"
+    >
+      <g stroke={INK} strokeWidth="6" strokeLinejoin="round">
+        <path d="M24 154 H176 V160 C176 171 168 178 157 178 H43 C32 178 24 171 24 160 Z" fill="#e2a04f" />
+        <rect x="16" y="130" width="168" height="24" rx="12" fill="#6b3a22" />
+        <path d="M14 118 H186 V130 H152 L138 145 L124 130 H14 Z" fill="#ffc61a" />
+        <rect x="16" y="94" width="168" height="24" rx="12" fill="#6b3a22" />
+        <path d="M14 82 H186 V94 H90 L76 109 L62 94 H14 Z" fill="#ffc61a" />
+        <path
+          d="M10 66 H190 V76 q-11.25 13 -22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 Z"
+          fill="#3f9c4b"
+        />
+        <path d="M20 68 C20 30 58 8 100 8 C142 8 180 30 180 68 Z" fill="#e2a04f" />
+      </g>
     </svg>
   );
 }

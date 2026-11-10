@@ -15,6 +15,8 @@ export type Stop = {
   legMi: number;
   /** Saturday opening hour on the store page; "24" is a 24-hour store. */
   opens?: string;
+  /** The chain's own store number, where the course builder has one. */
+  store?: number;
 };
 
 export type Course = {

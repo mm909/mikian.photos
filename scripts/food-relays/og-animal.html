@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- The link card for /animal-style, 1200 x 630. Rendered to
+     public/animal-style/og.png with headless Chrome:
+
+       chrome --headless=new --hide-scrollbars --window-size=1200,630 \
+         --virtual-time-budget=8000 \
+         --screenshot=public/animal-style/og.png scripts/food-relays/og-animal.html
+
+     No date and no address, for the reasons in og-glizzy.html. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Animal Style</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,800&display=block" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; }
+      body {
+        width: 1200px; height: 630px; overflow: hidden; position: relative;
+        background: #fbf4e6; color: #1c1a17;
+        font-family: "Barlow Condensed", Impact, sans-serif;
+      }
+      .pad { position: absolute; inset: 0; padding: 46px 56px 0; }
+      .chips { display: flex; gap: 12px; }
+      .chip {
+        font-weight: 700; font-size: 26px; letter-spacing: 0.09em; text-transform: uppercase;
+        padding: 6px 18px; border: 3px solid #1c1a17; border-radius: 999px; background: #fffdf8; line-height: 1.2;
+      }
+      .chip.on { background: #d6281b; color: #fff; }
+      .chip.alt { background: #ffc61a; }
+      h1 {
+        margin: 34px 0 0; font-style: italic; font-weight: 800; text-transform: uppercase;
+        font-size: 212px; line-height: 0.84; letter-spacing: 0;
+      }
+      h1 span { display: block; }
+      h1 .hl { color: #d6281b; }
+      .art { position: absolute; right: 70px; top: 86px; width: 400px; transform: rotate(-11deg); filter: drop-shadow(12px 14px 0 rgba(28, 26, 23, 0.16)); }
+      .bar {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 98px; background: #1c1a17; color: #fff;
+        display: flex; align-items: center; gap: 30px; padding: 0 56px;
+        font-style: italic; font-weight: 800; font-size: 44px; text-transform: uppercase; line-height: 1; white-space: nowrap;
+      }
+      .bar b { color: #ffc61a; font-weight: 800; }
+      .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); flex: none; }
+    </style>
+  </head>
+  <body>
+    <div class="pad">
+      <div class="chips">
+        <span class="chip on">Las Vegas</span>
+        <span class="chip">Team relay</span>
+        <span class="chip alt">On foot</span>
+      </div>
+      <h1>
+        <span>Animal</span>
+        <span class="hl">Style</span>
+      </h1>
+    </div>
+    <svg class="art" viewBox="0 0 200 184" aria-hidden="true">
+      <g stroke="#1c1a17" stroke-width="6" stroke-linejoin="round">
+        <path d="M24 154 H176 V160 C176 171 168 178 157 178 H43 C32 178 24 171 24 160 Z" fill="#e2a04f" />
+        <rect x="16" y="130" width="168" height="24" rx="12" fill="#6b3a22" />
+        <path d="M14 118 H186 V130 H152 L138 145 L124 130 H14 Z" fill="#ffc61a" />
+        <rect x="16" y="94" width="168" height="24" rx="12" fill="#6b3a22" />
+        <path d="M14 82 H186 V94 H90 L76 109 L62 94 H14 Z" fill="#ffc61a" />
+        <path d="M10 66 H190 V76 q-11.25 13 -22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 t-22.5 0 Z" fill="#3f9c4b" />
+        <path d="M20 68 C20 30 58 8 100 8 C142 8 180 30 180 68 Z" fill="#e2a04f" />
+      </g>
+    </svg>
+    <div class="bar"><b>All 19 In-N-Outs</b><i></i><span>87 miles</span><i></i><span>Open to close</span></div>
+  </body>
+</html>

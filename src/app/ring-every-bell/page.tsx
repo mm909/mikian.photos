@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import { Countdown } from "@/components/foodrelay/Countdown";
 import { CourseMap } from "@/components/foodrelay/CourseMap";
 import { BellMark } from "@/components/foodrelay/Marks";
-import { Faq, StopGrid, clock, hm, pace, startParts } from "@/components/foodrelay/Parts";
+import { Faq, Siblings, StopGrid, clock, hm, pace, startParts } from "@/components/foodrelay/Parts";
 import { Profile } from "@/components/foodrelay/Profile";
+import { SERIES } from "@/components/foodrelay/series";
 import { css, frBody, frDisplay } from "@/components/foodrelay/theme";
 import { VEGAS_SHIELDS } from "@/components/foodrelay/vegasRoads";
 import { COURSE } from "./courseData";
@@ -20,7 +20,7 @@ import { COURSE } from "./courseData";
  * THE OWNER'S CALLS (interview, same day): a one-day short course, not
  * the 169-mile tour of all 58 walk-up Taco Bells in the valley; the name
  * Ring Every Bell; "a weekend in February 2027" (Sat Feb 20 is the
- * stand-in, START below); teams of 4 to 5; landing page only.
+ * stand-in, in series.ts); teams of 4 to 5; landing page only.
  *
  * "EVERY" IS EVERY BELL ON THE COURSE, and the page says so in the open
  * (section 01, the first question): 24 of 58.
@@ -42,10 +42,8 @@ import { COURSE } from "./courseData";
 const SITE = "https://www.mikianmusser.com";
 const PATH = "/ring-every-bell";
 
-/* STAND-IN DATE. 7:00 AM: the Cantina never closes and the first stores
- * that keep hours are open by the time a runner can reach them (see the
- * clock section). Las Vegas is UTC-8 in February. */
-const START = "2027-02-20T07:00:00-08:00";
+/* The stand-in date lives with its two siblings in series.ts. */
+const START = SERIES["ring-every-bell"].start;
 /* Sunset in Las Vegas on Feb 20, to the nearest five minutes. */
 const SUNSET_MIN = 17 * 60 + 25;
 /* ASSUMED: a tag at the door, a runner out of the van, a runner into it. */
@@ -663,16 +661,7 @@ export default function RingEveryBellPage() {
 
       <footer className="fr-foot">
         <div className="wrap">
-          <div className="fr-sib">
-            <div>
-              <div className="k">Also on the calendar</div>
-              <div className="t">Vegas Glizzy Gauntlet</div>
-              <div className="s">Five Costco food courts, 48 miles across the valley, one glizzy at every stop.</div>
-            </div>
-            <Link className="fr-btn" href="/glizzy-gauntlet">
-              See that one
-            </Link>
-          </div>
+          <Siblings current="ring-every-bell" />
           <p>
             Inspired by the{" "}
             <a href="https://tacobell50k.com" target="_blank" rel="noopener noreferrer">

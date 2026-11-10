@@ -36,6 +36,9 @@ const ALLOWED_PREFIXES = [
    * link in any menu. */
   "/glizzy-gauntlet",
   "/ring-every-bell",
+  /* Animal Style, the In-N-Out relay, joined them the same day ("do a
+   * version of this but for In and Outs"; published the same way). */
+  "/animal-style",
   "/tsp",
   "/moab240",
   "/privacy",

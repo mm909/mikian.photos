@@ -1,7 +1,9 @@
 /* THE FOOD RELAY COURSES: the Vegas Glizzy Gauntlet (five Costco food
- * courts, north to south) and Ring Every Bell (the Taco Bell 100K: a one-day loop
- * of 24 Taco Bells from the Strip Cantina). Owner, 2026-11-10: "Make a site like this
- * [ggg.lmarx.com] but for running it and in Las Vegas", then "I also want
+ * courts, north to south), Ring Every Bell (the Taco Bell 100K: a one-day
+ * loop of 24 Taco Bells from the Strip Cantina) and Animal Style (all 19
+ * In-N-Outs; its note sits on its stop list below). Owner, 2026-11-10:
+ * "Make a site like this [ggg.lmarx.com] but for running it and in Las
+ * Vegas", then "I also want
  * the same thing but if we did it to all the taco bells", then "both races
  * would be relays".
  *
@@ -85,6 +87,43 @@ const BELLS = {
     { name: "Charleston", address: "2033 E Charleston Blvd", city: "Las Vegas", lat: 36.15926481, lon: -115.12003824, opens: "8" },
     { name: "Maryland", address: "2670 S Maryland Pkwy", city: "Las Vegas", lat: 36.14169771, lon: -115.13645843, opens: "24" },
     { name: "Twain", address: "1109 E Twain Ave", city: "Las Vegas", lat: 36.1218546, lon: -115.13938849, opens: "24" },
+  ],
+};
+
+/* ANIMAL STYLE (owner, 2026-11-10: "do a version of this but for In and
+ * Outs"): every In-N-Out in the valley, in one business day. The store
+ * list is In-N-Out's own locator feed (locations.in-n-out.com/api/finder/
+ * search, read 2026-11-10): 19 stores between Henderson and North Las
+ * Vegas, all open 10:30 AM to 1:00 AM (1:30 AM Friday and Saturday
+ * nights, the chain's standard). The order is the shortest on-foot line
+ * through all 19 that finishes at the LINQ on the Strip (owner's pick over
+ * the 3.5-mile-shorter line that ends on Craig Road), by 2-opt over the
+ * on-foot distance table. `store` is In-N-Out's store number. */
+const ANIMAL = {
+  slug: "animal-style",
+  title: "Animal Style",
+  brand: "In-N-Out",
+  loop: false,
+  stops: [
+    { name: "St. Rose", address: "3551 St Rose Pkwy", city: "Henderson", lat: 35.98619, lon: -115.14228, store: 364 },
+    { name: "Eastern", address: "9240 S Eastern Ave", city: "Las Vegas", lat: 36.02139, lon: -115.11813, store: 165 },
+    { name: "Sunset", address: "1051 W Sunset Rd", city: "Henderson", lat: 36.06331, lon: -115.03392, store: 150 },
+    { name: "East Flamingo", address: "3804 E Flamingo Rd", city: "Las Vegas", lat: 36.11578, lon: -115.09154, store: 334 },
+    { name: "Nellis", address: "51 N Nellis Blvd", city: "Las Vegas", lat: 36.16083, lon: -115.06266, store: 81 },
+    { name: "Craig", address: "2765 E Craig Rd", city: "North Las Vegas", lat: 36.23968, lon: -115.11141, store: 243 },
+    { name: "North 5th", address: "6880 N 5th St", city: "North Las Vegas", lat: 36.28523, lon: -115.1344, store: 234 },
+    { name: "Centennial", address: "5690 Centennial Center Blvd", city: "Las Vegas", lat: 36.2652, lon: -115.25707, store: 204 },
+    { name: "Lake Mead", address: "1960 Rock Springs Dr", city: "Las Vegas", lat: 36.19564, lon: -115.24654, store: 104 },
+    { name: "West Sahara", address: "10040 W Sahara Ave", city: "Las Vegas", lat: 36.14482, lon: -115.31351, store: 331 },
+    { name: "West Tropicana", address: "9610 W Tropicana Ave", city: "Las Vegas", lat: 36.10069, lon: -115.30211, store: 226 },
+    { name: "Rainbow", address: "6530 S Rainbow Blvd", city: "Las Vegas", lat: 36.06968, lon: -115.2417, store: 352 },
+    { name: "Blue Diamond", address: "3882 Blue Diamond Rd", city: "Las Vegas", lat: 36.04056, lon: -115.19118, store: 221 },
+    { name: "Russell", address: "3397 W Russell Rd", city: "Las Vegas", lat: 36.08588, lon: -115.18521, store: 393 },
+    { name: "Dean Martin", address: "4888 Dean Martin Dr", city: "Las Vegas", lat: 36.10132, lon: -115.18219, store: 86 },
+    { name: "The Strip", address: "3747 S Las Vegas Blvd", city: "Las Vegas", lat: 36.10637, lon: -115.17248, store: 437 },
+    { name: "Maryland", address: "4705 S Maryland Pkwy", city: "Las Vegas", lat: 36.10417, lon: -115.13758, store: 88 },
+    { name: "Sahara", address: "2900 W Sahara Ave", city: "Las Vegas", lat: 36.14486, lon: -115.18057, store: 80 },
+    { name: "The LINQ", address: "3545 S Las Vegas Blvd", city: "Las Vegas", lat: 36.11744, lon: -115.1699, store: 320 },
   ],
 };
 
@@ -325,9 +364,10 @@ async function roads() {
   return kept;
 }
 
-/* `--roads` redraws only the freeways (no routing calls). */
+/* `--roads` redraws only the freeways (no routing calls);
+ * `--only=<slug>` rebuilds one course and leaves the others as they are. */
+const only = (process.argv.find((a) => a.startsWith("--only=")) || "").slice(7);
 if (!process.argv.includes("--roads")) {
-  await build(GLIZZY);
-  await build(BELLS);
+  for (const course of [GLIZZY, BELLS, ANIMAL]) if (!only || only === course.slug) await build(course);
 }
-await roads();
+if (!only) await roads();

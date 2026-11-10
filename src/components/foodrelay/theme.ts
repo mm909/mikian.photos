@@ -1,13 +1,13 @@
 import { Barlow, Barlow_Condensed } from "next/font/google";
 
-/* THE FOOD RELAY LOOK (2026-11-10) — one kit for the two sibling pages,
- * the Vegas Glizzy Gauntlet (/glizzy-gauntlet) and Ring Every Bell
- * (/ring-every-bell). A race poster on cream: heavy italic condensed caps,
+/* THE FOOD RELAY LOOK (2026-11-10) — one kit for the sibling pages: the
+ * Vegas Glizzy Gauntlet (/glizzy-gauntlet), Ring Every Bell
+ * (/ring-every-bell) and Animal Style (/animal-style). A race poster on cream: heavy italic condensed caps,
  * ink rules, hard offset shadows, and one loud colour per event. The cream
  * and the left-set bold chips are the site's own habits (the landing is
  * the reference); the reds and purples are the events'. Scoped under .fr,
  * classes .fr- (page) and .m- / .p- (the chart and the profile); the
- * palette is a second class on the root (fr-glizzy / fr-bells) and
+ * palette is a second class on the root (fr-glizzy / fr-bells / fr-animal) and
  * everything below reads the variables.
  *
  * The font is claimed with inherit on every descendant: globals.css styles
@@ -43,6 +43,7 @@ export const css = `
 }
 .fr.fr-glizzy{--a:#d0202c;--a-ink:#ffffff;--b:#0b5cab;--c:#f4b400;--c-ink:#1c1a17}
 .fr.fr-bells{--a:#5c2d91;--a-ink:#ffffff;--b:#c41d72;--c:#f6b91a;--c-ink:#1c1a17}
+.fr.fr-animal{--a:#d6281b;--a-ink:#ffffff;--b:#1c7c46;--c:#ffc61a;--c-ink:#1c1a17}
 .fr p,.fr li,.fr td,.fr th,.fr summary{font-size:inherit;line-height:inherit;color:inherit;text-wrap:pretty}
 .fr a{color:inherit;text-decoration:underline;text-decoration-color:var(--a);text-decoration-thickness:2px;text-underline-offset:3px;transition:none}
 .fr a:hover{color:var(--a)}
@@ -119,6 +120,11 @@ export const css = `
 .fr .fr-course{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:40px;align-items:start;margin-top:32px}
 .fr .fr-course.wide{grid-template-columns:1fr;gap:0}
 @media (max-width:900px){.fr .fr-course{grid-template-columns:1fr;gap:28px}}
+/* A long stop list beside the chart: the chart rides along while the
+ * list scrolls past it. */
+.fr .fr-course.long{align-items:stretch}
+.fr .fr-course.long .fr-map{position:sticky;top:18px}
+@media (max-width:900px){.fr .fr-course.long .fr-map{position:static}}
 .fr .fr-map{border:2px solid var(--ink);border-radius:16px;overflow:hidden;background:var(--paper);box-shadow:6px 6px 0 var(--ink)}
 .fr .fr-map svg{display:block;width:100%;height:auto}
 .fr .m-bg{fill:var(--paper)}
@@ -194,6 +200,7 @@ export const css = `
 .fr .fr-bellgrid{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:28px}
 @media (max-width:900px){.fr .fr-bellgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.fr .fr-bellgrid{grid-template-columns:1fr}}
+.fr .fr-bellgrid.one{grid-template-columns:1fr;margin-top:0}
 .fr .fr-bellgrid li{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:12px;align-items:center;padding:10px 14px 10px 10px;border:2px solid var(--ink);border-radius:12px;background:var(--paper)}
 .fr .fr-bellgrid .n{width:44px;height:44px;border-radius:50%;background:var(--a);color:var(--a-ink);display:flex;align-items:center;justify-content:center;font-family:var(--fr-display),Impact,sans-serif;font-weight:800;font-style:italic;font-size:21px;line-height:1;border:2px solid var(--ink)}
 .fr .fr-bellgrid li.end .n{background:var(--c);color:var(--c-ink)}
@@ -249,7 +256,9 @@ export const css = `
 .fr .fr-foot{border-top:2px solid var(--ink);background:var(--ink);color:rgba(255,255,255,.8);padding:36px 0 48px;font-size:15px}
 .fr .fr-foot a{color:#ffffff;text-decoration-color:var(--c)}
 .fr .fr-foot a:hover{color:var(--c)}
-.fr .fr-sib{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border:2px solid rgba(255,255,255,.3);border-radius:14px;margin-bottom:28px}
+.fr .fr-sibs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:28px}
+@media (max-width:760px){.fr .fr-sibs{grid-template-columns:1fr}}
+.fr .fr-sib{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border:2px solid rgba(255,255,255,.3);border-radius:14px}
 .fr .fr-sib .k{font-family:var(--fr-display),Impact,sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:13px;color:var(--c)}
 .fr .fr-sib .t{font-family:var(--fr-display),Impact,sans-serif;font-style:italic;font-weight:800;text-transform:uppercase;font-size:32px;line-height:1;color:#ffffff;margin-top:4px}
 .fr .fr-sib .s{margin-top:5px}

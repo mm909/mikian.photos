@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { ORDER, SERIES, type EventSlug } from "./series";
 import type { Course, Stop } from "./types";
 
 /* The pieces both food relay pages lay out the same way: the stop list
@@ -69,11 +71,12 @@ export function StopRail({ course, brand }: { course: Course; brand: string }) {
   );
 }
 
-export function StopGrid({ course, brand }: { course: Course; brand: string }) {
+export function StopGrid({ course, brand, one = false }: { course: Course; brand: string; one?: boolean }) {
+  const last = course.stops.length;
   return (
-    <ol className="fr-bellgrid">
+    <ol className={one ? "fr-bellgrid one" : "fr-bellgrid"}>
       {course.stops.map((s) => (
-        <li key={s.n} className={s.n === 1 ? "end" : undefined}>
+        <li key={s.n} className={s.n === 1 || (!course.loop && s.n === last) ? "end" : undefined}>
           <span className="n">{s.n}</span>
           <span>
             <span className="name">{s.name}</span>
@@ -82,9 +85,14 @@ export function StopGrid({ course, brand }: { course: Course; brand: string }) {
               {s.city !== "Las Vegas" ? `, ${s.city}` : ""}
             </a>
             <span className="meta">
-              {s.n === 1 ? "Start + finish" : `Mile ${s.mi.toFixed(1)} · +${s.legMi.toFixed(1)}`}
-              {" · "}
-              <b>{s.opens === "24" ? "24 hours" : `Opens ${s.opens} AM`}</b>
+              {s.n === 1 ? (course.loop ? "Start + finish" : "Start") : `Mile ${s.mi.toFixed(1)} · +${s.legMi.toFixed(1)}`}
+              {!course.loop && s.n === last && " · Finish"}
+              {s.opens && (
+                <>
+                  {" · "}
+                  <b>{s.opens === "24" ? "24 hours" : `Opens ${s.opens} AM`}</b>
+                </>
+              )}
             </span>
           </span>
         </li>
@@ -107,6 +115,31 @@ export function Faq({ items }: { items: { q: string; a: ReactNode }[] }) {
           <div className="a">{it.a}</div>
         </details>
       ))}
+    </div>
+  );
+}
+
+/* The other events in the series, at the foot of each page: the only
+ * links any of the three carries (they are unlisted). */
+export function Siblings({ current }: { current: EventSlug }) {
+  return (
+    <div className="fr-sibs">
+      {ORDER.filter((slug) => slug !== current).map((slug) => {
+        const e = SERIES[slug];
+        const month = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "long" }).format(new Date(e.start));
+        return (
+          <div className="fr-sib" key={slug}>
+            <div>
+              <div className="k">Also on the calendar · {month}</div>
+              <div className="t">{e.name}</div>
+              <div className="s">{e.blurb}</div>
+            </div>
+            <Link className="fr-btn" href={`/${slug}`}>
+              See that one
+            </Link>
+          </div>
+        );
+      })}
     </div>
   );
 }

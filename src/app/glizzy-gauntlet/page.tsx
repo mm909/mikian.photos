@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import { Countdown } from "@/components/foodrelay/Countdown";
 import { CourseMap } from "@/components/foodrelay/CourseMap";
 import { GlizzyMark } from "@/components/foodrelay/Marks";
-import { Faq, StopRail, clock, hm, pace, startParts } from "@/components/foodrelay/Parts";
+import { Faq, Siblings, StopRail, clock, hm, pace, startParts } from "@/components/foodrelay/Parts";
 import { Profile } from "@/components/foodrelay/Profile";
+import { SERIES } from "@/components/foodrelay/series";
 import { css, frBody, frDisplay } from "@/components/foodrelay/theme";
 import { VEGAS_SHIELDS } from "@/components/foodrelay/vegasRoads";
 import { COURSE } from "./courseData";
@@ -18,15 +18,15 @@ import { COURSE } from "./courseData";
  *
  * THE OWNER'S CALLS (interview, same day): the five food courts, not the
  * Business Center on MLK (Costco lists no food court there); the name; "a
- * Saturday in January 2027" (Jan 16 is the stand-in, START below); "both
+ * Saturday in January 2027" (Jan 16 is the stand-in, in series.ts); "both
  * races would be relays", teams of 4 to 5, free split (one runner on the
  * road, swap anywhere, everyone eats at every Costco); landing page only —
  * no sign-up, no database.
  *
  * LIVE BUT UNLISTED (owner: "publish these sites live but dont add the
  * link to the header. I want to be able to share"): open to anyone with
- * the address, robots off, linked from nowhere except its sibling page
- * (/ring-every-bell). The link card is public/glizzy-gauntlet/og.png
+ * the address, robots off, linked from nowhere except its sibling pages
+ * (/ring-every-bell and, later the same day, /animal-style). The link card is public/glizzy-gauntlet/og.png
  * (scripts/food-relays/og-glizzy.html).
  *
  * The course, the mile marks and the profile are generated
@@ -42,9 +42,8 @@ import { COURSE } from "./courseData";
 const SITE = "https://www.mikianmusser.com";
 const PATH = "/glizzy-gauntlet";
 
-/* STAND-IN DATE: 9:30 AM is when a Saturday warehouse opens to every
- * member (Executive at 9:00). Las Vegas is UTC-8 in January. */
-const START = "2027-01-16T09:30:00-08:00";
+/* The stand-in date lives with its two siblings in series.ts. */
+const START = SERIES["glizzy-gauntlet"].start;
 /* Saturday food court close, minutes past midnight (costco.com warehouse
  * pages for all five, read 2026-11-10). */
 const CLOSE_MIN = 19 * 60;
@@ -642,16 +641,7 @@ export default function GlizzyGauntletPage() {
 
       <footer className="fr-foot">
         <div className="wrap">
-          <div className="fr-sib">
-            <div>
-              <div className="k">Also on the calendar</div>
-              <div className="t">Ring Every Bell</div>
-              <div className="s">The Taco Bell 100K: 24 Taco Bells, one loop from the Strip, one day.</div>
-            </div>
-            <Link className="fr-btn" href="/ring-every-bell">
-              See that one
-            </Link>
-          </div>
+          <Siblings current="glizzy-gauntlet" />
           <p>
             Modeled on the{" "}
             <a href="https://ggg.lmarx.com" target="_blank" rel="noopener noreferrer">

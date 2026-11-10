@@ -15,7 +15,15 @@ const K = Math.cos((36.15 * Math.PI) / 180);
 const W = 1000;
 const MI_IN_DEG_LAT = 1609.344 / 110540;
 
-export type LabelPos = { dx: number; dy: number; anchor?: "start" | "middle" | "end" };
+/* Where a stop's label sits, from the middle of its dot. `name` and `tag`
+ * replace the two lines the chart would write; null leaves that line off. */
+export type LabelPos = {
+  dx: number;
+  dy: number;
+  anchor?: "start" | "middle" | "end";
+  name?: string | null;
+  tag?: string | null;
+};
 export type Place = { name: string; lat: number; lon: number };
 
 export function CourseMap({
@@ -105,6 +113,27 @@ export function CourseMap({
   const last = course.stops.length;
   const scaleLen = 5 * MI_IN_DEG_LAT * S;
 
+  /* Two stores a few blocks apart would print one dot on top of the other
+   * (the Strip has three In-N-Outs inside a mile and a half). Dots that
+   * overlap are eased apart until they just clear: a nudge of a few
+   * hundred meters at most, on a chart nobody navigates by. */
+  const R = size === "large" ? 23 : 16;
+  const dot = course.stops.map((s) => ({ x: px(s.lon), y: py(s.lat) }));
+  for (let pass = 0; pass < 16; pass++)
+    for (let i = 0; i < dot.length; i++)
+      for (let k = i + 1; k < dot.length; k++) {
+        const dx = dot[k].x - dot[i].x;
+        const dy = dot[k].y - dot[i].y;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const need = 2 * R + 2;
+        if (d >= need) continue;
+        const push = (need - d) / 2;
+        dot[i].x -= (dx / d) * push;
+        dot[i].y -= (dy / d) * push;
+        dot[k].x += (dx / d) * push;
+        dot[k].y += (dy / d) * push;
+      }
+
   return (
     <svg className={`m-${size}`} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
       <rect className="m-bg" x="0" y="0" width={W} height={H} />
@@ -138,10 +167,9 @@ export function CourseMap({
       ))}
       {/* Drawn last to first so stop 1 sits on top where dots crowd. */}
       {[...course.stops].reverse().map((s) => {
-        const x = px(s.lon);
-        const y = py(s.lat);
+        const { x, y } = dot[s.n - 1];
         const end = s.n === 1 || (!course.loop && s.n === last);
-        const lp = labelPos[s.n] ?? { dx: 26, dy: 0, anchor: "start" as const };
+        const lp: LabelPos = labelPos[s.n] ?? { dx: 26, dy: 0, anchor: "start" };
         const tag =
           s.n === 1 ? (course.loop ? "START + FINISH" : "START") : !course.loop && s.n === last ? `FINISH · MILE ${s.mi.toFixed(1)}` : `MILE ${s.mi.toFixed(1)}`;
         return (
@@ -155,12 +183,20 @@ export function CourseMap({
             </g>
             {(names === true || (Array.isArray(names) && names.includes(s.n))) && (
               <g textAnchor={lp.anchor ?? "start"} aria-hidden="true">
-                <text className="m-name" x={f(x + lp.dx)} y={f(y + lp.dy - 4)}>
-                  {s.name.toUpperCase()}
-                </text>
-                <text className="m-mile" x={f(x + lp.dx)} y={f(y + lp.dy + (size === "large" ? 27 : 22))}>
-                  {tag}
-                </text>
+                {lp.name !== null && (
+                  <text className="m-name" x={f(x + lp.dx)} y={f(y + lp.dy - 4)}>
+                    {(lp.name ?? s.name).toUpperCase()}
+                  </text>
+                )}
+                {lp.tag !== null && (
+                  <text
+                    className="m-mile"
+                    x={f(x + lp.dx)}
+                    y={f(y + lp.dy + (lp.name === null ? 8 : size === "large" ? 27 : 22))}
+                  >
+                    {lp.tag ?? tag}
+                  </text>
+                )}
               </g>
             )}
           </g>
