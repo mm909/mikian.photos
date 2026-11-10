@@ -36,7 +36,10 @@ import { COURSE } from "./courseData";
  * from the Taco Bell 50K in Denver and credited on the page. What I
  * assumed rather than was told is marked ASSUMED. */
 
-const SITE = "https://mikianmusser.com";
+/* The www host is the one that serves: the bare domain answers with a 307
+ * to it, and a link-card crawler should not have to follow a redirect to
+ * find the picture. */
+const SITE = "https://www.mikianmusser.com";
 const PATH = "/ring-every-bell";
 
 /* STAND-IN DATE. 7:00 AM: the Cantina never closes and the first stores

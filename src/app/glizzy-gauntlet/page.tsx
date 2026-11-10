@@ -36,7 +36,10 @@ import { COURSE } from "./courseData";
  * course moves the page. What I assumed rather than was told is marked
  * ASSUMED. */
 
-const SITE = "https://mikianmusser.com";
+/* The www host is the one that serves: the bare domain answers with a 307
+ * to it, and a link-card crawler should not have to follow a redirect to
+ * find the picture. */
+const SITE = "https://www.mikianmusser.com";
 const PATH = "/glizzy-gauntlet";
 
 /* STAND-IN DATE: 9:30 AM is when a Saturday warehouse opens to every
