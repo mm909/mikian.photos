@@ -17,6 +17,11 @@ export type Stop = {
   opens?: string;
   /** The chain's own store number, where the course builder has one. */
   store?: number;
+  /** A course of towns (SEA to PDX): the roads and trails the leg INTO
+   * this stop runs on, longest first. */
+  via?: string[];
+  /** The highest ground on the leg into this stop, in feet. */
+  hiFt?: number;
 };
 
 export type Course = {

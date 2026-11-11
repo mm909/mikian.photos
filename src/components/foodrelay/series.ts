@@ -7,9 +7,15 @@
  * countdown, its pace table and the line its siblings print about it.
  *
  * Times carry Las Vegas's own offset: -08:00 before the clocks change on
- * March 14, 2027, -07:00 after. */
+ * March 14, 2027, -07:00 after.
+ *
+ * SEA to PDX is the fourth and the odd one out (owner, 2026-11-10: "What
+ * about a relay from Seattle to Portland"): no food, not Las Vegas, but the
+ * same kit and the same foot, so the four pages list each other. Its date
+ * is MY stand-in, not the owner's: the last Saturday of June, for the
+ * longest daylight of the year on a course that runs through a night. */
 
-export type EventSlug = "glizzy-gauntlet" | "ring-every-bell" | "animal-style";
+export type EventSlug = "glizzy-gauntlet" | "ring-every-bell" | "animal-style" | "sea-to-pdx";
 
 export const SERIES: Record<EventSlug, { name: string; blurb: string; start: string }> = {
   "glizzy-gauntlet": {
@@ -31,6 +37,13 @@ export const SERIES: Record<EventSlug, { name: string; blurb: string; start: str
     /* 10:30 AM: when every In-N-Out unlocks its doors. */
     start: "2027-03-20T10:30:00-07:00",
   },
+  "sea-to-pdx": {
+    name: "SEA to PDX",
+    blurb: "Seattle to Portland on foot: the Space Needle to the White Stag sign, town to town.",
+    /* 6:00 AM: first light is 4:40 that week, and a team that takes 30
+     * hours is in Portland by Sunday noon. */
+    start: "2027-06-26T06:00:00-07:00",
+  },
 };
 
-export const ORDER: EventSlug[] = ["glizzy-gauntlet", "ring-every-bell", "animal-style"];
+export const ORDER: EventSlug[] = ["glizzy-gauntlet", "ring-every-bell", "animal-style", "sea-to-pdx"];

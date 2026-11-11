@@ -10,7 +10,7 @@ const H = 210;
 const TOP = 34;
 const BOTTOM = 30;
 
-export function Profile({ course, numbers = true }: { course: Course; numbers?: boolean }) {
+export function Profile({ course, numbers = true, step = 10 }: { course: Course; numbers?: boolean; step?: number }) {
   const lo = course.lowFt - 60;
   const hi = course.highFt + 60;
   const x = (mi: number) => (mi / course.totalMi) * W;
@@ -23,7 +23,6 @@ export function Profile({ course, numbers = true }: { course: Course; numbers?: 
   const marks = course.stops
     .map((s) => ({ n: s.n, mi: s.mi, end: s.n === 1 || (!course.loop && s.n === last) }))
     .concat(course.loop ? [{ n: 1, mi: course.totalMi, end: true }] : []);
-  const step = course.totalMi > 55 ? 10 : 10;
   const ticks: number[] = [];
   for (let m = 0; m < course.totalMi - step * 0.35; m += step) ticks.push(m);
 

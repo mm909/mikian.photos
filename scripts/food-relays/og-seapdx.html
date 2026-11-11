@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- The link card for /sea-to-pdx, 1200 x 630. Rendered to
+     public/sea-to-pdx/og.png with headless Chrome:
+
+       chrome --headless=new --hide-scrollbars --window-size=1200,630 \
+         --virtual-time-budget=8000 \
+         --screenshot=public/sea-to-pdx/og.png scripts/food-relays/og-seapdx.html
+
+     No date and no address, for the reasons in og-glizzy.html. The mile
+     count in the bar is typed here: when the course changes
+     (src/app/sea-to-pdx/courseData.ts, totalMi), change it and render again. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SEA to PDX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;1,800&display=block" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; }
+      body {
+        width: 1200px; height: 630px; overflow: hidden; position: relative;
+        background: #fbf4e6; color: #1c1a17;
+        font-family: "Barlow Condensed", Impact, sans-serif;
+      }
+      .pad { position: absolute; inset: 0; padding: 46px 56px 0; }
+      .chips { display: flex; gap: 12px; }
+      .chip {
+        font-weight: 700; font-size: 26px; letter-spacing: 0.09em; text-transform: uppercase;
+        padding: 6px 18px; border: 3px solid #1c1a17; border-radius: 999px; background: #fffdf8; line-height: 1.2;
+      }
+      .chip.on { background: #0b7a53; color: #fff; }
+      .chip.alt { background: #ff9eb8; }
+      h1 {
+        margin: 34px 0 0; font-style: italic; font-weight: 800; text-transform: uppercase;
+        font-size: 212px; line-height: 0.84; letter-spacing: 0;
+      }
+      h1 span { display: block; }
+      h1 .hl { color: #0b7a53; }
+      .art { position: absolute; right: 96px; top: 62px; width: 330px; transform: rotate(-9deg); filter: drop-shadow(12px 14px 0 rgba(28, 26, 23, 0.16)); }
+      .art text { font-family: "Barlow Condensed", Impact, sans-serif; font-style: italic; font-weight: 800; }
+      .bar {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 98px; background: #1c1a17; color: #fff;
+        display: flex; align-items: center; gap: 30px; padding: 0 56px;
+        font-style: italic; font-weight: 800; font-size: 44px; text-transform: uppercase; line-height: 1; white-space: nowrap;
+      }
+      .bar b { color: #ff9eb8; font-weight: 800; }
+      .bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); flex: none; }
+    </style>
+  </head>
+  <body>
+    <div class="pad">
+      <div class="chips">
+        <span class="chip on">Seattle to Portland</span>
+        <span class="chip">Team relay</span>
+        <span class="chip alt">On foot</span>
+      </div>
+      <h1>
+        <span>SEA</span>
+        <span class="hl">to PDX</span>
+      </h1>
+    </div>
+    <svg class="art" viewBox="0 0 240 300" aria-hidden="true">
+      <path d="M26 6 H214 A20 20 0 0 1 234 26 V132 A18 18 0 0 0 234 168 V274 A20 20 0 0 1 214 294 H26 A20 20 0 0 1 6 274 V168 A18 18 0 0 0 6 132 V26 A20 20 0 0 1 26 6 Z" fill="#ff9eb8" />
+      <path d="M26 6 H214 A20 20 0 0 1 234 26 V132 A18 18 0 0 0 216 150 H24 A18 18 0 0 0 6 132 V26 A20 20 0 0 1 26 6 Z" fill="#0b7a53" />
+      <path d="M26 6 H214 A20 20 0 0 1 234 26 V132 A18 18 0 0 0 234 168 V274 A20 20 0 0 1 214 294 H26 A20 20 0 0 1 6 274 V168 A18 18 0 0 0 6 132 V26 A20 20 0 0 1 26 6 Z" fill="none" stroke="#1c1a17" stroke-width="7" stroke-linejoin="round" />
+      <line x1="34" y1="150" x2="206" y2="150" stroke="#1c1a17" stroke-width="5" stroke-dasharray="3 11" stroke-linecap="round" />
+      <text x="120" y="104" text-anchor="middle" font-size="104" fill="#ffffff">SEA</text>
+      <text x="120" y="262" text-anchor="middle" font-size="104" fill="#1c1a17">PDX</text>
+      <circle cx="120" cy="150" r="26" fill="#fffdf8" stroke="#1c1a17" stroke-width="6" />
+      <path d="M120 134 V164 M108 153 L120 166 L132 153" fill="none" stroke="#1c1a17" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <div class="bar"><b>Space Needle to the White Stag sign</b><i></i><span>197 miles</span></div>
+  </body>
+</html>

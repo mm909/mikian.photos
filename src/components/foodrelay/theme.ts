@@ -7,8 +7,10 @@ import { Barlow, Barlow_Condensed } from "next/font/google";
  * and the left-set bold chips are the site's own habits (the landing is
  * the reference); the reds and purples are the events'. Scoped under .fr,
  * classes .fr- (page) and .m- / .p- (the chart and the profile); the
- * palette is a second class on the root (fr-glizzy / fr-bells / fr-animal) and
- * everything below reads the variables.
+ * palette is a second class on the root (fr-glizzy / fr-bells / fr-animal,
+ * and fr-seapdx for the Seattle to Portland page, which wears the kit
+ * without the food: emerald for the Emerald City, rose for the Rose City)
+ * and everything below reads the variables.
  *
  * The font is claimed with inherit on every descendant: globals.css styles
  * h1/h2/p/a by element, and a scoped universal rule is what beats it (the
@@ -44,6 +46,7 @@ export const css = `
 .fr.fr-glizzy{--a:#d0202c;--a-ink:#ffffff;--b:#0b5cab;--c:#f4b400;--c-ink:#1c1a17}
 .fr.fr-bells{--a:#5c2d91;--a-ink:#ffffff;--b:#c41d72;--c:#f6b91a;--c-ink:#1c1a17}
 .fr.fr-animal{--a:#d6281b;--a-ink:#ffffff;--b:#1c7c46;--c:#ffc61a;--c-ink:#1c1a17}
+.fr.fr-seapdx{--a:#0b7a53;--a-ink:#ffffff;--b:#b4245d;--c:#ff9eb8;--c-ink:#1c1a17}
 .fr p,.fr li,.fr td,.fr th,.fr summary{font-size:inherit;line-height:inherit;color:inherit;text-wrap:pretty}
 .fr a{color:inherit;text-decoration:underline;text-decoration-color:var(--a);text-decoration-thickness:2px;text-underline-offset:3px;transition:none}
 .fr a:hover{color:var(--a)}
@@ -256,8 +259,8 @@ export const css = `
 .fr .fr-foot{border-top:2px solid var(--ink);background:var(--ink);color:rgba(255,255,255,.8);padding:36px 0 48px;font-size:15px}
 .fr .fr-foot a{color:#ffffff;text-decoration-color:var(--c)}
 .fr .fr-foot a:hover{color:var(--c)}
-.fr .fr-sibs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:28px}
-@media (max-width:760px){.fr .fr-sibs{grid-template-columns:1fr}}
+.fr .fr-sibs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:28px}
+@media (max-width:900px){.fr .fr-sibs{grid-template-columns:1fr}}
 .fr .fr-sib{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border:2px solid rgba(255,255,255,.3);border-radius:14px}
 .fr .fr-sib .k{font-family:var(--fr-display),Impact,sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:13px;color:var(--c)}
 .fr .fr-sib .t{font-family:var(--fr-display),Impact,sans-serif;font-style:italic;font-weight:800;text-transform:uppercase;font-size:32px;line-height:1;color:#ffffff;margin-top:4px}

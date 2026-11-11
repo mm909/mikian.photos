@@ -31,7 +31,16 @@
  * Blvd, lands the loop on 100 km with 24 bells. It runs clockwise so the
  * two late openers (Cheyenne 9 AM, Bonanza 10 AM on a Saturday) come in
  * the afternoon. Re-read the store pages before race
- * week: a store opens, closes or changes its hours and this list is wrong. */
+ * week: a store opens, closes or changes its hours and this list is wrong.
+ *
+ * SEA TO PDX is the fourth course and the first that is not a food run
+ * (owner, 2026-11-10: "What about a relay from Seattle to Portland, keep
+ * the sites focused on the routes. Fewer rules/conditions"). Its stops are
+ * towns, not stores, so a course marked `towns` also gets, per leg, the
+ * roads and trails it runs on (the router's own step names; where a step
+ * has none, the nearest named way from Nominatim, cached), its highest
+ * point off the profile, and a second, finer line for the street map
+ * (public/<slug>/line.json). Its note sits on its stop list. */
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,6 +136,67 @@ const ANIMAL = {
   ],
 };
 
+/* SEA TO PDX: the Space Needle to the White Stag sign, on foot. THE
+ * OWNER'S CALL (interview, 2026-11-10): the Washington side. The line
+ * follows the towns the Seattle to Portland bike ride made famous as far
+ * as Kelso, then stays on the east bank through Kalama, Woodland and La
+ * Center to Vancouver and crosses the Columbia on the Interstate Bridge,
+ * which has a path for people on foot. The bike course itself crosses at
+ * Longview and runs US-30 through Oregon: OpenStreetMap has no walkway on
+ * the Lewis and Clark Bridge and the foot router will not take either
+ * (it sends a walker 71 miles round by the Cathlamet ferry instead).
+ *
+ * Every stop is a public landmark in a town, a place to hand off: its
+ * coordinates are OpenStreetMap's for that landmark (Nominatim, read
+ * 2026-11-10). Kent and Auburn hand off where the Interurban Trail
+ * crosses their main streets, not at their stations half a mile east:
+ * a stop at the station pulled the line off 15 miles of flat, car-free
+ * rail trail and onto Auburn Way. Bucoda and Woodland hand off on the
+ * street the line already runs down, for the same kind of reason: a stop
+ * at the park or the city hall sent the line in and straight back out
+ * (half a mile each way, both times). The router decides everything
+ * between the stops. */
+const SEAPDX = {
+  slug: "sea-to-pdx",
+  title: "SEA to PDX",
+  brand: "",
+  loop: false,
+  towns: true,
+  lat: 46.57,
+  /* The USGS 10 m model (see profile()). */
+  dem: "ned10m",
+  /* Meters. The page draws the whole state on a strip a phone wide. */
+  tol: 55,
+  stops: [
+    { name: "Seattle", address: "Space Needle", city: "Seattle, WA", lat: 47.62051, lon: -122.3493 },
+    { name: "Georgetown", address: "Hat 'n' Boots, Oxbow Park", city: "Seattle, WA", lat: 47.54514, lon: -122.32187 },
+    { name: "Tukwila", address: "Fort Dent Park", city: "Tukwila, WA", lat: 47.47055, lon: -122.2492 },
+    { name: "Kent", address: "Interurban Trail at West Meeker Street", city: "Kent, WA", lat: 47.38146, lon: -122.24196 },
+    { name: "Auburn", address: "Interurban Trail at West Main Street", city: "Auburn, WA", lat: 47.30774, lon: -122.23932 },
+    { name: "Puyallup", address: "Pioneer Park", city: "Puyallup, WA", lat: 47.18941, lon: -122.29474 },
+    { name: "Spanaway", address: "Sprinker Recreation Center", city: "Spanaway, WA", lat: 47.12413, lon: -122.4401 },
+    { name: "Roy", address: "Roy City Hall", city: "Roy, WA", lat: 47.00302, lon: -122.54315 },
+    { name: "Yelm", address: "Yelm City Park", city: "Yelm, WA", lat: 46.94028, lon: -122.60814 },
+    { name: "Rainier", address: "Wilkowski Park", city: "Rainier, WA", lat: 46.89083, lon: -122.6855 },
+    { name: "Tenino", address: "Tenino City Park", city: "Tenino, WA", lat: 46.85469, lon: -122.84927 },
+    { name: "Bucoda", address: "South Front Street", city: "Bucoda, WA", lat: 46.7992, lon: -122.86972 },
+    { name: "Centralia", address: "George Washington Park", city: "Centralia, WA", lat: 46.71614, lon: -122.95642 },
+    { name: "Chehalis", address: "Lewis County Historical Museum", city: "Chehalis, WA", lat: 46.66535, lon: -122.97173 },
+    { name: "Napavine", address: "Mayme Shaddock Park", city: "Napavine, WA", lat: 46.57862, lon: -122.9075 },
+    { name: "Winlock", address: "World's Largest Egg", city: "Winlock, WA", lat: 46.49333, lon: -122.93789 },
+    { name: "Vader", address: "Werden Park", city: "Vader, WA", lat: 46.40359, lon: -122.96072 },
+    { name: "Castle Rock", address: "Lions Pride Park", city: "Castle Rock, WA", lat: 46.26494, lon: -122.90107 },
+    { name: "Kelso", address: "Kelso station", city: "Kelso, WA", lat: 46.14219, lon: -122.91324 },
+    { name: "Kalama", address: "Kalama City Hall", city: "Kalama, WA", lat: 46.00845, lon: -122.84496 },
+    { name: "Woodland", address: "Lewis River Road at East CC Street", city: "Woodland, WA", lat: 45.906, lon: -122.7407 },
+    { name: "La Center", address: "Sternwheeler Park", city: "La Center, WA", lat: 45.86091, lon: -122.66924 },
+    { name: "Salmon Creek", address: "Salmon Creek Regional Park", city: "Vancouver, WA", lat: 45.71035, lon: -122.66971 },
+    { name: "Vancouver", address: "Esther Short Park", city: "Vancouver, WA", lat: 45.62653, lon: -122.67498 },
+    { name: "Kenton", address: "Paul Bunyan statue", city: "Portland, OR", lat: 45.58383, lon: -122.68661 },
+    { name: "Portland", address: "White Stag sign", city: "Portland, OR", lat: 45.52336, lon: -122.6705 },
+  ],
+};
+
 const rad = (d) => (d * Math.PI) / 180;
 function hav(a, b) {
   const dLat = rad(b[1] - a[1]);
@@ -136,9 +206,9 @@ function hav(a, b) {
 }
 
 /* Douglas-Peucker on a local flat projection, tolerance in meters. */
-function simplify(line, tol) {
+function simplify(line, tol, lat = 36.15) {
   if (line.length < 3) return line;
-  const k = Math.cos(rad(36.15)) * 111320;
+  const k = Math.cos(rad(lat)) * 111320;
   const ky = 110540;
   const P = line.map(([lon, lat]) => [lon * k, lat * ky]);
   const keep = new Uint8Array(line.length);
@@ -179,6 +249,9 @@ async function getJson(url, tries = 4) {
       const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(90000) });
       if (res.ok) return await res.json();
       last = new Error(`${res.status} ${url.slice(0, 80)}`);
+      /* Told to slow down: a long course asks the elevation service for a
+       * thousand points, and its limit is counted by the minute. */
+      if (res.status === 429) await new Promise((r) => setTimeout(r, 20000 * (i + 1)));
     } catch (e) {
       last = e;
     }
@@ -190,14 +263,104 @@ async function getJson(url, tries = 4) {
 async function routeFoot(course) {
   const pts = course.stops.map((s) => [s.lon, s.lat]);
   if (course.loop) pts.push(pts[0]);
-  const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${pts.map((p) => p.join(",")).join(";")}?overview=full&geometries=geojson&steps=false`;
+  const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${pts.map((p) => p.join(",")).join(";")}?overview=full&geometries=geojson&steps=${course.towns ? "true" : "false"}`;
   const j = await getJson(url);
   const rt = j.routes[0];
-  return { line: rt.geometry.coordinates, legsM: rt.legs.map((l) => l.distance), totalM: rt.distance };
+  return { line: rt.geometry.coordinates, legsM: rt.legs.map((l) => l.distance), totalM: rt.distance, legs: rt.legs };
 }
 
-/* [mi, ft] every `stepMi` along the line. */
-async function profile(line, totalM, stepMi = 0.2) {
+/* WHAT A LEG RUNS ON. The router names most steps. A step with no name is
+ * usually a sidewalk mapped as its own way, or a path: for those the
+ * nearest named way is asked of Nominatim, one request a second, and kept
+ * in cache-reverse.json so a rebuild does not ask twice. */
+const DIR = { Northeast: "NE", Northwest: "NW", Southeast: "SE", Southwest: "SW" };
+const KIND = { Avenue: "Ave", Street: "St", Road: "Rd", Highway: "Hwy", Boulevard: "Blvd", Drive: "Dr", Parkway: "Pkwy" };
+const shortName = (s) =>
+  s
+    .replace(/\b(Northeast|Northwest|Southeast|Southwest)\b/g, (m) => DIR[m])
+    .replace(/\b(Avenue|Street|Road|Highway|Boulevard|Drive|Parkway)\b/g, (m) => KIND[m])
+    .replace(/^King County /, "");
+
+async function viaNames(legs) {
+  const file = resolve(HERE, "cache-reverse.json");
+  const cache = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  let asked = 0;
+  const near = async ([lon, lat]) => {
+    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    if (!(key in cache)) {
+      const j = await getJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`);
+      const a = j.address || {};
+      cache[key] = a.road || a.pedestrian || a.footway || a.cycleway || a.path || "";
+      asked++;
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+    return cache[key];
+  };
+  const out = [];
+  for (const leg of legs) {
+    const by = new Map();
+    /* "Bucoda Highway Southeast" and "Southeast Bucoda Highway" are one
+     * road: the tally is kept under the name with its compass words
+     * taken out, and shown under the spelling that ran longest. */
+    const add = (name, ref, m) => {
+      if (!name) return;
+      const key = name.replace(/\b(North|South|East|West|Northeast|Northwest|Southeast|Southwest)\b/g, "").replace(/\s+/g, " ").trim() || name;
+      const e = by.get(key) || { m: 0, ref: "", names: {} };
+      e.m += m;
+      e.names[name] = (e.names[name] || 0) + m;
+      if (ref && !e.ref) e.ref = ref;
+      by.set(key, e);
+    };
+    for (const st of leg.steps) {
+      if (st.name) {
+        add(st.name, (st.ref || "").split(";")[0].trim(), st.distance);
+        continue;
+      }
+      if (st.distance < 250) continue;
+      const g = st.geometry.coordinates;
+      const n = Math.max(1, Math.round(st.distance / 900));
+      for (let i = 0; i < n; i++) add(await near(g[Math.min(g.length - 1, Math.floor(((i + 0.5) / n) * g.length))]), "", st.distance / n);
+    }
+    const ranked = [...by.entries()].sort((a, b) => b[1].m - a[1].m);
+    const picked = [];
+    let sum = 0;
+    for (const [, e] of ranked) {
+      if (picked.length === 3 || sum > 0.7 * leg.distance || e.m < 0.08 * leg.distance) break;
+      const name = Object.entries(e.names).sort((a, b) => b[1] - a[1])[0][0];
+      const digits = e.ref.replace(/\D/g, "");
+      picked.push(shortName(name) + (e.ref && !(digits && name.includes(digits)) ? ` (${e.ref})` : ""));
+      sum += e.m;
+    }
+    out.push(picked);
+  }
+  writeFileSync(file, JSON.stringify(cache));
+  if (asked) console.log(`  asked Nominatim for ${asked} unnamed stretches`);
+  return out;
+}
+
+/* NO CLIMB TOTALS. Summing the rises along this profile gives anything
+ * from 3,300 to 9,100 ft for the same 200 miles, depending on how hard
+ * the 90 m terrain model is smoothed first (tried 2026-11-10; a rail
+ * trail came out at 390 ft of climbing). The 10 m model is steadier but
+ * is still read once every fifth of a mile. What either model does carry is
+ * where the ground is high, so a leg gets its highest point and nothing
+ * that pretends to be a sum. */
+function highPoint(prof, a, b) {
+  return Math.max(...prof.filter(([mi]) => mi >= a - 0.11 && mi <= b + 0.11).map((p) => p[1]));
+}
+
+/* [mi, ft] every `stepMi` along the line.
+ *
+ * Two sources. The Las Vegas courses use Open-Meteo's elevation service (a
+ * 90 m model of the whole world). SEA to PDX uses the USGS 10 m model
+ * through OpenTopoData (`dem: "ned10m"`): it is the finer of the two for
+ * the United States and a bare-earth model, where the 90 m one reads a
+ * downtown roof as ground (it had the White Stag sign 16 ft too high).
+ * It is also the one that will answer: Open-Meteo counts requests by the
+ * hour, and a 200-mile course rebuilt four times in an afternoon used
+ * the hour up (2026-11-10). OpenTopoData asks for one request a second
+ * and at most a hundred points in each. */
+async function profile(line, totalM, stepMi = 0.2, dem = "") {
   const cum = [0];
   for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + hav(line[i - 1], line[i]));
   const scale = totalM / cum[cum.length - 1];
@@ -215,12 +378,32 @@ async function profile(line, totalM, stepMi = 0.2) {
       lat: line[j][1] + (line[j + 1][1] - line[j][1]) * t,
     });
   }
+  /* Heights are kept between runs (cache-elev.json): the service counts
+   * requests by the minute and a long course asks for a thousand points. */
+  const file = resolve(HERE, "cache-elev.json");
+  const cache = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   const out = [];
+  let asked = 0;
   for (let i = 0; i < samples.length; i += 100) {
     const chunk = samples.slice(i, i + 100);
-    const url = `https://api.open-meteo.com/v1/elevation?latitude=${chunk.map((c) => c.lat.toFixed(5)).join(",")}&longitude=${chunk.map((c) => c.lon.toFixed(5)).join(",")}`;
-    const j2 = await getJson(url);
-    chunk.forEach((c, k) => out.push([Math.round(c.mi * 100) / 100, Math.round(j2.elevation[k] * FT_PER_M)]));
+    const url = dem
+      ? `https://api.opentopodata.org/v1/${dem}?locations=${chunk.map((c) => `${c.lat.toFixed(5)},${c.lon.toFixed(5)}`).join("|")}`
+      : `https://api.open-meteo.com/v1/elevation?latitude=${chunk.map((c) => c.lat.toFixed(5)).join(",")}&longitude=${chunk.map((c) => c.lon.toFixed(5)).join(",")}`;
+    if (!cache[url]) {
+      if (dem) {
+        if (asked++) await new Promise((r) => setTimeout(r, 1200));
+        cache[url] = (await getJson(url)).results.map((r) => r.elevation);
+      } else {
+        if (asked++ >= 3) await new Promise((r) => setTimeout(r, 4000));
+        cache[url] = (await getJson(url)).elevation;
+      }
+      writeFileSync(file, JSON.stringify(cache));
+    }
+    /* A point the model has no height for (open water) takes the one before it. */
+    chunk.forEach((c, k) => {
+      const m = cache[url][k] ?? (out.length ? out[out.length - 1][1] / FT_PER_M : 0);
+      out.push([Math.round(c.mi * 100) / 100, Math.round(m * FT_PER_M)]);
+    });
   }
   return out;
 }
@@ -233,7 +416,7 @@ function gpx(course, line, stops) {
     `<metadata><name>${esc(course.title)}</name><desc>Course v1, routed on foot by machine. Scout it before you trust it.</desc></metadata>`,
     ...stops.map(
       (s) =>
-        `<wpt lat="${s.lat}" lon="${s.lon}"><name>${s.n}. ${esc(course.brand + " " + s.name)}</name><desc>${esc(s.address + ", " + s.city)} (mile ${s.mi.toFixed(1)})</desc></wpt>`
+        `<wpt lat="${s.lat}" lon="${s.lon}"><name>${s.n}. ${esc((course.brand + " " + s.name).trim())}</name><desc>${esc(s.address + ", " + s.city)} (mile ${s.mi.toFixed(1)})</desc></wpt>`
     ),
     `<trk><name>${esc(course.title)}</name><trkseg>`,
     ...line.map(([lon, lat]) => `<trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"/>`),
@@ -243,7 +426,7 @@ function gpx(course, line, stops) {
 }
 
 async function build(course) {
-  const { line, legsM, totalM } = await routeFoot(course);
+  const { line, legsM, totalM, legs } = await routeFoot(course);
   let cumM = 0;
   const stops = course.stops.map((s, i) => {
     const legM = i === 0 ? 0 : legsM[i - 1];
@@ -251,9 +434,42 @@ async function build(course) {
     return { n: i + 1, ...s, mi: Math.round((cumM / M_PER_MI) * 10) / 10, legMi: Math.round((legM / M_PER_MI) * 10) / 10 };
   });
   const closeMi = course.loop ? Math.round((legsM[legsM.length - 1] / M_PER_MI) * 10) / 10 : 0;
-  const prof = await profile(line, totalM);
-  const slim = simplify(line, 9).map(([lon, lat]) => [r5(lon), r5(lat)]);
+  const prof = await profile(line, totalM, 0.2, course.dem);
+  const slim = simplify(line, course.tol ?? 9, course.lat).map(([lon, lat]) => [r5(lon), r5(lat)]);
   const fts = prof.map((p) => p[1]);
+  if (course.towns) {
+    const via = await viaNames(legs);
+    stops.forEach((s, i) => {
+      if (i === 0) return;
+      s.via = via[i - 1];
+      s.hiFt = highPoint(prof, stops[i - 1].mi, s.mi);
+    });
+    /* The street map's line: each leg thinned on its own, so the index
+     * where every town sits in the line is known and a leg can be shown
+     * by itself. [lat, lon], the order a web map wants. */
+    const fine = [];
+    const cuts = [0];
+    let at = 0;
+    for (const leg of legs) {
+      /* The last step of a leg is the arrival: one point, written twice. */
+      const n = leg.steps.slice(0, -1).reduce((a, st) => a + st.geometry.coordinates.length - 1, 0);
+      const piece = simplify(line.slice(at, at + n + 1), 4, course.lat);
+      fine.push(...(fine.length ? piece.slice(1) : piece));
+      cuts.push(fine.length - 1);
+      at += n;
+    }
+    if (at !== line.length - 1) console.error(`  the legs count ${at + 1} points and the line has ${line.length}: the street map's cuts are off`);
+    const pubDir = resolve(ROOT, "public", course.slug);
+    mkdirSync(pubDir, { recursive: true });
+    writeFileSync(
+      resolve(pubDir, "line.json"),
+      JSON.stringify({
+        line: fine.map(([lon, lat]) => [r5(lat), r5(lon)]),
+        stops: stops.map((s, i) => ({ n: s.n, name: s.name, place: s.address, mi: s.mi, legMi: s.legMi, lat: s.lat, lon: s.lon, i: cuts[i] })),
+      })
+    );
+    console.log(`  street map line: ${fine.length} pts`);
+  }
   const data = {
     totalMi: Math.round((totalM / M_PER_MI) * 10) / 10,
     totalKm: Math.round(totalM / 100) / 10,
@@ -368,6 +584,6 @@ async function roads() {
  * `--only=<slug>` rebuilds one course and leaves the others as they are. */
 const only = (process.argv.find((a) => a.startsWith("--only=")) || "").slice(7);
 if (!process.argv.includes("--roads")) {
-  for (const course of [GLIZZY, BELLS, ANIMAL]) if (!only || only === course.slug) await build(course);
+  for (const course of [GLIZZY, BELLS, ANIMAL, SEAPDX]) if (!only || only === course.slug) await build(course);
 }
 if (!only) await roads();

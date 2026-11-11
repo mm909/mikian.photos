@@ -120,7 +120,7 @@ export function Faq({ items }: { items: { q: string; a: ReactNode }[] }) {
 }
 
 /* The other events in the series, at the foot of each page: the only
- * links any of the three carries (they are unlisted). */
+ * links any of the four carries (they are unlisted). */
 export function Siblings({ current }: { current: EventSlug }) {
   return (
     <div className="fr-sibs">

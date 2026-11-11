@@ -39,6 +39,10 @@ const ALLOWED_PREFIXES = [
   /* Animal Style, the In-N-Out relay, joined them the same day ("do a
    * version of this but for In and Outs"; published the same way). */
   "/animal-style",
+  /* SEA to PDX, the Seattle to Portland relay (owner, 2026-11-10: "What
+   * about a relay from Seattle to Portland"; asked what goes live, "All 4
+   * live"). Unlisted like the three before it. */
+  "/sea-to-pdx",
   "/tsp",
   "/moab240",
   "/privacy",

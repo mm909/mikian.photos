@@ -64,7 +64,10 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
     pathname === "/ring-every-bell" ||
     pathname.startsWith("/ring-every-bell/") ||
     pathname === "/animal-style" ||
-    pathname.startsWith("/animal-style/");
+    pathname.startsWith("/animal-style/") ||
+    /* SEA to PDX (2026-11-10), the fourth page in that kit. */
+    pathname === "/sea-to-pdx" ||
+    pathname.startsWith("/sea-to-pdx/");
 
   return (
     <>
