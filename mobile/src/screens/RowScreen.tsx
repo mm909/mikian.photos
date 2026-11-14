@@ -7,6 +7,7 @@ import type { TelemetryDoc } from "../pm5/session";
 import type { Row } from "../store";
 import { C, F, dayKey, fmtClock, fmtInt, fmtPace } from "../theme";
 import { Bar, Btn, Card, Eyebrow, Num, styles } from "../ui";
+import { Wheel } from "./Wheel";
 
 /* ROW: connect a Concept2 PM5, watch the piece, bank it.
  *
@@ -25,6 +26,10 @@ export function RowScreen({ dailyGoal, todayMeters, onSave }: { dailyGoal: numbe
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
+  /* The live screen has two faces: the pace wheel and the numbers. */
+  const [face, setFace] = useState<"wheel" | "numbers">("wheel");
+  /* The distance the wheel aims at when the monitor is not set to one. */
+  const [goalPick, setGoalPick] = useState(5000);
   const model = useRef(createLive()).current;
   const link = useRef<ErgLink | null>(null);
   const stopScan = useRef<(() => void) | null>(null);
@@ -137,55 +142,81 @@ export function RowScreen({ dailyGoal, todayMeters, onSave }: { dailyGoal: numbe
           <Eyebrow>{name}</Eyebrow>
         </View>
 
-        <Card>
-          <Eyebrow>Meters</Eyebrow>
-          <Num size={96} color={C.accent}>
-            {fmtInt(Math.floor(live.meters))}
-          </Num>
-          <Bar value={todayMeters + live.meters} goal={dailyGoal} height={10} />
-          <Text style={[styles.body, { marginTop: 6 }]}>
-            {fmtInt(todayMeters + Math.floor(live.meters))} of {fmtInt(dailyGoal)} m today
-          </Text>
-        </Card>
-
-        <View style={[styles.row, { gap: 14 }]}>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>Time</Eyebrow>
-            <Num size={34}>{fmtClock(live.elapsedS)}</Num>
-          </Card>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>/500m</Eyebrow>
-            <Num size={34}>{fmtPace(live.pace)}</Num>
-          </Card>
-        </View>
-        <View style={[styles.row, { gap: 14 }]}>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>S/M</Eyebrow>
-            <Num size={30}>{live.spm > 0 ? live.spm : "--"}</Num>
-          </Card>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>Watts</Eyebrow>
-            <Num size={30}>{live.watts > 0 ? fmtInt(live.watts) : "---"}</Num>
-          </Card>
-          <Card style={{ flex: 1 }}>
-            <Eyebrow>Avg</Eyebrow>
-            <Num size={30}>{fmtPace(live.avgPace)}</Num>
-          </Card>
+        <View style={{ flexDirection: "row", gap: 22, borderBottomWidth: 2, borderColor: C.ink, marginBottom: 14 }}>
+          {(["wheel", "numbers"] as const).map((v) => (
+            <Pressable key={v} accessibilityRole="tab" accessibilityState={{ selected: face === v }} onPress={() => setFace(v)} style={{ paddingVertical: 10, borderBottomWidth: 3, borderColor: face === v ? C.accent : "transparent", marginBottom: -2 }}>
+              <Text style={{ fontFamily: face === v ? F.monoBold : F.mono, fontSize: 13, letterSpacing: 2.2, color: face === v ? C.ink : C.gray }}>{v.toUpperCase()}</Text>
+            </Pressable>
+          ))}
         </View>
 
-        <Card>
-          <View style={[styles.row, { justifyContent: "space-between" }]}>
-            <Eyebrow>Your stroke</Eyebrow>
-            <Eyebrow>{live.peakLbf > 0 ? `Peak ${Math.round(live.peakLbf)} lbf` : `Stroke ${live.strokes}`}</Eyebrow>
-          </View>
-          <View style={{ height: 110, flexDirection: "row", alignItems: "flex-end", marginTop: 10, borderBottomWidth: 2, borderColor: C.ink }}>
-            {live.curve.length ? (
-              live.curve.map((p, i) => <View key={i} style={{ flex: 1, height: `${Math.max(2, (p / peak) * 100)}%`, backgroundColor: C.accent, marginHorizontal: 0.5 }} />)
-            ) : (
-              <Text style={[styles.body, { paddingBottom: 40 }]}>The force curve draws here once you take a stroke.</Text>
+        {face === "wheel" ? (
+          <View style={{ marginBottom: 18 }}>
+            <Wheel live={live} goalM={live.targetM > 0 ? live.targetM : goalPick} />
+            {live.targetM > 0 ? null : (
+              <View style={[styles.row, { gap: 8, marginTop: 14 }]}>
+                <Eyebrow>Goal</Eyebrow>
+                {[2000, 5000, 10000].map((g) => (
+                  <Pressable key={g} accessibilityRole="button" accessibilityState={{ selected: goalPick === g }} onPress={() => setGoalPick(g)} style={{ borderWidth: 1, borderColor: goalPick === g ? C.accent : C.line, paddingHorizontal: 12, minHeight: 40, justifyContent: "center" }}>
+                    <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 1.5, color: goalPick === g ? C.accent : C.soft }}>{g / 1000}K</Text>
+                  </Pressable>
+                ))}
+              </View>
             )}
           </View>
-        </Card>
+        ) : (
+          <>
+            <Card>
+              <Eyebrow>Meters</Eyebrow>
+              <Num size={96} color={C.accent}>
+                {fmtInt(Math.floor(live.meters))}
+              </Num>
+              <Bar value={todayMeters + live.meters} goal={dailyGoal} height={10} />
+              <Text style={[styles.body, { marginTop: 6 }]}>
+                {fmtInt(todayMeters + Math.floor(live.meters))} of {fmtInt(dailyGoal)} m today
+              </Text>
+            </Card>
+
+            <View style={[styles.row, { gap: 14 }]}>
+              <Card style={{ flex: 1 }}>
+                <Eyebrow>Time</Eyebrow>
+                <Num size={34}>{fmtClock(live.elapsedS)}</Num>
+              </Card>
+              <Card style={{ flex: 1 }}>
+                <Eyebrow>/500m</Eyebrow>
+                <Num size={34}>{fmtPace(live.pace)}</Num>
+              </Card>
+            </View>
+            <View style={[styles.row, { gap: 14 }]}>
+              <Card style={{ flex: 1 }}>
+                <Eyebrow>S/M</Eyebrow>
+                <Num size={30}>{live.spm > 0 ? live.spm : "--"}</Num>
+              </Card>
+              <Card style={{ flex: 1 }}>
+                <Eyebrow>Watts</Eyebrow>
+                <Num size={30}>{live.watts > 0 ? fmtInt(live.watts) : "---"}</Num>
+              </Card>
+              <Card style={{ flex: 1 }}>
+                <Eyebrow>Avg</Eyebrow>
+                <Num size={30}>{fmtPace(live.avgPace)}</Num>
+              </Card>
+            </View>
+
+            <Card>
+              <View style={[styles.row, { justifyContent: "space-between" }]}>
+                <Eyebrow>Your stroke</Eyebrow>
+                <Eyebrow>{live.peakLbf > 0 ? `Peak ${Math.round(live.peakLbf)} lbf` : `Stroke ${live.strokes}`}</Eyebrow>
+              </View>
+              <View style={{ height: 110, flexDirection: "row", alignItems: "flex-end", marginTop: 10, borderBottomWidth: 2, borderColor: C.ink }}>
+                {live.curve.length ? (
+                  live.curve.map((p, i) => <View key={i} style={{ flex: 1, height: `${Math.max(2, (p / peak) * 100)}%`, backgroundColor: C.accent, marginHorizontal: 0.5 }} />)
+                ) : (
+                  <Text style={[styles.body, { paddingBottom: 40 }]}>The force curve draws here once you take a stroke.</Text>
+                )}
+              </View>
+            </Card>
+          </>
+        )}
 
         {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 10 }]}>{error}</Text> : null}
         <Btn label={`Bank ${fmtInt(Math.floor(live.meters))} m`} onPress={bank} disabled={live.meters < 1} />

@@ -1,5 +1,6 @@
 import type { Pm5Packet } from "../pm5/encode";
 import {
+  DurationType,
   PM5_UUID,
   createForceCurveAssembler,
   isEnded,
@@ -53,6 +54,8 @@ export type Live = {
   strokes: number;
   drag: number;
   calories: number;
+  /* The distance the monitor is set to, when the workout is a fixed distance; 0 otherwise. */
+  targetM: number;
   /* The last whole force curve, pounds of force. */
   curve: number[];
   peakLbf: number;
@@ -74,6 +77,7 @@ export const EMPTY_LIVE: Live = {
   strokes: 0,
   drag: 0,
   calories: 0,
+  targetM: 0,
   curve: [],
   peakLbf: 0,
   wattSum: 0,
@@ -128,6 +132,7 @@ export function createLive() {
     live.elapsedS = g.elapsedS;
     live.meters = g.distanceM;
     live.drag = g.dragFactor;
+    live.targetM = g.workoutDurationType === DurationType.DISTANCE && g.workoutDuration > 0 ? g.workoutDuration : 0;
     live.ended = isEnded(g.workoutState) && g.distanceM > 0;
     if (g.elapsedS > 0 && g.distanceM > 0 && !isEnded(g.workoutState) && samples.length < MAX_SAMPLES) {
       samples.push({ t: g.elapsedS, dist: g.distanceM, pace: la1?.currentPaceS ?? 0, avgPace: la1?.averagePaceS ?? 0, spm: la1?.strokeRate ?? 0, hr: la1?.heartRate ?? null, watts: live.watts > 0 ? live.watts : null, drag: g.dragFactor });
