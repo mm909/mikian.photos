@@ -212,6 +212,13 @@ export function BarAccount({
                 </Link>
 
                 <Eyebrow>Development</Eyebrow>
+                {/* REEL GRAPHICS for the newest saved row (owner, 2026-11-13:
+                 * clips and a thumbnail overlay for the daily reel; "I don't
+                 * see the link in my profile menu on my phone"). In
+                 * development behind the /erg door. */}
+                <Link className="acct-item" href="/erg/reel/latest" onClick={close}>
+                  Reel graphics →
+                </Link>
                 {/* The results board on sample data (owner, 2026-09-11:
                  * "push the sample race day board with sample data so I can
                  * take a look at it"). Mid-race, finished, and the frame a
