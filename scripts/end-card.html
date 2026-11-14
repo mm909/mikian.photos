@@ -10,15 +10,15 @@
 <script>
 /* THE END SCREEN (owner, 2026-10-30: "And a thank you for opting in end
  * screen"). The last card of an Instagram carousel of posters, the pair of
- * scripts/title-card.html: THANK YOU in ink and FOR OPTING IN in the fall
- * brown, each line fitted to the measure in Archivo Black on the poster's
+ * scripts/title-card.html: THANK YOU in ink and OPTING IN in the Rowtember
+ * water blue (owner, 2026-11-14; the fall brown before that), each line fitted to the measure in Archivo Black on the poster's
  * cream, the nameplate rule, and the sign-off every poster ends on — FOR
  * YOURSELF AND OTHERS — in mono at the foot. No address, no handle (the
  * sticker rule). ?w=1080&h=1920 for a story. Rendered by og-render.mjs:
  *   node scripts/og-render.mjs end-card.html public/row100k/title/thank-you-post.png 1080 1350 */
 const q = new URLSearchParams(location.search);
 const W = Number(q.get("w")) || 1080, H = Number(q.get("h")) || 1350;
-const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F", GRAY = "#8a8a85";
+const PAPER = "#F4F3EE", INK = "#15171A", WATER = "#0077B6", GRAY = "#8a8a85";
 const c = document.getElementById("c"); c.width = W; c.height = H;
 const fit = (ctx, text, max) => { let s = 400; for (;;) { ctx.font = `${s}px "Archivo Black"`; if (ctx.measureText(text).width <= max || s <= 40) return s; s -= 1; } };
 async function draw() {
@@ -28,7 +28,7 @@ async function draw() {
   const ctx = c.getContext("2d");
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
   const measure = W * 0.86, x0 = (W - measure) / 2;
-  const lines = [{ t: "THANK YOU", color: INK }, { t: "FOR", color: INK }, { t: "OPTING IN", color: BROWN }];
+  const lines = [{ t: "THANK YOU", color: INK }, { t: "FOR", color: INK }, { t: "OPTING IN", color: WATER }];
   /* Each line as big as the measure allows, the short one no bigger than
    * the line above it, stacked at .9 leading; the block centred. */
   let prev = Infinity;

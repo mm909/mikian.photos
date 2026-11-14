@@ -41,7 +41,7 @@ const BGS: { id: BgId; name: string }[] = [
   { id: "green", name: "Green screen" },
   { id: "blue", name: "Blue screen" },
   { id: "black", name: "Black" },
-  { id: "brown", name: "Brown card" },
+  { id: "ink", name: "Ink card" },
   { id: "cream", name: "Cream card" },
 ];
 /* 4:5 is the feed post; 9:16 the reel and the story. */
@@ -51,7 +51,8 @@ const FORMATS = [
   { id: "square", name: "1:1", w: 1080, h: 1080 },
 ] as const;
 /* "" leaves the ground's own colour. The blue is the Rowtember water blue,
- * the brown the V of the Rowvember mark. */
+ * the accent and the V of the Rowvember mark since 2026-11-14; the brown is
+ * the fall brown the V wore before that, still here to pick. */
 const COLORS: { id: string; name: string }[] = [
   { id: "", name: "Auto" },
   { id: "#ffffff", name: "White" },

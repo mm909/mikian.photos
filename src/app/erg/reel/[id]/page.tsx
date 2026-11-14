@@ -175,7 +175,7 @@ export default async function ErgReelPage({ params }: { params: { id: string } }
           <b>Video has no transparency.</b> Record on the green screen, drop the clip over your footage and key the
           green out (CapCut: Remove background, Chroma key; Edits: Green screen). BLACK works with a Screen blend.
           RECORD ALL films every clip and every monitor screen one after another at the length picked.
-          The brown and cream cards are finished shots of their own. STILL PNG is the frame on screen with nothing
+          The ink and cream cards are finished shots of their own. STILL PNG is the frame on screen with nothing
           behind it.
         </p>
         <p>

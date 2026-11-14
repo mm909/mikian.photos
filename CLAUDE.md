@@ -39,14 +39,20 @@ Owner, 2026-10-14: "Never put mikianmusser.com on any stickers unless I ask for 
 
 A sticker or shareable card (the Hyrox cards in `src/app/hyrox/[event]/stickerPaint.ts`, the roster pages, anything painted on a canvas to be posted) carries no site address, no handle and no URL unless the owner asks for one on that card. The page's own footer is not a sticker.
 
-## The site is cream, in a fall brown — never dark by default
+## The site is cream, in the Rowtember water blue, for every edition — never dark by default
 
-Owner, 2026-10-30, of the black site on his phone: "Why is the site dark bro. Fix that. Terrible. Colors right now. Back to what the blue and cream was before. Well, now let's pick a fall color. A darker palette matte brown? Think Thanksgiving."
+Owner, 2026-11-14, of the erg saved-session page (cream paper, ink type, the big time in the water blue): "I really like the look of this page. It's good text size and font and blue color. Let's make Rowtember and Rowvember that color. We should keep it the same. Update the graphics and logos accordingly."
 
-The default look is `paper` and the default palette is `paper-brown` (`src/lib/rowSettings.ts`, `src/lib/rowPalette.ts`). A look or palette row saved on the settings page before 2026-10-30 is ignored (`COSMETIC_EPOCH_MS`), never deleted. Do not make ink the default again unless the owner says so; he can still pick it on the settings page.
+The default look is `paper` and the default palette is `paper-water` (`src/lib/rowSettings.ts`, `src/lib/rowPalette.ts`): `#0077B6` on cream, `#1A90D4` where the accent sits on ink. Every edition wears it, Rowvember included — the V of the Rowvember mark, the link card, the carousel cards and the reel graphics are that blue, and a new edition does not get a colour of its own unless the owner asks. History in one sentence: the owner pulled the site off the black look on 2026-10-30 ("Why is the site dark bro. Fix that.") and it wore a fall brown from that day until 2026-11-14; the brown stays a preset he can pick on the settings page. A look or palette row saved on the settings page before 2026-11-14 is ignored (`COSMETIC_EPOCH_MS`), never deleted. Do not make ink the default again unless the owner says so; he can still pick it on the settings page.
 
 ## A month with a name is an edition, and "reset" never deletes
 
 Owner, 2026-10-30: "I need a rowvember new logo and kick off everything that is needed to reset the site (get ready for) ROWVEMBER"; "When I say reset I mean make sure we are prepared for next month. I obviously don't want any data deleted."
 
 September is Rowtember and November is Rowvember (`src/lib/rowPeriod.ts` EDITIONS); the nameplate, the wordmark (`src/app/row100k/Mark.tsx`), the default row title and the mark on every share card read the edition off there, and a new one is a line in that table. Getting ready for a month means code and assets — never a delete, a truncate or a `--clear` against the live database. The Rowvember logo files live in `public/row100k/rowvember/`; the link card is `public/row100k/og-rowvember.png` (drawn by `scripts/og-rowvember.html`, rendered by `scripts/og-render.mjs`).
+
+## The logo is ROW, the O in the blue
+
+Owner, 2026-11-14: "let's change our logo to row with the o in the Rowtemeber color."
+
+The site signs itself ROW, the O in the accent (`Logo` in `src/app/row100k/Mark.tsx`): the bar and the footer, in every month. The edition's name (ROWTEMBER, ROWVEMBER; `Mark`, `MARK`) still names the month on the front nameplate and on the share cards. The logo files live in `public/row100k/row/` (drawn by `scripts/row-logo.html`); the phone app in `mobile/` wears the same mark and icon.

@@ -14,13 +14,14 @@
  * mark alone on the poster's own cream, in Archivo Black ink, with the
  * nameplate rule under it and nothing else — no month, no address (the
  * sticker rule). ?word=ROWVEMBER for the November edition, whose V is the
- * fall brown (rowPalette.ts BROWN on paper); ?w=1080&h=1920 for a story.
+ * Rowtember water blue (rowPalette.ts WATER on paper; owner, 2026-11-14:
+ * "Let's make Rowtember and Rowvember that color"); ?w=1080&h=1920 for a story.
  * Rendered by scripts/og-render.mjs:
  *   node scripts/og-render.mjs "title-card.html?word=ROWTEMBER" public/row100k/title/rowtember-post.png 1080 1350 */
 const q = new URLSearchParams(location.search);
 const word = (q.get("word") || "ROWTEMBER").toUpperCase();
 const W = Number(q.get("w")) || 1080, H = Number(q.get("h")) || 1350;
-const PAPER = "#F4F3EE", INK = "#15171A", BROWN = "#6F4A2F";
+const PAPER = "#F4F3EE", INK = "#15171A", WATER = "#0077B6";
 const c = document.getElementById("c"); c.width = W; c.height = H;
 async function draw() {
   await document.fonts.load('150px "Archivo Black"');
@@ -35,7 +36,7 @@ async function draw() {
   const x0 = (W - tw) / 2, base = H / 2 + cap / 2;
   let x = x0;
   for (let i = 0; i < word.length; i++) {
-    ctx.fillStyle = word === "ROWVEMBER" && word[i] === "V" ? BROWN : INK;
+    ctx.fillStyle = word === "ROWVEMBER" && word[i] === "V" ? WATER : INK;
     ctx.fillText(word[i], x, base);
     x = x0 + ctx.measureText(word.slice(0, i + 1)).width;
   }

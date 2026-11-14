@@ -13,7 +13,7 @@ import { calHrFromWatts, frameAt, wattsFromPace, type ReelFrame, type ReelSeries
  * NO ADDRESS, NO HANDLE on any of it (owner, 2026-10-14). */
 
 export type ClipId = "meters" | "clock" | "pace" | "stack" | "stroke" | "monitor";
-export type BgId = "green" | "blue" | "black" | "brown" | "cream" | "clear";
+export type BgId = "green" | "blue" | "black" | "ink" | "cream" | "clear";
 export type UnitId = "pace" | "watts" | "cal";
 export type ScreenId = "all" | "large" | "force" | "bars";
 export type Fonts = { black: string; sans: string; mono: string };
@@ -44,16 +44,26 @@ export type PaintOpts = {
 type Theme = { ground: string | null; fg: string; dim: string; accent: string; label: string; outline: string | null };
 
 const INK = "#15171a";
+/* THE ACCENT IS THE ROWTEMBER WATER BLUE, every edition (owner, 2026-11-14:
+ * "Let's make Rowtember and Rowvember that color. We should keep it the
+ * same. Update the graphics and logos accordingly."): #1a90d4 where it sits
+ * on a dark or a key ground, #0077b6 on the cream, the two cuts the site
+ * keeps (rowPalette.ts WATER). It was the fall brown until that day, and
+ * the dark card a brown one; the card is ink now, with ink type on the
+ * cream. The blue SCREEN alone takes a white accent: a blue line on a blue
+ * key goes out with the key. */
+const WATER_ON_INK = "#1a90d4";
+const WATER_ON_PAPER = "#0077b6";
 const THEMES: Record<BgId, Theme> = {
-  green: { ground: "#00ff00", fg: "#ffffff", dim: "#ffffff", accent: "#e0a070", label: "#ffffff", outline: INK },
-  blue: { ground: "#0000ff", fg: "#ffffff", dim: "#ffffff", accent: "#e0a070", label: "#ffffff", outline: INK },
-  clear: { ground: null, fg: "#ffffff", dim: "#ffffff", accent: "#e0a070", label: "#ffffff", outline: INK },
-  black: { ground: "#000000", fg: "#ffffff", dim: "#a8a8a8", accent: "#c98a5a", label: "#c98a5a", outline: null },
-  brown: { ground: "#33241b", fg: "#f3ecdd", dim: "#b9a48f", accent: "#c98a5a", label: "#c98a5a", outline: null },
-  cream: { ground: "#f3ecdd", fg: "#2b1d14", dim: "#7a6655", accent: "#8a5a35", label: "#8a5a35", outline: null },
+  green: { ground: "#00ff00", fg: "#ffffff", dim: "#ffffff", accent: WATER_ON_INK, label: "#ffffff", outline: INK },
+  blue: { ground: "#0000ff", fg: "#ffffff", dim: "#ffffff", accent: "#ffffff", label: "#ffffff", outline: INK },
+  clear: { ground: null, fg: "#ffffff", dim: "#ffffff", accent: WATER_ON_INK, label: "#ffffff", outline: INK },
+  black: { ground: "#000000", fg: "#ffffff", dim: "#a8a8a8", accent: WATER_ON_INK, label: WATER_ON_INK, outline: null },
+  ink: { ground: INK, fg: "#f3ecdd", dim: "#a8a8a8", accent: WATER_ON_INK, label: WATER_ON_INK, outline: null },
+  cream: { ground: "#f3ecdd", fg: INK, dim: "#6b6a66", accent: WATER_ON_PAPER, label: WATER_ON_PAPER, outline: null },
 };
 
-export const BG_SWATCH: Record<BgId, string> = { green: "#00ff00", blue: "#0000ff", black: "#000000", brown: "#33241b", cream: "#f3ecdd", clear: "transparent" };
+export const BG_SWATCH: Record<BgId, string> = { green: "#00ff00", blue: "#0000ff", black: "#000000", ink: INK, cream: "#f3ecdd", clear: "transparent" };
 
 /* ---- words and numbers -------------------------------------------------- */
 
@@ -577,7 +587,7 @@ export function paintThumb(ctx: Ctx, W: number, H: number, o: ThumbOpts) {
     ctx.drawImage(o.photo, (W - o.photoW * k) / 2, (H - o.photoH * k) / 2, o.photoW * k, o.photoH * k);
   }
   const s = W / 1080;
-  const T: Theme = o.color === "white" ? { ground: null, fg: "#ffffff", dim: "#ffffff", accent: "#e0a070", label: "#e0a070", outline: INK } : { ground: null, fg: INK, dim: INK, accent: "#8a5a35", label: "#8a5a35", outline: "#f3ecdd" };
+  const T: Theme = o.color === "white" ? { ground: null, fg: "#ffffff", dim: "#ffffff", accent: WATER_ON_INK, label: WATER_ON_INK, outline: INK } : { ground: null, fg: INK, dim: INK, accent: WATER_ON_PAPER, label: WATER_ON_PAPER, outline: "#f3ecdd" };
   const fonts = o.fonts;
 
   const parts: { h: number; draw: (y: number) => void }[] = [];

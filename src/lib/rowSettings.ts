@@ -94,12 +94,17 @@ export const DEFAULT_BLACKOUT_POLICY: BlackoutPolicy = { scope: "division", coun
 export const BLACKOUT_COUNT_MAX = 100;
 
 /* The look and the palette the site wears unless the owner has picked
- * another SINCE: paper, in the Rowvember brown (rowPalette.ts
- * DEFAULT_PALETTE). It was ink in the Rowtember blue from 2026-10-13
- * (October orange from 2026-10-01) until 2026-10-30, when the owner saw
- * the black site on his phone: "Why is the site dark bro. Fix that ...
- * Back to what the blue and cream was before. Well, now let's pick a fall
- * color. A darker palette matte brown? Think Thanksgiving." */
+ * another SINCE: paper, in the Rowtember water blue, for every edition
+ * (rowPalette.ts DEFAULT_PALETTE; owner, 2026-11-14, of the erg
+ * saved-session page: "I really like the look of this page. It's good
+ * text size and font and blue color. Let's make Rowtember and Rowvember
+ * that color. We should keep it the same."). It was ink in the same blue
+ * from 2026-10-13 (October orange from 2026-10-01) until 2026-10-30, when
+ * the owner saw the black site on his phone ("Why is the site dark bro.
+ * Fix that ... Back to what the blue and cream was before. Well, now
+ * let's pick a fall color. A darker palette matte brown? Think
+ * Thanksgiving."), and paper in that fall brown from then until
+ * 2026-11-14. The ground stays cream. */
 export const DEFAULT_SETTINGS: SiteSettings = {
   look: "paper",
   palette: DEFAULT_PALETTE,
@@ -183,12 +188,14 @@ export function parseSetting(
 /* ------------------------------------------------------------- reading */
 
 /* A LOOK OR PALETTE SAVED BEFORE THIS INSTANT IS THE OLD SITE'S and does
- * not stand (owner, 2026-10-30, above): his word that day is the newer
- * decision than any switch he set on the settings page before it, so a
- * row from before it reads as the default — the row itself is kept, not
- * deleted, and the next save on the settings page is newer than this and
- * stands. Pacific midnight on the 30th. The other keys are untouched. */
-export const COSMETIC_EPOCH_MS = Date.parse("2026-10-30T07:00:00Z");
+ * not stand (owner, 2026-11-14: "Let's make Rowtember and Rowvember that
+ * color. We should keep it the same."; the instant was 2026-10-30 before
+ * that, for the brown): his word that day is the newer decision than any
+ * switch he set on the settings page before it, so a row from before it
+ * reads as the default — the row itself is kept, never deleted, and the
+ * next save on the settings page is newer than this and stands. Pacific
+ * midnight on the 14th of November. The other keys are untouched. */
+export const COSMETIC_EPOCH_MS = Date.parse("2026-11-14T08:00:00Z");
 const COSMETIC_KEYS: readonly SettingKey[] = ["look", "palette"];
 
 function fold(rows: { key: string; value: string; updatedAt?: Date }[]): SiteSettings {

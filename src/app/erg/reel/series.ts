@@ -80,6 +80,27 @@ export function buildSeries(doc: TelemetryDoc): ReelSeries {
     }
   }
 
+  /* SOME SAVED ROWS CARRY NO PACE ON THEIR TICKS (the real 5 k of
+   * 2026-09-27 has none): the split is then the time over the distance of
+   * the six seconds behind the tick, which is what the monitor shows too. */
+  let j = 0;
+  for (let i = 0; i < ticks.length; i++) {
+    if (ticks[i].pace > 0 && ticks[i].pace < 600) continue;
+    while (j < i && ticks[i].t - ticks[j + 1].t >= 6) j++;
+    const dt = ticks[i].t - ticks[j].t;
+    const dm = ticks[i].m - ticks[j].m;
+    ticks[i].pace = dt >= 2 && dm > 1 ? (dt / dm) * 500 : 0;
+    if (!(ticks[i].watts > 0)) ticks[i].watts = Math.round(wattsFromPace(ticks[i].pace));
+  }
+  /* A tick with no pace (the monitor's last, at the line) carries the one before it. */
+  for (let i = 1; i < ticks.length; i++) {
+    if (!(ticks[i].pace > 0)) {
+      ticks[i].pace = ticks[i - 1].pace;
+      if (!(ticks[i].watts > 0)) ticks[i].watts = ticks[i - 1].watts;
+      if (!(ticks[i].spm > 0)) ticks[i].spm = ticks[i - 1].spm;
+    }
+  }
+
   const trimmed = (doc.notes?.headTrimmedFromS ?? 0) > 0;
   if (!trimmed && (!ticks.length || ticks[0].t > 0)) {
     const first = ticks[0];

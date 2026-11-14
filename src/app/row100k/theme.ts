@@ -100,6 +100,8 @@ html:has(.row100k){scroll-behavior:smooth}
 /* THE V OF ROWVEMBER in the accent (Mark.tsx) wherever the mark is type on
  * a ground; on an accent slab (.share-mark) it is the slab's own type. */
 .row100k .mk-v{color:var(--water)}
+/* The ROW logo: three letters want more size than the nine of a wordmark. */
+.row100k .mk-logo{font-size:1.55em;letter-spacing:.02em}
 .row100k .share-mark .mk-v{color:inherit}
 .row100k .bar-brand:hover .mk-v{color:inherit}
 /* Nav rail + the one accent pill (owner call, 2026-09-05). The section
@@ -477,11 +479,13 @@ html:has(.row100k){scroll-behavior:smooth}
  * still off"). The dimmer and the stage were the black site's: a 62% black
  * scrim and a near-black mat under the white cards. On the cream the
  * dimmer is the log sheet's lighter one, and a white card sits on the
- * palette's lighter accent (the fall brown's hover cut, #8A5E3C), a mid
- * tone on purpose: under lights out the row card is white type AND black
- * blocks (drawBlockDigits, the ink mark slab), and the deep brown hid the
- * blocks the way the black mat did (owner's screenshot, 2026-11-03). White
- * reads on it at 5.6:1 and the ink blocks at 3.2:1. The ink look keeps its
+ * palette's lighter accent (--water-hover), a mid tone on purpose: under
+ * lights out the row card is white type AND black blocks (drawBlockDigits,
+ * the ink mark slab), and the deep brown of that week hid the blocks the
+ * way the black mat did (owner's screenshot, 2026-11-03). On the fall
+ * brown's hover cut (#8A5E3C) white read at 5.6:1 and the ink blocks at
+ * 3.2:1; on the water blue's (#1a90d4, the default since 2026-11-14) white
+ * reads at 3.5:1 and the ink blocks at 5.1:1. The ink look keeps its
  * darker dimmer and the plain black mat (the ink-look rules further down). */
 .row100k .share-stage.dark{background-color:var(--water-hover);background-image:linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%),linear-gradient(45deg,rgba(255,255,255,.05) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.05) 75%);background-size:24px 24px;background-position:0 0,12px 12px}
 .row100k .share-canvas{display:block;width:100%;height:auto}

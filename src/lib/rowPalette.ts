@@ -75,7 +75,9 @@ const ORANGE = { accentOnPaper: "#B04506", accentOnPaperHover: "#D2580F", accent
 const RED = { accentOnPaper: "#C8321F", accentOnPaperHover: "#E04A36", accentOnPaperPale: "#F7E1DC", accentOnInk: "#EC4530", accentOnInkHover: "#F26A5C", accentOnInkPale: "#2A1613" };
 const WATER = { accentOnPaper: "#0077B6", accentOnPaperHover: "#1a90d4", accentOnPaperPale: "#e3eef5", accentOnInk: "#1A90D4", accentOnInkHover: "#4FB3EA", accentOnInkPale: "#1c2b33" };
 const MUSTARD = { accentOnPaper: "#85661A", accentOnPaperHover: "#A07C1F", accentOnPaperPale: "#F3EAD0", accentOnInk: "#E0B32B", accentOnInkHover: "#EAC455", accentOnInkPale: "#2A2410" };
-/* ROWVEMBER BROWN (owner, 2026-10-30, of the black site: "Back to what the
+/* THE FALL BROWN, a preset the control can still pick; the default and the
+ * Rowvember V from 2026-10-30 until 2026-11-14, when the blue came back for
+ * every edition (see PALETTES). Owner, 2026-10-30, of the black site: "Back to what the
  * blue and cream was before. Well, now let's pick a fall color. A darker
  * palette matte brown? Think Thanksgiving."): a matte cocoa on the cream,
  * burnt enough that a mono label in it reads on the paper (7.0:1) and on
@@ -87,24 +89,29 @@ const FOREST = { accentOnPaper: "#256E45", accentOnPaperHover: "#2F8A56", accent
 
 /* In the order the control lists them. The first is the default.
  *
- * PAPER BROWN IS THE DEFAULT (owner, 2026-10-30, see BROWN): the cream
- * ground back, the accent a Thanksgiving brown, for Rowvember. The blue
- * was the default from 2026-10-13 ("revert Rowtember's main color to that
- * blue again, the older Rowtember blue, just everywhere") and October
- * orange before it; both stay presets the control can pick. */
+ * PAPER WATER IS THE DEFAULT, FOR EVERY EDITION (owner, 2026-11-14, of the
+ * erg saved-session page on cream: "I really like the look of this page.
+ * It's good text size and font and blue color. Let's make Rowtember and
+ * Rowvember that color. We should keep it the same. Update the graphics
+ * and logos accordingly."): the cream ground, the accent the Rowtember
+ * water blue, Rowvember included. The fall brown was the default from
+ * 2026-10-30 (see BROWN), the blue on ink from 2026-10-13 ("revert
+ * Rowtember's main color to that blue again, the older Rowtember blue,
+ * just everywhere") and October orange before it; all stay presets the
+ * control can pick. */
 export const PALETTES: readonly Palette[] = [
+  { id: "paper-water", name: "Paper water", ground: "paper", ...WATER },
+  { id: "ink-water", name: "Ink water", ground: "ink", ...WATER },
   { id: "paper-brown", name: "Paper brown", ground: "paper", ...BROWN },
   { id: "ink-brown", name: "Ink brown", ground: "ink", ...BROWN },
-  { id: "ink-water", name: "Ink water", ground: "ink", ...WATER },
   { id: "ink-orange", name: "Ink orange", ground: "ink", ...ORANGE },
   { id: "ink-red", name: "Ink red", ground: "ink", ...RED },
   { id: "paper-red", name: "Paper red", ground: "paper", ...RED },
-  { id: "paper-water", name: "Paper water", ground: "paper", ...WATER },
   { id: "ink-yellow", name: "Ink yellow", ground: "ink", ...MUSTARD },
   { id: "ink-green", name: "Ink green", ground: "ink", ...FOREST },
 ];
 
-export const DEFAULT_PALETTE: PaletteId = "paper-brown";
+export const DEFAULT_PALETTE: PaletteId = "paper-water";
 
 export function isPaletteId(v: unknown): v is PaletteId {
   return typeof v === "string" && PALETTES.some((p) => p.id === v);

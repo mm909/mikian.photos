@@ -26,7 +26,7 @@ type Card = { file: string; name: string; tag: string; alt: string };
 
 const EDITIONS: Card[] = [
   { file: "rowtember", name: "Rowtember", tag: "TITLE SCREEN", alt: "ROWTEMBER on cream" },
-  { file: "rowvember", name: "Rowvember", tag: "TITLE SCREEN · NOVEMBER", alt: "ROWVEMBER on cream, the V in brown" },
+  { file: "rowvember", name: "Rowvember", tag: "TITLE SCREEN · NOVEMBER", alt: "ROWVEMBER on cream, the V in blue" },
 ];
 const THANKS: Card = { file: "thank-you", name: "Thank you", tag: "END SCREEN", alt: "THANK YOU FOR OPTING IN on cream" };
 

@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- THE ROW LOGO as a file (owner, 2026-11-14): ROW, the O in the blue.
+     ?on=paper  ink letters, O #0077B6 (default)   ?on=ink  white letters, O #1A90D4
+     No ground: the PNG is transparent. Rendered with headless Chrome:
+       chrome --headless=new --default-background-color=00000000 --window-size=1600,640
+              --virtual-time-budget=6000 --screenshot=public/row100k/row/row-logo-on-paper.png
+              "file:///.../scripts/row-logo.html?on=paper" -->
+<meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=block" rel="stylesheet" />
+<style>
+  html, body { margin: 0; width: 1600px; height: 640px; overflow: hidden; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; font: 400 520px/1 "Archivo Black", sans-serif; color: #15171a; }
+  b { font-weight: 400; color: #0077B6; }
+  body.ink { color: #ffffff; }
+  body.ink b { color: #1A90D4; }
+</style>
+<body><span>R<b>O</b>W</span></body>
+<script>
+  if (new URLSearchParams(location.search).get("on") === "ink") document.body.classList.add("ink");
+</script>

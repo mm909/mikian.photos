@@ -25,3 +25,18 @@ export function Mark() {
     </>
   );
 }
+
+/* THE LOGO (owner, 2026-11-14: "let's change our logo to ROW with the O in
+ * the Rowtember color"). Three letters, the O in the accent (.mk-v, the
+ * same rule that coloured the V). It signs the bar and the footer in every
+ * month; the edition's own name (Mark, above) stays where the page names
+ * the month: the front nameplate and the share cards. The files under
+ * public/row100k/row draw it for anything outside the site, from
+ * scripts/row-logo.html. Server component. */
+export function Logo() {
+  return (
+    <span className="mk-logo" aria-label="Row">
+      R<span className="mk-v">O</span>W
+    </span>
+  );
+}
