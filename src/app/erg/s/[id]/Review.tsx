@@ -50,6 +50,9 @@ export function Review({ row, a, doc, play }: { row: TelemetrySavedRow; a: ErgAn
           <h1 className="rv-title">{row.title}</h1>
         </div>
         <div className="eg-btns" style={{ margin: 0 }}>
+          <Link className="eg-btn eg-btn-quiet" href={`/erg/reel/${encodeURIComponent(row.id)}`}>
+            Reel graphics
+          </Link>
           <Link className="eg-btn eg-btn-quiet" href="/erg/sessions">
             All sessions
           </Link>

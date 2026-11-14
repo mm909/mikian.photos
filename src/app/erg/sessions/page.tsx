@@ -135,6 +135,10 @@ export default async function ErgSessionsPage({ searchParams }: { searchParams: 
                       <Link className="eg-btn eg-btn-quiet" href={`/erg?play=${encodeURIComponent(r.id)}`}>
                         Play
                       </Link>
+                      {/* Reel graphics (owner, 2026-11-13), in development. */}
+                      <Link className="eg-btn eg-btn-quiet" href={`/erg/reel/${encodeURIComponent(r.id)}`}>
+                        Reel
+                      </Link>
                       <DeleteSession id={r.id} />
                     </span>
                   </td>
