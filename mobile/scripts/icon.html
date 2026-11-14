@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- THE APP ICON: ROW, the O in the Rowtember blue (owner, 2026-11-14).
+     ?v=icon   cream ground, for the store icon
+     ?v=fg     no ground, the mark inside Android's safe circle
+     ?v=mono   no ground, all ink (Android's themed icon)
+     ?v=splash no ground, the mark at splash size
+     Rendered by scripts/icons.sh with headless Chrome. -->
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: "AB"; src: url("../node_modules/@expo-google-fonts/archivo-black/400Regular/ArchivoBlack_400Regular.ttf"); }
+  html, body { margin: 0; width: 1024px; height: 1024px; overflow: hidden; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; font-family: "AB", sans-serif; color: #15171a; letter-spacing: -0.01em; line-height: 1; }
+  b { font-weight: 400; color: #0077B6; }
+</style>
+<body><span id="m">R<b>O</b>W</span></body>
+<script>
+  const v = new URLSearchParams(location.search).get("v") || "icon";
+  const m = document.getElementById("m");
+  if (v === "icon") document.body.style.background = "#F4F3EE";
+  m.style.fontSize = v === "icon" ? "330px" : v === "splash" ? "300px" : "210px";
+  if (v === "mono") m.querySelector("b").style.color = "#15171a";
+</script>

@@ -1,0 +1,35 @@
+{
+  "name": "row-app",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo-google-fonts/archivo": "^0.4.2",
+    "@expo-google-fonts/archivo-black": "^0.4.1",
+    "@expo-google-fonts/space-mono": "^0.4.2",
+    "@expo/metro-runtime": "~58.0.17",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~58.0.25",
+    "expo-dev-client": "~58.0.20",
+    "expo-font": "~58.0.12",
+    "expo-status-bar": "~58.0.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-ble-plx": "^3.5.1",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "sync:pm5": "node -e \"const f=require('fs');for(const n of ['pm5','encode','simulate','session','analysis'])f.copyFileSync('../src/lib/pm5/'+n+'.ts','src/pm5/'+n+'.ts')\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "private": true
+}
