@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { teamPath } from "@/lib/tsp/paths";
 import { teamPositions } from "@/lib/tsp/positions";
+import { teamCourseUrl } from "@/lib/tsp/courseStore";
 import { gateTspDev, getTspViewer, listTspMembers, tspTitle } from "@/lib/tsp/team";
+import { courseUrl } from "../../course";
 import { expensesCss } from "@/app/lasd26/expensesCss";
 import { routeCss } from "@/app/lasd26/routeCss";
 import { teamCss } from "@/app/lasd26/teamCss";
@@ -24,7 +26,7 @@ type Props = { params: { team: string }; searchParams?: { runner?: string | stri
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const viewer = await getTspViewer(params.team, null);
-  return { title: tspTitle(`${viewer?.team.name ?? "TSP"} — Legs`), robots: { index: false, follow: false } };
+  return { title: tspTitle(`${viewer?.team.name ?? "TSP"} — Plan`), robots: { index: false, follow: false } };
 }
 
 export default async function LegsPage({ params, searchParams }: Props) {
@@ -49,10 +51,11 @@ export default async function LegsPage({ params, searchParams }: Props) {
     );
   }
 
-  const [members, legs, positions] = await Promise.all([
+  const [members, legs, positions, url] = await Promise.all([
     listTspMembers(slug),
     db.teamLeg.findMany({ where: { team: slug }, orderBy: { startCm: "asc" }, select: { startCm: true, endCm: true, memberId: true } }).catch(() => []),
     teamPositions(slug).catch(() => []),
+    teamCourseUrl(viewer.team).catch(() => courseUrl(viewer.team.route, viewer.team.secrets)),
   ]);
   const raw = searchParams?.runner;
   const runner = members.find((x) => x.id === (Array.isArray(raw) ? raw[0] : raw))?.id ?? null;
@@ -62,16 +65,15 @@ export default async function LegsPage({ params, searchParams }: Props) {
       <section className="tsp-sec">
         <div className="wrap">
           <div className="sec-head">
-            <h2>Legs</h2>
-            <span className="mono">WHO RUNS WHAT · THE PLAN</span>
+            <h2>The plan</h2>
+            <span className="mono">WHO RUNS WHAT · SHIFTS · HAND-OFFS</span>
           </div>
           <LegsView
             nowMs={Date.now()}
             slug={slug}
-            route={viewer.team.route}
-            secrets={viewer.team.secrets}
+            courseUrl={url}
             meId={viewer.member?.id ?? null}
-            members={members.map((x) => ({ id: x.id, name: x.name, role: x.role }))}
+            members={members.map((x) => ({ id: x.id, name: x.name, role: x.role, paceSec: x.paceSec, squad: x.squad, placeholder: x.placeholder }))}
             initialLegs={legs}
             team={{ startAt: viewer.team.startAt, planPaceSec: viewer.team.planPaceSec }}
             positions={positions}

@@ -1,8 +1,8 @@
 # The routes (researched 2026-11-16)
 
 Owner, 2026-11-16: "We want to take the powerline route." `waypoints.json`
-holds three: `powerline` (the default, 306 mi), `og` (342 mi) and `pahrump`
-(the OG stretched through Shoshone and Pahrump, about 356 mi; its Pahrump →
+holds three: `powerline` (the default, 302 mi), `og` (338 mi) and `pahrump`
+(the OG stretched through Shoshone and Pahrump, about 350 mi; its Pahrump →
 NV-160 stretch is the router's pick and not checked). What follows is the
 research as first written, when the OG line was the recommendation.
 
@@ -11,7 +11,7 @@ Hollywood → North Hollywood → Sylmar → Sierra Hwy → Soledad Canyon → A
 Palmdale → El Mirage → Adelanto → Helendale → Route 66 → Barstow → Yermo →
 Field Rd → (35 mi of dirt and sand beside I-15) → Baker → CA-127 → Tecopa →
 Old Spanish Trail Hwy → NV-160 over Mountain Springs → Blue Diamond Rd →
-Las Vegas Blvd → the sign. Built here: 342 mi, about 12,100 ft of climb.
+Las Vegas Blvd → the sign. Built here: 338 mi, about 12,000 ft of climb.
 
 Picked because it is the only line two ordinary vans can support the whole
 way: after Baker every mile is paved, and before it I-15 exits meet the

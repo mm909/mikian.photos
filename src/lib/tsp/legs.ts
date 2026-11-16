@@ -175,3 +175,97 @@ export const durText = (sec: number) => {
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`;
 };
 export const paceText = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+
+/* ─── Shifts, hand-offs and target paces ─────────────────────────────────── */
+
+/**
+ * THE SHIFT PLAN (owner, 2026-11-16: "where we might put hand off points
+ * between shifts"). A SHIFT is the group that shares a van and runs a block
+ * together (TeamMember.squad). The shifts take turns, each a block of
+ * `shiftCm`; inside a block its runners rotate every `legCm`, each picking up
+ * the order where their shift left it.
+ */
+export function shiftPlan(args: { fromCm: number; toCm: number; legCm: number; shiftCm: number; squads: string[][] }): Leg[] {
+  const squads = args.squads.filter((s) => s.length > 0);
+  const { fromCm, toCm, legCm, shiftCm } = args;
+  const out: Leg[] = [];
+  if (squads.length === 0 || legCm < 10 || shiftCm < legCm || toCm <= fromCm) return out;
+  const turn = squads.map(() => 0);
+  let k = 0;
+  for (let s = fromCm; s < toCm && out.length < MAX_LEGS; s += shiftCm, k++) {
+    const q = k % squads.length;
+    const end = Math.min(toCm, s + shiftCm);
+    for (let a = s; a < end && out.length < MAX_LEGS; a += legCm) out.push({ startCm: a, endCm: Math.min(end, a + legCm), memberId: squads[q][turn[q]++ % squads[q].length] });
+  }
+  return out;
+}
+
+export type Handoff = { cm: number; fromSquad: number; toSquad: number; fromId: string | null; toId: string | null };
+
+/** Where the plan passes from a runner on one shift to a runner on another. */
+export function handoffs(legs: Leg[], squadOf: (memberId: string | null) => number): Handoff[] {
+  const s = sortLegs(legs);
+  const out: Handoff[] = [];
+  for (let i = 1; i < s.length; i++) {
+    const a = squadOf(s[i - 1].memberId);
+    const b = squadOf(s[i].memberId);
+    if (a > 0 && b > 0 && a !== b) out.push({ cm: s[i].startCm, fromSquad: a, toSquad: b, fromId: s[i - 1].memberId, toId: s[i].memberId });
+  }
+  return out;
+}
+
+/** Seconds from mile 0 to a point, by the plan. */
+export type PlanClock = (cm: number) => number;
+
+/**
+ * THE PLAN'S CLOCK (owner: "8 runners and target paces"): every leg at its
+ * runner's target pace, the miles nobody is down for at the team's planned
+ * pace.
+ */
+export function planClock(legs: Leg[], paceOf: (memberId: string | null) => number | null, planPaceSec: number): PlanClock {
+  const pts: { cm: number; sec: number }[] = [{ cm: 0, sec: 0 }];
+  const paces: number[] = [];
+  let cm = 0;
+  let sec = 0;
+  const push = (to: number, pace: number) => {
+    if (to <= cm) return;
+    sec += ((to - cm) / 100) * pace;
+    cm = to;
+    paces.push(pace);
+    pts.push({ cm, sec });
+  };
+  for (const l of sortLegs(legs)) {
+    push(l.startCm, planPaceSec);
+    push(l.endCm, paceOf(l.memberId) ?? planPaceSec);
+  }
+  return (q: number) => {
+    let lo = 0;
+    let hi = pts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (pts[mid].cm <= q) lo = mid;
+      else hi = mid - 1;
+    }
+    return pts[lo].sec + ((q - pts[lo].cm) / 100) * (paces[lo] ?? planPaceSec);
+  };
+}
+
+/**
+ * When the team reaches a point, by the plan's clock. Before anyone has
+ * moved: the start plus the plan. Once the team has a position: from there
+ * on at the planned paces, stretched or squeezed by how the race has gone so
+ * far against the plan (so nobody types a pace mid-race).
+ */
+export function etaPlan(clock: PlanClock, p: Progress, startMs: number | null, cm: number): number | null {
+  if (p.atCm !== null && p.atMs !== null) {
+    if (cm < p.atCm) return null;
+    let k = 1;
+    if (p.source === "moving" && startMs !== null) {
+      const planned = clock(p.atCm);
+      if (planned > 0) k = Math.max(0.6, Math.min(1.7, (p.atMs - startMs) / 1000 / planned));
+    }
+    return p.atMs + (clock(cm) - clock(p.atCm)) * k * 1000;
+  }
+  if (startMs !== null) return startMs + clock(cm) * 1000;
+  return null;
+}

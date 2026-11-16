@@ -2,10 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { inviteByToken } from "@/lib/lasd26/team";
 import { teamPath } from "@/lib/tsp/paths";
-import { gateTspDev, getTspViewer, tspTitle } from "@/lib/tsp/team";
+import { gateTspDev, getTspViewer, listPlaceholders, tspTitle } from "@/lib/tsp/team";
 import { teamCss } from "@/app/lasd26/teamCss";
 import { TspPage } from "../../TspPage";
-import { JoinForm, SignInButton } from "../../TeamClient";
+import { ClaimList, JoinForm, SignInButton } from "../../TeamClient";
+import { teamCss as tspTeamCss } from "../../teamCss";
 
 /**
  * JOIN: /tsp/lalv/<team>/join?t=<token> — the link a captain drops in the
@@ -14,6 +15,11 @@ import { JoinForm, SignInButton } from "../../TeamClient";
  * lasd26 join page's four states: a dead link says so and nothing else;
  * signed out → Google and back to this exact link; already on the team →
  * change name or role; otherwise the form.
+ *
+ * Above the form, for someone not on the team yet: the names a captain has
+ * already put on the roster (owner, 2026-11-16: "When joining a team I
+ * should be able to pick one of the already given names or just sign in as
+ * usual"). Tapping one takes that row over; the form below is "as usual".
  */
 
 export const viewport: Viewport = { themeColor: "#F4F3EE" };
@@ -45,7 +51,7 @@ export default async function JoinPage({ params, searchParams }: Props) {
 
   if (!invite) {
     return (
-      <TspPage viewer={viewer} active="join" extraCss={teamCss}>
+      <TspPage viewer={viewer} active="join" extraCss={teamCss + tspTeamCss}>
         <section>
           <div className="wrap">
             <div className="jn-bad">
@@ -66,8 +72,16 @@ export default async function JoinPage({ params, searchParams }: Props) {
   }
 
   const member = viewer.member;
+  let names: Awaited<ReturnType<typeof listPlaceholders>> = [];
+  if (viewer.actor && !member) {
+    try {
+      names = await listPlaceholders(slug);
+    } catch (err) {
+      console.error("tsp/join: placeholder lookup failed", err);
+    }
+  }
   return (
-    <TspPage viewer={viewer} active="join" extraCss={teamCss}>
+    <TspPage viewer={viewer} active="join" extraCss={teamCss + tspTeamCss}>
       <header className="tsp-hero">
         <div className="wrap">
           <h1>
@@ -92,8 +106,17 @@ export default async function JoinPage({ params, searchParams }: Props) {
             </>
           ) : (
             <>
+              {names.length > 0 && (
+                <>
+                  <div className="sec-head">
+                    <h2>Are you one of these?</h2>
+                    <span className="mono">TAP YOUR NAME</span>
+                  </div>
+                  <ClaimList slug={slug} token={token} names={names} />
+                </>
+              )}
               <div className="sec-head">
-                <h2>{member ? "You're on the team" : "Put yourself on"}</h2>
+                <h2>{member ? "You're on the team" : names.length > 0 ? "I'm not on the list" : "Put yourself on"}</h2>
                 <span className="mono">RUNNER OR CREW</span>
               </div>
               <JoinForm slug={slug} token={token} defaultName={member?.name ?? viewer.actor.name} current={member?.role} />

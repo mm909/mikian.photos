@@ -25,8 +25,8 @@
   },
   {
    "name": "Sylmar",
-   "lat": 34.30711,
-   "lon": -118.47314,
+   "lat": 34.3085,
+   "lon": -118.47125,
    "note": "San Fernando Rd"
   },
   {
@@ -37,8 +37,8 @@
   },
   {
    "name": "Soledad Canyon Rd",
-   "lat": 34.41606,
-   "lon": -118.45802,
+   "lat": 34.41597,
+   "lon": -118.45711,
    "note": "Leaving Santa Clarita",
    "services": "Last of the city services for 18 miles"
   },
@@ -87,8 +87,8 @@
   },
   {
    "name": "El Mirage",
-   "lat": 34.6028,
-   "lon": -117.6297,
+   "lat": 34.60218,
+   "lon": -117.62994,
    "note": "El Mirage Rd"
   },
   {
@@ -106,21 +106,21 @@
   },
   {
    "name": "Helendale",
-   "lat": 34.74399,
-   "lon": -117.32388,
+   "lat": 34.73901,
+   "lon": -117.32363,
    "note": "Route 66 from here to Barstow"
   },
   {
    "name": "Lenwood",
-   "lat": 34.87588,
-   "lon": -117.10393,
+   "lat": 34.8788,
+   "lon": -117.10537,
    "services": "Truck stops"
   },
   {
    "name": "Barstow",
-   "lat": 34.899,
-   "lon": -117.02286,
-   "note": "Main St at 1st Ave",
+   "lat": 34.89876,
+   "lon": -117.02744,
+   "note": "Main St",
    "services": "Full services — the last big town"
   },
   {
@@ -144,8 +144,8 @@
   },
   {
    "name": "Field Rd",
-   "lat": 35.0101,
-   "lon": -116.5304,
+   "lat": 35.01891,
+   "lon": -116.53483,
    "note": "35 miles of dirt and sand to Baker: vans take I-15 and meet at the exits"
   },
   {
@@ -174,8 +174,8 @@
   },
   {
    "name": "Baker",
-   "lat": 35.26496,
-   "lon": -116.07502,
+   "lat": 35.26521,
+   "lon": -116.07484,
    "note": "Turn north on CA-127",
    "services": "LAST SERVICES before the long empty stretch — fill everything"
   }
@@ -392,8 +392,8 @@
     },
     {
      "name": "Mountain Springs summit",
-     "lat": 36.01899,
-     "lon": -115.50702,
+     "lat": 36.01848,
+     "lon": -115.50734,
      "note": "About 5,490 ft — the top. Downhill to Vegas"
     },
     {
@@ -416,8 +416,8 @@
     },
     {
      "name": "Las Vegas Blvd",
-     "lat": 36.0408,
-     "lon": -115.17189,
+     "lat": 36.0423,
+     "lon": -115.17264,
      "note": "Left onto Las Vegas Blvd S"
     },
     {
@@ -480,8 +480,8 @@
     },
     {
      "name": "Shoshone",
-     "lat": 35.973,
-     "lon": -116.2711,
+     "lat": 35.97212,
+     "lon": -116.27232,
      "note": "Right onto CA-178 toward Pahrump",
      "services": "Gas, food"
     },
@@ -506,8 +506,8 @@
     },
     {
      "name": "Mountain Springs summit",
-     "lat": 36.01899,
-     "lon": -115.50702,
+     "lat": 36.01848,
+     "lon": -115.50734,
      "note": "About 5,490 ft — the top. Downhill to Vegas"
     },
     {
@@ -530,8 +530,8 @@
     },
     {
      "name": "Las Vegas Blvd",
-     "lat": 36.0408,
-     "lon": -115.17189,
+     "lat": 36.0423,
+     "lon": -115.17264,
      "note": "Left onto Las Vegas Blvd S"
     },
     {

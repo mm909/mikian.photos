@@ -1,8 +1,9 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getEffectiveActor, isOwner, type Actor } from "@/lib/permissions";
-import { parseRole, rotateInvite, type Member, type TeamViewer } from "@/lib/lasd26/team";
+import { inviteByToken, parseRole, rotateInvite, type Member, type TeamRole, type TeamViewer } from "@/lib/lasd26/team";
 import { RESERVED_SLUGS, TSP_EVENT, slugify, teamPath } from "./paths";
 
 /**
@@ -37,7 +38,31 @@ export type TspTeam = {
   planPaceSec: number;
 };
 
-export type TspMember = Member & { captain: boolean };
+export type TspMember = Member & {
+  captain: boolean;
+  /** A name a captain added that nobody has claimed yet: no account, no email. */
+  placeholder: boolean;
+  /** Target pace, seconds a mile; null = the team's planned pace. */
+  paceSec: number | null;
+  /** The shift (1, 2, …) the runner is on; 0 = none. */
+  squad: number;
+};
+
+/** A target pace outside this window is a typo (4:00 to 25:00 a mile). */
+export const TARGET_PACE_MIN_SEC = 240;
+export const TARGET_PACE_MAX_SEC = 1500;
+export const SQUAD_MAX = 6;
+/** What a placeholder row carries where an account id goes; never a real Photographer.id. */
+export const PLACEHOLDER_PREFIX = "placeholder:";
+
+export function parsePace(v: unknown): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < TARGET_PACE_MIN_SEC || v > TARGET_PACE_MAX_SEC) return undefined;
+  return v;
+}
+export function parseSquad(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= SQUAD_MAX ? v : undefined;
+}
 
 export type TspViewer = TeamViewer & {
   team: TspTeam;
@@ -61,6 +86,9 @@ const MEMBER_SELECT = {
   settledAt: true,
   settledCents: true,
   captain: true,
+  placeholder: true,
+  paceSec: true,
+  squad: true,
 } as const;
 
 type TeamRow = { slug: string; event: string; name: string; secrets: boolean; shareVan: boolean; route: string; startAt: Date | null; planPaceSec: number };
@@ -136,7 +164,7 @@ export async function listTspMembers(slug: string): Promise<TspMember[]> {
 /** The teams this account is on (the platform owner: every team), newest first. */
 export async function myTeams(actor: Actor): Promise<Array<TspTeam & { captain: boolean; members: number }>> {
   try {
-    const mine = await db.teamMember.findMany({ where: { userId: actor.photographerId }, select: { team: true, captain: true } });
+    const mine = await db.teamMember.findMany({ where: { userId: actor.photographerId, placeholder: false }, select: { team: true, captain: true } });
     const all = isOwner(actor);
     const teams = await db.tspTeam.findMany({
       where: all ? { event: TSP_EVENT } : { event: TSP_EVENT, slug: { in: mine.map((m) => m.team) } },
@@ -180,6 +208,69 @@ export async function createTeam(args: { actor: Actor; name: string; secrets?: b
   await db.teamMember.create({ data: { team: slug, userId: args.actor.photographerId, email: args.actor.email, name: you, role: "runner", captain: true } });
   const invite = await rotateInvite(args.actor.photographerId, slug);
   return { ok: true, team: asTeam(row), inviteToken: invite.token };
+}
+
+/**
+ * A NAMED RUNNER NOBODY HAS CLAIMED YET (owner, 2026-11-16: "I make my team
+ * and it has one dummy runner named 'faith' this is because i know she will
+ * be running w/ us and I want to assign routes to her but she has not
+ * clicked on the link to join"). A member row with no account behind it:
+ * legs, a pace and a shift can hang off it, and whoever opens the invite
+ * link and says "that's me" takes the row over (claimPlaceholder), so
+ * everything assigned to the name is theirs.
+ */
+export async function addPlaceholder(slug: string, args: { name: string; role?: TeamRole; paceSec?: number | null; squad?: number }): Promise<TspMember> {
+  const name = args.name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name) throw new Error("addPlaceholder: a name is required");
+  const row = await db.teamMember.create({
+    data: {
+      team: slug,
+      userId: `${PLACEHOLDER_PREFIX}${randomBytes(12).toString("base64url")}`,
+      email: "",
+      name,
+      role: args.role ?? "runner",
+      placeholder: true,
+      paceSec: args.paceSec ?? null,
+      squad: args.squad ?? 0,
+    },
+    select: MEMBER_SELECT,
+  });
+  return asMember(row);
+}
+
+/** The names on a team still waiting for someone to claim them, oldest first. */
+export async function listPlaceholders(slug: string): Promise<Array<{ id: string; name: string; role: TeamRole }>> {
+  const rows = await db.teamMember.findMany({ where: { team: slug, placeholder: true }, orderBy: { joinedAt: "asc" }, select: { id: true, name: true, role: true } });
+  return rows.map((r) => ({ id: r.id, name: r.name, role: parseRole(r.role) ?? "runner" }));
+}
+
+export type ClaimResult = { ok: true; member: TspMember } | { ok: false; error: string; status: number };
+
+/**
+ * "That's me" (owner, 2026-11-16: "When joining a team I should be able to
+ * pick one of the already given names or just sign in as usual"): write the
+ * signed-in account onto the placeholder row. In one transaction: the invite
+ * is live, the row is still unclaimed, and the account is not on the team
+ * already (one row per account per team). The name the captain typed stays
+ * unless the form sends another; the role, pace, shift and legs stay.
+ */
+export async function claimPlaceholder(args: { actor: Actor; slug: string; token: string; memberId: string; name?: string }): Promise<ClaimResult> {
+  const invite = await inviteByToken(args.token, args.slug);
+  if (!invite) return { ok: false, error: "That invite link is not valid any more — ask for a fresh one.", status: 403 };
+  const name = (args.name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  return db.$transaction(async (tx): Promise<ClaimResult> => {
+    const mine = await tx.teamMember.findUnique({ where: { team_userId: { team: args.slug, userId: args.actor.photographerId } }, select: { id: true } });
+    if (mine) return { ok: false, error: "You are on this team already.", status: 409 };
+    // The where clause is the lock: a second claim of the same name updates nothing.
+    const done = await tx.teamMember.updateMany({
+      where: { id: args.memberId, team: args.slug, placeholder: true },
+      data: { userId: args.actor.photographerId, email: args.actor.email, placeholder: false, joinedAt: new Date(), inviteId: invite.id, ...(name ? { name } : {}) },
+    });
+    if (done.count !== 1) return { ok: false, error: "Someone has taken that name already — pick another, or join as yourself.", status: 409 };
+    await tx.teamInvite.update({ where: { id: invite.id }, data: { uses: { increment: 1 } } });
+    const row = await tx.teamMember.findUniqueOrThrow({ where: { id: args.memberId }, select: MEMBER_SELECT });
+    return { ok: true, member: asMember(row) };
+  });
 }
 
 /** The invite link a captain copies: /tsp/lalv/<slug>/join?t=<token>. */

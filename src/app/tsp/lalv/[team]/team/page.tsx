@@ -8,7 +8,8 @@ import { originFrom } from "@/app/lasd26/team/fmt";
 import { routeCss } from "@/app/lasd26/routeCss";
 import { teamCss } from "@/app/lasd26/teamCss";
 import { TspPage } from "../../TspPage";
-import { InviteBox, MemberActions, SignInButton, TeamSettingsForm } from "../../TeamClient";
+import { AddRunnerForm, InviteBox, MemberActions, MemberPlan, SignInButton, TeamSettingsForm } from "../../TeamClient";
+import { teamCss as tspTeamCss } from "../../teamCss";
 
 /**
  * THE TEAM (owner, 2026-11-16: "multiple teams, multiple team captains, and
@@ -17,6 +18,13 @@ import { InviteBox, MemberActions, SignInButton, TeamSettingsForm } from "../../
  * every row, and the settings: the name, the start and planned pace the
  * ETAs run on, the expenses split, whether the other teams see our van, and
  * whether this is a secrets team.
+ *
+ * Every row carries the runner's TARGET PACE and SHIFT (owner, 2026-11-16:
+ * "8 runners and target paces"): a captain sets them for anyone, a member
+ * their own pace. A captain can also ADD A RUNNER by name before the person
+ * has joined (owner: "it has one dummy runner named 'faith' … she has not
+ * clicked on the link to join"); the row says NOT JOINED YET until someone
+ * claims the name from the invite link.
  */
 
 export const viewport: Viewport = { themeColor: "#F4F3EE" };
@@ -55,9 +63,10 @@ export default async function TeamPage({ params }: Props) {
   const h = headers();
   const origin = originFrom((k) => h.get(k));
   const runners = members.filter((m) => m.role === "runner").length;
+  const waiting = members.filter((m) => m.placeholder).length;
 
   return (
-    <TspPage viewer={viewer} active="team" extraCss={routeCss + teamCss}>
+    <TspPage viewer={viewer} active="team" extraCss={routeCss + teamCss + tspTeamCss}>
       {viewer.captain && (
         <section className="tsp-sec">
           <div className="wrap">
@@ -76,6 +85,7 @@ export default async function TeamPage({ params }: Props) {
             <h2>The team</h2>
             <span className="mono">
               {runners} RUNNER{runners === 1 ? "" : "S"} · {members.length - runners} CREW
+              {waiting > 0 ? ` · ${waiting} NOT JOINED YET` : ""}
             </span>
           </div>
           <ul className="tsp-roster">
@@ -85,16 +95,27 @@ export default async function TeamPage({ params }: Props) {
                   <b>
                     {m.name}
                     {m.captain && <span className="tsp-chip fill">Captain</span>}
+                    {m.placeholder && <span className="tsp-chip wait">Not joined yet</span>}
                   </b>
                   <small>
                     {m.role}
-                    {viewer.captain ? ` · ${m.email}` : ""}
+                    {viewer.captain && m.email ? ` · ${m.email}` : ""}
                   </small>
                 </div>
-                {viewer.captain && <MemberActions slug={slug} id={m.id} name={m.name} captain={m.captain} role={m.role} self={m.id === viewer.member?.id} />}
+                <MemberPlan slug={slug} id={m.id} pace={m.paceSec} squad={m.squad} canPace={viewer.captain || m.id === viewer.member?.id} canSquad={viewer.captain} planPaceSec={viewer.team.planPaceSec} />
+                {viewer.captain && <MemberActions slug={slug} id={m.id} name={m.name} captain={m.captain} role={m.role} self={m.id === viewer.member?.id} placeholder={m.placeholder} />}
               </li>
             ))}
           </ul>
+          {viewer.captain && (
+            <div className="tsp-add">
+              <div className="sec-head">
+                <h2>Add a runner</h2>
+                <span className="mono">BEFORE THEY JOIN</span>
+              </div>
+              <AddRunnerForm slug={slug} />
+            </div>
+          )}
         </div>
       </section>
 

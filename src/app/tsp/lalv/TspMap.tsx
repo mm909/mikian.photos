@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AttributionControl, Map as MlMap, Marker, Popup, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent, type StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { MI, mileMarkers, sliceLine, type CourseFile, type Focus } from "./course";
+import { MI, mileMarkers, pointAt, sliceLine, type CourseFile, type Focus } from "./course";
 
 /**
  * The TSP course on a MapLibre map — the LASD26 route map's mechanics
@@ -62,10 +62,8 @@ const FALLBACK_STYLE: StyleSpecification = {
   ],
 };
 
-/** What the route is drawn in. DARK is look B's: a light line on the dark basemap. */
-const LIGHT = { ink: INK, line: SKY, paper: PAPER, blue: BLUE, sand: SAND, halo: "#fff" };
-const DARK = { ink: "#0B0C0E", line: "#5CC8FF", paper: "#F2F1EC", blue: "#5CC8FF", sand: "#F0B45A", halo: "#0B0C0E" };
-const DARK_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+const C = { ink: INK, line: SKY, paper: PAPER, blue: BLUE, sand: SAND, halo: "#fff" };
+const FIX = "#E4572E";
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 const LINE_LAYOUT = { "line-join": "round", "line-cap": "round" } as const;
@@ -85,9 +83,21 @@ export type TspMapProps = {
   autoLocate?: boolean;
   /** The watch went on or off (LOCATE tapped, permission denied). */
   onLocating?: (on: boolean) => void;
-  /** Look B: the dark basemap and a light line. */
-  dark?: boolean;
+  /** THE PLAN ON THE LINE: each leg in its runner's colour (owner: "see the route assigned to each runner"). */
+  legs?: MapLeg[];
+  /** Where one shift hands to the next: a tag on the line. */
+  handoffs?: MapHandoff[];
+  /** What the options menu has switched on. */
+  show?: { miles: boolean; turns: boolean; people: boolean };
+  /** FIXING THE ROUTE: while set, a tap on the map is handed here and opens nothing. */
+  onPick?: ((lon: number, lat: number) => void) | null;
+  /** The fix being drawn: the stretch being replaced, the picked points, the new line once previewed. */
+  draft?: MapDraft | null;
 };
+
+export type MapLeg = { fromM: number; toM: number; color: string; title: string; sub: string };
+export type MapHandoff = { m: number; tag: string; title: string; sub: string };
+export type MapDraft = { old: [number, number] | null; points: { lon: number; lat: number; label: string }[]; line: [number, number][] | null };
 
 type Geo = "off" | "watch" | "follow";
 type Fs = "off" | "api" | "css";
@@ -103,12 +113,13 @@ function circleOf(fix: Fix, radiusM: number): GeoJSON.Polygon {
   return { type: "Polygon", coordinates: [ring] };
 }
 
-function ensureLayers(map: MlMap, dark: boolean) {
-  const C = dark ? DARK : LIGHT;
+function ensureLayers(map: MlMap) {
   if (map.getSource("route")) return;
   map.addSource("route", { type: "geojson", data: EMPTY });
   map.addLayer({ id: "route-casing", type: "line", source: "route", layout: LINE_LAYOUT, paint: { "line-color": C.ink, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 5, 12, 8, 16, 11] } });
   map.addLayer({ id: "route-line", type: "line", source: "route", layout: LINE_LAYOUT, paint: { "line-color": C.line, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2.5, 12, 5, 16, 7] } });
+  map.addSource("legs", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "legs-line", type: "line", source: "legs", layout: { "line-join": "round", "line-cap": "butt" }, paint: { "line-color": ["get", "color"], "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2.5, 12, 5, 16, 7] } });
   map.addSource("dirt", { type: "geojson", data: EMPTY });
   map.addLayer({ id: "dirt-line", type: "line", source: "dirt", layout: { "line-join": "round" }, paint: { "line-color": C.sand, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2.5, 12, 5, 16, 7], "line-dasharray": [1.2, 1.2] } });
   map.addSource("hl", { type: "geojson", data: EMPTY });
@@ -121,7 +132,7 @@ function ensureLayers(map: MlMap, dark: boolean) {
 
   map.addSource("miles", { type: "geojson", data: EMPTY });
   // The dot on the line under each whole mile, once every mile shows.
-  map.addLayer({ id: "miles-dot", type: "circle", source: "miles", minzoom: 10.5, filter: ["==", ["get", "tier"], 1], paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10.5, 3.5, 15, 6], "circle-color": dark ? "#F2F1EC" : C.ink, "circle-stroke-color": C.halo, "circle-stroke-width": 2 } });
+  map.addLayer({ id: "miles-dot", type: "circle", source: "miles", minzoom: 10.5, filter: ["==", ["get", "tier"], 1], paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10.5, 3.5, 15, 6], "circle-color": C.ink, "circle-stroke-color": C.halo, "circle-stroke-width": 2 } });
   // One layer per tier, each handing over to the next as you zoom in.
   const tiers: [string, number, number, number, unknown][] = [
     ["miles-50", 50, 0, 6.8, 13],
@@ -149,13 +160,43 @@ function ensureLayers(map: MlMap, dark: boolean) {
         "text-allow-overlap": id === "miles-1",
         "symbol-sort-key": 0,
       },
-      paint: { "text-color": dark ? "#F2F1EC" : C.ink, "text-halo-color": C.halo, "text-halo-width": 2.4 },
+      paint: { "text-color": C.ink, "text-halo-color": C.halo, "text-halo-width": 2.4 },
     });
   }
 
   map.addSource("me", { type: "geojson", data: EMPTY });
   map.addLayer({ id: "me-acc", type: "fill", source: "me", filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": C.line, "fill-opacity": 0.18, "fill-outline-color": C.blue } });
   map.addLayer({ id: "me-dot", type: "circle", source: "me", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 7, "circle-color": C.line, "circle-stroke-color": C.ink, "circle-stroke-width": 2.5 } });
+
+  // THE FIX being drawn: the stretch going away, the picked points, the new line.
+  map.addSource("draft-old", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "draft-old", type: "line", source: "draft-old", layout: LINE_LAYOUT, paint: { "line-color": "#fff", "line-opacity": 0.8, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 3, 12, 6, 16, 8], "line-dasharray": [0.6, 1.4] } });
+  map.addSource("draft-line", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "draft-line", type: "line", source: "draft-line", layout: LINE_LAYOUT, paint: { "line-color": FIX, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 3, 12, 6, 16, 8] } });
+  map.addSource("draft-pts", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "draft-pts", type: "circle", source: "draft-pts", paint: { "circle-radius": 9, "circle-color": FIX, "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 } });
+  map.addLayer({ id: "draft-lbl", type: "symbol", source: "draft-pts", layout: { "text-field": ["get", "label"], "text-font": LABEL_FONT, "text-size": 11, "text-allow-overlap": true }, paint: { "text-color": "#fff" } });
+}
+
+function applyLegs(map: MlMap, course: CourseFile, legs: MapLeg[]) {
+  (map.getSource("legs") as GeoJSONSource | undefined)?.setData({
+    type: "FeatureCollection",
+    features: legs.map((l) => ({ type: "Feature", properties: { color: l.color, title: l.title, sub: l.sub, mile: l.fromM / MI }, geometry: { type: "LineString", coordinates: sliceLine(course, l.fromM, l.toM) } })),
+  });
+}
+
+function applyDraft(map: MlMap, course: CourseFile, draft: MapDraft | null) {
+  const src = (id: string) => map.getSource(id) as GeoJSONSource | undefined;
+  src("draft-old")?.setData(draft?.old ? { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: sliceLine(course, draft.old[0], draft.old[1]) } } : EMPTY);
+  src("draft-line")?.setData(draft?.line ? { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: draft.line } } : EMPTY);
+  src("draft-pts")?.setData({ type: "FeatureCollection", features: (draft?.points ?? []).map((p) => ({ type: "Feature", properties: { label: p.label }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } })) });
+}
+
+const MILE_LAYERS = ["miles-dot", "miles-50", "miles-10", "miles-5", "miles-1"];
+const TURN_LAYERS = ["turns-hit", "turns-dot"];
+function applyShow(map: MlMap, show: { miles: boolean; turns: boolean }) {
+  for (const id of MILE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", show.miles ? "visible" : "none");
+  for (const id of TURN_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", show.turns ? "visible" : "none");
 }
 
 function applyCourse(map: MlMap, course: CourseFile) {
@@ -227,15 +268,19 @@ function geoMessage(code: number): string {
   return "Location unavailable";
 }
 
-export default function TspMap({ course, focus, highlight, people, onFix, autoLocate = false, onLocating, dark = false }: TspMapProps) {
+const NO_LEGS: MapLeg[] = [];
+const NO_HANDOFFS: MapHandoff[] = [];
+const SHOW_ALL = { miles: true, turns: true, people: true };
+
+export default function TspMap({ course, focus, highlight, people, onFix, autoLocate = false, onLocating, legs = NO_LEGS, handoffs = NO_HANDOFFS, show: shown = SHOW_ALL, onPick = null, draft = null }: TspMapProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const popupRef = useRef<Popup | null>(null);
   const styleReady = useRef(false);
   const fellBack = useRef(false);
-  const latest = useRef({ course, highlight, onFix, onLocating });
-  latest.current = { course, highlight, onFix, onLocating };
+  const latest = useRef({ course, highlight, onFix, onLocating, legs, shown, onPick, draft });
+  latest.current = { course, highlight, onFix, onLocating, legs, shown, onPick, draft };
   const [note, setNote] = useState<string | null>(null);
 
   /** One fresh popup per tap (RouteMap explains why not one re-used). */
@@ -275,7 +320,7 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
     const [minLon, minLat, maxLon, maxLat] = c.bbox;
     const map = new MlMap({
       container: el,
-      style: dark ? DARK_STYLE_URL : STYLE_URL,
+      style: STYLE_URL,
       attributionControl: false,
       bounds: [
         [minLon, minLat],
@@ -298,6 +343,10 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
         setTurned(off);
       }
     };
+    // From far out the hand-off tags shrink to dots' worth, so twelve of them do not bury the line.
+    const syncFar = () => stageRef.current?.classList.toggle("z-far", map.getZoom() < 8.2);
+    map.on("zoom", syncFar);
+    syncFar();
     map.on("rotate", syncNorth);
     map.on("rotateend", syncNorth);
     map.on("moveend", syncNorth);
@@ -318,10 +367,25 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
     map.on("style.load", () => {
       styleReady.current = true;
       clearTimeout(styleTimer);
-      ensureLayers(map, dark);
+      ensureLayers(map);
       applyCourse(map, latest.current.course);
+      applyLegs(map, latest.current.course, latest.current.legs);
       applyHighlight(map, latest.current.course, latest.current.highlight);
+      applyDraft(map, latest.current.course, latest.current.draft);
+      applyShow(map, latest.current.shown);
       applyFix(map, fixRef.current);
+    });
+    // FIXING THE ROUTE: every tap is a pick.
+    map.on("click", (e) => {
+      const pick = latest.current.onPick;
+      if (pick) pick(e.lngLat.lng, e.lngLat.lat);
+    });
+    map.on("click", "legs-line", (e) => {
+      if (latest.current.onPick) return;
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as { title?: string; sub?: string };
+      show(e.lngLat.lng, e.lngLat.lat, popupBody(String(p.title ?? ""), "", String(p.sub ?? "")));
     });
     map.on("error", (e) => {
       if (styleReady.current) return;
@@ -330,6 +394,7 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
     });
 
     const open = (e: MapLayerMouseEvent) => {
+      if (latest.current.onPick) return;
       const f = e.features?.[0];
       if (!f || f.geometry.type !== "Point") return;
       const p = f.properties as { name?: string; mile?: number };
@@ -375,20 +440,67 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
       mapRef.current = null;
       styleReady.current = false;
     };
-  }, [setGeo, show, dark]);
+  }, [setGeo, show]);
 
-  /* The picked stretches. */
+  /* The course changed under the map (a stretch was fixed): redraw the line and what hangs off it. */
+  const firstCourse = useRef(course);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady.current || firstCourse.current === course) return;
+    firstCourse.current = course;
+    applyCourse(map, course);
+  }, [course]);
+
+  /* The picked stretches, the plan, the fix being drawn, what is switched on. */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleReady.current) return;
     applyHighlight(map, course, highlight);
   }, [course, highlight]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady.current) return;
+    applyLegs(map, course, legs);
+  }, [course, legs]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady.current) return;
+    applyDraft(map, course, draft);
+  }, [course, draft]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady.current) return;
+    applyShow(map, shown);
+  }, [shown]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) map.getCanvas().style.cursor = onPick ? "crosshair" : "";
+  }, [onPick]);
+
+  /* THE HAND-OFFS: a tag where one shift gives the course to the next. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const markers = handoffs.map((h) => {
+      const [lon, lat] = pointAt(course, h.m);
+      const el = tag(h.tag, "rt-mk tsp-ho");
+      el.setAttribute("role", "button");
+      el.tabIndex = 0;
+      el.addEventListener("click", (e) => {
+        if (latest.current.onPick) return;
+        e.stopPropagation();
+        show(lon, lat, popupBody(`MI ${(h.m / MI).toFixed(1)}`, h.title, h.sub));
+      });
+      return new Marker({ element: el, anchor: "top", offset: [0, 8] }).setLngLat([lon, lat]).addTo(map);
+    });
+    return () => markers.forEach((m) => m.remove());
+  }, [handoffs, course, show]);
 
   /* THE PEOPLE: a tag per teammate sharing, redrawn when the poll moves them. */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const markers = people.map((p) => {
+    const markers = (shown.people ? people : []).map((p) => {
       const el = tag(p.label, `rt-mk tsp-p ${p.kind}${p.stale ? " stale" : ""}`);
       el.setAttribute("role", "button");
       el.tabIndex = 0;
@@ -406,7 +518,7 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
       return new Marker({ element: el, anchor: "bottom", offset: [0, -6] }).setLngLat([p.lon, p.lat]).addTo(map);
     });
     return () => markers.forEach((m) => m.remove());
-  }, [people, show]);
+  }, [people, show, shown.people]);
 
   /* A row was tapped below: fly to the point, or fit the leg. */
   useEffect(() => {
@@ -469,7 +581,7 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
           const map = mapRef.current;
           if (!map) return;
           if (styleReady.current) {
-            ensureLayers(map, dark);
+            ensureLayers(map);
             applyFix(map, fix);
           }
           if (geoRef.current === "follow") map.easeTo({ center: [fix.lon, fix.lat], zoom: first ? Math.max(map.getZoom(), LOCATE_ZOOM) : map.getZoom(), duration: 700, essential: true });
@@ -482,7 +594,7 @@ export default function TspMap({ course, focus, highlight, people, onFix, autoLo
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
       );
     },
-    [setGeo, stopWatch, dark],
+    [setGeo, stopWatch],
   );
 
   const onRecenter = useCallback(() => {

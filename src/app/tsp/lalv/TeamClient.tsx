@@ -165,6 +165,46 @@ export function JoinForm({ slug, token, defaultName, current }: { slug: string; 
   );
 }
 
+/**
+ * "ARE YOU ONE OF THESE?" (owner, 2026-11-16: "When joining a team I should
+ * be able to pick one of the already given names or just sign in as usual").
+ * The names a captain put on the roster that nobody has claimed; a tap takes
+ * the name, and with it the legs, pace and shift already hung on it.
+ */
+export function ClaimList({ slug, token, names }: { slug: string; token: string; names: { id: string; name: string; role: Role }[] }) {
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
+  async function claim(id: string, name: string) {
+    if (busy) return;
+    if (!window.confirm(`Join as ${name}?`)) return;
+    setBusy(id);
+    setErr("");
+    const r = await send(tspApi(slug, "/join"), "POST", { token, claim: id });
+    if (!r.ok) {
+      setErr(r.error);
+      setBusy("");
+      return;
+    }
+    window.location.assign(teamPath(slug, ""));
+  }
+
+  return (
+    <div className="tsp-claim">
+      <div className="tsp-claim-list">
+        {names.map((n) => (
+          <button type="button" key={n.id} className="tsp-claim-btn" disabled={busy !== ""} onClick={() => void claim(n.id, n.name)}>
+            <b>{busy === n.id ? "Joining…" : n.name}</b>
+            <small>{n.role}</small>
+          </button>
+        ))}
+      </div>
+      {err && <p className="tm-err">{err}</p>}
+      <p className="tm-note">Your captain put these names on the team. Tap yours and anything already planned for that name is yours.</p>
+    </div>
+  );
+}
+
 /* ─── The captain's console ──────────────────────────────────────────────── */
 
 export function InviteBox({ slug, url, uses }: { slug: string; url: string | null; uses: number }) {
@@ -214,7 +254,7 @@ export function InviteBox({ slug, url, uses }: { slug: string; url: string | nul
   );
 }
 
-export function MemberActions({ slug, id, name, captain, role, self }: { slug: string; id: string; name: string; captain: boolean; role: Role; self: boolean }) {
+export function MemberActions({ slug, id, name, captain, role, self, placeholder = false }: { slug: string; id: string; name: string; captain: boolean; role: Role; self: boolean; placeholder?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -234,9 +274,23 @@ export function MemberActions({ slug, id, name, captain, role, self }: { slug: s
 
   return (
     <div className="acts">
-      <button type="button" className="rt-mini" disabled={busy} onClick={() => void run("PATCH", { captain: !captain }, captain ? `Take captain off ${name}?` : `Make ${name} a captain? Captains can edit the team, the info sheet and every expense.`)}>
-        {captain ? "Unmake captain" : "Make captain"}
-      </button>
+      {placeholder ? (
+        <button
+          type="button"
+          className="rt-mini"
+          disabled={busy}
+          onClick={() => {
+            const next = window.prompt("Name on the roster", name);
+            if (next && next.trim() && next.trim() !== name) void run("PATCH", { name: next.trim() });
+          }}
+        >
+          Rename
+        </button>
+      ) : (
+        <button type="button" className="rt-mini" disabled={busy} onClick={() => void run("PATCH", { captain: !captain }, captain ? `Take captain off ${name}?` : `Make ${name} a captain? Captains can edit the team, the info sheet and every expense.`)}>
+          {captain ? "Unmake captain" : "Make captain"}
+        </button>
+      )}
       <button type="button" className="rt-mini" disabled={busy} onClick={() => void run("PATCH", { role: role === "runner" ? "crew" : "runner" })}>
         {role === "runner" ? "To crew" : "To runner"}
       </button>
@@ -263,7 +317,171 @@ function paceSec(text: string): number | null {
   return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : null;
 }
 
-export type SettingsInitial = { route: string; name: string; secrets: boolean; shareVan: boolean; startAt: string | null; planPaceSec: number; splitCount: number };
+const SHIFTS = [0, 1, 2, 3, 4];
+const shiftLabel = (n: number) => (n === 0 ? "No shift" : `Shift ${n}`);
+
+/**
+ * A runner's TARGET PACE and SHIFT on their roster row (owner, 2026-11-16:
+ * "8 runners and target paces"). The pace saves when the box is left, the
+ * shift when it is picked; an empty pace means the team's planned pace.
+ * Captains edit both for anyone; a member edits their own pace.
+ */
+export function MemberPlan({ slug, id, pace, squad, canPace, canSquad, planPaceSec }: { slug: string; id: string; pace: number | null; squad: number; canPace: boolean; canSquad: boolean; planPaceSec: number }) {
+  const [text, setText] = useState(pace === null ? "" : paceText(pace));
+  const [saved, setSaved] = useState<number | null>(pace);
+  const [shift, setShift] = useState(squad);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+
+  async function patch(body: Record<string, unknown>): Promise<boolean> {
+    setBusy(true);
+    setErr("");
+    setNote("");
+    const r = await send(tspApi(slug, `/members/${id}`), "PATCH", body);
+    setBusy(false);
+    if (!r.ok) {
+      setErr(r.error);
+      return false;
+    }
+    setNote("Saved");
+    return true;
+  }
+  async function savePace() {
+    const sec = text.trim() === "" ? null : paceSec(text);
+    if (text.trim() !== "" && sec === null) return setErr("Minutes:seconds a mile, like 8:30.");
+    if (sec === saved) return;
+    if (await patch({ paceSec: sec })) setSaved(sec);
+  }
+  async function saveShift(n: number) {
+    const before = shift;
+    setShift(n);
+    if (!(await patch({ squad: n }))) setShift(before);
+  }
+
+  return (
+    <div className="tsp-plan">
+      <label>
+        <span className="k">Pace / mi</span>
+        {canPace ? (
+          <input
+            className="tm-num"
+            type="text"
+            inputMode="numeric"
+            placeholder={paceText(planPaceSec)}
+            value={text}
+            disabled={busy}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={() => void savePace()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+          />
+        ) : (
+          <span className="v">{saved === null ? `${paceText(planPaceSec)} (team)` : paceText(saved)}</span>
+        )}
+      </label>
+      <label>
+        <span className="k">Shift</span>
+        {canSquad ? (
+          <select className="tsp-sel" value={shift} disabled={busy} onChange={(e) => void saveShift(Number(e.target.value))}>
+            {(SHIFTS.includes(shift) ? SHIFTS : [...SHIFTS, shift]).map((n) => (
+              <option key={n} value={n}>
+                {shiftLabel(n)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="v">{shift === 0 ? "None" : shift}</span>
+        )}
+      </label>
+      {note && <span className="tm-note tm-ok">{note}</span>}
+      {err && <p className="tm-err">{err}</p>}
+    </div>
+  );
+}
+
+/**
+ * ADD A RUNNER (owner, 2026-11-16: "I make my team and it has one dummy
+ * runner named 'faith' … I want to assign routes to her but she has not
+ * clicked on the link to join"). A name on the roster with no account; the
+ * person claims it from the invite link.
+ */
+export function AddRunnerForm({ slug }: { slug: string }) {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<Role>("runner");
+  const [pace, setPace] = useState("");
+  const [shift, setShift] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    if (busy) return;
+    if (!name.trim()) return setErr("Give the runner a name.");
+    const sec = pace.trim() === "" ? null : paceSec(pace);
+    if (pace.trim() !== "" && sec === null) return setErr("Write the pace as minutes:seconds a mile, like 8:30.");
+    setBusy(true);
+    setErr("");
+    const r = await send(tspApi(slug, "/members"), "POST", { name, role, paceSec: sec, squad: shift });
+    if (!r.ok) {
+      setErr(r.error);
+      setBusy(false);
+      return;
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className="tsp-form">
+      <div>
+        <label className="k" htmlFor="tsp-add-name">
+          Name
+        </label>
+        <input id="tsp-add-name" className="tsp-in" type="text" maxLength={80} value={name} disabled={busy} placeholder="Faith" onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div>
+        <span className="tsp-k">They are</span>
+        <div className="tsp-pills" role="radiogroup" aria-label="Runner or crew">
+          {(["runner", "crew"] as const).map((key) => (
+            <label className="tsp-pill" key={key}>
+              <input type="radio" name="tsp-add-role" checked={role === key} disabled={busy} onChange={() => setRole(key)} />
+              <span>{key === "runner" ? "Runner" : "Crew"}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="tm-inline">
+        <div>
+          <label className="k" htmlFor="tsp-add-pace">
+            Target pace / mi
+          </label>
+          <input id="tsp-add-pace" className="tm-num" type="text" inputMode="numeric" placeholder="8:30" value={pace} disabled={busy} onChange={(e) => setPace(e.target.value)} />
+        </div>
+        <div>
+          <label className="k" htmlFor="tsp-add-shift">
+            Shift
+          </label>
+          <select id="tsp-add-shift" className="tsp-sel" value={shift} disabled={busy} onChange={(e) => setShift(Number(e.target.value))}>
+            {SHIFTS.map((n) => (
+              <option key={n} value={n}>
+                {shiftLabel(n)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <button type="button" className="tm-btn fill" disabled={busy} onClick={() => void submit()}>
+          {busy ? "Adding…" : "Add to the team"}
+        </button>
+        {err && <p className="tm-err">{err}</p>}
+        <p className="tm-note">They do not need to have joined. When they open the invite link they can tap this name and take it over, legs and all.</p>
+      </div>
+    </div>
+  );
+}
+
+export type SettingsInitial ={ route: string; name: string; secrets: boolean; shareVan: boolean; startAt: string | null; planPaceSec: number; splitCount: number };
 
 export function TeamSettingsForm({ slug, initial }: { slug: string; initial: SettingsInitial }) {
   const [name, setName] = useState(initial.name);

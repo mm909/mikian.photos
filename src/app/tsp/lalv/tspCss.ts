@@ -121,4 +121,53 @@ export const tspCss = `
 .lasd26 .tsp-routes{flex-direction:column}
 .lasd26 .tsp-routes .tsp-pill span{align-items:flex-start;width:100%;padding:10px 14px}
 .lasd26 .tsp-routes .tsp-pill span small{text-transform:none;letter-spacing:.02em;font-size:11px;line-height:1.5;margin-top:3px}
+
+/* THE MAP PAGE (owner, 2026-11-16: "a dedicated page for just the route"): the frame is one screen, the bar on top, the map the rest. */
+.lasd26.tsp-bare{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.lasd26.tsp-bare .bar{position:relative;flex:0 0 auto}
+.lasd26 .rt-map.tsp-full{flex:1 1 auto;height:auto;min-height:0;max-height:none;border-top:none;border-bottom:none}
+.lasd26 .tsp-optbtn{position:absolute;left:12px;top:12px;z-index:3;display:inline-flex;align-items:center;gap:8px;width:auto;padding:0 12px;font-family:var(--lasd-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em}
+.lasd26 .tsp-optbtn .dot{width:9px;height:9px;border-radius:50%;background:#2E933C;box-shadow:0 0 0 2px var(--paper)}
+.lasd26 .tsp-sheet{position:absolute;left:12px;top:64px;z-index:3;width:min(360px,calc(100% - 24px));max-height:calc(100% - 76px);overflow-y:auto;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 rgba(17,17,16,.18);-webkit-overflow-scrolling:touch}
+.lasd26 .tsp-sheet .grp{padding:12px 14px;border-bottom:1px dashed var(--line)}
+.lasd26 .tsp-sheet .grp:last-child{border-bottom:none}
+.lasd26 .tsp-sheet .tsp-k{display:block;margin-bottom:8px}
+.lasd26 .tsp-sheet .tm-note{margin:8px 0 0}
+.lasd26 .tsp-pills.four{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.lasd26 .tsp-pills.four .tsp-pill span{width:100%;align-items:center;min-height:44px;padding:4px 4px;font-size:11px}
+.lasd26 .tsp-line{font-size:14px;line-height:1.5;margin:0}
+.lasd26 .tsp-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.lasd26 .tsp-links .rt-chip{min-height:40px;cursor:pointer;background:transparent}
+.lasd26 .tsp-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.lasd26 .tsp-legend .who{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;min-height:44px;padding:5px 9px;border:2px solid var(--line);background:transparent;color:var(--ink);font-family:var(--lasd-mono),monospace;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
+.lasd26 .tsp-legend .who.on{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.lasd26 .tsp-legend .who i{flex:0 0 auto;width:14px;height:14px;border-radius:50%;border:2px solid var(--paper);box-shadow:0 0 0 1px var(--ink)}
+.lasd26 .tsp-legend .who small{flex:0 0 100%;padding-left:22px;font-weight:400;font-size:10px;letter-spacing:.04em;color:var(--gray);text-transform:none}
+.lasd26 .tsp-legend .who.on small{color:#c9c8c0}
+.lasd26 .tsp-checks{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}
+.lasd26 .tsp-checks label{display:flex;align-items:center;gap:8px;min-height:40px;font-size:14px;cursor:pointer}
+.lasd26 .tsp-checks input{width:20px;height:20px;accent-color:var(--safety-ink)}
+.lasd26 .rt-mk.tsp-ho{background:#111110;color:#fff;border-color:#fff;border-radius:999px;padding:4px 8px 3px;cursor:pointer;letter-spacing:.06em;font-size:11px}
+.lasd26 .rt-stage.z-far .rt-mk.tsp-ho{font-size:8px;padding:1px 4px 0;border-width:1px;box-shadow:none}
+.lasd26 .tsp-fix{position:absolute;left:12px;right:66px;top:12px;z-index:3;background:var(--paper);border:2px solid #E4572E;box-shadow:6px 6px 0 rgba(17,17,16,.18);padding:10px 12px}
+.lasd26 .tsp-fix .say{font-size:14px;line-height:1.45}
+.lasd26 .tsp-fix .say b{display:block;font-family:var(--lasd-mono),monospace;font-size:10px;letter-spacing:.14em;color:#B8421F;margin-bottom:2px}
+.lasd26 .tsp-fix .say em{font-style:normal;font-weight:700;color:#B8421F}
+.lasd26 .tsp-fix .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.lasd26 .tsp-fix .rt-mini{min-height:40px}
+.lasd26 .rt-row a{display:flex;align-items:flex-start;gap:12px;width:100%;min-height:48px;padding:11px 0;color:inherit;text-decoration:none}
+.lasd26 .rt-row a:hover .tx{color:var(--safety-ink)}
+/* THE PLAN PAGE: shifts and hand-offs. */
+.lasd26 .tsp-hos{list-style:none;margin:10px 0 0;padding:0;border-top:2px solid var(--ink)}
+.lasd26 .tsp-hos li{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:baseline;padding:10px 0;border-bottom:1px dashed var(--line)}
+.lasd26 .tsp-hos .n{font-family:var(--lasd-mono),monospace;font-weight:700;font-size:12px;background:#111110;color:#fff;border-radius:999px;padding:3px 9px}
+.lasd26 .tsp-hos .t{font-weight:700}
+.lasd26 .tsp-hos .t small{display:block;font-weight:400;font-size:13px;color:var(--ink-soft);line-height:1.5}
+.lasd26 .tsp-hos .w{font-family:var(--lasd-mono),monospace;font-size:12px;text-align:right;white-space:nowrap}
+.lasd26 .tsp-hos .acts{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px}
+.lasd26 .tsp-squads{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.lasd26 .tsp-squads > div{border:2px solid var(--line);padding:8px 10px;font-size:14px;line-height:1.6}
+.lasd26 .tsp-squads b{display:block;font-family:var(--lasd-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray)}
+.lasd26 .tsp-leg .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:-1px;box-shadow:0 0 0 1px var(--ink)}
+.lasd26 .tsp-sub{font-family:var(--lasd-archivo-black),sans-serif;text-transform:uppercase;font-size:16px;margin:26px 0 0}
 `;

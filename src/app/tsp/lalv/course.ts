@@ -18,9 +18,9 @@ import { TSP_ASSETS } from "@/lib/tsp/paths";
  * the team page (TspTeam.route). The figures are the built files'.
  */
 export const ROUTES = [
-  { id: "powerline", label: "Powerline", blurb: "306 mi · the fast line: Baker, 45 mi of power-line dirt to Primm, Las Vegas Blvd. No van for about 53 mi." },
-  { id: "og", label: "The OG line", blurb: "342 mi · Baker, CA-127, Tecopa, NV-160 over Mountain Springs. Vans follow every mile after Baker." },
-  { id: "pahrump", label: "Shoshone & Pahrump", blurb: "About 356 mi · the OG line stretched through Shoshone and Pahrump for services." },
+  { id: "powerline", label: "Powerline", blurb: "302 mi · the fast line: Baker, 45 mi of power-line dirt to Primm, Las Vegas Blvd. No van for about 53 mi." },
+  { id: "og", label: "The OG line", blurb: "338 mi · Baker, CA-127, Tecopa, NV-160 over Mountain Springs. Vans follow every mile after Baker." },
+  { id: "pahrump", label: "Shoshone & Pahrump", blurb: "About 350 mi · the OG line stretched through Shoshone and Pahrump for services." },
 ] as const;
 export type RouteId = (typeof ROUTES)[number]["id"];
 export const DEFAULT_ROUTE: RouteId = "powerline";
@@ -188,3 +188,24 @@ export function mileMarkers(course: CourseFile): MileMarker[] {
 
 /** What a tap on a list row asks the map to show. `id` changes on every tap so the same row re-fires. */
 export type Focus = { id: number } & ({ kind: "point"; lon: number; lat: number; label: string; mile: number } | { kind: "range"; fromM: number; toM: number });
+
+/**
+ * THE COURSE AS A GPX TRACK (owner, 2026-11-16: "Can i export the gpx"), for
+ * a watch, Gaia, Ride with GPS or gpx.studio. The heights are the profile's.
+ * Extra waypoints (the hand-offs) ride along as <wpt>.
+ */
+export function gpxOf(course: CourseFile, name: string, waypoints: { name: string; m: number }[] = []): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const wpt = (n: string, lon: number, lat: number) => `<wpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"><name>${esc(n)}</name></wpt>`;
+  const out: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', '<gpx version="1.1" creator="TSP team sites" xmlns="http://www.topografix.com/GPX/1/1">', `<metadata><name>${esc(name)}</name></metadata>`];
+  for (const p of course.places) out.push(wpt(p.name, p.lon, p.lat));
+  course.checkpoints.forEach((c, i) => out.push(wpt(`Checkpoint ${i + 1}: ${c.name}`, c.lon, c.lat)));
+  for (const w of waypoints) {
+    const [lon, lat] = pointAt(course, w.m);
+    out.push(wpt(w.name, lon, lat));
+  }
+  out.push(`<trk><name>${esc(name)}</name><trkseg>`);
+  course.coords.forEach(([lon, lat], i) => out.push(`<trkpt lat="${lat}" lon="${lon}"><ele>${Math.round(eleAt(course, course.cum_m[i]))}</ele></trkpt>`));
+  out.push("</trkseg></trk></gpx>");
+  return out.join("\n");
+}

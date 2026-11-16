@@ -4,7 +4,6 @@ import type { TspViewer } from "@/lib/tsp/team";
 import { teamPath, tspPath } from "@/lib/tsp/paths";
 import { archivo, archivoBlack, spaceMono, css } from "@/app/lasd26/theme";
 import { TspAccount } from "./TspAccount";
-import { looksCss } from "./looksCss";
 import { tspCss } from "./tspCss";
 
 /**
@@ -20,11 +19,12 @@ import { tspCss } from "./tspCss";
  * children; see LasdPage).
  */
 
-export type TspBarKey = "route" | "legs" | "expenses" | "info" | "team" | "join" | "hub" | "none";
+export type TspBarKey = "route" | "legs" | "turns" | "expenses" | "info" | "team" | "join" | "hub" | "none";
 
 const DOORS: { key: TspBarKey; label: string; path: string }[] = [
-  { key: "route", label: "Route", path: "" },
-  { key: "legs", label: "Legs", path: "/legs" },
+  { key: "route", label: "Map", path: "" },
+  { key: "legs", label: "Plan", path: "/legs" },
+  { key: "turns", label: "Turns", path: "/turns" },
   { key: "expenses", label: "Expenses", path: "/expenses" },
   { key: "info", label: "Info", path: "/info" },
 ];
@@ -35,7 +35,7 @@ export function TspPage({
   active,
   children,
   extraCss = "",
-  look = "",
+  bare = false,
 }: {
   viewer?: TspViewer | null;
   /** The hub's pages have no team; they hand the signed-in account down instead. */
@@ -43,14 +43,14 @@ export function TspPage({
   active: TspBarKey;
   children: ReactNode;
   extraCss?: string;
-  /** A trial look ("a" | "b" | "c"; the route page's ?look=), as a class on the frame. */
-  look?: string;
+  /** The map page: nothing under the bar but the page itself (no footer), the frame exactly one screen tall. */
+  bare?: boolean;
 }) {
   const who = viewer?.actor ?? actor;
   const slug = viewer?.team.slug ?? null;
   return (
-    <div className={`lasd26 tsp${look ? ` look-${look}` : ""} ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
-      <style dangerouslySetInnerHTML={{ __html: css + extraCss + tspCss + looksCss }} />
+    <div className={`lasd26 tsp${bare ? " tsp-bare" : ""} ${archivo.variable} ${archivoBlack.variable} ${spaceMono.variable}`}>
+      <style dangerouslySetInnerHTML={{ __html: css + extraCss + tspCss }} />
       <div className="bar">
         <a className="wm" href={slug ? teamPath(slug, "") : tspPath("")} aria-label={viewer ? `${viewer.team.name}, TSP LA to Las Vegas` : "TSP LA to Las Vegas, team sites"}>
           <span className="mono tag">TSP</span>
@@ -80,12 +80,14 @@ export function TspPage({
         </div>
       </div>
       {children}
-      <footer className="tsp-foot">
-        <div className="wrap mono">
-          <span>TSP · SANTA MONICA PIER → THE LAS VEGAS SIGN</span>
-          <a href={tspPath("")}>ALL TEAMS</a>
-        </div>
-      </footer>
+      {!bare && (
+        <footer className="tsp-foot">
+          <div className="wrap mono">
+            <span>TSP · SANTA MONICA PIER → THE LAS VEGAS SIGN</span>
+            <a href={tspPath("")}>ALL TEAMS</a>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

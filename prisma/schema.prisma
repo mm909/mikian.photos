@@ -1296,6 +1296,20 @@ model TeamMember {
   // first captain; a captain may make another. Unused on lasd26, where the
   // platform owner runs the crossing.
   captain   Boolean  @default(false)
+  // A NAMED RUNNER NOBODY HAS CLAIMED YET (owner, 2026-11-16: "I make my team
+  // and it has one dummy runner named 'faith' … I want to assign routes to her
+  // but she has not clicked on the link to join"). A captain adds the name;
+  // the row carries a made-up userId ("placeholder:<id>") and no email until
+  // someone opens the invite link and says "that's me", which writes their
+  // account onto this same row — so the legs already assigned stay hers.
+  placeholder Boolean @default(false)
+  // The runner's TARGET PACE, seconds a mile (owner: "8 runners and target
+  // paces"); null = the team's planned pace.
+  paceSec   Int?
+  // Which SHIFT the runner is on (1, 2, …; 0 = none): the group that shares
+  // a van and runs a block together. Where the plan passes from one shift to
+  // the next is a HAND-OFF POINT (lib/tsp/legs.ts handoffs()).
+  squad     Int      @default(0)
 
   expenses TeamExpense[]
   fronted  TeamExpense[] @relation("ExpensePayer")
@@ -1504,6 +1518,22 @@ model TeamLeg {
   updatedAt DateTime @updatedAt
 
   @@index([team, startCm])
+}
+
+/// A TEAM'S OWN COPY OF ITS COURSE (owner, 2026-11-16: "allow me to clean
+/// up/edit a map"). The stock courses are files (public/tsp/lalv-course);
+/// once a captain fixes a stretch the whole course file, as JSON text, lives
+/// here and the team's pages read it instead. `base` says which stock course
+/// it was cut from ("powerline", "og-secrets", …): a team that switches route
+/// goes back to the stock file, and this row waits. Deleting the row is
+/// "back to the stock route".
+model TeamCourse {
+  team      String   @id
+  base      String
+  json      String
+  edits     Int      @default(0)
+  updatedBy String
+  updatedAt DateTime @updatedAt
 }
 
 /// WHERE EVERYONE IS (owner, 2026-11-16: "see where the runners and the vans

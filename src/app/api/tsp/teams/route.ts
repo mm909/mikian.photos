@@ -3,6 +3,7 @@ import { sendOwnerNotification } from "@/lib/email";
 import { rateLimit } from "@/lib/rateLimit";
 import { bad, badJson, readJson } from "@/lib/tsp/guard";
 import { teamPath } from "@/lib/tsp/paths";
+import { makeDemoTeam } from "@/lib/tsp/demo";
 import { createTeam, tspActor, tspGateOpen } from "@/lib/tsp/team";
 
 /**
@@ -10,7 +11,8 @@ import { createTeam, tspActor, tspGateOpen } from "@/lib/tsp/team";
  * team and then getting a link to join the team"). Body: { name, secrets?,
  * yourName? }. Signed in required; the maker becomes the first captain and
  * the first invite link is made on the way. Every new team emails the owner
- * (CLAUDE.md, "Every sign-up emails the owner").
+ * (CLAUDE.md, "Every sign-up emails the owner"). { demo: true } makes the
+ * TEST TEAM instead (lib/tsp/demo.ts).
  */
 export const runtime = "nodejs";
 
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
   const limit = await rateLimit({ key: `tsp-team-create:${actor.photographerId}`, limit: 5, windowSec: 3600 });
   if (!limit.ok) return bad("That is a lot of teams — give it a bit.", 429);
   try {
-    const made = await createTeam({
+    const made = body.demo === true ? await makeDemoTeam(actor, new URL(req.url).origin) : await createTeam({
       actor,
       name: typeof body.name === "string" ? body.name : "",
       secrets: body.secrets === true,

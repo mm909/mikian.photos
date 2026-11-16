@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { tspPath, teamPath } from "@/lib/tsp/paths";
 import { gateTspDev, myTeams, tspTitle } from "@/lib/tsp/team";
 import { teamCss } from "@/app/lasd26/teamCss";
+import { DemoButton } from "./DemoButton";
 import { TspPage } from "./TspPage";
 import { SignInButton } from "./TeamClient";
 
@@ -78,6 +79,7 @@ export default async function TspHubPage() {
               <a className="tm-go" href={tspPath("/new")}>
                 Make a team →
               </a>
+              <DemoButton />
             </>
           )}
         </div>

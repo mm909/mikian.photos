@@ -26,8 +26,9 @@ public finds it.
 |---|---|---|
 | `/tsp/lalv` | anyone signed in | your teams, MAKE A TEAM |
 | `/tsp/lalv/new` | anyone signed in | name the team; you become its captain |
-| `/tsp/lalv/<team>` | the team | THE ROUTE: share switch, team status, the map, turn by turn with ETAs |
-| `/tsp/lalv/<team>/legs` | the team | who runs what: a runner's legs with miles, climb, turns, when; the plan editor |
+| `/tsp/lalv/<team>` | the team | THE MAP, full screen, and nothing else; one OPTIONS button holds the share switch, the runners, what to show, GPX, FIX THE ROUTE |
+| `/tsp/lalv/<team>/legs` | the team | THE PLAN: who runs what, the shifts, the hand-offs between them, the plan editor |
+| `/tsp/lalv/<team>/turns` | the team | TURNS: team status, the course's figures and profile, turn by turn with ETAs |
 | `/tsp/lalv/<team>/expenses` | the team | the LASD26 expense sheet, plus FILED UNDER and the LINES view |
 | `/tsp/lalv/<team>/info` | the team | the info sheet; captains edit, add, remove and reorder |
 | `/tsp/lalv/<team>/team` | the team | the roster; captains: invite link, make captain, role, remove, settings |
@@ -49,6 +50,48 @@ public finds it.
   `requireTspCaptain` for the invite link, the roster, the settings and the
   info sheet's writes.
 - Making a team and every join email the owner (`sendOwnerNotification`).
+
+## Named runners, target paces, shifts (2026-11-16, second round)
+
+- **A named runner nobody has claimed** (owner: "I make my team and it has
+  one dummy runner named 'faith' … she has not clicked on the link to
+  join"): a captain adds a name on the team page (`TeamMember.placeholder`,
+  a made-up `userId` "placeholder:…", no email). The invite link's join page
+  lists the unclaimed names ("Are you one of these?") above the usual form;
+  claiming writes the account onto that same row, so the legs already
+  assigned stay.
+- **Target pace** (`TeamMember.paceSec`) and **shift** (`TeamMember.squad`,
+  the group that shares a van) per runner, on the team page.
+- **Hand-offs** are derived, never stored: wherever the plan passes from a
+  runner on one shift to a runner on another (`handoffs()` in
+  `src/lib/tsp/legs.ts`). They are tags on the map (H1, H2 …) and a list on
+  the plan page with the mile, the nearest town and turn, the time, and a
+  Google Maps door for the van.
+- **The clock** runs every leg at its runner's target pace (`planClock()` /
+  `etaPlan()`), stretched or squeezed mid-race by how the team is doing
+  against the plan.
+- **The test team** (owner: "make a test team w/ 8 runners and target
+  paces"): the button on the hub, `src/lib/tsp/demo.ts`.
+
+## Fixing the route (2026-11-16)
+
+Owner: "allow me to clean up/edit a map. What is the best way for me to
+clean up these issues/map bugs". Three ways, in order of effort:
+
+1. **In the app** (a captain): OPTIONS → FIX THE ROUTE on the map. Tap the
+   line where the bad part starts, where it ends, then the road it should
+   take; PREVIEW, SAVE. `POST /api/tsp/[team]/course` re-routes that stretch
+   on foot (or straight through the taps, for desert the map has no path
+   for; `src/lib/tsp/courseFix.ts`), and the team gets its own copy of the
+   course in `TeamCourse`. BACK TO THE STOCK ROUTE deletes the copy. Legs
+   after the fix shift by what it added or saved.
+2. **The stock route** (every team): move a point in
+   `scripts/tsp-lalv/waypoints.json` and re-run the script.
+   `node scripts/tsp-lalv-check.mjs` lists the kinks. The Lenwood zig-zag in
+   the owner's photo was a waypoint sitting inside the neighbourhood.
+3. **GPX out** (OPTIONS → DOWNLOAD GPX) for a watch or another app. There is
+   no GPX import: a bare track has no turn list, surface or mile-accurate
+   heights, and the in-app fix covers the cases a re-draw would.
 
 ## Expenses and the info sheet
 
@@ -77,9 +120,9 @@ pieces:
 THREE ROUTES (owner, 2026-11-16: "save a few of these routes as different
 options. We want to take the powerline route"), listed in `ROUTES` in
 `src/app/tsp/lalv/course.ts`; a captain picks the team's on the team page
-(`TspTeam.route`, default `powerline`): **Powerline** 306 mi, **The OG line**
-342 mi, **Shoshone & Pahrump** about 356 mi. They share the road to Baker
-(mile 213), so legs before it keep their meaning across a switch.
+(`TspTeam.route`, default `powerline`): **Powerline** 302 mi, **The OG line**
+338 mi, **Shoshone & Pahrump** about 350 mi. They share the road to Baker
+(mile 211), so legs before it keep their meaning across a switch.
 `public/tsp/lalv-course/course-<id>.json` (and `course-<id>-secrets.json`,
 the same through three stand-in checkpoints for a secrets team) is written by
 `node scripts/tsp-lalv-course.mjs` from `scripts/tsp-lalv/waypoints.json`:
@@ -92,7 +135,7 @@ re-run; legs are stored in miles along the course, so a big change shifts
 what a mile number means. The reasoning for the route is in
 `scripts/tsp-lalv/ROUTE.md`.
 
-## The route page, legs and live locations
+## The map, the plan and live locations
 
 - **The map** (`TspMap.tsx`, the LASD26 map's mechanics): turn dots, mile
   numerals that grow as you zoom (every mile from zoom 10.5 with a dot on
