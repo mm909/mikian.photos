@@ -51,6 +51,16 @@ public finds it.
   info sheet's writes.
 - Making a team and every join email the owner (`sendOwnerNotification`).
 
+## An app on the phone (2026-11-16, third round)
+
+Owner: "Lets format this like an app on my phone rather than a website …
+this will eventually be an app." Under 960 px a team's pages wear app
+chrome (`TspPage.tsx`, the last block of `tspCss.ts`): one slim top row, THE
+TAB BAR along the bottom (Map · Plan · Turns · Costs · Info), no footer,
+safe-area padding. `src/app/tsp/layout.tsx` links the manifest
+(`public/tsp/app/`) and the Apple tags, so "Add to Home Screen" opens it
+with no browser bars. From 960 px up the doors are words in the bar.
+
 ## Named runners, target paces, shifts (2026-11-16, second round)
 
 - **A named runner nobody has claimed** (owner: "I make my team and it has

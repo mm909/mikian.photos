@@ -25,8 +25,10 @@ export const NOBODY_COLOR = "#8C8B85";
 
 export function colorsOf(members: MemberLite[]): Map<string, string> {
   const out = new Map<string, string>();
-  const runners = members.filter((m) => m.role === "runner");
-  [...runners, ...members.filter((m) => m.role !== "runner")].forEach((m, i) => out.set(m.id, RUNNER_COLORS[i % RUNNER_COLORS.length]));
+  // By id, so a runner keeps their colour when someone joins or the roster reorders.
+  const byId = (a: MemberLite, b: MemberLite) => (a.id < b.id ? -1 : 1);
+  const runners = members.filter((m) => m.role === "runner").sort(byId);
+  [...runners, ...members.filter((m) => m.role !== "runner").sort(byId)].forEach((m, i) => out.set(m.id, RUNNER_COLORS[i % RUNNER_COLORS.length]));
   return out;
 }
 

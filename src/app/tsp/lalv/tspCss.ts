@@ -170,4 +170,31 @@ export const tspCss = `
 .lasd26 .tsp-squads b{display:block;font-family:var(--lasd-mono),monospace;font-size:10px;letter-spacing:.12em;color:var(--gray)}
 .lasd26 .tsp-leg .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:-1px;box-shadow:0 0 0 1px var(--ink)}
 .lasd26 .tsp-sub{font-family:var(--lasd-archivo-black),sans-serif;text-transform:uppercase;font-size:16px;margin:26px 0 0}
+
+/* AN APP ON THE PHONE (owner, 2026-11-16: "format this like an app on my phone rather than a website"). Under 960px a
+ * team's pages wear app chrome: one slim top row (the team, the account), THE TAB BAR along the bottom, no footer,
+ * and the safe areas of a phone with a notch padded on both. From 960px up the tab bar goes and the words in the
+ * bar are the doors, as before. */
+.lasd26 .tsp-tabs{display:none}
+.lasd26.tsp .bar{padding-top:env(safe-area-inset-top,0px)}
+@media(max-width:959px){
+  .lasd26.tsp-app .bar-nav{display:none}
+  .lasd26.tsp-app .bar{flex-wrap:nowrap;padding-left:14px;padding-right:14px}
+  .lasd26.tsp-app .bar .wm,.lasd26.tsp-app .bar-acct{min-height:48px}
+  .lasd26.tsp-app .bar .wm{min-width:0;flex:1 1 auto}
+  .lasd26.tsp-app .bar .wm-t{display:inline;overflow:hidden;text-overflow:ellipsis;font-weight:700;font-size:12px}
+  .lasd26.tsp-app .acct-btn{border-width:0;padding:0;box-shadow:none;background:transparent}
+  .lasd26.tsp-app .acct-name{display:none}
+  .lasd26.tsp-app .tsp-foot{display:none}
+  .lasd26.tsp-app{padding-bottom:calc(58px + env(safe-area-inset-bottom,0px));box-sizing:border-box}
+  .lasd26 .tsp-tabs{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--paper);border-top:2px solid var(--ink);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .lasd26 .tsp-tabs a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:56px;color:var(--gray);text-decoration:none;font-family:var(--lasd-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
+  .lasd26 .tsp-tabs a[aria-current=page]{color:var(--safety-ink)}
+  .lasd26 .tsp-tabs a svg{border-radius:999px;padding:3px 14px;width:52px;height:28px;box-sizing:border-box}
+  .lasd26 .tsp-tabs a[aria-current=page] svg{background:var(--safety-ink);color:#fff}
+  .lasd26.tsp-app .tsp-sec{padding-top:22px}
+  .lasd26.tsp-app .sec-head h2{font-size:clamp(26px,7.5vw,34px)}
+  .lasd26.tsp-app .tsp-sheet{max-height:calc(100% - 76px)}
+  .lasd26.tsp-app .tsp-save{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:5;background:var(--paper);border:2px solid var(--ink);padding:10px;box-shadow:4px 4px 0 rgba(17,17,16,.16)}
+}
 `;
