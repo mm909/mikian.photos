@@ -1,0 +1,569 @@
+{
+ "common": [
+  {
+   "name": "Santa Monica Pier",
+   "lat": 34.0094,
+   "lon": -118.4973,
+   "note": "The start"
+  },
+  {
+   "name": "Sunset Blvd, West Hollywood",
+   "lat": 34.09791,
+   "lon": -118.36831
+  },
+  {
+   "name": "Hollywood Blvd at Highland",
+   "lat": 34.1016,
+   "lon": -118.33872,
+   "via": true
+  },
+  {
+   "name": "North Hollywood",
+   "lat": 34.17219,
+   "lon": -118.37892,
+   "note": "Lankershim Blvd"
+  },
+  {
+   "name": "Sylmar",
+   "lat": 34.30711,
+   "lon": -118.47314,
+   "note": "San Fernando Rd"
+  },
+  {
+   "name": "Newhall Pass",
+   "lat": 34.34552,
+   "lon": -118.51023,
+   "note": "Sierra Hwy"
+  },
+  {
+   "name": "Soledad Canyon Rd",
+   "lat": 34.41606,
+   "lon": -118.45802,
+   "note": "Leaving Santa Clarita",
+   "services": "Last of the city services for 18 miles"
+  },
+  {
+   "name": "Ravenna",
+   "lat": 34.43861,
+   "lon": -118.21895,
+   "via": true
+  },
+  {
+   "name": "Acton",
+   "lat": 34.46795,
+   "lon": -118.196,
+   "services": "Small-town services"
+  },
+  {
+   "name": "Vincent",
+   "lat": 34.49939,
+   "lon": -118.11679,
+   "via": true
+  },
+  {
+   "name": "Palmdale, Pearblossom Hwy",
+   "lat": 34.54106,
+   "lon": -118.07728,
+   "services": "Services"
+  },
+  {
+   "name": "165th St E",
+   "lat": 34.54246,
+   "lon": -117.83559,
+   "via": true
+  },
+  {
+   "name": "Lake Los Angeles",
+   "lat": 34.56504,
+   "lon": -117.72026,
+   "note": "Loose dogs reported here",
+   "services": "Small"
+  },
+  {
+   "name": "Ave P",
+   "lat": 34.6015,
+   "lon": -117.72013,
+   "via": true
+  },
+  {
+   "name": "El Mirage",
+   "lat": 34.6028,
+   "lon": -117.6297,
+   "note": "El Mirage Rd"
+  },
+  {
+   "name": "Adelanto, US-395",
+   "lat": 34.60309,
+   "lon": -117.40882,
+   "note": "Dirt cut north from here; vans go round by US-395 and National Trails Hwy",
+   "services": "Services"
+  },
+  {
+   "name": "County Rd north of Adelanto",
+   "lat": 34.67242,
+   "lon": -117.39968,
+   "via": true
+  },
+  {
+   "name": "Helendale",
+   "lat": 34.74399,
+   "lon": -117.32388,
+   "note": "Route 66 from here to Barstow"
+  },
+  {
+   "name": "Lenwood",
+   "lat": 34.87588,
+   "lon": -117.10393,
+   "services": "Truck stops"
+  },
+  {
+   "name": "Barstow",
+   "lat": 34.899,
+   "lon": -117.02286,
+   "note": "Main St at 1st Ave",
+   "services": "Full services — the last big town"
+  },
+  {
+   "name": "Old Hwy 58",
+   "lat": 34.91825,
+   "lon": -117.00616,
+   "via": true
+  },
+  {
+   "name": "Soapmine Rd",
+   "lat": 34.89858,
+   "lon": -116.98203,
+   "via": true
+  },
+  {
+   "name": "Yermo",
+   "lat": 34.90522,
+   "lon": -116.82011,
+   "note": "Yermo Rd, south of I-15",
+   "services": "Services"
+  },
+  {
+   "name": "Field Rd",
+   "lat": 35.0101,
+   "lon": -116.5304,
+   "note": "35 miles of dirt and sand to Baker: vans take I-15 and meet at the exits"
+  },
+  {
+   "name": "Afton Rd",
+   "lat": 35.06119,
+   "lon": -116.43017,
+   "note": "I-15 exit: van meet"
+  },
+  {
+   "name": "Basin Rd",
+   "lat": 35.12517,
+   "lon": -116.22583,
+   "note": "I-15 exit: van meet. Sand"
+  },
+  {
+   "name": "Zzyzx Rd",
+   "lat": 35.20016,
+   "lon": -116.15085,
+   "note": "I-15 exit: van meet"
+  },
+  {
+   "name": "Gas Pipeline Rd",
+   "lat": 35.20152,
+   "lon": -116.11022,
+   "via": true
+  },
+  {
+   "name": "Baker",
+   "lat": 35.26496,
+   "lon": -116.07502,
+   "note": "Turn north on CA-127",
+   "services": "LAST SERVICES before the long empty stretch — fill everything"
+  }
+ ],
+ "routes": {
+  "powerline": {
+   "name": "Powerline",
+   "tail": [
+    {
+     "name": "CA-127 north of Baker",
+     "lat": 35.34425,
+     "lon": -116.08385,
+     "via": true
+    },
+    {
+     "name": "Powerline Rd",
+     "lat": 35.3868,
+     "lon": -116.12611,
+     "note": "Right off CA-127 onto the transmission-line road. 45 miles of dirt to Primm; the van may not get through — plan for the runners to carry water and a bike escort"
+    },
+    {
+     "name": "Powerline Rd, 3,600 ft",
+     "lat": 35.47333,
+     "lon": -115.94572,
+     "via": true
+    },
+    {
+     "name": "Powerline Rd ",
+     "lat": 35.52426,
+     "lon": -115.82368,
+     "via": true
+    },
+    {
+     "name": "Powerline Rd  ",
+     "lat": 35.56371,
+     "lon": -115.69161,
+     "via": true
+    },
+    {
+     "name": "Powerline pass",
+     "lat": 35.595,
+     "lon": -115.5594,
+     "note": "About 4,620 ft — the top. Downhill to Primm"
+    },
+    {
+     "name": "Powerline Rd   ",
+     "lat": 35.60051,
+     "lon": -115.4856,
+     "via": true
+    },
+    {
+     "name": "Powerline Rd east end",
+     "lat": 35.61878,
+     "lon": -115.406,
+     "via": true
+    },
+    {
+     "name": "Primm",
+     "lat": 35.62371,
+     "lon": -115.38817,
+     "note": "Back to the vans. Track beside I-15 for 8 more miles",
+     "services": "Services"
+    },
+    {
+     "name": "Track beside I-15",
+     "lat": 35.6912,
+     "lon": -115.3765,
+     "via": true
+    },
+    {
+     "name": "Jean",
+     "lat": 35.7671,
+     "lon": -115.33375,
+     "note": "Pavement: Las Vegas Blvd S all the way in",
+     "services": "Services"
+    },
+    {
+     "name": "Sloan",
+     "lat": 35.87194,
+     "lon": -115.23453
+    },
+    {
+     "name": "Las Vegas Blvd S",
+     "lat": 35.9435,
+     "lon": -115.1813,
+     "via": true
+    },
+    {
+     "name": "Las Vegas Blvd S ",
+     "lat": 36.0274,
+     "lon": -115.17224,
+     "via": true
+    },
+    {
+     "name": "Welcome to Fabulous Las Vegas sign",
+     "lat": 36.082,
+     "lon": -115.1728,
+     "note": "The finish"
+    }
+   ],
+   "checkpoints": [
+    {
+     "name": "Elmer's Bottle Tree Ranch",
+     "lat": 34.69034,
+     "lon": -117.33963,
+     "after": "County Rd north of Adelanto",
+     "note": "National Trails Hwy, about 4 mi south of Helendale. A stand-in: the real checkpoints are secret"
+    },
+    {
+     "name": "World's Tallest Thermometer",
+     "lat": 35.26649,
+     "lon": -116.07277,
+     "after": "Gas Pipeline Rd",
+     "note": "Baker. A stand-in"
+    },
+    {
+     "name": "Seven Magic Mountains",
+     "lat": 35.83831,
+     "lon": -115.27095,
+     "after": "Jean",
+     "note": "Las Vegas Blvd S. A stand-in"
+    }
+   ]
+  },
+  "og": {
+   "name": "The OG line",
+   "tail": [
+    {
+     "name": "CA-127 north of Baker",
+     "lat": 35.34425,
+     "lon": -116.08385,
+     "via": true
+    },
+    {
+     "name": "CA-127",
+     "lat": 35.55188,
+     "lon": -116.18855,
+     "via": true
+    },
+    {
+     "name": "CA-127 ",
+     "lat": 35.62705,
+     "lon": -116.28918,
+     "via": true
+    },
+    {
+     "name": "Ibex Pass",
+     "lat": 35.79412,
+     "lon": -116.34015,
+     "note": "CA-127 summit. Expect no signal"
+    },
+    {
+     "name": "Tecopa turn",
+     "lat": 35.86742,
+     "lon": -116.30033,
+     "note": "Right onto Old Spanish Trail Hwy (Shoshone is 8 mi straight on, off route)"
+    },
+    {
+     "name": "Tecopa",
+     "lat": 35.84578,
+     "lon": -116.20269
+    },
+    {
+     "name": "Old Spanish Trail Hwy",
+     "lat": 35.86717,
+     "lon": -116.16517,
+     "via": true
+    },
+    {
+     "name": "Old Spanish Trail summit",
+     "lat": 35.89182,
+     "lon": -116.03481,
+     "via": true
+    },
+    {
+     "name": "Old Spanish Trail Hwy ",
+     "lat": 35.9369,
+     "lon": -116.0045,
+     "via": true
+    },
+    {
+     "name": "Charleston View",
+     "lat": 35.9726,
+     "lon": -115.9665
+    },
+    {
+     "name": "Nevada state line",
+     "lat": 35.97189,
+     "lon": -115.895
+    },
+    {
+     "name": "Tecopa Rd",
+     "lat": 35.97341,
+     "lon": -115.85678,
+     "via": true
+    },
+    {
+     "name": "NV-160",
+     "lat": 36.07275,
+     "lon": -115.76834,
+     "note": "Right onto NV-160: fast traffic, the long climb starts"
+    },
+    {
+     "name": "NV-160 ",
+     "lat": 36.06153,
+     "lon": -115.74997,
+     "via": true
+    },
+    {
+     "name": "NV-160  ",
+     "lat": 36.0041,
+     "lon": -115.65291,
+     "via": true
+    },
+    {
+     "name": "Mountain Springs summit",
+     "lat": 36.01899,
+     "lon": -115.50702,
+     "note": "About 5,490 ft — the top. Downhill to Vegas"
+    },
+    {
+     "name": "NV-160   ",
+     "lat": 35.99392,
+     "lon": -115.46068,
+     "via": true
+    },
+    {
+     "name": "Blue Diamond",
+     "lat": 36.0326,
+     "lon": -115.3949,
+     "services": "Services return"
+    },
+    {
+     "name": "Blue Diamond Rd",
+     "lat": 36.0204,
+     "lon": -115.2553,
+     "via": true
+    },
+    {
+     "name": "Las Vegas Blvd",
+     "lat": 36.0408,
+     "lon": -115.17189,
+     "note": "Left onto Las Vegas Blvd S"
+    },
+    {
+     "name": "Welcome to Fabulous Las Vegas sign",
+     "lat": 36.082,
+     "lon": -115.1728,
+     "note": "The finish"
+    }
+   ],
+   "checkpoints": [
+    {
+     "name": "Elmer's Bottle Tree Ranch",
+     "lat": 34.69034,
+     "lon": -117.33963,
+     "after": "County Rd north of Adelanto",
+     "note": "National Trails Hwy, about 4 mi south of Helendale. A stand-in: the real checkpoints are secret"
+    },
+    {
+     "name": "World's Tallest Thermometer",
+     "lat": 35.26649,
+     "lon": -116.07277,
+     "after": "Gas Pipeline Rd",
+     "note": "Baker. A stand-in"
+    },
+    {
+     "name": "Mountain Springs Saloon",
+     "lat": 36.02049,
+     "lon": -115.50892,
+     "after": "NV-160  ",
+     "note": "NV-160 summit. A stand-in"
+    }
+   ]
+  },
+  "pahrump": {
+   "name": "Shoshone & Pahrump",
+   "tail": [
+    {
+     "name": "CA-127 north of Baker",
+     "lat": 35.34425,
+     "lon": -116.08385,
+     "via": true
+    },
+    {
+     "name": "CA-127",
+     "lat": 35.55188,
+     "lon": -116.18855,
+     "via": true
+    },
+    {
+     "name": "CA-127 ",
+     "lat": 35.62705,
+     "lon": -116.28918,
+     "via": true
+    },
+    {
+     "name": "Ibex Pass",
+     "lat": 35.79412,
+     "lon": -116.34015,
+     "note": "CA-127 summit. Expect no signal"
+    },
+    {
+     "name": "Shoshone",
+     "lat": 35.973,
+     "lon": -116.2711,
+     "note": "Right onto CA-178 toward Pahrump",
+     "services": "Gas, food"
+    },
+    {
+     "name": "Pahrump",
+     "lat": 36.2083,
+     "lon": -115.9839,
+     "note": "Right onto NV-160 south",
+     "services": "Full services"
+    },
+    {
+     "name": "Tecopa Rd junction",
+     "lat": 36.07275,
+     "lon": -115.76834,
+     "note": "The climb to Mountain Springs starts"
+    },
+    {
+     "name": "NV-160 ",
+     "lat": 36.0041,
+     "lon": -115.65291,
+     "via": true
+    },
+    {
+     "name": "Mountain Springs summit",
+     "lat": 36.01899,
+     "lon": -115.50702,
+     "note": "About 5,490 ft — the top. Downhill to Vegas"
+    },
+    {
+     "name": "NV-160   ",
+     "lat": 35.99392,
+     "lon": -115.46068,
+     "via": true
+    },
+    {
+     "name": "Blue Diamond",
+     "lat": 36.0326,
+     "lon": -115.3949,
+     "services": "Services return"
+    },
+    {
+     "name": "Blue Diamond Rd",
+     "lat": 36.0204,
+     "lon": -115.2553,
+     "via": true
+    },
+    {
+     "name": "Las Vegas Blvd",
+     "lat": 36.0408,
+     "lon": -115.17189,
+     "note": "Left onto Las Vegas Blvd S"
+    },
+    {
+     "name": "Welcome to Fabulous Las Vegas sign",
+     "lat": 36.082,
+     "lon": -115.1728,
+     "note": "The finish"
+    }
+   ],
+   "checkpoints": [
+    {
+     "name": "Elmer's Bottle Tree Ranch",
+     "lat": 34.69034,
+     "lon": -117.33963,
+     "after": "County Rd north of Adelanto",
+     "note": "National Trails Hwy, about 4 mi south of Helendale. A stand-in: the real checkpoints are secret"
+    },
+    {
+     "name": "World's Tallest Thermometer",
+     "lat": 35.26649,
+     "lon": -116.07277,
+     "after": "Gas Pipeline Rd",
+     "note": "Baker. A stand-in"
+    },
+    {
+     "name": "Mountain Springs Saloon",
+     "lat": 36.02049,
+     "lon": -115.50892,
+     "after": "NV-160 ",
+     "note": "NV-160 summit. A stand-in"
+    }
+   ]
+  }
+ }
+}

@@ -1291,6 +1291,11 @@ model TeamMember {
   settledCents Int?
   // Who took the group chat invite (TeamInvite.id), for the audit trail.
   inviteId  String?
+  // A TEAM CAPTAIN on the TSP team site (owner, 2026-11-16: "multiple teams,
+  // multiple team captains, and the users"). Whoever makes a team is its
+  // first captain; a captain may make another. Unused on lasd26, where the
+  // platform owner runs the crossing.
+  captain   Boolean  @default(false)
 
   expenses TeamExpense[]
   fronted  TeamExpense[] @relation("ExpensePayer")
@@ -1447,6 +1452,79 @@ model TeamInfoItem {
 
   @@unique([team, key])
   @@index([team, sortOrder])
+}
+
+// ─── TSP team sites (/tsp/lalv, 2026-11-16) ──────────────────────────────────
+//
+// Owner, 2026-11-16: "allow for there to be multiple teams, multiple team
+// captains, and the users … someone make the team and then getting a link to
+// join the team and then signing in with Google". A TspTeam row is the team;
+// its slug is the `team` key of every Team* table above (members, invites,
+// expenses, receipts, info sheet), so the LASD26 machinery serves each team
+// unchanged. All additive → safe `db push`.
+
+model TspTeam {
+  // The `team` key on the Team* rows and the address: /tsp/lalv/<slug>.
+  slug        String   @id
+  // Which crossing ("lalv" = Santa Monica Pier → the Las Vegas sign).
+  event       String   @default("lalv")
+  name        String
+  // Photographer.id of whoever made it (the first captain).
+  createdById String
+  // A SECRETS team runs the checkpoint course (owner: "one of the teams is
+  // going to be a secrets team … include a version of this route that has
+  // those 3 checkpoints").
+  secrets     Boolean  @default(false)
+  // Show this team's van to the other teams of the event (owner: "we also
+  // want the option to broadcast where our van is to other teams").
+  shareVan    Boolean  @default(false)
+  // WHICH WAY (owner, 2026-11-16: "save a few of these routes as different
+  // options. We want to take the powerline route"): the id of one of the
+  // courses in public/tsp/lalv-course (src/app/tsp/lalv/course.ts ROUTES).
+  route       String   @default("powerline")
+  // The gun, and the pace the schedule assumes until the team has moved.
+  startAt     DateTime?
+  planPaceSec Int      @default(540)
+  createdAt   DateTime @default(now())
+
+  @@index([event, createdAt])
+}
+
+/// WHO RUNS WHAT (owner, 2026-11-16: "assign sections to runners … in mile
+/// chunks … maybe I could drag from 36 to halfway to 37"). One row per leg:
+/// from / to along the course in HUNDREDTHS OF A MILE, and the member down to
+/// run it (null = nobody yet). The plan is saved whole (the API replaces the
+/// team's rows), so two phones never leave half of each other's edit.
+model TeamLeg {
+  id        String   @id @default(cuid())
+  team      String
+  startCm   Int
+  endCm     Int
+  memberId  String?
+  updatedAt DateTime @updatedAt
+
+  @@index([team, startCm])
+}
+
+/// WHERE EVERYONE IS (owner, 2026-11-16: "see where the runners and the vans
+/// are for our team … sharing my location with my team whenever I open up
+/// the app"). A row per check-in from a member's phone while the route page
+/// is open and sharing; the newest row per member is their dot. `kind` is
+/// what they said they are right now: 'runner' (carrying the baton), 'van'
+/// or 'crew'. The rows are the log the pace is read back from.
+model TeamPosition {
+  id        String   @id @default(cuid())
+  team      String
+  memberId  String
+  name      String
+  kind      String   @default("crew")
+  lat       Float
+  lon       Float
+  accuracyM Int      @default(0)
+  at        DateTime @default(now())
+
+  @@index([team, at])
+  @@index([team, memberId, at])
 }
 
 // ─── Pickleball double-elimination bracket (/pickleball, 2026-11-02) ─────────

@@ -51,9 +51,11 @@ const ALLOWED_PREFIXES = [
   "/api/erg",
   "/api/home",
   "/api/lasd26",
+  /* The TSP team sites' API (/tsp/lalv, 2026-11-16): every route carries
+   * its own gate (lib/tsp/guard.ts). */
+  "/api/tsp",
   "/api/longhorn-lms",
   "/api/hyrox",
-  "/api/relay",
   "/api/cron/backfill-detection",
   "/api/cron/backup-db",
   "/api/cron/row100k-daily",

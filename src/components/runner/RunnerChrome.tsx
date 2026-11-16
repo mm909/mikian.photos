@@ -21,9 +21,10 @@ export function RunnerChrome({ children }: { children: React.ReactNode }) {
   const bare =
     pathname === "/" ||
     pathname === "/photographer/sign-in" ||
+    /* The TSP team sites (owner, 2026-11-16): their own bar, the LASD26
+     * team site's, src/app/tsp/lalv. */
     pathname === "/tsp" ||
-    pathname === "/tsp/stats" ||
-    pathname === "/tsp/plan" ||
+    pathname.startsWith("/tsp/") ||
     pathname === "/lasd26" ||
     pathname.startsWith("/lasd26/") ||
     /* Rowtember: /row100k/…, and the same pages at the addresses without

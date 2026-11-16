@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { TEAM } from "./team";
-import { DEFAULT_ITEMS, NOTE_PREFIX, RETIRED_KEYS, cleanLabel, cleanValue, isNoteKey, slugLabel } from "./infoSheet";
+import { NOTE_PREFIX, cleanLabel, cleanValue, isNoteKey, sheetFor, slugLabel } from "./infoSheet";
 
 export {
   DEFAULT_ITEMS,
@@ -10,10 +10,14 @@ export {
   MAX_VALUE,
   NOTE_PREFIX,
   RETIRED_KEYS,
+  TSP_DEFAULT_ITEMS,
+  sheetFor,
+  type InfoDefaults,
   cleanLabel,
   cleanValue,
   isNoteKey,
   parseKey,
+  parseOrder,
   slugLabel,
   type DefaultItem,
 } from "./infoSheet";
@@ -46,6 +50,16 @@ export {
  * stands: ensureInfoItems() sees it and never seeds that built-in again,
  * and the key stays taken. Everything that reads the sheet reads
  * removedAt null only.
+ *
+ * ONE SHEET PER TEAM, AND THE ORDER IS THE CAPTAIN'S (owner, 2026-11-16:
+ * "let's just make an info sheet per team … I should also be able to
+ * reorder the notes"). Every function takes the team; which list seeds it
+ * is sheetFor(team) in infoSheet.ts — the lasd26 crew's DEFAULT_ITEMS and
+ * RETIRED_KEYS, or the TSP teams' TSP_DEFAULT_ITEMS with nothing retired.
+ * reorderInfoItems() rewrites sortOrder 0..n-1 over the live lines. So that
+ * a hand-set order sticks, ensureInfoItems() no longer moves a live row's
+ * sortOrder back to the list's: the list's position is used ONCE, when a
+ * line is first seeded; label and hint still follow the list.
  */
 
 export type InfoItem = {
@@ -76,24 +90,28 @@ export const NOTE_SORT_BASE = 1000;
  * moved — and a note (key "n-…") is never on the list, so never touched.
  */
 export async function ensureInfoItems(team: string = TEAM): Promise<void> {
-  if (RETIRED_KEYS.length > 0) {
-    await db.teamInfoItem.deleteMany({ where: { team, key: { in: [...RETIRED_KEYS] } } });
+  // Which list: the lasd26 crew's, or the TSP teams' (nothing retired there).
+  const sheet = sheetFor(team);
+  if (sheet.retired.length > 0) {
+    await db.teamInfoItem.deleteMany({ where: { team, key: { in: [...sheet.retired] } } });
   }
 
   const have = await db.teamInfoItem.findMany({
     where: { team },
-    select: { id: true, key: true, label: true, hint: true, sortOrder: true, removedAt: true },
+    select: { id: true, key: true, label: true, hint: true, removedAt: true },
   });
   const byKey = new Map(have.map((r) => [r.key, r]));
 
+  // A row's PLACE is the list's only when it is first seeded; after that it
+  // is the captain's (reorderInfoItems) and is never moved back here.
   const missing: { key: string; label: string; value: string; hint: string; sortOrder: number }[] = [];
-  const moves: { id: string; label: string; hint: string; sortOrder: number }[] = [];
-  DEFAULT_ITEMS.forEach((d, sortOrder) => {
+  const moves: { id: string; label: string; hint: string }[] = [];
+  sheet.items.forEach((d, sortOrder) => {
     const row = byKey.get(d.key);
     if (!row) {
       missing.push({ key: d.key, label: d.label, value: d.value, hint: d.hint, sortOrder });
-    } else if (row.removedAt === null && (row.label !== d.label || row.hint !== d.hint || row.sortOrder !== sortOrder)) {
-      moves.push({ id: row.id, label: d.label, hint: d.hint, sortOrder });
+    } else if (row.removedAt === null && (row.label !== d.label || row.hint !== d.hint)) {
+      moves.push({ id: row.id, label: d.label, hint: d.hint });
     }
   });
 
@@ -105,7 +123,7 @@ export async function ensureInfoItems(team: string = TEAM): Promise<void> {
     });
   }
   for (const m of moves) {
-    await db.teamInfoItem.update({ where: { id: m.id }, data: { label: m.label, hint: m.hint, sortOrder: m.sortOrder } });
+    await db.teamInfoItem.update({ where: { id: m.id }, data: { label: m.label, hint: m.hint } });
   }
 }
 
@@ -201,4 +219,37 @@ export async function removeInfoItem(args: { key: string; team?: string }): Prom
   const existing = await db.teamInfoItem.findUnique({ where: { team_key: { team, key: args.key } }, select: { id: true, removedAt: true } });
   if (!existing || existing.removedAt !== null) return null;
   return db.teamInfoItem.update({ where: { id: existing.id }, data: { removedAt: new Date() }, select: ITEM_SELECT });
+}
+
+/**
+ * REORDER the sheet (PUT { order }; owner, 2026-11-16: "I should also be
+ * able to reorder the notes"). `order` is the keys top to bottom; the live
+ * lines are renumbered 0..n-1 in one transaction: the listed keys first,
+ * in that order, then any live line the list left out, in the order it
+ * already had. Returns the sheet as it now reads, or the key that is not a
+ * live line of this team (unknown, removed, or named twice) so the API can
+ * answer 400 with nothing written. A note added afterwards still lands
+ * last: its sortOrder starts at NOTE_SORT_BASE, past any renumbered line.
+ */
+export async function reorderInfoItems(args: { order: string[]; team?: string }): Promise<{ ok: true; items: InfoItem[] } | { ok: false; badKey: string }> {
+  const team = args.team ?? TEAM;
+  const live = await db.teamInfoItem.findMany({
+    where: { team, removedAt: null },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    select: { id: true, key: true, sortOrder: true },
+  });
+  const byKey = new Map(live.map((r) => [r.key, r] as const));
+  const seen = new Set<string>();
+  for (const key of args.order) {
+    if (!byKey.has(key) || seen.has(key)) return { ok: false, badKey: key };
+    seen.add(key);
+  }
+  const next = [...args.order, ...live.filter((r) => !seen.has(r.key)).map((r) => r.key)];
+  const writes = next.flatMap((key, i) => {
+    const row = byKey.get(key);
+    return row && row.sortOrder !== i ? [db.teamInfoItem.update({ where: { id: row.id }, data: { sortOrder: i } })] : [];
+  });
+  if (writes.length > 0) await db.$transaction(writes);
+  const items = await db.teamInfoItem.findMany({ where: { team, removedAt: null }, orderBy: [{ sortOrder: "asc" }, { label: "asc" }], select: ITEM_SELECT });
+  return { ok: true, items };
 }

@@ -141,6 +141,27 @@ export const expensesCss = `
   .lasd26 .xp-lbx-prev,.lasd26 .xp-lbx-next{font-size:40px;padding:16px 8px}
 }
 
+/* CARDS / LINES (owner, 2026-11-16: "a line item version of this that's
+ * nice to throw around"): a two-way switch over the list, then the sheet as
+ * a table — mono, ink on paper, a bucket's real costs indented under it
+ * behind the green rule, the total under a heavy line. */
+.lasd26 .xp-view{display:inline-flex;margin-top:22px;border:2px solid var(--ink)}
+.lasd26 .xp-view button{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-radius:0;min-height:38px;padding:8px 16px;font-family:var(--lasd-mono),monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);cursor:pointer}
+.lasd26 .xp-view button + button{border-left:2px solid var(--ink)}
+.lasd26 .xp-view button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.lasd26 .xp-lines{margin-top:14px}
+.lasd26 .xp-lines table{width:100%;border-collapse:collapse;font-family:var(--lasd-mono),monospace;font-size:13px;line-height:1.4}
+.lasd26 .xp-lines th{text-align:left;font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);padding:0 8px 8px 0;border-bottom:2px solid var(--ink)}
+.lasd26 .xp-lines td{padding:9px 8px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.lasd26 .xp-lines td:nth-child(2){color:var(--ink-soft);font-size:12px}
+.lasd26 .xp-lines .amt{text-align:right;white-space:nowrap;padding-right:0;font-variant-numeric:tabular-nums}
+.lasd26 .xp-lines tr.bucket td{font-weight:700}
+.lasd26 .xp-lines tr.kid td{border-bottom-style:dashed;color:var(--ink-soft)}
+.lasd26 .xp-lines tr.kid td:first-child{padding-left:14px;box-shadow:inset 3px 0 0 var(--safety-ink)}
+.lasd26 .xp-lines tfoot td{border-bottom:0}
+.lasd26 .xp-lines tr.total td{border-top:2px solid var(--ink);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.04em;padding-top:12px}
+.lasd26 .xp-lines tr.per td{color:var(--safety-ink);font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding-top:2px}
+
 .lasd26 .xp-notice{border:2px solid var(--ink);padding:24px 20px;margin-top:6px;font-family:var(--lasd-mono),monospace;font-size:13px;line-height:1.8}
 .lasd26 .xp-notice strong{display:block;font-family:var(--lasd-archivo-black),sans-serif;font-size:22px;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:1.1;margin-bottom:10px}
 .lasd26 .xp-notice .xp-btn{margin-top:18px}

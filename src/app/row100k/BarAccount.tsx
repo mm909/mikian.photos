@@ -219,6 +219,12 @@ export function BarAccount({
                 <Link className="acct-item" href="/erg/reel/latest" onClick={close}>
                   Reel graphics →
                 </Link>
+                {/* THE TSP TEAM SITES (owner, 2026-11-16: "a new page … probably
+                 * at /TSP … for our teams to use during TSP"). In development
+                 * (CLAUDE.md): admin-only in production, this is its one door. */}
+                <Link className="acct-item" href="/tsp/lalv" onClick={close}>
+                  TSP team sites →
+                </Link>
                 {/* The results board on sample data (owner, 2026-09-11:
                  * "push the sample race day board with sample data so I can
                  * take a look at it"). Mid-race, finished, and the frame a

@@ -271,11 +271,63 @@ export const DEFAULT_ITEMS: readonly DefaultItem[] = [
   // night: "Remove emergency") — it is in RETIRED_KEYS now.
 ];
 
+/* ─── Which list a team is seeded from ──────────────────────────────────── */
+
+/**
+ * THE TSP TEAMS' LIST (owner, 2026-11-16: "let's just make an info sheet
+ * per team"). A team made on /tsp/lalv starts from these lines — a label
+ * and a hint each, every value empty: the team's captains type their own.
+ * No facts are prefilled; nothing here is retired, ever.
+ */
+export const TSP_DEFAULT_ITEMS: readonly DefaultItem[] = [
+  { key: "race", label: "Race", value: "", hint: "The start date and time at the Santa Monica Pier, and what the team is aiming for." },
+  { key: "start-line", label: "Start line", value: "", hint: "Where to meet at the pier, when to be there, where the vans park." },
+  { key: "finish", label: "Finish", value: "", hint: "The Welcome to Fabulous Las Vegas sign — where the vans park, who is meeting you." },
+  { key: "vans", label: "Vans", value: "", hint: "Which van, who drives, who rides." },
+  { key: "rotation", label: "Rotation", value: "", hint: "Who runs when, and how long each leg is." },
+  { key: "van-pick-up", label: "Van pick-up", value: "", hint: "Where and when the vans are picked up and returned, and who signs for them." },
+  { key: "where-we-sleep", label: "Where we sleep", value: "", hint: "The night before, the night after, and how sleep works in the vans." },
+  { key: "food-water", label: "Food & water", value: "", hint: "What is in the vans, who is buying it, where the planned stops are." },
+  { key: "gas-last-services", label: "Gas & last services", value: "", hint: "Where the vans fill up, and the last gas, water and food before the long empty stretches." },
+  { key: "safety", label: "Safety", value: "", hint: "Lights, vests, heat, and who to call." },
+  { key: "crew-phones", label: "Crew phones", value: "", hint: "Captains, drivers, and anyone the team may need to reach." },
+  { key: "after-the-finish", label: "After the finish", value: "", hint: "Hotel, showers, food, and how everyone gets home." },
+];
+
+/** The lasd26 crew's key on the Team* tables (lib/lasd26/team.ts TEAM — not imported: that file is server-only). */
+export const LASD_TEAM = "lasd26";
+
+/** A sheet's built-in lines, and the keys struck off it for good. */
+export type InfoDefaults = { items: readonly DefaultItem[]; retired: readonly string[] };
+
+/**
+ * The list a team's sheet is seeded from: the lasd26 crew keeps
+ * DEFAULT_ITEMS and RETIRED_KEYS exactly; every other team (a TSP team,
+ * keyed by its slug) gets TSP_DEFAULT_ITEMS and NO retired keys — the
+ * retired-keys delete must never run against a team that may have typed a
+ * line of that name itself.
+ */
+export function sheetFor(team: string): InfoDefaults {
+  return team === LASD_TEAM ? { items: DEFAULT_ITEMS, retired: RETIRED_KEYS } : { items: TSP_DEFAULT_ITEMS, retired: [] };
+}
+
 /** A key is a slug: "airbnb", "van-pick-up", "n-gas-money". Null for anything else. */
 export function parseKey(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const k = v.trim();
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(k) && k.length <= MAX_KEY ? k : null;
+}
+
+/** A reorder's body: an array of keys (at most 200), every one a slug. Null for anything else. */
+export function parseOrder(v: unknown): string[] | null {
+  if (!Array.isArray(v) || v.length > 200) return null;
+  const out: string[] = [];
+  for (const k of v) {
+    const key = parseKey(k);
+    if (!key) return null;
+    out.push(key);
+  }
+  return out;
 }
 
 /** A note the owner added, as opposed to a built-in line of the list. */

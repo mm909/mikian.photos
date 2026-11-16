@@ -36,6 +36,9 @@ export const infoCss = `
 .lasd26 .if-pencil{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 6px;background:none;border:none;color:var(--gray);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 .lasd26 .if-pencil:hover{color:var(--safety-ink)}
 .lasd26 .if-pencil:disabled{opacity:.5;cursor:default}
+/* ↑ / ↓ (owner, 2026-11-16: "reorder the notes"): the same quiet mono, a thumb-wide box, faint when the line is already at that end. */
+.lasd26 .if-mv{min-width:36px;justify-content:center;font-size:15px;letter-spacing:0}
+.lasd26 .if-mv:disabled{opacity:.25}
 /* REMOVE goes to ink, not green, on hover: it is the one word that takes a line away. */
 .lasd26 .if-x:hover{color:var(--ink)}
 /* The second step: the question and two real buttons, wrapping as they need to. */

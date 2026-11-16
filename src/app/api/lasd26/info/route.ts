@@ -8,7 +8,9 @@ import {
   isNoteKey,
   listInfoItems,
   parseKey,
+  parseOrder,
   removeInfoItem,
+  reorderInfoItems,
   updateInfoValue,
   type InfoItem,
 } from "@/lib/lasd26/info";
@@ -138,6 +140,31 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("lasd26/info POST failed", err);
     return NextResponse.json({ ok: false, error: "Could not add the note." }, { status: 500 });
+  }
+}
+
+/**
+ * PUT (owner) { order: string[] } → { ok, items }: the sheet's order, top
+ * to bottom (owner, 2026-11-16: "I should also be able to reorder the
+ * notes"). Live lines left out keep their order after the listed ones; a
+ * key that is not a live line (or is named twice) is 400 and nothing moves.
+ */
+export async function PUT(req: Request) {
+  const viewer = await ownerForWrite();
+  if (viewer instanceof NextResponse) return viewer;
+
+  const body = await readJson<{ order?: unknown }>(req);
+  if (!body) return badJson();
+  const order = parseOrder(body.order);
+  if (!order) return NextResponse.json({ ok: false, error: "order must be the list of keys, top to bottom." }, { status: 400 });
+
+  try {
+    const r = await reorderInfoItems({ order });
+    if (!r.ok) return NextResponse.json({ ok: false, error: `No such line on the sheet: ${r.badKey}.` }, { status: 400 });
+    return NextResponse.json({ ok: true, items: r.items.map(wire) });
+  } catch (err) {
+    console.error("lasd26/info PUT failed", err);
+    return NextResponse.json({ ok: false, error: "Could not save the order." }, { status: 500 });
   }
 }
 

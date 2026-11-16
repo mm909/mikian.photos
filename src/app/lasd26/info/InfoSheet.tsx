@@ -34,6 +34,17 @@ import { lasdPath } from "@/lib/lasd26/paths";
  * complete: a save changes the line in place, a remove drops it, an add
  * appends it, and each one refreshes the server tree behind (the "N OF M
  * FILLED IN" eyebrow).
+ *
+ * REORDER (owner, 2026-11-16: "I should also be able to reorder the
+ * notes"). Beside EDIT / REMOVE the owner has ↑ and ↓ (dead at the ends):
+ * a tap swaps the line with its neighbour at once and PUTs the whole order
+ * ({ order: [keys] }); if the server says no, the list goes back and a
+ * line above it says why.
+ *
+ * ONE SHEET, TWO SITES (2026-11-16). The TSP teams' sheets
+ * (/tsp/lalv/[team]/info) are this component with `api` pointed at
+ * /api/tsp/[team]/info and "owner" meaning a team captain; /lasd26/info
+ * passes nothing and is unchanged.
  */
 
 export type WireItem = { key: string; label: string; value: string; hint: string };
@@ -43,14 +54,15 @@ export function isNote(key: string): boolean {
   return key.startsWith("n-");
 }
 
-const API = "/api/lasd26/info";
+/** The lasd26 sheet's API; a TSP team's page passes its own (`api`). */
+const DEFAULT_API = "/api/lasd26/info";
 /** The server's limit on a note's label (1–60 characters after trim). */
 const MAX_LABEL = 60;
 
 type ApiItem = { key?: unknown; label?: unknown; value?: unknown; hint?: unknown };
 type ApiReply = { ok?: boolean; error?: string; item?: ApiItem; key?: unknown };
 
-async function call(method: "PATCH" | "POST" | "DELETE", body: unknown): Promise<{ res: Response; data: ApiReply }> {
+async function call(API: string, method: "PATCH" | "POST" | "DELETE" | "PUT", body: unknown): Promise<{ res: Response; data: ApiReply }> {
   const res = await fetch(API, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = (await res.json().catch(() => ({}))) as ApiReply;
   return { res, data };
@@ -66,8 +78,11 @@ function toWire(it: ApiItem | undefined, fallback: WireItem): WireItem {
   };
 }
 
-export function InfoSheet({ items, canEdit }: { items: WireItem[]; canEdit: boolean }) {
+export function InfoSheet({ items, canEdit, api = DEFAULT_API }: { items: WireItem[]; canEdit: boolean; api?: string }) {
+  const router = useRouter();
   const [list, setList] = useState(items);
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState("");
 
   // The server's list wins whenever it arrives (router.refresh() after an
   // action here, or a line added or removed from his other phone): the
@@ -86,19 +101,56 @@ export function InfoSheet({ items, canEdit }: { items: WireItem[]; canEdit: bool
     // Notes come after the built-in lines, newest last (the server's sortOrder says the same).
     setList((prev) => [...prev.filter((it) => it.key !== item.key), item]);
   }
+  /** ↑ / ↓: swap with the neighbour now, save the whole order, go back if the server refuses. */
+  async function move(key: string, dir: -1 | 1) {
+    if (moving) return;
+    const at = list.findIndex((it) => it.key === key);
+    const to = at + dir;
+    if (at < 0 || to < 0 || to >= list.length) return;
+    const before = list;
+    const next = [...list];
+    [next[at], next[to]] = [next[to], next[at]];
+    setList(next);
+    setMoving(true);
+    setMoveError("");
+    try {
+      const { res, data } = await call(api, "PUT", { order: next.map((it) => it.key) });
+      if (res.ok && data.ok) {
+        router.refresh();
+      } else {
+        setList(before);
+        setMoveError(data.error || "Did not move — try again.");
+      }
+    } catch {
+      setList(before);
+      setMoveError("Did not move — check your connection and try again.");
+    }
+    setMoving(false);
+  }
 
   return (
     <>
+      {moveError && <p className="if-err">{moveError}</p>}
       {list.length === 0 ? (
         <p className="list-empty">NOTHING ON THE SHEET YET.</p>
       ) : (
         <dl className="if-list">
-          {list.map((it) => (
-            <InfoLine key={it.key} item={it} canEdit={canEdit} onSaved={saved} onRemoved={removed} />
+          {list.map((it, i) => (
+            <InfoLine
+              key={it.key}
+              item={it}
+              canEdit={canEdit}
+              api={api}
+              onSaved={saved}
+              onRemoved={removed}
+              onMove={(dir) => void move(it.key, dir)}
+              canUp={i > 0 && !moving}
+              canDown={i < list.length - 1 && !moving}
+            />
           ))}
         </dl>
       )}
-      {canEdit && <AddNote onAdded={added} />}
+      {canEdit && <AddNote api={api} onAdded={added} />}
     </>
   );
 }
@@ -132,13 +184,21 @@ function rowsFor(text: string): number {
 function InfoLine({
   item,
   canEdit,
+  api,
   onSaved,
   onRemoved,
+  onMove,
+  canUp,
+  canDown,
 }: {
   item: WireItem;
   canEdit: boolean;
+  api: string;
   onSaved: (item: WireItem) => void;
   onRemoved: (key: string) => void;
+  onMove: (dir: -1 | 1) => void;
+  canUp: boolean;
+  canDown: boolean;
 }) {
   const router = useRouter();
   const note = isNote(item.key);
@@ -187,7 +247,7 @@ function InfoLine({
     setBusy(true);
     setError("");
     try {
-      const { res, data } = await call("PATCH", note ? { key: item.key, value: draft, label: labelDraft } : { key: item.key, value: draft });
+      const { res, data } = await call(api, "PATCH", note ? { key: item.key, value: draft, label: labelDraft } : { key: item.key, value: draft });
       if (res.ok && data.ok) {
         onSaved(toWire(data.item, { ...item, value: draft.trim(), label: note ? labelDraft.trim() : item.label }));
         setEditing(false);
@@ -206,7 +266,7 @@ function InfoLine({
     setBusy(true);
     setError("");
     try {
-      const { res, data } = await call("DELETE", { key: item.key });
+      const { res, data } = await call(api, "DELETE", { key: item.key });
       if (res.ok && data.ok) {
         // The line leaves the list (this unmounts); the server tree follows.
         onRemoved(item.key);
@@ -241,6 +301,13 @@ function InfoLine({
             </div>
           ) : (
             <div className="if-tools">
+              {/* The order is his too (owner, 2026-11-16): one step up or down, dead at the ends. */}
+              <button type="button" className="if-pencil if-mv mono" aria-label={`Move ${item.label} up`} title="Move up" disabled={!canUp} onClick={() => onMove(-1)}>
+                <span aria-hidden="true">↑</span>
+              </button>
+              <button type="button" className="if-pencil if-mv mono" aria-label={`Move ${item.label} down`} title="Move down" disabled={!canDown} onClick={() => onMove(1)}>
+                <span aria-hidden="true">↓</span>
+              </button>
               <button type="button" className="if-pencil mono" aria-label={`Edit ${item.label}`} onClick={start}>
                 <span aria-hidden="true">✎</span> Edit
               </button>
@@ -318,7 +385,7 @@ function InfoLine({
  * → 201 { ok, item }: the note joins the end of the list, closed, and the
  * form is cleared for the next one.
  */
-function AddNote({ onAdded }: { onAdded: (item: WireItem) => void }) {
+function AddNote({ api, onAdded }: { api: string; onAdded: (item: WireItem) => void }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
@@ -343,7 +410,7 @@ function AddNote({ onAdded }: { onAdded: (item: WireItem) => void }) {
     setBusy(true);
     setError("");
     try {
-      const { res, data } = await call("POST", { label, value });
+      const { res, data } = await call(api, "POST", { label, value });
       if (res.ok && data.ok && typeof data.item?.key === "string") {
         onAdded(toWire(data.item, { key: data.item.key, label: label.trim(), value: value.trim(), hint: "" }));
         setLabel("");
@@ -509,7 +576,8 @@ export function linkify(text: string): ReactNode[] {
 
 /* ─── Signed out / not on the team ─────────────────────────────────────── */
 
-export function InfoSignIn() {
+/** `callbackUrl`: where Google sends them back — this page (a TSP team passes its own). */
+export function InfoSignIn({ callbackUrl = lasdPath("/info") }: { callbackUrl?: string }) {
   return (
     <div className="if-notice">
       <strong>Sign in</strong>
@@ -518,20 +586,21 @@ export function InfoSignIn() {
       Not on the team? You need the invite link from the group chat.
       <br />
       {/* Back to this page after Google (lasdPath, lib/lasd26/paths.ts). */}
-      <button type="button" className="if-go" onClick={() => signIn("google", { callbackUrl: lasdPath("/info") })}>
+      <button type="button" className="if-go" onClick={() => signIn("google", { callbackUrl })}>
         Sign in with Google →
       </button>
     </div>
   );
 }
 
-export function InfoInvite() {
+/** `team` names the team in the sentence; `from` is who hands out the link. */
+export function InfoInvite({ team = "the LASD26 team", from = "the group chat" }: { team?: string; from?: string }) {
   return (
     <div className="if-notice">
       <strong>Not on the team yet</strong>
-      You are signed in, but this account has not joined the LASD26 team.
+      You are signed in, but this account has not joined {team}.
       <br />
-      You need the invite link from the group chat — open it, pick RUNNER or CREW, and this page unlocks.
+      You need the invite link from {from} — open it, pick RUNNER or CREW, and this page unlocks.
     </div>
   );
 }

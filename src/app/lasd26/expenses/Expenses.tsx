@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useId, useState, type ChangeEvent } from "react";
 import { signIn } from "next-auth/react";
 import type { ExpenseView, ExpensesPayload, PayerView, ReceiptView } from "@/lib/lasd26/expenses";
 import { lasdPath } from "@/lib/lasd26/paths";
@@ -55,9 +55,29 @@ import { ReceiptLightbox } from "./ReceiptLightbox";
  * in a preview like other images during Rowtember": an image thumbnail is
  * a button that opens ReceiptLightbox over the page, stepping through
  * that line's image receipts; a pdf stays a chip that opens in a new tab.
+ *
+ * TWO SITES (2026-11-16). The sheet also serves every TSP team
+ * (/tsp/lalv/<team>/expenses): `apiBase` is the API it talks to (default:
+ * lasd26's) and rides down in the ctx; there "the owner" is a team captain.
+ *
+ * FILED UNDER (owner, 2026-11-16: "some people would add a cost for like
+ * gas … but they wouldn't do it underneath the gas bucket … you just need
+ * to be able to reassign or rebucketize"). The edit form of a real cost
+ * carries a FILED UNDER select — on its own, or any bucket on the sheet —
+ * for whoever may edit the line (its author; the owner / a captain for
+ * anyone's). This is the move the 2026-10-16 note took off the page; the
+ * in-bucket "+ ADD A COST" door is still the way to add one there.
+ *
+ * LINES (owner, same day: "there's probably like a line item version of
+ * this that's nice to throw around"). A CARDS / LINES switch over the list,
+ * remembered on the phone: LINES is the sheet as a table — what, paid by,
+ * amount, a bucket's real costs indented under it, the total and the split
+ * — with a COPY button that puts the same thing on the clipboard as text
+ * for the group chat.
  */
 
-const API = "/api/lasd26/expenses";
+const DEFAULT_API = "/api/lasd26/expenses";
+const VIEW_KEY = "xp-view";
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
 const ALLOWED = new Set(ACCEPT.split(","));
 const MAX_BYTES = 15_000_000;
@@ -80,57 +100,83 @@ type Up = { id: number; expenseId: string; name: string; state: UpState; error?:
 let upSeq = 0;
 
 /** What every card and form needs to know about the viewer and the sheet. */
-type Ctx = { members: PayerView[]; meId: string | null; owner: boolean; settleOpen: boolean };
+type Ctx = {
+  /** The API this sheet talks to: /api/lasd26/expenses, or a TSP team's. */
+  api: string;
+  members: PayerView[];
+  meId: string | null;
+  owner: boolean;
+  settleOpen: boolean;
+  /** Every bucket on the sheet, for FILED UNDER. */
+  buckets: { id: string; title: string }[];
+};
 
 /** A receipt the lightbox can show: an image, with or without its thumb (a pdf is a chip in a new tab). */
 const isImage = (r: ReceiptView) => r.contentType.startsWith("image/");
 
 /* ─── Notices (signed out / not on the team) ─────────────────────────────── */
 
-export function SignInNotice() {
+export function SignInNotice({ callbackUrl = lasdPath("/expenses"), from = "the group chat" }: { callbackUrl?: string; from?: string }) {
   return (
     <div className="xp-notice">
       <strong>Sign in</strong>
       This page is for the crew. Sign in with Google to see it.
       <br />
-      Not on the team? You need the invite link from the group chat.
+      Not on the team? You need the invite link from {from}.
       <br />
-      {/* Back to this page after Google (lasdPath, lib/lasd26/paths.ts). */}
-      <button type="button" className="xp-btn" onClick={() => signIn("google", { callbackUrl: lasdPath("/expenses") })}>
+      {/* Back to this page after Google (lasdPath, lib/lasd26/paths.ts; a TSP team hands its own). */}
+      <button type="button" className="xp-btn" onClick={() => signIn("google", { callbackUrl })}>
         Sign in with Google →
       </button>
     </div>
   );
 }
 
-export function InviteNotice() {
+export function InviteNotice({ teamName = "the LASD26 team", from = "the group chat" }: { teamName?: string; from?: string }) {
   return (
     <div className="xp-notice">
       <strong>Not on the team yet</strong>
-      You are signed in, but this account has not joined the LASD26 team.
+      You are signed in, but this account has not joined {teamName}.
       <br />
-      You need the invite link from the group chat — open it, pick RUNNER or CREW, and this page unlocks.
+      You need the invite link from {from} — open it, pick RUNNER or CREW, and this page unlocks.
     </div>
   );
 }
 
 /* ─── The page ───────────────────────────────────────────────────────────── */
 
-export function Expenses({ initial }: { initial: ExpensesPayload }) {
+export function Expenses({ initial, apiBase = DEFAULT_API }: { initial: ExpensesPayload; apiBase?: string }) {
   const [data, setData] = useState<ExpensesPayload>(initial);
+  // CARDS (the detailed sheet) or LINES (the table); the phone remembers.
+  const [view, setView] = useState<"cards" | "lines">("cards");
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(VIEW_KEY) === "lines") setView("lines");
+    } catch {
+      /* private mode: cards */
+    }
+  }, []);
+  const pickView = (v: "cards" | "lines") => {
+    setView(v);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* not remembered, still switched */
+    }
+  };
   const [ups, setUps] = useState<Up[]>([]);
   const [err, setErr] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      const fresh = await api<ExpensesPayload>(API);
+      const fresh = await api<ExpensesPayload>(apiBase);
       setData(fresh);
       // Finished uploads now show as thumbs; keep only the ones still moving or failed.
       setUps((list) => list.filter((u) => u.state !== "done"));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not refresh.");
     }
-  }, []);
+  }, [apiBase]);
 
   /** Sign → PUT → register, one file at a time so the progress reads top to bottom. */
   const uploadFiles = useCallback(
@@ -151,13 +197,13 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
         }
         try {
           const sign = await api<{ uploadUrl: string; key: string; headers: Record<string, string> }>(
-            `${API}/${expenseId}/receipts/sign`,
+            `${apiBase}/${expenseId}/receipts/sign`,
             json({ contentType: file.type, contentLength: file.size }),
           );
           const put = await fetch(sign.uploadUrl, { method: "PUT", headers: sign.headers, body: file });
           if (!put.ok) throw new Error("storage refused the file");
           patchUp(id, { state: "saving" });
-          await api(`${API}/${expenseId}/receipts`, json({ key: sign.key, contentType: file.type, bytes: file.size }));
+          await api(`${apiBase}/${expenseId}/receipts`, json({ key: sign.key, contentType: file.type, bytes: file.size }));
           patchUp(id, { state: "done" });
         } catch (e) {
           patchUp(id, { state: "failed", error: e instanceof Error ? e.message : "failed" });
@@ -165,12 +211,19 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
       }
       await refresh();
     },
-    [refresh],
+    [refresh, apiBase],
   );
 
   const onAdded = useCallback(async (id: string, files: File[]) => (files.length ? uploadFiles(id, files) : refresh()), [uploadFiles, refresh]);
 
-  const ctx: Ctx = { members: data.members, meId: data.meId, owner: data.owner, settleOpen: data.settleOpen };
+  const ctx: Ctx = {
+    api: apiBase,
+    members: data.members,
+    meId: data.meId,
+    owner: data.owner,
+    settleOpen: data.settleOpen,
+    buckets: data.expenses.filter((e) => e.bucket !== null).map((e) => ({ id: e.id, title: e.title })),
+  };
   const joined = `${data.memberCount} of ${data.splitCount} joined`;
   return (
     <>
@@ -203,13 +256,116 @@ export function Expenses({ initial }: { initial: ExpensesPayload }) {
       <AddForm ctx={ctx} onAdded={onAdded} />
       {err && <p className="xp-err">{err.toUpperCase()}</p>}
 
-      <div className="xp-list">
-        {data.expenses.length === 0 && <p className="list-empty">NOTHING ON THE SHEET YET.</p>}
-        {data.expenses.map((e) => (
-          <ExpenseCard key={e.id} expense={e} ctx={ctx} ups={ups} onChanged={refresh} onFiles={uploadFiles} onAdded={onAdded} />
-        ))}
-      </div>
+      {data.expenses.length > 0 && (
+        <div className="xp-view" role="group" aria-label="How the sheet is shown">
+          <button type="button" aria-pressed={view === "cards"} onClick={() => pickView("cards")}>
+            Cards
+          </button>
+          <button type="button" aria-pressed={view === "lines"} onClick={() => pickView("lines")}>
+            Lines
+          </button>
+        </div>
+      )}
+      {view === "lines" && data.expenses.length > 0 ? (
+        <Lines data={data} />
+      ) : (
+        <div className="xp-list">
+          {data.expenses.length === 0 && <p className="list-empty">NOTHING ON THE SHEET YET.</p>}
+          {data.expenses.map((e) => (
+            <ExpenseCard key={e.id} expense={e} ctx={ctx} ups={ups} onChanged={refresh} onFiles={uploadFiles} onAdded={onAdded} />
+          ))}
+        </div>
+      )}
     </>
+  );
+}
+
+/* ─── Lines ──────────────────────────────────────────────────────────────── */
+
+/** What a top-level line puts into the total: a bucket's counted amount, a real cost's own. */
+const counted = (e: ExpenseView) => (e.bucket ? e.bucket.counted : e.amount);
+
+/**
+ * The sheet as plain text, for the group chat: one row per line, a bucket's
+ * real costs indented under it, the amounts in a right-hand column, then
+ * the total and the split. Padded with spaces — it lines up in any
+ * monospace paste and still reads in a chat bubble.
+ */
+function linesText(data: ExpensesPayload): string {
+  const rows: [string, string][] = [];
+  for (const e of data.expenses) {
+    rows.push([e.bucket ? e.title : `${e.title}${e.paidBy ? ` (${e.paidBy.name})` : ""}`, counted(e)]);
+    for (const c of e.children) rows.push([`  - ${c.title}${c.paidBy ? ` (${c.paidBy.name})` : ""}`, c.amount]);
+  }
+  const total = usd(data.totalCents);
+  const per = usd(data.perPersonCents);
+  const perLabel = `PER PERSON (split ${data.splitCount} ways)`;
+  const left = Math.min(44, Math.max(perLabel.length, ...rows.map((r) => r[0].length)));
+  const right = Math.max(total.length, per.length, ...rows.map((r) => r[1].length));
+  const line = (a: string, b: string) => `${a.length > left ? `${a.slice(0, left - 1)}…` : a.padEnd(left)}  ${b.padStart(right)}`;
+  return [...rows.map((r) => line(r[0], r[1])), "-".repeat(left + 2 + right), line("TOTAL", total), line(perLabel, per)].join("\n");
+}
+
+/**
+ * LINES: the line-item version (owner, 2026-11-16). Read only — editing,
+ * receipts and the add doors stay on the cards.
+ */
+function Lines({ data }: { data: ExpensesPayload }) {
+  const [copied, setCopied] = useState<"" | "ok" | "bad">("");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(linesText(data));
+      setCopied("ok");
+    } catch {
+      setCopied("bad");
+    }
+    window.setTimeout(() => setCopied(""), 2500);
+  };
+  return (
+    <div className="xp-lines">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">What</th>
+            <th scope="col">Paid by</th>
+            <th scope="col" className="amt">
+              Amount
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.expenses.map((e) => [
+            <tr key={e.id} className={e.bucket ? "bucket" : undefined}>
+              <td>{e.title}</td>
+              <td>{e.bucket ? "" : (e.paidBy?.name ?? "—")}</td>
+              <td className="amt">{counted(e)}</td>
+            </tr>,
+            ...e.children.map((c) => (
+              <tr key={c.id} className="kid">
+                <td>{c.title}</td>
+                <td>{c.paidBy?.name ?? "—"}</td>
+                <td className="amt">{c.amount}</td>
+              </tr>
+            )),
+          ])}
+        </tbody>
+        <tfoot>
+          <tr className="total">
+            <td colSpan={2}>Total</td>
+            <td className="amt">{usd(data.totalCents)}</td>
+          </tr>
+          <tr className="per">
+            <td colSpan={2}>Per person · split {data.splitCount} ways</td>
+            <td className="amt">{usd(data.perPersonCents)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div className="xp-acts">
+        <button type="button" className="xp-ghost" onClick={() => void copy()}>
+          {copied === "ok" ? "Copied ✓" : copied === "bad" ? "Could not copy" : "Copy as text"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -259,7 +415,7 @@ function AddForm({ ctx, parent, onAdded, onClose }: { ctx: Ctx; parent?: { id: s
     setErr("");
     try {
       const res = await api<{ expense: ExpenseView }>(
-        API,
+        ctx.api,
         json({ title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate: parent ? false : estimate, parentId: parent?.id ?? null }),
       );
       // A file picked before ESTIMATE was ticked stays behind: the sign route would refuse it.
@@ -444,14 +600,14 @@ function ExpenseCard({
     const tail = n > 0 ? ` Its ${n} cost${n === 1 ? "" : "s"} stay${n === 1 ? "s" : ""} on the sheet as ${n === 1 ? "its" : "their"} own line${n === 1 ? "" : "s"}.` : "";
     if (!window.confirm(`Remove "${e.title}" (${e.amount}) from the sheet?${tail}`)) return;
     void run(async () => {
-      await api(`${API}/${e.id}`, { method: "DELETE" });
+      await api(`${ctx.api}/${e.id}`, { method: "DELETE" });
       await onChanged();
     });
   };
   const dropReceipt = (receiptId: string) => {
     if (!window.confirm("Remove this receipt?")) return;
     void run(async () => {
-      await api(`${API}/${e.id}/receipts/${receiptId}`, { method: "DELETE" });
+      await api(`${ctx.api}/${e.id}/receipts/${receiptId}`, { method: "DELETE" });
       await onChanged();
     });
   };
@@ -507,10 +663,10 @@ function ExpenseCard({
                 {at >= 0 ? (
                   // An image opens the lightbox over the page (owner, 2026-10-16: "a preview like other images during Rowtember").
                   <button type="button" className="xp-rcpt-open" title="Look at the receipt" aria-label={`Look at receipt ${at + 1} of ${images.length} for ${e.title}`} onClick={() => setLb(at)}>
-                    {r.hasThumb ? <img src={`${API}/receipt/${r.id}?thumb=1`} alt="" loading="lazy" /> : "IMAGE"}
+                    {r.hasThumb ? <img src={`${ctx.api}/receipt/${r.id}?thumb=1`} alt="" loading="lazy" /> : "IMAGE"}
                   </button>
                 ) : (
-                  <a href={`${API}/receipt/${r.id}`} target="_blank" rel="noopener noreferrer" title="Open the receipt in a new tab">
+                  <a href={`${ctx.api}/receipt/${r.id}`} target="_blank" rel="noopener noreferrer" title="Open the receipt in a new tab">
                     {r.contentType === "application/pdf" ? "PDF" : "FILE"}
                   </a>
                 )}
@@ -528,7 +684,7 @@ function ExpenseCard({
       {lb !== null && images[lb] && (
         <ReceiptLightbox
           title={e.title}
-          receipts={images.map((r, i) => ({ id: r.id, src: `${API}/receipt/${r.id}`, alt: `Receipt ${i + 1} of ${images.length} for ${e.title}` }))}
+          receipts={images.map((r, i) => ({ id: r.id, src: `${ctx.api}/receipt/${r.id}`, alt: `Receipt ${i + 1} of ${images.length} for ${e.title}` }))}
           index={lb}
           onIndex={setLb}
           onClose={() => setLb(null)}
@@ -600,18 +756,26 @@ function EditForm({ expense: e, ctx, onDone, onCancel }: { expense: ExpenseView;
   const [amount, setAmount] = useState((e.amountCents / 100).toFixed(2));
   const [paidById, setPaidById] = useState(e.paidBy?.id ?? "");
   const [estimate, setEstimate] = useState(e.estimate);
+  // FILED UNDER: "" = on its own, else a bucket's id.
+  const [parentId, setParentId] = useState(e.parentId ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const uid = useId();
 
   const holds = e.children.length;
+  // A real cost can be re-filed; a bucket cannot go inside a bucket.
+  const buckets = ctx.buckets.filter((b) => b.id !== e.id);
+  const canFile = !estimate && holds === 0 && (buckets.length > 0 || e.parentId !== null);
 
   async function save() {
     if (busy) return;
     setBusy(true);
     setErr("");
     try {
-      await api(`${API}/${e.id}`, json({ title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate }, "PATCH"));
+      const body: Record<string, unknown> = { title: title.trim(), amount: amount.trim(), paidById: estimate ? null : paidById || null, estimate };
+      // Only when it moved, so an untouched line is never re-checked against its bucket.
+      if (canFile && parentId !== (e.parentId ?? "")) body.parentId = parentId || null;
+      await api(`${ctx.api}/${e.id}`, json(body, "PATCH"));
       await onDone();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Something broke — try again.");
@@ -636,8 +800,26 @@ function EditForm({ expense: e, ctx, onDone, onCancel }: { expense: ExpenseView;
         </div>
       </div>
       {!estimate && <PaidBy id={`${uid}-p`} value={paidById} members={ctx.members} disabled={busy} onChange={setPaidById} />}
+      {canFile && (
+        <>
+          <label className="xp-l" htmlFor={`${uid}-f`}>
+            Filed under
+          </label>
+          <div className="xp-selw">
+            <select id={`${uid}-f`} className="xp-sel" value={parentId} disabled={busy} onChange={(ev) => setParentId(ev.target.value)}>
+              <option value="">— on its own —</option>
+              {buckets.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
       {ctx.owner &&
         !e.parentId &&
+        !parentId &&
         (holds > 0 ? (
           <p className="xp-hint">
             ESTIMATE · holds {holds} cost{holds === 1 ? "" : "s"}, so it stays one
