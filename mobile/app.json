@@ -41,6 +41,9 @@
       "expo-font"
     ],
     "scheme": "rowtember",
-    "backgroundColor": "#F4F3EE"
+    "backgroundColor": "#F4F3EE",
+    "experiments": {
+      "baseUrl": "/row100k/app"
+    }
   }
 }

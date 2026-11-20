@@ -225,6 +225,14 @@ export function BarAccount({
                 <Link className="acct-item" href="/tsp/lalv" onClick={close}>
                   TSP team sites →
                 </Link>
+                {/* The phone app's web build (owner, 2026-11-20: "whats the
+                 * quickest way to view a preview of the app on my phone";
+                 * "I am not on the same wifi as the computer"). A static
+                 * file, so a plain anchor: the demo row, no Bluetooth. Made
+                 * by `npm run export:web` in mobile/. */}
+                <a className="acct-item" href="/row100k/app/index.html" onClick={close}>
+                  App preview →
+                </a>
                 {/* The results board on sample data (owner, 2026-09-11:
                  * "push the sample race day board with sample data so I can
                  * take a look at it"). Mid-race, finished, and the frame a

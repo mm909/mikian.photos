@@ -29,6 +29,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "sync:pm5": "node -e \"const f=require('fs');for(const n of ['pm5','encode','simulate','session','analysis'])f.copyFileSync('../src/lib/pm5/'+n+'.ts','src/pm5/'+n+'.ts')\"",
+    "export:web": "bash scripts/export-web.sh",
     "typecheck": "tsc --noEmit"
   },
   "private": true
