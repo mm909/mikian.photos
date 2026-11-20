@@ -251,14 +251,9 @@ export function BarAccount({
                 <Link className="acct-item" href="/shareables" onClick={close}>
                   Share stats →
                 </Link>
-                {/* THE SHIRTS, as pre-orders (shirts/page.tsx) — in development,
-                 * not live (owner, 2026-10-01: "The shirts page should not be
-                 * live. Put it in development still"). It sat in the rower
-                 * group for a day; the page 404s for non-admins in
-                 * production until the owner says it goes live. */}
-                <Link className="acct-item" href="/shirts" onClick={close}>
-                  Shirts →
-                </Link>
+                {/* THE SHIRTS page (shirts/page.tsx) is retired for now (owner,
+                 * 2026-11-20; shirtPreorder.ts SHIRTS_RETIRED), so its link
+                 * is off the menu. The pre-orders list stays, above. */}
                 {/* THE LIVE TRACKER (TRACKER_SPEC.md, 2026-10-06): where the
                  * LASD26 runners are, for friends and family. In development
                  * — the /track pages 404 for non-admins in production

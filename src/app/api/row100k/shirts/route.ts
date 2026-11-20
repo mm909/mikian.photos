@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, isRow100kAdmin } from "@/lib/row100k";
-import { parseColor, parseSize } from "@/app/row100k/shirtPreorder";
+import { SHIRTS_RETIRED, parseColor, parseSize } from "@/app/row100k/shirtPreorder";
 import { preorderState } from "@/app/row100k/shirtPreorders";
 
 export const runtime = "nodejs";
@@ -34,6 +34,9 @@ const bad = (error: string, status = 400) => NextResponse.json({ ok: false, erro
 /* Who is reserving: signed in AND on the board. The participant row is what
  * a rower number hangs off, and the row needs one. */
 async function me() {
+  /* RETIRED with the page (shirtPreorder.ts SHIRTS_RETIRED, owner
+   * 2026-11-20): no writes at all, the page's own answer. */
+  if (SHIRTS_RETIRED) return { res: new NextResponse(null, { status: 404 }) };
   const actor = await getEffectiveActor();
   if (process.env.NODE_ENV === "production" && !(actor && isRow100kAdmin(actor.email, actor.roles))) {
     return { res: new NextResponse(null, { status: 404 }) };

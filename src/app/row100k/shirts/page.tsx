@@ -4,7 +4,7 @@ import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../theme";
 import { RowBar } from "../RowBar";
 import { RowFooter } from "../RowFooter";
-import { COLORS, preorderCounts, type Color, type Counts, type Mine } from "../shirtPreorder";
+import { COLORS, SHIRTS_RETIRED, preorderCounts, type Color, type Counts, type Mine } from "../shirtPreorder";
 import { preorderState } from "../shirtPreorders";
 import { listShirtPhotos } from "../shirtPhotos";
 import { photosServable, publicPhotoUrl, thumbKey } from "../photoUrls";
@@ -40,6 +40,8 @@ export const metadata: Metadata = {
  * the account menu (BarAccount.tsx, Shirts →), and the reserve route
  * (api/row100k/shirts) wears the same gate. */
 export default async function ShirtsPage() {
+  /* RETIRED (shirtPreorder.ts SHIRTS_RETIRED, owner 2026-11-20). */
+  if (SHIRTS_RETIRED) notFound();
   const viewer = await resolveViewer();
   if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
 

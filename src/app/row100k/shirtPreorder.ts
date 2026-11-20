@@ -18,6 +18,14 @@ import { SIZES, parseSize, type Size } from "./shirt";
 
 export { SIZES, parseSize, type Size };
 
+/* RETIRED for now (owner, 2026-11-20: "The code for the current shirt page
+ * should be deprecated for now. Not sure what new page would look like."):
+ * the page 404s for everyone, admins included, its link is off the menu and
+ * the reserve route takes no writes. Nothing is deleted: the reservations
+ * stay in the table, and the owner's list and its CSV (shirts/admin) still
+ * read them. Flip this one const to bring the page back. */
+export const SHIRTS_RETIRED: boolean = true;
+
 export const COLORS = ["black", "cream"] as const;
 export type Color = (typeof COLORS)[number];
 
