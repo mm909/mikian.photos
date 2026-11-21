@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Animated, Easing, PanResponder, Platform, Pressable, ScrollView, Text, View, type GestureResponderEvent } from "react-native";
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import { along, blocks500, computePlot, computeSpread, densityAt, fmtNum, FORCE_GRID, lastAtOrBefore, nearestByX, pieceTicks, resample, spreadWords, stepOf, thinPoints, ticks, type Block, type Pad, type Plot, type Series, type Spread, type Tick, type XY } from "../erg/reviewGeom";
@@ -15,11 +15,17 @@ import { C, F, fmtInt } from "../theme";
  * good ... I want to make sure we capture all these graphs and commentary").
  *
  * So this is the site's page (src/app/erg/s/[id]/Review.tsx), section for
- * section and in its order, redrawn for one phone column: the head with the
- * time big; PLAY IT BACK, the charts of the piece with a playhead; THE READ
- * in plain English; the numbers behind the sentences; the four pictures;
- * how steady it was; the splits; what to do next; and what explains, at the
- * foot.
+ * redrawn for one phone column, and since 2026-11-21 its own shape: the
+ * head (ANALYTICS) with the time big; THE READ in plain English; the
+ * numbers behind the sentences; then each picture in a box of its own with
+ * one sentence under it: HOW STEADY (two scores to chase that are not
+ * speed), the pace along the piece, rate and length, the force curve, work
+ * per stroke; the splits; what to do next; and at the foot what was
+ * counted and which monitor it came off.
+ *
+ * PLAY IT BACK is gone from the app (owner, 2026-11-21: "we can remove the
+ * playback functionality for now. I don't want to support that"). The
+ * site's page still has it.
  *
  * Every figure and every sentence comes out of analyseSession, the same
  * function the website runs (src/pm5/analysis.ts is a copy of the site's),
@@ -53,7 +59,7 @@ const whole = (y: number) => String(Math.round(y));
 /* `doc` is the recording when the caller already has it (the row page
  * reads it off the site); without it the phone's own copy is opened. */
 export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null }) {
-  const [state, setState] = useState<{ doc: TelemetryDoc; compare: { title: string; doc: TelemetryDoc } | null } | "missing" | null>(null);
+  const [state, setState] = useState<{ doc: TelemetryDoc; compare: { title: string; doc: TelemetryDoc } | null; usual: number[] | null } | "missing" | null>(null);
   /* The width the page gives the read, measured: every chart is drawn at
    * that many points, so a point on the glass is a point in the chart. */
   const [w, setW] = useState(0);
@@ -65,9 +71,30 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
       if (!live) return;
       if (!doc) return setState("missing");
       const history = rows.filter((r) => r.hasDoc).map(asSaved);
-      const best = comparableRows(doc, history, row.id)[0];
+      const alike = comparableRows(doc, history, row.id);
+      const best = alike[0];
       const other = best ? await loadDoc(best.id) : null;
-      if (live) setState({ doc, compare: best && other ? { title: best.title, doc: other } : null });
+      /* THE USUAL WORK PER STROKE at this distance: the moving average of
+       * every other recording of it on this phone (eight at most), each
+       * stretched onto the same sixty steps from first stroke to last,
+       * and averaged step by step. */
+      const lines: number[][] = [];
+      for (const r of alike.slice(0, 8)) {
+        try {
+          const d = r.id === best?.id ? other : await loadDoc(r.id);
+          if (!d) continue;
+          const pts = trimEnds(
+            analyseSession({ doc: d, id: r.id, history: [], compare: null })
+              .series.filter((x) => x.counted && num(x.workJ))
+              .map((x) => ({ x: x.n, y: x.workJ as number })),
+          );
+          if (pts.length >= 20) lines.push(resample(smooth(pts, windowOf(pts.length)).map((p) => p.y), 60));
+        } catch {
+          /* A recording that will not read is left out of the usual. */
+        }
+      }
+      const usual = lines.length ? lines[0].map((_, i) => lines.reduce((sum, l) => sum + l[i], 0) / lines.length) : null;
+      if (live) setState({ doc, compare: best && other ? { title: best.title, doc: other } : null, usual });
     })();
     return () => {
       live = false;
@@ -86,7 +113,7 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   if (state === null) return <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} />;
   /* No recording, or one too thin to analyse: the row page says what it has. */
   const doc = state === "missing" ? null : state.doc;
-  if (!a || !doc) return null;
+  if (!a || !doc || !state || state === "missing") return null;
 
   const dr = a.driveRecovery;
   const numbers: CellData[] = [
@@ -96,31 +123,68 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
     num(a.avgWatts) ? { k: "Watts", v: fmtInt(a.avgWatts), u: "average power" } : null,
     num(a.workPerStrokeJ) ? { k: "Work a stroke", v: fmtInt(a.workPerStrokeJ), u: "joules" } : null,
     dr && num(dr.ratio) ? { k: "Drive to recovery", v: `1 : ${dr.ratio.toFixed(1)}`, u: `${dr.driveS.toFixed(2)} s drive` } : null,
+    num(a.dragFactor) ? { k: "Drag factor", v: fmtInt(a.dragFactor), u: "the damper, as the monitor read it" } : null,
+    a.strokes > 0 ? { k: "Strokes", v: fmtInt(a.strokes), u: "in the piece" } : null,
   ].filter((c): c is Exclude<CellData, null> => c !== null);
 
   const st = a.steady;
+  const craft = craftOf(a, doc);
   const steady: CellData[] = [
     num(st.paceSdTenths) ? { k: "Split spread", v: `± ${fmtGap(st.paceSdTenths)}`, u: num(st.paceMeanTenths) ? `around ${split(Math.round(st.paceMeanTenths))}` : "" } : null,
-    num(st.workSdJ) ? { k: "Work spread", v: `± ${st.workSdJ.toFixed(1)}`, u: num(st.workMeanJ) ? `joules around ${st.workMeanJ.toFixed(0)}` : "joules a stroke" } : null,
+    craft.rateSd !== null ? { k: "Rate held", v: `± ${craft.rateSd.toFixed(1)}`, u: "strokes a minute" } : null,
     /* Never settling is an answer; having nothing to measure is not. */
     num(st.paceSdTenths) ? (st.settle ? { k: "Strokes to settle", v: String(st.settle.count), u: `settled at stroke ${st.settle.strokeN}` } : { k: "Strokes to settle", v: "Never", u: "never inside the band" }) : null,
-    num(st.avgDriveLengthCm) ? { k: "Drive length", v: `${(st.avgDriveLengthCm / 100).toFixed(2)} m`, u: "average drive" } : null,
+    a.halves ? { k: "Second half", v: a.halves.level ? "Level" : `${a.halves.negative ? "−" : "+"}${fmtGap(Math.abs(a.halves.deltaTenths))}`, u: a.halves.level ? "with the first" : a.halves.negative ? "faster than the first" : "slower than the first" } : null,
   ].filter((c): c is Exclude<CellData, null> => c !== null);
 
-  /* The four pictures, each with what it needs to exist. */
+  /* The pictures, each with what it needs to exist. Every line is a
+   * moving average of the strokes of the piece, the first and the last of
+   * them left off. */
   const counted = a.series.filter((s) => s.counted);
-  const splitPts = a.splits.filter((s) => num(s.paceTenths) && s.paceTenths > 0);
-  const rate = thinPoints(counted.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number })));
-  const len = thinPoints(counted.filter((s) => num(s.mps)).map((s) => ({ x: s.n, y: s.mps as number })));
-  const work = thinPoints(counted.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number })));
-  const has = { splits: splitPts.length >= 2, rate: rate.length >= 3 || len.length >= 3, force: a.force !== null, work: work.length >= 3 };
+  const win = windowOf(counted.length);
+  const paceRaw = trimEnds(counted.filter((s) => num(s.paceTenths) && (s.paceTenths as number) > 0 && num(s.distanceM)).map((s) => ({ x: s.distanceM, y: (s.paceTenths as number) / 10 })));
+  const pace = thinPoints(smooth(paceRaw, win * 2));
+  const rate = thinPoints(smooth(trimEnds(counted.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number }))), win));
+  const len = thinPoints(smooth(trimEnds(counted.filter((s) => num(s.mps)).map((s) => ({ x: s.n, y: s.mps as number }))), win));
+  const workRaw = trimEnds(counted.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number })));
+  const work = thinPoints(workRaw);
+  const workAvg = thinPoints(smooth(workRaw, win));
+  const has = { pace: pace.length >= 3, rate: rate.length >= 3 || len.length >= 3, force: a.force !== null, work: work.length >= 3 };
   const from = a.splitsFromMeters > 0 ? fmtInt(a.splitsFromMeters) : "";
+  /* A chart is drawn inside its box: the box's edge and its padding off
+   * each side. */
+  const cw = w - 2 * BOX_PAD - 2;
+  const avgS = num(a.avgPaceTenths) ? a.avgPaceTenths / 10 : meanOf(paceRaw.map((p) => p.y));
+
+  /* What each picture says. */
+  let paceSay: string | null = null;
+  if (has.pace) {
+    const quick = pace.reduce((m, p) => (p.y < m.y ? p : m), pace[0]);
+    const slow = pace.reduce((m, p) => (p.y > m.y ? p : m), pace[0]);
+    const halves = a.halves ? (a.halves.level ? "The two halves came in level." : a.halves.negative ? `The second half was ${fmtGap(Math.abs(a.halves.deltaTenths))} a 500 quicker than the first: a negative split.` : `The second half was ${fmtGap(Math.abs(a.halves.deltaTenths))} a 500 slower than the first: it went out harder than it could hold.`) : "";
+    paceSay = `Quickest around ${fmtInt(Math.round(quick.x / 50) * 50)} m (${paceFmt(quick.y)}), slowest around ${fmtInt(Math.round(slow.x / 50) * 50)} m (${paceFmt(slow.y)}). ${halves}`.trim();
+  }
+  let rateSay: string | null = null;
+  if (a.rateTrend && a.mpsTrend) {
+    const dSpm = a.rateTrend.last - a.rateTrend.first;
+    const dMps = a.mpsTrend.last - a.mpsTrend.first;
+    rateSay =
+      Math.abs(dSpm) < 1 && Math.abs(dMps) < 0.1
+        ? `Rate and length both held: about ${a.rateTrend.mean.toFixed(0)} strokes a minute at ${a.mpsTrend.mean.toFixed(1)} m a stroke from start to finish.`
+        : dSpm >= 1 && dMps <= -0.1
+          ? `The rate climbed (${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)}) while each stroke got shorter (${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m): the speed was kept by taking more strokes, not longer ones.`
+          : dSpm <= -1 && dMps >= 0.1
+            ? `The rate came down (${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)}) and each stroke went further (${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m): longer, slower strokes as it went on.`
+            : `Rate went ${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)} strokes a minute, and the stroke ${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m.`;
+  }
+  const steadySay =
+    craft.steady !== null
+      ? `${Math.round(craft.within1 * 100)}% of the piece was rowed within a second of the average split, ${paceFmt(craft.paceMean)}, read five strokes at a time. The score is 100, less ten for every 1% the split wandered from its own average. It does not know how fast the piece was: a 2:30 held dead level beats a 1:50 that swings.`
+      : null;
 
   return (
     <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
       <Head a={a} />
-
-      {w ? <Playback a={a} doc={doc} w={w} /> : null}
 
       {/* THE READ: the point of the screen. Every sentence is worked out in
           analysis.ts and says only what the numbers carry. */}
@@ -142,25 +206,44 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
         </>
       ) : null}
 
-      {w && (has.splits || has.rate || has.force || has.work) ? (
-        <>
-          <Eye left="The shape of it" right={a.splitsDerived && has.splits ? `Splits cut from the tick stream${from ? `, from ${from} m where the recording starts` : ""}` : undefined} />
-          <View style={{ gap: 26 }}>
-            {has.splits ? <SplitBars splits={splitPts} avgTenths={a.avgSplitTenths} derived={a.splitsDerived} fastest={a.fastestSplit} w={w} /> : null}
-            {has.rate ? <RateLength rate={rate} len={len} w={w} /> : null}
-            {a.force ? <ForceCurve force={a.force} compare={a.compare} w={w} /> : null}
-            {has.work ? <WorkPerStroke pts={work} trend={a.workTrend} w={w} /> : null}
-          </View>
-        </>
+      {/* HOW STEADY, first among the pictures: the one score here that is
+          not about speed. */}
+      {w > 0 && (craft.steady !== null || steady.length) ? (
+        <Box title="How steady" note="Not about speed" say={steadySay}>
+          {craft.steady !== null || craft.same !== null ? (
+            <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
+              {craft.steady !== null ? <Score k="Steady pace" v={craft.steady} word={steadyWord(craft.steady)} /> : null}
+              {craft.same !== null ? <Score k="Same stroke" v={craft.same} word={craft.same >= 85 ? "One stroke, repeated" : craft.same >= 70 ? "Mostly the same stroke" : "The stroke kept changing"} /> : null}
+            </View>
+          ) : null}
+          <PaceSpread c={craft} w={cw} />
+          {steady.length ? (
+            <View style={{ marginTop: 10 }}>
+              <Cells cells={steady} />
+            </View>
+          ) : null}
+        </Box>
       ) : null}
 
-      {/* The four figures that say whether the piece was held together or
-          wrestled. */}
-      {steady.length ? (
-        <>
-          <Eye left="How steady" />
-          <Cells cells={steady} />
-        </>
+      {w > 0 && has.pace ? (
+        <Box title="Pace along the piece" note="Moving average" say={paceSay}>
+          <PaceAlong pts={pace} avgS={avgS} w={cw} />
+        </Box>
+      ) : null}
+      {w > 0 && has.rate ? (
+        <Box title="Rate and length" note="Rate solid · length dashed" say={rateSay}>
+          <RateLength rate={rate} len={len} w={cw} />
+        </Box>
+      ) : null}
+      {w > 0 && a.force ? (
+        <Box title="Force curve" note={`${fmtInt(a.force.curves)} strokes averaged`} say={forceWords(a.force, a.compare)}>
+          <ForceCurve force={a.force} compare={a.compare} w={cw} />
+        </Box>
+      ) : null}
+      {w > 0 && has.work ? (
+        <Box title="Work per stroke" note="Joules" say={workWords(workAvg, state.usual)}>
+          <WorkPerStroke pts={work} avg={workAvg} trend={a.workTrend} usual={state.usual} w={cw} />
+        </Box>
       ) : null}
 
       {/* The splits as the monitor recorded them, or cut out of the tick
@@ -185,18 +268,13 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
         </>
       ) : null}
 
-      {/* What explains goes at the foot (owner, 2026-09-17, of the site:
-          "whenever we have text that explains something, let us put it on
-          the bottom of the page rather than the top"). */}
+      {/* AT THE FOOT: what the arithmetic was allowed to see (a monitor
+          sitting between pieces keeps sending strokes nobody rowed, and
+          they are left out of the averages), and which monitor it was
+          (owner, 2026-11-21: "whatever the rower identifier was, we can
+          include that down there"). */}
       <View style={{ marginTop: 40, borderTopWidth: 1, borderColor: C.line, paddingTop: 14 }}>
-        <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 19, color: C.gray }}>
-          <Text style={{ fontFamily: F.bold, color: C.soft }}>This is a piece that has already been rowed.</Text> THE READ and WHAT NEXT are written from the numbers on this page. Where the monitor sent no splits they are cut from the tick stream and labelled as derived.
-        </Text>
-        <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 19, color: C.gray, marginTop: 8 }}>PLAY IT BACK, under the head, lays the piece out chart by chart and lets you scrub through it: drag across any chart and every one reads at that point.</Text>
-        {/* What the arithmetic was allowed to see: a monitor sitting between
-            pieces keeps sending strokes nobody rowed, and they are left out
-            of the averages. This is where that is said. */}
-        <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 12, lineHeight: 16 }]}>
+        <Text style={[mono(10, false, C.gray, 0.1), { lineHeight: 16 }]}>
           {[
             `${fmtInt(a.packetsRecorded)} packets recorded`,
             a.force ? `${fmtInt(a.force.curves)} force curves` : "no force curves",
@@ -205,6 +283,9 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
           ]
             .filter(Boolean)
             .join(" · ")}
+        </Text>
+        <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6, lineHeight: 16 }]}>
+          {[doc.device.simulated ? "Simulated monitor" : doc.device.name || "Monitor", doc.device.serial ? `serial ${doc.device.serial}` : "", doc.device.model ?? "", doc.device.firmware ? `firmware ${doc.device.firmware}` : ""].filter(Boolean).join(" · ")}
         </Text>
       </View>
     </View>
@@ -229,7 +310,7 @@ function Head({ a }: { a: ErgAnalysis }) {
   const big = { fontFamily: F.black, fontSize: 26, lineHeight: 30, color: C.ink, fontVariant: ["tabular-nums" as const] };
   return (
     <>
-      <Eye left="Saved session" />
+      <Eye left="Analytics" />
       <Text style={[mono(10, false, C.gray), { marginBottom: 4 }]}>Time</Text>
       <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={{ fontFamily: F.black, fontSize: 56, lineHeight: 60, letterSpacing: -1.5, color: C.accent, fontVariant: ["tabular-nums"] }}>
         {a.clock}
@@ -397,519 +478,6 @@ function Reading({ text, hint }: { text: string | null; hint: string }) {
   return <Text style={[mono(10, text !== null, text !== null ? C.ink : C.gray, 0.08), { lineHeight: 15, minHeight: 30, marginBottom: 2, fontVariant: ["tabular-nums"] }]}>{text ?? hint}</Text>;
 }
 
-/* ---- PLAY IT BACK ------------------------------------------------------- */
-
-/* The first five seconds are not drawn, as on the site's console: the
- * flywheel spinning up sends a ten minute split. */
-const SKIP_S = 5;
-const SPEEDS = [0.5, 1, 2, 4, 8];
-type XMode = "meters" | "time";
-type StrokeAt = { n: number; t: number; d: number; watts: number | null; mps: number | null };
-
-/* PLAY IT BACK (owner, 2026-09-24, of the site: "I should have a button to
- * play it back ... let me play it back and scrub through it"). One word,
- * closed, as on the site, so THE READ stays near the top; open, the charts
- * of the piece under one playhead. */
-function Playback({ a, doc, w }: { a: ErgAnalysis; doc: TelemetryDoc; w: number }) {
-  const [open, setOpen] = useState(false);
-  const ticksAll = useMemo(() => pieceTicks(doc), [doc]);
-  const strokes = useMemo<StrokeAt[]>(() => {
-    const out: StrokeAt[] = [];
-    a.series.forEach((s, i) => {
-      const prev = out[out.length - 1];
-      if (!num(s.elapsedS) || !num(s.distanceM) || (prev && (s.elapsedS < prev.t || s.distanceM < prev.d))) return;
-      const watts = doc.strokes[i]?.watts ?? 0;
-      out.push({ n: s.n, t: s.elapsedS, d: s.distanceM, watts: watts > 0 ? watts : null, mps: s.counted ? s.mps : null });
-    });
-    return out;
-  }, [a, doc]);
-  /* Nothing to lay a playhead along: no word to press. */
-  if (ticksAll.length < 2 && strokes.length < 2) return null;
-  return (
-    <View>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", columnGap: 16, rowGap: 4, borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 8, marginBottom: 14, marginTop: 44 }}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} hitSlop={10}>
-          <Text style={[mono(11, true), { textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{open ? "Close the playback" : "Play it back"}</Text>
-        </Pressable>
-        <Text style={mono(11, false, C.gray)}>{open ? "Drag across a chart" : "Scrub, pause, half to eight times"}</Text>
-      </View>
-      {open ? <PlayBody a={a} doc={doc} ticksAll={ticksAll} strokes={strokes} w={w} /> : <Text style={[mono(10, false, C.gray, 0.1), { lineHeight: 16 }]}>The charts of the piece, fed from this recording: pace, watts, rate and length, each with its spread, every force curve and every 500 m.</Text>}
-    </View>
-  );
-}
-
-function PlayBody({ a, doc, ticksAll, strokes, w }: { a: ErgAnalysis; doc: TelemetryDoc; ticksAll: Tick[]; strokes: StrokeAt[]; w: number }) {
-  const [xMode, setXMode] = useState<XMode>("meters");
-  /* THE PLAYHEAD, in seconds of the piece, and null until it is placed.
-   * Seconds and never a point on the glass, so it means the same thing on
-   * every chart and in either x mode. */
-  const [t, setT] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-
-  /* What the playhead runs along: the ticks, or the strokes when a piece
-   * has no ticks. */
-  const track = useMemo<{ t: number; d: number }[]>(() => (ticksAll.length >= 2 ? ticksAll : strokes), [ticksAll, strokes]);
-  const tEnd = track[track.length - 1].t;
-  const t0 = Math.min(tEnd, Math.max(track[0].t, SKIP_S));
-
-  useEffect(() => {
-    if (!playing) return;
-    let last = Date.now();
-    const id = setInterval(() => {
-      const now = Date.now();
-      const dt = (now - last) / 1000;
-      last = now;
-      setT((prev) => Math.min(tEnd, (prev ?? t0) + dt * speed));
-    }, 100);
-    return () => clearInterval(id);
-  }, [playing, speed, t0, tEnd]);
-  /* The end of the piece stops the clock. */
-  useEffect(() => {
-    if (playing && t !== null && t >= tEnd) setPlaying(false);
-  }, [playing, t, tEnd]);
-
-  const series = useMemo(() => {
-    const kx = (k: { t: number; d: number }) => (xMode === "meters" ? k.d : k.t);
-    const shown = ticksAll.filter((k) => k.t >= SKIP_S);
-    const sShown = strokes.filter((s) => s.t >= SKIP_S);
-    /* The running average counts every stroke, drawn or not. */
-    let sum = 0;
-    let n = 0;
-    const running: XY[] = [];
-    for (const s of strokes) {
-      if (s.watts === null) continue;
-      sum += s.watts;
-      n++;
-      if (s.t >= SKIP_S) running.push({ x: kx(s), y: sum / n });
-    }
-    const pace: Series[] = [
-      { kind: "line", label: "CURRENT", points: thinPoints(shown.filter((k) => k.pace > 0).map((k) => ({ x: kx(k), y: k.pace }))) },
-      { kind: "dashed", label: "AVERAGE", points: thinPoints(shown.filter((k) => k.avgPace > 0).map((k) => ({ x: kx(k), y: k.avgPace }))) },
-    ];
-    const watts: Series[] = [
-      { kind: "bars", label: "PER STROKE", points: thinPoints(sShown.filter((s) => s.watts !== null).map((s) => ({ x: kx(s), y: s.watts as number })), 140) },
-      { kind: "dashed", label: "RUNNING AVG", points: thinPoints(running) },
-    ];
-    const spm: Series[] = [{ kind: "line", label: "SPM", points: thinPoints(shown.filter((k) => k.spm > 0).map((k) => ({ x: kx(k), y: k.spm }))) }];
-    const mps: Series[] = [{ kind: "line", label: "M", points: thinPoints(sShown.filter((s) => num(s.mps)).map((s) => ({ x: kx(s), y: s.mps as number }))) }];
-    return { pace, watts, spm, mps };
-  }, [ticksAll, strokes, xMode]);
-
-  const blocks = useMemo(() => blocks500(ticksAll), [ticksAll]);
-
-  const onCursor = useCallback(
-    (x: number) => {
-      setPlaying(false);
-      setT(Math.max(track[0].t, Math.min(tEnd, xMode === "time" ? x : along(track, "d", x))));
-    },
-    [track, tEnd, xMode],
-  );
-
-  const at = t ?? tEnd;
-  const dist = along(track, "t", at);
-  const cursor = t === null ? null : xMode === "time" ? t : dist;
-  const tick = ticksAll[lastAtOrBefore(ticksAll, (k) => k.t, at)] ?? null;
-  const strokeI = lastAtOrBefore(strokes, (s) => s.t, at);
-  const stroke = strokes[strokeI] ?? null;
-  const ended = t !== null && t >= tEnd;
-
-  const toggle = () => {
-    if (playing) return setPlaying(false);
-    /* PLAY at the end starts the piece over. */
-    if (t === null || ended) setT(t0);
-    setPlaying(true);
-  };
-  const step = (dir: -1 | 1) => {
-    setPlaying(false);
-    const next = dir === 1 ? strokes.find((s) => s.t > at + 0.001) : [...strokes].reverse().find((s) => s.t < at - 0.001);
-    setT(next ? next.t : dir === 1 ? tEnd : track[0].t);
-  };
-  const bar = useDrag((px) => {
-    setPlaying(false);
-    setT(track[0].t + Math.max(0, Math.min(1, px / w)) * (tEnd - track[0].t));
-  });
-
-  /* The monitor as it read at the playhead. A figure the piece never had is
-   * left out; one it has, but not at this second, prints two hyphens so the
-   * strip does not reflow as the playhead moves. */
-  const now: CellData[] = [
-    { k: "Elapsed", v: xTime(at), u: t === null ? "at the finish" : "at the playhead" },
-    { k: "Distance", v: fmtInt(Math.floor(dist)), u: "meters" },
-    ticksAll.some((k) => k.pace > 0) ? { k: "Pace", v: tick && tick.pace > 0 ? paceFmt(tick.pace) : "--", u: "per 500 m" } : null,
-    ticksAll.some((k) => k.spm > 0) ? { k: "Rate", v: tick && tick.spm > 0 ? String(tick.spm) : "--", u: "strokes a minute" } : null,
-    strokes.some((s) => s.watts !== null) ? { k: "Watts", v: stroke && stroke.watts !== null ? String(stroke.watts) : "--", u: "this stroke" } : null,
-    strokes.length ? { k: "Stroke", v: stroke ? String(stroke.n) : "--", u: stroke && num(stroke.mps) ? `${stroke.mps.toFixed(2)} m per stroke` : "count" } : null,
-  ];
-
-  const span = tEnd - track[0].t;
-  const xWord = xMode === "meters" ? "METERS" : "ELAPSED";
-  const xFmt = xMode === "meters" ? xMeters : xTime;
-  const shared = { w, cursor, onCursor, xWord, xFmt };
-
-  return (
-    <View>
-      {/* THE TRANSPORT. */}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 20, rowGap: 14 }}>
-        <Ctl label={playing ? "Pause" : ended ? "Play again" : "Play"} onPress={toggle} />
-        <Ctl
-          label="Restart"
-          onPress={() => {
-            setPlaying(false);
-            setT(t0);
-          }}
-        />
-        {strokes.length ? <Ctl label="Previous stroke" onPress={() => step(-1)} /> : null}
-        {strokes.length ? <Ctl label="Next stroke" onPress={() => step(1)} /> : null}
-      </View>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-        {SPEEDS.map((x) => (
-          <Chip key={x} label={`${x}×`} on={speed === x} onPress={() => setSpeed(x)} />
-        ))}
-      </View>
-      <View style={{ height: 30, justifyContent: "center", marginTop: 10 }}>
-        <View style={{ height: 6, backgroundColor: C.pale }}>
-          <View style={{ height: 6, width: `${span > 0 ? Math.max(0, Math.min(100, ((at - track[0].t) / span) * 100)) : 100}%`, backgroundColor: C.accent }} />
-        </View>
-        <Hit drag={bar} label="Scrub through the piece" />
-      </View>
-      <Text style={[mono(11, true), { fontVariant: ["tabular-nums"] }]}>
-        {fmtTenthsClock(Math.round(at * 10))} <Text style={{ fontFamily: F.mono, color: C.gray }}>of {fmtTenthsClock(Math.round(tEnd * 10))}</Text>
-      </Text>
-
-      <View style={{ marginTop: 14 }}>
-        <Cells cells={now} accent />
-      </View>
-
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-        <Chip label="Meters" on={xMode === "meters"} onPress={() => setXMode("meters")} />
-        <Chip label="Time" on={xMode === "time"} onPress={() => setXMode("time")} />
-      </View>
-      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 10, lineHeight: 16 }]}>The whole piece · first {SKIP_S} s not drawn · drag across a chart</Text>
-
-      <Pair title="Pace" unit="/500 m" series={series.pace} yLabel="FASTER UP" yFmt={paceFmt} invertY refY={120} refLabel="2:00" {...shared} />
-      <Pair title="Watts" unit="per stroke" distUnit="W" series={series.watts} yLabel="W" {...shared} />
-      <Pair title="Stroke rate" unit="SPM" series={series.spm} yLabel="SPM" yMin={0} {...shared} />
-      <Pair title="Distance per stroke" unit="m" series={series.mps} yLabel="M" yFmt={oneDp} yMin={0} {...shared} />
-
-      <ForceBundle doc={doc} strokeN={stroke ? stroke.n : null} placed={t !== null} w={w} />
-
-      {blocks.length ? <Every500 blocks={blocks} on={t === null ? -1 : Math.floor(dist / 500) + 1} w={w} /> : null}
-    </View>
-  );
-}
-
-type PairProps = {
-  title: string;
-  unit: string;
-  /* What the distribution counts in, when it is not the chart's unit. */
-  distUnit?: string;
-  series: Series[];
-  w: number;
-  cursor: number | null;
-  onCursor: (x: number) => void;
-  xWord: string;
-  xFmt: (x: number) => string;
-  yFmt?: (y: number) => string;
-  yLabel: string;
-  invertY?: boolean;
-  refY?: number;
-  refLabel?: string;
-  yMin?: number;
-};
-
-/* ONE MEASURE, TWICE (owner, 2026-09-21, of the site: "there should be a
- * view that I can see the KDE on its own, not on the same chart as the line
- * chart. So it would be two different graphs"): the line through the piece,
- * and under it what the piece was made of. Both are handed the same points,
- * so they can never describe different strokes. */
-const Pair = memo(function Pair(p: PairProps) {
-  /* The spread describes the first SOLID series. A dashed companion is a
-   * running average: its deviation shrinks as a row goes on whatever the
-   * rower does, which is arithmetic and not a fact about anybody. */
-  const lead = p.series.find((s) => s.kind !== "dashed" && s.points.length >= 2) ?? null;
-  const spread = useMemo(() => (lead ? computeSpread(lead.points) : null), [lead]);
-  if (!p.series.some((s) => s.points.length >= 2)) return null;
-  const yFmt = p.yFmt ?? fmtNum;
-  /* Where the rower is on their own hill: at the playhead, else the last
-   * point of the piece. */
-  const here = lead ? (p.cursor !== null ? nearestByX(lead.points, p.cursor) : lead.points[lead.points.length - 1]) : null;
-  return (
-    <View style={{ marginTop: 30 }}>
-      <LineChart {...p} yFmt={yFmt} spread={spread} />
-      {spread ? <DistChart title={p.title} unit={p.distUnit ?? p.unit} spread={spread} now={here ? here.y : null} fmt={yFmt} faster={p.invertY ?? false} w={p.w} /> : null}
-    </View>
-  );
-});
-
-/* A line through the piece, with the playhead on it. The drawing that does
- * not change is built once; only the hairline, its dots and the line of
- * numbers over the plot move with the finger. */
-function LineChart({ title, unit, series, spread, w, cursor, onCursor, xWord, xFmt, yFmt, yLabel, invertY = false, refY, refLabel, yMin }: PairProps & { yFmt: (y: number) => string; spread: Spread | null }) {
-  const H = 176;
-  const plot = useMemo(() => computePlot(series, { W: w, H, pad: PAD, invertY, refY, yMin }), [series, w, invertY, refY, yMin]);
-  const live = useRef<Plot | null>(plot);
-  live.current = plot;
-  const drag = useDrag((px) => {
-    if (live.current) onCursor(live.current.ix(px));
-  });
-
-  const still = useMemo(() => {
-    if (!plot) return null;
-    const { sx, sy } = plot;
-    const right = w - PAD.r;
-    const base = H - PAD.b;
-    const meanY = spread ? sy(spread.mean) : null;
-    /* One deviation either side of the mean, as a slab under the data. Min
-     * and max, not an assumed order: on an inverted axis the mean plus one
-     * deviation is the lower point. */
-    const bandA = spread && spread.sd > 0 ? Math.max(PAD.t, Math.min(sy(spread.mean + spread.sd), sy(spread.mean - spread.sd))) : 0;
-    const bandB = spread && spread.sd > 0 ? Math.min(base, Math.max(sy(spread.mean + spread.sd), sy(spread.mean - spread.sd))) : 0;
-    return (
-      <G>
-        <Axes W={w} H={H} pad={PAD} ys={plot.yt} sy={sy} fmt={yFmt} />
-        {plot.xt.map((v) => (
-          <Lab key={v} x={sx(v)} y={base + 12} anchor="middle">
-            {xFmt(v)}
-          </Lab>
-        ))}
-        {bandB > bandA ? <Rect x={PAD.l} y={bandA} width={right - PAD.l} height={bandB - bandA} fill={C.accent} opacity={0.07} /> : null}
-        {spread && meanY !== null && meanY >= PAD.t && meanY <= base ? (
-          <G>
-            <Line x1={PAD.l} x2={right} y1={meanY} y2={meanY} stroke={C.gray} strokeWidth={1} strokeDasharray="6 4" />
-            <Lab x={PAD.l + 3} y={meanY - 3} size={8}>{`MEAN ${yFmt(spread.mean)}`}</Lab>
-          </G>
-        ) : null}
-        {refY !== undefined && refY >= Math.min(plot.lo, plot.hi) && refY <= Math.max(plot.lo, plot.hi) ? (
-          <G>
-            <Line x1={PAD.l} x2={right} y1={sy(refY)} y2={sy(refY)} stroke={C.gray} strokeWidth={1} strokeDasharray="4 4" />
-            {refLabel ? (
-              <Lab x={right} y={sy(refY) - 3} anchor="end" size={8}>
-                {refLabel}
-              </Lab>
-            ) : null}
-          </G>
-        ) : null}
-        {series.map((s, i) => {
-          const pts = plot.drawn[i];
-          if (!pts.length) return null;
-          /* Every bar in one path: a stroke as wide as a bar, from the value
-           * down to the base. */
-          if (s.kind === "bars") return <Path key={i} d={pts.map((p) => `M${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}V${plot.barBaseY.toFixed(1)}`).join("")} stroke={C.accent} strokeWidth={Math.min(6, plot.barW)} fill="none" />;
-          if (pts.length < 2) return null;
-          return s.kind === "dashed" ? <Path key={i} d={pathOf(pts, sx, sy)} stroke={C.gray} strokeWidth={1.4} strokeDasharray="4 3" fill="none" strokeLinejoin="round" /> : <Path key={i} d={pathOf(pts, sx, sy)} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />;
-        })}
-        <Lab x={right} y={H - 2} anchor="end" size={8}>
-          {xWord}
-        </Lab>
-        <Lab x={PAD.l} y={PAD.t - 5} size={8}>
-          {yLabel}
-        </Lab>
-      </G>
-    );
-  }, [plot, spread, series, w, xFmt, yFmt, xWord, yLabel, refY, refLabel]);
-
-  if (!plot) return null;
-  const lead = plot.lead >= 0 ? plot.drawn[plot.lead] : null;
-  /* A playhead outside what this chart draws is not pulled to its edge: it
-   * would go on reporting the first point as though it were under the
-   * finger. It is simply not drawn here. */
-  const slack = (plot.x1 - plot.x0) * 0.01;
-  const snapped = cursor !== null && lead && cursor >= plot.x0 - slack && cursor <= plot.x1 + slack ? (nearestByX(lead, cursor)?.x ?? null) : null;
-  const reads =
-    snapped === null
-      ? []
-      : plot.drawn.map((pts, i) => {
-          const p = nearestByX(pts, snapped);
-          /* A series with nothing near the hairline prints two hyphens
-           * rather than a value forty strokes away. */
-          const near = p !== null && Math.abs(p.x - snapped) <= stepOf(plot, pts) * 1.5;
-          return { label: series[i].label, p: near ? p : null };
-        });
-  const leadRead = reads[plot.lead]?.p ?? null;
-  /* The one question a rower asks of a chart with a reference on it: how
-   * far off two minutes am I, right here. */
-  const delta = refY !== undefined && leadRead ? ` · VS ${refLabel ?? fmtNum(refY)} ${leadRead.y - refY < 0 ? "−" : "+"}${Math.abs(leadRead.y - refY).toFixed(1)} S` : "";
-  const text = snapped === null ? null : `${xWord} ${xFmt(snapped)} · ${reads.map((r) => `${r.label} ${r.p ? yFmt(r.p.y) : "--"}`).join(" · ")}${delta}`;
-
-  return (
-    <View>
-      <PanelHead title={title} unit={unit} note={series.map((s) => s.label).join(" · ")} />
-      <Reading text={text} hint="Drag across the chart" />
-      <View style={{ width: w, height: H }}>
-        <Svg width={w} height={H}>
-          {still}
-          {snapped !== null ? (
-            <G>
-              <Line x1={plot.sx(snapped)} x2={plot.sx(snapped)} y1={PAD.t} y2={H - PAD.b} stroke={C.ink} strokeWidth={1} strokeDasharray="3 3" opacity={0.8} />
-              {reads.map((r, i) => (r.p ? <Circle key={i} cx={plot.sx(r.p.x)} cy={plot.sy(r.p.y)} r={3.4} fill={C.paper} stroke={series[i].kind === "dashed" ? C.gray : C.accent} strokeWidth={1.6} /> : null))}
-            </G>
-          ) : null}
-        </Svg>
-        <Hit drag={drag} label={`${title}. ${text ?? "Drag across the chart to read it."}`} />
-      </View>
-    </View>
-  );
-}
-
-/* THE DISTRIBUTION, ON ITS OWN: the value along x, how much of the piece
- * sat there up y, the mean as a rule, one deviation as a slab, and a dot
- * for where the playhead sits on its own hill. Where the line above draws
- * faster upward, a faster pace here is to the LEFT, and the axis says so. */
-function DistChart({ title, unit, spread: sp, now, fmt, faster, w }: { title: string; unit: string; spread: Spread; now: number | null; fmt: (v: number) => string; faster: boolean; w: number }) {
-  const H = 124;
-  const pad: Pad = { l: 8, r: 8, t: 16, b: 28 };
-  const geo = useMemo(() => {
-    if (!sp.xs || !sp.ys || sp.xs.length < 2 || w - pad.l - pad.r < 20) return null;
-    const x0 = sp.xs[0];
-    const x1 = sp.xs[sp.xs.length - 1];
-    const ph = H - pad.t - pad.b;
-    const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0)) * (w - pad.l - pad.r);
-    const sy = (d: number) => pad.t + (1 - d) * ph;
-    return { x0, x1, ph, sx, sy };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sp, w]);
-  const still = useMemo(() => {
-    if (!geo || !sp.xs || !sp.ys) return null;
-    const { x0, x1, ph, sx, sy } = geo;
-    const ys = sp.ys;
-    const line = sp.xs.map((v, i) => `${i ? "L" : "M"}${sx(v).toFixed(1)} ${sy(ys[i]).toFixed(1)}`).join(" ");
-    const a = Math.max(pad.l, sx(sp.mean - sp.sd));
-    const b = Math.min(w - pad.r, sx(sp.mean + sp.sd));
-    const mx = sx(sp.mean);
-    const flip = mx > w * 0.6;
-    return (
-      <G>
-        {b > a ? <Rect x={a} y={pad.t} width={b - a} height={ph} fill={C.accent} opacity={0.07} /> : null}
-        <Path d={`${line} L${sx(x1).toFixed(1)} ${sy(0).toFixed(1)} L${sx(x0).toFixed(1)} ${sy(0).toFixed(1)} Z`} fill={C.accent} opacity={0.14} />
-        <Path d={line} stroke={C.gray} strokeWidth={1.2} fill="none" strokeLinejoin="round" />
-        <Line x1={pad.l} x2={w - pad.r} y1={H - pad.b} y2={H - pad.b} stroke={C.ink} strokeWidth={1.5} />
-        {mx >= pad.l && mx <= w - pad.r ? (
-          <G>
-            <Line x1={mx} x2={mx} y1={pad.t} y2={H - pad.b} stroke={C.gray} strokeWidth={1} strokeDasharray="6 4" />
-            <Lab x={mx + (flip ? -4 : 4)} y={pad.t + 9} anchor={flip ? "end" : "start"} size={8}>{`MEAN ${fmt(sp.mean)}`}</Lab>
-          </G>
-        ) : null}
-        {ticks(x0, x1, 3).map((v) => (
-          <Lab key={v} x={sx(v)} y={H - pad.b + 12} anchor="middle">
-            {fmt(v)}
-          </Lab>
-        ))}
-        <Lab x={w - pad.r} y={H - 2} anchor="end" size={8}>
-          {faster ? "FASTER TO THE LEFT" : unit.toUpperCase()}
-        </Lab>
-        <Lab x={pad.l} y={pad.t - 5} size={8}>
-          DENSITY
-        </Lab>
-      </G>
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, sp, w, fmt, faster, unit]);
-
-  return (
-    <View style={{ marginTop: 16 }}>
-      <PanelHead title={title} unit={unit} note="Distribution" />
-      <Text style={[mono(9, false, C.gray, 0.1), { lineHeight: 14, minHeight: 28, marginBottom: 2, fontVariant: ["tabular-nums"] }]}>{spreadWords(sp, now, fmt, faster)}</Text>
-      {/* Every value the same is a real answer and not a curve: the words
-          above say it and no hill is drawn over data with no width. */}
-      {geo && still ? (
-        <Svg width={w} height={H}>
-          {still}
-          {now !== null && now >= geo.x0 && now <= geo.x1 ? <Circle cx={geo.sx(now)} cy={geo.sy(densityAt(sp, now))} r={3.6} fill={C.paper} stroke={C.accent} strokeWidth={1.6} /> : null}
-        </Svg>
-      ) : null}
-    </View>
-  );
-}
-
-/* THE FORCE CURVES (owner, 2026-09-21, of the site: "I want to see it drawn
- * out like it does on the erg — it draws every force curve ... but I would
- * also like to see the average of my force curves"). Every stroke faint on
- * one frame: a tight bundle is a repeatable stroke, a wide one is not. Over
- * it the average, dashed, and the stroke at the playhead in the blue. The
- * frame is the drive, start to finish, because strokes are not all the same
- * length.
- *
- * A finger here reads ALONG THE DRIVE, not along the piece, so this chart
- * keeps a hairline of its own. */
-const FORCE_DRAWN = 80;
-const FORCE_PAD: Pad = { l: 34, r: 8, t: 16, b: 28 };
-
-const ForceBundle = memo(function ForceBundle({ doc, strokeN, placed, w }: { doc: TelemetryDoc; strokeN: number | null; placed: boolean; w: number }) {
-  const H = 210;
-  const pad = FORCE_PAD;
-  const [cur, setCur] = useState<number | null>(null);
-  const usable = useMemo(() => doc.forceCurves.filter((c) => c.points.length >= 2 && c.points.some((p) => p > 0)), [doc]);
-  /* At most eighty, taken evenly through the piece, so the bundle is the
-   * whole row and not its last minute. */
-  const bundle = useMemo(() => thinPoints(usable, FORCE_DRAWN).map((c) => resample(c.points)), [usable]);
-  const avg = useMemo(() => (bundle.length ? Array.from({ length: FORCE_GRID }, (_, i) => bundle.reduce((s, c) => s + c[i], 0) / bundle.length) : []), [bundle]);
-  /* The curve of the stroke at the playhead: the last one at or before it,
-   * else the first there is; with no playhead, the last of the piece. */
-  const at = !usable.length ? -1 : strokeN === null || !placed ? usable.length - 1 : Math.max(0, lastAtOrBefore(usable, (c) => c.n, strokeN));
-  const here = useMemo(() => (at >= 0 ? resample(usable[at].points) : []), [usable, at]);
-  const series = useMemo<Series[]>(() => {
-    const xy = (c: number[]) => c.map((v, i) => ({ x: i / (FORCE_GRID - 1), y: v }));
-    return [
-      { points: xy(here), kind: "line", label: "THIS STROKE" },
-      { points: xy(avg), kind: "dashed", label: "AVERAGE" },
-    ];
-  }, [here, avg]);
-  const peak = useMemo(() => Math.max(1, ...bundle.flat(), ...here), [bundle, here]);
-  const plot = useMemo(() => (bundle.length ? computePlot(series, { W: w, H, pad, yMin: 0, yMax: peak * 1.08 }) : null), [series, bundle.length, peak, w, pad]);
-  const live = useRef<Plot | null>(plot);
-  live.current = plot;
-  const drag = useDrag((px) => {
-    if (live.current) setCur(live.current.ix(px));
-  });
-  const faint = useMemo(() => {
-    if (!plot) return null;
-    return bundle.map((c, k) => <Path key={k} d={c.map((v, i) => `${i ? "L" : "M"}${plot.sx(i / (FORCE_GRID - 1)).toFixed(1)} ${plot.sy(v).toFixed(1)}`).join(" ")} stroke={C.ink} strokeWidth={0.8} opacity={0.09} fill="none" />);
-  }, [plot, bundle]);
-
-  if (!plot) return null;
-  const { sx, sy } = plot;
-  const snapped = cur === null ? null : (nearestByX(plot.drawn[0].length ? plot.drawn[0] : plot.drawn[1], cur)?.x ?? null);
-  const read = (i: number) => (snapped === null ? null : nearestByX(plot.drawn[i], snapped));
-  const mine = read(0);
-  const mean = read(1);
-  const herePeak = here.length ? Math.max(...here) : null;
-  const text = snapped === null ? null : `DRIVE ${Math.round(snapped * 100)}% · THIS STROKE ${mine ? whole(mine.y) : "--"} · AVERAGE ${mean ? whole(mean.y) : "--"} LBF${mine ? ` · ${Math.round(lbfToNewtons(mine.y))} N` : ""}`;
-
-  return (
-    <View style={{ marginTop: 34 }}>
-      <PanelHead title="Force curves" unit="lbf" note={`${bundle.length} strokes · ${placed ? "at the playhead" : "the last"} in blue · average dashed`} />
-      <Reading text={text} hint="Drag along the drive" />
-      <View style={{ width: w, height: H }}>
-        <Svg width={w} height={H}>
-          <Axes W={w} H={H} pad={pad} ys={plot.yt} sy={sy} fmt={whole} />
-          {faint}
-          {plot.drawn[1].length >= 2 ? <Path d={pathOf(plot.drawn[1], sx, sy)} stroke={C.soft} strokeWidth={1.8} strokeDasharray="6 4" fill="none" strokeLinejoin="round" /> : null}
-          {plot.drawn[0].length >= 2 ? <Path d={pathOf(plot.drawn[0], sx, sy)} stroke={C.accent} strokeWidth={2.4} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
-          {herePeak !== null && at >= 0 ? <Lab x={pad.l + 4} y={pad.t + 10} color={C.ink}>{`PEAK ${whole(herePeak)} LBF · ${Math.round(lbfToNewtons(herePeak))} N · STROKE ${usable[at].n}`}</Lab> : null}
-          {[0, 0.25, 0.5, 0.75, 1].map((v) => (
-            <Lab key={v} x={sx(v)} y={H - pad.b + 12} anchor={v === 1 ? "end" : v === 0 ? "start" : "middle"}>{`${Math.round(v * 100)}%`}</Lab>
-          ))}
-          <Lab x={w - pad.r} y={H - 2} anchor="end" size={8}>
-            SHARE OF THE DRIVE
-          </Lab>
-          <Lab x={pad.l} y={pad.t - 5} size={8}>
-            LBF
-          </Lab>
-          {snapped !== null ? (
-            <G>
-              <Line x1={sx(snapped)} x2={sx(snapped)} y1={pad.t} y2={H - pad.b} stroke={C.ink} strokeWidth={1} strokeDasharray="3 3" opacity={0.8} />
-              {mean ? <Circle cx={sx(mean.x)} cy={sy(mean.y)} r={3.4} fill={C.paper} stroke={C.gray} strokeWidth={1.6} /> : null}
-              {mine ? <Circle cx={sx(mine.x)} cy={sy(mine.y)} r={3.4} fill={C.paper} stroke={C.accent} strokeWidth={1.6} /> : null}
-            </G>
-          ) : null}
-        </Svg>
-        <Hit drag={drag} label={`Force curves. ${text ?? "Drag along the drive to read it."}`} />
-      </View>
-    </View>
-  );
-});
-
 /* ---- tables ------------------------------------------------------------- */
 
 type Col = { label: string; width: number; black?: boolean };
@@ -953,33 +521,6 @@ function Table({ cols, rows, w, on = -1, accent = -1 }: { cols: Col[]; rows: str
   );
 }
 
-/* EVERY 500 M, cut from the tick stream; the block the playhead is in is
- * marked. */
-const Every500 = memo(function Every500({ blocks, on, w }: { blocks: Block[]; on: number; w: number }) {
-  let cum = 0;
-  const rows = blocks.map((b, i) => {
-    cum += b.seconds;
-    const d = i > 0 ? b.seconds - blocks[i - 1].seconds : null;
-    return [fmtMeters(b.n * b.meters), fmtTenthsClock(Math.round(b.seconds * 10)), paceFmt((b.seconds * 500) / b.meters), d === null ? "" : Math.abs(d) < 0.05 ? "even" : `${d < 0 ? "−" : "+"}${Math.abs(d).toFixed(1)} s`, fmtTenthsClock(Math.round(cum * 10))];
-  });
-  return (
-    <View style={{ marginTop: 34 }}>
-      <PanelHead title="Every 500 m" note="Cut from the tick stream" />
-      <Table
-        w={w}
-        on={blocks.findIndex((b) => b.n === on)}
-        cols={[
-          { label: "At", width: 62 },
-          { label: "500 m in", width: 56 },
-          { label: "Per 500 m", width: 60, black: true },
-          { label: "Vs last", width: 56 },
-          { label: "Elapsed", width: 68 },
-        ]}
-        rows={rows}
-      />
-    </View>
-  );
-});
 
 /* The splits. A column the monitor sent nothing for (a derived split has no
  * rate, watts or drag) is left off, so the table does not carry three
@@ -1000,85 +541,119 @@ function SplitsTable({ splits, fastest, w }: { splits: AnalysisSplit[]; fastest:
   );
 }
 
-/* ---- THE SHAPE OF IT: the four pictures --------------------------------- */
+/* ---- THE PICTURES, EACH IN ITS OWN BOX ---------------------------------- */
 
-/* A bar that rises as the screen opens. */
-function Bar({ left, width, height, base, delay, color }: { left: number; width: number; height: number; base: number; delay: number; color: string }) {
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(a, { toValue: 1, duration: 700, delay, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-  }, [a, delay]);
-  return <Animated.View style={{ position: "absolute", left, bottom: base, width, height: a.interpolate({ inputRange: [0, 1], outputRange: [0, Math.max(0, height)] }), backgroundColor: color }} />;
-}
-
-/* SPLIT BY SPLIT. Taller is slower: the bars are splits, so a tall bar is
- * time spent. The baseline is not zero and the axis says so: every tick is
- * a split, and the dashed rule is the average of the piece. Only the
- * fastest is in the blue and its figure says so (owner, 2026-11-20: "What
- * are those colors for the splits? green, blue, black?"); the rest are
- * ink. */
-function SplitBars({ splits, avgTenths, derived, fastest, w }: { splits: AnalysisSplit[]; avgTenths: number | null; derived: boolean; fastest: AnalysisSplit | null; w: number }) {
-  const H = 206;
-  const values = splits.map((s) => s.paceTenths as number);
-  const avg = num(avgTenths) && avgTenths > 0 ? avgTenths : values.reduce((x, y) => x + y, 0) / values.length;
-  const rawLo = Math.min(...values, avg);
-  const rawHi = Math.max(...values, avg);
-  const span = Math.max(rawHi - rawLo, 10);
-  const lo = rawLo - span * 0.45;
-  const hi = rawHi + span * 0.25;
-  const pw = w - PAD.l - PAD.r;
-  const ph = H - PAD.t - PAD.b;
-  if (pw < 40) return null;
-  const slot = pw / splits.length;
-  const barW = Math.max(2, slot * 0.66);
-  const sy = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * ph;
-  /* As many labels as fit: a figure is about 36 points wide. */
-  const every = Math.max(1, Math.ceil(splits.length / Math.max(1, Math.floor(pw / 36))));
-  const avgY = sy(avg);
+/* A CHART IS A CARD (owner, 2026-11-21: "should we make the profile page a
+ * little less flat and box these charts up a little bit? ... give them a
+ * little bit more formal section ... a more formal title"; and "is there
+ * anything useful we can say ... below these charts?"). Its name in the
+ * head's own face, a quiet word at the right, the picture, and under it ONE
+ * thing the picture says, worked out from the same numbers and never made
+ * up: a chart with nothing to say says nothing. */
+const BOX_PAD = 14;
+function Box({ title, note, say, children }: { title: string; note?: string; say?: string | null; children: ReactNode }) {
   return (
-    <View>
-      <PanelHead title="Split by split" note={`${splits.length} · ${derived ? "cut from the tick stream" : "as the monitor recorded them"}`} />
-      <View style={{ width: w, height: H }}>
-        <Svg width={w} height={H}>
-          <Axes W={w} H={H} pad={PAD} ys={ticks(lo, hi, 4)} sy={sy} fmt={split} />
-          {splits.map((s, i) => {
-            const x = PAD.l + i * slot + slot / 2;
-            const quick = s === fastest;
-            return i % every === 0 || quick ? (
-              <G key={`${s.n}-${s.endMeters}`}>
-                <Lab x={x} y={sy(s.paceTenths as number) - 4} anchor="middle" size={8} bold={quick} color={quick ? C.accent : C.soft}>
-                  {split(s.paceTenths)}
-                </Lab>
-                {i % every === 0 ? (
-                  <Lab x={x} y={H - PAD.b + 12} anchor="middle">
-                    {fmtInt(s.endMeters)}
-                  </Lab>
-                ) : null}
-              </G>
-            ) : null;
-          })}
-          <Lab x={w - PAD.r} y={H - 2} anchor="end" size={8}>
-            METERS
-          </Lab>
-          <Lab x={PAD.l} y={PAD.t - 5} size={8}>
-            SPLIT PER 500 M · TALLER IS SLOWER · FASTEST IN BLUE
-          </Lab>
-        </Svg>
-        {splits.map((s, i) => (
-          <Bar key={`${s.n}-${s.endMeters}`} left={PAD.l + i * slot + slot / 2 - barW / 2} width={barW} height={H - PAD.b - sy(s.paceTenths as number)} base={PAD.b} delay={Math.min(i * 40, 600)} color={s === fastest ? C.accent : C.ink} />
-        ))}
-        {/* The average goes over the bars, so it is drawn after them. */}
-        <Dash color={C.gray} style={{ position: "absolute", left: PAD.l, right: PAD.r, top: avgY }} />
-        <Text style={[mono(8, false, C.soft, 0.1), { position: "absolute", right: PAD.r, top: avgY - 13, backgroundColor: C.paper, paddingHorizontal: 3 }]}>Average {split(avg)}</Text>
+    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: BOX_PAD, marginTop: 14 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", columnGap: 10, rowGap: 2, marginBottom: 10 }}>
+        <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: C.ink }}>{title}</Text>
+        {note ? <Text style={mono(10, false, C.gray, 0.1)}>{note}</Text> : null}
       </View>
+      {children}
+      {say ? (
+        <View style={{ borderLeftWidth: 3, borderColor: C.accent, paddingLeft: 10, marginTop: 12 }}>
+          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft }}>{say}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
+/* A MOVING AVERAGE, centred: each point is the mean of the points around
+ * it, `win` of them, fewer at the two ends. What a stroke-by-stroke figure
+ * is doing, without each stroke's own wobble. */
+function smooth(pts: XY[], win: number): XY[] {
+  const half = Math.max(1, Math.floor(win / 2));
+  return pts.map((p, i) => {
+    let sum = 0;
+    let n = 0;
+    for (let j = Math.max(0, i - half); j <= Math.min(pts.length - 1, i + half); j++) {
+      sum += pts[j].y;
+      n++;
+    }
+    return { x: p.x, y: sum / n };
+  });
+}
+/* How wide the window is for a piece of this many strokes: about a
+ * twentieth of it, never under five strokes. */
+const windowOf = (n: number) => Math.max(5, Math.round(n / 20) | 1);
+
+/* THE FIRST AND THE LAST STROKES ARE NOT THE PIECE (owner, 2026-11-21:
+ * "we can also cut off like the last or first stroke ... the meters per
+ * stroke dropped a lot because it finished"): the flywheel spinning up and
+ * the handle being let go. Two off each end, and then any stroke left at
+ * either end that still sits far outside the rest. */
+function trimEnds(pts: XY[]): XY[] {
+  if (pts.length < 14) return pts;
+  let out = pts.slice(2, -2);
+  const ys = out.map((p) => p.y);
+  const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
+  const sd = Math.sqrt(ys.reduce((a, b) => a + (b - mean) ** 2, 0) / ys.length) || 1;
+  while (out.length > 10 && Math.abs(out[0].y - mean) > 3 * sd) out = out.slice(1);
+  while (out.length > 10 && Math.abs(out[out.length - 1].y - mean) > 3 * sd) out = out.slice(0, -1);
+  return out;
+}
+
+const meanOf = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0);
+const sdOf = (v: number[]) => {
+  const m = meanOf(v);
+  return v.length ? Math.sqrt(meanOf(v.map((x) => (x - m) ** 2))) : 0;
+};
+
+/* THE PACE ALONG THE PIECE, as one line (owner, 2026-11-21: "instead of
+ * showing split pace in that bar chart with one bar per 500 ... let's show
+ * it as a moving average line chart for the whole 5,000 meters"). Faster
+ * is up. The dashed rule is the average of the piece. */
+function PaceAlong({ pts, avgS, w }: { pts: XY[]; avgS: number; w: number }) {
+  const H = 190;
+  const pw = w - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+  if (pw < 40 || pts.length < 3) return null;
+  const x0 = pts[0].x;
+  const x1 = Math.max(pts[pts.length - 1].x, x0 + 1);
+  const ys = pts.map((p) => p.y);
+  let lo = Math.min(...ys, avgS);
+  let hi = Math.max(...ys, avgS);
+  const air = Math.max(1, (hi - lo) * 0.18);
+  lo -= air;
+  hi += air;
+  const sx = (x: number) => PAD.l + ((x - x0) / (x1 - x0)) * pw;
+  /* Faster is up: the smaller split is nearer the top. */
+  const sy = (v: number) => PAD.t + ((v - lo) / (hi - lo)) * ph;
+  return (
+    <Svg width={w} height={H}>
+      <Axes W={w} H={H} pad={PAD} ys={ticks(lo, hi, 4)} sy={sy} fmt={paceFmt} />
+      <Line x1={PAD.l} x2={w - PAD.r} y1={sy(avgS)} y2={sy(avgS)} stroke={C.gray} strokeWidth={1.2} strokeDasharray="5 4" />
+      <Lab x={w - PAD.r} y={sy(avgS) - 4} anchor="end" size={8} color={C.soft}>{`AVERAGE ${paceFmt(avgS)}`}</Lab>
+      <Path d={pathOf(pts, sx, sy)} stroke={C.accent} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      {ticks(x0, x1, 3).map((v) => (
+        <Lab key={v} x={sx(v)} y={H - PAD.b + 12} anchor="middle">
+          {fmtInt(v)}
+        </Lab>
+      ))}
+      <Lab x={PAD.l} y={PAD.t - 5} size={8}>
+        SPLIT PER 500 M · FASTER IS UP
+      </Lab>
+      <Lab x={w - PAD.r} y={H - 2} anchor="end" size={8}>
+        METERS
+      </Lab>
+    </Svg>
+  );
+}
+
 /* RATE AND LENGTH. Two things on one picture because they are one thing:
- * rate solid on the left axis, meters a stroke dashed on the right. A piece
- * that holds its speed by shortening and rating up shows here as the lines
- * moving away from each other. */
+ * rate solid on the left axis, meters a stroke dashed on the right, each a
+ * moving average. A piece that holds its speed by shortening and rating up
+ * shows here as the lines moving away from each other. */
 function RateLength({ rate, len, w }: { rate: XY[]; len: XY[]; w: number }) {
   const H = 190;
   const pad: Pad = { l: 30, r: 30, t: 16, b: 28 };
@@ -1097,7 +672,7 @@ function RateLength({ rate, len, w }: { rate: XY[]; len: XY[]; w: number }) {
       lo -= 1;
       hi += 1;
     }
-    const air = (hi - lo) * 0.12;
+    const air = (hi - lo) * 0.2;
     return { lo: lo - air, hi: hi + air };
   };
   const rb = band(rate.map((p) => p.y));
@@ -1105,48 +680,44 @@ function RateLength({ rate, len, w }: { rate: XY[]; len: XY[]; w: number }) {
   const syR = (v: number) => pad.t + (1 - (v - rb.lo) / (rb.hi - rb.lo)) * ph;
   const syL = (v: number) => pad.t + (1 - (v - lb.lo) / (lb.hi - lb.lo)) * ph;
   return (
-    <View>
-      <PanelHead title="Rate and length" note="Rate solid · length dashed" />
-      <Svg width={w} height={H}>
-        <Axes W={w} H={H} pad={pad} ys={rate.length > 1 ? ticks(rb.lo, rb.hi, 4) : []} sy={syR} fmt={whole} />
-        {len.length > 1
-          ? ticks(lb.lo, lb.hi, 4).map((v) => (
-              <Lab key={v} x={w - pad.r + 4} y={syL(v) + 3}>
-                {v.toFixed(1)}
-              </Lab>
-            ))
-          : null}
-        {len.length > 1 ? <Path d={pathOf(len, sx, syL)} stroke={C.gray} strokeWidth={1.4} strokeDasharray="5 4" fill="none" strokeLinejoin="round" /> : null}
-        {rate.length > 1 ? <Path d={pathOf(rate, sx, syR)} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
-        {ticks(x0, x1, 3).map((v) => (
-          <Lab key={v} x={sx(v)} y={H - pad.b + 12} anchor="middle">
-            {whole(v)}
-          </Lab>
-        ))}
-        {rate.length > 1 ? (
-          <Lab x={pad.l} y={pad.t - 5} size={8}>
-            STROKES A MINUTE
-          </Lab>
-        ) : null}
-        {len.length > 1 ? (
-          <Lab x={w - pad.r} y={pad.t - 5} anchor="end" size={8}>
-            METERS A STROKE
-          </Lab>
-        ) : null}
-        <Lab x={w - pad.r} y={H - 2} anchor="end" size={8}>
-          STROKE
+    <Svg width={w} height={H}>
+      <Axes W={w} H={H} pad={pad} ys={rate.length > 1 ? ticks(rb.lo, rb.hi, 4) : []} sy={syR} fmt={oneDp} />
+      {len.length > 1
+        ? ticks(lb.lo, lb.hi, 4).map((v) => (
+            <Lab key={v} x={w - pad.r + 4} y={syL(v) + 3}>
+              {v.toFixed(1)}
+            </Lab>
+          ))
+        : null}
+      {len.length > 1 ? <Path d={pathOf(len, sx, syL)} stroke={C.gray} strokeWidth={1.6} strokeDasharray="5 4" fill="none" strokeLinejoin="round" /> : null}
+      {rate.length > 1 ? <Path d={pathOf(rate, sx, syR)} stroke={C.accent} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
+      {ticks(x0, x1, 3).map((v) => (
+        <Lab key={v} x={sx(v)} y={H - pad.b + 12} anchor="middle">
+          {whole(v)}
         </Lab>
-      </Svg>
-    </View>
+      ))}
+      {rate.length > 1 ? (
+        <Lab x={pad.l} y={pad.t - 5} size={8}>
+          STROKES A MINUTE
+        </Lab>
+      ) : null}
+      {len.length > 1 ? (
+        <Lab x={w - pad.r} y={pad.t - 5} anchor="end" size={8}>
+          METERS A STROKE
+        </Lab>
+      ) : null}
+      <Lab x={w - pad.r} y={H - 2} anchor="end" size={8}>
+        STROKE
+      </Lab>
+    </Svg>
   );
 }
 
 /* THE FORCE CURVE: the average stroke of the piece, filled, with the peak
- * marked and said in words under it. Where the peak sits along the drive is
- * the number that moves when the legs come in earlier. The dashed curve
- * behind it, when there is one, is the best piece already recorded at this
- * distance, on the same axis because both are stretched onto their own
- * drive. */
+ * marked. Where the peak sits along the drive is the number that moves when
+ * the legs come in earlier. The dashed curve behind it, when there is one,
+ * is the best piece already recorded at this distance, on the same axis
+ * because both are stretched onto their own drive. */
 function ForceCurve({ force, compare, w }: { force: AnalysisForce; compare: { title: string; force: AnalysisForce } | null; w: number }) {
   const H = 190;
   const pw = w - PAD.l - PAD.r;
@@ -1160,46 +731,70 @@ function ForceCurve({ force, compare, w }: { force: AnalysisForce; compare: { ti
   const px = PAD.l + (force.peakIndex / (n - 1)) * pw;
   const right = px > w * 0.55;
   return (
-    <View>
-      <PanelHead title="Force curve" note={`${fmtInt(force.curves)} strokes averaged`} />
-      <Svg width={w} height={H}>
-        <Axes W={w} H={H} pad={PAD} ys={ticks(0, hi, 4)} sy={sy} fmt={whole} />
-        {compare && compare.force.points.length >= 2 ? <Path d={line(compare.force.points)} stroke={C.gray} strokeWidth={1.4} strokeDasharray="5 4" fill="none" strokeLinejoin="round" /> : null}
-        <Path d={`${mine} L${(PAD.l + pw).toFixed(1)} ${sy(0).toFixed(1)} L${PAD.l.toFixed(1)} ${sy(0).toFixed(1)} Z`} fill={C.accent} opacity={0.14} />
-        <Path d={mine} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-        <Circle cx={px} cy={sy(force.peakLbf)} r={3.4} fill={C.accent} />
-        <Lab x={px + (right ? -7 : 7)} y={sy(force.peakLbf) - 6} anchor={right ? "end" : "start"} color={C.ink}>{`PEAK ${force.peakLbf.toFixed(0)} LBF`}</Lab>
-        {[0, 25, 50, 75, 100].map((p) => (
-          <Lab key={p} x={PAD.l + (p / 100) * pw} y={H - PAD.b + 12} anchor={p === 100 ? "end" : "middle"}>
-            {String(p)}
-          </Lab>
-        ))}
-        <Lab x={PAD.l} y={PAD.t - 5} size={8}>
-          POUNDS OF FORCE
+    <Svg width={w} height={H}>
+      <Axes W={w} H={H} pad={PAD} ys={ticks(0, hi, 4)} sy={sy} fmt={whole} />
+      {compare && compare.force.points.length >= 2 ? <Path d={line(compare.force.points)} stroke={C.gray} strokeWidth={1.4} strokeDasharray="5 4" fill="none" strokeLinejoin="round" /> : null}
+      <Path d={`${mine} L${(PAD.l + pw).toFixed(1)} ${sy(0).toFixed(1)} L${PAD.l.toFixed(1)} ${sy(0).toFixed(1)} Z`} fill={C.accent} opacity={0.14} />
+      <Path d={mine} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      <Circle cx={px} cy={sy(force.peakLbf)} r={3.4} fill={C.accent} />
+      <Lab x={px + (right ? -7 : 7)} y={sy(force.peakLbf) - 6} anchor={right ? "end" : "start"} color={C.ink}>{`PEAK ${force.peakLbf.toFixed(0)} LBF`}</Lab>
+      {[0, 25, 50, 75, 100].map((p) => (
+        <Lab key={p} x={PAD.l + (p / 100) * pw} y={H - PAD.b + 12} anchor={p === 100 ? "end" : "middle"}>
+          {String(p)}
         </Lab>
-        <Lab x={w - PAD.r} y={H - 2} anchor="end" size={8}>
-          PERCENT OF THE DRIVE
-        </Lab>
-      </Svg>
-      <Text style={[mono(10, false, C.soft, 0.1), { marginTop: 6, lineHeight: 16 }]}>
-        Peak {force.peakLbf.toFixed(0)} lbf at {force.peakPct.toFixed(0)}% of the drive{compare ? ` · Dashed: ${compare.title}` : ""}
-      </Text>
-    </View>
+      ))}
+      <Lab x={PAD.l} y={PAD.t - 5} size={8}>
+        POUNDS OF FORCE
+      </Lab>
+      <Lab x={w - PAD.r} y={H - 2} anchor="end" size={8}>
+        PERCENT OF THE DRIVE
+      </Lab>
+    </Svg>
   );
 }
 
-/* WORK PER STROKE: one dot a stroke and the least squares line through
- * them. A piece that held together is a flat line; one that came apart
- * slopes. */
-function WorkPerStroke({ pts, trend, w }: { pts: XY[]; trend: AnalysisTrend | null; w: number }) {
-  const H = 190;
+/* What the shape of the average stroke says. Two things can be read off it
+ * without guessing: where the peak sits, and whether the push is one hump
+ * or two. Nothing is said about legs, back and arms beyond what those two
+ * carry. */
+function forceWords(f: AnalysisForce, compare: { title: string } | null): string {
+  const pts = f.points;
+  const peak = f.peakLbf;
+  /* A dip: a low between two highs, each at least a twelfth of the peak
+   * above it, somewhere in the middle of the drive. */
+  let dipAt = -1;
+  for (let i = Math.round(pts.length * 0.15); i < Math.round(pts.length * 0.85); i++) {
+    const before = Math.max(...pts.slice(0, i));
+    const after = Math.max(...pts.slice(i + 1));
+    if (before - pts[i] > peak / 12 && after - pts[i] > peak / 12 && (dipAt < 0 || pts[i] < pts[dipAt])) dipAt = i;
+  }
+  const at = f.peakPct.toFixed(0);
+  const where =
+    f.peakPct < 33
+      ? `The peak comes early, at ${at}% of the drive: the legs hit hard off the catch. Holding that pressure on longer, through the back, is what fills the rest of the curve.`
+      : f.peakPct <= 50
+        ? `The peak sits at ${at}% of the drive, which is where a connected stroke puts it: legs first, and the back joining before the pressure falls.`
+        : `The peak comes late, at ${at}% of the drive: the handle is still building as the legs finish. Loading the legs sooner off the catch moves it forward.`;
+  const dip = dipAt >= 0 ? ` There is a dip at ${Math.round((dipAt / (pts.length - 1)) * 100)}%: the pressure dropped where the legs hand over to the back. One unbroken push takes it out.` : " It is one smooth hump, with no dip where the legs hand over to the back.";
+  return `${where}${dip}${compare ? ` Dashed: ${compare.title}.` : ""}`;
+}
+
+/* WORK PER STROKE: one dot a stroke, THE MOVING AVERAGE through them (owner,
+ * 2026-11-21: "I really want to see like a moving average line drawn
+ * through here"), the straight trend as a quiet dashed rule, and, when this
+ * phone holds other recordings of the same distance, their moving average
+ * laid behind in the blue ("the line that I want to see on this chart is
+ * the average, moving average of the work per stroke" over "all my rows
+ * that are 5Ks"). */
+function WorkPerStroke({ pts, avg, trend, usual, w }: { pts: XY[]; avg: XY[]; trend: AnalysisTrend | null; usual: number[] | null; w: number }) {
+  const H = 200;
   const pw = w - PAD.l - PAD.r;
   const ph = H - PAD.t - PAD.b;
   if (pw < 40 || pts.length < 3) return null;
   const x0 = pts[0].x;
   const x1 = Math.max(pts[pts.length - 1].x, x0 + 1);
-  let lo = Math.min(...pts.map((p) => p.y));
-  let hi = Math.max(...pts.map((p) => p.y));
+  let lo = Math.min(...pts.map((p) => p.y), ...(usual ?? []));
+  let hi = Math.max(...pts.map((p) => p.y), ...(usual ?? []));
   if (hi === lo) {
     lo -= 1;
     hi += 1;
@@ -1209,16 +804,17 @@ function WorkPerStroke({ pts, trend, w }: { pts: XY[]; trend: AnalysisTrend | nu
   hi += air;
   const sx = (x: number) => PAD.l + ((x - x0) / (x1 - x0)) * pw;
   const sy = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * ph;
-  const dot = Math.max(1.2, Math.min(2.6, 220 / pts.length));
+  const dot = Math.max(1.1, Math.min(2.4, 200 / pts.length));
   const line = trend && num(trend.first) && num(trend.last) ? trend : null;
   return (
-    <View>
-      <PanelHead title="Work per stroke" note={line ? `${line.first.toFixed(0)} J to ${line.last.toFixed(0)} J on the trend` : "Joules"} />
+    <>
       <Svg width={w} height={H}>
         <Axes W={w} H={H} pad={PAD} ys={ticks(lo, hi, 4)} sy={sy} fmt={whole} />
         {/* Every dot in one path: a stroke of no length with a round cap. */}
-        <Path d={pts.map((p) => `M${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}h0.01`).join("")} stroke={C.gray} strokeWidth={dot * 2} strokeLinecap="round" fill="none" />
-        {line ? <Path d={`M${sx(x0).toFixed(1)} ${sy(line.first).toFixed(1)} L${sx(x1).toFixed(1)} ${sy(line.last).toFixed(1)}`} stroke={C.ink} strokeWidth={1.4} strokeDasharray="6 4" fill="none" /> : null}
+        <Path d={pts.map((p) => `M${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}h0.01`).join("")} stroke={C.line} strokeWidth={dot * 2} strokeLinecap="round" fill="none" />
+        {line ? <Path d={`M${sx(x0).toFixed(1)} ${sy(line.first).toFixed(1)} L${sx(x1).toFixed(1)} ${sy(line.last).toFixed(1)}`} stroke={C.gray} strokeWidth={1.2} strokeDasharray="6 4" fill="none" /> : null}
+        {usual && usual.length > 1 ? <Path d={usual.map((v, i) => `${i ? "L" : "M"}${(PAD.l + (i / (usual.length - 1)) * pw).toFixed(1)} ${sy(v).toFixed(1)}`).join(" ")} stroke={C.accent} strokeWidth={1.6} strokeDasharray="2 4" strokeLinecap="round" fill="none" /> : null}
+        {avg.length > 1 ? <Path d={pathOf(avg, sx, sy)} stroke={C.ink} strokeWidth={2.2} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
         {ticks(x0, x1, 3).map((v) => (
           <Lab key={v} x={sx(v)} y={H - PAD.b + 12} anchor="middle">
             {whole(v)}
@@ -1231,6 +827,137 @@ function WorkPerStroke({ pts, trend, w }: { pts: XY[]; trend: AnalysisTrend | nu
           STROKE
         </Lab>
       </Svg>
+      <Text style={[mono(9, false, C.gray, 0.1), { marginTop: 4, lineHeight: 15 }]}>Solid: moving average · dashed grey: the straight trend{usual ? " · dotted blue: your other rows at this distance" : ""}</Text>
+    </>
+  );
+}
+
+/* The three thirds of the moving average, said. */
+function workWords(avg: XY[], usual: number[] | null): string | null {
+  if (avg.length < 9) return null;
+  const third = Math.floor(avg.length / 3);
+  const a = meanOf(avg.slice(0, third).map((p) => p.y));
+  const b = meanOf(avg.slice(third, 2 * third).map((p) => p.y));
+  const c = meanOf(avg.slice(2 * third).map((p) => p.y));
+  const all = meanOf(avg.map((p) => p.y));
+  const pct = (x: number, y: number) => Math.round((Math.abs(x - y) / y) * 100);
+  const f = (v: number) => v.toFixed(0);
+  const flat = Math.max(a, b, c) - Math.min(a, b, c) < all * 0.03;
+  let said: string;
+  if (flat) said = `Every third of the piece took the same push, about ${f(all)} joules a stroke: nothing built and nothing faded.`;
+  else if (b > a && b > c) said = `It built through the first third (${f(a)} to ${f(b)} joules) and then gave ${pct(c, b)}% of it back by the end (${f(c)}). The middle was the strongest part of the row.`;
+  else if (c < a) said = `Each stroke did less as the piece went on: ${f(a)} joules in the first third, ${f(c)} in the last, ${pct(c, a)}% down. If the split held, the rate rose to cover it.`;
+  else said = `Each stroke did more as the piece went on: ${f(a)} joules in the first third, ${f(c)} in the last. There was more there at the start.`;
+  if (usual && usual.length) {
+    const u = meanOf(usual);
+    if (u > 0 && Math.abs(all - u) / u >= 0.02) said += ` Against your other rows at this distance it ran ${pct(all, u)}% ${all > u ? "higher" : "lower"} (${f(all)} against ${f(u)}).`;
+  }
+  return said;
+}
+
+/* ---- HOW STEADY --------------------------------------------------------- */
+
+/* A SCORE TO CHASE THAT IS NOT SPEED (owner, 2026-11-21: "I really like the
+ * idea of the how steady metric ... giving you like a rating for how steady
+ * you are that you can work on ... it doesn't matter if I'm rowing a 201 or
+ * a 230 if I am going for this like constant rate"; "the consistency of
+ * your force curve is probably something that you would want to optimize").
+ *
+ *   STEADY        100, less ten for every 1% the split wandered from its
+ *                 own average, read five strokes at a time (the standard
+ *                 deviation of the split over its mean). A 2:00 split held within a
+ *                 second and a bit scores 90.
+ *   SAME STROKE   100, less three for every 1% the shape of a stroke
+ *                 differed from the average stroke, each curve first scaled
+ *                 to its own peak, so pulling harder does not count against
+ *                 it: only pulling differently does.
+ *
+ * Both leave out the first strokes and the last, which are the flywheel
+ * and the finish. Neither knows how fast the piece was. */
+export type Craft = { steady: number | null; paceMean: number; paceSd: number; within1: number; paces: number[]; same: number | null; rateSd: number | null };
+function craftOf(a: ErgAnalysis, doc: TelemetryDoc): Craft {
+  const counted = a.series.filter((s) => s.counted);
+  /* Five strokes at a time: one stroke's split jumps a second or two by
+   * itself on any monitor, and that is not the rower wandering. */
+  const paces = smooth(trimEnds(counted.filter((s) => num(s.paceTenths) && (s.paceTenths as number) > 0).map((s) => ({ x: s.n, y: (s.paceTenths as number) / 10 }))), 5).map((p) => p.y);
+  const paceMean = meanOf(paces);
+  const paceSd = sdOf(paces);
+  const steady = paces.length >= 10 && paceMean > 0 ? Math.max(0, Math.min(100, Math.round(100 - (paceSd / paceMean) * 1000))) : null;
+  const within1 = paces.length ? paces.filter((p) => Math.abs(p - paceMean) <= 1).length / paces.length : 0;
+  /* The shape of each stroke against the average shape. */
+  const shapes = doc.forceCurves
+    .slice(3, -2)
+    .filter((c) => c.points.length >= 6 && Math.max(...c.points) > 0)
+    .map((c) => {
+      const r = resample(c.points, 32);
+      const peak = Math.max(...r) || 1;
+      return r.map((v) => v / peak);
+    });
+  let same: number | null = null;
+  if (shapes.length >= 8) {
+    const mean = shapes[0].map((_, i) => meanOf(shapes.map((s) => s[i])));
+    const rms = meanOf(shapes.map((s) => Math.sqrt(meanOf(s.map((v, i) => (v - mean[i]) ** 2)))));
+    same = Math.max(0, Math.min(100, Math.round(100 - rms * 300)));
+  }
+  const rates = trimEnds(counted.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number }))).map((p) => p.y);
+  return { steady, paceMean, paceSd, within1, paces, same, rateSd: rates.length >= 10 ? sdOf(rates) : null };
+}
+const steadyWord = (n: number) => (n >= 92 ? "Metronome" : n >= 85 ? "Steady" : n >= 75 ? "Mostly steady" : n >= 60 ? "Wandering" : "All over the place");
+
+/* WHERE EVERY STROKE'S SPLIT FELL: columns of how many strokes were rowed
+ * at each split, the average marked, and the band one deviation either
+ * side of it shaded. A tall, narrow stack is a steady piece. Faster is at
+ * the left. */
+function PaceSpread({ c, w }: { c: Craft; w: number }) {
+  const H = 150;
+  const pad: Pad = { l: 8, r: 8, t: 14, b: 26 };
+  const pw = w - pad.l - pad.r;
+  const ph = H - pad.t - pad.b;
+  if (pw < 40 || c.paces.length < 10) return null;
+  const span = Math.max(c.paceSd * 3.2, 2);
+  const lo = c.paceMean - span;
+  const hi = c.paceMean + span;
+  const BINS = 25;
+  const counts = Array.from({ length: BINS }, () => 0);
+  for (const p of c.paces) counts[Math.max(0, Math.min(BINS - 1, Math.floor(((p - lo) / (hi - lo)) * BINS)))]++;
+  const top = Math.max(1, ...counts);
+  const sx = (v: number) => pad.l + ((v - lo) / (hi - lo)) * pw;
+  const bw = pw / BINS;
+  const base = H - pad.b;
+  return (
+    <Svg width={w} height={H}>
+      <Rect x={sx(c.paceMean - c.paceSd)} y={pad.t} width={Math.max(0, sx(c.paceMean + c.paceSd) - sx(c.paceMean - c.paceSd))} height={ph} fill={C.accent} opacity={0.12} />
+      {counts.map((n, i) => (n ? <Rect key={i} x={pad.l + i * bw + 1} y={base - (n / top) * ph} width={Math.max(1, bw - 2)} height={(n / top) * ph} fill={C.ink} /> : null))}
+      <Line x1={sx(c.paceMean)} x2={sx(c.paceMean)} y1={pad.t - 4} y2={base} stroke={C.accent} strokeWidth={2} />
+      <Line x1={pad.l} x2={w - pad.r} y1={base} y2={base} stroke={C.ink} strokeWidth={1.5} />
+      {[lo + span * 0.2, c.paceMean, hi - span * 0.2].map((v, i) => (
+        <Lab key={i} x={sx(v)} y={base + 12} anchor="middle" bold={i === 1} color={i === 1 ? C.accent : undefined}>
+          {paceFmt(v)}
+        </Lab>
+      ))}
+      <Lab x={pad.l} y={H - 2} size={8}>
+        ← FASTER
+      </Lab>
+      <Lab x={w - pad.r} y={H - 2} anchor="end" size={8}>
+        SLOWER →
+      </Lab>
+    </Svg>
+  );
+}
+
+/* One score: its name, the figure out of a hundred, and its bar. */
+function Score({ k, v, word }: { k: string; v: number; word: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={mono(10, false, C.gray)}>{k}</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 48, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 2 }}>
+        {v}
+        <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}> /100</Text>
+      </Text>
+      <View style={{ height: 6, backgroundColor: C.pale, marginTop: 4 }}>
+        <View style={{ height: 6, width: `${v}%`, backgroundColor: C.accent }} />
+      </View>
+      <Text style={[mono(10, true, C.ink, 0.1), { marginTop: 6 }]}>{word}</Text>
     </View>
   );
 }

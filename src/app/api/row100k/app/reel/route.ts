@@ -4,7 +4,7 @@ import { CHALLENGE } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { monthFromKey } from "@/lib/rowPeriod";
 import { validateTelemetryDoc } from "@/lib/pm5/session";
-import { ergApiDenial, ergViewer } from "@/app/erg/gate";
+import { ergAppDenial, ergViewer } from "@/app/erg/gate";
 import type { BgId, ClipId, ScreenId, UnitId } from "@/app/erg/reel/paint";
 import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, renderReelMp4, renderReelStill, type ReelFormat } from "@/app/erg/reel/serverReel";
 
@@ -20,9 +20,9 @@ import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, render
  * The frames are the site's own reel painting (erg/reel/paint.ts), filmed
  * on the server (erg/reel/serverReel.ts).
  *
- * Wears the erg gate, as the site's reel page does (app/erg/gate.ts): the
- * erg product is in development, so in production this answers admins
- * only. The row must be the caller's own; an admin may film anybody's. */
+ * Any signed-in rower, since the app opened on 2026-11-21 (app/erg/gate.ts,
+ * ergAppDenial). The row must be the caller's own; an admin may film
+ * anybody's. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,7 +32,7 @@ const oneOf = <T extends string>(v: string | null, list: readonly T[], d: T): T 
 
 export async function GET(req: Request) {
   const viewer = await ergViewer();
-  const denied = ergApiDenial(viewer);
+  const denied = ergAppDenial(viewer);
   if (denied) return no(denied.error, denied.status);
   try {
     const q = new URL(req.url).searchParams;

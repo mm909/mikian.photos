@@ -120,7 +120,7 @@ export async function GET(req: Request) {
           /* A reel can be filmed: a recording is tied to the row, it is the
            * viewer's to film, and the erg gate is open to them (admins only
            * in production while the erg is in development). */
-          canReel: !!t && full && (process.env.NODE_ENV !== "production" || viewer.isAdmin),
+          canReel: !!t && full,
           erg: t ? { id: t.id, device: t.device, simulated: t.simulated, watts: t.avgWatts, spm: t.avgSpm, hr: t.avgHr, drag: t.dragFactor, strokes: t.strokes } : null,
           doc: t && full && "data" in t ? t.data : null,
         },

@@ -145,6 +145,13 @@ model Photographer {
   name           String
   // populated by NextAuth on first sign-in; nullable for seeded test rows
   googleSubject  String?  @unique
+  /// Sign in with Apple, from the phone app (2026-11-21): Apple's own stable
+  /// id for this person and this app. Additive; null for everybody who has
+  /// only ever signed in with Google. NOT @unique in the schema: adding a
+  /// unique constraint to a table with rows makes `prisma db push` ask
+  /// for --accept-data-loss, which the production build never passes
+  /// (scripts/db-push-prod.mjs). upsertAppleAccount keeps it one to one.
+  appleSubject   String?
   // Soft default for the upload event picker (NOT an access grant — access is
   // EventPhotographer only). Pre-selects this event if the user can upload to it.
   primaryEventId String?

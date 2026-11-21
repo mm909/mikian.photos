@@ -61,6 +61,24 @@ const GOOGLE_KEYS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
 
 export type GoogleIdentity = { sub: string; email: string; name: string };
 
+/* APPLE'S ID TOKEN, checked the same way: signed by Apple, and minted for
+ * THIS app (its bundle id; APPLE_BUNDLE_ID overrides the one the app
+ * ships with). Apple puts the email in the token, a relay address when the
+ * person chose to hide theirs, and never the name: the app hands the name
+ * over beside the token, the one time Apple gives it. */
+const APPLE_KEYS = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
+export async function verifyAppleIdToken(idToken: string, name?: string): Promise<GoogleIdentity | null> {
+  try {
+    const { payload } = await jwtVerify(idToken, APPLE_KEYS, { issuer: "https://appleid.apple.com", audience: process.env.APPLE_BUNDLE_ID || "com.rowtember.app" });
+    const email = typeof payload.email === "string" ? payload.email.toLowerCase().trim() : "";
+    if (!payload.sub || !email || payload.email_verified === false || payload.email_verified === "false") return null;
+    const said = typeof name === "string" ? name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+    return { sub: payload.sub, email, name: said || email.split("@")[0] };
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdentity | null> {
   const audience = [process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_IOS_CLIENT_ID, process.env.GOOGLE_ANDROID_CLIENT_ID].filter((v): v is string => !!v);
   if (audience.length === 0) return null;

@@ -230,6 +230,31 @@ Built the same day, checked on the sandbox (`scripts/rowed-check.ts`, and at pho
 
 Not built, with why: sharing the rankings table (he set it aside), other makes of erg (needs a machine to test against; see Questions), birthday and gender from Google (two sensitive scopes that Google must review for the whole site's sign-in), more than two photos and video (after release), push to the lock screen (above).
 
+### Round 17, 2026-11-21: the row's page, and the store
+
+His words in quotes. Built and checked on the sandbox the same day.
+
+- **The bars hold still at the foot of a list.** "Wants to fight you as you scroll down, and the bottom bar ... goes large, goes small, goes large." Nothing is told to the bars within a short way of the end of a list (`useScrollDir`).
+- **A row is edited from its three dots.** "I really don't like the ability to edit the caption without ... clicking those three dots and then explicitly editing it." EDIT ROW in the row's menu, on the rower's own row; no word on the page writes anything. The thing written is a DESCRIPTION ("description is probably a better word"); the column is still `caption`. Changing photos from EDIT ROW is not built.
+- **Every sheet stands on the keyboard** ("the keyboard covers where you're writing"): `useKeyboardHeight` in `ui.tsx`, used by `Sheet`.
+- **These are ROWS**, not activities ("these can just be called rows").
+- **Stickers above the reel overlays** on a row's page, a strip of them.
+- **The monitor's averages** are one line, and only where the read is not shown: the read's NUMBERS carry them ("the numbers section and the erg have really similar data. Do we need both? I don't think so"). Drag factor and strokes joined THE NUMBERS.
+- **ANALYTICS**, where it said saved session. **No playback** ("I don't want to support that"); the site's page still has it.
+- **Each chart is a box** with a title in the head's face and ONE sentence under it, worked out from the numbers ("box these charts up a little bit ... is there anything useful we can say ... below these charts?"). A chart with nothing to say says nothing.
+- **Pace along the piece** is a moving-average line, not a bar a split. **Rate and length** are moving averages with the first and last strokes cut off ("the meters per stroke dropped a lot because it finished"). **Work per stroke** has its moving average, the straight trend as a quiet dashed rule, and the moving average of his other recordings at that distance when the phone holds any.
+- **The force curve** says where its peak sits and whether it is one hump or two. No "ideal" line is drawn: there is not one curve that is right for everybody, and he said "if we can infer this ... we don't need to come up with something".
+- **HOW STEADY, two scores out of 100 that are not speed.** "There should be a reward to chase for being very steady ... it doesn't matter if I'm rowing a 201 or a 230." STEADY PACE: 100 less ten for every 1% the split wandered from its own average, read five strokes at a time. SAME STROKE: 100 less three for every 1% a stroke's force curve differed in shape from the average stroke. With them, the spread of every stroke's split as columns. The constants are a first guess: tune them once real rows have been scored.
+- **The foot** lost its two paragraphs and gained the monitor's name, serial and firmware.
+
+For the store, the same day ("Do all the items to get it Apple App Store ready"):
+
+- The app's routes answer every signed-in rower (`SOCIAL_LIVE = true`).
+- DELETE ACCOUNT in Settings, Account: the rower's number typed back, and everything of theirs goes.
+- A privacy policy and terms at `/row100k/privacy` and `/row100k/terms`, linked from Settings and from the sign-in screen.
+- Sign in with Apple: the server takes an Apple identity (`appleToken` on the session route). The button is in the build that carries `expo-apple-authentication`.
+- Left for him, because only he can: an App Store Connect listing (name, screenshots, description, age rating, the privacy questionnaire), a production build and its submission.
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

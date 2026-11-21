@@ -147,7 +147,7 @@ export function RowPage({
           <Avatar uri={r.avatar} name={r.name} size={40} />
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel={`${r.name}, rower ${r.numStr}`} onPress={() => onRower(r.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 18, color: r.mine ? C.accent : C.ink }}>
+          <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 18, color: C.ink }}>
             {r.name}
           </Text>
           <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 3 }}>
@@ -191,6 +191,10 @@ export function RowPage({
               leave();
               onRower(n);
             }}
+            onEdit={() => {
+              leave();
+              setWriting(true);
+            }}
             onChange={(what) => {
               leave();
               if (what === "row-gone" || what === "blocked") onDone();
@@ -205,17 +209,17 @@ export function RowPage({
           are behind the share mark. */}
       <PostActions id={r.id} likes={r.likes ?? 0} liked={!!r.liked} comments={said ?? r.comments ?? 0} onComments={() => setTalking(true)} onShare={r.canShare && !r.masked ? () => setSharing(true) : undefined} style={{ marginTop: 12 }} />
 
-      {/* THE CAPTION, under the marks, the name before it. The rower can
-          write one, or change it, from here. */}
+      {/* THE DESCRIPTION, under the marks, the name before it. It is
+          written and changed from EDIT ROW behind the three dots, never
+          from a word on the page (owner, 2026-11-21: "I really don't like
+          the ability to edit the caption without ... clicking those three
+          dots and then explicitly editing it"; and of the word: "maybe
+          caption isn't best word. Description is probably a better
+          word"). */}
       {(words ?? r.caption) ? (
         <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 10 }}>
           <Text style={{ fontFamily: F.bold }}>{r.name}</Text> {words ?? r.caption}
         </Text>
-      ) : null}
-      {r.mine ? (
-        <Pressable accessibilityRole="button" onPress={() => setWriting(true)} hitSlop={8} style={{ marginTop: 8, alignSelf: "flex-start" }}>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 11, color: C.gray }}>{(words ?? r.caption) ? "Edit caption" : "Add a caption"}</Text>
-        </Pressable>
       ) : null}
 
       {/* AGAINST THE USUAL (owner, 2026-11-22: "there's got to be some more
@@ -223,16 +227,25 @@ export function RowPage({
           row's performance compared to how you normally perform"). */}
       {r.usual && r.meters && r.seconds ? <Usual u={r.usual} meters={r.meters} seconds={r.seconds} mine={r.mine} name={r.name} /> : null}
 
+      {/* THE STICKERS, then the reels (owner, 2026-11-21: "before I see
+          the reel overlays, I want to see the sticker overlays above
+          them"). */}
+      {mayShare ? <Stickers rowId={r.id} onOpen={() => setSharing(true)} /> : null}
       {r.canReel && !r.masked ? <Reels rowId={r.id} /> : null}
 
-      {erg.length ? (
+      {/* THE MONITOR'S AVERAGES, on ONE line, and only where the read
+          below is not shown: the read's own NUMBERS carry the same figures
+          (owner, 2026-11-21: "the numbers section and the erg have really
+          similar data. Do we need both? I don't think so"; and of the
+          three: "put them all in the same line"). */}
+      {erg.length && !doc ? (
         <>
-          <Eye left="The erg" right={r.erg?.simulated ? "Demo" : r.erg?.device} />
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          <Eye left="Telemetry" right={r.erg?.simulated ? "Demo" : r.erg?.device} />
+          <View style={{ flexDirection: "row" }}>
             {erg.map(([v, k]) => (
-              <View key={k} style={{ width: "50%", paddingVertical: 10 }}>
-                <Text style={{ fontFamily: F.black, fontSize: 28, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
-                <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>{k}</Text>
+              <View key={k} style={{ flex: 1, paddingVertical: 10 }}>
+                <Text style={{ fontFamily: F.black, fontSize: 26, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
+                <Text style={[mono(9, false, C.gray, 0.12), { marginTop: 4 }]}>{k}</Text>
               </View>
             ))}
           </View>
@@ -250,6 +263,7 @@ export function RowPage({
           row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
           onClose={() => onMenu(false)}
           onRower={onRower}
+          onEdit={() => setWriting(true)}
           onChange={(what) => (what === "row-gone" || what === "blocked" ? onDone() : reload())}
         />
       ) : null}
@@ -468,7 +482,33 @@ function Climb({ meters }: { meters: number }) {
   );
 }
 
-/* The caption, written or changed after the row is up. */
+/* THE STICKERS OF THIS ROW, a strip of them on the ink they are made for.
+ * A press opens the viewer, where one is shared or copied. */
+function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
+  const { data } = useLoad(() => deck(rowId), [rowId]);
+  const cards = data?.cards ?? [];
+  if (!cards.length) return null;
+  return (
+    <>
+      <Eye left="Stickers" right="For your story" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        {cards.map((c) => (
+          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={onOpen} style={{ width: 124 }}>
+            <View style={{ height: 150, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
+              <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
+            </View>
+            <Text numberOfLines={1} style={[mono(10, true, C.ink, 0.12), { marginTop: 6 }]}>
+              {c.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Dash style={{ marginTop: 14 }} />
+    </>
+  );
+}
+
+/* The description, written or changed after the row is up: EDIT ROW. */
 function CaptionSheet({ id, start, onClose, onSaved }: { id: string; start: string; onClose: () => void; onSaved: (caption: string) => void }) {
   const [text, setText] = useState(start);
   const [busy, setBusy] = useState(false);
@@ -484,8 +524,8 @@ function CaptionSheet({ id, start, onClose, onSaved }: { id: string; start: stri
     }
   };
   return (
-    <Sheet title="Caption" onClose={onClose}>
-      <TextInput accessibilityLabel="Caption" value={text} onChangeText={setText} multiline autoFocus maxLength={500} placeholder="Say something about this row" placeholderTextColor={C.gray} style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 96, paddingVertical: 10, textAlignVertical: "top" }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]} />
+    <Sheet title="Edit row" right="Description" onClose={onClose}>
+      <TextInput accessibilityLabel="Description" value={text} onChangeText={setText} multiline autoFocus maxLength={500} placeholder="Say something about this row" placeholderTextColor={C.gray} style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 96, paddingVertical: 10, textAlignVertical: "top" }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]} />
       {error ? <Text style={[mono(11, false, C.accent), { marginBottom: 8 }]}>{error}</Text> : null}
       <Btn label={busy ? "Saving" : "Save"} disabled={busy} onPress={save} />
     </Sheet>

@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { api, edits, type SocialSettings } from "../api";
+import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { SITE, api, edits, type SocialSettings } from "../api";
 import { useLookSwitch } from "../look";
 import { useSession } from "../session";
 import { Eye, mono } from "../site";
 import { C, F } from "../theme";
 import { pickFace, setAvatar } from "../upload";
 import { Avatar, Waiting, useLoad } from "../ui";
-import { Act, Small, Toggle, type PeopleList } from "./Social";
+import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
 
 /* SETTINGS, behind the three lines on the rower's own profile (owner,
  * 2026-11-21: "the settings should probably just be like ... how do they
@@ -84,6 +84,10 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
         <Go label="Notifications" sub="What you are told about" onPress={() => onPage("notifications")} />
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
         <View style={{ height: 26 }} />
+        {/* What the store asks to be a press away: the policy and the terms. */}
+        <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/privacy").catch(() => null)} />
+        <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/terms").catch(() => null)} />
+        <View style={{ height: 26 }} />
         <Act
           label="Sign out"
           onPress={async () => {
@@ -130,11 +134,24 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
     );
   }
 
-  return wrap(<AccountPage s={s} name={me.me?.displayName ?? ""} save={save} onPhoto={async () => setS((await api<{ settings: SocialSettings }>(PATH)).settings)} />);
+  return wrap(
+    <AccountPage
+      s={s}
+      name={me.me?.displayName ?? ""}
+      num={me.me?.rowerNumber ?? 0}
+      save={save}
+      onPhoto={async () => setS((await api<{ settings: SocialSettings }>(PATH)).settings)}
+      onDeleted={async () => {
+        await signOut();
+        onSignedOut();
+      }}
+    />,
+  );
 }
 
 /* ACCOUNT: the photo, the bio, and three lines that are the rower's own. */
-function AccountPage({ s, name, save, onPhoto }: { s: SocialSettings; name: string; save: (body: Record<string, unknown>) => Promise<boolean>; onPhoto: () => Promise<void> }) {
+function AccountPage({ s, name, num, save, onPhoto, onDeleted }: { s: SocialSettings; name: string; num: number; save: (body: Record<string, unknown>) => Promise<boolean>; onPhoto: () => Promise<void>; onDeleted: () => Promise<void> }) {
+  const [deleting, setDeleting] = useState(false);
   const { refresh } = useSession();
   /* The profile photo: one picture out of the library, sent, then named
    * as mine. `face` is "busy" while it goes, or what went wrong. */
@@ -281,7 +298,47 @@ function AccountPage({ s, name, save, onPhoto }: { s: SocialSettings; name: stri
         <Small label={state === "busy" ? "Saving" : "Save"} fill disabled={state === "busy"} onPress={submit} />
         {state === "saved" ? <Text style={mono(11, false, C.gray)}>Saved</Text> : null}
       </View>
+
+      {/* THE WAY OUT FOR GOOD. Apple asks that an account made in an app
+          can be deleted in it; and it is the rower's own to delete. */}
+      <View style={{ marginTop: 44, borderTopWidth: 1, borderColor: C.line }}>
+        <Act label="Delete account" danger onPress={() => setDeleting(true)} />
+      </View>
+      {deleting ? <DeleteSheet num={num} onClose={() => setDeleting(false)} onDeleted={onDeleted} /> : null}
     </>
+  );
+}
+
+/* DELETE ACCOUNT: what goes, and the rower's own number typed back before
+ * it will. */
+function DeleteSheet({ num, onClose, onDeleted }: { num: number; onClose: () => void; onDeleted: () => Promise<void> }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const n3 = String(num).padStart(3, "0");
+  const go = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/row100k/app/account", { method: "DELETE", body: { confirm: num } });
+      await onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not go through.");
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title="Delete account" right={"Rower " + n3} onClose={onClose}>
+      <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.soft, marginTop: 10 }}>
+        This deletes your rower for good: every row you have logged, your photos, your followers and who you follow, your likes, comments and saved telemetry. It cannot be undone. Type your rower number, {n3}, to go ahead.
+      </Text>
+      <TextInput accessibilityLabel="Your rower number" value={typed} onChangeText={setTyped} keyboardType="number-pad" placeholder={n3} placeholderTextColor={C.line} style={[{ marginTop: 14, borderBottomWidth: 2, borderColor: C.ink, fontFamily: F.black, fontSize: 28, color: C.ink, paddingVertical: 6 }, WEB_NO_RING]} />
+      {error ? <Text style={[mono(11, false, C.accent, 0.1), { marginTop: 10 }]}>{error}</Text> : null}
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+        <Small label="Cancel" onPress={onClose} />
+        <Small label={busy ? "Deleting" : "Delete my account"} fill disabled={busy || typed.trim() === "" || Number(typed) !== num} onPress={go} />
+      </View>
+    </Sheet>
   );
 }
 

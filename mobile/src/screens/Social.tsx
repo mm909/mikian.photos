@@ -6,7 +6,7 @@ import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Avatar, Waiting, useLoad, useModalHold, useScrollDir } from "../ui";
+import { Avatar, Waiting, useKeyboardHeight, useLoad, useModalHold, useScrollDir } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
  * (pass 3, 2026-11-21). The owner's list, 2026-11-20: "follow someone, set
@@ -106,17 +106,20 @@ export function Sheet({ title, right, onClose, children }: { title: string; righ
    * three dots ... it animates up from the bottom. So let's make sure we
    * animate up from the bottom"): the shade fades in while the sheet rises. */
   useModalHold();
+  /* A sheet with a field in it stands on the keyboard, paper behind it. */
+  const kb = useKeyboardHeight();
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(a, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [a]);
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+      <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: kb }}>
         <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
           <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1 }} />
         </Animated.View>
-        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 34, width: "100%", maxWidth: 560, alignSelf: "center", transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }) }] }}>
+        {kb > 0 ? <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: kb + 40, backgroundColor: C.paper }} /> : null}
+        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 20, paddingTop: 18, paddingBottom: kb > 0 ? 14 : 34, width: "100%", maxWidth: 560, alignSelf: "center", transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }) }] }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 8, marginBottom: 6 }}>
             <Text style={mono(11, true)}>{title}</Text>
             {right ? (
@@ -571,7 +574,7 @@ export function RowerMenu({
  * remove one photo, or the row. */
 export type RowMenuRow = { id: string; rowerNumber: number; name: string; mine: boolean; photos: number; rel: { following: FollowState; bell: boolean; muted?: boolean } };
 export type RowMenuChange = "rel" | "muted" | "blocked" | "row-gone" | "photo";
-export function RowMenu({ row, onClose, onRower, onRow, onShare, onChange }: { row: RowMenuRow; onClose: () => void; onRower?: (n: number) => void; onRow?: (id: string) => void; onShare?: () => void; onChange: (what: RowMenuChange, rel?: { following: FollowState; bell: boolean }) => void }) {
+export function RowMenu({ row, onClose, onRower, onRow, onShare, onEdit, onChange }: { row: RowMenuRow; onClose: () => void; onRower?: (n: number) => void; onRow?: (id: string) => void; onShare?: () => void; /* The rower's own row, on its page: EDIT ROW. */ onEdit?: () => void; onChange: (what: RowMenuChange, rel?: { following: FollowState; bell: boolean }) => void }) {
   const { me, refresh } = useSession();
   const [step, setStep] = useState<"" | "report" | "row" | number>("");
   const num = row.rowerNumber;
@@ -621,6 +624,18 @@ export function RowMenu({ row, onClose, onRower, onRow, onShare, onChange }: { r
           onPress={() => {
             onClose();
             onShare();
+          }}
+        />
+      ) : null}
+      {/* EDIT ROW (owner, 2026-11-21: "you should probably have to click
+          those three dots up at the top and then do like an edit activity
+          ... these can just be called rows"). */}
+      {onEdit && row.mine ? (
+        <Act
+          label="Edit row"
+          onPress={() => {
+            onClose();
+            onEdit();
           }}
         />
       ) : null}

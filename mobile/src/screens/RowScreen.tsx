@@ -529,8 +529,8 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
 
       {/* A CAPTION, shown under the photos (owner, 2026-11-22). */}
       <Card>
-        <Eyebrow style={{ color: C.ink }}>A caption (optional)</Eyebrow>
-        <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 16, lineHeight: 22, fontFamily: F.sans, paddingVertical: 8, color: C.ink, minHeight: 44 }} value={caption} onChangeText={setCaption} multiline maxLength={500} accessibilityLabel="Caption" />
+        <Eyebrow style={{ color: C.ink }}>A description (optional)</Eyebrow>
+        <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 16, lineHeight: 22, fontFamily: F.sans, paddingVertical: 8, color: C.ink, minHeight: 44 }} value={caption} onChangeText={setCaption} multiline maxLength={500} accessibilityLabel="Description" />
       </Card>
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}

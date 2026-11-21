@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { peek } from "./api";
-import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { CloseIcon, DotsIcon } from "./icons";
 import { C, F, onLook } from "./theme";
 
@@ -295,6 +295,32 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
       ) : null}
     </View>
   );
+}
+
+/* HOW TALL THE KEYBOARD IS, none when it is down: for a sheet at the foot
+ * of the screen, which has to stand on top of it (owner, 2026-11-21, of the
+ * sheet a description is written in: "the keyboard covers where you're
+ * writing so you can't see it"). The move is the keyboard's own, so the
+ * sheet rises with it. Nothing in a browser, which moves the page itself. */
+export function useKeyboardHeight(): number {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const ios = Platform.OS === "ios";
+    const up = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+      Keyboard.scheduleLayoutAnimation(e);
+      setKb(e.endCoordinates.height);
+    });
+    const down = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", (e) => {
+      Keyboard.scheduleLayoutAnimation(e);
+      setKb(0);
+    });
+    return () => {
+      up.remove();
+      down.remove();
+    };
+  }, []);
+  return kb;
 }
 
 /* SOMETHING IS OPEN OVER THE SCREEN (photos, stickers, a sheet, the

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { SAME_ORIGIN, api } from "../api";
+import { SAME_ORIGIN, SITE, api } from "../api";
 import { useSession } from "../session";
 import { C, F, onLook } from "../theme";
 import { Btn, Eyebrow, styles } from "../ui";
@@ -71,6 +71,17 @@ export function SignIn({ why }: { why: string }) {
           }}
         />
       ) : null}
+      <Text style={[styles.body, { fontSize: 13, lineHeight: 19, marginTop: 14 }]}>
+        By signing in you agree to the{" "}
+        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/terms").catch(() => null)}>
+          terms
+        </Text>{" "}
+        and the{" "}
+        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/privacy").catch(() => null)}>
+          privacy policy
+        </Text>
+        . There is no tolerance for abusive content: rows and rowers can be reported and blocked.
+      </Text>
       {__DEV__ ? (
         <View style={{ marginTop: 22 }}>
           <Eyebrow>Development: an existing account's email</Eyebrow>

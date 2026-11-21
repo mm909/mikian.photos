@@ -57,19 +57,21 @@ Owner, 2026-11-20: "Lets also move to just normal month names, the event/app is 
 
 This replaces the naming half of the edition rule above: a month is September or November on the site and in the app, and ROWVEMBER is retired as a name. A shareable (a card, a poster, a reel) is signed ROW or ROWTEMBER; of the two, the owner picked ROW the same day ("Lets try it w/ just ROW"), and the share cards carry it (`MARK` in `src/app/row100k/share/cards.ts`). The "reset never deletes" half of that rule stands. As of 2026-11-20 the code still carries the Rowvember nameplate and assets; changing them is a task the owner has not yet started.
 
-## The phone app follows the website, and is in development
+## The phone app follows the website, and is open to every rower
 
 Owner, 2026-11-20, of the phone app in `mobile/`: "I would strongly encourage you to review the current site for style guides and UI/UX ... those things we have already iterated on while designing the website can come over." And 2026-11-21, after an app screen grew a big blue callout the site's board does not have: "please reference the website before you try to redesign a UI."
 
 Before building or changing an app screen, open the site's version of it and bring that over; add nothing the site's page does not have unless he asks. For the app's own frame (the bars, where a button lives) his reference is Instagram: "I really like how Instagram's app is set up" (plus top left, the mark in the middle, the bell top right, glyphs at the bottom). His decisions are kept in `mobile/DESIGN.md`; read it first and add to it.
 
-The app is not live. Its web build (`public/row100k/app/`, rebuilt by `npm run export:web` in `mobile/`) is unlisted, and the routes only the app writes through answer admins only in production (`SOCIAL_LIVE` in `src/app/api/row100k/app/social.ts`). "Push it live" from him, of the app, means merge to main so he can open that build on his phone; it does not lift the gate.
+Owner, 2026-11-21, of "open the app's routes to non-admins; they are admin-only in production now": "Do this". So since that day the routes the app writes through answer any signed-in rower in production (`SOCIAL_LIVE = true` in `src/app/api/row100k/app/social.ts`; the app's own erg and reel routes wear `ergAppDenial` in `src/app/erg/gate.ts`). The site's `/erg` pages and the site's own erg routes are still admin-only. The app's web build (`public/row100k/app/`, rebuilt by `npm run export:web` in `mobile/`) is still unlisted: nothing on the site links to it, and it is not in a store. "Push it live" from him, of the app, means merge to main and publish the update (below).
+
+A rower can delete their own account from the app (`api/row100k/app/account`, Apple asks for it). That is the rower's own request about their own data, not a reset; the rule that a reset never deletes stands. The app's privacy policy and terms are public pages (`/row100k/privacy`, `/row100k/terms`) because a store listing links to them; they say what the code does, so change the two together.
 
 ### His installed build takes new code over the air; say when it needs a rebuild
 
 Owner, 2026-11-21, asked whether every change needs `eas build` again: "lets do this and make sure to tell me if i need to re run".
 
-The installed app fetches new code as it opens (`expo-updates`, `mobile/src/ota.ts`; the build's channel is its profile's name in `mobile/eas.json`, his phone wears `preview`). After a push that changes the app, publish it from `mobile/`: `npx eas-cli@latest update --channel preview --message "<the commit's subject>"`. That reaches only a build of the same runtime version, which is the `version` in `mobile/app.json`.
+The installed app fetches new code as it opens (`expo-updates`, `mobile/src/ota.ts`; the build's channel is its profile's name in `mobile/eas.json`, his phone wears `preview`). After a push that changes the app, publish it from `mobile/`: `npx eas-cli@latest update --channel preview --environment preview --platform ios --non-interactive --message "<the commit's subject>"`. That reaches only a build of the same runtime version, which is the `version` in `mobile/app.json`.
 
 A change the bundle cannot carry needs a new build from him: a native module added, removed or upgraded (anything in `package.json` with native code), a plugin, permission, icon, scheme or anything else in `app.json`, an Expo SDK bump. When a batch has one, raise `version` in `app.json` in the same commit, so the old build does not take code it cannot run, and tell him in the closing message, in so many words, that he must run `npx eas-cli@latest build --profile preview --platform ios` and install the result. When a batch has none, say that no rebuild is needed.
 

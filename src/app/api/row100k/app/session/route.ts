@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mintAppToken, verifyGoogleIdToken } from "@/lib/appToken";
-import { upsertGoogleAccount } from "@/lib/auth";
+import { mintAppToken, verifyAppleIdToken, verifyGoogleIdToken } from "@/lib/appToken";
+import { upsertAppleAccount, upsertGoogleAccount } from "@/lib/auth";
 import { rateLimit } from "@/lib/rateLimit";
 
 /* THE PHONE APP SIGNS IN (2026-11-20). POST { idToken } — the ID token
@@ -36,6 +36,12 @@ export async function POST(req: Request) {
       const row = await db.photographer.findFirst({ where: { email: body.devEmail.trim().toLowerCase() }, select: { id: true } });
       if (!row) return no("No such account.", 404);
       return NextResponse.json({ ok: true, token: await mintAppToken(row.id) }, { headers: NO_STORE });
+    }
+    /* SIGN IN WITH APPLE: POST { appleToken, name? }. */
+    if (typeof body.appleToken === "string") {
+      const apple = await verifyAppleIdToken(body.appleToken, typeof body.name === "string" ? body.name : undefined);
+      if (!apple) return no("Apple did not confirm that sign-in. Try again.", 401);
+      return NextResponse.json({ ok: true, token: await mintAppToken(await upsertAppleAccount(apple)) }, { headers: NO_STORE });
     }
     const idToken = typeof body.idToken === "string" ? body.idToken : "";
     const who = idToken ? await verifyGoogleIdToken(idToken) : null;

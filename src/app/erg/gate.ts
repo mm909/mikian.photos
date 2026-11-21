@@ -51,6 +51,16 @@ export function ergPageOpen(v: ErgViewer): boolean {
   return process.env.NODE_ENV !== "production" || v.isAdmin;
 }
 
+/* THE PHONE APP'S OWN TWO ERG ROUTES (api/row100k/app/erg and .../reel)
+ * are open to any signed-in account since 2026-11-21, when the owner
+ * opened the app to every rower: a rower saves and films their OWN rows
+ * through them, and each route still checks whose row it is. The /erg
+ * pages of the site, and the site's own erg routes, keep the door above. */
+export function ergAppDenial(v: ErgViewer): { error: string; status: number } | null {
+  if (!v.signedIn || !v.userId) return { error: "Sign in first.", status: 401 };
+  return null;
+}
+
 /* The same door for a route, which additionally wants a signed-in account
  * to file a session under. Null means let them through. */
 export function ergApiDenial(v: ErgViewer): { error: string; status: number } | null {

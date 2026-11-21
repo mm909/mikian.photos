@@ -12,12 +12,13 @@ export const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 export const no = (error: string, status: number) => NextResponse.json({ ok: false, error }, { status, headers: NO_STORE });
 export const yes = (body: Record<string, unknown> = {}) => NextResponse.json({ ok: true, ...body }, { headers: NO_STORE });
 
-/* IN DEVELOPMENT (CLAUDE.md, "New pages start in development"; owner,
- * 2026-10-01). The phone app is not live, so in production the routes that
- * only it writes through (follow, block, report, settings, the notification
- * centre, push tokens) answer admins and nobody else, as the erg routes do.
- * Open on a laptop. When the owner says the app is live, this becomes true. */
-export const SOCIAL_LIVE = false;
+/* OPEN TO EVERY ROWER since 2026-11-21 (owner, of "open the app's routes
+ * to non-admins; they are admin-only in production now": "Do this"). Until
+ * that day the routes only the app writes through (follow, block, report,
+ * settings, the notification centre, push tokens) answered admins and
+ * nobody else in production. False shuts them to everybody but admins
+ * again. */
+export const SOCIAL_LIVE = true;
 export const socialClosedTo = (v: Viewer) => !SOCIAL_LIVE && process.env.NODE_ENV === "production" && !v.isAdmin;
 
 /* The signed-in rower, or the answer to send instead. */

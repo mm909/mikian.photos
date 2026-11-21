@@ -74,6 +74,25 @@ export async function upsertGoogleAccount(g: { sub: string; email: string; name:
   return made.id;
 }
 
+/* THE ACCOUNT AN APPLE IDENTITY SIGNS IN AS (the phone app's Sign in with
+ * Apple, 2026-11-21: Apple asks for it beside any other sign-in). Found by
+ * Apple's own id for the person; failing that by the email Apple vouches
+ * for, which joins it to an account that Google made; failing that it is a
+ * new one. An Apple account is never made an owner by its email alone: a
+ * relay address proves nothing about who somebody is. */
+export async function upsertAppleAccount(a: { sub: string; email: string; name: string }): Promise<string> {
+  const email = a.email.toLowerCase().trim();
+  const bySub = await db.photographer.findFirst({ where: { appleSubject: a.sub }, select: { id: true } });
+  if (bySub) return bySub.id;
+  const byEmail = await db.photographer.findUnique({ where: { email }, select: { id: true } });
+  if (byEmail) {
+    await db.photographer.update({ where: { id: byEmail.id }, data: { appleSubject: a.sub } });
+    return byEmail.id;
+  }
+  const made = await db.photographer.create({ data: { appleSubject: a.sub, email, name: a.name || email.split("@")[0], roles: ["user"], isAdmin: false }, select: { id: true } });
+  return made.id;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     Google({

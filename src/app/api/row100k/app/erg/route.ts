@@ -4,7 +4,7 @@ import { CHALLENGE } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { validateTelemetryDoc } from "@/lib/pm5/session";
 import { ErgStoreError, insertErgSession } from "@/lib/pm5/store";
-import { ergApiDenial, ergViewer } from "@/app/erg/gate";
+import { ergAppDenial, ergViewer } from "@/app/erg/gate";
 
 /* THE PIECE BEHIND A LOGGED ROW (2026-11-20). The phone app logs a row
  * through /api/row100k/rows like everybody else, then, when the row came
@@ -24,7 +24,7 @@ const no = (error: string, status: number) => NextResponse.json({ ok: false, err
 
 export async function POST(req: Request) {
   const viewer = await ergViewer();
-  const denied = ergApiDenial(viewer);
+  const denied = ergAppDenial(viewer);
   if (denied) return no(denied.error, denied.status);
   const userId = viewer.userId as string;
 
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
  * rower's own, or anybody's for an admin; the same gate as saving one. */
 export async function GET(req: Request) {
   const viewer = await ergViewer();
-  const denied = ergApiDenial(viewer);
+  const denied = ergAppDenial(viewer);
   if (denied) return no(denied.error, denied.status);
   try {
     const id = new URL(req.url).searchParams.get("id") ?? "";
