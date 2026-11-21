@@ -251,7 +251,7 @@ For the store, the same day ("Do all the items to get it Apple App Store ready")
 
 - The app's routes answer every signed-in rower (`SOCIAL_LIVE = true`).
 - DELETE ACCOUNT in Settings, Account: the rower's number typed back, and everything of theirs goes.
-- A privacy policy and terms at `/row100k/privacy` and `/row100k/terms`, linked from Settings and from the sign-in screen.
+- A privacy policy and terms at `/row100k/app-privacy` and `/row100k/app-terms`, linked from Settings and from the sign-in screen.
 - Sign in with Apple: the server takes an Apple identity (`appleToken` on the session route). The button is in the build that carries `expo-apple-authentication`.
 - Left for him, because only he can: an App Store Connect listing (name, screenshots, description, age rating, the privacy questionnaire), a production build and its submission.
 

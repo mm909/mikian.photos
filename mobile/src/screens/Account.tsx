@@ -97,11 +97,11 @@ export function SignIn({ why }: { why: string }) {
       ) : null}
       <Text style={[styles.body, { fontSize: 13, lineHeight: 19, marginTop: 14 }]}>
         By signing in you agree to the{" "}
-        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/terms").catch(() => null)}>
+        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)}>
           terms
         </Text>{" "}
         and the{" "}
-        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/privacy").catch(() => null)}>
+        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)}>
           privacy policy
         </Text>
         . There is no tolerance for abusive content: rows and rowers can be reported and blocked.

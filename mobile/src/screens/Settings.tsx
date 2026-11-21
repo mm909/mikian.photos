@@ -85,8 +85,8 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
         <View style={{ height: 26 }} />
         {/* What the store asks to be a press away: the policy and the terms. */}
-        <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/privacy").catch(() => null)} />
-        <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/terms").catch(() => null)} />
+        <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
+        <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)} />
         <View style={{ height: 26 }} />
         <Act
           label="Sign out"

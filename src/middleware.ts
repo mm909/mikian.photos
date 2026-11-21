@@ -147,7 +147,12 @@ function stripPrefix(req: NextRequest): NextResponse | null {
   const { pathname, search } = req.nextUrl;
   if (pathname !== "/row100k" && !pathname.startsWith("/row100k/")) return null;
   const to = req.nextUrl.clone();
-  to.pathname = pathname === "/row100k" ? "/" : pathname.slice("/row100k".length);
+  /* The app's policy and terms were first linked as /row100k/privacy and
+   * /row100k/terms (2026-11-21), and a build on a phone still links so.
+   * Without the prefix those two names are the photo site's own pages, so
+   * they are sent to the app's. */
+  const moved: Record<string, string> = { "/row100k/privacy": "/app-privacy", "/row100k/terms": "/app-terms" };
+  to.pathname = moved[pathname] ?? (pathname === "/row100k" ? "/" : pathname.slice("/row100k".length));
   to.search = search;
   return NextResponse.redirect(to, 308);
 }

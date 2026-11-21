@@ -65,7 +65,7 @@ Before building or changing an app screen, open the site's version of it and bri
 
 Owner, 2026-11-21, of "open the app's routes to non-admins; they are admin-only in production now": "Do this". So since that day the routes the app writes through answer any signed-in rower in production (`SOCIAL_LIVE = true` in `src/app/api/row100k/app/social.ts`; the app's own erg and reel routes wear `ergAppDenial` in `src/app/erg/gate.ts`). The site's `/erg` pages and the site's own erg routes are still admin-only. The app's web build (`public/row100k/app/`, rebuilt by `npm run export:web` in `mobile/`) is still unlisted: nothing on the site links to it, and it is not in a store. "Push it live" from him, of the app, means merge to main and publish the update (below).
 
-A rower can delete their own account from the app (`api/row100k/app/account`, Apple asks for it). That is the rower's own request about their own data, not a reset; the rule that a reset never deletes stands. The app's privacy policy and terms are public pages (`/row100k/privacy`, `/row100k/terms`) because a store listing links to them; they say what the code does, so change the two together.
+A rower can delete their own account from the app (`api/row100k/app/account`, Apple asks for it). That is the rower's own request about their own data, not a reset; the rule that a reset never deletes stands. The app's privacy policy and terms are public pages (`/row100k/app-privacy`, `/row100k/app-terms`; on rowtember.com they are `/app-privacy` and `/app-terms`) because a store listing links to them; they say what the code does, so change the two together.
 
 ### His installed build takes new code over the air; say when it needs a rebuild
 
