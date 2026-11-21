@@ -4,7 +4,7 @@ import { api, type BoardData, type BoardRow } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
-import { Blocks, Waiting, useLoad } from "../ui";
+import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 
 /* THE 100K BOARD, the site's /board on a phone (board/Board100k.tsx,
  * board100kCss.ts):
@@ -35,7 +35,8 @@ const GOAL = 100_000;
 /* Everything right of the 100,000 m line: the meters column and the edge. */
 const FIGS = 102;
 
-export function BoardScreen({ onRower }: { onRower: (n: number) => void }) {
+export function BoardScreen({ onRower, onScrollDir }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void }) {
+  const dir = useScrollDir(onScrollDir);
   const { me, refresh } = useSession();
   const { data, error, loading, reload } = useLoad(() => api<BoardData>("/api/row100k/app/board"), [me.me?.rowerNumber], "/api/row100k/app/board");
   const [busy, setBusy] = useState(false);
@@ -60,7 +61,7 @@ export function BoardScreen({ onRower }: { onRower: (n: number) => void }) {
   const tierOf = (r: BoardRow) => data.tiers.find((t) => r.meters >= t.floor) ?? data.tiers[data.tiers.length - 1];
 
   return (
-    <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left={data.month.label} right={`Day ${data.month.day} of ${data.month.days}`} days={data.month.days} day={data.month.day} />
         {data.me && !data.me.in ? (

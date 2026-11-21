@@ -11,7 +11,7 @@ import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, 
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
-import { ProfileScreen } from "./src/screens/Profile";
+import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Logged } from "./src/screens/RowScreen";
@@ -20,6 +20,7 @@ import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
+import { Avatar } from "./src/ui";
 
 /* ROW, THE APP.
  *
@@ -70,6 +71,7 @@ type Over = { k: number } & (
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
+  | { kind: "bests"; num: number; best: string }
 );
 type Push = Over extends infer O ? (O extends { k: number } ? Omit<O, "k"> : never) : never;
 
@@ -213,7 +215,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * the bar at the bottom should get smaller, and then the bar at the top
    * of my page should go away. Just like on Instagram"). */
   const [away, setAway] = useState(false);
-  const tucked = away && tab === "feed" && !over;
+  const tucked = away && !over;
   const tuck = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(tuck, { toValue: tucked ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
@@ -290,7 +292,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "The erg" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "The erg" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -299,9 +301,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} />
+      <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
+    ) : o.kind === "bests" ? (
+      <BestsScreen num={o.num} best={o.best} onRow={openRow} />
     ) : o.kind === "erg" ? (
       <ErgPage id={o.id} rows={rows} />
     ) : o.kind === "rankings" ? (
@@ -396,10 +400,10 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               over it. */}
           <View style={{ flex: 1 }} {...swipe.panHandlers}>
             {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} onScrollDir={setAway} /> : null}
-            {tab === "search" ? <SearchScreen text={find} onRower={openRower} /> : null}
-            {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} /> : null}
-            {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} /> : null}
-            {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} /> : null}
+            {tab === "search" ? <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} /> : null}
+            {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} onScrollDir={setAway} /> : null}
+            {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} /> : null}
+            {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} /> : null}
           </View>
           {stack.map((o, i) => (
             <Slide
@@ -441,6 +445,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
             tab={tab}
             onTab={(t) => {
               setMenu(false);
+              setAway(false);
               leave.current = null;
               setStack([]);
               if (logOn) setLog("hidden");
@@ -543,8 +548,7 @@ function Wheel({ from, to, roll, delay, blue, size }: { from: string; to: string
 /* THE BAR AT THE BOTTOM: five white glyphs on a dark rounded bar that
  * floats over the page's ground, and a rounded square of the blue that
  * slides under whichever is open. */
-const BOX = 46;
-const BAR = 60;
+const BAR = 62;
 function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; small: Animated.Value }) {
   const [w, setW] = useState(0);
   const at = TABS.findIndex((t) => t.id === tab);
@@ -554,20 +558,31 @@ function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; smal
     Animated.timing(x, { toValue: at, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [x, at]);
   const cell = w / TABS.length;
+  const { me } = useSession();
   return (
-    /* It floats over the page, which shows around and under it, and draws
-       in while the feed is read downward. */
-    <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, transform: [{ scale: small.interpolate({ inputRange: [0, 1], outputRange: [1, 0.8] }) }, { translateY: small.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }}>
-      <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, backgroundColor: isDark() ? "#2a2d32" : "#15171a", overflow: "hidden" }}>
+    /* It floats over the page, which shows around and through it, and draws
+       in while a screen is read downward. Made after Instagram's bar, which
+       he sent as the reference (2026-11-22: "let's really try to mimic the
+       bar of Instagram"): see-through dark glass, a soft capsule the width
+       of its slot under the open tab, and the rower's own face where the
+       profile is. */
+    <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 18, paddingBottom: 10, transform: [{ scale: small.interpolate({ inputRange: [0, 1], outputRange: [1, 0.8] }) }, { translateY: small.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }}>
+      <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={[{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, backgroundColor: isDark() ? "rgba(52,56,62,0.9)" : "rgba(21,23,26,0.9)", overflow: "hidden" }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
         {w ? (
           <Animated.View
             pointerEvents="none"
-            style={{ position: "absolute", top: (BAR - BOX) / 2, left: (cell - BOX) / 2, width: BOX, height: BOX, borderRadius: 16, backgroundColor: C.accent, transform: [{ translateX: x.interpolate({ inputRange: [0, TABS.length - 1], outputRange: [0, cell * (TABS.length - 1)] }) }] }}
+            style={{ position: "absolute", top: 7, left: 7, width: cell - 14, height: BAR - 14, borderRadius: (BAR - 14) / 2, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ translateX: x.interpolate({ inputRange: [0, TABS.length - 1], outputRange: [0, cell * (TABS.length - 1)] }) }] }}
           />
         ) : null}
         {TABS.map((t) => (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }} onPress={() => onTab(t.id)} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            <t.Icon color="#fff" />
+            {t.id === "profile" && me.me ? (
+              <View style={{ borderRadius: 16, borderWidth: 2, borderColor: tab === t.id ? "#fff" : "transparent" }}>
+                <Avatar uri={me.avatar} name={me.me.displayName} size={28} />
+              </View>
+            ) : (
+              <t.Icon color="#fff" size={26} />
+            )}
           </Pressable>
         ))}
       </View>

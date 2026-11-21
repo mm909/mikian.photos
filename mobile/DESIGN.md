@@ -164,6 +164,18 @@ All DECIDED (his words), BUILT unless marked.
 - Stickers: the splits one carries the average split; two more, THE PACE (the split, as big as the card) and THE SHAPE OF IT (the 500 m splits as a line, erg rows only). "The two stickers that you made are pretty good ... give me two more."
 - NOT BUILT: a closer copy of Instagram's bar ("right now it looks more Android-like"): needs his eye on what is off. The owner's remove tools stay as they are ("nah, it's fine"). The look, light or dark: "I need to user test."
 
+### Round 13, 2026-11-22: his sixth read, with screenshots
+
+All DECIDED (his words), BUILT unless marked.
+
+- THE GOAL, in his words: "my goal for the app with UI design is to get users to want to row more. I want them to be engaged ... maybe this is something I should do daily, or at least I want to hit the 100K. So we need to make making the 100K as appealing as possible."
+- A BEST on a profile opens the rower's own ranking for it: every 5K by time, every 10K, every row by length, every day by meters, all time, with a word at the top to switch ("a page that ranks my rows in order of my fastest 5Ks ... we can just rank").
+- The bottom bar after Instagram's, which he sent: see-through dark, a soft capsule under the open tab instead of a blue square, the rower's own face for the profile.
+- The bars step aside on every tab while it is read downward, not only the feed.
+- Stickers, against the other app's that he sent: THE SHAPE OF IT is scratched ("the graph on the right needs some work. Let's scratch that one"); the splits one is thin bars with the distance before and the time after, the average and the mark under them ("it just looks a little cluttered"); THE PACE stays ("I like the middle one"); two after his references, THE STACK (each figure under its name) and THE TAGS (each figure in a capsule).
+- NOT BUILT: a top bar the page shows through. It folds away as a screen is read instead; a see-through one means every screen starting under it, which is its own piece of work.
+- OPEN: the long lines on the profile's log that wrap (he sent the profile, where the cause was not visible); following every rower by default ("do I actually want that? Nah, it's okay").
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

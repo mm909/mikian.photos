@@ -6,7 +6,7 @@ import { ShareIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, fmtClock, fmtInt } from "../theme";
-import { Avatar, Blocks, PhotoViewer, Waiting, useLoad } from "../ui";
+import { Avatar, Blocks, PhotoViewer, Waiting, useLoad, useScrollDir } from "../ui";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
@@ -54,6 +54,8 @@ export function ProfileScreen({
   onMenu,
   onGone,
   onErg,
+  onScrollDir,
+  onBest,
 }: {
   num?: number;
   onLog?: () => void;
@@ -66,7 +68,11 @@ export function ProfileScreen({
   onGone?: () => void;
   /* An erg piece that no logged row is tied to: open the session itself. */
   onErg?: (id: string) => void;
+  onScrollDir?: (down: boolean) => void;
+  /* A best, pressed: the rower's own ranking for it. */
+  onBest?: (num: number, key: string) => void;
 }) {
+  const dir = useScrollDir(onScrollDir);
   const { ready, me } = useSession();
   const own = num === undefined;
   const [period, setPeriod] = useState<string>("");
@@ -96,7 +102,7 @@ export function ProfileScreen({
   const rowed = p.bests.filter((b) => b.sub !== "not yet rowed" && b.value !== "—");
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <Nameplate num={p.rower.rowerNumber} name={p.rower.displayName} />
 
       <SocialLine
@@ -205,7 +211,7 @@ export function ProfileScreen({
             <>
               <Eye left="The bests" right={p.period.label} />
               {rowed.map((b) => (
-                <BestRow key={b.key} b={b} />
+                <BestRow key={b.key} b={b} onPress={onBest ? () => onBest(p.rower.rowerNumber, b.key) : undefined} />
               ))}
             </>
           ) : null}
@@ -376,9 +382,9 @@ function ChartHead({ children, note }: { children: ReactNode; note?: string }) {
 }
 
 /* One best: the name and its place, the day under it, the figure right. */
-function BestRow({ b }: { b: Best }) {
+function BestRow({ b, onPress }: { b: Best; onPress?: () => void }) {
   return (
-    <View style={{ backgroundColor: C.tint }}>
+    <Pressable accessibilityRole={onPress ? "link" : undefined} accessibilityLabel={`${b.label}: every row, ranked`} disabled={!onPress} onPress={onPress} style={({ pressed }) => ({ backgroundColor: C.tint, opacity: pressed ? 0.6 : 1 })}>
       <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 12, gap: 10 }}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -390,7 +396,73 @@ function BestRow({ b }: { b: Best }) {
         {b.value ? <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.ink, fontVariant: ["tabular-nums"] }}>{b.value}</Text> : <Blocks n={b.digits ?? b.shape?.replace(/[^#]/g, "").length ?? 4} size={14} />}
       </View>
       <Dash />
-    </View>
+    </Pressable>
+  );
+}
+
+/* A ROWER'S OWN RANKING FOR ONE BEST (owner, 2026-11-22: "if I click on the
+ * best, then let it take me to a page that ranks my rows in order of my
+ * fastest 5Ks. Same thing with longest row, 10Ks ... we don't need to show
+ * just 10. We can just rank"). Every row of theirs that counts for it, all
+ * time, best first; a row opens its page. The word at the top switches
+ * which best. */
+const BESTS: { key: string; label: string; at?: number }[] = [
+  { key: "fastest5000", label: "Fastest 5k", at: 5000 },
+  { key: "fastest10000", label: "Fastest 10k", at: 10000 },
+  { key: "longest", label: "Longest row" },
+  { key: "bigday", label: "Biggest day" },
+];
+export function BestsScreen({ num, best, onRow }: { num: number; best: string; onRow: (id: string) => void }) {
+  const [key, setKey] = useState(BESTS.some((b) => b.key === best) ? best : "longest");
+  const path = `/api/row100k/app/profile?num=${num}&m=all`;
+  const { data, error, reload } = useLoad(() => api<{ profile?: Profile }>(path), [path], path);
+  if (!data?.profile) return <Waiting error={error} onRetry={reload} />;
+  const p = data.profile;
+  const def = BESTS.find((b) => b.key === key) ?? BESTS[2];
+  const rows = p.logRows.filter((r) => !r.masked && (r.meters ?? 0) > 0);
+  type Line = { id: string | null; head: string; sub: string; value: string };
+  let lines: Line[];
+  if (def.at) {
+    const at = def.at;
+    lines = rows
+      .filter((r) => Math.abs((r.meters ?? 0) - at) <= 50 && (r.seconds ?? 0) > 0)
+      .sort((a, b) => (a.seconds ?? 0) / (a.meters ?? 1) - (b.seconds ?? 0) / (b.meters ?? 1))
+      .map((r) => ({ id: r.id, head: r.dayStr, sub: `${r.splitStr} /500m`, value: r.durationStr }));
+  } else if (def.key === "longest") {
+    lines = [...rows].sort((a, b) => (b.meters ?? 0) - (a.meters ?? 0)).map((r) => ({ id: r.id, head: r.dayStr, sub: `${r.durationStr} · ${r.splitStr} /500m`, value: r.metersStr }));
+  } else {
+    const days = new Map<string, { head: string; meters: number; n: number }>();
+    for (const r of rows) {
+      const d = days.get(r.day) ?? { head: r.dayStr, meters: 0, n: 0 };
+      d.meters += r.meters ?? 0;
+      d.n += 1;
+      days.set(r.day, d);
+    }
+    lines = [...days.values()].sort((a, b) => b.meters - a.meters).map((d) => ({ id: null, head: d.head, sub: `${d.n} ${d.n === 1 ? "row" : "rows"}`, value: `${fmtInt(d.meters)} m` }));
+  }
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8 }}>
+        <Text style={mono(12, false, C.gray)}>{p.rower.displayName} · </Text>
+        <WordMenu options={BESTS} value={key} onPick={setKey} ariaLabel="Which best" />
+      </View>
+      <Text style={[mono(11, true), { borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8, marginTop: 24 }]}>
+        {lines.length} {def.key === "bigday" ? (lines.length === 1 ? "day" : "days") : lines.length === 1 ? "row" : "rows"} · all time
+      </Text>
+      {lines.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 16 }]}>None yet.</Text> : null}
+      {lines.map((l, i) => (
+        <Pressable key={`${l.id ?? l.head}${i}`} accessibilityRole={l.id ? "link" : undefined} disabled={!l.id} onPress={() => l.id && onRow(l.id)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54, borderBottomWidth: 1, borderColor: C.line, backgroundColor: i === 0 ? C.pale : "transparent", paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>
+          <Text style={{ width: 30, fontFamily: F.mono, fontSize: 13, color: i === 0 ? C.accent : C.gray, fontVariant: ["tabular-nums"] }}>{i + 1}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: F.bold, fontSize: 15, color: C.ink }}>{l.head}</Text>
+            <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 2 }}>
+              {l.sub}
+            </Text>
+          </View>
+          <Text style={{ fontFamily: F.black, fontSize: 17, color: i === 0 ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{l.value}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 

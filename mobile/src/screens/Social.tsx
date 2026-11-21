@@ -8,7 +8,7 @@ import { Ctl, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { pickFace, setAvatar } from "../upload";
-import { Avatar, Waiting, useLoad } from "../ui";
+import { Avatar, Waiting, useLoad, useScrollDir } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
  * (pass 3, 2026-11-21). The owner's list, 2026-11-20: "follow someone, set
@@ -170,7 +170,8 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
  * nothing typed: the rowers lately opened from here ("a recent section,
  * just like Instagram search"), then the ten with the most lifetime
  * meters, wearing the board's bars. A line opens the rower. */
-export function SearchScreen({ text, onRower }: { text: string; onRower: (n: number) => void }) {
+export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onRower: (n: number) => void; onScrollDir?: (down: boolean) => void }) {
+  const dir = useScrollDir(onScrollDir);
   const TOP = "/api/row100k/app/people?q=";
   const [q, setQ] = useState("");
   /* The opening list is read as the app starts (App.tsx), so it is here. */
@@ -255,6 +256,7 @@ export function SearchScreen({ text, onRower }: { text: string; onRower: (n: num
       keyExtractor={(p) => String(p.rowerNumber)}
       /* A drag on the list puts the keyboard away, and a press on a line
          goes through with it still up. */
+      {...dir}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 124 }}

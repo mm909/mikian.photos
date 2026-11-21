@@ -207,6 +207,22 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
   );
 }
 
+/* WHICH WAY A SCREEN IS BEING READ, for the bars that step aside while it
+ * goes down and come back on the way up (App.tsx). Spread onto any
+ * ScrollView or FlatList. */
+export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => void; scrollEventThrottle: number } {
+  const last = useRef(0);
+  return {
+    scrollEventThrottle: 64,
+    onScroll: (e) => {
+      const y = e.nativeEvent.contentOffset.y;
+      if (y > last.current + 12 && y > 80) tell?.(true);
+      else if (y < last.current - 12 || y < 40) tell?.(false);
+      last.current = y;
+    },
+  };
+}
+
 /* A ROWER'S FACE (owner, 2026-11-22: "I think the answer is yes, we do
  * profile photos"; and of a rower who never sets one: "what happens when
  * someone doesn't fill it out?"). Round, the photo cropped to fill it. With

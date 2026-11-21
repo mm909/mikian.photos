@@ -5,7 +5,7 @@ import { Columns, Density, HourGrid, MonthGrid } from "../charts";
 import { useSession } from "../session";
 import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono, Ctl, Chip } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
-import { Blocks, Waiting, useLoad } from "../ui";
+import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 
 /* THE STATS, the site's /stats on a phone (stats/StatsShell.tsx, Stats.tsx),
  * in the order and the manner the site settled on:
@@ -52,7 +52,8 @@ type Payload = Stats & {
 };
 type Sum = { mean: number; median: number; sd: number; p10: number; p90: number };
 
-export function StatsScreen({ onRower, onRankings }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void }) {
+export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void; onScrollDir?: (down: boolean) => void }) {
+  const dir = useScrollDir(onScrollDir);
   const { me } = useSession();
   /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
    * all time"). */
@@ -105,7 +106,7 @@ export function StatsScreen({ onRower, onRankings }: { onRower: (n: number) => v
   ) : null;
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}

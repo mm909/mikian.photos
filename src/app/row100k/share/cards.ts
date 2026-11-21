@@ -3486,46 +3486,56 @@ const rowtemberSplits: ShareCard = {
   height: 1120,
   light: true,
   available: (d) => !!d.row && !d.masked && (d.row.splits?.length ?? 0) >= 2,
+  /* Laid out after the splits sticker he sent as a reference (2026-11-22,
+   * of the first cut: "the average 1:58 per 500 meters gets a little
+   * crowded. Maybe we move that to the bottom ... it just looks a little
+   * cluttered"): a plain title at the left, thin bars with the distance
+   * before each and its time after it, and only then the average and the
+   * mark, under the bars. */
   draw(ctx, data, fonts) {
     const row = data.row;
     const all = row?.splits ?? [];
     if (!row || all.length < 2) return;
     /* At most twelve bars: a long row is shown by its first eleven and its last. */
     const splits = all.length > 12 ? [...all.slice(0, 11), all[all.length - 1]] : all;
-    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: 110, size: 84, fontFamily: fonts.black });
-    /* The meters, the time, and the average split the bars are read
-     * against (owner, 2026-11-22: "I want the average split pace"). */
-    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx: this.width / 2, baseline: 236, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
-    drawCenteredText(ctx, `AVG ${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M`, { cx: this.width / 2, baseline: 290, font: `34px ${fonts.mono}`, color: "#ffffff" });
     const fastest = Math.min(...splits.map((s) => s.seconds));
     const slowest = Math.max(...splits.map((s) => s.seconds));
-    const top = 320;
-    const rowH = Math.min(70, (this.height - top - 50) / splits.length);
+    const clock = (sec: number) => `${Math.floor(sec / 60)}:${(sec - Math.floor(sec / 60) * 60).toFixed(1).padStart(4, "0")}`;
     const x0 = 250;
-    const x1 = this.width - 90;
+    const x1 = this.width - 250;
+    const rowH = Math.min(62, (this.height - 430) / splits.length);
+    const top = 150;
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.font = `62px ${fonts.black}`;
+    ctx.fillText("500 M SPLITS", 90, 100);
     splits.forEach((s, i) => {
-      const y = top + i * rowH;
+      const y = top + i * rowH + rowH / 2;
       /* Faster is longer: the fastest runs the whole measure, the slowest 55% of it. */
       const share = slowest === fastest ? 1 : 0.55 + (0.45 * (slowest - s.seconds)) / (slowest - fastest);
-      ctx.save();
-      ctx.fillStyle = "#ffffff";
-      ctx.globalAlpha = s.seconds === fastest ? 1 : 0.5;
-      ctx.fillRect(x0, y + 6, (x1 - x0) * share, rowH - 14);
-      ctx.restore();
-      ctx.save();
+      ctx.globalAlpha = s.seconds === fastest ? 1 : 0.55;
+      ctx.lineCap = "round";
+      ctx.lineWidth = Math.max(10, rowH * 0.3);
+      ctx.strokeStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 + (x1 - x0) * share, y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
       ctx.textBaseline = "middle";
-      ctx.font = `${Math.round(rowH * 0.46)}px ${fonts.mono}`;
-      ctx.fillStyle = "#ffffff";
+      ctx.font = `${Math.round(rowH * 0.5)}px ${fonts.mono}`;
       ctx.textAlign = "right";
-      ctx.fillText(s.endMeters.toLocaleString("en-US"), x0 - 22, y + rowH / 2);
-      ctx.font = `${Math.round(rowH * 0.5)}px ${fonts.black}`;
-      ctx.fillStyle = INK;
+      ctx.fillText(s.endMeters.toLocaleString("en-US"), x0 - 26, y);
       ctx.textAlign = "left";
-      const m = Math.floor(s.seconds / 60);
-      const sec = s.seconds - m * 60;
-      ctx.fillText(`${m}:${sec.toFixed(1).padStart(4, "0")}`, x0 + 18, y + rowH / 2 + 2);
-      ctx.restore();
+      ctx.font = `${Math.round(rowH * 0.5)}px ${s.seconds === fastest ? fonts.black : fonts.mono}`;
+      ctx.fillText(clock(s.seconds), x1 + 26, y);
     });
+    ctx.restore();
+    const foot = top + splits.length * rowH;
+    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)} · AVG ${roundToSeconds(fmtSplit(row.meters, row.seconds))}`, { cx: this.width / 2, baseline: foot + 80, font: `40px ${fonts.mono}`, color: "#ffffff", maxWidth: this.width - 160 });
+    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: foot + 180, size: 84, fontFamily: fonts.black });
   },
 };
 
@@ -3552,50 +3562,110 @@ const rowtemberPace: ShareCard = {
   },
 };
 
-/* THE LINE: the split, 500 m by 500 m, as one line across the card with a
- * dot on each, faster drawn higher, the fastest dot ringed and named. The
- * shape of the row at a glance: a fade, a negative split, a sprint home.
- * Erg rows only, like the bars. */
-const rowtemberLine: ShareCard = {
-  id: "rowtember-line",
-  label: "The shape of it",
+/* THE STACK, after one he sent as a reference (2026-11-22): the mark, then
+ * each figure under its own small name, centered, one over the other.
+ * Meters, pace and time for every row; the watts when it came off an erg. */
+const rowtemberStack: ShareCard = {
+  id: "rowtember-stack",
+  label: "The stack",
   width: 1080,
-  height: 800,
+  height: 1000,
   light: true,
-  available: (d) => !!d.row && !d.masked && (d.row.splits?.length ?? 0) >= 3,
+  available: (d) => !!d.row && !d.masked,
   draw(ctx, data, fonts) {
     const row = data.row;
-    const splits = row?.splits ?? [];
-    if (!row || splits.length < 3) return;
+    if (!row) return;
     const cx = this.width / 2;
-    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx, baseline: 110, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
-    const lo = Math.min(...splits.map((s) => s.seconds));
-    const hi = Math.max(...splits.map((s) => s.seconds));
-    const x0 = 110;
-    const x1 = this.width - 110;
-    const y0 = 230;
-    const y1 = 520;
-    const px = (i: number) => x0 + ((x1 - x0) * i) / (splits.length - 1);
-    const py = (s: number) => (hi === lo ? (y0 + y1) / 2 : y0 + ((y1 - y0) * (s - lo)) / (hi - lo));
-    ctx.save();
-    ctx.strokeStyle = "#ffffff";
-    ctx.fillStyle = "#ffffff";
-    ctx.lineWidth = 10;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    splits.forEach((s, i) => (i ? ctx.lineTo(px(i), py(s.seconds)) : ctx.moveTo(px(i), py(s.seconds))));
-    ctx.stroke();
-    const fast = splits.findIndex((s) => s.seconds === lo);
-    splits.forEach((s, i) => {
-      ctx.beginPath();
-      ctx.arc(px(i), py(s.seconds), i === fast ? 22 : 12, 0, Math.PI * 2);
-      ctx.fill();
+    drawMark(ctx, [{ text: MARK }], { cx, cy: 110, size: 90, fontFamily: fonts.black });
+    const figs: [string, string][] = [
+      ["Meters", row.meters.toLocaleString("en-US")],
+      ["Pace", `${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500m`],
+      ["Time", fmtDuration(row.seconds)],
+    ];
+    if (row.erg?.watts) figs.push(["Watts", String(Math.round(row.erg.watts))]);
+    const step = (this.height - 250) / figs.length;
+    figs.forEach(([k, v], i) => {
+      const y = 280 + i * step;
+      drawCenteredText(ctx, k.toUpperCase(), { cx, baseline: y, font: `38px ${fonts.mono}`, color: "#ffffff" });
+      drawCenteredText(ctx, v, { cx, baseline: y + 104, font: `104px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 120 });
     });
+  },
+};
+
+/* THE TAGS, after another: each figure in its own outlined capsule, set in
+ * rows like labels on a parcel, the mark among them filled. */
+const rowtemberTags: ShareCard = {
+  id: "rowtember-tags",
+  label: "The tags",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.row && !d.masked,
+  draw(ctx, data, fonts) {
+    const row = data.row;
+    if (!row) return;
+    const d = new Date(`${row.day}T12:00:00Z`);
+    const day = Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).toUpperCase();
+    const tags: { text: string; fill?: boolean }[] = [
+      { text: MARK, fill: true },
+      ...(day ? [{ text: day }] : []),
+      { text: `METERS ${row.meters.toLocaleString("en-US")}` },
+      { text: `PACE ${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M` },
+      { text: `TIME ${fmtDuration(row.seconds)}` },
+      ...(row.erg?.watts ? [{ text: `${Math.round(row.erg.watts)} WATTS` }] : []),
+      ...(row.erg?.spm ? [{ text: `${Math.round(row.erg.spm)} STROKES /MIN` }] : []),
+    ];
+    const size = 46;
+    const h = 92;
+    const pad = 34;
+    const gap = 14;
+    ctx.save();
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    const font = (t: { fill?: boolean }) => `${size}px ${t.fill ? fonts.black : fonts.mono}`;
+    const widthOf = (t: { text: string; fill?: boolean }) => {
+      ctx.font = font(t);
+      return ctx.measureText(t.text).width + pad * 2;
+    };
+    /* Flow the capsules into rows no wider than the card, each row centered. */
+    const lines: (typeof tags)[] = [[]];
+    let run = 0;
+    for (const t of tags) {
+      const w = widthOf(t);
+      if (run + w > this.width - 120 && lines[lines.length - 1].length) {
+        lines.push([]);
+        run = 0;
+      }
+      lines[lines.length - 1].push(t);
+      run += w + gap;
+    }
+    let y = (this.height - (lines.length * (h + gap) - gap)) / 2;
+    for (const line of lines) {
+      const total = line.reduce((n, t) => n + widthOf(t), 0) + gap * (line.length - 1);
+      let x = (this.width - total) / 2;
+      for (const t of line) {
+        const w = widthOf(t);
+        const r = h / 2;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(x + r, y + h);
+        ctx.arc(x + r, y + r, r, Math.PI / 2, (3 * Math.PI) / 2);
+        ctx.closePath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#ffffff";
+        ctx.fillStyle = "#ffffff";
+        if (t.fill) ctx.fill();
+        else ctx.stroke();
+        ctx.font = font(t);
+        ctx.fillStyle = t.fill ? INK : "#ffffff";
+        ctx.fillText(t.text, x + pad, y + r + 2);
+        x += w + gap;
+      }
+      y += h + gap;
+    }
     ctx.restore();
-    const clock = (sec: number) => `${Math.floor(sec / 60)}:${(sec - Math.floor(sec / 60) * 60).toFixed(1).padStart(4, "0")}`;
-    drawCenteredText(ctx, `FASTEST 500 M  ${clock(lo)}`, { cx, baseline: 610, font: `40px ${fonts.mono}`, color: "#ffffff" });
-    drawMark(ctx, [{ text: MARK }], { cx, cy: 700, size: 84, fontFamily: fonts.black });
   },
 };
 
@@ -3609,7 +3679,8 @@ export const CARDS: ShareCard[] = [
   rowtemberReceipt,
   rowtemberSplits,
   rowtemberPace,
-  rowtemberLine,
+  rowtemberStack,
+  rowtemberTags,
   rowtemberBest,
   rowtemberTotal,
   rowtemberToday,
