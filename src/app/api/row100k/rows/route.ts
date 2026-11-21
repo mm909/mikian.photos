@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { digitCount } from "@/lib/blackoutRules";
 import { sendOwnerNotification } from "@/lib/email";
+import { notifyRowLogged } from "@/lib/rowNotify";
 import { getEffectiveActor } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rateLimit";
 import {
@@ -219,6 +220,10 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("row100k: row-logged notification failed", err);
   }
+
+  /* The rower's followers (lib/rowNotify.ts). Awaited for the same reason
+   * as the mail, and it cannot throw. */
+  await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters });
 
   return NextResponse.json({ ok: true, id: entry.id });
 }

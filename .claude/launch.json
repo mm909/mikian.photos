@@ -64,6 +64,15 @@
         "8090"
       ],
       "port": 8090
+    },
+    {
+      "name": "row-app-sandbox",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/dev-app-sandbox.mjs"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

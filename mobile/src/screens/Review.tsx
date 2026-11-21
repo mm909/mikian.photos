@@ -5,7 +5,7 @@ import { analyseSession, comparableRows, fmtGap, fmtSplit, type AnalysisForce, t
 import type { TelemetryDoc } from "../pm5/session";
 import { asSaved, loadDoc, type Row } from "../store";
 import { C, F, fmtInt } from "../theme";
-import { Btn, Card, Eyebrow, Num, Pop, styles } from "../ui";
+import { Card, Eyebrow, Num, styles } from "../ui";
 
 /* THE READ (owner, 2026-11-14, of the website's saved-session screen: "this
  * needs to be a focus of the app ... make it really good").
@@ -24,13 +24,15 @@ import { Btn, Card, Eyebrow, Num, Pop, styles } from "../ui";
 const n0 = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? fmtInt(v) : "--");
 const n1 = (v: number | null | undefined, d = 1) => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(d) : "--");
 
-export function Review({ row, rows, banked, onDone, onDelete }: { row: Row; rows: Row[]; banked: boolean; onDone: () => void; onDelete: () => void }) {
+/* `doc` is the recording when the caller already has it (the row page
+ * reads it off the site); without it the phone's own copy is opened. */
+export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null }) {
   const [state, setState] = useState<{ doc: TelemetryDoc; compare: { title: string; doc: TelemetryDoc } | null } | "missing" | null>(null);
 
   useEffect(() => {
     let live = true;
     (async () => {
-      const doc = await loadDoc(row.id);
+      const doc = given ?? (await loadDoc(row.id));
       if (!live) return;
       if (!doc) return setState("missing");
       const history = rows.filter((r) => r.hasDoc).map(asSaved);
@@ -41,7 +43,7 @@ export function Review({ row, rows, banked, onDone, onDelete }: { row: Row; rows
     return () => {
       live = false;
     };
-  }, [row.id, rows]);
+  }, [row.id, rows, given]);
 
   const a = useMemo<ErgAnalysis | null>(() => {
     if (!state || state === "missing") return null;
@@ -52,50 +54,13 @@ export function Review({ row, rows, banked, onDone, onDelete }: { row: Row; rows
     }
   }, [state, row.id, rows]);
 
-  if (state === null) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={C.ink} />
-      </View>
-    );
-  }
-  if (!a) {
-    return (
-      <View style={{ padding: 18 }}>
-        <Text style={styles.mid}>{fmtInt(row.meters)} m</Text>
-        <Text style={[styles.body, { marginVertical: 12 }]}>This row has no recording behind it, so there is nothing to read. Rows banked from a connected erg get the full read.</Text>
-        <Btn label="Back" onPress={onDone} />
-      </View>
-    );
-  }
+  if (state === null) return <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} />;
+  /* No recording, or one too thin to analyse: the row page says what it has. */
+  if (!a) return null;
 
   const dr = a.driveRecovery;
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
-      {banked ? (
-        <Pop>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.accent, marginBottom: 10 }}>ROW BANKED · +{fmtInt(row.meters)} M</Text>
-        </Pop>
-      ) : null}
-
-      <Eyebrow>
-        {row.day} · {a.device}
-        {a.simulated ? " · demo" : ""}
-      </Eyebrow>
-      <Num size={84} color={C.accent}>
-        {a.clock}
-      </Num>
-      <View style={[styles.row, { gap: 22, marginBottom: 16 }]}>
-        <View>
-          <Eyebrow>Distance</Eyebrow>
-          <Text style={styles.mid}>{fmtInt(a.meters)} m</Text>
-        </View>
-        <View>
-          <Eyebrow>Average split</Eyebrow>
-          <Text style={styles.mid}>{fmtSplit(a.avgPaceTenths)}</Text>
-        </View>
-      </View>
-
+    <View style={{ marginTop: 30 }}>
       {/* THE READ: the point of the screen. */}
       <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.ink, padding: 18, marginBottom: 8 }}>
         <Eyebrow style={{ marginBottom: 8 }}>The read</Eyebrow>
@@ -164,9 +129,7 @@ export function Review({ row, rows, banked, onDone, onDelete }: { row: Row; rows
       <Text style={[styles.body, { fontSize: 13, color: C.gray, marginBottom: 14 }]}>
         {fmtInt(a.strokes)} strokes · drag {n0(a.dragFactor)} · {a.recordedVia}
       </Text>
-      <Btn label={banked ? "See today" : "Done"} onPress={onDone} />
-      <Btn label="Delete this row" quiet onPress={onDelete} style={{ marginTop: 10 }} />
-    </ScrollView>
+    </View>
   );
 }
 
@@ -197,8 +160,9 @@ function Cell({ k, v, u }: { k: string; v: string; u: string }) {
 }
 
 /* One column a split, rising as the screen opens. Faster is taller; the
- * fastest is green, the slowest the brown, and the dashed rule is the
- * average of them. */
+ * fastest is in the blue and says so (owner, 2026-11-20: "What are those
+ * colors for the splits? green, blue, black?"), the rest are ink, and the
+ * dashed rule is the average of them. */
 function SplitBars({ splits, fastest, slowest, avg }: { splits: AnalysisSplit[]; fastest: AnalysisSplit | null; slowest: AnalysisSplit | null; avg: number | null }) {
   const paces = splits.map((s) => s.paceTenths).filter((p): p is number => p !== null);
   const lo = Math.min(...paces);
@@ -213,9 +177,9 @@ function SplitBars({ splits, fastest, slowest, avg }: { splits: AnalysisSplit[];
       {avg !== null ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 44 + frac(avg) * H, borderTopWidth: 1, borderStyle: "dashed", borderColor: C.gray }} /> : null}
       {splits.map((s, i) => (
         <View key={`${s.n}-${s.endMeters}`} style={{ flex: wide ? undefined : 1, width: wide ? 46 : undefined, alignItems: "center", paddingHorizontal: 3 }}>
-          <Rise frac={frac(s.paceTenths)} height={H} delay={i * 60} color={s === fastest ? C.good : s === slowest ? C.accentLight : C.ink} />
+          <Rise frac={frac(s.paceTenths)} height={H} delay={i * 60} color={s === fastest ? C.accent : C.ink} />
           <Text style={{ fontSize: 11, fontFamily: F.bold, color: C.ink, marginTop: 5, fontVariant: ["tabular-nums"] }}>{fmtSplit(s.paceTenths)}</Text>
-          <Text style={{ fontSize: 10, color: C.gray }}>{s.endMeters >= 1000 ? `${(s.endMeters / 1000).toFixed(1)}k` : s.endMeters}</Text>
+          <Text style={{ fontSize: 10, color: s === fastest ? C.accent : C.gray, fontFamily: s === fastest ? F.monoBold : undefined }}>{s === fastest ? "FASTEST" : s.endMeters >= 1000 ? `${(s.endMeters / 1000).toFixed(1)}k` : s.endMeters}</Text>
         </View>
       ))}
     </View>

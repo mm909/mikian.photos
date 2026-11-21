@@ -1620,3 +1620,120 @@ model PickleSetting {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
+
+/// THE PHONE APP'S SOCIAL LAYER (2026-11-21; owner's list of 2026-11-20:
+/// follow someone, set my account private, accept a follow request, block
+/// someone, see only who I follow, notifications per person, a notification
+/// centre; and a report function, which Apple requires). These tables
+/// name rowers by RowParticipant.id, which belongs to one `challenge`, so
+/// the sample board's follows never touch the real board's. No FKs, like
+/// the other Row* tables. All additive: safe `db push`.
+
+/// What a rower has chosen, one row each and none until they choose. Kept
+/// off RowParticipant on purpose: a new COLUMN there breaks every checkout
+/// whose code reads that table before the column exists, and a new table
+/// breaks nobody.
+/// `isPrivate` (owner, 2026-11-20: "set my account private"): the rower
+/// stays on the board and their totals stay public; their individual rows
+/// and photos are shown only to themselves and to followers they have
+/// accepted (src/lib/rowSocial.ts is the one rule). New accounts are public.
+/// `notifyOff`: the kinds of notification switched off, by RowNotification
+/// kind. Empty means all on.
+model RowSocialSetting {
+  id            String   @id @default(cuid())
+  challenge     String
+  participantId String   @unique
+  isPrivate     Boolean  @default(false)
+  notifyOff     String[] @default([])
+  updatedAt     DateTime @updatedAt
+
+  @@index([challenge, isPrivate])
+}
+
+/// One rower following another. "pending" is a request to a private rower
+/// that has not been answered; a public rower's followers start "accepted".
+/// `notify` is the bell: whether the follower is told when this rower rows
+/// or passes them.
+model RowFollow {
+  id         String    @id @default(cuid())
+  challenge  String
+  followerId String
+  followeeId String
+  status     String    @default("accepted")
+  notify     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  acceptedAt DateTime?
+
+  @@unique([followerId, followeeId])
+  @@index([challenge, followeeId, status])
+  @@index([challenge, followerId, status])
+}
+
+/// One rower blocking another. Either side of a block sees none of the
+/// other's rows or profile; both stay on the board.
+model RowBlock {
+  id        String   @id @default(cuid())
+  challenge String
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+/// A report of a rower, a row or a photo, mailed to the owner the moment it
+/// is made. `entryId` is null when the rower is reported, not a row. The
+/// subject's name and number are copied in so the report still reads after
+/// the row is gone. `status` is "open" until the owner closes it.
+model RowReport {
+  id            String   @id @default(cuid())
+  challenge     String
+  reporterId    String
+  subjectId     String
+  subjectNumber Int
+  subjectName   String
+  entryId       String?
+  reason        String
+  note          String   @default("")
+  status        String   @default("open")
+  createdAt     DateTime @default(now())
+
+  @@index([challenge, status, createdAt])
+}
+
+/// One line in a rower's notification centre. `kind` is "follow" (someone
+/// followed you), "request" (someone asked to), "accepted" (your request
+/// was), "rowed" (someone you follow logged a row) or "passed" (rowers you
+/// follow passed you on the board: ONE line a day, `day` set and the
+/// passers collected in `actors`). `actorId` is the rower it is about.
+model RowNotification {
+  id            String    @id @default(cuid())
+  challenge     String
+  participantId String
+  kind          String
+  actorId       String?
+  entryId       String?
+  /// "YYYY-MM-DD" for the once-a-day kinds; null otherwise.
+  day           String?
+  /// For "passed": the participant ids that passed, in order.
+  actors        String[]  @default([])
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([participantId, kind, day])
+  @@index([participantId, createdAt])
+}
+
+/// A phone that wants push notifications for an account (Photographer.id).
+/// One row per device token; the token moves with whoever last signed in.
+model RowPushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String   @default("ios")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}

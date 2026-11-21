@@ -51,6 +51,12 @@ Owner, 2026-10-30: "I need a rowvember new logo and kick off everything that is 
 
 September is Rowtember and November is Rowvember (`src/lib/rowPeriod.ts` EDITIONS); the nameplate, the wordmark (`src/app/row100k/Mark.tsx`), the default row title and the mark on every share card read the edition off there, and a new one is a line in that table. Getting ready for a month means code and assets — never a delete, a truncate or a `--clear` against the live database. The Rowvember logo files live in `public/row100k/rowvember/`; the link card is `public/row100k/og-rowvember.png` (drawn by `scripts/og-rowvember.html`, rendered by `scripts/og-render.mjs`).
 
+## Months wear their normal names; only shareables say ROW or ROWTEMBER
+
+Owner, 2026-11-20: "Lets also move to just normal month names, the event/app is rowtember but the months can be just september, november."; "Month names can revert to the normal month spelling, except for shareables, they should be ROW or ROWTEMBER."
+
+This replaces the naming half of the edition rule above: a month is September or November on the site and in the app, and ROWVEMBER is retired as a name. A shareable (a card, a poster, a reel) is signed ROW or ROWTEMBER; of the two, the owner picked ROW the same day ("Lets try it w/ just ROW"), and the share cards carry it (`MARK` in `src/app/row100k/share/cards.ts`). The "reset never deletes" half of that rule stands. As of 2026-11-20 the code still carries the Rowvember nameplate and assets; changing them is a task the owner has not yet started.
+
 ## The logo is ROW, the O in the blue
 
 Owner, 2026-11-14: "let's change our logo to row with the o in the Rowtemeber color."

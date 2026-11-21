@@ -56,6 +56,10 @@ export type Live = {
   calories: number;
   /* The distance the monitor is set to, when the workout is a fixed distance; 0 otherwise. */
   targetM: number;
+  /* The time the monitor is set to, seconds, when the workout is a fixed time; 0 otherwise. */
+  targetS: number;
+  /* Heart rate off a paired belt; null without one. */
+  hr: number | null;
   /* The last whole force curve, pounds of force. */
   curve: number[];
   peakLbf: number;
@@ -78,6 +82,8 @@ export const EMPTY_LIVE: Live = {
   drag: 0,
   calories: 0,
   targetM: 0,
+  targetS: 0,
+  hr: null,
   curve: [],
   peakLbf: 0,
   wattSum: 0,
@@ -133,6 +139,7 @@ export function createLive() {
     live.meters = g.distanceM;
     live.drag = g.dragFactor;
     live.targetM = g.workoutDurationType === DurationType.DISTANCE && g.workoutDuration > 0 ? g.workoutDuration : 0;
+    live.targetS = g.workoutDurationType === DurationType.TIME && g.workoutDuration > 0 ? g.workoutDuration / 100 : 0;
     live.ended = isEnded(g.workoutState) && g.distanceM > 0;
     if (g.elapsedS > 0 && g.distanceM > 0 && !isEnded(g.workoutState) && samples.length < MAX_SAMPLES) {
       samples.push({ t: g.elapsedS, dist: g.distanceM, pace: la1?.currentPaceS ?? 0, avgPace: la1?.averagePaceS ?? 0, spm: la1?.strokeRate ?? 0, hr: la1?.heartRate ?? null, watts: live.watts > 0 ? live.watts : null, drag: g.dragFactor });
@@ -141,6 +148,7 @@ export function createLive() {
   const a1 = (a: AdditionalStatus1) => {
     la1 = a;
     live.spm = a.strokeRate;
+    live.hr = a.heartRate ?? null;
     if (a.currentPaceS > 0) live.pace = a.currentPaceS;
     if (a.averagePaceS > 0) live.avgPace = a.averagePaceS;
   };

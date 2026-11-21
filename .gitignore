@@ -46,3 +46,6 @@ next-env.d.ts
 # MapLibre worker, copied from node_modules by scripts/copy-maplibre-worker.mjs
 /public/track/maplibre-gl-worker.mjs
 public/lasd26/route/.overpass-cache/
+
+# The phone app sandbox: a local Postgres and its data (scripts/dev-app-db.mjs)
+.rowapp-db/

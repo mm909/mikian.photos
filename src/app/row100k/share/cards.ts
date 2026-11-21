@@ -5,8 +5,7 @@ import {
   MONTH_FIRST_DOW,
   MONTH,
   MONTH_KEY,
-  MONTH_NAME,
-  MARK,
+  MONTH_WORD,
   dayTicks,
   daysElapsed,
   fmtDay,
@@ -256,6 +255,13 @@ export type DailyShare = {
    * name. `meters` is the day's whole, a public aggregate. */
   days: { key: "today" | "yesterday"; asOf: string; meters: number; rows: StickerRow[] }[];
 };
+
+/* THE MARK ON EVERY CARD IS ROW (owner, 2026-11-20: months go back to their
+ * normal names, "except for shareables, they should be ROW or ROWTEMBER";
+ * and, of the two, "Lets try it w/ just ROW"). It was the edition word off
+ * row100k.ts (ROWTEMBER, ROWVEMBER) until then. The month, where a card
+ * names it, is the plain month word. */
+const MARK = "ROW";
 
 export type ShareFonts = { black: string; mono: string };
 
@@ -763,7 +769,7 @@ function monthGridHeight(span: number, mon: ShareMonth): number {
 const rowtemberTotal: ShareCard = {
   id: "rowtember-total",
   /* The month's name, not the brand (2026-09-28): OCTOBER TOTAL in October. */
-  label: `${MONTH_NAME} total`,
+  label: `${MONTH_WORD} total`,
   width: 1080,
   height: 620,
   light: true,
@@ -3180,7 +3186,7 @@ function boardCard(page: number): ShareCard {
       ctx.fillStyle = "#ffffff";
       ctx.font = `bold 46px ${fonts.mono}`;
       const asOf = data.community?.asOf;
-      ctx.fillText(asOf ? `${MONTH_NAME} · ${asOf}` : `${MONTH_NAME} ${MONTH.year}`, L, 118);
+      ctx.fillText(asOf ? `${MONTH_WORD} · ${asOf}` : `${MONTH_WORD} ${MONTH.year}`, L, 118);
 
       // Section label, dim: which ten places this is — or the elite's
       // name when the page has no places to give.
@@ -3350,7 +3356,7 @@ function dailyBoardCard(key: "M" | "F", label: string): ShareCard {
         ctx,
         this.width,
         fonts,
-        `${MONTH_NAME} · ${b.asOf}`,
+        `${MONTH_WORD} · ${b.asOf}`,
         allHidden ? `The board · ${b.label} · ${ELITE_SECTION}` : `The board · ${b.label}`,
         rows,
         true,
@@ -3384,7 +3390,7 @@ function dailyDayCard(key: "today" | "yesterday", page: number): ShareCard {
       const n = x.rows.length;
       const head = `${word} · ${n} ${n === 1 ? "rower" : "rowers"} · ${fmtMeters(x.meters)}`;
       const section = pages(data) > 1 ? `${head} · ${page + 1}/${pages(data)}` : head;
-      drawStickerList(ctx, this.width, fonts, `${MONTH_NAME} · ${x.asOf}`, section, rows, false);
+      drawStickerList(ctx, this.width, fonts, `${MONTH_WORD} · ${x.asOf}`, section, rows, false);
     },
   };
 }

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { Photo } from "./api";
+import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { C, F } from "./theme";
 
 /* The small pieces every screen is made of, in the website's own manner
@@ -85,6 +86,127 @@ export function Pop({ children, delay = 0 }: { children: ReactNode; delay?: numb
     Animated.spring(a, { toValue: 1, delay, friction: 6, tension: 80, useNativeDriver: true }).start();
   }, [a, delay]);
   return <Animated.View style={{ opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }}>{children}</Animated.View>;
+}
+
+/* ONE READ OF THE SERVER, with its three states. `reload` reads again in
+ * place (pull to refresh, a row just logged) without blanking the screen. */
+export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]): { data: T | null; error: string; loading: boolean; reload: () => Promise<void> } {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const turn = useRef(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reload = useCallback(async () => {
+    const mine = ++turn.current;
+    setLoading(true);
+    try {
+      const d = await fn();
+      if (mine === turn.current) {
+        setData(d);
+        setError("");
+      }
+    } catch (err) {
+      if (mine === turn.current) setError(err instanceof Error ? err.message : "That could not be read.");
+    }
+    if (mine === turn.current) setLoading(false);
+  }, deps);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  return { data, error, loading, reload };
+}
+
+/* What a screen shows before its first read lands, or instead of it. */
+export function Waiting({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+  return (
+    <View style={{ padding: 28, alignItems: "center" }}>
+      {error ? (
+        <>
+          <Text style={[styles.body, { textAlign: "center", marginBottom: 14 }]}>{error}</Text>
+          {onRetry ? <Btn label="Try again" quiet onPress={onRetry} /> : null}
+        </>
+      ) : (
+        <ActivityIndicator color={C.ink} />
+      )}
+    </View>
+  );
+}
+
+/* The head of a stretch of page: the ink rule and the mono words over it,
+ * as the site's sections open. */
+export function Section({ title, right, children, style }: { title: string; right?: ReactNode; children?: ReactNode; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[{ marginTop: 30 }, style]}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8, marginBottom: 12 }}>
+        <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.ink }}>{title.toUpperCase()}</Text>
+        {typeof right === "string" ? <Eyebrow>{right}</Eyebrow> : right}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+/* WORDS TO CHOOSE BETWEEN, in a row that scrolls: the one chosen in ink
+ * over the blue rule, the way the site's rail marks the page it is on. */
+export function Picks<T extends string>({ options, value, onPick, style }: { options: { key: T; label: string }[]; value: T; onPick: (k: T) => void; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[{ flexDirection: "row", flexWrap: "wrap", columnGap: 20, borderBottomWidth: StyleSheet.hairlineWidth * 2, borderColor: C.line }, style]}>
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(o.key)} style={{ paddingVertical: 10, minHeight: 40, borderBottomWidth: 3, borderColor: on ? C.accent : "transparent" }}>
+            <Text style={{ fontFamily: on ? F.monoBold : F.mono, fontSize: 12, letterSpacing: 1.8, color: on ? C.ink : C.gray }}>{o.label.toUpperCase()}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* A HIDDEN NUMBER (lights out): ink blocks the width the digits would be.
+ * Nothing of the number is in the app when these draw. */
+export function Blocks({ n, size = 16 }: { n: number; size?: number }) {
+  return (
+    <View accessibilityLabel="Hidden" style={{ flexDirection: "row", gap: Math.max(2, size * 0.14) }}>
+      {Array.from({ length: Math.max(1, Math.min(8, n)) }, (_, i) => (
+        <View key={i} style={{ width: size * 0.6, height: size, backgroundColor: C.ink }} />
+      ))}
+    </View>
+  );
+}
+
+/* The lifetime tag beside a name: a small outlined chip. */
+export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
+  return (
+    <View style={{ borderWidth: 1.5, borderColor: on ? C.accent : C.ink, paddingHorizontal: 6, paddingVertical: 1 }}>
+      <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: on ? C.accent : C.ink }}>{children}</Text>
+    </View>
+  );
+}
+
+/* THE TWO PHOTOS OF A ROW (owner, 2026-11-20: "exactly 2 photos"): side by
+ * side, each cropped to 4:5 so a tall phone picture and a wide one sit the
+ * same; a lone old photo takes the width in a 4:3 frame. Tap for the whole
+ * picture. A row with none draws nothing. */
+export function PhotoPair({ photos, style }: { photos: Photo[]; style?: StyleProp<ViewStyle> }) {
+  const [open, setOpen] = useState<number | null>(null);
+  if (!photos.length) return null;
+  const shown = photos.slice(0, 2);
+  return (
+    <View style={[{ flexDirection: "row", gap: 4 }, style]}>
+      {shown.map((p, i) => (
+        <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale }}>
+          <Image source={{ uri: p.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+        </Pressable>
+      ))}
+      <Modal visible={open !== null} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(null)} style={{ flex: 1, backgroundColor: "rgba(21,23,26,0.94)", justifyContent: "center" }}>
+          {open !== null ? <Image source={{ uri: shown[open].full }} resizeMode="contain" style={{ width: "100%", height: "86%" }} /> : null}
+          <Text style={{ position: "absolute", top: 54, right: 20, color: "#fff", fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2 }}>CLOSE</Text>
+        </Pressable>
+      </Modal>
+    </View>
+  );
 }
 
 export const styles = StyleSheet.create({

@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Rowtember",
+    "name": "ROW",
     "slug": "rowtember",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rowtember.app",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "Rowtember connects to your Concept2 monitor over Bluetooth to read your row.",
+        "NSBluetoothAlwaysUsageDescription": "ROW connects to your Concept2 monitor over Bluetooth to read your row.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -34,11 +34,20 @@
         {
           "isBackgroundEnabled": false,
           "neverForLocation": true,
-          "bluetoothAlwaysPermission": "Rowtember connects to your Concept2 monitor over Bluetooth to read your row."
+          "bluetoothAlwaysPermission": "ROW connects to your Concept2 monitor over Bluetooth to read your row."
         }
       ],
       "expo-dev-client",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ROW attaches two photos to each row you log: you, and the monitor.",
+          "cameraPermission": "ROW takes the two photos that go with each row you log: you, and the monitor.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-sharing"
     ],
     "scheme": "rowtember",
     "backgroundColor": "#F4F3EE",

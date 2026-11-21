@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { bearerOf, verifyAppToken } from "./appToken";
 import { authOptions } from "./auth";
 import { db } from "./db";
 
@@ -145,6 +146,23 @@ export async function getEffectiveActor(): Promise<Actor | null> {
     } catch {
       /* no request scope (a script), or no such account — fall through. */
     }
+  }
+
+  // Path 0.5, THE PHONE APP (2026-11-20): an Authorization: Bearer token
+  // minted by /api/row100k/app/session (appToken.ts) names the account. The
+  // roles are read off the row, as the session path reads them.
+  try {
+    const token = bearerOf(headers().get("authorization"));
+    const id = token ? await verifyAppToken(token) : null;
+    if (id) {
+      const row = await db.photographer.findUnique({
+        where: { id },
+        select: { id: true, email: true, name: true, roles: true },
+      });
+      if (row) return { photographerId: row.id, roles: normalizeRoles(row.roles), email: row.email, name: row.name };
+    }
+  } catch {
+    /* no request scope, or no such account — fall through. */
   }
 
   // Path 1: NextAuth session

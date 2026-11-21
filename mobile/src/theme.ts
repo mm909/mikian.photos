@@ -44,3 +44,32 @@ export const fmtPace = (pace: number): string => (pace > 0 && pace < 600 ? fmtCl
 export function dayKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/* 5398 s -> "1 h 29 m"; under an hour, "29 m". */
+export function fmtHours(seconds: number): string {
+  const m = Math.round(seconds / 60);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m` : `${m} m`;
+}
+
+/* THE LIFETIME TAG (owner, 2026-11-20: "showing their meters tag (10k, 50,
+ * 100, 250, 500 etc)"; "I like the ladder of lifetime meter stamps"): the
+ * highest rung a rower's all-time metres have reached, or null under the
+ * first. */
+export const LADDER: { meters: number; tag: string }[] = [
+  { meters: 10_000, tag: "10K" },
+  { meters: 50_000, tag: "50K" },
+  { meters: 100_000, tag: "100K" },
+  { meters: 250_000, tag: "250K" },
+  { meters: 500_000, tag: "500K" },
+  { meters: 1_000_000, tag: "1M" },
+  { meters: 2_000_000, tag: "2M" },
+  { meters: 5_000_000, tag: "5M" },
+];
+export function lifetimeTag(meters: number): { tag: string; next: { meters: number; tag: string } | null } | null {
+  let at = -1;
+  for (let i = 0; i < LADDER.length; i++) if (meters >= LADDER[i].meters) at = i;
+  const next = LADDER[at + 1] ?? null;
+  return at < 0 ? (next ? { tag: "", next } : null) : { tag: LADDER[at].tag, next };
+}
+
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

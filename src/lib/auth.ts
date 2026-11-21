@@ -28,6 +28,52 @@ import {
  * No DB adapter for sessions (JWT strategy) — keeps things simple.
  * Session/JWT carry `photographerId`, `roles`, and (legacy) `isAdmin`.
  */
+/* THE ACCOUNT A GOOGLE IDENTITY SIGNS IN AS, made or refreshed. One function
+ * for the site's sign-in (the signIn callback below) and the phone app's
+ * (api/row100k/app/session, 2026-11-20), so an account made on one is the
+ * same account on the other. Returns the account id. */
+export async function upsertGoogleAccount(g: { sub: string; email: string; name: string }): Promise<string> {
+  const email = g.email.toLowerCase().trim();
+  const displayName = g.name || email.split("@")[0];
+  const ownerAccount = isOwnerEmail(email);
+
+  // 1. Look up by googleSubject first (stable across email changes)
+  let existing = await db.photographer.findUnique({
+    where: { googleSubject: g.sub },
+    select: { id: true, roles: true, email: true },
+  });
+
+  // 2. Fall back to email match (claims pre-seeded rows)
+  if (!existing) {
+    existing = await db.photographer.findUnique({
+      where: { email },
+      select: { id: true, roles: true, email: true },
+    });
+  }
+
+  // Compute roles: owner-by-email gets the full set; otherwise inherit
+  // any existing roles, or default to ["user"] for net-new users.
+  const baseRoles: Role[] = ownerAccount
+    ? OWNER_IMPLIED_ROLES
+    : existing
+      ? normalizeRoles(existing.roles)
+      : ["user"];
+  // Always ensure the "user" baseline is present so signed-in accounts can
+  // buy photos.
+  const roles: Role[] = baseRoles.includes("user")
+    ? baseRoles
+    : (["user", ...baseRoles] as Role[]);
+  const isAdmin = roles.includes("owner");
+  const data = { googleSubject: g.sub, email, name: displayName, roles, isAdmin };
+
+  if (existing) {
+    await db.photographer.update({ where: { id: existing.id }, data });
+    return existing.id;
+  }
+  const made = await db.photographer.create({ data, select: { id: true } });
+  return made.id;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     Google({
@@ -44,59 +90,11 @@ export const authOptions: NextAuthOptions = {
       // v2.1: the whole-site gate is gone — any Google account can sign in.
       // Per-event access modes (src/lib/eventAccess.ts) are the only visibility
       // control now.
-      const displayName = user.name ?? user.email.split("@")[0];
-      const ownerAccount = isOwnerEmail(email);
-
-      // 1. Look up by googleSubject first (stable across email changes)
-      let existing = await db.photographer.findUnique({
-        where: { googleSubject: account.providerAccountId },
-        select: { id: true, roles: true, email: true },
+      await upsertGoogleAccount({
+        sub: account.providerAccountId,
+        email,
+        name: user.name ?? user.email.split("@")[0],
       });
-
-      // 2. Fall back to email match (claims pre-seeded rows)
-      if (!existing) {
-        existing = await db.photographer.findUnique({
-          where: { email },
-          select: { id: true, roles: true, email: true },
-        });
-      }
-
-      // Compute roles: owner-by-email gets the full set; otherwise inherit
-      // any existing roles, or default to ["runner"] for net-new users.
-      const baseRoles: Role[] = ownerAccount
-        ? OWNER_IMPLIED_ROLES
-        : existing
-          ? normalizeRoles(existing.roles)
-          : ["user"];
-      // Always ensure the "user" baseline is present so signed-in accounts can
-      // buy photos.
-      const roles: Role[] = baseRoles.includes("user")
-        ? baseRoles
-        : (["user", ...baseRoles] as Role[]);
-      const isAdmin = roles.includes("owner");
-
-      if (existing) {
-        await db.photographer.update({
-          where: { id: existing.id },
-          data: {
-            googleSubject: account.providerAccountId,
-            email,
-            name: displayName,
-            roles,
-            isAdmin,
-          },
-        });
-      } else {
-        await db.photographer.create({
-          data: {
-            googleSubject: account.providerAccountId,
-            email,
-            name: displayName,
-            roles,
-            isAdmin,
-          },
-        });
-      }
       return true;
     },
     async jwt({ token, account, user }) {

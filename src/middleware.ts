@@ -213,7 +213,30 @@ function toRowtember(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(`${ROWTEMBER_ORIGIN}${path}${search}`, 308);
 }
 
+/* THE PHONE APP ON A LAPTOP (2026-11-20). In development the app's web
+ * build runs on its own port (Expo, :8090) and calls this server's
+ * /api/row100k and /api/erg routes with a bearer token, which a browser
+ * only allows across ports if the server says so. Development only: a
+ * production build answers no such header. The phone itself is not a
+ * browser and needs none, and the web build on the site is same-origin. */
+function devAppCors(req: NextRequest): NextResponse | null {
+  if (process.env.NODE_ENV === "production") return null;
+  const origin = req.headers.get("origin") ?? "";
+  const p = req.nextUrl.pathname;
+  /* This machine, or a phone on the same home network looking at it. */
+  if (!/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):\d+$/.test(origin)) return null;
+  if (!p.startsWith("/api/row100k/") && !p.startsWith("/api/erg/")) return null;
+  const res = req.method === "OPTIONS" ? new NextResponse(null, { status: 204 }) : NextResponse.next();
+  res.headers.set("Access-Control-Allow-Origin", origin);
+  res.headers.set("Access-Control-Allow-Headers", "authorization, content-type");
+  res.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  res.headers.set("Vary", "Origin");
+  return res;
+}
+
 export function middleware(req: NextRequest) {
+  const cors = devAppCors(req);
+  if (cors) return cors;
   const moved = toRowtember(req) ?? stripPrefix(req);
   if (moved) return moved;
   const row = rowRewrite(req);

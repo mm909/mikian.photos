@@ -15,13 +15,19 @@ const nextConfig = {
   // dropped the `archiver(format, opts)` factory, which broke webpack's default
   // import. v7 bundles cleanly, so it does NOT need to be externalized.)
   experimental: {
-    serverComponentsExternalPackages: ["tesseract.js", "sharp"],
+    serverComponentsExternalPackages: ["tesseract.js", "sharp", "@napi-rs/canvas"],
     // The live tracker's event files (events/<slug>.yaml + .gpx) are read
     // from disk by the sync route, which upserts them into the database;
     // nothing else reads the files at runtime. Output tracing would not
     // otherwise ship them to the serverless function.
     outputFileTracingIncludes: {
       "/api/track/sync": ["./events/**/*"],
+      // The share cards drawn on the server (share/serverCard.ts) read their
+      // three faces off disk.
+      "/api/row100k/app/card": ["./src/app/row100k/share/fonts/*"],
+      // The reel route also loads its video encoder at run time, outside the
+      // bundle (erg/reel/serverReel.ts), so the package is shipped by name.
+      "/api/row100k/app/reel": ["./src/app/row100k/share/fonts/*", "./node_modules/h264-mp4-encoder/**/*"],
     },
   },
 
