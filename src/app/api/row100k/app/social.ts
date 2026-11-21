@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { CHALLENGE, fmtRowerNumber } from "@/lib/row100k";
 import { resolveViewer, type Viewer, type ViewerParticipant } from "@/lib/row100kViewer";
-import { avatarsFor, type FollowState } from "@/lib/rowSocial";
+import { avatarsFor, relation, type FollowState } from "@/lib/rowSocial";
 
 /* What the social routes beside this file share (2026-11-21): the answer
  * shapes, who is asking, the rower a request names, and one rower as a line
@@ -27,6 +27,18 @@ export async function asRower(): Promise<{ viewer: Viewer; me: ViewerParticipant
   if (socialClosedTo(viewer)) return { denied: no("Not open yet.", 404) };
   if (!viewer.me) return { denied: no("Join first.", 403) };
   return { viewer, me: viewer.me };
+}
+
+/* A row this viewer may see, to like it or read and write under it: not a
+ * private rower's unless they accepted the viewer, and nobody's across a
+ * block (lib/rowSocial.ts). Their own always. */
+export async function seeEntry(viewerId: string | null, raw: unknown): Promise<{ id: string; participantId: string } | null> {
+  const id = typeof raw === "string" && /^[a-z0-9]{1,40}$/i.test(raw) ? raw : "";
+  if (!id) return null;
+  const e = await db.rowEntry.findFirst({ where: { id, challenge: CHALLENGE }, select: { id: true, participantId: true } });
+  if (!e) return null;
+  if (e.participantId === viewerId) return e;
+  return (await relation(viewerId, e.participantId)).access === "open" ? e : null;
 }
 
 export type Subject = { id: string; rowerNumber: number; displayName: string; instagram: string; userId: string };

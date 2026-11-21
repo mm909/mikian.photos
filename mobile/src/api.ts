@@ -120,7 +120,7 @@ export type FollowState = "none" | "pending" | "accepted";
 export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; muted?: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
 export type Counts = { followers: number; following: number };
 export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null; avatar?: string | null };
-export type Notice = { avatar?: string | null; id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
+export type Notice = { avatar?: string | null; id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed" | "liked" | "commented" | "replied"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
 export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[]; avatar?: string | null };
 /* What the profile route answers in place of a profile across a block. */
 export type Blocked = { rowerNumber: number; displayName: string; byMe: boolean };
@@ -149,6 +149,10 @@ export type FeedItem = {
   /* How the viewer stands to the row's rower, for the menu on the row. */
   rel: { following: FollowState; bell: boolean };
   avatar?: string | null;
+  /* Under the row: how many likes, whether one is the viewer's, how many comments. */
+  likes?: number;
+  liked?: boolean;
+  comments?: number;
 };
 export type FeedPage = { items: FeedItem[]; older: string | null; lead?: number };
 

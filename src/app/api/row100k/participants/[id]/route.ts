@@ -221,6 +221,8 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       db.rowBlock.deleteMany({ where: { OR: [{ blockerId: id }, { blockedId: id }] } }),
       db.rowNotification.deleteMany({ where: { OR: [{ participantId: id }, { actorId: id }] } }),
       db.rowSocialSetting.deleteMany({ where: { participantId: id } }),
+      db.rowLike.deleteMany({ where: { participantId: id } }),
+      db.rowComment.deleteMany({ where: { participantId: id } }),
     ]);
   } catch (err) {
     console.error("row100k: failed to clear a removed rower's follows and notifications", err);

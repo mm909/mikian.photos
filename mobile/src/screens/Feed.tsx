@@ -6,6 +6,7 @@ import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F } from "../theme";
 import { Avatar, Blocks, PhotoPair, Waiting, type Gallery } from "../ui";
+import { CommentsSheet, PostActions } from "./Comments";
 import { StickerViewer } from "./RowPage";
 import { RowMenu } from "./Social";
 
@@ -30,6 +31,10 @@ import { RowMenu } from "./Social";
  * and the dots there bring the same sheet up OVER the photo, not in place
  * of it.
  *
+ * UNDER IT, LIKE, COMMENT, SHARE (2026-11-22: "we want like, comment,
+ * share on the posts. And that way, that's where that share button can
+ * go"), as Instagram lays them: screens/Comments.tsx.
+ *
  * A hidden rower's row draws blocks and no photos, as on /feed. A name
  * opens the rower; the figures open the row. */
 
@@ -45,6 +50,15 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
   const [refreshing, setRefreshing] = useState(false);
   const [menu, setMenu] = useState<FeedItem | null>(null);
   const [sharing, setSharing] = useState<string | null>(null);
+  const [talk, setTalk] = useState<string | null>(null);
+  /* A like or a comment count that moved: on the list, and on what the app
+   * keeps of the feed, so the heart is still full when the tab is come
+   * back to. */
+  const touch = (id: string, f: Partial<FeedItem>) => {
+    const kept = peek<FeedPage>(PATH)?.items.find((x) => x.id === id);
+    if (kept) Object.assign(kept, f);
+    setItems((prev) => (prev ?? []).map((x) => (x.id === id ? { ...x, ...f } : x)));
+  };
   const more = useRef(false);
 
   const first = useCallback(async (pulled?: boolean) => {
@@ -156,6 +170,9 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
             onRower={onRower}
             onRow={onRow}
             onMenu={() => setMenu(item)}
+            onTalk={() => setTalk(item.id)}
+            onShare={item.masked ? undefined : () => setSharing(item.id)}
+            onLike={(likes, liked) => touch(item.id, { likes, liked })}
             gallery={{ photos: run.photos, stamps: run.stamps, offset: run.offset.get(item.id) ?? 0, menu: (at, close, leave) => (run.owner[at] ? sheet(run.owner[at], close, leave) : null) }}
           />
         )}
@@ -164,12 +181,13 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
       />
       {menu ? sheet(menu, () => setMenu(null)) : null}
       {sharing ? <StickerViewer rowId={sharing} onClose={() => setSharing(null)} /> : null}
+      {talk ? <CommentsSheet entryId={talk} onClose={() => setTalk(null)} onRower={onRower} onCount={(n) => touch(talk, { comments: n })} /> : null}
     </>
   );
 }
 
 /* One row. */
-function Strip({ it, onRower, onRow, onMenu, gallery }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; gallery: Gallery }) {
+function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, gallery }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; onTalk: () => void; onShare?: () => void; onLike: (likes: number, liked: boolean) => void; gallery: Gallery }) {
   const erg = it.erg ? [it.erg.watts ? `${it.erg.watts} W` : "", it.erg.spm ? `${it.erg.spm} s/m` : "", it.erg.hr ? `${it.erg.hr} bpm` : "", it.erg.drag ? `drag ${it.erg.drag}` : ""].filter(Boolean) : [];
   return (
     <View style={{ backgroundColor: C.card, borderRadius: 8, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
@@ -201,7 +219,6 @@ function Strip({ it, onRower, onRow, onMenu, gallery }: { it: FeedItem; onRower:
           <View style={{ alignItems: "flex-end" }}>
             <Text style={{ fontFamily: F.black, fontSize: 20, lineHeight: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>
               {it.splitStr}
-              <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray }}> /500m</Text>
             </Text>
             {it.masked ? null : <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginTop: 2, fontVariant: ["tabular-nums"] }}>{it.durationStr}</Text>}
           </View>
@@ -210,6 +227,8 @@ function Strip({ it, onRower, onRow, onMenu, gallery }: { it: FeedItem; onRower:
       </Pressable>
 
       {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} gallery={gallery} />}
+
+      <PostActions id={it.id} likes={it.likes ?? 0} liked={!!it.liked} comments={it.comments ?? 0} onComments={onTalk} onShare={onShare} onChange={onLike} style={{ marginTop: 10, marginBottom: -4 }} />
     </View>
   );
 }

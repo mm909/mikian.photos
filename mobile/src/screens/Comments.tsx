@@ -1,0 +1,301 @@
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { api } from "../api";
+import { CommentIcon, HeartIcon, ShareIcon } from "../icons";
+import { useSession } from "../session";
+import { mono } from "../site";
+import { C, F, fmtInt } from "../theme";
+import { Avatar } from "../ui";
+import { ReportSheet } from "./Social";
+
+/* LIKE, COMMENT, SHARE (owner, 2026-11-22: "I've officially bit the bullet.
+ * I think we want like, comment, share on the posts. And that way, that's
+ * where that share button can go"; "allow me to reply to comments. I really
+ * want it to work just like Instagram's").
+ *
+ * So, as there: three marks in a line under a row, the heart and the bubble
+ * each with its count, then the share. The heart fills with the blue. The
+ * bubble brings the comments up from the foot of the screen over whatever
+ * was being read; a comment has REPLY under it, a reply sits indented under
+ * the comment it answers, and the field at the foot says who is being
+ * answered. Who may read, write and remove is the server's
+ * (api/row100k/app/like, /comments). */
+
+/* ---- the three marks -------------------------------------------------- */
+
+export function PostActions({
+  id,
+  likes,
+  liked,
+  comments,
+  onComments,
+  onShare,
+  onChange,
+  style,
+}: {
+  id: string;
+  likes: number;
+  liked: boolean;
+  comments: number;
+  onComments: () => void;
+  onShare?: () => void;
+  /* The row's like, as it now stands, for whoever keeps the list. */
+  onChange?: (likes: number, liked: boolean) => void;
+  style?: object;
+}) {
+  const { me } = useSession();
+  const [mine, setMine] = useState(liked);
+  const [n, setN] = useState(likes);
+  useEffect(() => {
+    setMine(liked);
+    setN(likes);
+  }, [liked, likes, id]);
+  const pop = useRef(new Animated.Value(1)).current;
+
+  /* The heart answers the thumb at once; the server's count replaces the
+   * guess, and a like that did not go through is taken back. */
+  const press = async () => {
+    if (!me.me) return;
+    const next = !mine;
+    const guess = Math.max(0, n + (next ? 1 : -1));
+    setMine(next);
+    setN(guess);
+    onChange?.(guess, next);
+    if (next) {
+      pop.setValue(0.7);
+      Animated.timing(pop, { toValue: 1, duration: 260, easing: Easing.out(Easing.back(3)), useNativeDriver: Platform.OS !== "web" }).start();
+    }
+    try {
+      const r = await api<{ likes: number; liked: boolean }>("/api/row100k/app/like", { body: { entryId: id, on: next } });
+      setMine(r.liked);
+      setN(r.likes);
+      onChange?.(r.likes, r.liked);
+    } catch {
+      setMine(!next);
+      setN(n);
+      onChange?.(n, !next);
+    }
+  };
+
+  const count = (v: number) => (v > 0 ? <Text style={{ fontFamily: F.bold, fontSize: 15, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text> : null);
+  const hit = ({ pressed }: { pressed: boolean }) => ({ flexDirection: "row" as const, alignItems: "center" as const, gap: 6, minHeight: 36, opacity: pressed ? 0.5 : 1 });
+  return (
+    <View style={[{ flexDirection: "row", alignItems: "center", gap: 18 }, style]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={mine ? `Unlike. ${n} likes` : `Like. ${n} likes`} accessibilityState={{ selected: mine }} onPress={press} hitSlop={8} style={hit}>
+        <Animated.View style={{ transform: [{ scale: pop }] }}>
+          <HeartIcon color={mine ? C.accent : C.ink} full={mine} size={25} />
+        </Animated.View>
+        {count(n)}
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Comments, ${comments}`} onPress={onComments} hitSlop={8} style={hit}>
+        <CommentIcon size={25} />
+        {count(comments)}
+      </Pressable>
+      {onShare ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Share this row" onPress={onShare} hitSlop={8} style={hit}>
+          <ShareIcon size={24} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/* ---- the comments ----------------------------------------------------- */
+
+type Line = { id: string; parentId: string | null; rowerNumber: number; numStr: string; name: string; avatar: string | null; text: string; mine: boolean; canRemove: boolean; dayStr: string; clockStr: string };
+type Top = Line & { replies: Line[] };
+type Answer = { comments: Top[]; count: number };
+
+export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId: string; onClose: () => void; onRower: (n: number) => void; onCount?: (n: number) => void }) {
+  const { me } = useSession();
+  const win = useWindowDimensions();
+  const path = `/api/row100k/app/comments?entry=${entryId}`;
+  const [data, setData] = useState<Answer | null>(null);
+  const [error, setError] = useState("");
+  const [text, setText] = useState("");
+  const [to, setTo] = useState<Line | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState<Line | null>(null);
+  const field = useRef<{ focus: () => void } | null>(null);
+  const list = useRef<FlatList<Top>>(null);
+
+  const read = async () => {
+    try {
+      const r = await api<Answer>(path);
+      setData(r);
+      onCount?.(r.count);
+      setError("");
+      return r;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The comments could not be read.");
+      return null;
+    }
+  };
+  useEffect(() => {
+    read();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
+
+  /* Up from the foot, like every other sheet here. */
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [a]);
+  const shut = () => {
+    Keyboard.dismiss();
+    onClose();
+  };
+
+  const post = async () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    try {
+      await api("/api/row100k/app/comments", { body: { entryId, text: t, parentId: to?.id } });
+      const wasReply = !!to;
+      setText("");
+      setTo(null);
+      await read();
+      /* A new comment is the last one; a reply stays where it was read. */
+      if (!wasReply) setTimeout(() => list.current?.scrollToEnd({ animated: true }), 60);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not go through.");
+    }
+    setBusy(false);
+  };
+  const remove = async (c: Line) => {
+    try {
+      await api("/api/row100k/app/comments", { body: { remove: c.id } });
+    } catch {
+      /* Read again either way: the list says what is true. */
+    }
+    read();
+  };
+  const reply = (c: Line) => {
+    setTo(c);
+    field.current?.focus();
+  };
+
+  const small = { fontFamily: F.monoBold, fontSize: 11, color: C.gray } as const;
+  const one = (c: Line, inner: boolean) => (
+    <View key={c.id} style={{ flexDirection: "row", gap: 10, paddingVertical: 10, paddingLeft: inner ? 44 : 0 }}>
+      <Pressable
+        accessibilityLabel={`${c.name}'s page`}
+        onPress={() => {
+          shut();
+          onRower(c.rowerNumber);
+        }}
+      >
+        <Avatar uri={c.avatar} name={c.name} size={inner ? 26 : 34} />
+      </Pressable>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 20, color: C.ink }}>
+          <Text style={{ fontFamily: F.bold, color: c.mine ? C.accent : C.ink }}>{c.name}</Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray }}>
+            {"  "}
+            {c.dayStr} · {c.clockStr}
+          </Text>
+        </Text>
+        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 2 }}>{c.text}</Text>
+        <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}>
+          {me.me ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Reply to ${c.name}`} onPress={() => reply(c)} hitSlop={8}>
+              <Text style={small}>Reply</Text>
+            </Pressable>
+          ) : null}
+          {c.canRemove ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Remove this comment" onPress={() => remove(c)} hitSlop={8}>
+              <Text style={small}>Remove</Text>
+            </Pressable>
+          ) : null}
+          {me.me && !c.mine ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Report ${c.name}'s comment`} onPress={() => setReport(c)} hitSlop={8}>
+              <Text style={small}>Report</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={shut}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }}>
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
+          <Pressable accessibilityLabel="Close the comments" onPress={shut} style={{ flex: 1 }} />
+        </Animated.View>
+        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, width: "100%", maxWidth: 560, alignSelf: "center", height: Math.round(win.height * 0.72), transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [win.height * 0.72, 0] }) }] }}>
+          {/* The grip and the name of the sheet. */}
+          <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.line }}>
+            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: C.line, marginBottom: 12 }} />
+            <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>Comments</Text>
+          </View>
+
+          {!data ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>{error ? <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.soft, textAlign: "center" }}>{error}</Text> : <ActivityIndicator color={C.ink} />}</View>
+          ) : (
+            <FlatList
+              ref={list}
+              data={data.comments}
+              keyExtractor={(c) => c.id}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 18, paddingVertical: 8, flexGrow: 1 }}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <View>
+                  {one(item, false)}
+                  {item.replies.map((r) => one(r, true))}
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+                  <Text style={{ fontFamily: F.bold, fontSize: 18, color: C.ink }}>No comments yet</Text>
+                  <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.soft, marginTop: 6 }}>Say something about this row.</Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* The field at the foot, and who it answers. */}
+          {me.me ? (
+            <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingTop: 8, paddingBottom: Platform.OS === "ios" ? 26 : 12 }}>
+              {data && error ? <Text style={[mono(10, false, C.accent), { marginBottom: 6 }]}>{error}</Text> : null}
+              {to ? (
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, flex: 1 }}>
+                    Replying to {to.name}
+                  </Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Stop replying" onPress={() => setTo(null)} hitSlop={10}>
+                    <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.gray }}>✕</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+                <Avatar uri={me.avatar} name={me.me.displayName} size={34} />
+                <View style={{ flex: 1, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 14, justifyContent: "center" }}>
+                  <TextInput
+                    ref={field as never}
+                    accessibilityLabel={to ? `Reply to ${to.name}` : "Add a comment"}
+                    value={text}
+                    onChangeText={setText}
+                    multiline
+                    maxLength={500}
+                    placeholder={to ? `Reply to ${to.name}` : "Add a comment"}
+                    placeholderTextColor={C.gray}
+                    style={[{ fontFamily: F.sans, fontSize: 16, color: C.ink, paddingVertical: 9, maxHeight: 110 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]}
+                  />
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel="Post" disabled={!text.trim() || busy} onPress={post} hitSlop={8} style={({ pressed }) => ({ height: 40, justifyContent: "center", opacity: !text.trim() || busy ? 0.35 : pressed ? 0.6 : 1 })}>
+                  <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.accent }}>Post</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.soft, textAlign: "center", paddingVertical: 18, borderTopWidth: 1, borderColor: C.line }}>Sign in to comment.</Text>
+          )}
+        </Animated.View>
+        {report ? <ReportSheet num={report.rowerNumber} name={report.name} entryId={entryId} onClose={() => setReport(null)} /> : null}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}

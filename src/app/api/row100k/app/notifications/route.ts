@@ -46,6 +46,9 @@ export async function GET() {
       else if (r.kind === "request") text = "asked to follow you.";
       else if (r.kind === "accepted") text = "accepted your follow request.";
       else if (r.kind === "rowed") text = "logged a row.";
+      else if (r.kind === "liked") text = "liked your row.";
+      else if (r.kind === "commented") text = "commented on your row.";
+      else if (r.kind === "replied") text = "replied to your comment.";
       else if (r.kind === "passed") {
         const others = r.actors.filter((id) => id !== a.id && by.has(id) && !cut.has(id)).length;
         text = others === 0 ? "passed you on the board." : `and ${others} other${others === 1 ? "" : "s"} you follow passed you on the board.`;
@@ -60,7 +63,7 @@ export async function GET() {
           avatar: faces.get(a.id) ?? null,
           text,
           /* Where a tap leads: the row, the board, or the rower. */
-          entryId: r.kind === "rowed" ? r.entryId : null,
+          entryId: r.kind === "rowed" || r.kind === "liked" || r.kind === "commented" || r.kind === "replied" ? r.entryId : null,
           /* A request still waiting carries its own two buttons. */
           open: r.kind === "request" && asking.has(a.id),
           unread: r.readAt === null,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel, type SocialSettings } from "../api";
 import { SearchIcon } from "../icons";
 import { useLookSwitch } from "../look";
@@ -227,6 +227,9 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
     const next = [p, ...recent.filter((r) => r.rowerNumber !== p.rowerNumber)].slice(0, 8);
     setRecent(next);
     AsyncStorage.setItem(RECENT, JSON.stringify(next)).catch(() => null);
+    /* The keyboard does not follow to the rower's page (owner, 2026-11-22:
+     * "when I ... click on someone, the keyboard stays up"). */
+    Keyboard.dismiss();
     onRower(p.rowerNumber);
   };
   const forget = () => {
@@ -356,7 +359,7 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
  * version: "looks like a high school computer science student made it").
  * Unread lines wear a blue square. Opening the screen marks them read.
  * Nothing else lives here: settings are behind the menu on the profile. */
-export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n: number) => void; onRow: (id: string) => void; onBoard: () => void; onPeople: (list: PeopleList) => void }) {
+export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n: number) => void; onRow: (id: string, talk?: boolean) => void; onBoard: () => void; onPeople: (list: PeopleList) => void }) {
   const { me, refresh } = useSession();
   const { data, error, loading, reload } = useLoad(() => api<{ items: Notice[]; unread: number }>("/api/row100k/app/notifications"), [], "/api/row100k/app/notifications");
   const marked = useRef(false);
@@ -379,7 +382,10 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
     refresh();
     setBusy(0);
   };
-  const open = (it: Notice) => (it.kind === "rowed" && it.entryId ? onRow(it.entryId) : it.kind === "passed" ? onBoard() : onRower(it.rowerNumber));
+  /* A like leads to the row; a comment or a reply to the row with its
+   * comments up. */
+  const open = (it: Notice) =>
+    (it.kind === "rowed" || it.kind === "liked") && it.entryId ? onRow(it.entryId) : (it.kind === "commented" || it.kind === "replied") && it.entryId ? onRow(it.entryId, true) : it.kind === "passed" ? onBoard() : onRower(it.rowerNumber);
   const requests = me.social?.requests ?? 0;
 
   return (
@@ -430,6 +436,8 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
   follow: ["Somebody follows me", "Requests to follow a private account always arrive."],
+  liked: ["Somebody likes my row", ""],
+  commented: ["Comments and replies", "A comment on my row, or a reply to one of mine."],
 };
 
 /* SETTINGS, behind the three lines on the rower's own profile (owner,

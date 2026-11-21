@@ -109,6 +109,27 @@ export async function GET(req: Request) {
       }
     }
 
+    /* Likes and comments under each row: how many, and whether the viewer
+     * has liked it. */
+    const ids = feed.items.map((it) => it.id);
+    const likes = new Map<string, number>();
+    const comments = new Map<string, number>();
+    const liked = new Set<string>();
+    if (ids.length) {
+      try {
+        const [l, c, mineL] = await Promise.all([
+          db.rowLike.groupBy({ by: ["entryId"], where: { entryId: { in: ids } }, _count: true }),
+          db.rowComment.groupBy({ by: ["entryId"], where: { entryId: { in: ids }, deletedAt: null }, _count: true }),
+          me ? db.rowLike.findMany({ where: { entryId: { in: ids }, participantId: me }, select: { entryId: true } }) : Promise.resolve([]),
+        ]);
+        for (const x of l) likes.set(x.entryId, x._count);
+        for (const x of c) comments.set(x.entryId, x._count);
+        for (const x of mineL) liked.add(x.entryId);
+      } catch (err) {
+        console.error("row app: failed to read likes and comments for the feed", err);
+      }
+    }
+
     /* The face beside each name. */
     const faceOf = new Map<number, string>();
     if (nums.length) {
@@ -124,7 +145,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
+        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, likes: likes.get(it.id) ?? 0, liked: liked.has(it.id), comments: comments.get(it.id) ?? 0, rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
         /* How many of these rows are the lead (the rowers the viewer follows). */
         lead: leadRows,
         older,

@@ -3426,7 +3426,7 @@ const dailyCards: ShareCard[] = [
 function receiptLines(row: NonNullable<ShareData["row"]>): [string, string][] {
   const out: [string, string][] = [
     ["METERS", row.meters.toLocaleString("en-US")],
-    ["PACE", row.meters > 0 && row.seconds > 0 ? `${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M` : "-"],
+    ["PACE", row.meters > 0 && row.seconds > 0 ? roundToSeconds(fmtSplit(row.meters, row.seconds)) : "-"],
     ["TIME", fmtDuration(row.seconds)],
   ];
   if (row.erg?.watts) out.push(["WATTS", String(Math.round(row.erg.watts))]);
@@ -3483,7 +3483,7 @@ const rowtemberSplits: ShareCard = {
   id: "rowtember-splits",
   label: "500 m splits",
   width: 1080,
-  height: 1120,
+  height: 1040,
   light: true,
   available: (d) => !!d.row && !d.masked && (d.row.splits?.length ?? 0) >= 2,
   /* Laid out after the splits sticker he sent as a reference (2026-11-22,
@@ -3503,14 +3503,11 @@ const rowtemberSplits: ShareCard = {
     const clock = (sec: number) => `${Math.floor(sec / 60)}:${(sec - Math.floor(sec / 60) * 60).toFixed(1).padStart(4, "0")}`;
     const x0 = 250;
     const x1 = this.width - 250;
-    const rowH = Math.min(62, (this.height - 430) / splits.length);
-    const top = 150;
+    const rowH = Math.min(62, (this.height - 370) / splits.length);
+    const top = 170;
     ctx.save();
     ctx.fillStyle = "#ffffff";
     ctx.textBaseline = "alphabetic";
-    ctx.textAlign = "left";
-    ctx.font = `62px ${fonts.black}`;
-    ctx.fillText("500 M SPLITS", 90, 100);
     splits.forEach((s, i) => {
       const y = top + i * rowH + rowH / 2;
       /* Faster is longer: the fastest runs the whole measure, the slowest 55% of it. */
@@ -3534,8 +3531,11 @@ const rowtemberSplits: ShareCard = {
     });
     ctx.restore();
     const foot = top + splits.length * rowH;
-    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)} · AVG ${roundToSeconds(fmtSplit(row.meters, row.seconds))}`, { cx: this.width / 2, baseline: foot + 80, font: `40px ${fonts.mono}`, color: "#ffffff", maxWidth: this.width - 160 });
-    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: foot + 180, size: 84, fontFamily: fonts.black });
+    /* The row in one line ABOVE the bars, where the title was, and no title
+     * (owner, 2026-11-22: "we actually don't need the title 500-meter splits
+     * ... let's just put the stat line at the top"). */
+    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)} · AVG ${roundToSeconds(fmtSplit(row.meters, row.seconds))}`, { cx: this.width / 2, baseline: 100, font: `46px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: foot + 110, size: 84, fontFamily: fonts.black });
   },
 };
 
@@ -3555,7 +3555,7 @@ const rowtemberPace: ShareCard = {
     if (!row) return;
     const cx = this.width / 2;
     drawCenteredText(ctx, roundToSeconds(fmtSplit(row.meters, row.seconds)), { cx, baseline: 330, font: `330px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 80 });
-    drawCenteredText(ctx, "AVERAGE /500M", { cx, baseline: 410, font: `44px ${fonts.mono}`, color: "#ffffff" });
+    drawCenteredText(ctx, "AVERAGE PACE", { cx, baseline: 410, font: `44px ${fonts.mono}`, color: "#ffffff" });
     /* A hidden rower keeps the split and nothing that gives the meters away. */
     if (!data.masked) drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx, baseline: 500, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
     drawMark(ctx, [{ text: MARK }], { cx, cy: 640, size: 96, fontFamily: fonts.black, masked: data.masked });
@@ -3579,7 +3579,7 @@ const rowtemberStack: ShareCard = {
     drawMark(ctx, [{ text: MARK }], { cx, cy: 110, size: 90, fontFamily: fonts.black });
     const figs: [string, string][] = [
       ["Meters", row.meters.toLocaleString("en-US")],
-      ["Pace", `${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500m`],
+      ["Pace", roundToSeconds(fmtSplit(row.meters, row.seconds))],
       ["Time", fmtDuration(row.seconds)],
     ];
     if (row.erg?.watts) figs.push(["Watts", String(Math.round(row.erg.watts))]);
@@ -3610,7 +3610,7 @@ const rowtemberTags: ShareCard = {
       { text: MARK, fill: true },
       ...(day ? [{ text: day }] : []),
       { text: `METERS ${row.meters.toLocaleString("en-US")}` },
-      { text: `PACE ${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M` },
+      { text: `PACE ${roundToSeconds(fmtSplit(row.meters, row.seconds))}` },
       { text: `TIME ${fmtDuration(row.seconds)}` },
       ...(row.erg?.watts ? [{ text: `${Math.round(row.erg.watts)} WATTS` }] : []),
       ...(row.erg?.spm ? [{ text: `${Math.round(row.erg.spm)} STROKES /MIN` }] : []),

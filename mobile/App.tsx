@@ -65,7 +65,7 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ color?: string; size
 
 type Over = { k: number } & (
   | { kind: "rower"; num: number }
-  | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc }
+  | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc; talk?: boolean }
   | { kind: "news" }
   | { kind: "settings" }
   | { kind: "people"; list: PeopleList; num?: number }
@@ -198,7 +198,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const monitor = rowing && logOn;
   const openLog = () => setLog("shown");
   const openRower = (num: number) => push({ kind: "rower", num });
-  const openRow = (id: string) => push({ kind: "row", id });
+  const openRow = (id: string, talk?: boolean) => push({ kind: "row", id, talk });
   const openPeople = (list: PeopleList, num?: number) => push({ kind: "people", list, num });
 
   /* The bell is read again every minute the app is open, so a line that
@@ -323,7 +323,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         }}
       />
     ) : (
-      <RowPage id={o.id} fresh={o.fresh} localDoc={o.doc} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} />
+      <RowPage id={o.id} talk={o.talk} fresh={o.fresh} localDoc={o.doc} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} />
     );
 
   return (

@@ -176,6 +176,19 @@ All DECIDED (his words), BUILT unless marked.
 - NOT BUILT: a top bar the page shows through. It folds away as a screen is read instead; a see-through one means every screen starting under it, which is its own piece of work.
 - OPEN: the long lines on the profile's log that wrap (he sent the profile, where the cause was not visible); following every rower by default ("do I actually want that? Nah, it's okay").
 
+### Round 14, 2026-11-22: like, comment, share
+
+All DECIDED (his words), BUILT on the sandbox unless marked.
+
+- LIKE, COMMENT, SHARE under every row, in the feed and on the row's page ("I've officially bit the bullet. I think we want like, comment, share on the posts. And that way, that's where that share button can go"). Three marks in a line as on Instagram: the heart and the bubble each with its count, then share, which opens the stickers. The blue Share pill at the top of a row's page is gone; share is the third mark.
+- REPLIES ("allow me to reply to comments. I really want it to work just like Instagram's"): the comments come up from the foot of the screen; a comment has Reply under it, replies sit indented under the comment they answer (one level; a reply to a reply is filed beside it), and the field says who is being answered. Its writer, the rower whose row it is, or an admin can remove one; anybody else can report it.
+- NOTIFICATIONS for them: "liked your row", "commented on your row", "replied to your comment", each leading to the row (a comment or reply with the comments up). Two new switches in settings: likes, and comments and replies. Never for a rower's own like or comment, never across a block. On-phone only, no email.
+- The keyboard goes away when a rower is opened from search ("when I ... click on someone, the keyboard stays up").
+- A PACE NEEDS NO UNIT ("if we're denoting a pace, we don't need to say /500"): gone from the row stickers (receipt, pace, stack, tags), from the feed card and from the row's page.
+- The splits sticker loses its title; the stat line (meters, time, average) is at the top where the title was ("we actually don't need the title 500-meter splits ... let's just put the stat line at the top").
+- NOT BUILT: who liked a row (a tap on the count); a double tap on a photo to like; the hamburger menu holding more than settings ("settings and activity", the TSP and No Shortcuts events: "we don't need to build those things right now").
+- OPEN: "allow users to add other users" (tagging somebody in a comment, or adding a partner to a row? he has not said).
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

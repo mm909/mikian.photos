@@ -1757,3 +1757,37 @@ model RowPushToken {
 
   @@index([userId])
 }
+
+/// LIKES AND COMMENTS on a logged row (owner, 2026-11-22: "I've officially
+/// bit the bullet. I think we want like, comment, share on the posts").
+/// Named by RowEntry.id and RowParticipant.id, no FKs, like the rest of the
+/// phone app's tables. Additive.
+
+/// One rower's like of one row.
+model RowLike {
+  id            String   @id @default(cuid())
+  challenge     String
+  entryId       String
+  participantId String
+  createdAt     DateTime @default(now())
+
+  @@unique([entryId, participantId])
+  @@index([participantId])
+}
+
+/// One comment on a row. `parentId` is the first-level comment a reply sits
+/// under (one level of replies, as Instagram shows them). `deletedAt` takes
+/// a comment out of sight without erasing it.
+model RowComment {
+  id            String    @id @default(cuid())
+  challenge     String
+  entryId       String
+  participantId String
+  parentId      String?
+  text          String
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  @@index([entryId, createdAt])
+  @@index([participantId])
+}

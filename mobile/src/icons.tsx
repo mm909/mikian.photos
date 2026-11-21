@@ -102,6 +102,24 @@ export function ShareIcon({ color = C.ink, size = 24 }: P) {
   );
 }
 
+/* A LIKE: a heart, an outline until it is given, then whole. */
+export function HeartIcon({ color = C.ink, size = 24, full }: P & { full?: boolean }) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M12 20.5 C5.5 15.8 3 12.6 3 9.2 A4.7 4.7 0 0 1 12 7.3 A4.7 4.7 0 0 1 21 9.2 C21 12.6 18.5 15.8 12 20.5 Z" {...line(color)} fill={full ? color : "none"} />
+    </Svg>
+  );
+}
+
+/* A COMMENT: a round speech bubble with its tail at the foot. */
+export function CommentIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M20.5 11.5 a8.5 8 0 0 1 -12.4 7.1 L3.5 20 L4.9 15.7 A8.5 8 0 1 1 20.5 11.5 Z" {...line(color)} />
+    </Svg>
+  );
+}
+
 /* Three lines: the menu on a rower's own profile. */
 export function MenuIcon({ color = C.ink, size = 24 }: P) {
   return (

@@ -184,6 +184,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   // deleteMany so a concurrent double-delete is a no-op, not a P2025 throw.
   await db.rowEntry.deleteMany({ where: { id: guarded.entryId } });
+  /* What hung on the row in the phone app's tables (no FKs there). */
+  try {
+    await Promise.all([db.rowLike.deleteMany({ where: { entryId: guarded.entryId } }), db.rowComment.deleteMany({ where: { entryId: guarded.entryId } }), db.rowNotification.deleteMany({ where: { entryId: guarded.entryId } })]);
+  } catch (err) {
+    console.error("row100k: failed to clear a removed row's likes and comments", err);
+  }
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true });
 }

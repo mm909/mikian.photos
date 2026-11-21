@@ -9,6 +9,7 @@ import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, copySticker, shareReel, sh
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
 import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
+import { CommentsSheet, PostActions } from "./Comments";
 import { Review } from "./Review";
 import { RowMenu } from "./Social";
 
@@ -67,6 +68,9 @@ type RowData = {
   usual?: { rows: number; avgPace: number; avgMeters: number; same: number; place: number; best: number } | null;
   canShare: boolean;
   canReel: boolean;
+  likes?: number;
+  liked?: boolean;
+  comments?: number;
   erg: { id: string; device: string; simulated: boolean; watts: number | null; spm: number | null; hr: number | null; drag: number | null; strokes: number } | null;
   doc: TelemetryDoc | null;
 };
@@ -81,6 +85,7 @@ export function RowPage({
   menu,
   onMenu,
   onWho,
+  talk,
 }: {
   id: string;
   fresh?: Fresh;
@@ -93,10 +98,14 @@ export function RowPage({
   onMenu?: (open: boolean) => void;
   /* Whose row this is, once known: the top bar's mark rolls into it. */
   onWho?: (num: number) => void;
+  /* Opened from a line about a comment: the comments come up at once. */
+  talk?: boolean;
 }) {
   const path = `/api/row100k/app/row?id=${id}`;
   const { data, error, reload } = useLoad(() => api<{ row: RowData }>(path), [path], path);
   const [sharing, setSharing] = useState(false);
+  const [talking, setTalking] = useState(!!talk);
+  const [said, setSaid] = useState<number | null>(null);
   const who = data?.row.rowerNumber;
   useEffect(() => {
     if (who) onWho?.(who);
@@ -121,7 +130,7 @@ export function RowPage({
   const figures = (
     <Text style={{ fontFamily: F.mono, fontSize: 14, color: C.gray, marginTop: 10, fontVariant: ["tabular-nums"] }}>
       {r.masked ? null : <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{r.durationStr}  </Text>}
-      {r.splitStr} /500m
+      {r.splitStr}
     </Text>
   );
 
@@ -143,14 +152,6 @@ export function RowPage({
             {r.title ? ` · ${r.title}` : ""}
           </Text>
         </Pressable>
-        {/* THE STICKERS, behind one mark (owner, 2026-11-21: "let's put
-            these stickers behind like a little share icon"). */}
-        {r.canShare && !r.masked ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Share this row" onPress={() => setSharing(true)} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, height: 38, paddingHorizontal: 12, backgroundColor: C.accent, borderRadius: 19, opacity: pressed ? 0.7 : 1 })}>
-            <ShareIcon color="#fff" size={18} />
-            <Text style={mono(11, true, "#fff", 0.12)}>Share</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {/* THE TWO NUMBERS: how far, and at what pace (owner, 2026-11-21:
@@ -171,7 +172,7 @@ export function RowPage({
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.ink, fontVariant: ["tabular-nums"] }}>{r.splitStr}</Text>
-            <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>/500m{r.masked ? "" : ` · ${r.durationStr}`}</Text>
+            <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>Pace{r.masked ? "" : ` · ${r.durationStr}`}</Text>
           </View>
         </View>
       )}
@@ -195,6 +196,11 @@ export function RowPage({
           />
         )}
       />
+
+      {/* LIKE, COMMENT, SHARE, under the row as under a post (owner,
+          2026-11-22: "that's where that share button can go"). The stickers
+          are behind the share mark. */}
+      <PostActions id={r.id} likes={r.likes ?? 0} liked={!!r.liked} comments={said ?? r.comments ?? 0} onComments={() => setTalking(true)} onShare={r.canShare && !r.masked ? () => setSharing(true) : undefined} style={{ marginTop: 12 }} />
 
       {/* AGAINST THE USUAL (owner, 2026-11-22: "there's got to be some more
           details here, even when it didn't come from the erg ... like this
@@ -232,6 +238,7 @@ export function RowPage({
         />
       ) : null}
       {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
+      {talking ? <CommentsSheet entryId={r.id} onClose={() => setTalking(false)} onRower={onRower} onCount={setSaid} /> : null}
     </ScrollView>
   );
 }

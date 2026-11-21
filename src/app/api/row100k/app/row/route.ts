@@ -109,6 +109,9 @@ export async function GET(req: Request) {
           rel: { following: rel.following, bell: rel.bell, muted: rel.muted },
           avatar: (await avatarsFor([e.participantId])).get(e.participantId) ?? null,
           usual,
+          likes: await db.rowLike.count({ where: { entryId: e.id } }).catch(() => 0),
+          liked: viewer.myParticipantId ? !!(await db.rowLike.findUnique({ where: { entryId_participantId: { entryId: e.id, participantId: viewer.myParticipantId } }, select: { id: true } }).catch(() => null)) : false,
+          comments: await db.rowComment.count({ where: { entryId: e.id, deletedAt: null } }).catch(() => 0),
           canShare: mine || viewer.isAdmin,
           /* The owner's tools on any row: take it down, or one photo of it. */
           admin: viewer.isAdmin,
