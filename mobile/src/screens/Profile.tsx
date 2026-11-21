@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Image, Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
 import { ShareIcon } from "../icons";
@@ -136,7 +136,16 @@ export function ProfileScreen({
               own stickers (owner, 2026-11-22: "I need a shareables menu on
               the profile ... maybe it goes to the right of my Instagram"). */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, minHeight: 34 }}>
-            {p.rower.instagram ? <Text style={mono(12, false, C.accent)}>@{p.rower.instagram}</Text> : <View />}
+            {/* A press on the handle is Instagram, at that account (owner,
+                2026-11-22: "if I click on ... their Instagram at, it should
+                take me ... to their Instagram page"). */}
+            {p.rower.instagram ? (
+              <Text accessibilityRole="link" accessibilityLabel={`${p.rower.instagram} on Instagram`} onPress={() => Linking.openURL(`https://www.instagram.com/${encodeURIComponent(p.rower.instagram)}/`).catch(() => null)} suppressHighlighting style={[mono(12, false, C.accent), { paddingVertical: 8 }]}>
+                @{p.rower.instagram}
+              </Text>
+            ) : (
+              <View />
+            )}
             {p.isMe ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
                 <ShareIcon color="#fff" size={16} />

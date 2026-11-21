@@ -153,6 +153,8 @@ export type FeedItem = {
   likes?: number;
   liked?: boolean;
   comments?: number;
+  /* What the rower wrote under the photos. */
+  caption?: string;
 };
 export type FeedPage = { items: FeedItem[]; older: string | null; lead?: number };
 

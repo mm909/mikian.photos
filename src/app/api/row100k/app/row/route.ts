@@ -8,6 +8,7 @@ import { boardView } from "@/app/row100k/boardData";
 import { stampParts } from "@/app/row100k/feed/view";
 import { avatarsFor, relation } from "@/lib/rowSocial";
 import { resolvePhotoMedia } from "@/app/row100k/photoUrls";
+import { asRower } from "../social";
 
 /* ONE ROW, for its page in the phone app (2026-11-20; owner the same day:
  * "if you tap a row it can open up the commentary on that row, that post
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
     if (!/^[a-z0-9]{1,40}$/i.test(id)) return no("No such row.", 404);
     const e = await db.rowEntry.findFirst({
       where: { id, challenge: CHALLENGE },
-      select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true, photos: true, createdAt: true, participant: { select: { displayName: true, rowerNumber: true } } },
+      select: { id: true, participantId: true, day: true, meters: true, seconds: true, title: true, caption: true, photos: true, createdAt: true, participant: { select: { displayName: true, rowerNumber: true } } },
     });
     if (!e) return no("No such row.", 404);
 
@@ -95,6 +96,7 @@ export async function GET(req: Request) {
           numStr: fmtRowerNumber(e.participant.rowerNumber),
           name: e.participant.displayName,
           title: plainTitle(e.title),
+          caption: e.caption ?? "",
           meters: masked ? null : e.meters,
           seconds: masked ? null : e.seconds,
           metersStr: masked ? "" : fmtMeters(e.meters),
@@ -128,5 +130,30 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("row app: failed to read a row", err);
     return no("That row could not be read just now.", 500);
+  }
+}
+
+/* THE CAPTION (owner, 2026-11-22: "allow users to submit ... a caption
+ * whenever you post. So with the images can come a caption, and then we
+ * can display that caption"). POST { id, caption }: the row's own rower
+ * writes it, changes it, or clears it with an empty one. Sent by the app
+ * straight after the row is logged, so the site's log route stays as it
+ * is. Wears the app's gate (social.ts). */
+export async function POST(req: Request) {
+  const who = await asRower();
+  if ("denied" in who) return who.denied;
+  try {
+    const body = (await req.json().catch(() => null)) as { id?: unknown; caption?: unknown } | null;
+    const id = typeof body?.id === "string" ? body.id : "";
+    const caption = typeof body?.caption === "string" ? body.caption.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 500) : null;
+    if (caption === null) return no("Nothing to save.", 400);
+    const e = await db.rowEntry.findFirst({ where: { id, challenge: CHALLENGE }, select: { id: true, participantId: true } });
+    if (!e) return no("No such row.", 404);
+    if (e.participantId !== who.me.id) return no("That row is not yours.", 403);
+    await db.rowEntry.update({ where: { id: e.id }, data: { caption: caption || null } });
+    return NextResponse.json({ ok: true, caption }, { headers: NO_STORE });
+  } catch (err) {
+    console.error("row app: failed to save a caption", err);
+    return no("That did not save. Try again.", 500);
   }
 }

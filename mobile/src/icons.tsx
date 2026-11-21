@@ -120,6 +120,16 @@ export function CommentIcon({ color = C.ink, size = 24 }: P) {
   );
 }
 
+/* SEND: an arrow going up (owner, 2026-11-22: "instead of the post
+ * button ... just an arrow that says up"). */
+export function SendIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M12 19 V5.5 M6 11.5 L12 5.5 L18 11.5" {...line(color, 2.4)} />
+    </Svg>
+  );
+}
+
 /* Three lines: the menu on a rower's own profile. */
 export function MenuIcon({ color = C.ink, size = 24 }: P) {
   return (

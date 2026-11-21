@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { createElement } from "react";
+import { ActivityIndicator, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, type BoardData, type FollowState, type Photo } from "../api";
 import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
-import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, copySticker, shareReel, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
+import type { Fetched } from "../files";
+import { CLIPS, GROUNDS, LENGTHS, deck, filmReel, reelStillUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
-import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
+import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { Review } from "./Review";
-import { RowMenu } from "./Social";
+import { RowMenu, Sheet } from "./Social";
 
 /* ONE ROW'S PAGE (owner, 2026-11-20). The journey he walked: "right as they
  * finish they submit the row and see an animation of their meters going up
@@ -49,6 +51,7 @@ type RowData = {
   numStr: string;
   name: string;
   title: string;
+  caption?: string;
   meters: number | null;
   seconds: number | null;
   metersStr: string;
@@ -106,6 +109,9 @@ export function RowPage({
   const [sharing, setSharing] = useState(false);
   const [talking, setTalking] = useState(!!talk);
   const [said, setSaid] = useState<number | null>(null);
+  /* The caption as last saved here, and whether it is being written. */
+  const [words, setWords] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
   const who = data?.row.rowerNumber;
   useEffect(() => {
     if (who) onWho?.(who);
@@ -116,10 +122,7 @@ export function RowPage({
    * they are drawn by the time anybody asks for them. */
   const mayShare = !!data?.row.canShare && !data.row.masked;
   useEffect(() => {
-    if (!mayShare) return;
-    deck(id)
-      .then((d) => d.cards.forEach((c) => stickerUri(c.id, id).catch(() => null)))
-      .catch(() => null);
+    if (mayShare) deck(id).catch(() => null);
   }, [mayShare, id]);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const r = data.row;
@@ -202,6 +205,19 @@ export function RowPage({
           are behind the share mark. */}
       <PostActions id={r.id} likes={r.likes ?? 0} liked={!!r.liked} comments={said ?? r.comments ?? 0} onComments={() => setTalking(true)} onShare={r.canShare && !r.masked ? () => setSharing(true) : undefined} style={{ marginTop: 12 }} />
 
+      {/* THE CAPTION, under the marks, the name before it. The rower can
+          write one, or change it, from here. */}
+      {(words ?? r.caption) ? (
+        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 10 }}>
+          <Text style={{ fontFamily: F.bold }}>{r.name}</Text> {words ?? r.caption}
+        </Text>
+      ) : null}
+      {r.mine ? (
+        <Pressable accessibilityRole="button" onPress={() => setWriting(true)} hitSlop={8} style={{ marginTop: 8, alignSelf: "flex-start" }}>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 11, color: C.gray }}>{(words ?? r.caption) ? "Edit caption" : "Add a caption"}</Text>
+        </Pressable>
+      ) : null}
+
       {/* AGAINST THE USUAL (owner, 2026-11-22: "there's got to be some more
           details here, even when it didn't come from the erg ... like this
           row's performance compared to how you normally perform"). */}
@@ -238,6 +254,17 @@ export function RowPage({
         />
       ) : null}
       {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
+      {writing ? (
+        <CaptionSheet
+          id={r.id}
+          start={words ?? r.caption ?? ""}
+          onClose={() => setWriting(false)}
+          onSaved={(c) => {
+            setWords(c);
+            setWriting(false);
+          }}
+        />
+      ) : null}
       {talking ? <CommentsSheet entryId={r.id} onClose={() => setTalking(false)} onRower={onRower} onCount={setSaid} /> : null}
     </ScrollView>
   );
@@ -441,6 +468,30 @@ function Climb({ meters }: { meters: number }) {
   );
 }
 
+/* The caption, written or changed after the row is up. */
+function CaptionSheet({ id, start, onClose, onSaved }: { id: string; start: string; onClose: () => void; onSaved: (caption: string) => void }) {
+  const [text, setText] = useState(start);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      onSaved((await api<{ caption: string }>("/api/row100k/app/row", { body: { id, caption: text } })).caption);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not save.");
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title="Caption" onClose={onClose}>
+      <TextInput accessibilityLabel="Caption" value={text} onChangeText={setText} multiline autoFocus maxLength={500} placeholder="Say something about this row" placeholderTextColor={C.gray} style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 96, paddingVertical: 10, textAlignVertical: "top" }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]} />
+      {error ? <Text style={[mono(11, false, C.accent), { marginBottom: 8 }]}>{error}</Text> : null}
+      <Btn label={busy ? "Saving" : "Save"} disabled={busy} onPress={save} />
+    </Sheet>
+  );
+}
+
 /* ---- STICKERS ---------------------------------------------------------- */
 
 /* The art is white on nothing, so it is shown on ink, the way the site's
@@ -453,6 +504,7 @@ const GROUND = "#1f2226";
  * are made for, one sticker to a page, a swipe to the next; SHARE hands the
  * one showing to the phone's share sheet, COPY puts it on the clipboard. */
 export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () => void }) {
+  useModalHold();
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
   const { data, error } = useLoad(() => deck(rowId), [rowId]);
@@ -555,26 +607,57 @@ function Reels({ rowId }: { rowId: string }) {
   const [open, setOpen] = useState<ClipId | null>(null);
   const [bg, setBg] = useState<GroundId>("green");
   const [len, setLen] = useState<number>(10);
+  /* FILM, THEN SHARE (owner, 2026-11-22: "when I click that filming
+   * button, there should be a progress bar ... also preview me the film
+   * ... I clicked filming and nothing's happening"). A bar runs while the
+   * site films; the film then plays where the still was; SHARE is its own
+   * press, which is the only kind a browser opens its share sheet for. */
   const [busy, setBusy] = useState(false);
+  const [film, setFilm] = useState<Fetched | null>(null);
   const [note, setNote] = useState("");
-  const film = async () => {
+  const bar = useRef(new Animated.Value(0)).current;
+  const turn = useRef(0);
+  const reset = () => {
+    turn.current++;
+    setFilm(null);
+    setBusy(false);
+    setNote("");
+  };
+  useEffect(reset, [open, bg, len]);
+  const shoot = async () => {
     if (!open) return;
+    const mine = ++turn.current;
     setBusy(true);
     setNote("");
+    /* Most of the way over the time it usually takes, then it waits. */
+    bar.setValue(0);
+    Animated.timing(bar, { toValue: 0.92, duration: len * 1300, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
     try {
-      const did = await shareReel(rowId, open, bg, len);
+      const f = await filmReel(rowId, open, bg, len);
+      if (mine !== turn.current) return;
+      setFilm(f);
+    } catch (err) {
+      if (mine !== turn.current) return;
+      setNote(err instanceof Error ? err.message : "That did not work.");
+    }
+    setBusy(false);
+  };
+  const share = async () => {
+    if (!open || !film) return;
+    setNote("");
+    try {
+      const did = await shareFilm(film, rowId, open, bg, len);
       if (did === "download") setNote("Saved to your downloads.");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "That did not work.");
     }
-    setBusy(false);
   };
   return (
     <>
       <Eye left="Reel overlays" right="For your edit" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
         {CLIPS.map((c) => (
-          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => (setNote(""), setOpen(c.id))} style={{ width: 124 }}>
+          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => setOpen(c.id)} style={{ width: 124 }}>
             <View style={{ height: 220, backgroundColor: GROUND, alignItems: "center", justifyContent: "center" }}>
               <Still rowId={rowId} clip={c.id} />
             </View>
@@ -590,28 +673,54 @@ function Reels({ rowId }: { rowId: string }) {
         <View style={{ flex: 1, backgroundColor: GROUND, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 30 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={mono(12, true, "#fff")}>{CLIPS.find((c) => c.id === open)?.label}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={busy} onPress={() => setOpen(null)} hitSlop={14}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(null)} hitSlop={14}>
               <Text style={mono(12, true, "#fff")}>Close</Text>
             </Pressable>
           </View>
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 14 }}>{open ? <Still rowId={rowId} clip={open} tall /> : null}</View>
-          <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>The ground to key out</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
-            {GROUNDS.map((g) => (
-              <Light key={g.id} label={g.label} on={bg === g.id} onPress={() => setBg(g.id)} />
-            ))}
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 14 }}>
+            {film && Platform.OS === "web" ? (
+              /* The film itself, playing round. */
+              createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
+            ) : open ? (
+              <Still rowId={rowId} clip={open} tall />
+            ) : null}
           </View>
-          <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>How long</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
-            {LENGTHS.map((l) => (
-              <Light key={l} label={`${l} s`} on={len === l} onPress={() => setLen(l)} />
-            ))}
-          </View>
-          {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12 }]}>{note}</Text> : null}
-          <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 12, lineHeight: 16 }]}>
-            Video cannot be see-through. Drop the clip over your footage and key the {bg === "black" ? "black out with a Screen blend" : `${bg} out`}. Filming takes about {len * 2} seconds.
-          </Text>
-          <Btn label={busy ? "Filming" : "Film it and share"} disabled={busy} onPress={film} />
+          {film ? (
+            <>
+              <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note || `Filmed: ${len} seconds on ${bg}. Key the ${bg === "black" ? "black out with a Screen blend" : `${bg} out`} in your edit.`}</Text>
+              <Btn label="Share it" onPress={share} />
+              <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingTop: 16 }}>
+                <Text style={mono(11, true, "#fff", 0.12)}>Film another</Text>
+              </Pressable>
+            </>
+          ) : busy ? (
+            <>
+              <Text style={[mono(11, true, "#fff", 0.12), { marginBottom: 10 }]}>Filming, about {len} seconds</Text>
+              <View accessibilityRole="progressbar" style={{ height: 10, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }}>
+                <Animated.View style={{ height: "100%", backgroundColor: C.accent, width: bar.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
+              </View>
+              <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingVertical: 8 }}>
+                <Text style={mono(11, true, "#fff", 0.12)}>Stop</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>The ground to key out</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                {GROUNDS.map((g) => (
+                  <Light key={g.id} label={g.label} on={bg === g.id} onPress={() => setBg(g.id)} />
+                ))}
+              </View>
+              <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>How long</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                {LENGTHS.map((l) => (
+                  <Light key={l} label={`${l} s`} on={len === l} onPress={() => setLen(l)} />
+                ))}
+              </View>
+              {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note}</Text> : null}
+              <Btn label="Film it" onPress={shoot} />
+            </>
+          )}
         </View>
       </Modal>
     </>

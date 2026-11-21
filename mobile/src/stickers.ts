@@ -1,5 +1,5 @@
 import { API, api } from "./api";
-import { copyImage, fetchFile, shareFile, type Fetched } from "./files";
+import { copyImage, fetchFile, fromBase64, shareFile, type Fetched } from "./files";
 
 /* THE STICKERS AND THE REEL OVERLAYS (owner, 2026-11-20: "the stickers are
  * the site's transparent cards"; "overlays and videos designed to be
@@ -12,10 +12,38 @@ import { copyImage, fetchFile, shareFile, type Fetched } from "./files";
  * filmed on the server (/api/row100k/app/reel) into an MP4 on a ground to
  * key out. A card or a clip changed on the site is changed here. */
 
-export type Sticker = { id: string; label: string; width: number; height: number };
+export type Sticker = { id: string; label: string; width: number; height: number; png?: string };
 export type Deck = { rowerNumber?: number; cards: Sticker[] };
 
-export const deck = (rowId?: string) => api<Deck>(`/api/row100k/app/cards${rowId ? `?row=${rowId}` : ""}`);
+/* A DECK COMES WITH ITS ART (owner, 2026-11-22: "I should not be waiting
+ * for anything there"). One request brings the list and every sticker
+ * drawn; each is kept as if it had been fetched, so the viewer has nothing
+ * left to ask for. A deck is kept five minutes, and all of them are let go
+ * when a row is logged, which is the only thing that changes one. */
+const decks = new Map<string, Promise<Deck>>();
+export function deck(rowId?: string): Promise<Deck> {
+  const key = rowId ?? "";
+  let p = decks.get(key);
+  if (!p) {
+    p = api<Deck>(`/api/row100k/app/cards?art=1${rowId ? `&row=${rowId}` : ""}`).then((d) => {
+      for (const c of d.cards) {
+        if (!c.png) continue;
+        const png = c.png;
+        delete c.png;
+        seen.set(`card|${c.id}|${key}`, fromBase64(png, cardName(c.id, rowId), "image/png"));
+      }
+      return d;
+    });
+    decks.set(key, p);
+    p.catch(() => decks.delete(key));
+    setTimeout(() => decks.get(key) === p && decks.delete(key), 300_000);
+  }
+  return p;
+}
+export function forgetStickers(): void {
+  decks.clear();
+  for (const k of [...seen.keys()]) if (k.startsWith("card|")) seen.delete(k);
+}
 
 const cardUrl = (id: string, rowId?: string) => `${API}/api/row100k/app/card?id=${encodeURIComponent(id)}${rowId ? `&row=${rowId}` : ""}`;
 const cardName = (id: string, rowId?: string) => `row-${id.replace(/^rowtember-/, "")}${rowId ? `-${rowId.slice(-6)}` : ""}.png`;
@@ -72,10 +100,14 @@ const reelUrl = (rowId: string, clip: ClipId, bg: string, len: number, still: bo
 /* What a clip ends on, on ink, for the tile. */
 export const reelStillUri = (rowId: string, clip: ClipId) => once(`still|${rowId}|${clip}`, () => fetchFile(reelUrl(rowId, clip, "ink", 10, true), `reel-${clip}-${rowId.slice(-6)}.png`)).then((f) => f.uri);
 
-/* Film a clip (the server takes about two seconds a second of video) and
- * hand it to the share sheet. */
-export async function shareReel(rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<"share" | "download" | "none"> {
-  const name = `row-${clip}-${bg}-${len}s-${rowId.slice(-6)}.mp4`;
-  const f = await once(`reel|${rowId}|${clip}|${bg}|${len}`, () => fetchFile(reelUrl(rowId, clip, bg, len, false), name));
-  return shareFile(f, name, "video/mp4", "public.mpeg-4");
-}
+/* FILM A CLIP, THEN SHARE IT, as two steps (2026-11-22, after the owner
+ * pressed FILM and the button stayed grey: "I clicked filming and
+ * nothing's happening"). The site takes a while to film; a browser only
+ * opens its share sheet on a press, and a press that is twenty seconds old
+ * no longer counts. So the film is made and shown, and SHARE is its own
+ * press. A film that has not come back in ninety seconds is given up on,
+ * with a sentence. */
+const reelName = (rowId: string, clip: ClipId, bg: GroundId, len: number) => `row-${clip}-${bg}-${len}s-${rowId.slice(-6)}.mp4`;
+export const filmReel = (rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<Fetched> =>
+  once(`reel|${rowId}|${clip}|${bg}|${len}`, () => fetchFile(`${reelUrl(rowId, clip, bg, len, false)}&format=phone`, reelName(rowId, clip, bg, len), 90_000));
+export const shareFilm = (f: Fetched, rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, reelName(rowId, clip, bg, len), "video/mp4", "public.mpeg-4");

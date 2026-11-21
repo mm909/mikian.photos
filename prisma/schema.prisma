@@ -599,6 +599,9 @@ model RowEntry {
   /// Short session title ("Sunrise 10k before work") — optional, shows on
   /// the feed and the rower's log.
   title         String   @default("")
+  /// What the rower wrote under the photos, in the phone app (owner,
+  /// 2026-11-22: "a caption whenever you post"). Optional. Additive.
+  caption       String?
   /// R2 keys, exactly two at log time: [0] the rower, [1] the erg screen
   /// (enforced in the rows API, not here — rows created before v2, and
   /// seeded demo rows, may have fewer).

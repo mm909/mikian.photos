@@ -84,7 +84,7 @@ export async function setAvatar(p: Picked): Promise<void> {
   await api("/api/row100k/app/settings", { body: { avatarKey: key } });
 }
 
-export type NewRow = { day: string; meters: number; seconds: number; title: string; photos: [Picked, Picked]; doc?: TelemetryDoc };
+export type NewRow = { day: string; meters: number; seconds: number; title: string; caption?: string; photos: [Picked, Picked]; doc?: TelemetryDoc };
 
 /* Log it. `step` says where it has got to, for the button. Answers the new
  * row's id and whether the recording went with it. */
@@ -95,6 +95,8 @@ export async function logRow(row: NewRow, step: (s: string) => void): Promise<{ 
   const b = await upload(row.photos[1]);
   step("Logging");
   const made = await api<{ id: string }>("/api/row100k/rows", { body: { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, photos: [a, b] } });
+  /* The caption goes on once the row exists; a row is not lost for it. */
+  if (row.caption?.trim()) await api("/api/row100k/app/row", { body: { id: made.id, caption: row.caption } }).catch(() => null);
   let recorded = false;
   if (row.doc) {
     step("Saving the recording");

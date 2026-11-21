@@ -193,6 +193,21 @@ All DECIDED (his words), BUILT on the sandbox unless marked.
 - "I like this round of shareables."
 - NOT BUILT: who liked a row (a tap on the count); a double tap on a photo to like; the hamburger menu holding more than settings ("settings and activity", the TSP and No Shortcuts events: "we don't need to build those things right now").
 
+### Round 15, 2026-11-22: his read of likes and comments on the phone
+
+All DECIDED (his words), BUILT on the sandbox unless marked.
+
+- STANDING: "when in doubt, use the Instagram layout as the standard operating procedure."
+- A swipe on the stickers no longer changes tab behind them ("I have the share menu open and I swipe ... it swipes to the search"). Anything open over the screen (photos, stickers, a sheet, comments) holds the tab swipe off.
+- A tap on a photo changes it at once, no slide ("it doesn't have to scroll it").
+- The handle on a profile opens that account on Instagram.
+- STICKERS WITHOUT THE WAIT ("I should not be waiting for anything there ... they're only changing after a row"): one request now brings the list and every sticker drawn (it was a request a sticker, each rebuilding the rower's numbers). The viewer's own newest rows are drawn while the feed is read. Kept five minutes and let go when a row is logged.
+- The comment field: an arrow in a disc in place of POST ("just an arrow that says up"); the face lines up with the field; paper under the sheet so nothing darker shows at the keyboard's corners.
+- A CAPTION ("a caption whenever you post ... can we do that in a tasteful way? Maybe beneath the photos"): a field on the log form, shown under the like, comment, share marks with the name before it, as Instagram does. The rower can add or change it on the row's page. Text, 500 characters.
+- FILMING A REEL ("there should be a progress bar ... preview me the film ... I clicked filming and nothing's happening"): FILM IT shows a bar, then the film plays where the still was, and SHARE IT is its own press. Filmed at 720 by 1280 from the app, which takes half the time. Given up on after ninety seconds, with a sentence. The cause on the live site was not confirmed (no access to its logs); the likely ones are the minute a film is allowed and a share sheet that a browser will not open twenty seconds after the press.
+- "I really like how the best page turned out." Searching for another rower from it: dropped by him ("never mind ... you just got to go to their profile").
+- NOT BUILT: reels inside the share menu, beginning with one that counts up to the row's meters ("eventually, on the shareables, I'm going to want those reels"). The count-up clip exists (METERS); reels are still the owner's only.
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

@@ -24,7 +24,11 @@ import { buildSeries, frameAt, rowTimeAt } from "./series";
  * Video has no transparency, here as on the site: the overlay is filmed on
  * a ground to key out (green, blue) or to blend (black). SERVER ONLY. */
 
-export const REEL_FORMATS = { story: [1080, 1920], post: [1080, 1350], square: [1080, 1080] } as const;
+/* `phone` is the story at two thirds the size: four ninths of the pixels
+ * to paint and to encode, so a clip asked for from the phone app is done
+ * well inside the route's minute (2026-11-22, after one filmed at full
+ * size from the app never came back). */
+export const REEL_FORMATS = { story: [1080, 1920], post: [1080, 1350], square: [1080, 1080], phone: [720, 1280] } as const;
 export type ReelFormat = keyof typeof REEL_FORMATS;
 export const REEL_CLIPS: readonly ClipId[] = ["meters", "clock", "pace", "stack", "stroke", "monitor"];
 export const REEL_GROUNDS: readonly BgId[] = ["green", "blue", "black", "ink", "cream"];

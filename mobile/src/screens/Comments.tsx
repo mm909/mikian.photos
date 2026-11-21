@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, type Person } from "../api";
-import { CommentIcon, HeartIcon, ShareIcon } from "../icons";
+import { CommentIcon, HeartIcon, SendIcon, ShareIcon } from "../icons";
 import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F, fmtInt } from "../theme";
-import { Avatar } from "../ui";
+import { Avatar, useModalHold } from "../ui";
 import { ReportSheet } from "./Social";
 
 /* LIKE, COMMENT, SHARE (owner, 2026-11-22: "I've officially bit the bullet.
@@ -115,6 +115,7 @@ type Answer = { comments: Top[]; count: number; tags?: Record<string, string> };
 const TAG = /(@\[\d{1,6}\])/;
 
 export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId: string; onClose: () => void; onRower: (n: number) => void; onCount?: (n: number) => void }) {
+  useModalHold();
   const { me } = useSession();
   const win = useWindowDimensions();
   const path = `/api/row100k/app/comments?entry=${entryId}`;
@@ -318,6 +319,12 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
         <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
           <Pressable accessibilityLabel="Close the comments" onPress={shut} style={{ flex: 1 }} />
         </Animated.View>
+        {/* Paper under the sheet, so nothing darker shows round the
+            corners of the keyboard when it is up (owner, 2026-11-22: "some
+            edges around there that aren't the same color"). */}
+        <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 140, alignItems: "center", opacity: a }}>
+          <View style={{ flex: 1, width: "100%", maxWidth: 560, backgroundColor: C.paper }} />
+        </Animated.View>
         <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, width: "100%", maxWidth: 560, alignSelf: "center", height: Math.round(win.height * 0.72), transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [win.height * 0.72, 0] }) }] }}>
           {/* The grip and the name of the sheet. */}
           <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.line }}>
@@ -376,7 +383,10 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
                 </View>
               ) : null}
               <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
-                <Avatar uri={me.avatar} name={me.me.displayName} size={34} />
+                {/* The face sits on the middle of the field's one line. */}
+                <View style={{ height: 40, justifyContent: "center" }}>
+                  <Avatar uri={me.avatar} name={me.me.displayName} size={34} />
+                </View>
                 <View style={{ flex: 1, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 14, justifyContent: "center" }}>
                   <TextInput
                     ref={field as never}
@@ -384,14 +394,17 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
                     value={text}
                     onChangeText={setText}
                     multiline
+                    /* One line tall until more is written; a browser's own field starts at two. */
+                    {...(Platform.OS === "web" ? { rows: 1 } : {})}
                     maxLength={500}
                     placeholder={to ? `Reply to ${to.name}` : "Add a comment"}
                     placeholderTextColor={C.gray}
                     style={[{ fontFamily: F.sans, fontSize: 16, color: C.ink, paddingVertical: 9, maxHeight: 110 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]}
                   />
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Post" disabled={!text.trim() || busy} onPress={post} hitSlop={8} style={({ pressed }) => ({ height: 40, justifyContent: "center", opacity: !text.trim() || busy ? 0.35 : pressed ? 0.6 : 1 })}>
-                  <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.accent }}>Post</Text>
+                {/* SEND: an arrow going up, in a disc (owner, 2026-11-22). */}
+                <Pressable accessibilityRole="button" accessibilityLabel="Post" disabled={!text.trim() || busy} onPress={post} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: !text.trim() || busy ? C.line : C.ink, opacity: pressed ? 0.6 : 1 })}>
+                  <SendIcon color={C.paper} size={22} />
                 </Pressable>
               </View>
             </View>

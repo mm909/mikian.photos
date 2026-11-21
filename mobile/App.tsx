@@ -20,7 +20,8 @@ import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
-import { Avatar } from "./src/ui";
+import { forgetStickers } from "./src/stickers";
+import { Avatar, modals } from "./src/ui";
 
 /* ROW, THE APP.
  *
@@ -229,7 +230,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   tabRef.current = tab;
   const swipe = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
       onPanResponderRelease: (_e, g) => {
         if (Math.abs(g.dx) < 60) return;
         const i = TABS.findIndex((t) => t.id === tabRef.current) + (g.dx < 0 ? 1 : -1);
@@ -263,6 +264,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       }
     }
     setStamp((n) => n + 1);
+    /* Every sticker counts this row now. */
+    forgetStickers();
     refresh();
     setTab("board");
     setLog("closed");

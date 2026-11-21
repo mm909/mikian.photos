@@ -7,6 +7,7 @@ import { mono } from "../site";
 import { C, F } from "../theme";
 import { Avatar, Blocks, PhotoPair, Waiting, type Gallery } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
+import { deck } from "../stickers";
 import { StickerViewer } from "./RowPage";
 import { RowMenu } from "./Social";
 
@@ -111,6 +112,12 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
     return { photos, stamps, owner, offset };
   }, [items]);
   const lastY = useRef(0);
+  /* The stickers of the viewer's own newest rows are drawn while the feed
+   * is being read, so SHARE has them in hand. */
+  const mineIds = (items ?? []).filter((it) => it.mine && !it.masked).slice(0, 2).map((it) => it.id).join(",");
+  useEffect(() => {
+    for (const id of mineIds ? mineIds.split(",") : []) deck(id).catch(() => null);
+  }, [mineIds]);
 
   if (!items) return <Waiting error={error} onRetry={() => first()} />;
 
@@ -229,6 +236,18 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, gallery }:
       {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} gallery={gallery} />}
 
       <PostActions id={it.id} likes={it.likes ?? 0} liked={!!it.liked} comments={it.comments ?? 0} onComments={onTalk} onShare={onShare} onChange={onLike} style={{ marginTop: 10, marginBottom: -4 }} />
+
+      {/* THE CAPTION, under the marks with the name before it, as on
+          Instagram (owner, 2026-11-22: "a caption whenever you post ...
+          when in doubt, use the Instagram layout"). */}
+      {it.caption ? (
+        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 10 }}>
+          <Text style={{ fontFamily: F.bold }} onPress={() => onRower(it.rowerNumber)}>
+            {it.name}
+          </Text>{" "}
+          {it.caption}
+        </Text>
+      ) : null}
     </View>
   );
 }

@@ -8,7 +8,7 @@ import { Ctl, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { pickFace, setAvatar } from "../upload";
-import { Avatar, Waiting, useLoad, useScrollDir } from "../ui";
+import { Avatar, Waiting, useLoad, useModalHold, useScrollDir } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
  * (pass 3, 2026-11-21). The owner's list, 2026-11-20: "follow someone, set
@@ -103,6 +103,7 @@ export function Sheet({ title, right, onClose, children }: { title: string; righ
   /* UP FROM THE FOOT (owner, 2026-11-22: "especially when we click these
    * three dots ... it animates up from the bottom. So let's make sure we
    * animate up from the bottom"): the shade fades in while the sheet rises. */
+  useModalHold();
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(a, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();

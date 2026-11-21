@@ -12,11 +12,43 @@ import { SAME_ORIGIN, loadToken } from "./api";
 
 export type Fetched = { uri: string; blob?: Blob };
 
-export async function fetchFile(url: string, name: string): Promise<Fetched> {
+/* A picture the site sent inside an answer, base64: made into the same
+ * thing fetchFile hands back. */
+export async function fromBase64(b64: string, name: string, mime: string): Promise<Fetched> {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  if (Platform.OS === "web") {
+    const blob = new Blob([bytes], { type: mime });
+    return { uri: URL.createObjectURL(blob), blob };
+  }
+  const dest = new File(Paths.cache, name);
+  try {
+    if (dest.exists) dest.delete();
+  } catch {
+    /* Written over below. */
+  }
+  dest.create();
+  dest.write(bytes);
+  return { uri: dest.uri };
+}
+
+/* `giveUpMs`: in a browser, stop waiting after this long and say so, so
+ * a thing the site never finishes does not leave a button dead. */
+export async function fetchFile(url: string, name: string, giveUpMs?: number): Promise<Fetched> {
   const t = await loadToken();
   const headers: Record<string, string> = t ? { authorization: `Bearer ${t}` } : {};
   if (Platform.OS === "web") {
-    const res = await fetch(url, { headers, credentials: SAME_ORIGIN ? "include" : "omit" });
+    const stop = giveUpMs ? new AbortController() : null;
+    const timer = stop ? setTimeout(() => stop.abort(), giveUpMs) : null;
+    let res: Response;
+    try {
+      res = await fetch(url, { headers, credentials: SAME_ORIGIN ? "include" : "omit", signal: stop?.signal });
+    } catch {
+      throw new Error(stop?.signal.aborted ? "That took too long, so it was stopped. Try a shorter one." : "No connection. Check the signal and try again.");
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     if (!res.ok) {
       const said = await res.json().catch(() => null);
       throw new Error((said as { error?: string } | null)?.error ?? "That could not be made just now.");

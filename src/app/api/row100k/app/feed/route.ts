@@ -115,8 +115,10 @@ export async function GET(req: Request) {
     const likes = new Map<string, number>();
     const comments = new Map<string, number>();
     const liked = new Set<string>();
+    const captions = new Map<string, string>();
     if (ids.length) {
       try {
+        for (const x of await db.rowEntry.findMany({ where: { id: { in: ids }, caption: { not: null } }, select: { id: true, caption: true } })) if (x.caption) captions.set(x.id, x.caption);
         const [l, c, mineL] = await Promise.all([
           db.rowLike.groupBy({ by: ["entryId"], where: { entryId: { in: ids } }, _count: true }),
           db.rowComment.groupBy({ by: ["entryId"], where: { entryId: { in: ids }, deletedAt: null }, _count: true }),
@@ -145,7 +147,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, likes: likes.get(it.id) ?? 0, liked: liked.has(it.id), comments: comments.get(it.id) ?? 0, rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
+        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, likes: likes.get(it.id) ?? 0, liked: liked.has(it.id), comments: comments.get(it.id) ?? 0, caption: it.masked ? "" : (captions.get(it.id) ?? ""), rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
         /* How many of these rows are the lead (the rowers the viewer follows). */
         lead: leadRows,
         older,

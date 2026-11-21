@@ -283,6 +283,21 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
   );
 }
 
+/* SOMETHING IS OPEN OVER THE SCREEN (photos, stickers, a sheet, the
+ * comments). A drag inside it must not reach the tabs behind and change
+ * tab (owner, 2026-11-22: "I have the share menu open and I swipe ... it
+ * swipes to the search"): whatever opens counts itself in here, and the
+ * swipe between tabs (App.tsx) stands down while the count is over none. */
+export const modals = { open: 0 };
+export function useModalHold(): void {
+  useEffect(() => {
+    modals.open++;
+    return () => {
+      modals.open--;
+    };
+  }, []);
+}
+
 /* THE PHOTOS, WHOLE (owner, 2026-11-21: "if I click on the photos, I should
  * be able to swipe through them, and the background doesn't need to be
  * transparent. It can be black, and we should have two buttons, one on the
@@ -292,18 +307,22 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
  * other, and a mark at the foot for which of the two is showing. */
 export function PhotoViewer({ photos, stamps, start, onClose, onMenu, onAt, children }: { photos: Photo[]; stamps?: string[][]; start: number; onClose: () => void; onMenu?: () => void; onAt?: (i: number) => void; children?: ReactNode }) {
   const win = useWindowDimensions();
+  useModalHold();
   const [at, setAt] = useState(start);
   const list = useRef<ComponentRef<typeof ScrollView>>(null);
   const w = win.width;
   const btn = { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const };
-  const go = (i: number) => {
-    const to = Math.max(0, Math.min(photos.length - 1, i));
-    list.current?.scrollTo({ x: to * w, animated: true });
-  };
   const see = (i: number) => {
     if (i === at) return;
     setAt(i);
     onAt?.(i);
+  };
+  const go = (i: number) => {
+    const to = Math.max(0, Math.min(photos.length - 1, i));
+    /* At once: a tap is not a swipe (owner, 2026-11-22: "it can just
+     * immediately change the photo. It doesn't have to scroll it"). */
+    list.current?.scrollTo({ x: to * w, animated: false });
+    see(to);
   };
   useEffect(() => {
     onAt?.(start);

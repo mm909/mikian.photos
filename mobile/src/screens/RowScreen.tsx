@@ -401,6 +401,7 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
   const [time, setTime] = useState("");
   const [day, setDay] = useState(today);
   const [title, setTitle] = useState("");
+  const [caption, setCaption] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -433,7 +434,7 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
     if (!photos[0] || !photos[1]) return;
     setError("");
     try {
-      const r = await logRow({ day, meters: m, seconds: s, title, photos: [photos[0], photos[1]], doc }, setBusy);
+      const r = await logRow({ day, meters: m, seconds: s, title, caption, photos: [photos[0], photos[1]], doc }, setBusy);
       setBusy("");
       onDone(r.id, day, m, s, doc);
     } catch (err) {
@@ -513,6 +514,12 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
       <Card>
         <Eyebrow style={{ color: C.ink }}>A title (optional)</Eyebrow>
         <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 18, fontFamily: F.bold, paddingVertical: 8, color: C.ink }} value={title} onChangeText={setTitle} maxLength={60} accessibilityLabel="Title" />
+      </Card>
+
+      {/* A CAPTION, shown under the photos (owner, 2026-11-22). */}
+      <Card>
+        <Eyebrow style={{ color: C.ink }}>A caption (optional)</Eyebrow>
+        <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 16, lineHeight: 22, fontFamily: F.sans, paddingVertical: 8, color: C.ink, minHeight: 44 }} value={caption} onChangeText={setCaption} multiline maxLength={500} accessibilityLabel="Caption" />
       </Card>
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
