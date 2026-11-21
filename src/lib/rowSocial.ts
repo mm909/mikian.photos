@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { CHALLENGE } from "@/lib/row100k";
+import { resolvePhotoMedia } from "@/app/row100k/photoUrls";
 
 /* WHO SEES WHOSE ROWS (2026-11-21). The phone app's social layer, and the
  * one place its rules are written, so the feed, a profile, a row's page and
@@ -142,6 +143,28 @@ export async function followCounts(participantId: string): Promise<{ followers: 
     if (missing(err)) return { followers: 0, following: 0 };
     throw err;
   }
+}
+
+/* PROFILE PHOTOS, by rower: the address of the small copy of each one that
+ * has been set. A rower with none is simply not in the map. Public like a
+ * name, private account or not: it is the face beside the name on the
+ * board. */
+export async function avatarsFor(participantIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = [...new Set(participantIds)];
+  if (ids.length === 0) return out;
+  try {
+    const rows = await orEmpty(db.rowSocialSetting.findMany({ where: { participantId: { in: ids }, avatarKey: { not: null } }, select: { participantId: true, avatarKey: true } }));
+    const media = await resolvePhotoMedia(rows.map((r) => r.avatarKey as string));
+    rows.forEach((r, i) => {
+      const m = media[i];
+      if (m) out.set(r.participantId, m.thumb || m.full);
+    });
+  } catch (err) {
+    /* A face that cannot be read is initials, never a broken page. */
+    console.error("row social: profile photos unreadable", err);
+  }
+  return out;
 }
 
 /* The kinds of notification a rower has switched off. */

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { CHALLENGE } from "@/lib/row100k";
 import { SWITCHABLE } from "@/lib/rowNotify";
+import { avatarsFor } from "@/lib/rowSocial";
 import { asRower, no, yes } from "../social";
 
 /* WHAT A ROWER HAS CHOSEN, for the phone app (2026-11-21): whether the
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 
 async function read(participantId: string) {
   const s = await db.rowSocialSetting.findUnique({ where: { participantId }, select: { isPrivate: true, notifyOff: true } });
-  return { isPrivate: s?.isPrivate ?? false, notifyOff: s?.notifyOff ?? [], kinds: SWITCHABLE };
+  const avatar = (await avatarsFor([participantId])).get(participantId) ?? null;
+  return { isPrivate: s?.isPrivate ?? false, notifyOff: s?.notifyOff ?? [], kinds: SWITCHABLE, avatar };
 }
 
 export async function GET() {
@@ -34,8 +36,18 @@ export async function POST(req: Request) {
   if ("denied" in who) return who.denied;
   const me = who.me;
   try {
-    const body = (await req.json().catch(() => null)) as { isPrivate?: unknown; notifyOff?: unknown } | null;
-    const data: { isPrivate?: boolean; notifyOff?: string[] } = {};
+    const body = (await req.json().catch(() => null)) as { isPrivate?: unknown; notifyOff?: unknown; avatarKey?: unknown } | null;
+    const data: { isPrivate?: boolean; notifyOff?: string[]; avatarKey?: string | null } = {};
+    /* THE PROFILE PHOTO: a key the rower's own upload was signed for (the
+     * photos/sign route only signs under their own prefix), or null to
+     * take the photo off. */
+    if (body?.avatarKey === null) data.avatarKey = null;
+    else if (typeof body?.avatarKey === "string") {
+      const key = body.avatarKey;
+      const own = `row100k/${CHALLENGE}/${me.id}/`;
+      if (key.length > 200 || key.includes("..") || !key.startsWith(own) || !/\.(jpe?g|png|webp)$/i.test(key)) return no("That photo is not one of yours.", 400);
+      data.avatarKey = key;
+    }
     if (typeof body?.isPrivate === "boolean") data.isPrivate = body.isPrivate;
     if (Array.isArray(body?.notifyOff)) data.notifyOff = SWITCHABLE.filter((k) => (body.notifyOff as unknown[]).includes(k));
     if (Object.keys(data).length === 0) return no("Nothing to change.", 400);

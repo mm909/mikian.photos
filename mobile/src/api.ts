@@ -108,6 +108,8 @@ export type Me = {
   optedIn?: boolean;
   /* The bell: lines not read, follow requests not answered. */
   social?: { unread: number; requests: number; isPrivate: boolean };
+  /* The viewer's profile photo, or null for initials. */
+  avatar?: string | null;
   month?: { key: string; label: string; goal: number };
 };
 
@@ -117,9 +119,9 @@ export type FollowState = "none" | "pending" | "accepted";
 /* How the viewer and one rower stand (lib/rowSocial.ts on the server). */
 export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; muted?: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
 export type Counts = { followers: number; following: number };
-export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null };
-export type Notice = { id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
-export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[] };
+export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null; avatar?: string | null };
+export type Notice = { avatar?: string | null; id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
+export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[]; avatar?: string | null };
 /* What the profile route answers in place of a profile across a block. */
 export type Blocked = { rowerNumber: number; displayName: string; byMe: boolean };
 
@@ -146,6 +148,7 @@ export type FeedItem = {
   mine: boolean;
   /* How the viewer stands to the row's rower, for the menu on the row. */
   rel: { following: FollowState; bell: boolean };
+  avatar?: string | null;
 };
 export type FeedPage = { items: FeedItem[]; older: string | null; lead?: number };
 
@@ -174,6 +177,7 @@ export type Profile = {
    * rows, bests, calendar and charts below arrive empty. */
   rel: Rel;
   counts: Counts;
+  avatar?: string | null;
   /* On the viewer's own profile: follow requests waiting on them. */
   requests: number;
   /* For an admin looking at somebody else: the id the delete-a-rower route takes. */

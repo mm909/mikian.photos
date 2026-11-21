@@ -69,7 +69,28 @@ export async function renderCardPng(card: ShareCard, data: ShareData): Promise<B
  * payload here. With `rowId` the payload is that row's (its month, and the
  * row itself for THIS ROW); without, the viewer's own current month.
  * Null means no: not signed in, not theirs, or no such row. */
-export async function shareDataFor(viewer: Viewer, rowId: string | null): Promise<ShareData | null> {
+/* WHY THE STICKERS WERE SLOW (owner, 2026-11-22: "why do our shareables
+ * take so long to load?"): the app asks for the list and then for each
+ * sticker as its own picture, and every one of those requests worked out
+ * the rower's whole profile again before drawing. Now the numbers behind a
+ * rower's deck are worked out once and kept for a minute, so the list and
+ * all its pictures share one read. Per server instance; a miss only costs
+ * what it used to. */
+const DECK_TTL_MS = 60_000;
+const decks = new Map<string, { at: number; data: Promise<ShareData | null> }>();
+export function shareDataFor(viewer: Viewer, rowId: string | null): Promise<ShareData | null> {
+  if (!viewer.actor) return Promise.resolve(null);
+  const key = `${viewer.actor.photographerId}|${rowId ?? ""}`;
+  const hit = decks.get(key);
+  if (hit && Date.now() - hit.at < DECK_TTL_MS) return hit.data;
+  const data = readShareData(viewer, rowId);
+  decks.set(key, { at: Date.now(), data });
+  data.catch(() => decks.delete(key));
+  if (decks.size > 200) for (const [k, v] of decks) if (Date.now() - v.at >= DECK_TTL_MS) decks.delete(k);
+  return data;
+}
+
+async function readShareData(viewer: Viewer, rowId: string | null): Promise<ShareData | null> {
   if (!viewer.actor) return null;
   let num = viewer.me?.rowerNumber ?? null;
   let month: string | undefined;

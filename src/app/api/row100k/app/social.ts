@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { CHALLENGE, fmtRowerNumber } from "@/lib/row100k";
 import { resolveViewer, type Viewer, type ViewerParticipant } from "@/lib/row100kViewer";
-import type { FollowState } from "@/lib/rowSocial";
+import { avatarsFor, type FollowState } from "@/lib/rowSocial";
 
 /* What the social routes beside this file share (2026-11-21): the answer
  * shapes, who is asking, the rower a request names, and one rower as a line
@@ -47,6 +47,8 @@ export type Person = {
   following: FollowState;
   followsYou: FollowState;
   me: boolean;
+  /* Their profile photo, or null for initials. */
+  avatar: string | null;
   /* Every metre the rower has logged, where the list asks for it (search).
    * Null where it was not asked for, and for a rower lights out hides. */
   meters: number | null;
@@ -57,7 +59,8 @@ export type Person = {
 export async function people(viewerId: string | null, rowers: { id: string; rowerNumber: number; displayName: string; instagram: string }[], meters?: Map<string, number | null>): Promise<Person[]> {
   const ids = rowers.map((r) => r.id);
   if (ids.length === 0) return [];
-  const [settings, out, back] = await Promise.all([
+  const [faces, settings, out, back] = await Promise.all([
+    avatarsFor(ids),
     db.rowSocialSetting.findMany({ where: { participantId: { in: ids }, isPrivate: true }, select: { participantId: true } }),
     viewerId ? db.rowFollow.findMany({ where: { followerId: viewerId, followeeId: { in: ids } }, select: { followeeId: true, status: true } }) : Promise.resolve([]),
     viewerId ? db.rowFollow.findMany({ where: { followeeId: viewerId, followerId: { in: ids } }, select: { followerId: true, status: true } }) : Promise.resolve([]),
@@ -75,6 +78,7 @@ export async function people(viewerId: string | null, rowers: { id: string; rowe
     following: st(outBy.get(r.id)),
     followsYou: st(backBy.get(r.id)),
     me: r.id === viewerId,
+    avatar: faces.get(r.id) ?? null,
     meters: meters?.get(r.id) ?? null,
   }));
 }

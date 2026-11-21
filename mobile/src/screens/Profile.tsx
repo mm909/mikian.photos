@@ -5,7 +5,7 @@ import { Density, MonthGrid, PaceLine } from "../charts";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, fmtClock, fmtInt } from "../theme";
-import { Blocks, Waiting, useLoad } from "../ui";
+import { Avatar, Blocks, PhotoViewer, Waiting, useLoad } from "../ui";
 import { Join, SignIn } from "./Account";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
@@ -254,7 +254,8 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
     </Pressable>
   );
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 16, minHeight: 36, marginTop: 10 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 16, minHeight: 36, marginTop: 12 }}>
+      <Avatar uri={p.avatar} name={p.rower.displayName} size={52} />
       {count(counts.followers, "follower", "followers", "followers")}
       {count(counts.following, "following", "following", "following")}
       <View style={{ flex: 1 }} />
@@ -381,6 +382,12 @@ function Log({ p, onRow }: { p: Profile; onRow?: (id: string) => void }) {
   const [only, setOnly] = useState<0 | 5000 | 10000>(0);
   const rows = p.logRows.filter((r) => only === 0 || (r.meters !== undefined && Math.abs(r.meters - only) <= 50));
   const meters = rows.reduce((n, r) => n + (r.meters ?? 0), 0);
+  /* EVERY PHOTO IN THE LOG, in one run (owner, 2026-11-22: "if I click
+   * specifically on the photos of a row on the log, then just bring up the
+   * photo viewer and let me scroll through all photos ... if I keep
+   * swiping, then show me the ones after that row"). */
+  const all = rows.filter((r) => !r.masked).flatMap((r) => r.photos.slice(0, 2).map((ph) => ({ row: r.id, ph })));
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <>
       <Eye left="The log" />
@@ -398,15 +405,16 @@ function Log({ p, onRow }: { p: Profile; onRow?: (id: string) => void }) {
       </Text>
       {rows.length === 0 ? <Text style={mono(11, false, C.gray)}>{p.isMe ? "Nothing logged in this stretch yet." : "Nothing logged in this stretch."}</Text> : null}
       {rows.map((r) => (
-        <LogLine key={r.id} r={r} onRow={onRow} />
+        <LogLine key={r.id} r={r} onRow={onRow} onPhoto={(i) => setOpen(all.findIndex((x) => x.row === r.id) + i)} />
       ))}
+      {open !== null && open >= 0 ? <PhotoViewer photos={all.map((x) => x.ph)} start={open} onClose={() => setOpen(null)} /> : null}
     </>
   );
 }
 
 /* One logged row on the tint. A tap opens the page of that row, where its
  * photos, its stickers and its read are. */
-function LogLine({ r, onRow }: { r: LogRow; onRow?: (id: string) => void }) {
+function LogLine({ r, onRow, onPhoto }: { r: LogRow; onRow?: (id: string) => void; onPhoto?: (i: number) => void }) {
   return (
     <View style={{ backgroundColor: C.tint }}>
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the row of ${r.dayStr}: ${r.metersStr || "hidden"}`} onPress={() => onRow?.(r.id)} disabled={!onRow} style={{ paddingHorizontal: 8, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -431,7 +439,11 @@ function LogLine({ r, onRow }: { r: LogRow; onRow?: (id: string) => void }) {
             like they are in the live version"). */}
         {r.masked
           ? null
-          : r.photos.slice(0, 2).map((ph, i) => <Image key={i} source={{ uri: ph.thumb ?? ph.full }} resizeMode="cover" style={{ width: 40, height: 50, backgroundColor: C.pale }} />)}
+          : r.photos.slice(0, 2).map((ph, i) => (
+              <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel="Open the photo" onPress={() => onPhoto?.(i)}>
+                <Image source={{ uri: ph.thumb ?? ph.full }} resizeMode="cover" style={{ width: 40, height: 50, backgroundColor: C.pale }} />
+              </Pressable>
+            ))}
       </Pressable>
       <Dash />
     </View>

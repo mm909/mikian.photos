@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { CHALLENGE, GOAL_METERS, MONTH } from "@/lib/row100k";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
+import { avatarsFor } from "@/lib/rowSocial";
 
 /* WHO THE APP IS SIGNED IN AS (2026-11-20): the account, the rower it
  * rows as (null until they join), and the rower's own two running totals,
@@ -20,6 +21,7 @@ export async function GET() {
   let optedIn = false;
   /* The dot on the bell: lines not yet read, and requests not yet answered. */
   let social = { unread: 0, requests: 0, isPrivate: false };
+  let avatar: string | null = null;
   if (me) {
     try {
       const [unread, requests, setting] = await Promise.all([
@@ -30,6 +32,7 @@ export async function GET() {
         db.rowSocialSetting.findUnique({ where: { participantId: me.id }, select: { isPrivate: true } }),
       ]);
       social = { unread, requests, isPrivate: setting?.isPrivate ?? false };
+      avatar = (await avatarsFor([me.id])).get(me.id) ?? null;
     } catch (err) {
       console.error("row app: failed to read the viewer's notifications", err);
     }
@@ -57,6 +60,7 @@ export async function GET() {
       totals,
       optedIn,
       social,
+      avatar,
       month: { key: MONTH.key, label: MONTH.label, goal: GOAL_METERS },
     },
     { headers: NO_STORE },

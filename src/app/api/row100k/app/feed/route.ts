@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveViewer } from "@/lib/row100kViewer";
-import { followingIds } from "@/lib/rowSocial";
+import { CHALLENGE } from "@/lib/row100k";
+import { avatarsFor, followingIds } from "@/lib/rowSocial";
 import { buildFeed, type FeedData } from "@/app/row100k/feed/feedData";
 
 /* THE FEED for the phone app (2026-11-20; owner the same day: "a
@@ -108,11 +109,22 @@ export async function GET(req: Request) {
       }
     }
 
+    /* The face beside each name. */
+    const faceOf = new Map<number, string>();
+    if (nums.length) {
+      const who = await db.rowParticipant.findMany({ where: { challenge: CHALLENGE, rowerNumber: { in: nums } }, select: { id: true, rowerNumber: true } });
+      const faces = await avatarsFor(who.map((p) => p.id));
+      for (const p of who) {
+        const f = faces.get(p.id);
+        if (f) faceOf.set(p.rowerNumber, f);
+      }
+    }
+
     const mine = viewer.me?.rowerNumber ?? null;
     return NextResponse.json(
       {
         ok: true,
-        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
+        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
         /* How many of these rows are the lead (the rowers the viewer follows). */
         lead: leadRows,
         older,

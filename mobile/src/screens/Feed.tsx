@@ -5,7 +5,7 @@ import { DotsIcon } from "../icons";
 import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F } from "../theme";
-import { Blocks, PhotoPair, Waiting } from "../ui";
+import { Avatar, Blocks, PhotoPair, Waiting } from "../ui";
 import { RowMenu } from "./Social";
 
 /* THE FEED (owner, 2026-11-20: "a chronological list of all rows so far. No
@@ -81,7 +81,7 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
       <FlatList
         data={items}
         keyExtractor={(it) => it.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 40 }}
         onRefresh={() => first(true)}
         refreshing={refreshing}
         onEndReached={next}
@@ -115,9 +115,16 @@ const fig = () => ({ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVarian
 function Strip({ it, onRower, onRow, onMenu }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void }) {
   const erg = it.erg ? [it.erg.watts ? `${it.erg.watts} W` : "", it.erg.spm ? `${it.erg.spm} s/m` : "", it.erg.hr ? `${it.erg.hr} bpm` : "", it.erg.drag ? `drag ${it.erg.drag}` : ""].filter(Boolean) : [];
   return (
-    <View style={{ paddingTop: 18, paddingBottom: 20, borderBottomWidth: 1, borderColor: C.line }}>
+    /* EACH ROW IS A CARD (owner, 2026-11-22: "there needs to be some depth
+     * on the feed, because right now it looks very flat ... each post needs
+     * to be carded"): its own lighter ground, rounded, lifted a little off
+     * the page, with space between one and the next. */
+    <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
       {/* Who, and the three dots. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Pressable accessibilityLabel={`${it.name}'s page`} onPress={() => onRower(it.rowerNumber)}>
+          <Avatar uri={it.avatar} name={it.name} size={38} />
+        </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel={`${it.name}, rower ${it.numStr}`} onPress={() => onRower(it.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 16, color: it.mine ? C.accent : C.ink }}>
             <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{it.numStr} · </Text>

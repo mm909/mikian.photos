@@ -386,7 +386,12 @@ export function Density({
   });
 
   const H = height;
-  const rugH = you ? 10 : 0;
+  /* EVERY ROW AS A MARK under the curve (owner, 2026-11-22, of the stats
+   * tab: "I would love some marks at the bottom showing the individual
+   * dots"): the rower's own where the chart is about a rower, the field's
+   * where it is about everybody. */
+  const fieldRug = you || !m ? [] : (kde.rug ?? []).filter((x) => Number.isFinite(x) && x >= m.lo && x <= m.hi);
+  const rugH = you || fieldRug.length ? 10 : 0;
   const top = 6;
   const base = H - rugH - 4;
   /* A clock axis is one whose labels are clocks. */
@@ -442,6 +447,9 @@ export function Density({
             {m.rug.map((x, i) => (
               <Line key={i} x1={sx(x)} y1={base + 3} x2={sx(x)} y2={base + 3 + rugH} stroke={C.accent} strokeWidth={1.5} opacity={0.7} />
             ))}
+            {fieldRug.map((x, i) => (
+              <Line key={`f${i}`} x1={sx(x)} y1={base + 3} x2={sx(x)} y2={base + 3 + rugH} stroke={C.soft} strokeWidth={1} opacity={0.35} />
+            ))}
             {m.mark !== null ? <Line x1={sx(m.mark)} y1={top} x2={sx(m.mark)} y2={base} stroke={C.accent} strokeWidth={2.5} /> : null}
             {at !== null ? <Line x1={sx(at)} y1={0} x2={sx(at)} y2={base} stroke={C.ink} strokeWidth={1} strokeDasharray="2 3" /> : null}
             {at !== null ? <Circle cx={sx(at)} cy={sy(heightAt(m.field, at))} r={3.5} fill={C.ink} /> : null}
@@ -491,7 +499,7 @@ export function Density({
  * everything fits and there is nothing to scroll, a drag does too. */
 type PacePoint = { m: number; s: number; dayStr?: string };
 type PaceDot = { m: number; s: number; rowM?: number; dayStr?: string };
-type PaceRow = { i: number; s: number | null; avg: number | null; rowM?: number; dayStr?: string };
+type PaceRow = { i: number; s: number | null; avg: number | null; rowM?: number; dayStr?: string; cum?: number };
 
 /* The rows a pace chart draws, and its pace range.
  *
@@ -507,7 +515,7 @@ function paceModel(curve: PacePoint[], dots: PaceDot[]) {
   for (let i = 0; i < n; i++) {
     const d = dots[i];
     const c = curve[i];
-    all.push({ i, s: d && fin(d.s) ? d.s : null, avg: c && fin(c.s) ? c.s : null, rowM: d && fin(d.rowM) ? d.rowM : undefined, dayStr: d?.dayStr ?? c?.dayStr });
+    all.push({ i, s: d && fin(d.s) ? d.s : null, avg: c && fin(c.s) ? c.s : null, rowM: d && fin(d.rowM) ? d.rowM : undefined, dayStr: d?.dayStr ?? c?.dayStr, cum: d && fin(d.m) ? d.m : c && fin(c.m) ? c.m : undefined });
   }
   const paces = all.flatMap((r) => (r.s === null ? [] : [r.s])).sort((a, b) => a - b);
   let fence = Infinity;
@@ -738,7 +746,9 @@ export function PaceLine({ curve, dots, fmt, height = 150 }: { curve: PacePoint[
                     const edge = x < DW / 2 ? "left" : x > contentW - DW / 2 ? "right" : "center";
                     return (
                       <Text key={i} numberOfLines={1} style={[small(), { position: "absolute", top: 5, width: DW, left: Math.max(0, Math.min(contentW - DW, x - DW / 2)), textAlign: edge, letterSpacing: 0.6 }]}>
-                        {(rows[i].dayStr ?? `#${rows[i].i + 1}`).toUpperCase()}
+                        {/* Meters rowed by then (owner, 2026-11-22: "the x-axis
+                            on the rows, I think, should be meters, not days"). */}
+                        {rows[i].cum !== undefined ? `${rows[i].cum! >= 10000 ? Math.round(rows[i].cum! / 1000) : Math.round(rows[i].cum! / 100) / 10}K M` : (rows[i].dayStr ?? `#${rows[i].i + 1}`).toUpperCase()}
                       </Text>
                     );
                   })}

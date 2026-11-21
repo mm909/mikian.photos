@@ -195,6 +195,26 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
   );
 }
 
+/* A ROWER'S FACE (owner, 2026-11-22: "I think the answer is yes, we do
+ * profile photos"; and of a rower who never sets one: "what happens when
+ * someone doesn't fill it out?"). Round, the photo cropped to fill it. With
+ * no photo: the rower's initials in the blue on its pale ground, so every
+ * line has something where a face goes and nobody looks unfinished. */
+export function Avatar({ uri, name, size = 36 }: { uri?: string | null; name: string; size?: number }) {
+  const [bad, setBad] = useState(false);
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}>
+      {uri && !bad ? <Image source={{ uri }} resizeMode="cover" onError={() => setBad(true)} style={{ width: size, height: size }} /> : <Text style={{ fontFamily: F.bold, fontSize: Math.round(size * 0.38), color: C.accent }}>{letters || "·"}</Text>}
+    </View>
+  );
+}
+
 /* THE TWO PHOTOS OF A ROW (owner, 2026-11-20: "exactly 2 photos"): side by
  * side, each cropped to 4:5 so a tall phone picture and a wide one sit the
  * same; a lone old photo takes the width in a 4:3 frame. Tap for the whole
@@ -237,7 +257,7 @@ export function PhotoPair({ photos, style, onMenu }: { photos: Photo[]; style?: 
  * three dots on the right side, and the three dots should bring up the
  * report button"). A black page, one photo to a screen, a swipe to the
  * other, and a mark at the foot for which of the two is showing. */
-function PhotoViewer({ photos, start, onClose, onMenu }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void }) {
+export function PhotoViewer({ photos, start, onClose, onMenu }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void }) {
   const win = useWindowDimensions();
   const [at, setAt] = useState(start);
   const list = useRef<ComponentRef<typeof ScrollView>>(null);

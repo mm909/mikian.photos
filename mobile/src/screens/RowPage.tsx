@@ -8,7 +8,7 @@ import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, copySticker, shareReel, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
-import { Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
+import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
 import { Review } from "./Review";
 import { RowMenu } from "./Social";
 
@@ -62,6 +62,7 @@ type RowData = {
   admin?: boolean;
   /* How the viewer stands to the row's rower, for the three dots. */
   rel?: { following: FollowState; bell: boolean; muted?: boolean };
+  avatar?: string | null;
   canShare: boolean;
   canReel: boolean;
   erg: { id: string; device: string; simulated: boolean; watts: number | null; spm: number | null; hr: number | null; drag: number | null; strokes: number } | null;
@@ -99,6 +100,16 @@ export function RowPage({
     if (who) onWho?.(who);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [who]);
+  /* THE STICKERS ARE FETCHED AS THE PAGE OPENS, not when SHARE is pressed
+   * (owner, 2026-11-22: "why do our shareables take so long to load?"), so
+   * they are drawn by the time anybody asks for them. */
+  const mayShare = !!data?.row.canShare && !data.row.masked;
+  useEffect(() => {
+    if (!mayShare) return;
+    deck(id)
+      .then((d) => d.cards.forEach((c) => stickerUri(c.id, id).catch(() => null)))
+      .catch(() => null);
+  }, [mayShare, id]);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const r = data.row;
   const doc = r.doc ?? localDoc ?? null;
@@ -118,6 +129,9 @@ export function RowPage({
           isn't used well up at the top. I feel like we can do the same with
           less vertical space"). The rower's number is in the bar above. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Pressable accessibilityLabel={`${r.name}'s page`} onPress={() => onRower(r.rowerNumber)}>
+          <Avatar uri={r.avatar} name={r.name} size={40} />
+        </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel={`${r.name}, rower ${r.numStr}`} onPress={() => onRower(r.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 18, color: r.mine ? C.accent : C.ink }}>
             {r.name}
@@ -179,7 +193,6 @@ export function RowPage({
       ) : null}
 
       {doc ? <Review row={{ id: r.id, day: r.day, meters: r.meters ?? 0 }} rows={rows} doc={doc} /> : null}
-      {!doc && !erg.length && !r.masked ? <Text style={[mono(11, false, C.gray, 0.12), { marginTop: 30, lineHeight: 18 }]}>Logged by hand. A row off a connected erg adds the splits, the stroke and the read.</Text> : null}
 
       {fresh ? <Btn label="Done" onPress={onDone} style={{ marginTop: 34 }} /> : null}
 

@@ -6,7 +6,7 @@ import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, pl
 import { maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { boardView } from "@/app/row100k/boardData";
 import { stampParts } from "@/app/row100k/feed/view";
-import { relation } from "@/lib/rowSocial";
+import { avatarsFor, relation } from "@/lib/rowSocial";
 import { resolvePhotoMedia } from "@/app/row100k/photoUrls";
 
 /* ONE ROW, for its page in the phone app (2026-11-20; owner the same day:
@@ -85,6 +85,7 @@ export async function GET(req: Request) {
           mine,
           /* For the three dots on the row: how the viewer stands to its rower. */
           rel: { following: rel.following, bell: rel.bell, muted: rel.muted },
+          avatar: (await avatarsFor([e.participantId])).get(e.participantId) ?? null,
           canShare: mine || viewer.isAdmin,
           /* The owner's tools on any row: take it down, or one photo of it. */
           admin: viewer.isAdmin,

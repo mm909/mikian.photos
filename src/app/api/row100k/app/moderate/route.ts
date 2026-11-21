@@ -26,7 +26,14 @@ export async function POST(req: Request) {
   if (!viewer.actor) return no("Sign in first.", 401);
   if (!viewer.isAdmin) return no("Not allowed.", 403);
   try {
-    const body = (await req.json().catch(() => null)) as { entryId?: unknown; photo?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { entryId?: unknown; photo?: unknown; avatarOf?: unknown } | null;
+    /* POST { avatarOf: <participant id> }: take a rower's profile photo
+     * down. They go back to initials and may set another. */
+    if (typeof body?.avatarOf === "string" && /^[a-z0-9]{1,40}$/i.test(body.avatarOf)) {
+      await db.rowSocialSetting.updateMany({ where: { participantId: body.avatarOf, challenge: CHALLENGE }, data: { avatarKey: null } });
+      console.info(`row app: ${viewer.actor.email} removed the profile photo of ${body.avatarOf}`);
+      return yes();
+    }
     const entryId = typeof body?.entryId === "string" && /^[a-z0-9]{1,40}$/i.test(body.entryId) ? body.entryId : "";
     const at = Number(body?.photo);
     if (!entryId || !Number.isInteger(at) || at < 0) return no("Which photo?", 400);

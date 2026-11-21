@@ -16,7 +16,7 @@ import { RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Logged } from "./src/screens/RowScreen";
 import { NewsScreen, PeopleScreen, SearchScreen, SettingsScreen, type PeopleList } from "./src/screens/Social";
-import { StatsScreen } from "./src/screens/Stats";
+import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
@@ -68,6 +68,7 @@ type Over = { k: number } & (
   | { kind: "news" }
   | { kind: "settings" }
   | { kind: "people"; list: PeopleList; num?: number }
+  | { kind: "rankings"; period: string; rec: string }
 );
 type Push = Over extends infer O ? (O extends { k: number } ? Omit<O, "k"> : never) : never;
 
@@ -240,17 +241,23 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const num3 = (n: number) => String(n).padStart(3, "0");
   const rowOf = top?.kind === "row" ? rowNum[top.id] : undefined;
   let mark: string | null = null;
-  let markIs: "word" | "meters" = "word";
+  let markIs: "word" | "meters" | "search" = "word";
   if (logOn) mark = "LOG";
   else if (!top) {
     if (tab === "profile" && mine) mark = num3(mine);
     else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
+    } else if (tab === "search") {
+      /* SEARCH, with the glass where the blue O would be (owner,
+       * 2026-11-22: "we could say search with the little glass at the end.
+       * That's like that blue O"). */
+      mark = "SEARCH";
+      markIs = "search";
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
-  const title = !top || mark ? "" : top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : "";
+  const title = !top || mark ? "" : top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : "";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
   const press = ({ pressed }: { pressed: boolean }) => ({ width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const, opacity: pressed ? 0.5 : 1 });
@@ -261,6 +268,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
+    ) : o.kind === "rankings" ? (
+      <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} />
     ) : o.kind === "settings" ? (
       <SettingsScreen onPeople={openPeople} onSignedOut={() => setStack([])} />
     ) : o.kind === "news" ? (
@@ -330,7 +339,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
             {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} /> : null}
             {tab === "search" ? <SearchScreen onRower={openRower} /> : null}
             {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} /> : null}
-            {tab === "stats" ? <StatsScreen onRower={openRower} /> : null}
+            {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} /> : null}
             {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} /> : null}
           </View>
           {stack.map((o, i) => (
@@ -433,7 +442,7 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
  * over. A word or a rower's number keeps the blue in its middle; a count of
  * meters is ink with its M in the blue. */
 const WHEEL = 32;
-function Mark({ label, kind }: { label: string; kind: "word" | "meters" }) {
+function Mark({ label, kind }: { label: string; kind: "word" | "meters" | "search" }) {
   const [pair, setPair] = useState({ from: label, to: label, turn: 0 });
   useEffect(() => {
     setPair((p) => (p.to === label ? p : { from: p.to, to: label, turn: p.turn + 1 }));
@@ -441,12 +450,17 @@ function Mark({ label, kind }: { label: string; kind: "word" | "meters" }) {
   const chars = pair.to.split("");
   const same = pair.from.length === pair.to.length;
   const size = chars.length > 9 ? 20 : chars.length > 5 ? 23 : 26;
-  const blue = (i: number) => (kind === "meters" ? i === chars.length - 1 : i > 0 && i < chars.length - 1);
+  const blue = (i: number) => (kind === "search" ? false : kind === "meters" ? i === chars.length - 1 : i > 0 && i < chars.length - 1);
   return (
     <View accessibilityRole="header" accessibilityLabel={pair.to === "ROW" ? "Row" : pair.to} style={{ flexDirection: "row", height: WHEEL }}>
       {chars.map((ch, i) => (
         <Wheel key={`${pair.turn}-${i}`} from={same ? pair.from[i] : ""} to={ch} roll={pair.turn > 0} delay={Math.min(i, 8) * 55} blue={blue(i)} size={size} />
       ))}
+      {kind === "search" && pair.to === "SEARCH" ? (
+        <View style={{ height: WHEEL, justifyContent: "center", marginLeft: 5 }}>
+          <SearchIcon color={C.accent} size={22} />
+        </View>
+      ) : null}
     </View>
   );
 }

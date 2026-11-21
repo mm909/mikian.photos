@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { Animated, Easing, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel, type SocialSettings } from "../api";
 import { SearchIcon } from "../icons";
 import { useLookSwitch } from "../look";
 import { useSession } from "../session";
 import { Ctl, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
-import { Waiting, useLoad } from "../ui";
+import { setAvatar } from "../upload";
+import { pickPhotos } from "../upload";
+import { Avatar, Waiting, useLoad } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
  * (pass 3, 2026-11-21). The owner's list, 2026-11-20: "follow someone, set
@@ -63,9 +65,11 @@ export function FollowButton({ num, state, onChange }: { num: number; state: Rel
 
 /* One rower in a list: the grey number, the bold name, the handle under
  * it, and whatever the list puts at the right. The whole line opens them. */
-function PersonLine({ p, onRower, right }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string }; onRower: (n: number) => void; right?: ReactNode }) {
+function PersonLine({ p, onRower, right, share }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 58, borderBottomWidth: 1, borderColor: C.line }}>
+      {share !== undefined ? <Wash share={share} /> : null}
+      <Avatar uri={p.avatar} name={p.name} size={36} />
       <Pressable accessibilityRole="link" accessibilityLabel={`${p.name}, rower ${p.numStr}`} onPress={() => onRower(p.rowerNumber)} style={({ pressed }) => ({ flex: 1, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>
         <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{p.numStr} · </Text>
@@ -78,12 +82,38 @@ function PersonLine({ p, onRower, right }: { p: { rowerNumber: number; numStr: s
   );
 }
 
+/* THE BAR BEHIND A LINE of the opening list on the search tab (owner,
+ * 2026-11-22: "bars that fill up kind of like the board ... the bar full
+ * for the first one and then a proportion of that for all the others").
+ * The board's own wash, grown in from the left once. */
+function Wash({ share }: { share: number }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: Math.max(0, Math.min(1, share)), duration: 800, easing: Easing.bezier(0.2, 0.7, 0.2, 1), useNativeDriver: false }).start();
+  }, [a, share]);
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: -20, right: -20, top: 0, bottom: 0 }}>
+      <Animated.View style={{ height: "100%", backgroundColor: C.wash, width: a.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
+    </View>
+  );
+}
+
 /* A sheet that comes up from the foot of the screen, for a short choice. */
 export function Sheet({ title, right, onClose, children }: { title: string; right?: string; onClose: () => void; children: ReactNode }) {
+  /* UP FROM THE FOOT (owner, 2026-11-22: "especially when we click these
+   * three dots ... it animates up from the bottom. So let's make sure we
+   * animate up from the bottom"): the shade fades in while the sheet rises. */
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [a]);
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: C.paper, borderTopWidth: 2, borderColor: C.ink, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 34, width: "100%", maxWidth: 560, alignSelf: "center" }}>
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
+          <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1 }} />
+        </Animated.View>
+        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 34, width: "100%", maxWidth: 560, alignSelf: "center", transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [420, 0] }) }] }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 8, marginBottom: 6 }}>
             <Text style={mono(11, true)}>{title}</Text>
             {right ? (
@@ -93,8 +123,8 @@ export function Sheet({ title, right, onClose, children }: { title: string; righ
             ) : null}
           </View>
           {children}
-        </Pressable>
-      </Pressable>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -197,6 +227,7 @@ export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
             <PersonLine
               p={item}
               onRower={onRower}
+              share={!q && people[0]?.meters ? (item.meters ?? 0) / people[0].meters : undefined}
               right={
                 item.meters !== null ? (
                   <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
@@ -332,7 +363,10 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
         <View>
           {index === 0 || data.items[index - 1].dayKey !== item.dayKey ? <Text style={[mono(11, false, C.gray, 0.14), { paddingTop: 22, paddingBottom: 4 }]}>{item.dayStr}</Text> : null}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, borderBottomWidth: 1, borderColor: C.line }}>
-            <View style={{ width: 8, height: 8, backgroundColor: item.unread ? C.accent : "transparent" }} />
+            <View>
+              <Avatar uri={item.avatar} name={item.name} size={36} />
+              {item.unread ? <View style={{ position: "absolute", right: -2, top: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: C.accent, borderWidth: 2, borderColor: C.paper }} /> : null}
+            </View>
             <Pressable accessibilityRole="link" accessibilityLabel={`${item.name} ${item.text}`} onPress={() => open(item)} style={({ pressed }) => ({ flex: 1, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>
               <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 20, color: C.ink }}>
                 <Text style={{ fontFamily: F.bold }}>{item.name}</Text> {item.text}
@@ -366,7 +400,7 @@ const KIND: Record<string, [string, string]> = {
  * notification, the look of this phone, the blocked list, and the way out.
  * A change saves as it is made. */
 export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: PeopleList) => void; onSignedOut: () => void }) {
-  const { refresh, signOut } = useSession();
+  const { refresh, signOut, me } = useSession();
   const look = useLookSwitch();
   const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>("/api/row100k/app/settings"), [], "/api/row100k/app/settings");
   const [s, setS] = useState<SocialSettings | null>(data?.settings ?? null);
@@ -375,10 +409,28 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
     if (data) setS(data.settings);
   }, [data]);
 
-  const save = async (body: { isPrivate?: boolean; notifyOff?: string[] }) => {
+  /* The profile photo: one picture out of the library, sent, then named
+   * as mine. `face` is "busy" while it goes, or what went wrong. */
+  const [face, setFace] = useState("");
+  const choose = async () => {
+    setFace("");
+    try {
+      const got = await pickPhotos(1);
+      if (!got.length) return;
+      setFace("busy");
+      await setAvatar(got[0]);
+      setS((await api<{ settings: SocialSettings }>("/api/row100k/app/settings")).settings);
+      refresh();
+      setFace("");
+    } catch (err) {
+      setFace(err instanceof Error ? err.message : "That photo did not go up.");
+    }
+  };
+
+  const save = async (body: { isPrivate?: boolean; notifyOff?: string[]; avatarKey?: null }) => {
     if (!s) return;
     const before = s;
-    setS({ ...s, ...body });
+    setS({ ...s, ...(body.avatarKey === null ? { avatar: null } : body) });
     setFailed("");
     try {
       setS((await api<{ settings: SocialSettings }>("/api/row100k/app/settings", { body })).settings);
@@ -393,7 +445,19 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 56 }}>
       {s ? (
         <>
-          <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Account" />
+          <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Profile photo" />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line }}>
+            <Avatar uri={s.avatar} name={me.me?.displayName ?? ""} size={64} />
+            <View style={{ flex: 1, gap: 10 }}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Small label={face === "busy" ? "Sending" : s.avatar ? "Change photo" : "Add a photo"} fill disabled={face === "busy"} onPress={choose} />
+                {s.avatar ? <Small label="Remove" disabled={face === "busy"} onPress={() => save({ avatarKey: null })} /> : null}
+              </View>
+              <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray }}>{face && face !== "busy" ? face : "Shown beside your name. Without one, your initials are."}</Text>
+            </View>
+          </View>
+
+          <Eye style={{ marginBottom: 0 }} left="Account" />
           <Setting title="Private account" body="Your rows and photos are shown only to followers you accept. You stay on the board, and your page keeps your totals." on={s.isPrivate} onChange={(v) => save({ isPrivate: v })} />
           {failed ? <Text style={[mono(11, false, C.accent, 0.1), { marginTop: 10 }]}>{failed}</Text> : null}
 
@@ -514,6 +578,17 @@ export function RowerMenu({
           <Act label={rel.muted ? "Unmute" : "Mute"} onPress={() => flip({ action: "mute", on: !rel.muted })} />
           <Act label="Block" onPress={() => setStep("block")} />
           <Act label="Report" onPress={() => setStep("report")} />
+          {adminId ? (
+            <Act
+              label="Remove their profile photo"
+              danger
+              onPress={async () => {
+                await api("/api/row100k/app/moderate", { body: { avatarOf: adminId } }).catch(() => null);
+                onBlocked();
+                onClose();
+              }}
+            />
+          ) : null}
           {adminId ? <Act label="Delete this rower" danger onPress={() => setStep("delete")} /> : null}
         </>
       ) : step === "block" ? (

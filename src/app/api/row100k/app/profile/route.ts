@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { buildProfile } from "@/app/row100k/r/[num]/profileData";
-import { followCounts } from "@/lib/rowSocial";
+import { avatarsFor, followCounts } from "@/lib/rowSocial";
 
 /* ONE ROWER'S PROFILE for the phone app (2026-11-20): the view the /r/[num]
  * page lays out (profileData.ts), so who is hidden from whom is decided in
@@ -55,6 +55,7 @@ export async function GET(req: Request) {
        * and (on the viewer's own page) the requests waiting on them. */
       rel: { following: rel.following, bell: rel.bell, followsYou: rel.followsYou, muted: rel.muted, isPrivate: rel.isPrivate, locked: rel.access === "private" },
       counts,
+      avatar: (await avatarsFor([v.rower.id])).get(v.rower.id) ?? null,
       requests: pendingIn,
       /* For an admin only: the id the site's own delete-a-rower route takes. */
       adminId: viewer.isAdmin && !v.isMe ? v.rower.id : null,

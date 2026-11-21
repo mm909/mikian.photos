@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { stampParts } from "@/app/row100k/feed/view";
+import { avatarsFor } from "@/lib/rowSocial";
 import { asRower, no, yes } from "../social";
 
 /* THE NOTIFICATION CENTRE, for the phone app (2026-11-21; owner,
@@ -33,6 +34,7 @@ export async function GET() {
       db.rowFollow.findMany({ where: { followeeId: me.id, status: "pending" }, select: { followerId: true } }),
     ]);
     const by = new Map(actors.map((a) => [a.id, a]));
+    const faces = await avatarsFor(ids);
     const cut = new Set(blocks.map((b) => (b.blockerId === me.id ? b.blockedId : b.blockerId)));
     const asking = new Set(pending.map((p) => p.followerId));
 
@@ -55,6 +57,7 @@ export async function GET() {
           rowerNumber: a.rowerNumber,
           numStr: fmtRowerNumber(a.rowerNumber),
           name: a.displayName,
+          avatar: faces.get(a.id) ?? null,
           text,
           /* Where a tap leads: the row, the board, or the rower. */
           entryId: r.kind === "rowed" ? r.entryId : null,

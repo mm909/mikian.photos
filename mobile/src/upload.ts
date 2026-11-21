@@ -67,6 +67,13 @@ async function upload(p: Picked): Promise<string> {
   return signed.key;
 }
 
+/* A PROFILE PHOTO: up like a row's photo (and with its small copy, which
+ * is what every list draws), then named as the rower's own. */
+export async function setAvatar(p: Picked): Promise<void> {
+  const key = await upload(p);
+  await api("/api/row100k/app/settings", { body: { avatarKey: key } });
+}
+
 export type NewRow = { day: string; meters: number; seconds: number; title: string; photos: [Picked, Picked]; doc?: TelemetryDoc };
 
 /* Log it. `step` says where it has got to, for the button. Answers the new

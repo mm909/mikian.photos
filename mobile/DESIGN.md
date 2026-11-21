@@ -121,6 +121,20 @@ Logging: the time is one field as on the website; both photos picked in one visi
 
 NOT DONE from this round: shareables on the stats page; the cause of stickers looking blacked out after a row (not found).
 
+### Round 10, 2026-11-22: his third spoken read
+
+All DECIDED (his words), BUILT unless marked.
+
+- PROFILE PHOTOS: "I think the answer is yes, we do profile photos. Okay, set it up." A rower sets one in SETTINGS; it shows beside their name in the feed, search, people lists, notifications, a row's page and their profile. With none, their initials in the blue ("what happens when someone doesn't fill it out?"). Stored as `avatarKey` on `RowSocialSetting`; the owner can take one down from the three dots on a rower. Public like a name, private account or not.
+- The feed's rows are CARDS: "there needs to be some depth ... right now it looks very flat ... each post needs to be carded."
+- Sheets (the three dots) "animate up from the bottom."
+- Search: the top ten wear the board's bars, the first full and the rest in proportion; the mark on that tab reads SEARCH with a blue glass after it.
+- Stats: FULL RANKINGS is its own page, one table, men and women together, with the month and the record as the two words at the top ("a different view"). KDE charts on the stats tab show every row as a mark under the curve. The pace chart's foot is in meters rowed, not dates.
+- A photo in a profile's log opens the viewer over every photo in the log, older ones after it.
+- Row page: the "logged by hand" sentence is gone. Stickers were slow because every sticker request rebuilt the rower's whole profile; that is now done once a minute per rower, and the page fetches the stickers as it opens.
+- NOT BUILT, on his own second thought: the meters rolling up beside a name in the feed ("I feel like that is not a good idea. I feel like it'll be too much. I could be wrong though").
+- LEFT ALONE: the owner's remove tools ("it's definitely okay enough"), dark mode ("I am not sure what to do about dark mode there, but it looks okay").
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

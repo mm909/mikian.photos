@@ -52,7 +52,7 @@ type Payload = Stats & {
 };
 type Sum = { mean: number; median: number; sd: number; p10: number; p90: number };
 
-export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
+export function StatsScreen({ onRower, onRankings }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void }) {
   const { me } = useSession();
   const [period, setPeriod] = useState("");
   const [stat, setStat] = useState<StatKey>("total");
@@ -114,7 +114,7 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
         {statWord}
       </View>
 
-      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
+      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
 
       {month ? (
         <>
@@ -196,19 +196,16 @@ function ChartHead({ children }: { children: ReactNode }) {
 }
 
 /* ONE RECORD: the lead, then the men's and the women's five. */
-function Records({ s, rec, onRower }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void }) {
+function Records({ s, rec, onRower, onAll }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void; onAll?: () => void }) {
   const rows: RecordRow[] = s.records[rec.key] ?? [];
   const first = rows[0];
-  /* THE WHOLE BOARD on a press (owner, 2026-11-21: "I need a view of the
-   * whole board button ... I can only see the top"). */
-  const [all, setAll] = useState(false);
   const elite = rec.key === "total" ? rows.filter((r) => r.unranked) : [];
   const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
   const table = (title: string, division: string) => {
     const list = rows.filter((r) => r.division === division);
     const mine = list.findIndex((r) => r.participantId === s.meId);
-    const shown = (all ? list : list.slice(0, 5)).map((r, i) => ({ r, place: i + 1 }));
-    if (!all && mine >= 5) shown.push({ r: list[mine], place: mine + 1 });
+    const shown = list.slice(0, 5).map((r, i) => ({ r, place: i + 1 }));
+    if (mine >= 5) shown.push({ r: list[mine], place: mine + 1 });
     return (
       <View>
         <TableHead>{title}</TableHead>
@@ -241,9 +238,12 @@ function Records({ s, rec, onRower }: { s: Payload; rec: (typeof RECORDS)[number
         <>
           {table("Men", "M")}
           {table("Women", "F")}
-          {rows.length > 5 ? (
+          {/* THE FULL RANKINGS are their own page (owner, 2026-11-22: "there
+              should be a full rankings button, and that just takes me to
+              the full rankings page ... a different view"). */}
+          {onAll && rows.length > 0 ? (
             <View style={{ marginTop: 18 }}>
-              <Ctl label={all ? "Show the top five" : "See the whole board"} onPress={() => setAll((v) => !v)} />
+              <Ctl label="Full rankings →" onPress={onAll} />
             </View>
           ) : null}
         </>
@@ -361,5 +361,40 @@ function DayPanel({ month, max, value, today, onPick }: { month: Stats["month"];
         </View>
       ))}
     </View>
+  );
+}
+
+/* THE FULL RANKINGS for one record: everybody on it, men and women in one
+ * table in order, as the website's rankings page lists a board. The record
+ * and the month are the two words at the top, as on the stats tab. */
+export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: string; rec: string; onRower: (n: number) => void }) {
+  const [period, setPeriod] = useState(p0);
+  const [key, setKey] = useState<RecordKey>((RECORDS.find((r) => r.key === r0)?.key ?? "total") as RecordKey);
+  const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
+  const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(path), [path], path);
+  if (!data) return <Waiting error={error} onRetry={reload} />;
+  const s = data.data;
+  const rec = RECORDS.find((r) => r.key === key) ?? RECORDS[0];
+  const rows: RecordRow[] = s.records[rec.key] ?? [];
+  const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
+  let place = 0;
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8 }}>
+        <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which month" />
+        <Dot />
+        <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" />
+      </View>
+      <TableHead>{`${rows.length} ${rows.length === 1 ? "rower" : "rowers"}`}</TableHead>
+      {rows.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}
+      {rows.map((r) => {
+        const n = r.unranked ? null : ++place;
+        return (
+          <Tr key={r.participantId} place={n} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => onRower(r.rowerNumber)} label={`${n ? `Place ${n}, ` : ""}${r.name}`}>
+            {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <Fig>{val(r)}</Fig>}
+          </Tr>
+        );
+      })}
+    </ScrollView>
   );
 }

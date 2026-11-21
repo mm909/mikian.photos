@@ -1645,6 +1645,11 @@ model RowSocialSetting {
   participantId String   @unique
   isPrivate     Boolean  @default(false)
   notifyOff     String[] @default([])
+  /// THE PROFILE PHOTO (owner, 2026-11-22: "I think the answer is yes, we do
+  /// profile photos"). The storage key of the picture, under the rower's
+  /// own upload prefix like a row's photos; null means none, and every
+  /// place that draws one draws the rower's initials instead.
+  avatarKey     String?
   updatedAt     DateTime @updatedAt
 
   @@index([challenge, isPrivate])
