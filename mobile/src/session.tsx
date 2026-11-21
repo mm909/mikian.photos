@@ -15,6 +15,9 @@ type Session = {
    * honours this outside a production build). */
   signInDev: (email: string) => Promise<void>;
   signInGoogle: (idToken: string) => Promise<void>;
+  /* SIGN IN WITH APPLE: the token Apple's own sheet handed over, and the
+   * name, which Apple gives only the first time. */
+  signInApple: (appleToken: string, name: string) => Promise<void>;
   /* ON A PHONE: sign in through the site, in the phone's own sign-in sheet
    * (the site's /api/row100k/app/session/handoff says how). */
   signInSite: () => Promise<void>;
@@ -22,7 +25,7 @@ type Session = {
 };
 
 const OUT: Me = { signedIn: false };
-const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signInSite: async () => {}, signOut: async () => {} });
+const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signInApple: async () => {}, signInSite: async () => {}, signOut: async () => {} });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me>(OUT);
@@ -70,7 +73,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
-  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInSite, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInApple: (appleToken, name) => take({ appleToken, name }), signInSite, signOut }}>{children}</Ctx.Provider>;
 }
 
 export const useSession = () => useContext(Ctx);

@@ -2,7 +2,7 @@
   "expo": {
     "name": "ROW",
     "slug": "rowtember",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,8 @@
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "ROW connects to your Concept2 monitor over Bluetooth to read your row.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -53,7 +54,9 @@
         }
       ],
       "expo-sharing",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication",
+      "expo-notifications"
     ],
     "scheme": "rowtember",
     "backgroundColor": "#F4F3EE",

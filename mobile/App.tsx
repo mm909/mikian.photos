@@ -23,6 +23,7 @@ import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
+import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
 import { Avatar, modals } from "./src/ui";
 
@@ -215,6 +216,10 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     return () => clearInterval(t);
   }, [me.me?.participantId, refresh]);
   const waiting = (me.social?.unread ?? 0) + (me.social?.requests ?? 0);
+  /* The phone's own notifications, asked for once a rower is signed in. */
+  useEffect(() => {
+    if (me.me) registerPush();
+  }, [me.me?.participantId]);
 
   /* THE BARS STEP ASIDE while the feed is being read downward, and come
    * back on the way up (owner, 2026-11-22: "as I scroll down on the feed,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { SAME_ORIGIN, SITE, api } from "../api";
 import { useSession } from "../session";
@@ -22,7 +23,7 @@ onLook(() => {
 });
 
 export function SignIn({ why }: { why: string }) {
-  const { signInDev, signInSite } = useSession();
+  const { signInDev, signInSite, signInApple } = useSession();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,6 +44,29 @@ export function SignIn({ why }: { why: string }) {
         Sign <Text style={{ color: C.accent }}>in</Text>
       </Text>
       <Text style={[styles.body, { marginBottom: 18 }]}>{why}</Text>
+      {/* SIGN IN WITH APPLE, on an iPhone (2026-11-21: Apple asks for it
+          beside any other sign-in). Apple's own button, as Apple draws it.
+          Closing the sheet is not an error. */}
+      {Platform.OS === "ios" ? (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={0}
+          style={{ height: 52, marginBottom: 12 }}
+          onPress={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              const got = await AppleAuthentication.signInAsync({ requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL] });
+              if (!got.identityToken) throw new Error("Apple did not finish that sign-in. Try again.");
+              await signInApple(got.identityToken, [got.fullName?.givenName, got.fullName?.familyName].filter(Boolean).join(" "));
+            } catch (err) {
+              if ((err as { code?: string }).code !== "ERR_REQUEST_CANCELED") setError(err instanceof Error ? err.message : "That did not work.");
+            }
+            setBusy(false);
+          }}
+        />
+      ) : null}
       {SAME_ORIGIN ? (
         <Btn
           label="Sign in with Google"
