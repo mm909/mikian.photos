@@ -18,7 +18,7 @@ import { Blocks, Waiting, useLoad } from "../ui";
  *     the blue for the viewer, whose place and number are in the blue too.
  *
  * AND NOTHING ELSE (owner, 2026-11-21, of a first version that put the
- * viewer's own metres big and blue over the table: "there's no blue large
+ * viewer's own meters big and blue over the table: "there's no blue large
  * number callout on the board on the website. So let's not have it there in
  * the app either ... the board is just for seeing the 100K challenge, like
  * rankings"). Gone with it, on his word the same day: the line counting who
@@ -32,12 +32,12 @@ import { Blocks, Waiting, useLoad } from "../ui";
  * there. A name opens the rower. */
 
 const GOAL = 100_000;
-/* Everything right of the 100,000 m line: the metres column and the edge. */
+/* Everything right of the 100,000 m line: the meters column and the edge. */
 const FIGS = 102;
 
 export function BoardScreen({ onRower }: { onRower: (n: number) => void }) {
   const { me, refresh } = useSession();
-  const { data, error, loading, reload } = useLoad(() => api<BoardData>("/api/row100k/app/board"), [me.me?.rowerNumber]);
+  const { data, error, loading, reload } = useLoad(() => api<BoardData>("/api/row100k/app/board"), [me.me?.rowerNumber], "/api/row100k/app/board");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   if (!data) return <Waiting error={error} onRetry={reload} />;
@@ -77,6 +77,27 @@ export function BoardScreen({ onRower }: { onRower: (n: number) => void }) {
       {data.tiers.map((t) => {
         const rows = placed.filter((x) => tierOf(x.r).key === t.key);
         if (!rows.length) return null;
+        /* WARMING UP is one line, not a list (owner, 2026-11-21: "the
+         * warming up should probably be just this many rowers warming up for
+         * this many meters"). The viewer's own row still prints if they are
+         * among them, so they can find themselves. */
+        if (t.key === "warming") {
+          const meters = rows.reduce((n, x) => n + (x.r.blocks === undefined ? x.r.meters : 0), 0);
+          const mine = rows.filter((x) => x.r.me);
+          return (
+            <View key={t.key}>
+              <View style={{ marginHorizontal: 20, paddingTop: 26, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink }}>
+                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 18, letterSpacing: 0.2, color: C.ink, textTransform: "uppercase" }}>{t.title}</Text>
+              </View>
+              <Text style={[mono(11, false, C.gray, 0.12), { paddingHorizontal: 20, paddingVertical: 14 }]}>
+                <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{rows.length}</Text> {rows.length === 1 ? "rower" : "rowers"} warming up · <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(meters)}</Text> m
+              </Text>
+              {mine.map(({ r, place: n }) => (
+                <Line key={r.rowerNumber} r={r} place={n} delay={0} onPress={() => onRower(r.rowerNumber)} />
+              ))}
+            </View>
+          );
+        }
         return (
           <View key={t.key}>
             <View style={{ marginHorizontal: 20, paddingTop: 26, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink }}>
@@ -100,7 +121,7 @@ function Line({ r, place, delay, onPress }: { r: BoardRow; place: number | null;
     Animated.timing(a, { toValue: frac, duration: 800, delay, easing: Easing.bezier(0.2, 0.7, 0.2, 1), useNativeDriver: false }).start();
   }, [a, frac, delay]);
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${place ? `Place ${place}, ` : ""}rower ${r.rowerNumber}, ${r.name}, ${hidden ? "hidden" : `${fmtInt(r.meters)} metres`}`} onPress={onPress} style={{ paddingHorizontal: 20 }}>
+    <Pressable accessibilityRole="link" accessibilityLabel={`${place ? `Place ${place}, ` : ""}rower ${r.rowerNumber}, ${r.name}, ${hidden ? "hidden" : `${fmtInt(r.meters)} meters`}`} onPress={onPress} style={{ paddingHorizontal: 20 }}>
       <View pointerEvents="none" style={{ position: "absolute", left: 0, right: FIGS, top: 0, bottom: 1 }}>
         <Animated.View style={{ height: "100%", backgroundColor: r.me ? C.washMe : C.wash, width: a.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
       </View>

@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
-import { BellIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, fmtClock, fmtInt } from "../theme";
@@ -15,7 +14,7 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  *
  *   the nameplate: 095 MIKIAN MUSSER, the number grey, on a hairline;
  *   the month word (a menu: every month and all time);
- *   the metres of that month as the big blue odometer, seven wheels, the
+ *   the meters of that month as the big blue odometer, seven wheels, the
  *     leading zeros faint, and "METERS · 6.7 H ON THE ERG" under it;
  *   LOG A ROW, on the rower's own page;
  *   the identity line, and the ledger: time rowed, sessions, average split;
@@ -33,7 +32,7 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  *
  * TAKEN OFF, on the owner's read of the first version (2026-11-21, "we
  * really just reference the website"): the all-time line with its lifetime
- * tag and the metres to the next one ("it doesn't make sense, at least how
+ * tag and the meters to the next one ("it doesn't make sense, at least how
  * it's presented here"), the PRIVATE label, the underlines on the two
  * counts. The name is ONE line, shrunk to fit and cut short only if it
  * still will not ("the name can't be on 2 lines").
@@ -67,9 +66,11 @@ export function ProfileScreen({
   const own = num === undefined;
   const [period, setPeriod] = useState<string>("");
   const mine = me.me?.rowerNumber;
+  const path = `/api/row100k/app/profile?${own ? "" : `num=${num}&`}${period ? `m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(
-    () => (own && !mine ? Promise.resolve(null) : api<{ profile?: Profile; blocked?: Blocked }>(`/api/row100k/app/profile?${own ? "" : `num=${num}&`}${period ? `m=${period}` : ""}`)),
-    [num, period, mine],
+    () => (own && !mine ? Promise.resolve(null) : api<{ profile?: Profile; blocked?: Blocked }>(path)),
+    [path, mine],
+    own && !mine ? null : path,
   );
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
@@ -85,6 +86,8 @@ export function ProfileScreen({
   const rel = live?.rel ?? p.rel;
   const counts = live?.counts ?? p.counts;
   const locked = !!p.rel.locked;
+  /* Only the bests there are: a distance never rowed is not a line. */
+  const rowed = p.bests.filter((b) => b.sub !== "not yet rowed" && b.value !== "—");
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
@@ -101,36 +104,25 @@ export function ProfileScreen({
           if (r.rel.following !== p.rel.following) reload();
         }}
       />
-      {menu && onMenu && !p.isMe ? <RowerMenu num={p.rower.rowerNumber} name={p.rower.displayName} adminId={p.adminId} onClose={() => onMenu(false)} onBlocked={reload} onGone={() => onGone?.()} /> : null}
+      {menu && onMenu && !p.isMe ? <RowerMenu num={p.rower.rowerNumber} name={p.rower.displayName} rel={rel} adminId={p.adminId} onClose={() => onMenu(false)} onRel={setLive} onBlocked={reload} onGone={() => onGone?.()} /> : null}
 
       {p.masked ? (
         <DogTag p={p} />
       ) : (
         <>
-          <View style={{ marginTop: 22 }}>
+          {/* THE METERS of the month, and under them which month it is: the
+              word is the menu (owner, 2026-11-21: "it's just meters and then
+              that time", in place of the hours on the erg, which the ledger
+              below already carries). */}
+          <Odometer meters={t?.meters ?? 0} />
+          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", marginTop: 8 }}>
+            <Text style={mono(12, false, C.gray)}>Meters · </Text>
             <WordMenu options={p.periodOptions} value={p.period.key} onPick={setPeriod} ariaLabel="Which month" />
           </View>
-          <Odometer meters={t?.meters ?? 0} />
-          <Text style={[mono(12, false, C.gray), { marginTop: 8 }]}>
-            Meters · <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{hours(t?.seconds ?? 0)} on the erg</Text>
-          </Text>
 
-          {p.isMe && onLog ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Log a row" onPress={onLog} style={({ pressed }) => ({ alignSelf: "flex-start", marginTop: 26, opacity: pressed ? 0.6 : 1 })}>
-              <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink }}>
-                <Text style={{ textDecorationLine: "underline", textDecorationColor: C.accent }}>LOG A ROW</Text>→
-              </Text>
-            </Pressable>
-          ) : null}
+          {p.rower.instagram ? <Text style={[mono(12, false, C.accent), { marginTop: 14 }]}>@{p.rower.instagram}</Text> : null}
 
-          <Text style={[mono(12, false, C.ink), { marginTop: 22, lineHeight: 20 }]}>
-            Rower {String(p.rower.rowerNumber).padStart(3, "0")} · {p.rower.displayName}
-            {p.rower.instagram ? <Text style={{ color: C.accent }}> · @{p.rower.instagram}</Text> : null}
-            {p.elite ? ` · ${p.blackoutNote}` : p.rank ? ` · ${p.rank.place} of ${p.rank.of}${p.rower.division === "F" ? " women" : p.rower.division === "M" ? " men" : ""}` : ""}
-            {p.club ? " · 100K club" : ""}
-          </Text>
-
-          <View style={{ marginTop: 22 }}>
+          <View style={{ marginTop: 20 }}>
             <Ledger
               cells={[
                 [hours(t?.seconds ?? 0), "Time rowed"],
@@ -139,15 +131,6 @@ export function ProfileScreen({
               ]}
             />
           </View>
-
-          {p.bests.length ? (
-            <>
-              <Eye left="The bests" right={p.period.label} />
-              {p.bests.map((b) => (
-                <BestRow key={b.key} b={b} />
-              ))}
-            </>
-          ) : null}
 
           {locked ? (
             <View style={{ borderWidth: 2, borderColor: C.ink, padding: 18, marginTop: 30 }}>
@@ -167,47 +150,62 @@ export function ProfileScreen({
 
           {p.paceCurve.length >= 2 ? (
             <>
-              <Eye left="The pace" right="Split, by meters rowed" />
-              <PaceLine curve={p.paceCurve} dots={p.paceDots} fmt={(s) => fmtClock(s)} />
+              <Eye left="The pace" right="Each row, and the running average" />
+              <PaceLine curve={p.paceCurve} dots={p.paceDots} fmt={(s) => fmtClock(s, false)} />
             </>
           ) : null}
 
           {p.field ? (
             <>
               <Eye left="The field" right={`${fmtInt(p.field.field.sessions)} rows · ${p.field.field.rowers} rowers`} />
-              <Standing k="Average row" v={fmtInt(p.field.you.avgLen)} u="m" line={`Longer than ${p.field.you.lenPct}% of rowers`} first />
-              <Standing k="Average pace" v={m2(p.field.you.avgPace)} u="/500m" line={`Faster than ${p.field.you.pacePct}% of rowers`} />
+              {/* The two standings side by side (owner, 2026-11-21: "average
+                  row and average pace might be able to get moved on the same
+                  line"). */}
+              <View style={{ flexDirection: "row", borderTopWidth: 2, borderBottomWidth: 2, borderColor: C.ink }}>
+                <Standing k="Average row" v={fmtInt(p.field.you.avgLen)} u="m" line={`Longer than ${p.field.you.lenPct}%`} />
+                <View style={{ width: 1, backgroundColor: C.ink }} />
+                <Standing k="Average pace" v={m2(p.field.you.avgPace)} u="/500m" line={`Faster than ${p.field.you.pacePct}%`} pad />
+              </View>
               <ChartHead>Length of every row</ChartHead>
-              <Density kde={p.field.field.lengthKde} you={p.field.you.lengthYou} fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)} />
+              <Density kde={p.field.field.lengthKde} you={p.field.you.lengthYou} fmt={(x) => (x >= 1000 ? `${Math.round(x / 100) / 10}K` : `${Math.round(x)}`)} />
               <ChartHead>Split of every row</ChartHead>
-              <Density kde={p.field.field.paceKde} you={p.field.you.paceYou} fmt={m2} />
+              <Density kde={p.field.field.paceKde} you={p.field.you.paceYou} fmt={m2} lowerIsBetter />
               {p.field.distances.map((d) => (
                 <View key={d.meters}>
-                  <ChartHead>
-                    The {d.label} · {d.youN} of {d.fieldN} timed rows
-                  </ChartHead>
-                  <Density kde={d.field} you={d.you} fmt={m2} />
+                  <ChartHead note={`${d.youN} of ${d.fieldN} timed rows`}>The {d.label}</ChartHead>
+                  <Density kde={d.field} you={d.you} fmt={m2} lowerIsBetter />
                 </View>
               ))}
             </>
           ) : null}
 
+          {/* THE BESTS, after the field, and only the ones there are (owner,
+              2026-11-21: "if I haven't rowed a 10K yet or a 5K, then on the
+              best, let's hide it ... let's move the best down after the
+              field"). */}
+          {rowed.length ? (
+            <>
+              <Eye left="The bests" right={p.period.label} />
+              {rowed.map((b) => (
+                <BestRow key={b.key} b={b} />
+              ))}
+            </>
+          ) : null}
+
+          {/* THE ERG: each piece opens the page of its row. */}
           {p.ergRows.length ? (
             <>
               <Eye left="The erg" right={`${p.ergRows.length} ${p.ergRows.length === 1 ? "piece" : "pieces"}`} />
               {p.ergRows.map((r) => (
-                <View key={r.id} style={{ backgroundColor: C.tint }}>
-                  <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: 6, paddingVertical: 11 }}>
-                    <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>
-                      {r.when}
-                      {r.simulated ? " · demo" : ""}
-                    </Text>
-                    <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
-                      <Text style={{ fontFamily: F.monoBold }}>{r.meters}</Text> {r.time} {r.split}
-                    </Text>
-                  </View>
-                  <Dash />
-                </View>
+                <Pressable key={r.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${r.when}`} disabled={!r.entryId || !onRow} onPress={() => r.entryId && onRow?.(r.entryId)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
+                  <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>
+                    {r.when}
+                    {r.simulated ? " · demo" : ""}
+                  </Text>
+                  <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
+                    <Text style={{ fontFamily: F.monoBold }}>{r.meters}</Text> {r.time} {r.split}
+                  </Text>
+                </Pressable>
               ))}
             </>
           ) : null}
@@ -247,7 +245,6 @@ function Nameplate({ num, name }: { num: number; name: string }) {
  * at the right of the same line. */
 function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
   const { me } = useSession();
-  const [busy, setBusy] = useState(false);
   const n = p.rower.rowerNumber;
   const count = (v: number, one: string, many: string, list: PeopleList) => (
     <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8}>
@@ -256,15 +253,6 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
       </Text>
     </Pressable>
   );
-  const bell = async () => {
-    setBusy(true);
-    try {
-      onChange(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num: n, action: "bell", on: !rel.bell } }));
-    } catch {
-      /* The bell stays as it was. */
-    }
-    setBusy(false);
-  };
   return (
     <View style={{ flexDirection: "row", alignItems: "center", columnGap: 16, minHeight: 36, marginTop: 10 }}>
       {count(counts.followers, "follower", "followers", "followers")}
@@ -272,11 +260,6 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
       <View style={{ flex: 1 }} />
       {!p.isMe && me.me ? (
         <>
-          {rel.following === "accepted" ? (
-            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? "Notifications from this rower are on" : "Notifications from this rower are off"} disabled={busy} onPress={bell} hitSlop={8} style={({ pressed }) => ({ opacity: pressed || busy ? 0.5 : 1 })}>
-              <BellIcon on={rel.bell} color={C.gray} size={24} />
-            </Pressable>
-          ) : null}
           <FollowButton num={n} state={rel.following} onChange={onChange} />
         </>
       ) : null}
@@ -319,7 +302,7 @@ function marksOf(byDay: Record<string, number>): [number, number, number] {
   return [max * 0.25, max * 0.5, max * 0.75];
 }
 
-/* THE ODOMETER: the metres on wheels, big and blue, with ONE faint zero in
+/* THE ODOMETER: the meters on wheels, big and blue, with ONE faint zero in
  * front (owner, 2026-11-21: "only show 7 digits if there's 6 digits worth
  * of meters rowed ... 83,000, we just show the 083,000. But if it was
  * 100,000, then we could add that extra 0 up front"). Six wheels up to
@@ -338,7 +321,7 @@ function Odometer({ meters }: { meters: number }) {
   /* An Archivo Black figure runs about two thirds of an em, a comma a third. */
   const size = w ? Math.min(76, Math.floor(w / (wheels * 0.68 + commas * 0.34))) : 60;
   return (
-    <View onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityLabel={`${fmtInt(meters)} metres`} style={{ marginTop: 10 }}>
+    <View onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityLabel={`${fmtInt(meters)} meters`} style={{ marginTop: 10 }}>
       <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.04), letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>
         <Text style={{ opacity: 0.28 }}>{printed.slice(0, faint)}</Text>
         {printed.slice(faint)}
@@ -347,25 +330,28 @@ function Odometer({ meters }: { meters: number }) {
   );
 }
 
-/* Where the rower stands in the field on one measure. */
-function Standing({ k, v, u, line, first }: { k: string; v: string; u: string; line: string; first?: boolean }) {
+/* Where the rower stands in the field on one measure: one of two cells. */
+function Standing({ k, v, u, line, pad }: { k: string; v: string; u: string; line: string; pad?: boolean }) {
   return (
-    <View style={{ borderTopWidth: first ? 2 : 1, borderBottomWidth: first ? 0 : 2, borderColor: C.ink, paddingVertical: 14 }}>
-      <Text style={mono(11, false, C.gray)}>{k}</Text>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 6 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 28, color: C.accent, fontVariant: ["tabular-nums"] }}>{v}</Text>
-        <Text style={{ fontFamily: F.bold, fontSize: 13, color: C.accent }}>{u}</Text>
+    <View style={{ flex: 1, paddingVertical: 14, paddingLeft: pad ? 12 : 0 }}>
+      <Text style={mono(10, false, C.gray, 0.14)}>{k}</Text>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 6 }}>
+        <Text style={{ fontFamily: F.black, fontSize: 26, color: C.accent, fontVariant: ["tabular-nums"] }}>{v}</Text>
+        <Text style={{ fontFamily: F.bold, fontSize: 12, color: C.accent }}>{u}</Text>
       </View>
-      <Text style={[mono(11, false, C.accent, 0.12), { marginTop: 6 }]}>{line}</Text>
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6 }]}>{line}</Text>
     </View>
   );
 }
 
-function ChartHead({ children }: { children: ReactNode }) {
+/* What a chart measures, said plainly over it (owner, 2026-11-21: "I would
+ * like the title of what this is measuring to be maybe a little more
+ * apparent"). */
+function ChartHead({ children, note }: { children: ReactNode; note?: string }) {
   return (
-    <View style={{ marginTop: 26, marginBottom: 10 }}>
-      <Dash />
-      <Text style={[mono(11, false, C.gray), { marginTop: 12 }]}>{children}</Text>
+    <View style={{ marginTop: 28, marginBottom: 10, flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", columnGap: 12 }}>
+      <Text style={mono(12, true)}>{children}</Text>
+      {note ? <Text style={mono(10, false, C.gray, 0.12)}>{note}</Text> : null}
     </View>
   );
 }
@@ -389,7 +375,7 @@ function BestRow({ b }: { b: Best }) {
   );
 }
 
-/* THE LOG: the distance filter the site has, the count and the metres of
+/* THE LOG: the distance filter the site has, the count and the meters of
  * what is showing, and each row on the tint; PHOTOS opens its pair. */
 function Log({ p, onRow }: { p: Profile; onRow?: (id: string) => void }) {
   const [only, setOnly] = useState<0 | 5000 | 10000>(0);
@@ -423,22 +409,29 @@ function Log({ p, onRow }: { p: Profile; onRow?: (id: string) => void }) {
 function LogLine({ r, onRow }: { r: LogRow; onRow?: (id: string) => void }) {
   return (
     <View style={{ backgroundColor: C.tint }}>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open the row of ${r.dayStr}: ${r.metersStr || "hidden"}`} onPress={() => onRow?.(r.id)} disabled={!onRow} style={{ paddingHorizontal: 8, paddingVertical: 11 }}>
+      <Pressable accessibilityRole="link" accessibilityLabel={`Open the row of ${r.dayStr}: ${r.metersStr || "hidden"}`} onPress={() => onRow?.(r.id)} disabled={!onRow} style={{ paddingHorizontal: 8, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <Text numberOfLines={1} style={[mono(11, false, C.gray, 0.1), { flexShrink: 1 }]}>
             <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{r.dayStr}</Text>
             {r.title ? ` · ${r.title}` : ""}
           </Text>
-          {onRow ? <Text style={mono(11, true, C.accent)}>→</Text> : null}
         </View>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 14, marginTop: 6 }}>
-          {r.masked ? <Blocks n={r.digits ?? 4} size={14} /> : <Text style={{ fontFamily: F.monoBold, fontSize: 15, color: C.ink, fontVariant: ["tabular-nums"] }}>{r.metersStr}</Text>}
+          {r.masked ? <Blocks n={r.digits ?? 4} size={14} /> : <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 15, color: C.ink, fontVariant: ["tabular-nums"] }}>{r.metersStr}</Text>}
           {r.masked ? null : (
-            <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
               {r.durationStr} <Text style={{ color: C.gray }}> {r.splitStr} /500m</Text>
             </Text>
           )}
         </View>
+        </View>
+        {/* The row's two photos, small (owner, 2026-11-21: "I should see the
+            photos on the log ... they should be small in the log, kind of
+            like they are in the live version"). */}
+        {r.masked
+          ? null
+          : r.photos.slice(0, 2).map((ph, i) => <Image key={i} source={{ uri: ph.thumb ?? ph.full }} resizeMode="cover" style={{ width: 40, height: 50, backgroundColor: C.pale }} />)}
       </Pressable>
       <Dash />
     </View>

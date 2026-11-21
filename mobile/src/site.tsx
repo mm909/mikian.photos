@@ -1,5 +1,5 @@
 import { useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import Svg, { Line } from "react-native-svg";
 import { C, F } from "./theme";
 
@@ -88,9 +88,14 @@ export function WordMenu<T extends string>({
               onPress={() => {}}
               style={{ position: "absolute", left: Math.max(12, Math.min(at.x, win.width - width - 12)), top: Math.min(at.y + at.h + 8, win.height - 320), width, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, paddingVertical: panel ? 0 : 6, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 15, shadowOffset: { width: 0, height: 10 }, elevation: 8 }}
             >
-              {panel
-                ? panel(close)
-                : options.map((o) => (
+              {panel ? (
+                panel(close)
+              ) : (
+                /* A menu longer than the screen is tall scrolls inside
+                 * itself (owner, 2026-11-21, of the months: "maybe we just
+                 * give it a fixed height and a scroll"). */
+                <ScrollView style={{ maxHeight: 300 }}>
+                  {options.map((o) => (
                     <Pressable
                       key={o.key}
                       accessibilityRole="menuitem"
@@ -104,6 +109,8 @@ export function WordMenu<T extends string>({
                       <Text style={mono(11, true, o.key === value ? C.accent : C.ink, 0.14)}>{o.label}</Text>
                     </Pressable>
                   ))}
+                </ScrollView>
+              )}
             </Pressable>
           ) : null}
         </Pressable>

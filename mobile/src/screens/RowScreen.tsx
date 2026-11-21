@@ -8,7 +8,7 @@ import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
-import { logRow, pacificToday, pickPhoto, shiftDay, type Picked } from "../upload";
+import { logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
 
 /* LOG A ROW. Three ways in: connect a Concept2 PM5 and row, a demo row
@@ -22,7 +22,7 @@ import { SignIn } from "./Account";
  * button saying LOG x M"; "Lets make 2 views but should prob be sideways".
  * One monitor for every kind of piece: the four numbers always show; a set
  * distance adds the line to the next 10-second mark (erg/milestone.ts) and
- * the metres left; a set time shows the metres it is on pace for; a plain
+ * the meters left; a set time shows the meters it is on pace for; a plain
  * row shows the four numbers and no line. */
 
 export type Logged = { id: string; meters: number; seconds: number; day: string; doc?: TelemetryDoc; demo: boolean; device: string; strokes: number; avgWatts: number };
@@ -119,7 +119,7 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
 /* ---- the monitor ------------------------------------------------------- */
 
 const signed = (v: number) => `${v < 0 ? "−" : "+"}${Math.abs(v).toFixed(1)} s`;
-/* How long the metres stand still before the row counts as stopped. */
+/* How long the meters stand still before the row counts as stopped. */
 const IDLE_MS = 6000;
 
 function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave: () => void }) {
@@ -144,7 +144,7 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
   /* HAS THE ROWER STOPPED (owner, 2026-11-20: "have them only pop up when
    * the rower is either just starting or just finished, prob just
    * finished"). The monitor says so itself when a set piece ends; for a
-   * plain row, or a piece abandoned, the metres standing still for a few
+   * plain row, or a piece abandoned, the meters standing still for a few
    * seconds says it. Before the first stroke there is nothing to log, so
    * nothing shows: the way out then is the last page. */
   const moved = useRef({ m: 0, at: Date.now() });
@@ -221,7 +221,7 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
 }
 
 /* PAGE ONE: the average split, big, in the blue; under it what it takes to
- * hit the next mark; then the split right now, the metres and the time. */
+ * hit the next mark; then the split right now, the meters and the time. */
 function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) {
   const { live } = erg;
   const ms = milestone(live);
@@ -233,13 +233,14 @@ function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) 
       <Eyebrow style={{ color: C.ink }}>Average /500 m</Eyebrow>
       <Text style={{ fontFamily: F.black, fontSize: avgSize, lineHeight: Math.round(avgSize * 1.08), color: C.accent, fontVariant: ["tabular-nums"], letterSpacing: -2 }}>{fmtPace(live.avgPace)}</Text>
       {ms ? (
+        /* What the row will finish in at this pace, to the second (owner,
+         * 2026-11-21, of the line that said how many seconds a split to give
+         * up for the next mark: "I think I actually just want what's below
+         * it, which is the on pace for, and then give me just the minute
+         * second, not the dot ... it'll be a little hard to parse"). */
         <View>
-          <Text accessibilityLabel={`${Math.abs(ms.delta).toFixed(1)} seconds ${ms.delta < 0 ? "faster" : "slower"} per 500 for ${fmtClock(ms.mark, false)}`} style={{ fontFamily: F.monoBold, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>
-            {signed(ms.delta)} FOR {fmtClock(ms.mark, false)}
-          </Text>
-          <Eyebrow style={{ marginTop: 4 }}>
-            On pace for {fmtClock(ms.projected)} · {fmtInt(ms.metersLeft)} m to go
-          </Eyebrow>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>ON PACE FOR {fmtClock(ms.projected, false)}</Text>
+          <Eyebrow style={{ marginTop: 4 }}>{fmtInt(ms.metersLeft)} m to go</Eyebrow>
         </View>
       ) : pm ? (
         <Text style={{ fontFamily: F.monoBold, fontSize: 22, color: C.ink }}>ON PACE FOR {fmtInt(pm)} M</Text>
@@ -260,8 +261,9 @@ function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) 
   );
   const three = (
     <View style={wide ? { flex: 1, justifyContent: "center", paddingLeft: 28 } : { marginTop: 26 }}>
-      {cell("Now /500 m", fmtPace(live.pace))}
-      {cell("Metres", fmtInt(Math.floor(live.meters)))}
+      {/* The split right now, to the second: its tenths only flicker. */}
+      {cell("Now /500 m", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace, false) : "-:--")}
+      {cell("Meters", fmtInt(Math.floor(live.meters)))}
       {cell("Time", fmtClock(live.elapsedS, false))}
     </View>
   );
@@ -294,7 +296,10 @@ function PacePage({ erg, width, height }: { erg: Erg; width: number; height: num
   const lo = mid - 5;
   const hi = mid + 5;
   const xMax = Math.max(live.targetM, trail[trail.length - 1].m, 500);
-  const sx = (m: number) => (m / xMax) * width;
+  /* The plot gives up a strip at its left for the labels of the split. */
+  const AXIS = 44;
+  const plot = Math.max(60, width - AXIS);
+  const sx = (m: number) => (m / xMax) * plot;
   const sy = (p: number) => ((Math.min(hi, Math.max(lo, p)) - lo) / (hi - lo)) * height;
   /* The monitor's split jumps a second or two stroke to stroke; the line is
    * the mean of the last ten readings (about 100 m), so it shows where the
@@ -307,21 +312,37 @@ function PacePage({ erg, width, height }: { erg: Erg; width: number; height: num
     if (i >= 10) sum -= trail[i - 10].pace;
     if (i % step === 0 || i === trail.length - 1) d += `${d ? "L" : "M"}${sx(trail[i].m).toFixed(1)} ${sy(sum / Math.min(i + 1, 10)).toFixed(1)}`;
   }
+  /* THE AXES (owner, 2026-11-21: "we do need some x-axis labels and some
+   * y-axis labels for some of these graphs ... especially when I'm looking
+   * at the demo"). Down the left, the split at the top, the middle and the
+   * bottom of the window; along the foot, the meters. */
+  const tick = (v: string) => <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, fontVariant: ["tabular-nums"] }}>{v}</Text>;
+  const short = (p: number) => fmtClock(p, false);
   return (
     <View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-        <Eyebrow style={{ color: C.ink }}>Split along the piece</Eyebrow>
-        <Eyebrow>Faster ↑ · {fmtPace(lo)}</Eyebrow>
+        <Eyebrow style={{ color: C.ink }}>Split /500 m along the piece</Eyebrow>
+        <Eyebrow>Faster is up</Eyebrow>
       </View>
-      <Svg width={width} height={height}>
-        <Line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={C.gray} strokeWidth={1} strokeDasharray="4 4" />
-        <Path d={d} stroke={C.accent} strokeWidth={3} fill="none" strokeLinejoin="round" />
-        <Line x1={0} y1={height - 1} x2={width} y2={height - 1} stroke={C.ink} strokeWidth={2} />
-      </Svg>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-        <Eyebrow>- - Average {fmtPace(mid)}</Eyebrow>
-        <Eyebrow>Slower ↓ · {fmtPace(hi)}</Eyebrow>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ width: AXIS, height, justifyContent: "space-between" }}>
+          {tick(short(lo))}
+          {tick(short(mid))}
+          {tick(short(hi))}
+        </View>
+        <Svg width={plot} height={height}>
+          <Line x1={0} y1={height / 2} x2={plot} y2={height / 2} stroke={C.gray} strokeWidth={1} strokeDasharray="4 4" />
+          <Path d={d} stroke={C.accent} strokeWidth={3} fill="none" strokeLinejoin="round" />
+          <Line x1={0} y1={height - 1} x2={plot} y2={height - 1} stroke={C.ink} strokeWidth={2} />
+          <Line x1={1} y1={0} x2={1} y2={height} stroke={C.ink} strokeWidth={2} />
+        </Svg>
       </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6, marginLeft: AXIS }}>
+        {tick("0 m")}
+        {tick(`${fmtInt(Math.round(xMax / 2))} m`)}
+        {tick(`${fmtInt(Math.round(xMax))} m`)}
+      </View>
+      <Eyebrow style={{ marginTop: 8, marginLeft: AXIS }}>- - The average, {fmtPace(mid)}</Eyebrow>
     </View>
   );
 }
@@ -351,18 +372,33 @@ function SplitsPage({ erg }: { erg: Erg }) {
 
 /* ---- the form every row ends at ---------------------------------------- */
 
-const SLOTS = ["You", "The monitor"] as const;
 const fieldOf = () => ({ borderBottomWidth: 1, borderColor: C.ink, fontSize: 30, fontFamily: F.black, paddingVertical: 6, color: C.ink, minWidth: 84 }) as const;
 let field = fieldOf();
 onLook(() => {
   field = fieldOf();
 });
 
+/* A typed time, in seconds: "20:00", "1:02:30", or a bare number for whole
+ * minutes. The website's own reading of it (lib/row100k parseDurationText). */
+function parseTime(text: string): number | null {
+  const t = text.trim();
+  if (!t) return null;
+  const parts = t.split(":").map((p) => p.trim());
+  if (parts.length > 3 || parts.some((p) => p === "" || !/^\d+(\.\d+)?$/.test(p))) return null;
+  const nums = parts.map(Number);
+  if (nums.slice(1).some((n) => n >= 60)) return null;
+  const seconds = nums.length === 1 ? nums[0] * 60 : nums.length === 2 ? nums[0] * 60 + nums[1] : nums[0] * 3600 + nums[1] * 60 + nums[2];
+  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : null;
+}
+
 function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc) => void }) {
   const today = pacificToday();
   const [meters, setMeters] = useState(fixed ? String(fixed.meters) : "");
-  const [mins, setMins] = useState("");
-  const [secs, setSecs] = useState("");
+  /* The time as ONE entry, as the website takes it (owner, 2026-11-21:
+   * "let's keep it meters, and then the time is one enter. Don't split up
+   * minutes and seconds, just like we do on the website"): 20:00, 1:02:30,
+   * or a bare number for whole minutes. */
+  const [time, setTime] = useState("");
   const [day, setDay] = useState(today);
   const [title, setTitle] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
@@ -370,18 +406,28 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
   const [error, setError] = useState("");
 
   const m = fixed ? fixed.meters : Math.round(Number(meters));
-  const s = fixed ? fixed.seconds : Math.round(Number(mins)) * 60 + Math.round(Number(secs));
+  const s = fixed ? fixed.seconds : (parseTime(time) ?? 0);
   const ok = m > 0 && s > 0 && photos[0] !== null && photos[1] !== null;
 
+  /* BOTH PHOTOS IN ONE VISIT to the library: two picked fill both frames;
+   * one picked fills the frame that was pressed. The camera takes one, into
+   * the first frame still empty. */
   const pick = async (i: number, from: "camera" | "library") => {
     setError("");
     try {
-      const p = await pickPhoto(from);
-      if (p) setPhotos((prev) => prev.map((x, k) => (k === i ? p : x)));
+      if (from === "camera") {
+        const p = await pickPhoto("camera");
+        if (p) setPhotos((prev) => prev.map((x, k) => (k === i ? p : x)));
+        return;
+      }
+      const got = await pickPhotos(2);
+      if (got.length >= 2) setPhotos([got[0], got[1]]);
+      else if (got.length === 1) setPhotos((prev) => prev.map((x, k) => (k === i ? got[0] : x)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "That photo could not be read.");
     }
   };
+  const empty = photos[0] === null ? 0 : 1;
 
   const submit = async () => {
     if (!photos[0] || !photos[1]) return;
@@ -412,36 +458,32 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
         </View>
       ) : (
         <View>
-          <Eyebrow>Metres</Eyebrow>
-          <TextInput style={[field, { marginBottom: 14 }]} keyboardType="number-pad" value={meters} onChangeText={setMeters} placeholder="5000" placeholderTextColor={C.line} accessibilityLabel="Metres" />
+          <Eyebrow>Meters</Eyebrow>
+          <TextInput style={[field, { marginBottom: 14 }]} keyboardType="number-pad" value={meters} onChangeText={setMeters} placeholder="5000" placeholderTextColor={C.line} accessibilityLabel="Meters" />
           <Eyebrow>Time</Eyebrow>
-          <View style={[styles.row, { gap: 8 }]}>
-            <TextInput style={field} keyboardType="number-pad" value={mins} onChangeText={setMins} placeholder="20" placeholderTextColor={C.line} accessibilityLabel="Minutes" />
-            <Text style={styles.mid}>:</Text>
-            <TextInput style={field} keyboardType="number-pad" value={secs} onChangeText={setSecs} placeholder="00" placeholderTextColor={C.line} accessibilityLabel="Seconds" />
-          </View>
+          <TextInput style={field} keyboardType="numbers-and-punctuation" autoCorrect={false} value={time} onChangeText={setTime} placeholder="20:00" placeholderTextColor={C.line} accessibilityLabel="Time, as minutes and seconds" />
         </View>
       )}
 
       <Card style={{ marginTop: 20 }}>
-        <Eyebrow style={{ color: C.ink, marginBottom: 10 }}>Two photos</Eyebrow>
+        {/* Two frames and no names on them (owner, 2026-11-21: "you can
+            just put 2 photos, you and the monitor, but it doesn't need to be
+            this one you, this one the monitor"). */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+          <Eyebrow style={{ color: C.ink }}>Two photos: you, and the monitor</Eyebrow>
+          {Platform.OS !== "web" ? (
+            <Text accessibilityRole="button" onPress={() => pick(empty, "camera")} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
+              CAMERA
+            </Text>
+          ) : null}
+        </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
-          {SLOTS.map((label, i) => {
+          {[0, 1].map((i) => {
             const p = photos[i];
             return (
-              <View key={label} style={{ flex: 1 }}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${p ? "change the photo" : "choose a photo"}`} onPress={() => pick(i, "library")} style={{ aspectRatio: 4 / 5, backgroundColor: C.pale, borderWidth: 1, borderColor: p ? C.ink : C.line, borderStyle: p ? "solid" : "dashed", alignItems: "center", justifyContent: "center" }}>
-                  {p ? <Image source={{ uri: p.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={{ fontFamily: F.black, fontSize: 34, color: C.accent }}>+</Text>}
-                </Pressable>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-                  <Eyebrow style={{ color: C.ink }}>{label}</Eyebrow>
-                  {Platform.OS !== "web" ? (
-                    <Text accessibilityRole="button" onPress={() => pick(i, "camera")} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
-                      CAMERA
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
+              <Pressable key={i} accessibilityRole="button" accessibilityLabel={p ? `Photo ${i + 1}: change it` : "Choose the two photos"} onPress={() => pick(i, "library")} style={{ flex: 1, aspectRatio: 4 / 5, backgroundColor: C.pale, borderWidth: 1, borderColor: p ? C.ink : C.line, borderStyle: p ? "solid" : "dashed", alignItems: "center", justifyContent: "center" }}>
+                {p ? <Image source={{ uri: p.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={{ fontFamily: F.black, fontSize: 34, color: C.accent }}>+</Text>}
+              </Pressable>
             );
           })}
         </View>
@@ -467,7 +509,7 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
       <Btn label={busy || (m > 0 ? `Log ${fmtInt(m)} m` : "Log")} onPress={submit} disabled={!ok || !!busy} />
-      {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the metres and the time."}</Text> : null}
+      {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
       <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
     </ScrollView>
   );

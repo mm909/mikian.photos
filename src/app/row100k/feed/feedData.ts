@@ -2,9 +2,9 @@ import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { ELITE_LABEL, digitCount } from "@/lib/blackoutRules";
 import { resolvePhotoMedia } from "../photoUrls";
-import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, nowMs, pacificDay } from "@/lib/row100k";
+import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, nowMs, pacificDay, plainTitle } from "@/lib/row100k";
 import { maskedIds, previewBlackout, viewOpts, type Viewer } from "@/lib/row100kViewer";
-import { followingIds, hiddenRowers } from "@/lib/rowSocial";
+import { followingIds, hiddenRowers, mutedIds } from "@/lib/rowSocial";
 import { boardView, EMPTY_BOARDS } from "../boardData";
 import { DAY_MS, pacificDayStartMs, stampParts, type DayTotal, type FeedHeadline, type FeedItem } from "./view";
 
@@ -40,7 +40,17 @@ export type FeedData = {
   todayStr: string;
 };
 
-export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: { following?: boolean } = {}): Promise<FeedData> {
+export type FeedOpts = {
+  /* Only the rowers the viewer follows, and their own rows. */
+  following?: boolean;
+  /* Only rows by these rowers that landed at or after `since` (the phone
+   * app's lead: what the rowers I follow did lately). */
+  lead?: { ids: string[]; since: Date };
+  /* Every row EXCEPT those (the rest of the phone app's feed, after its lead). */
+  after?: { ids: string[]; since: Date };
+};
+
+export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: FeedOpts = {}): Promise<FeedData> {
   // ?before=<ISO createdAt>~<id> pages back in time; garbage is just ignored.
   // The id tiebreaker matters: the seed (and any busy minute) stamps many rows
   // with identical createdAt, and a strict createdAt < cursor would skip every
@@ -63,11 +73,21 @@ export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: { follo
      * who I follow in my feed"). The day totals further down still count
      * everybody: a total is nobody's own number. */
     const me = viewer.myParticipantId;
-    const [hide, only] = await Promise.all([hiddenRowers(me), opts.following && me ? followingIds(me).then((ids) => [...ids, me]) : Promise.resolve(null)]);
+    const [hidden, muted, only] = await Promise.all([hiddenRowers(me), me ? mutedIds(me) : Promise.resolve([] as string[]), opts.following && me ? followingIds(me).then((ids) => [...ids, me]) : Promise.resolve(null)]);
+    /* A muted rower's rows leave the feed too, and only the feed. */
+    const hide = [...new Set([...hidden, ...muted])];
     entries = await db.rowEntry.findMany({
       where: {
         challenge: CHALLENGE,
         ...(only ? { participantId: { in: only.filter((id) => !hide.includes(id)) } } : hide.length ? { participantId: { notIn: hide } } : {}),
+        ...(opts.lead || opts.after
+          ? {
+              AND: [
+                ...(opts.lead ? [{ participantId: { in: opts.lead.ids.filter((id) => !hide.includes(id)) }, createdAt: { gte: opts.lead.since } }] : []),
+                ...(opts.after ? [{ NOT: { participantId: { in: opts.after.ids }, createdAt: { gte: opts.after.since } } }] : []),
+              ],
+            }
+          : {}),
         ...(before
           ? {
               OR: [
@@ -166,7 +186,7 @@ export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: { follo
       metersStr: masked ? "" : fmtMeters(e.meters),
       durationStr: masked ? "" : fmtDuration(e.seconds),
       splitStr: fmtSplit(e.meters, e.seconds),
-      title: e.title,
+      title: plainTitle(e.title),
       photos: photoMedia[i],
       masked,
       digits: masked ? digitCount(e.meters) : undefined,

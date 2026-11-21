@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { digitCount } from "@/lib/blackoutRules";
-import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit } from "@/lib/row100k";
+import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, plainTitle } from "@/lib/row100k";
 import { maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { boardView } from "@/app/row100k/boardData";
 import { stampParts } from "@/app/row100k/feed/view";
@@ -40,7 +40,8 @@ export async function GET(req: Request) {
     const mine = viewer.myParticipantId === e.participantId;
     /* A private rower's row, or one across a block, is not there for this
      * viewer (lib/rowSocial.ts), however they came by its id. */
-    if (!mine && (await relation(viewer.myParticipantId, e.participantId)).access !== "open") return no("That row is private.", 404);
+    const rel = await relation(viewer.myParticipantId, e.participantId);
+    if (!mine && rel.access !== "open") return no("That row is private.", 404);
     let masked = false;
     let elite = false;
     try {
@@ -71,7 +72,7 @@ export async function GET(req: Request) {
           rowerNumber: e.participant.rowerNumber,
           numStr: fmtRowerNumber(e.participant.rowerNumber),
           name: e.participant.displayName,
-          title: e.title,
+          title: plainTitle(e.title),
           meters: masked ? null : e.meters,
           seconds: masked ? null : e.seconds,
           metersStr: masked ? "" : fmtMeters(e.meters),
@@ -82,6 +83,8 @@ export async function GET(req: Request) {
           digits: masked ? digitCount(e.meters) : undefined,
           elite,
           mine,
+          /* For the three dots on the row: how the viewer stands to its rower. */
+          rel: { following: rel.following, bell: rel.bell, muted: rel.muted },
           canShare: mine || viewer.isAdmin,
           /* The owner's tools on any row: take it down, or one photo of it. */
           admin: viewer.isAdmin,

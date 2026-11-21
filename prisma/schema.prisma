@@ -1652,21 +1652,36 @@ model RowSocialSetting {
 
 /// One rower following another. "pending" is a request to a private rower
 /// that has not been answered; a public rower's followers start "accepted".
-/// `notify` is the bell: whether the follower is told when this rower rows
-/// or passes them.
+/// `notify` is the bell: whether the follower is told when this rower
+/// passes them. OFF until the follower turns it on (owner, 2026-11-21:
+/// "it's off by default").
 model RowFollow {
   id         String    @id @default(cuid())
   challenge  String
   followerId String
   followeeId String
   status     String    @default("accepted")
-  notify     Boolean   @default(true)
+  notify     Boolean   @default(false)
   createdAt  DateTime  @default(now())
   acceptedAt DateTime?
 
   @@unique([followerId, followeeId])
   @@index([challenge, followeeId, status])
   @@index([challenge, followerId, status])
+}
+
+/// One rower muting another (owner, 2026-11-21, of the menu on a row in the
+/// feed: "turn on notifications, mute, unfollow, report"). A muted rower's
+/// rows leave the muter's FEED and nothing else changes: their page still
+/// opens, a follow stays a follow, and they are not told.
+model RowMute {
+  id        String   @id @default(cuid())
+  challenge String
+  muterId   String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  @@unique([muterId, mutedId])
 }
 
 /// One rower blocking another. Either side of a block sees none of the

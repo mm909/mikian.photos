@@ -8,7 +8,7 @@ import type { Live } from "./model";
  * The monitor is set to a distance, the rower has an average split so far,
  * and that pair projects a finish time. The next mark is the nearest finish
  * time on a 10-second line that is FASTER than the projection. To reach it
- * the remaining metres must be rowed at
+ * the remaining meters must be rowed at
  *
  *     need = (mark - elapsed) / metresLeft * 500        seconds per 500 m
  *

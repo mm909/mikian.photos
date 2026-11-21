@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
@@ -54,4 +55,22 @@ export async function shareFile(f: Fetched, name: string, mime: string, uti: str
   a.download = name;
   a.click();
   return "download";
+}
+
+/* A picture, onto the clipboard, to paste into a story or a message (owner,
+ * 2026-11-21, of the stickers: "I need a share button and a copy button"). */
+export async function copyImage(f: Fetched): Promise<void> {
+  let b64: string;
+  if (f.blob) {
+    const blob = f.blob;
+    b64 = await new Promise<string>((done, fail) => {
+      const r = new FileReader();
+      r.onload = () => done(String(r.result).replace(/^data:[^,]*,/, ""));
+      r.onerror = () => fail(new Error("That picture could not be read."));
+      r.readAsDataURL(blob);
+    });
+  } else {
+    b64 = await new File(f.uri).base64();
+  }
+  await Clipboard.setImageAsync(b64);
 }

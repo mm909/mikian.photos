@@ -120,7 +120,16 @@ export const LATE_LOGS_TAG = fmtDay(LATE_LOGS_THROUGH).toUpperCase();
  * of the row, which is this one unless given (rollover review, 2026-09-28:
  * a Sep 30 row filed on Oct 1 is last month's row and is counted there). */
 export function defaultRowTitle(n: number, m: Month = MONTH): string {
-  return `${monthName(m)} #${n}`;
+  /* The month's ordinary name (owner, 2026-11-20: "the months can be just
+   * september, november"; 2026-11-21: "the default names on some of the
+   * rows still say Rowvember ... make sure that defaults to November"). */
+  return `${m.label.split(" ")[0]} #${n}`;
+}
+/* A default title handed out while a month wore an edition's name, as it
+ * reads now: "Rowvember #48" prints as "November #48". Only the default
+ * pattern; a title a rower typed is theirs. Nothing stored is changed. */
+export function plainTitle(title: string): string {
+  return title.replace(/^Rowvember (#\d+)$/, "November $1").replace(/^Rowtember (#\d+)$/, "September $1");
 }
 /* Every default title the site ever handed out, so the log form can swap a
  * stale one for the recomputed default without touching a typed title. */

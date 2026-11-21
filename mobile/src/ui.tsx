@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
-import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { peek } from "./api";
+import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { CloseIcon, DotsIcon } from "./icons";
 import { C, F, onLook } from "./theme";
 
 /* The small pieces every screen is made of, in the website's own manner
@@ -89,9 +91,18 @@ export function Pop({ children, delay = 0 }: { children: ReactNode; delay?: numb
 }
 
 /* ONE READ OF THE SERVER, with its three states. `reload` reads again in
- * place (pull to refresh, a row just logged) without blanking the screen. */
-export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]): { data: T | null; error: string; loading: boolean; reload: () => Promise<void> } {
-  const [data, setData] = useState<T | null>(null);
+ * place (pull to refresh, a row just logged) without blanking the screen.
+ * Given the path it reads as `key`, it starts from the last answer the app
+ * has for that path (api.ts peek) and reads again behind it: no spinner for
+ * a thing already seen. */
+export function useLoad<T>(fn: () => Promise<T>, deps: unknown[], key?: string | null): { data: T | null; error: string; loading: boolean; reload: () => Promise<void> } {
+  const [data, setData] = useState<T | null>(() => peek<T>(key));
+  const shown = useRef(key);
+  if (shown.current !== key) {
+    /* Another thing is asked for: what is kept of it, or nothing, at once. */
+    shown.current = key;
+    setData(peek<T>(key));
+  }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const turn = useRef(0);
@@ -188,7 +199,7 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
  * side, each cropped to 4:5 so a tall phone picture and a wide one sit the
  * same; a lone old photo takes the width in a 4:3 frame. Tap for the whole
  * picture. A row with none draws nothing. */
-export function PhotoPair({ photos, style }: { photos: Photo[]; style?: StyleProp<ViewStyle> }) {
+export function PhotoPair({ photos, style, onMenu }: { photos: Photo[]; style?: StyleProp<ViewStyle>; onMenu?: () => void }) {
   const [open, setOpen] = useState<number | null>(null);
   if (!photos.length) return null;
   const shown = photos.slice(0, 2);
@@ -199,13 +210,78 @@ export function PhotoPair({ photos, style }: { photos: Photo[]; style?: StylePro
           <Image source={{ uri: p.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
         </Pressable>
       ))}
-      <Modal visible={open !== null} transparent animationType="fade" onRequestClose={() => setOpen(null)}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(null)} style={{ flex: 1, backgroundColor: "rgba(21,23,26,0.94)", justifyContent: "center" }}>
-          {open !== null ? <Image source={{ uri: shown[open].full }} resizeMode="contain" style={{ width: "100%", height: "86%" }} /> : null}
-          <Text style={{ position: "absolute", top: 54, right: 20, color: "#fff", fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2 }}>CLOSE</Text>
-        </Pressable>
-      </Modal>
+      {open !== null ? (
+        <PhotoViewer
+          photos={shown}
+          start={open}
+          onClose={() => setOpen(null)}
+          onMenu={
+            onMenu
+              ? () => {
+                  /* One sheet at a time: the photos step aside for the menu. */
+                  setOpen(null);
+                  onMenu();
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </View>
+  );
+}
+
+/* THE PHOTOS, WHOLE (owner, 2026-11-21: "if I click on the photos, I should
+ * be able to swipe through them, and the background doesn't need to be
+ * transparent. It can be black, and we should have two buttons, one on the
+ * top left, one on the top right, one to exit ... an X on one side and the
+ * three dots on the right side, and the three dots should bring up the
+ * report button"). A black page, one photo to a screen, a swipe to the
+ * other, and a mark at the foot for which of the two is showing. */
+function PhotoViewer({ photos, start, onClose, onMenu }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void }) {
+  const win = useWindowDimensions();
+  const [at, setAt] = useState(start);
+  const list = useRef<ComponentRef<typeof ScrollView>>(null);
+  const w = win.width;
+  const btn = { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const };
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <ScrollView
+          ref={list}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: start * w, y: 0 }}
+          onLayout={() => list.current?.scrollTo({ x: start * w, animated: false })}
+          onScroll={(e) => setAt(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))}
+          scrollEventThrottle={32}
+          style={{ flex: 1 }}
+        >
+          {photos.map((p, i) => (
+            <View key={i} style={{ width: w, height: "100%", justifyContent: "center" }}>
+              <Image source={{ uri: p.full }} resizeMode="contain" style={{ width: w, height: "100%" }} />
+            </View>
+          ))}
+        </ScrollView>
+        <View style={{ position: "absolute", top: 44, left: 8, right: 8, flexDirection: "row", justifyContent: "space-between" }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={8} style={btn}>
+            <CloseIcon color="#fff" size={26} />
+          </Pressable>
+          {onMenu ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="More about this row" onPress={onMenu} hitSlop={8} style={btn}>
+              <DotsIcon color="#fff" size={26} />
+            </Pressable>
+          ) : null}
+        </View>
+        {photos.length > 1 ? (
+          <View pointerEvents="none" style={{ position: "absolute", bottom: 36, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+            {photos.map((_, i) => (
+              <View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: i === at ? "#fff" : "rgba(255,255,255,0.35)" }} />
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </Modal>
   );
 }
 

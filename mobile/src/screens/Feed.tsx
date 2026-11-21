@@ -1,61 +1,60 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
-import { api, type FeedItem, type FeedPage } from "../api";
+import { api, peek, type FeedItem, type FeedPage } from "../api";
+import { DotsIcon } from "../icons";
 import { useSession } from "../session";
-import { Chip, Dash, mono } from "../site";
-import { C, F, fmtInt } from "../theme";
+import { mono } from "../site";
+import { C, F } from "../theme";
 import { Blocks, PhotoPair, Waiting } from "../ui";
+import { RowMenu } from "./Social";
 
 /* THE FEED (owner, 2026-11-20: "a chronological list of all rows so far. No
  * month cutoff. It should include the photos as well as the other info like
- * name, meters, time, stats (if hooked up to the erg)"; "we don't need the
- * header of today's meters and the bar for x of 100k this month, we can
- * just have the feed").
+ * name, meters, time, stats (if hooked up to the erg)").
  *
- * The strips are the site's (feed/Strips.tsx), with the photos given the
- * width of the phone instead of a thumbnail's: a day head on a dashed rule
- * (the day, what landed that day in the blue, how many rows), then each row
- * as the title in quiet mono, the grey number and the name in mono caps,
- * the two photos, the metres big and blue, and the time, the split and the
- * clock on one mono line. A row off a connected erg adds the monitor's
- * averages. A hidden rower's row draws blocks and no photos, as on /feed.
+ * ONE LIST, FOR EVER (owner, 2026-11-21: "I want one page that can forever
+ * scroll just like every other social media site, and I want it to consider
+ * my friends or who I'm following first, and then everyone else"). The
+ * server decides the order (api/row100k/app/feed: the last week of the
+ * rowers I follow, then everybody); this screen only keeps asking for the
+ * next page as the end comes near.
  *
- * Every row anybody has logged, newest first, sixty at a time, older ones
- * arriving as the list is scrolled (api/row100k/app/feed reads feedData.ts).
- * A name opens the rower.
+ * ONE ROW, his order the same day: who and when, then the METERS and the
+ * figures ("let's put the meters and stuff like that above the photos"),
+ * then the two photos. No day heads with their totals ("no longer want
+ * it"), no arrow on the figures ("we can just click on it and it'll go").
+ * Three dots at the right of each row hold what can be done about it
+ * ("turn on notifications, mute, unfollow, report"). A photo opens both,
+ * whole, on black, with a swipe between them.
  *
- * EVERYONE, OR FOLLOWING (owner, 2026-11-20: "the feed opens on everyone,
- * not on following"; "see only who I follow in my feed"): two chips over
- * the list for a signed-in rower. Following is the rowers they follow and
- * their own rows. A private rower's rows, and anybody's across a block,
- * are simply not in either list (the server leaves them out). */
+ * A hidden rower's row draws blocks and no photos, as on /feed. A name
+ * opens the rower; the figures open the row. */
 
-type Days = Record<string, { meters: number; rows: number }>;
+const PATH = "/api/row100k/app/feed";
 
 export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => void; onRow: (id: string) => void; stamp: number }) {
   const { me } = useSession();
-  const [items, setItems] = useState<FeedItem[] | null>(null);
-  const [days, setDays] = useState<Days>({});
-  const [older, setOlder] = useState<string | null>(null);
+  /* What the app last read of the feed is on screen at once. */
+  const kept = peek<FeedPage>(PATH);
+  const [items, setItems] = useState<FeedItem[] | null>(kept?.items ?? null);
+  const [older, setOlder] = useState<string | null>(kept?.older ?? null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [menu, setMenu] = useState<FeedItem | null>(null);
   const more = useRef(false);
-  const [following, setFollowing] = useState(false);
-  const which = following && me.me ? "following=1" : "";
 
-  const first = useCallback(async () => {
-    setRefreshing(true);
+  const first = useCallback(async (pulled?: boolean) => {
+    if (pulled) setRefreshing(true);
     try {
-      const p = await api<FeedPage & { days?: Days }>(`/api/row100k/app/feed${which ? `?${which}` : ""}`);
+      const p = await api<FeedPage>(PATH);
       setItems(p.items);
-      setDays(p.days ?? {});
       setOlder(p.older);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "The feed could not be read.");
     }
     setRefreshing(false);
-  }, [which]);
+  }, []);
 
   /* `stamp` moves when a row is logged, so the feed reads again. */
   useEffect(() => {
@@ -66,11 +65,8 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
     if (!older || more.current) return;
     more.current = true;
     try {
-      const p = await api<FeedPage & { days?: Days }>(`/api/row100k/app/feed?before=${encodeURIComponent(older)}${which ? `&${which}` : ""}`);
+      const p = await api<FeedPage>(`${PATH}?before=${encodeURIComponent(older)}`);
       setItems((prev) => [...(prev ?? []), ...p.items.filter((it) => !(prev ?? []).some((x) => x.id === it.id))]);
-      /* A day split across two pages keeps the total it first came with:
-       * the server counts the whole day either time. */
-      setDays((prev) => ({ ...(p.days ?? {}), ...prev }));
       setOlder(p.older);
     } catch {
       /* The foot keeps its spinner; the next scroll tries again. */
@@ -78,88 +74,82 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
     more.current = false;
   };
 
-  if (!items) return <Waiting error={error} onRetry={first} />;
+  if (!items) return <Waiting error={error} onRetry={() => first()} />;
 
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(it) => it.id}
-      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-      onRefresh={first}
-      refreshing={refreshing}
-      onEndReached={next}
-      onEndReachedThreshold={0.6}
-      ListHeaderComponent={
-        me.me ? (
-          <View style={{ flexDirection: "row", gap: 8, paddingTop: 18 }}>
-            <Chip label="Everyone" on={!following} onPress={() => setFollowing(false)} />
-            <Chip label="Following" on={following} onPress={() => setFollowing(true)} />
-          </View>
-        ) : undefined
-      }
-      renderItem={({ item, index }) => <Strip it={item} day={index === 0 || items[index - 1].dayKey !== item.dayKey ? (days[item.dayKey] ?? null) : undefined} onRower={onRower} onRow={onRow} />}
-      ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, lineHeight: 18 }]}>{following ? "Nothing here yet. Follow a rower (the search is at the top) and their rows land here." : "Nothing logged yet. The feed starts with the first row."}</Text>}
-      ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
-    />
+    <>
+      <FlatList
+        data={items}
+        keyExtractor={(it) => it.id}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        onRefresh={() => first(true)}
+        refreshing={refreshing}
+        onEndReached={next}
+        onEndReachedThreshold={1.2}
+        renderItem={({ item }) => <Strip it={item} onRower={onRower} onRow={onRow} onMenu={() => setMenu(item)} />}
+        ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, lineHeight: 18 }]}>Nothing logged yet. The feed starts with the first row.</Text>}
+        ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
+      />
+      {menu ? (
+        <RowMenu
+          row={{ id: menu.id, rowerNumber: menu.rowerNumber, name: menu.name, mine: menu.mine, photos: menu.photos.length, rel: menu.rel }}
+          onClose={() => setMenu(null)}
+          onRower={onRower}
+          onRow={onRow}
+          onChange={(what, rel) => {
+            const n = menu.rowerNumber;
+            if (what === "row-gone") setItems((prev) => (prev ?? []).filter((x) => x.id !== menu.id));
+            else if (what === "muted" || what === "blocked") setItems((prev) => (prev ?? []).filter((x) => x.rowerNumber !== n));
+            else if (what === "photo") first();
+            else if (rel) setItems((prev) => (prev ?? []).map((x) => (x.rowerNumber === n ? { ...x, rel } : x)));
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
-const fig = { fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums" as const] };
+const fig = () => ({ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums" as const] });
 
-/* One row. `day` is set on the first row of a day: its total, or null when
- * the day's total did not come. */
-function Strip({ it, day, onRower, onRow }: { it: FeedItem; day?: { meters: number; rows: number } | null; onRower: (n: number) => void; onRow: (id: string) => void }) {
+/* One row. */
+function Strip({ it, onRower, onRow, onMenu }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void }) {
   const erg = it.erg ? [it.erg.watts ? `${it.erg.watts} W` : "", it.erg.spm ? `${it.erg.spm} s/m` : "", it.erg.hr ? `${it.erg.hr} bpm` : "", it.erg.drag ? `drag ${it.erg.drag}` : ""].filter(Boolean) : [];
   return (
-    <View>
-      {day !== undefined ? (
-        <View style={{ paddingTop: 26 }}>
-          <Text style={[mono(12, false, C.gray, 0.14), { paddingBottom: 8 }]}>
-            <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{it.dayStr}</Text>
-            {day ? (
-              <>
-                {" — "}
-                <Text style={{ fontFamily: F.monoBold, color: C.accent }}>{fmtInt(day.meters)} m</Text>
-                {` · ${day.rows} ${day.rows === 1 ? "row" : "rows"}`}
-              </>
-            ) : null}
+    <View style={{ paddingTop: 18, paddingBottom: 20, borderBottomWidth: 1, borderColor: C.line }}>
+      {/* Who, and the three dots. */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel={`${it.name}, rower ${it.numStr}`} onPress={() => onRower(it.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 16, color: it.mine ? C.accent : C.ink }}>
+            <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{it.numStr} · </Text>
+            {it.name}
           </Text>
-          <Dash color={C.gray} />
-        </View>
-      ) : null}
-      <View style={{ paddingVertical: 16 }}>
-        {it.title ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginBottom: 2 }}>{it.title}</Text> : null}
-        <Pressable accessibilityRole="link" accessibilityLabel={`${it.name}, rower ${it.numStr}`} onPress={() => onRower(it.rowerNumber)} hitSlop={8} style={{ alignSelf: "flex-start" }}>
-          <Text numberOfLines={1} style={mono(12, false, C.gray, 0.12)}>
-            {it.numStr} · <Text style={{ fontFamily: F.monoBold, color: it.mine ? C.accent : C.ink }}>{it.name}</Text>
+          <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 3 }}>
+            {it.dayStr} · {it.clockStr}
+            {it.title ? ` · ${it.title}` : ""}
           </Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="More about this row" onPress={onMenu} hitSlop={10} style={({ pressed }) => ({ width: 36, height: 36, alignItems: "flex-end", justifyContent: "center", opacity: pressed ? 0.5 : 1 })}>
+          <DotsIcon color={C.gray} size={22} />
+        </Pressable>
+      </View>
+
+      {/* The meters and the figures open the page of that row. */}
+      <Pressable accessibilityRole="link" accessibilityLabel={`Open this row: ${it.masked ? "hidden" : it.metersStr}`} onPress={() => onRow(it.id)} style={{ marginTop: 10 }}>
         {it.masked ? (
-          <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <Blocks n={it.digits ?? 4} size={26} />
-            {it.elite ? <Text style={mono(11, true, C.ink)}>Lights out</Text> : null}
           </View>
         ) : (
-          <>
-            <PhotoPair photos={it.photos} style={{ marginTop: 10 }} />
-          </>
+          <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.accent, fontVariant: ["tabular-nums"] }}>{it.metersStr}</Text>
         )}
-        {/* The figures open the page of that row. */}
-        <Pressable accessibilityRole="link" accessibilityLabel={`Open this row: ${it.masked ? "hidden" : it.metersStr}`} onPress={() => onRow(it.id)}>
-          {it.masked ? null : <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 8 }}>{it.metersStr}</Text>}
-          <Text style={[fig, { marginTop: 2 }]}>
-            {it.masked ? null : <Text style={{ color: C.ink }}>{it.durationStr}  </Text>}
-            {it.splitStr} /500m  {it.clockStr}  <Text style={{ color: C.accent }}>→</Text>
-          </Text>
-        </Pressable>
-        {erg.length ? (
-          <Text style={[fig, { marginTop: 4 }]}>
-            <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1.4, color: C.accent }}>ERG  </Text>
-            {erg.join(" · ")}
-          </Text>
-        ) : null}
-      </View>
-      <Dash />
+        <Text style={[fig(), { marginTop: 2 }]}>
+          <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{it.splitStr}</Text> /500m
+          {it.masked ? null : `   ${it.durationStr}`}
+        </Text>
+        {erg.length ? <Text style={[fig(), { marginTop: 4, fontSize: 12 }]}>{erg.join(" · ")}</Text> : null}
+      </Pressable>
+
+      {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} onMenu={onMenu} />}
     </View>
   );
 }

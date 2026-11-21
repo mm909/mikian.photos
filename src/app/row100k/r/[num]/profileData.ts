@@ -22,6 +22,7 @@ import {
   type RecordBadge,
   MONTH,
   defaultRowTitle,
+  plainTitle,
 } from "@/lib/row100k";
 import { maskedIds, previewBlackout, resolveViewer, viewOpts, type Viewer } from "@/lib/row100kViewer";
 import { boardView } from "../../boardData";
@@ -280,7 +281,7 @@ export async function buildProfile(num: number, m: string | string[] | undefined
     id: r.id,
     day: r.day,
     dayStr: fmtDay(r.day),
-    title: r.title,
+    title: plainTitle(r.title),
     // The numbers behind the strings, for the sort and the distance chips
     // (logSort.ts) — never for a masked row.
     meters: masked ? undefined : r.meters,

@@ -79,6 +79,48 @@ The owner's tools: "give me the ability to remove posts and photos ... sometimes
 
 Going live: "commit what's there now to live, then work on it, then commit again and push to live." Both pushes went to main on 2026-11-21. The app itself is still in development: the web build is unlisted, and the routes only it writes through (follow, block, report, settings, notifications) answer admins only in production until he says it is live (`SOCIAL_LIVE` in `src/app/api/row100k/app/social.ts`).
 
+### Round 9, 2026-11-21 (night): his second spoken read, and what changed
+
+All DECIDED (his words), BUILT unless marked. Later than round 8 where they disagree.
+
+The frame:
+
+- The bottom bar copies Instagram's: "white on black icons, rounded bars at the bottom, a highlight that follows each of the buttons. Everything's nice and rounded." The first icons were "a little interesting ... not really sure what it's meant", so they are now the usual pictures: house, glass, podium, rising line, person.
+- The roll of the mark is to be used more ("one of the coolest transitions ... how can we make that a thing in other places?"): LOG on the log screen, the rower's number on a row's page, and every meter anybody has rowed on the stats tab (with the M in the blue).
+- A screen opened over a tab "should swing in from the right", and "I obviously want to swipe to go back a page".
+- No spinner for a thing already seen ("why is there a loading screen, especially after we've seen it once?"): every answer is kept while the app is open and drawn at once; the tabs, settings and notifications are read ahead as the app opens.
+- Switches: "like the Apple on-offs, but I don't want it to be green ... a little oval". Dark mode: "not bad ... I just don't like it a lot"; left as it is.
+
+The feed: "I want one page that can forever scroll just like every other social media site, and I want it to consider my friends or who I'm following first, and then everyone else."
+
+- One list, no EVERYONE / FOLLOWING buttons. BUILT as: the last seven days of the rowers I follow (and my own), newest first, then everybody else. Seven days is Claude's number.
+- No day heads with their totals. Meters and figures above the photos. No arrow on the figures.
+- Three dots on every row: the row, the rower's page, follow or unfollow, notifications on or off, MUTE (new: leaves their rows out of my feed and nothing else), report. For an admin, remove a photo or the row sits in the same sheet ("that doesn't belong there", of links at the foot of the row page).
+- A photo opens both on black with a swipe between them, an X at the left and the three dots at the right.
+
+Following and notifications:
+
+- The bell for a rower is OFF until turned on ("it's off by default"), from the three dots on their page or on a row.
+- "Let's make sure we're not sending any emails to anyone. Let's just do on-phone notifications for now." Nothing in the app's social layer mails a rower. A report still mails the owner.
+- My own FOLLOWING list has a button to unfollow on each line.
+
+The profile:
+
+- Bests after the field, and only the ones rowed. The erg section stays for now and each line opens its row.
+- Under the big number: "Meters · November 2026", the month being the menu. No "hours on the erg" there, no rank, no 100K club, no LOG A ROW button.
+- Small photos on each line of the log.
+- The two standings (average row, average pace) sit side by side.
+- Charts: touch and drag reads them out; long tails are cut but never one of the rower's own rows; chart titles are plainer. The pace chart is by row, the last 20 with 50 and ALL to widen, pace labels every 10 seconds, far outliers left out and said so.
+- OPEN (his): "there should be a way for us to denote the prestige of rowers."
+
+A row's page: name and date in two tight lines, the meters and the pace as the two big numbers, stickers behind a SHARE button. The stickers open on one screen, swiped through, with COPY and SHARE. The lights-out sticker is out of every menu.
+
+Board: WARMING UP is one line ("this many rowers warming up for this many meters"). Stats: no month-and-total stamp at the top; SEE THE WHOLE BOARD under the top fives; the two hour charts together. Search: the keyboard comes up, and with nothing typed it lists the ten with the most lifetime meters.
+
+Logging: the time is one field as on the website; both photos picked in one visit, the frames unlabelled; "meters" spelled the American way everywhere. Default titles say the month's ordinary name, and old "Rowvember #n" titles print as "November #n" (nothing stored is changed). The monitor says ON PACE FOR m:ss and shows the split now to the second; the line that said seconds to give up for a mark is gone; the pace page has labels on both axes.
+
+NOT DONE from this round: shareables on the stats page; the cause of stickers looking blacked out after a row (not found).
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

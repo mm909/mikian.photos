@@ -22,7 +22,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.rowtember.app"
+      "package": "com.rowtember.app",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -53,6 +58,11 @@
     "backgroundColor": "#F4F3EE",
     "experiments": {
       "baseUrl": "/row100k/app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "85598694-322d-4c29-b2ca-2233f86b1058"
+      }
     }
   }
 }

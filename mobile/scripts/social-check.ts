@@ -66,7 +66,7 @@ async function main() {
   const s2 = await A(`people?q=${encodeURIComponent(String(mb.me.displayName).slice(0, 4))}`);
   check("search by the start of a name finds them", (s2.people ?? []).some((p: Json) => p.rowerNumber === b));
   const s3 = await anon("people?q=");
-  check("the roster lists for a signed-out visitor", (s3.people ?? []).length > 10);
+  check("search lists rowers for a signed-out visitor", (s3.people ?? []).length === 10);
 
   /* FOLLOW a public rower */
   const f1 = await A("follow", { num: b, action: "follow" });
@@ -81,9 +81,6 @@ async function main() {
 
   /* The FOLLOWING feed */
   const feedAll = await A("feed");
-  const feedF = await A("feed?following=1");
-  const onlyAB = (feedF.items ?? []).every((i: Json) => i.rowerNumber === a || i.rowerNumber === b);
-  check("the following feed holds only me and who I follow", (feedF.items ?? []).length > 0 && onlyAB, `${(feedF.items ?? []).length} rows`);
   check("the everyone feed holds others too", (feedAll.items ?? []).some((i: Json) => i.rowerNumber !== a && i.rowerNumber !== b));
 
   /* PRIVATE */
@@ -127,6 +124,27 @@ async function main() {
   check("the blocked list names them", ((await Bb("people?list=blocked")).people ?? []).some((p: Json) => p.rowerNumber === c));
   await Bb("block", { num: c, on: false });
   check("unblocking opens the page again, locked", (await Cc(`profile?num=${b}`)).profile?.rel?.locked === true);
+
+  /* MUTE: out of my feed, and nothing else */
+  const mu = await A("follow", { num: c, action: "mute", on: true });
+  check("muting answers muted", mu.rel?.muted === true);
+  check("a muted rower's rows leave my feed", !((await A("feed")).items ?? []).some((i: Json) => i.rowerNumber === c));
+  check("the muted list names them", ((await A("people?list=muted")).people ?? []).some((p: Json) => p.rowerNumber === c));
+  await A("follow", { num: c, action: "mute", on: false });
+  check("unmuting clears it", ((await A("people?list=muted")).people ?? []).length === 0);
+
+  /* THE BELL is off until turned on; the feed leads with who I follow */
+  await Bb("settings", { isPrivate: false });
+  await A("follow", { num: b, action: "unfollow" });
+  const again = await A("follow", { num: b, action: "follow" });
+  check("a new follow has the bell off", again.rel?.following === "accepted" && again.rel?.bell === false);
+  const led = await A("feed");
+  const leadN = Number(led.lead ?? 0);
+  check("the feed leads with me and who I follow", leadN > 0 && (led.items ?? []).slice(0, leadN).every((i: Json) => i.rowerNumber === a || i.rowerNumber === b), `${leadN} lead rows`);
+  check("and carries on into everyone else", (led.items ?? []).length > leadN || !!led.older);
+  const top = await anon("people?q=");
+  const ms = (top.people ?? []).map((p: Json) => p.meters as number);
+  check("search opens on the ten with the most lifetime meters", ms.length === 10 && ms.every((m: number, i: number) => i === 0 || ms[i - 1] >= m));
 
   /* REPORT */
   const rp = await A("report", { num: b, entryId: rowId, reason: "photo", note: "social-check" });

@@ -23,6 +23,16 @@ export async function pickPhoto(from: "camera" | "library"): Promise<Picked | nu
   return a ? { uri: a.uri, width: a.width, height: a.height } : null;
 }
 
+/* Up to `limit` photos out of the library in one visit to it (owner,
+ * 2026-11-21: "when I am submitting photos, allow me to select both of them
+ * at the same time. Don't make me click on one, enter it, click on one,
+ * enter it"). In the order they were picked. */
+export async function pickPhotos(limit: number): Promise<Picked[]> {
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1, allowsMultipleSelection: limit > 1, selectionLimit: limit, orderedSelection: true });
+  if (res.canceled) return [];
+  return res.assets.slice(0, limit).map((a) => ({ uri: a.uri, width: a.width, height: a.height }));
+}
+
 async function shrink(p: Picked, edge: number, compress: number): Promise<Blob> {
   const wide = p.width >= p.height;
   const long = Math.max(p.width, p.height);

@@ -1,5 +1,5 @@
 import { API, api } from "./api";
-import { fetchFile, shareFile, type Fetched } from "./files";
+import { copyImage, fetchFile, shareFile, type Fetched } from "./files";
 
 /* THE STICKERS AND THE REEL OVERLAYS (owner, 2026-11-20: "the stickers are
  * the site's transparent cards"; "overlays and videos designed to be
@@ -44,6 +44,11 @@ export async function shareSticker(id: string, rowId: string | undefined, rowerN
 }
 
 /* ---- reel overlays ----------------------------------------------------- */
+
+export async function copySticker(id: string, rowId: string | undefined, rowerNumber: number | undefined): Promise<void> {
+  await copyImage(await sticker(id, rowId));
+  api("/api/row100k/share-event", { body: { cardId: id, action: "copy", ...(rowerNumber ? { rowerNumber } : {}) } }).catch(() => null);
+}
 
 export const CLIPS = [
   { id: "meters", label: "Meters" },

@@ -52,6 +52,8 @@ export type Relation = {
   followsYou: FollowState;
   blockedByMe: boolean;
   blockedMe: boolean;
+  /* I have muted them: their rows are left out of my feed, nothing else. */
+  muted: boolean;
   isPrivate: boolean;
   /* What I may see of their rows. */
   access: Access;
@@ -69,9 +71,9 @@ export async function isPrivate(participantId: string): Promise<boolean> {
 export async function relation(viewerId: string | null, subjectId: string): Promise<Relation> {
   const priv = await isPrivate(subjectId);
   if (!viewerId || viewerId === subjectId) {
-    return { following: "none", bell: false, followsYou: "none", blockedByMe: false, blockedMe: false, isPrivate: priv, access: viewerId === subjectId || !priv ? "open" : "private" };
+    return { following: "none", bell: false, followsYou: "none", blockedByMe: false, blockedMe: false, muted: false, isPrivate: priv, access: viewerId === subjectId || !priv ? "open" : "private" };
   }
-  const [follows, blocks] = await Promise.all([
+  const [follows, blocks, mutes] = await Promise.all([
     orEmpty(
       db.rowFollow.findMany({
         where: { OR: [{ followerId: viewerId, followeeId: subjectId }, { followerId: subjectId, followeeId: viewerId }] },
@@ -84,6 +86,7 @@ export async function relation(viewerId: string | null, subjectId: string): Prom
         select: { blockerId: true },
       }),
     ),
+    orEmpty(db.rowMute.findMany({ where: { muterId: viewerId, mutedId: subjectId }, select: { id: true } })),
   ]);
   const out = follows.find((f) => f.followerId === viewerId);
   const back = follows.find((f) => f.followerId === subjectId);
@@ -91,7 +94,7 @@ export async function relation(viewerId: string | null, subjectId: string): Prom
   const blockedMe = blocks.some((b) => b.blockerId === subjectId);
   const following = state(out?.status);
   const access: Access = blockedByMe || blockedMe ? "blocked" : priv && following !== "accepted" ? "private" : "open";
-  return { following, bell: following === "accepted" ? out!.notify : false, followsYou: state(back?.status), blockedByMe, blockedMe, isPrivate: priv, access };
+  return { following, bell: following === "accepted" ? out!.notify : false, followsYou: state(back?.status), blockedByMe, blockedMe, muted: mutes.length > 0, isPrivate: priv, access };
 }
 
 /* Everybody this viewer follows and has been accepted by. */
@@ -104,6 +107,12 @@ export async function followingIds(viewerId: string): Promise<string[]> {
 export async function blockedIds(viewerId: string): Promise<string[]> {
   const rows = await orEmpty(db.rowBlock.findMany({ where: { OR: [{ blockerId: viewerId }, { blockedId: viewerId }] }, select: { blockerId: true, blockedId: true } }));
   return rows.map((r) => (r.blockerId === viewerId ? r.blockedId : r.blockerId));
+}
+
+/* Everybody this viewer has muted: left out of their feed only. */
+export async function mutedIds(viewerId: string): Promise<string[]> {
+  const rows = await orEmpty(db.rowMute.findMany({ where: { muterId: viewerId }, select: { mutedId: true } }));
+  return rows.map((r) => r.mutedId);
 }
 
 /* THE ROWERS WHOSE ROWS THIS VIEWER MAY NOT BE SHOWN: every private rower

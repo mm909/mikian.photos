@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
-import { api, type BoardData, type Photo } from "../api";
+import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { api, type BoardData, type FollowState, type Photo } from "../api";
+import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
-import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, shareReel, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
+import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, copySticker, shareReel, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
 import { Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
 import { Review } from "./Review";
-import { ConfirmSheet, ReportSheet } from "./Social";
+import { RowMenu } from "./Social";
 
 /* ONE ROW'S PAGE (owner, 2026-11-20). The journey he walked: "right as they
  * finish they submit the row and see an animation of their meters going up
@@ -21,10 +22,10 @@ import { ConfirmSheet, ReportSheet } from "./Social";
  * can use the shareables".
  *
  * So one page, top to bottom:
- *   LOGGED, only when the row was logged a moment ago: the metres counting
+ *   LOGGED, only when the row was logged a moment ago: the meters counting
  *     up, the month's bar filling from where it was, the all-time total and
  *     any tag just earned, and the climb past the rowers just passed;
- *   the row: who, when, the metres, the time and the split, the two photos;
+ *   the row: who, when, the meters, the time and the split, the two photos;
  *   STICKERS, for the rower's own row: the site's transparent share cards,
  *     drawn by the site, a tap to share;
  *   REEL OVERLAYS, when the erg was connected: the row's numbers as short
@@ -59,24 +60,51 @@ type RowData = {
   mine: boolean;
   /* The viewer is an admin: the owner's tools show on this row. */
   admin?: boolean;
+  /* How the viewer stands to the row's rower, for the three dots. */
+  rel?: { following: FollowState; bell: boolean; muted?: boolean };
   canShare: boolean;
   canReel: boolean;
   erg: { id: string; device: string; simulated: boolean; watts: number | null; spm: number | null; hr: number | null; drag: number | null; strokes: number } | null;
   doc: TelemetryDoc | null;
 };
 
-export function RowPage({ id, fresh, rows, localDoc, onRower, onDone }: { id: string; fresh?: Fresh; rows: Row[]; localDoc?: TelemetryDoc; onRower: (n: number) => void; onDone: () => void }) {
-  const { me } = useSession();
-  const [reporting, setReporting] = useState(false);
-  /* The owner's tools: which photo to take off, or the whole row. */
-  const [taking, setTaking] = useState<number | "row" | null>(null);
-  const { data, error, reload } = useLoad(() => api<{ row: RowData }>(`/api/row100k/app/row?id=${id}`), [id]);
+export function RowPage({
+  id,
+  fresh,
+  rows,
+  localDoc,
+  onRower,
+  onDone,
+  menu,
+  onMenu,
+  onWho,
+}: {
+  id: string;
+  fresh?: Fresh;
+  rows: Row[];
+  localDoc?: TelemetryDoc;
+  onRower: (n: number) => void;
+  onDone: () => void;
+  /* The three dots in the top bar, pressed (App.tsx holds it). */
+  menu?: boolean;
+  onMenu?: (open: boolean) => void;
+  /* Whose row this is, once known: the top bar's mark rolls into it. */
+  onWho?: (num: number) => void;
+}) {
+  const path = `/api/row100k/app/row?id=${id}`;
+  const { data, error, reload } = useLoad(() => api<{ row: RowData }>(path), [path], path);
+  const [sharing, setSharing] = useState(false);
+  const who = data?.row.rowerNumber;
+  useEffect(() => {
+    if (who) onWho?.(who);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [who]);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const r = data.row;
   const doc = r.doc ?? localDoc ?? null;
   const erg = r.erg ? [r.erg.watts ? [`${r.erg.watts}`, "Watts"] : null, r.erg.spm ? [`${r.erg.spm}`, "Strokes a minute"] : null, r.erg.hr ? [`${r.erg.hr}`, "Heart rate"] : null, r.erg.drag ? [`${r.erg.drag}`, "Drag factor"] : null].filter((x): x is string[] => x !== null) : [];
 
-  /* The time and the split, under the metres wherever the metres are. */
+  /* The time and the split, under the meters of a row just logged. */
   const figures = (
     <Text style={{ fontFamily: F.mono, fontSize: 14, color: C.gray, marginTop: 10, fontVariant: ["tabular-nums"] }}>
       {r.masked ? null : <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{r.durationStr}  </Text>}
@@ -85,29 +113,55 @@ export function RowPage({ id, fresh, rows, localDoc, onRower, onDone }: { id: st
   );
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 56 }}>
-      <Dateline left={`${r.rowedStr}${r.title ? ` · ${r.title}` : ""}`} right={r.clockStr} />
-      <Pressable accessibilityRole="link" accessibilityLabel={`${r.name}, rower ${r.numStr}`} onPress={() => onRower(r.rowerNumber)} hitSlop={8} style={{ alignSelf: "flex-start", marginTop: 12 }}>
-        <Text style={mono(12, false, C.gray, 0.12)}>
-          {r.numStr} · <Text style={{ fontFamily: F.monoBold, color: r.mine ? C.accent : C.ink, textDecorationLine: "underline", textDecorationStyle: "dotted" }}>{r.name}</Text>
-        </Text>
-      </Pressable>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 56 }}>
+      {/* WHO AND WHEN, in two tight lines (owner, 2026-11-21: "the space
+          isn't used well up at the top. I feel like we can do the same with
+          less vertical space"). The rower's number is in the bar above. */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel={`${r.name}, rower ${r.numStr}`} onPress={() => onRower(r.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 18, color: r.mine ? C.accent : C.ink }}>
+            {r.name}
+          </Text>
+          <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 3 }}>
+            {r.rowedStr} · {r.clockStr}
+            {r.title ? ` · ${r.title}` : ""}
+          </Text>
+        </Pressable>
+        {/* THE STICKERS, behind one mark (owner, 2026-11-21: "let's put
+            these stickers behind like a little share icon"). */}
+        {r.canShare && !r.masked ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Share this row" onPress={() => setSharing(true)} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, height: 38, paddingHorizontal: 12, backgroundColor: C.accent, borderRadius: 19, opacity: pressed ? 0.7 : 1 })}>
+            <ShareIcon color="#fff" size={18} />
+            <Text style={mono(11, true, "#fff", 0.12)}>Share</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
+      {/* THE TWO NUMBERS: how far, and at what pace (owner, 2026-11-21:
+          "those are the two numbers I'm looking at"). The meters lead; the
+          pace is second and no smaller than it needs to be; the time is the
+          small one under it. */}
       {fresh && r.meters ? (
         <Logged fresh={fresh} meters={r.meters} line={figures} />
-      ) : r.masked ? (
-        <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Blocks n={r.digits ?? 4} size={44} />
-          {r.elite ? <Text style={mono(11, true)}>Lights out</Text> : null}
-        </View>
       ) : (
-        <Lead value={fmtInt(r.meters ?? 0)} unit="m" size={64} />
+        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 16 }}>
+          <View>
+            {r.masked ? (
+              <Blocks n={r.digits ?? 4} size={40} />
+            ) : (
+              <Text style={{ fontFamily: F.black, fontSize: 52, lineHeight: 54, letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>{fmtInt(r.meters ?? 0)}</Text>
+            )}
+            <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>Meters</Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.ink, fontVariant: ["tabular-nums"] }}>{r.splitStr}</Text>
+            <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>/500m{r.masked ? "" : ` · ${r.durationStr}`}</Text>
+          </View>
+        </View>
       )}
-      {fresh && r.meters ? null : figures}
 
-      <PhotoPair photos={r.photos} style={{ marginTop: 16 }} />
+      <PhotoPair photos={r.photos} style={{ marginTop: 16 }} onMenu={onMenu ? () => onMenu(true) : undefined} />
 
-      {r.canShare && !r.masked ? <Stickers rowId={r.id} /> : null}
       {r.canReel && !r.masked ? <Reels rowId={r.id} /> : null}
 
       {erg.length ? (
@@ -129,58 +183,20 @@ export function RowPage({ id, fresh, rows, localDoc, onRower, onDone }: { id: st
 
       {fresh ? <Btn label="Done" onPress={onDone} style={{ marginTop: 34 }} /> : null}
 
-      {/* REPORT, on anybody else's row (owner, 2026-11-20: "we will need a
-          report func to comply w/ apple"). */}
-      {!r.mine && me.me ? (
-        <View style={{ marginTop: 44 }}>
-          <Ctl label="Report this row" onPress={() => setReporting(true)} />
-        </View>
-      ) : null}
-      {reporting ? <ReportSheet num={r.rowerNumber} name={r.name} entryId={r.id} onClose={() => setReporting(false)} /> : null}
-
-      {/* THE OWNER'S TOOLS (owner, 2026-11-21: "give me the ability to remove
-          posts and photos ... sometimes maybe I don't remove the row, but I
-          remove the photo"). Admins only; the server checks again. */}
-      {r.admin ? (
-        <>
-          <Eye left="Owner" right="Only you see this" />
-          <View style={{ gap: 18 }}>
-            {r.photos.map((_, i) => (
-              <Ctl key={i} label={`Remove photo ${i + 1}${i === 0 ? " (the rower)" : " (the monitor)"}`} onPress={() => setTaking(i)} />
-            ))}
-            <Ctl label="Remove this row" onPress={() => setTaking("row")} />
-          </View>
-        </>
-      ) : null}
-      {taking === "row" ? (
-        <ConfirmSheet
-          title="Remove this row"
-          body={`This takes the row off the feed, off ${r.name}'s page and out of their total. It cannot be undone from here.`}
-          yes="Remove the row"
-          onClose={() => setTaking(null)}
-          onYes={async () => {
-            await api(`/api/row100k/rows/${r.id}`, { method: "DELETE" });
-            onDone();
-          }}
+      {/* THE THREE DOTS at the top of the page: the rower's page, follow,
+          notifications, mute, report; and, for the owner, his tools. */}
+      {menu && onMenu ? (
+        <RowMenu
+          row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
+          onClose={() => onMenu(false)}
+          onRower={onRower}
+          onChange={(what) => (what === "row-gone" || what === "blocked" ? onDone() : reload())}
         />
       ) : null}
-      {typeof taking === "number" ? (
-        <ConfirmSheet
-          title={`Remove photo ${taking + 1}`}
-          body="The row, its metres and its other photo stay. The photo cannot be put back from here."
-          yes="Remove the photo"
-          onClose={() => setTaking(null)}
-          onYes={async () => {
-            await api("/api/row100k/app/moderate", { body: { entryId: r.id, photo: taking } });
-            await reload();
-          }}
-        />
-      ) : null}
+      {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
     </ScrollView>
   );
 }
-
-/* ---- LOGGED ------------------------------------------------------------ */
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
@@ -346,55 +362,76 @@ function Climb({ meters }: { meters: number }) {
  * dialog shows it. */
 const GROUND = "#1f2226";
 
-function Stickers({ rowId }: { rowId: string }) {
-  const { data } = useLoad(() => deck(rowId), [rowId]);
-  const [open, setOpen] = useState<Sticker | null>(null);
-  const [busy, setBusy] = useState(false);
+/* THE STICKERS (owner, 2026-11-21: "whenever I open them up, I want to be
+ * able to swipe through them ... I need a share button and a copy button
+ * ... and then I can close it"). One screen on the dark ground the stickers
+ * are made for, one sticker to a page, a swipe to the next; SHARE hands the
+ * one showing to the phone's share sheet, COPY puts it on the clipboard. */
+function StickerViewer({ rowId, onClose }: { rowId: string; onClose: () => void }) {
+  const win = useWindowDimensions();
+  const w = Math.min(win.width, 560);
+  const { data, error } = useLoad(() => deck(rowId), [rowId]);
+  const [at, setAt] = useState(0);
+  const [busy, setBusy] = useState<"" | "share" | "copy">("");
   const [note, setNote] = useState("");
-  if (!data || !data.cards.length) return null;
-  const share = async (c: Sticker) => {
-    setBusy(true);
+  const cards = data?.cards ?? [];
+  const card = cards[Math.min(at, cards.length - 1)];
+  const run = async (what: "share" | "copy") => {
+    if (!card) return;
+    setBusy(what);
     setNote("");
     try {
-      const did = await shareSticker(c.id, rowId, data.rowerNumber);
-      if (did === "download") setNote("Saved to your downloads.");
+      if (what === "copy") {
+        await copySticker(card.id, rowId, data?.rowerNumber);
+        setNote("Copied.");
+      } else if ((await shareSticker(card.id, rowId, data?.rowerNumber)) === "download") setNote("Saved to your downloads.");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "That did not work.");
     }
-    setBusy(false);
+    setBusy("");
   };
+  const pill = (label: string, what: "share" | "copy", fill: boolean) => (
+    <Pressable accessibilityRole="button" disabled={busy !== "" || !card} onPress={() => run(what)} style={({ pressed }) => ({ flex: 1, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: fill ? C.accent : "transparent", borderWidth: fill ? 0 : 2, borderColor: "#fff", opacity: busy !== "" || !card ? 0.5 : pressed ? 0.7 : 1 })}>
+      <Text style={mono(12, true, "#fff", 0.14)}>{busy === what ? "Working" : label}</Text>
+    </Pressable>
+  );
   return (
-    <>
-      <Eye left="Stickers" right="Tap one to share" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-        {data.cards.map((c) => (
-          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={() => (setNote(""), setOpen(c))} style={{ width: 172 }}>
-            <View style={{ height: 172, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 8 }}>
-              <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
-            </View>
-            <Text numberOfLines={1} style={[mono(10, true, C.ink, 0.12), { marginTop: 6 }]}>
-              {c.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <Dash style={{ marginTop: 14 }} />
-
-      <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
-        <View style={{ flex: 1, backgroundColor: GROUND, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 30 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={mono(12, true, "#fff")}>{open?.label}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(null)} hitSlop={14}>
-              <Text style={mono(12, true, "#fff")}>Close</Text>
+    <Modal visible animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: GROUND, alignItems: "center" }}>
+        <View style={{ flex: 1, width: w, paddingTop: 44, paddingBottom: 30 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={8} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+              <CloseIcon color="#fff" size={26} />
             </Pressable>
+            <Text numberOfLines={1} style={[mono(12, true, "#fff"), { flex: 1, textAlign: "center" }]}>
+              {card?.label ?? ""}
+            </Text>
+            <View style={{ width: 44 }} />
           </View>
-          <View style={{ flex: 1, justifyContent: "center" }}>{open ? <StickerImage id={open.id} rowId={rowId} ratio={open.width / open.height} /> : null}</View>
-          {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12 }]}>{note}</Text> : null}
-          <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 12, lineHeight: 16 }]}>White on a clear ground: lay it over your photo or video.</Text>
-          <Btn label={busy ? "Getting it ready" : "Share"} disabled={busy} onPress={() => open && share(open)} />
+          {!data ? (
+            <View style={{ flex: 1, justifyContent: "center" }}>{error ? <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20 }]}>{error}</Text> : <ActivityIndicator color="#fff" />}</View>
+          ) : (
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setAt(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ flex: 1 }}>
+              {cards.map((c) => (
+                <View key={c.id} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
+                  <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 7, marginTop: 14, minHeight: 8 }}>
+            {cards.map((c, i) => (
+              <View key={c.id} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: i === at ? "#fff" : "rgba(255,255,255,0.3)" }} />
+            ))}
+          </View>
+          <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", marginTop: 12, minHeight: 16 }]}>{note}</Text>
+          <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 20, marginTop: 10 }}>
+            {pill("Copy", "copy", false)}
+            {pill("Share", "share", true)}
+          </View>
         </View>
-      </Modal>
-    </>
+      </View>
+    </Modal>
   );
 }
 

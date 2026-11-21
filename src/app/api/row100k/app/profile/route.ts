@@ -43,10 +43,17 @@ export async function GET(req: Request) {
     }
     const counts = await followCounts(v.rower.id);
     const pendingIn = v.isMe ? await db.rowFollow.count({ where: { followeeId: v.rower.id, status: "pending" } }).catch(() => 0) : 0;
+    /* Which logged row each erg piece belongs to, so a line of THE ERG can
+     * open that row's page. */
+    const ergEntry = new Map<string, string>();
+    if (v.ergRows.length) {
+      const tied = await db.rowTelemetry.findMany({ where: { id: { in: v.ergRows.map((r) => r.id) } }, select: { id: true, entryId: true } }).catch(() => []);
+      for (const t of tied) if (t.entryId) ergEntry.set(t.id, t.entryId);
+    }
     const base = {
       /* How the viewer and this rower stand, the counts anybody may see,
        * and (on the viewer's own page) the requests waiting on them. */
-      rel: { following: rel.following, bell: rel.bell, followsYou: rel.followsYou, isPrivate: rel.isPrivate, locked: rel.access === "private" },
+      rel: { following: rel.following, bell: rel.bell, followsYou: rel.followsYou, muted: rel.muted, isPrivate: rel.isPrivate, locked: rel.access === "private" },
       counts,
       requests: pendingIn,
       /* For an admin only: the id the site's own delete-a-rower route takes. */
@@ -79,7 +86,7 @@ export async function GET(req: Request) {
           paceCurve: v.paceCurve,
           paceDots: v.paceDots,
           field: v.field,
-          ergRows: v.ergRows,
+          ergRows: v.ergRows.map((r) => ({ ...r, entryId: ergEntry.get(r.id) ?? null })),
           ownTag: v.ownTag,
         };
     return NextResponse.json({ ok: true, profile }, { headers: NO_STORE });

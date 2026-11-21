@@ -14,6 +14,7 @@ import { no, people, rowerByNum, yes } from "../social";
  *                                                  who follows them")
  *   ?list=requests          the viewer's own unanswered follow requests
  *   ?list=blocked           the rowers the viewer has blocked
+ *   ?list=muted             the rowers the viewer has muted
  *
  * Every line says how the viewer stands to that rower. A private rower is
  * found like anybody else: it is their rows that are private, not their
@@ -47,12 +48,14 @@ export async function GET(req: Request) {
     const meId = viewer.myParticipantId;
     const list = q.get("list");
 
-    if (list === "requests" || list === "blocked") {
+    if (list === "requests" || list === "blocked" || list === "muted") {
       if (!meId) return no("Sign in first.", 401);
       const ids =
         list === "requests"
           ? (await db.rowFollow.findMany({ where: { followeeId: meId, status: "pending" }, orderBy: { createdAt: "desc" }, select: { followerId: true } })).map((f) => f.followerId)
-          : (await db.rowBlock.findMany({ where: { blockerId: meId }, orderBy: { createdAt: "desc" }, select: { blockedId: true } })).map((b) => b.blockedId);
+          : list === "muted"
+            ? (await db.rowMute.findMany({ where: { muterId: meId }, orderBy: { createdAt: "desc" }, select: { mutedId: true } })).map((m) => m.mutedId)
+            : (await db.rowBlock.findMany({ where: { blockerId: meId }, orderBy: { createdAt: "desc" }, select: { blockedId: true } })).map((b) => b.blockedId);
       return yes({ people: await people(meId, await inOrder(ids)) });
     }
 
@@ -70,6 +73,24 @@ export async function GET(req: Request) {
     const text = (q.get("q") ?? "").trim().replace(/^@/, "").slice(0, 60);
     const digits = /^\d{1,6}$/.test(text) ? Number(text) : null;
     const hide = meId ? (await db.rowBlock.findMany({ where: { blockedId: meId }, select: { blockerId: true } })).map((b) => b.blockerId) : [];
+
+    /* NOTHING TYPED: the ten rowers with the most lifetime meters, most
+     * first (owner, 2026-11-21: "when I click the search bar, let's just
+     * preload the first 10 names, and ... put them in order of most of
+     * lifetime meters rowed"). A rower lights out is hiding is left out of
+     * this list: where they sit in it would give their meters away. */
+    if (!text) {
+      let masked = new Set<string>();
+      try {
+        masked = maskedIds((await boardView(viewOpts(viewer))).boards);
+      } catch (err) {
+        console.error("row app: board unreadable for the search's opening list", err);
+        return yes({ people: [], more: false });
+      }
+      const top = await db.rowEntry.groupBy({ by: ["participantId"], where: { challenge: CHALLENGE, participantId: { notIn: [...hide, ...masked] } }, _sum: { meters: true }, orderBy: { _sum: { meters: "desc" } }, take: 10 });
+      const rowers = await inOrder(top.map((t) => t.participantId));
+      return yes({ people: await people(meId, rowers, new Map(top.map((t) => [t.participantId, t._sum.meters ?? 0]))), more: true, top: true });
+    }
     const rows = await db.rowParticipant.findMany({
       where: {
         challenge: CHALLENGE,

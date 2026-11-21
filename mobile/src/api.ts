@@ -41,6 +41,8 @@ export async function loadToken(): Promise<string | null> {
 }
 
 export async function setToken(t: string | null): Promise<void> {
+  /* Another account, or none: nothing the last one read is theirs. */
+  seen.clear();
   token = t;
   loaded = true;
   if (t) await AsyncStorage.setItem(TOKEN, t).catch(() => null);
@@ -53,6 +55,20 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/* WHAT HAS BEEN READ ONCE IS KEPT (owner, 2026-11-21: "why is there a
+ * loading screen, especially after we've seen it once? ... we've already
+ * loaded this data"). The last good answer to every GET, by its path, for
+ * as long as the app is open. A screen draws what is here at once and reads
+ * again behind it (ui.tsx useLoad), so a spinner is seen the first time a
+ * thing is ever opened and never again. Emptied when the account changes. */
+const seen = new Map<string, unknown>();
+export const peek = <T,>(path: string | null | undefined): T | null => (path ? ((seen.get(path) as T | undefined) ?? null) : null);
+export const forget = (): void => seen.clear();
+/* Read these now, quietly, so they are there when their screen is opened. */
+export function warm(paths: string[]): void {
+  for (const p of paths) api(p).catch(() => null);
 }
 
 /* One request. Answers the parsed body of an { ok: true, ... } reply and
@@ -77,6 +93,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     json = null;
   }
   if (!res.ok || !json || json.ok === false) throw new ApiError(json?.error || `That did not work (${res.status}).`, res.status);
+  if (init.body === undefined && (init.method ?? "GET") === "GET") seen.set(path, json);
   return json as T;
 }
 
@@ -98,7 +115,7 @@ export type Me = {
 
 export type FollowState = "none" | "pending" | "accepted";
 /* How the viewer and one rower stand (lib/rowSocial.ts on the server). */
-export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
+export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; muted?: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
 export type Counts = { followers: number; following: number };
 export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null };
 export type Notice = { id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
@@ -127,8 +144,10 @@ export type FeedItem = {
   elite?: boolean;
   erg: { id: string; watts: number | null; spm: number | null; hr: number | null; drag: number | null } | null;
   mine: boolean;
+  /* How the viewer stands to the row's rower, for the menu on the row. */
+  rel: { following: FollowState; bell: boolean };
 };
-export type FeedPage = { items: FeedItem[]; older: string | null };
+export type FeedPage = { items: FeedItem[]; older: string | null; lead?: number };
 
 export type BoardRow = { rowerNumber: number; name: string; meters: number; blocks?: number; shape?: string; unranked: boolean; me: boolean };
 export type BoardData = {
@@ -147,7 +166,7 @@ export type DistanceKde = { meters: number; label: string; field: Kde; you: KdeY
 
 export type Best = { key: string; label: string; value: string; sub: string; place: number | null; shape?: string; digits?: number };
 export type LogRow = { id: string; day: string; dayStr: string; title: string; meters?: number; seconds?: number; metersStr: string; durationStr: string; splitStr: string; photos: Photo[]; masked: boolean; digits?: number; timeShape?: string };
-export type ErgRow = { id: string; when: string; device: string; simulated: boolean; meters: string; time: string; split: string; title: string };
+export type ErgRow = { id: string; when: string; device: string; simulated: boolean; meters: string; time: string; split: string; title: string; entryId?: string | null };
 
 export type Profile = {
   rower: { rowerNumber: number; displayName: string; instagram: string; division: string };

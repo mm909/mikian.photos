@@ -1648,6 +1648,10 @@ const rowtemberLightsOut: ShareCard = {
   width: 1080,
   height: 700,
   light: true,
+  /* Out of every menu (owner, 2026-11-21: "let's remove lights out. Lights
+   * out has not been a thing for like 2 months ... remove this shareable").
+   * The drawing stays for the day a window opens again. */
+  available: () => false,
   draw(ctx, data, fonts) {
     const cx = this.width / 2;
     drawMark(ctx, [{ text: MARK }], {

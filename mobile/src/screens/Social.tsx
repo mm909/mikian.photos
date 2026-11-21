@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
-import { api, type Counts, type Notice, type Person, type Rel, type SocialSettings } from "../api";
+import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel, type SocialSettings } from "../api";
 import { SearchIcon } from "../icons";
 import { useLookSwitch } from "../look";
 import { useSession } from "../session";
@@ -108,18 +108,20 @@ function Act({ label, onPress, danger }: { label: string; onPress: () => void; d
   );
 }
 
-/* THE SWITCH, drawn in the house's own shapes (owner, 2026-11-21, of the
- * phone's stock switch on the settings page: "the color scheme on here is
- * terrible ... the blue and the green dot, not good"): a square track that
- * is the blue when on, and a square of paper that slides across it. */
+/* THE SWITCH (owner, 2026-11-21, of a square one: "these buttons still are
+ * looking a little silly ... let's make them like the Apple on-offs, but I
+ * don't want it to be green ... they should be like a little oval ...
+ * really just what Instagram's buttons look like. Let's just copy that").
+ * A pill with a round knob that slides: white with a dark knob when off,
+ * the blue with a white knob when on. */
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   const a = useRef(new Animated.Value(on ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(a, { toValue: on ? 1 : 0, duration: 140, useNativeDriver: Platform.OS !== "web" }).start();
+    Animated.timing(a, { toValue: on ? 1 : 0, duration: 160, useNativeDriver: Platform.OS !== "web" }).start();
   }, [a, on]);
   return (
-    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={() => onChange(!on)} hitSlop={10} style={{ width: 50, height: 28, borderWidth: 2, borderColor: on ? C.accent : C.gray, backgroundColor: on ? C.accent : "transparent", justifyContent: "center" }}>
-      <Animated.View style={{ width: 18, height: 18, marginLeft: 3, backgroundColor: on ? "#fff" : C.gray, transform: [{ translateX: a.interpolate({ inputRange: [0, 1], outputRange: [0, 22] }) }] }} />
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={() => onChange(!on)} hitSlop={10} style={{ width: 52, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: on ? C.accent : C.gray, backgroundColor: on ? C.accent : "#fff", justifyContent: "center" }}>
+      <Animated.View style={{ width: 22, height: 22, borderRadius: 11, marginLeft: 2.5, backgroundColor: on ? "#fff" : "#15171a", transform: [{ translateX: a.interpolate({ inputRange: [0, 1], outputRange: [0, 22] }) }] }} />
     </Pressable>
   );
 }
@@ -128,12 +130,17 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
 
 /* SEARCH (owner, 2026-11-20: "search function"; 2026-11-21: "rower 01,
  * first name, last name, meters, Instagram handle. That's it"): one field,
- * the roster under it. A name, a handle or a rower number; nothing typed
- * lists everybody in number order. A line opens the rower. */
+ * the roster under it. A name, a handle or a rower number. The field takes
+ * the keyboard as the tab opens, and with nothing typed the ten rowers with
+ * the most lifetime meters are already listed ("let's just preload the
+ * first 10 names ... in order of most lifetime meters rowed"). A line
+ * opens the rower. */
 export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
-  const [people, setPeople] = useState<Person[] | null>(null);
+  /* The opening list is read as the app starts (App.tsx), so it is here. */
+  const kept = peek<{ people: Person[]; more?: boolean }>("/api/row100k/app/people?q=");
+  const [people, setPeople] = useState<Person[] | null>(kept?.people ?? null);
   const [more, setMore] = useState(false);
   const [error, setError] = useState("");
   const turn = useRef(0);
@@ -167,6 +174,7 @@ export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
             accessibilityLabel="Search rowers by name, Instagram or number"
             value={text}
             onChangeText={setText}
+            autoFocus
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
@@ -199,7 +207,7 @@ export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
             />
           )}
           ListEmptyComponent={<Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>Nobody by that name, handle or number.</Text>}
-          ListFooterComponent={more ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
+          ListFooterComponent={more && q ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
         />
       )}
     </View>
@@ -208,14 +216,20 @@ export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
 
 /* ---- followers, following, requests, blocked ------------------------- */
 
-export type PeopleList = "followers" | "following" | "requests" | "blocked";
+export type PeopleList = "followers" | "following" | "requests" | "blocked" | "muted";
 
 /* A list of rowers: who follows one, who they follow (owner, 2026-11-20:
  * "anyone can see who a rower follows and who follows them"), and the
  * viewer's own two: requests to answer, and the rowers they have blocked. */
 export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: number; onRower: (n: number) => void }) {
-  const { refresh } = useSession();
-  const { data, error, loading, reload } = useLoad(() => api<{ people: Person[] }>(`/api/row100k/app/people?list=${list}${num ? `&num=${num}` : ""}`), [list, num]);
+  const { refresh, me } = useSession();
+  const path = `/api/row100k/app/people?list=${list}${num ? `&num=${num}` : ""}`;
+  const { data, error, loading, reload } = useLoad(() => api<{ people: Person[] }>(path), [path], path);
+  /* My own FOLLOWING list is where I stop following (owner, 2026-11-21:
+   * "when I'm on my profile and I click following ... I should be able to
+   * unfollow from there"). What a press here changed, until read again. */
+  const mineFollowing = list === "following" && num !== undefined && num === me.me?.rowerNumber;
+  const [now, setNow] = useState<Record<number, FollowState>>({});
   const [busy, setBusy] = useState(0);
   if (!data) return <Waiting error={error} onRetry={reload} />;
 
@@ -230,7 +244,7 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
     }
     setBusy(0);
   };
-  const empty = list === "followers" ? "No followers yet." : list === "following" ? "Not following anybody yet." : list === "requests" ? "No requests waiting." : "Nobody blocked.";
+  const empty = list === "followers" ? "No followers yet." : list === "following" ? "Not following anybody yet." : list === "requests" ? "No requests waiting." : list === "muted" ? "Nobody muted." : "Nobody blocked.";
 
   return (
     <FlatList
@@ -250,6 +264,10 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
               </View>
             ) : list === "blocked" ? (
               <Small label="Unblock" disabled={busy === item.rowerNumber} onPress={() => act(item.rowerNumber, "/api/row100k/app/block", { on: false })} />
+            ) : list === "muted" ? (
+              <Small label="Unmute" disabled={busy === item.rowerNumber} onPress={() => act(item.rowerNumber, "/api/row100k/app/follow", { action: "mute", on: false })} />
+            ) : mineFollowing ? (
+              <FollowButton num={item.rowerNumber} state={now[item.rowerNumber] ?? item.following} onChange={(r) => setNow((m) => ({ ...m, [item.rowerNumber]: r.rel.following }))} />
             ) : null
           }
         />
@@ -271,7 +289,7 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
  * Nothing else lives here: settings are behind the menu on the profile. */
 export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n: number) => void; onRow: (id: string) => void; onBoard: () => void; onPeople: (list: PeopleList) => void }) {
   const { me, refresh } = useSession();
-  const { data, error, loading, reload } = useLoad(() => api<{ items: Notice[]; unread: number }>("/api/row100k/app/notifications"), []);
+  const { data, error, loading, reload } = useLoad(() => api<{ items: Notice[]; unread: number }>("/api/row100k/app/notifications"), [], "/api/row100k/app/notifications");
   const marked = useRef(false);
   const [busy, setBusy] = useState(0);
   useEffect(() => {
@@ -350,8 +368,8 @@ const KIND: Record<string, [string, string]> = {
 export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: PeopleList) => void; onSignedOut: () => void }) {
   const { refresh, signOut } = useSession();
   const look = useLookSwitch();
-  const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>("/api/row100k/app/settings"), []);
-  const [s, setS] = useState<SocialSettings | null>(null);
+  const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>("/api/row100k/app/settings"), [], "/api/row100k/app/settings");
+  const [s, setS] = useState<SocialSettings | null>(data?.settings ?? null);
   const [failed, setFailed] = useState("");
   useEffect(() => {
     if (data) setS(data.settings);
@@ -383,7 +401,7 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
           {s.kinds.map((k) => (
             <Setting key={k} title={KIND[k]?.[0] ?? k} body={KIND[k]?.[1] ?? ""} on={!s.notifyOff.includes(k)} onChange={(v) => save({ notifyOff: v ? s.notifyOff.filter((x) => x !== k) : [...s.notifyOff, k] })} />
           ))}
-          <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 12 }}>The bell on a rower's page switches that one rower off without unfollowing them.</Text>
+          <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 12 }}>Notifications are off for a rower until you turn them on, from the three dots on their page or on one of their rows.</Text>
         </>
       ) : (
         <Waiting error={error} onRetry={reload} />
@@ -393,6 +411,7 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
       <Setting title="Dark mode" body="Ink for the page, cream for the type. Only on this phone." on={look.dark} onChange={look.setDark} />
 
       <Eye style={{ marginBottom: 0 }} left="More" />
+      <Act label="Muted rowers" onPress={() => onPeople("muted")} />
       <Act label="Blocked rowers" onPress={() => onPeople("blocked")} />
       <Act
         label="Sign out"
@@ -423,12 +442,41 @@ function Setting({ title, body, on, onChange }: { title: string; body: string; o
 /* WHAT CAN BE DONE ABOUT A ROWER (owner, 2026-11-21, of a MORE word beside
  * the follow button: "it's just in a weird spot. So maybe try those 3 dots
  * type of deal"): the three dots at the top right of their profile bring
- * up this sheet. Block and report for everybody; for the owner, DELETE THIS
+ * up this sheet. Notifications from them (off until turned on: "it's off
+ * by default"), mute, block and report for everybody; for the owner, DELETE THIS
  * ROWER ("I need to be able to delete a rower"), which takes the rower's
  * number typed out before it will go, because it takes their whole log
  * with them and cannot be undone here. */
-export function RowerMenu({ num, name, adminId, onClose, onBlocked, onGone }: { num: number; name: string; adminId?: string | null; onClose: () => void; onBlocked: () => void; onGone: () => void }) {
+export function RowerMenu({
+  num,
+  name,
+  rel,
+  adminId,
+  onClose,
+  onRel,
+  onBlocked,
+  onGone,
+}: {
+  num: number;
+  name: string;
+  /* How the viewer stands to them: following or not, the bell, muted. */
+  rel: { following: FollowState; bell: boolean; muted?: boolean };
+  adminId?: string | null;
+  onClose: () => void;
+  onRel: (r: { rel: Rel; counts: Counts }) => void;
+  onBlocked: () => void;
+  onGone: () => void;
+}) {
   const [step, setStep] = useState<"" | "block" | "report" | "delete">("");
+  /* Notifications from this rower, and muting them, are one press each. */
+  const flip = async (body: Record<string, unknown>) => {
+    try {
+      onRel(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num, ...body } }));
+    } catch {
+      /* Nothing changed; the sheet closes and the page says what is true. */
+    }
+    onClose();
+  };
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState("");
@@ -462,6 +510,8 @@ export function RowerMenu({ num, name, adminId, onClose, onBlocked, onGone }: { 
     <Sheet title={step === "block" ? "Block this rower" : step === "delete" ? "Delete this rower" : "This rower"} right={`${num3(num)} · ${name}`} onClose={onClose}>
       {step === "" ? (
         <>
+          {rel.following === "accepted" ? <Act label={rel.bell ? "Turn off notifications" : "Turn on notifications"} onPress={() => flip({ action: "bell", on: !rel.bell })} /> : null}
+          <Act label={rel.muted ? "Unmute" : "Mute"} onPress={() => flip({ action: "mute", on: !rel.muted })} />
           <Act label="Block" onPress={() => setStep("block")} />
           <Act label="Report" onPress={() => setStep("report")} />
           {adminId ? <Act label="Delete this rower" danger onPress={() => setStep("delete")} /> : null}
@@ -496,6 +546,102 @@ export function RowerMenu({ num, name, adminId, onClose, onBlocked, onGone }: { 
           </View>
         </>
       )}
+    </Sheet>
+  );
+}
+
+/* WHAT CAN BE DONE ABOUT A ROW (owner, 2026-11-21: "on each one of these
+ * rows, let's also give those three dots ... I want to steal Strava's
+ * things ... turn on notifications, mute, unfollow, report"). The same
+ * sheet comes up from the dots on a row in the feed, from the dots over
+ * its photos, and from the dots at the top of the row's own page.
+ *
+ * For anybody: the rower's page, follow or unfollow, notifications from
+ * them, mute, report the row. For the owner, the tools he asked not to
+ * have sitting at the foot of the page ("that doesn't belong there"):
+ * remove one photo, or the row. */
+export type RowMenuRow = { id: string; rowerNumber: number; name: string; mine: boolean; photos: number; rel: { following: FollowState; bell: boolean; muted?: boolean } };
+export type RowMenuChange = "rel" | "muted" | "blocked" | "row-gone" | "photo";
+export function RowMenu({ row, onClose, onRower, onRow, onChange }: { row: RowMenuRow; onClose: () => void; onRower?: (n: number) => void; onRow?: (id: string) => void; onChange: (what: RowMenuChange, rel?: { following: FollowState; bell: boolean }) => void }) {
+  const { me, refresh } = useSession();
+  const [step, setStep] = useState<"" | "report" | "row" | number>("");
+  const num = row.rowerNumber;
+  const go = async (body: Record<string, unknown>, what: RowMenuChange) => {
+    try {
+      const r = await api<{ rel: Rel }>("/api/row100k/app/follow", { body: { num, ...body } });
+      onChange(what, { following: r.rel.following, bell: r.rel.bell });
+      refresh();
+    } catch {
+      /* Nothing changed. */
+    }
+    onClose();
+  };
+  if (step === "report") return <ReportSheet num={num} name={row.name} entryId={row.id} onClose={onClose} />;
+  if (step === "row")
+    return (
+      <ConfirmSheet
+        title="Remove this row"
+        body={`This takes the row off the feed, off ${row.name}'s page and out of their total. It cannot be undone from here.`}
+        yes="Remove the row"
+        onClose={onClose}
+        onYes={async () => {
+          await api(`/api/row100k/rows/${row.id}`, { method: "DELETE" });
+          onChange("row-gone");
+        }}
+      />
+    );
+  if (typeof step === "number")
+    return (
+      <ConfirmSheet
+        title={`Remove photo ${step + 1}`}
+        body="The row, its meters and its other photo stay. The photo cannot be put back from here."
+        yes="Remove the photo"
+        onClose={onClose}
+        onYes={async () => {
+          await api("/api/row100k/app/moderate", { body: { entryId: row.id, photo: step } });
+          onChange("photo");
+        }}
+      />
+    );
+  const others = !row.mine && !!me.me;
+  return (
+    <Sheet title="This row" right={`${num3(num)} · ${row.name}`} onClose={onClose}>
+      {onRow ? (
+        <Act
+          label="Open the row"
+          onPress={() => {
+            onClose();
+            onRow(row.id);
+          }}
+        />
+      ) : null}
+      {onRower ? (
+        <Act
+          label={row.mine ? "Go to your page" : `Go to ${row.name}'s page`}
+          onPress={() => {
+            onClose();
+            onRower(num);
+          }}
+        />
+      ) : null}
+      {others ? (
+        <>
+          {row.rel.following === "none" ? <Act label="Follow" onPress={() => go({ action: "follow" }, "rel")} /> : null}
+          {row.rel.following === "accepted" ? <Act label={row.rel.bell ? "Turn off notifications" : "Turn on notifications"} onPress={() => go({ action: "bell", on: !row.rel.bell }, "rel")} /> : null}
+          <Act label={row.rel.muted ? "Unmute" : "Mute"} onPress={() => go({ action: "mute", on: !row.rel.muted }, row.rel.muted ? "rel" : "muted")} />
+          {row.rel.following !== "none" ? <Act label={row.rel.following === "pending" ? "Take back the follow request" : "Unfollow"} onPress={() => go({ action: "unfollow" }, "rel")} /> : null}
+          <Act label="Report" onPress={() => setStep("report")} />
+        </>
+      ) : null}
+      {me.isAdmin ? (
+        <>
+          <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 18 }]}>Owner</Text>
+          {Array.from({ length: row.photos }, (_, i) => (
+            <Act key={i} label={`Remove photo ${i + 1}`} danger onPress={() => setStep(i)} />
+          ))}
+          <Act label="Remove this row" danger onPress={() => setStep("row")} />
+        </>
+      ) : null}
     </Sheet>
   );
 }

@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native"
 import { api, type PeriodRow, type RecordRow, type Stats } from "../api";
 import { Columns, Density, HourGrid, MonthGrid } from "../charts";
 import { useSession } from "../session";
-import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono } from "../site";
+import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono, Ctl } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
 import { Blocks, Waiting, useLoad } from "../ui";
 
@@ -57,7 +57,8 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
   const [period, setPeriod] = useState("");
   const [stat, setStat] = useState<StatKey>("total");
   const [slot, setSlot] = useState<number | null>(null);
-  const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(`/api/row100k/stats${period ? `?m=${period}` : ""}`), [period, me.me?.rowerNumber]);
+  const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
+  const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(path), [path, me.me?.rowerNumber], path);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const s = data.data;
   const month = s.period.kind === "month";
@@ -81,23 +82,39 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
     />
   );
 
+  /* ROWS BY HOUR OF THE DAY, drawn under the grid of hours when there is
+   * one (owner, 2026-11-21: "let's put the hours and rows by hour of day
+   * charts close to each other"). */
+  const hoursOfDay = s.hours ? (
+    <>
+      <ChartHead>Rows by hour of the day</ChartHead>
+      <Columns values={Array.from({ length: 24 }, (_, i) => s.hours!.counts[(i + s.hours!.start) % 24] ?? 0)} />
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 5 }}>
+        {[0, 6, 12, 18, 24].map((k) => {
+          const h = (s.hours!.start + k) % 24;
+          return (
+            <Text key={k} style={mono(10, false, C.gray, 0.1)}>
+              {h === 0 ? "12 AM" : h === 12 ? "NOON" : h < 12 ? `${h} AM` : `${h - 12} PM`}
+            </Text>
+          );
+        })}
+      </View>
+    </>
+  ) : null;
+
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      {/* THE STAMP */}
-      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", paddingTop: 22, paddingBottom: 8, borderBottomWidth: 1, borderColor: C.ink }}>
-        {monthWord(C.gray, 11, false)}
-        <Dot size={11} />
-        <Text style={mono(11, true)}>{fmtInt(s.community.meters)} m</Text>
-      </View>
-
+      {/* No stamp of the month and its meters here any more (owner,
+          2026-11-21): every meter anybody has rowed is what the mark in the
+          top bar rolls over into on this tab (App.tsx). */}
       {/* THE TWO WORDS */}
-      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8, marginTop: 34 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8, marginTop: 24 }}>
         {monthWord(C.ink)}
         <Dot />
         {statWord}
       </View>
 
-      {rec ? <Records s={s} rec={rec} onRower={onRower} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
+      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
 
       {month ? (
         <>
@@ -107,6 +124,7 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
             <>
               <Eye left="The hours" />
               <HourGrid grid={s.hourGrid} />
+              {hoursOfDay}
             </>
           ) : null}
         </>
@@ -120,7 +138,7 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
           <ChartHead>Length of every row</ChartHead>
           <Density kde={s.field.lengthKde} fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)} />
           <ChartHead>Split of every row</ChartHead>
-          <Density kde={s.field.paceKde} fmt={m2} />
+          <Density kde={s.field.paceKde} fmt={m2} lowerIsBetter />
           {s.distances
             .filter((d) => d.fieldN > 0)
             .map((d) => (
@@ -128,25 +146,10 @@ export function StatsScreen({ onRower }: { onRower: (n: number) => void }) {
                 <ChartHead>
                   The {d.label} · {d.fieldN} timed rows
                 </ChartHead>
-                <Density kde={d.field} you={d.you} fmt={m2} />
+                <Density kde={d.field} you={d.you} fmt={m2} lowerIsBetter />
               </View>
             ))}
-          {s.hours ? (
-            <>
-              <ChartHead>Rows by hour of the day</ChartHead>
-              <Columns values={Array.from({ length: 24 }, (_, i) => s.hours!.counts[(i + s.hours!.start) % 24] ?? 0)} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 5 }}>
-                {[0, 6, 12, 18, 24].map((k) => {
-                  const h = (s.hours!.start + k) % 24;
-                  return (
-                    <Text key={k} style={mono(10, false, C.gray, 0.1)}>
-                      {h === 0 ? "12 AM" : h === 12 ? "NOON" : h < 12 ? `${h} AM` : `${h - 12} PM`}
-                    </Text>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
+          {month && s.hourGrid.length ? null : hoursOfDay}
         </>
       ) : null}
 
@@ -196,13 +199,16 @@ function ChartHead({ children }: { children: ReactNode }) {
 function Records({ s, rec, onRower }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void }) {
   const rows: RecordRow[] = s.records[rec.key] ?? [];
   const first = rows[0];
+  /* THE WHOLE BOARD on a press (owner, 2026-11-21: "I need a view of the
+   * whole board button ... I can only see the top"). */
+  const [all, setAll] = useState(false);
   const elite = rec.key === "total" ? rows.filter((r) => r.unranked) : [];
   const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
   const table = (title: string, division: string) => {
     const list = rows.filter((r) => r.division === division);
     const mine = list.findIndex((r) => r.participantId === s.meId);
-    const shown = list.slice(0, 5).map((r, i) => ({ r, place: i + 1 }));
-    if (mine >= 5) shown.push({ r: list[mine], place: mine + 1 });
+    const shown = (all ? list : list.slice(0, 5)).map((r, i) => ({ r, place: i + 1 }));
+    if (!all && mine >= 5) shown.push({ r: list[mine], place: mine + 1 });
     return (
       <View>
         <TableHead>{title}</TableHead>
@@ -235,6 +241,11 @@ function Records({ s, rec, onRower }: { s: Payload; rec: (typeof RECORDS)[number
         <>
           {table("Men", "M")}
           {table("Women", "F")}
+          {rows.length > 5 ? (
+            <View style={{ marginTop: 18 }}>
+              <Ctl label={all ? "Show the top five" : "See the whole board"} onPress={() => setAll((v) => !v)} />
+            </View>
+          ) : null}
         </>
       )}
     </View>

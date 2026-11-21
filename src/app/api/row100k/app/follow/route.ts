@@ -16,14 +16,17 @@ import { asRower, no, rowerByNum, yes } from "../social";
  *   accept     let rower `num` follow me (their request to me).
  *   decline    refuse it.
  *   remove     make rower `num` stop following me.
- *   bell       { on } whether I am told when rower `num` rows or passes me.
+ *   bell       { on } whether I am told when rower `num` passes me. Off
+ *              until turned on (owner, 2026-11-21: "it's off by default").
+ *   mute       { on } leave rower `num`'s rows out of my feed, or bring
+ *              them back. Nothing else changes and they are not told.
  *
  * Answers how the two now stand, and the rower's counts, so the button and
  * the numbers on the screen can be redrawn from the answer alone. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACTIONS = ["follow", "unfollow", "accept", "decline", "remove", "bell"] as const;
+const ACTIONS = ["follow", "unfollow", "accept", "decline", "remove", "bell", "mute"] as const;
 
 export async function POST(req: Request) {
   const who = await asRower();
@@ -50,12 +53,15 @@ export async function POST(req: Request) {
       if (rel.blockedMe) return yes({ rel: { ...rel, following: "pending" }, counts: await followCounts(them.id) });
       if (rel.following === "none") {
         const status = rel.isPrivate ? "pending" : "accepted";
-        await db.rowFollow.create({ data: { challenge: CHALLENGE, followerId: me.id, followeeId: them.id, status, acceptedAt: status === "accepted" ? new Date() : null } });
+        await db.rowFollow.create({ data: { challenge: CHALLENGE, followerId: me.id, followeeId: them.id, status, notify: false, acceptedAt: status === "accepted" ? new Date() : null } });
         await notifyPerson(status === "accepted" ? "follow" : "request", them.id, actor);
       }
     } else if (action === "unfollow") {
       await db.rowFollow.deleteMany({ where: { followerId: me.id, followeeId: them.id } });
       await clearRequest(them.id, me.id);
+    } else if (action === "mute") {
+      if (body?.on === false) await db.rowMute.deleteMany({ where: { muterId: me.id, mutedId: them.id } });
+      else await db.rowMute.upsert({ where: { muterId_mutedId: { muterId: me.id, mutedId: them.id } }, create: { challenge: CHALLENGE, muterId: me.id, mutedId: them.id }, update: {} });
     } else if (action === "bell") {
       await db.rowFollow.updateMany({ where: { followerId: me.id, followeeId: them.id }, data: { notify: body?.on === true } });
     } else if (action === "accept") {

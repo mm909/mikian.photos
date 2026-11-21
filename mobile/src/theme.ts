@@ -98,7 +98,7 @@ export function fmtHours(seconds: number): string {
 
 /* THE LIFETIME TAG (owner, 2026-11-20: "showing their meters tag (10k, 50,
  * 100, 250, 500 etc)"; "I like the ladder of lifetime meter stamps"): the
- * highest rung a rower's all-time metres have reached, or null under the
+ * highest rung a rower's all-time meters have reached, or null under the
  * first. */
 export const LADDER: { meters: number; tag: string }[] = [
   { meters: 10_000, tag: "10K" },
