@@ -65,6 +65,14 @@ Before building or changing an app screen, open the site's version of it and bri
 
 The app is not live. Its web build (`public/row100k/app/`, rebuilt by `npm run export:web` in `mobile/`) is unlisted, and the routes only the app writes through answer admins only in production (`SOCIAL_LIVE` in `src/app/api/row100k/app/social.ts`). "Push it live" from him, of the app, means merge to main so he can open that build on his phone; it does not lift the gate.
 
+### His installed build takes new code over the air; say when it needs a rebuild
+
+Owner, 2026-11-21, asked whether every change needs `eas build` again: "lets do this and make sure to tell me if i need to re run".
+
+The installed app fetches new code as it opens (`expo-updates`, `mobile/src/ota.ts`; the build's channel is its profile's name in `mobile/eas.json`, his phone wears `preview`). After a push that changes the app, publish it from `mobile/`: `npx eas-cli@latest update --channel preview --message "<the commit's subject>"`. That reaches only a build of the same runtime version, which is the `version` in `mobile/app.json`.
+
+A change the bundle cannot carry needs a new build from him: a native module added, removed or upgraded (anything in `package.json` with native code), a plugin, permission, icon, scheme or anything else in `app.json`, an Expo SDK bump. When a batch has one, raise `version` in `app.json` in the same commit, so the old build does not take code it cannot run, and tell him in the closing message, in so many words, that he must run `npx eas-cli@latest build --profile preview --platform ios` and install the result. When a batch has none, say that no rebuild is needed.
+
 ## The logo is ROW, the O in the blue
 
 Owner, 2026-11-14: "let's change our logo to row with the o in the Rowtemeber color."
