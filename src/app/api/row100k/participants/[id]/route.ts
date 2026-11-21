@@ -211,6 +211,21 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ ok: false, error: "That rower is already gone." }, { status: 404 });
   }
 
+  /* What the rower left in the phone app's tables (no FKs there): who they
+   * followed and who followed them, their blocks, their notifications and
+   * the ones about them, their settings. Reports about them are kept. */
+  try {
+    const id = params.id;
+    await Promise.all([
+      db.rowFollow.deleteMany({ where: { OR: [{ followerId: id }, { followeeId: id }] } }),
+      db.rowBlock.deleteMany({ where: { OR: [{ blockerId: id }, { blockedId: id }] } }),
+      db.rowNotification.deleteMany({ where: { OR: [{ participantId: id }, { actorId: id }] } }),
+      db.rowSocialSetting.deleteMany({ where: { participantId: id } }),
+    ]);
+  } catch (err) {
+    console.error("row100k: failed to clear a removed rower's follows and notifications", err);
+  }
+
   revalidateTag("row100k-boards");
   return NextResponse.json({ ok: true });
 }

@@ -135,8 +135,8 @@ async function main() {
   check("nobody reports themselves", (await A("report", { num: a, reason: "spam" })).status === 400);
 
   /* SETTINGS, and read */
-  const st = await A("settings", { notifyOff: ["rowed", "nonsense"] });
-  check("only real kinds can be switched off", JSON.stringify(st.settings?.notifyOff) === JSON.stringify(["rowed"]));
+  const st = await A("settings", { notifyOff: ["passed", "nonsense"] });
+  check("only real kinds can be switched off", JSON.stringify(st.settings?.notifyOff) === JSON.stringify(["passed"]));
   await A("settings", { notifyOff: [] });
   await Bb("notifications", { read: true });
   check("reading the centre clears the bell", (await Bb("me")).social?.unread === 0);

@@ -83,6 +83,8 @@ export async function GET(req: Request) {
           elite,
           mine,
           canShare: mine || viewer.isAdmin,
+          /* The owner's tools on any row: take it down, or one photo of it. */
+          admin: viewer.isAdmin,
           /* A reel can be filmed: a recording is tied to the row, it is the
            * viewer's to film, and the erg gate is open to them (admins only
            * in production while the erg is in development). */

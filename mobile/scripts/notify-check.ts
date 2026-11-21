@@ -6,8 +6,8 @@
  * sit closest on this month's board, has the one ahead follow the one
  * behind, and has the one behind LOG A ROW that carries them past. Then
  * reads the notification centre of the one who was passed: it must hold a
- * ROWED line that opens the row and a PASSED line, and a second row the
- * same day must not add a second PASSED line.
+ * PASSED line and no line for the row itself, and a second row the same
+ * day must not add a second PASSED line.
  *
  * It logs two real rows with two photos each, so: a sandbox only. It
  * refuses any address that is not localhost. */
@@ -75,17 +75,17 @@ async function main() {
 
   const id1 = await logRow(behind.token, gap + 500);
   const n1 = await call("/api/row100k/app/notifications", ahead.token);
-  const rowed = (n1.items as Json[]).find((i) => i.kind === "rowed" && i.entryId === id1);
-  check("the follower is told about the row", !!rowed && rowed.rowerNumber === behind.num && rowed.unread === true, rowed ? `"${rowed.name} ${rowed.text}"` : "no line");
+  /* A row by itself tells nobody anything (owner, 2026-11-21: "you can't
+   * get notified when someone logs a row. That's fine"). */
+  check("a row alone makes no line", !(n1.items as Json[]).some((i) => i.kind === "rowed" && i.entryId === id1));
   const passed = (n1.items as Json[]).filter((i) => i.kind === "passed");
-  check("and that they were passed", passed.length === passedBefore + 1 && passed[0]?.rowerNumber === behind.num, passed[0] ? `"${passed[0].name} ${passed[0].text}"` : "no line");
-  check("no metres in either line", !/\d{3,}/.test(`${rowed?.text} ${passed[0]?.text}`));
-  check("the bell counts both", (await call("/api/row100k/app/me", ahead.token)).social.unread === 2);
+  check("the follower is told they were passed", passed.length === passedBefore + 1 && passed[0]?.rowerNumber === behind.num && passed[0]?.unread === true, passed[0] ? `"${passed[0].name} ${passed[0].text}"` : "no line");
+  check("no metres in the line", !/\d{3,}/.test(`${passed[0]?.text}`));
+  check("the bell counts it once", (await call("/api/row100k/app/me", ahead.token)).social.unread === 1);
 
-  const id2 = await logRow(behind.token, 1000);
+  await logRow(behind.token, 1000);
   const n2 = await call("/api/row100k/app/notifications", ahead.token);
-  check("a second row the same day adds a ROWED line", (n2.items as Json[]).some((i) => i.kind === "rowed" && i.entryId === id2));
-  check("and no second PASSED line", (n2.items as Json[]).filter((i) => i.kind === "passed").length === passedBefore + 1);
+  check("a second row the same day adds no second PASSED line", (n2.items as Json[]).filter((i) => i.kind === "passed").length === passedBefore + 1);
 
   /* The bell off: nothing more arrives. */
   await call("/api/row100k/app/follow", ahead.token, { num: behind.num, action: "bell", on: false });

@@ -6,7 +6,7 @@ import { milestone, projectedMeters } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
-import { C, F, fmtClock, fmtInt, fmtPace } from "../theme";
+import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
 import { logRow, pacificToday, pickPhoto, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
@@ -352,7 +352,11 @@ function SplitsPage({ erg }: { erg: Erg }) {
 /* ---- the form every row ends at ---------------------------------------- */
 
 const SLOTS = ["You", "The monitor"] as const;
-const field = { borderBottomWidth: 1, borderColor: C.ink, fontSize: 30, fontFamily: F.black, paddingVertical: 6, color: C.ink, minWidth: 84 } as const;
+const fieldOf = () => ({ borderBottomWidth: 1, borderColor: C.ink, fontSize: 30, fontFamily: F.black, paddingVertical: 6, color: C.ink, minWidth: 84 }) as const;
+let field = fieldOf();
+onLook(() => {
+  field = fieldOf();
+});
 
 function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc) => void }) {
   const today = pacificToday();

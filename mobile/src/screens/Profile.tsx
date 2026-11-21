@@ -2,12 +2,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
+import { BellIcon } from "../icons";
 import { useSession } from "../session";
-import { Chip, Ctl, Dash, Dot, Eye, Ledger, TINT, WordMenu, mono } from "../site";
-import { C, F, LADDER, fmtClock, fmtInt, lifetimeTag } from "../theme";
-import { Bar, Blocks, Waiting, useLoad } from "../ui";
+import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
+import { C, F, fmtClock, fmtInt } from "../theme";
+import { Blocks, Waiting, useLoad } from "../ui";
 import { Join, SignIn } from "./Account";
-import { BellGlyph, FollowButton, ReportSheet, type PeopleList } from "./Social";
+import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
 /* A ROWER'S PROFILE, the site's /r/[num] on a phone (looks/Profile.tsx and
  * its pieces), in the site's order:
@@ -21,18 +22,21 @@ import { BellGlyph, FollowButton, ReportSheet, type PeopleList } from "./Social"
  *   then THE BESTS, THE MONTH, THE PACE, THE FIELD, THE ERG and THE LOG,
  *     each under its eyebrow.
  *
- * ONE THING THE SITE DOES NOT HAVE YET: the all-time line under the
- * nameplate, every metre the rower has logged with the lifetime tag it has
- * earned and the way to the next (owner, 2026-11-20: "instead of a streak
- * we should focus on the total number of meters rowed"; "I like the ladder
- * of lifetime meter stamps").
+ * UNDER THE NAMEPLATE, ONE LINE THE SITE DOES NOT HAVE (pass 3,
+ * 2026-11-21): how many follow the rower and how many they follow, each a
+ * way into its list, and at its right, on somebody else's page, the bell
+ * and FOLLOW. What else can be done about a rower (block, report) is behind
+ * the three dots in the app's top bar; the viewer's own settings are behind
+ * the three lines there. A PRIVATE account seen by somebody it has not
+ * accepted keeps its totals and shows no rows (owner, 2026-11-20); across
+ * a block there is no page at all.
  *
- * AND, UNDER THAT LINE, THE SOCIAL ONE (pass 3, 2026-11-21): how many
- * follow the rower and how many they follow, each a way into its list;
- * FOLLOW, the bell and a short menu (block, report) on somebody else's
- * page; the requests waiting and SETTINGS on the viewer's own. A PRIVATE
- * account seen by somebody it has not accepted keeps its totals and shows
- * no rows (owner, 2026-11-20); across a block there is no page at all.
+ * TAKEN OFF, on the owner's read of the first version (2026-11-21, "we
+ * really just reference the website"): the all-time line with its lifetime
+ * tag and the metres to the next one ("it doesn't make sense, at least how
+ * it's presented here"), the PRIVATE label, the underlines on the two
+ * counts. The name is ONE line, shrunk to fit and cut short only if it
+ * still will not ("the name can't be on 2 lines").
  *
  * Everything is the view the site computes (api/row100k/app/profile), so a
  * hidden rower is hidden here by the same rule and gets the same dog tag. */
@@ -40,8 +44,26 @@ import { BellGlyph, FollowButton, ReportSheet, type PeopleList } from "./Social"
 const m2 = (s: number) => fmtClock(s, false);
 const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
 
-export function ProfileScreen({ num, onLog, onRow, onPeople, onSettings }: { num?: number; onLog?: () => void; onRow?: (id: string) => void; onPeople?: (list: PeopleList, num?: number) => void; onSettings?: () => void }) {
-  const { ready, me, signOut } = useSession();
+export function ProfileScreen({
+  num,
+  onLog,
+  onRow,
+  onPeople,
+  menu,
+  onMenu,
+  onGone,
+}: {
+  num?: number;
+  onLog?: () => void;
+  onRow?: (id: string) => void;
+  onPeople?: (list: PeopleList, num?: number) => void;
+  /* The three dots in the top bar, pressed (App.tsx holds it). */
+  menu?: boolean;
+  onMenu?: (open: boolean) => void;
+  /* The rower was deleted from here: leave the page. */
+  onGone?: () => void;
+}) {
+  const { ready, me } = useSession();
   const own = num === undefined;
   const [period, setPeriod] = useState<string>("");
   const mine = me.me?.rowerNumber;
@@ -66,15 +88,7 @@ export function ProfileScreen({ num, onLog, onRow, onPeople, onSettings }: { num
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      {/* THE NAMEPLATE */}
-      <View style={{ borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 6 }}>
-        <Text numberOfLines={2} style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>
-          <Text style={{ color: C.gray }}>{String(p.rower.rowerNumber).padStart(3, "0")} </Text>
-          {p.rower.displayName}
-        </Text>
-      </View>
-
-      {p.lifetime ? <Lifetime meters={p.lifetime.meters} /> : null}
+      <Nameplate num={p.rower.rowerNumber} name={p.rower.displayName} />
 
       <SocialLine
         p={p}
@@ -83,10 +97,11 @@ export function ProfileScreen({ num, onLog, onRow, onPeople, onSettings }: { num
         onPeople={onPeople}
         onChange={(r) => {
           setLive(r);
-          /* A follow that opened a private page, or a block: read it again. */
-          if (r.rel.following !== p.rel.following || r.rel.blockedByMe) reload();
+          /* A follow that opened a private page: read it again. */
+          if (r.rel.following !== p.rel.following) reload();
         }}
       />
+      {menu && onMenu && !p.isMe ? <RowerMenu num={p.rower.rowerNumber} name={p.rower.displayName} adminId={p.adminId} onClose={() => onMenu(false)} onBlocked={reload} onGone={() => onGone?.()} /> : null}
 
       {p.masked ? (
         <DogTag p={p} />
@@ -181,7 +196,7 @@ export function ProfileScreen({ num, onLog, onRow, onPeople, onSettings }: { num
             <>
               <Eye left="The erg" right={`${p.ergRows.length} ${p.ergRows.length === 1 ? "piece" : "pieces"}`} />
               {p.ergRows.map((r) => (
-                <View key={r.id} style={{ backgroundColor: TINT }}>
+                <View key={r.id} style={{ backgroundColor: C.tint }}>
                   <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: 6, paddingVertical: 11 }}>
                     <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>
                       {r.when}
@@ -200,28 +215,44 @@ export function ProfileScreen({ num, onLog, onRow, onPeople, onSettings }: { num
       )}
 
       {locked ? null : <Log p={p} onRow={onRow} />}
-      {own ? (
-        <View style={{ marginTop: 40, flexDirection: "row", gap: 28 }}>
-          {onSettings ? <Ctl label="Settings" onPress={onSettings} /> : null}
-          <Ctl label="Sign out" onPress={signOut} />
-        </View>
-      ) : null}
     </ScrollView>
   );
 }
 
-/* THE SOCIAL LINE: the two counts, each a way into its list; on somebody
- * else's page FOLLOW, the bell and the short menu; on the viewer's own the
- * requests waiting on them. */
+/* THE NAMEPLATE, as the site's: the number grey, the name ink, capitals,
+ * on a hairline. ONE line: the type comes down from 30 until the name fits
+ * the width, and a name too long even at the floor is cut with an ellipsis.
+ * (The width of a line of Archivo Black capitals is reckoned, letter by
+ * letter, because a phone in a browser cannot shrink type to fit by itself.) */
+function Nameplate({ num, name }: { num: number; name: string }) {
+  const [w, setW] = useState(0);
+  const n3 = String(num).padStart(3, "0");
+  const em = `${n3} ${name}`
+    .toUpperCase()
+    .split("")
+    .reduce((sum, ch) => sum + (ch === " " ? 0.3 : /[IJ1.,'-]/.test(ch) ? 0.44 : /[MW]/.test(ch) ? 0.98 : 0.76), 0);
+  const size = w ? Math.max(16, Math.min(30, Math.floor(w / em))) : 30;
+  return (
+    <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 6 }}>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.14), color: C.ink, textTransform: "uppercase" }}>
+        <Text style={{ color: C.gray }}>{n3} </Text>
+        {name}
+      </Text>
+    </View>
+  );
+}
+
+/* FOLLOWERS AND FOLLOWING, each a way into its list; and, on somebody
+ * else's page, the bell (told when this rower passes me, or not) and FOLLOW
+ * at the right of the same line. */
 function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
   const { me } = useSession();
-  const [ask, setAsk] = useState<"" | "block" | "report">("");
   const [busy, setBusy] = useState(false);
   const n = p.rower.rowerNumber;
   const count = (v: number, one: string, many: string, list: PeopleList) => (
     <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8}>
       <Text style={mono(11, false, C.gray)}>
-        <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(v)}</Text> <Text style={{ textDecorationLine: "underline", textDecorationStyle: "dotted" }}>{v === 1 ? one : many}</Text>
+        <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(v)}</Text> {v === 1 ? one : many}
       </Text>
     </Pressable>
   );
@@ -230,77 +261,25 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
     try {
       onChange(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num: n, action: "bell", on: !rel.bell } }));
     } catch {
-      /* The glyph stays as it was. */
+      /* The bell stays as it was. */
     }
     setBusy(false);
-  };
-  const block = async () => {
-    setBusy(true);
-    try {
-      const r = await api<{ rel: Rel }>("/api/row100k/app/block", { body: { num: n, on: true } });
-      onChange({ rel: { ...r.rel, blockedByMe: true }, counts });
-    } catch {
-      /* Nothing changed. */
-    }
-    setBusy(false);
-    setAsk("");
   };
   return (
-    <View style={{ marginTop: 14 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 16, rowGap: 6 }}>
-        {count(counts.followers, "follower", "followers", "followers")}
-        {count(counts.following, "following", "following", "following")}
-        {rel.isPrivate ? <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1.2, color: C.ink, borderWidth: 1, borderColor: C.ink, paddingHorizontal: 6, paddingVertical: 1 }}>PRIVATE</Text> : null}
-        {!p.isMe && rel.followsYou === "accepted" ? <Text style={mono(10, false, C.gray)}>Follows you</Text> : null}
-      </View>
-
-      {p.isMe && p.requests > 0 ? (
-        <View style={{ marginTop: 14 }}>
-          <Ctl label={`${p.requests} follow ${p.requests === 1 ? "request" : "requests"} →`} onPress={() => onPeople?.("requests")} />
-        </View>
-      ) : null}
-
+    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 16, minHeight: 36, marginTop: 10 }}>
+      {count(counts.followers, "follower", "followers", "followers")}
+      {count(counts.following, "following", "following", "following")}
+      <View style={{ flex: 1 }} />
       {!p.isMe && me.me ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 }}>
-          <FollowButton num={n} state={rel.following} onChange={onChange} />
+        <>
           {rel.following === "accepted" ? (
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityState={{ checked: rel.bell }}
-              accessibilityLabel={rel.bell ? "Notifications from this rower are on" : "Notifications from this rower are off"}
-              disabled={busy}
-              onPress={bell}
-              style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderWidth: 2, borderColor: rel.bell ? C.ink : C.gray, opacity: pressed || busy ? 0.6 : 1 })}
-            >
-              <BellGlyph color={rel.bell ? C.accent : C.gray} />
-              <Text style={mono(10, true, rel.bell ? C.ink : C.gray, 0.12)}>{rel.bell ? "On" : "Off"}</Text>
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? "Notifications from this rower are on" : "Notifications from this rower are off"} disabled={busy} onPress={bell} hitSlop={8} style={({ pressed }) => ({ opacity: pressed || busy ? 0.5 : 1 })}>
+              <BellIcon on={rel.bell} color={C.gray} size={24} />
             </Pressable>
           ) : null}
-          <View style={{ flex: 1 }} />
-          <WordMenu
-            label="More"
-            ariaLabel="More about this rower"
-            width={200}
-            options={[
-              { key: "block", label: "Block this rower" },
-              { key: "report", label: "Report this rower" },
-            ]}
-            onPick={(k) => setAsk(k as "block" | "report")}
-          />
-        </View>
+          <FollowButton num={n} state={rel.following} onChange={onChange} />
+        </>
       ) : null}
-
-      {ask === "block" ? (
-        <View style={{ borderWidth: 2, borderColor: C.ink, padding: 16, marginTop: 14 }}>
-          <Text style={mono(12, true)}>Block {p.rower.displayName}?</Text>
-          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft, marginTop: 8 }}>You will not see each other's rows or pages, and neither of you will follow the other. You both stay on the board. They are not told.</Text>
-          <View style={{ flexDirection: "row", gap: 28, marginTop: 14 }}>
-            <Ctl label={busy ? "Blocking" : "Block"} disabled={busy} onPress={block} />
-            <Ctl label="Cancel" onPress={() => setAsk("")} />
-          </View>
-        </View>
-      ) : null}
-      {ask === "report" ? <ReportSheet num={n} name={p.rower.displayName} onClose={() => setAsk("")} /> : null}
     </View>
   );
 }
@@ -321,12 +300,7 @@ function BlockedPage({ b, onChange }: { b: Blocked; onChange: () => void }) {
   };
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 22 }}>
-      <View style={{ borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 6 }}>
-        <Text numberOfLines={2} style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>
-          <Text style={{ color: C.gray }}>{String(b.rowerNumber).padStart(3, "0")} </Text>
-          {b.displayName}
-        </Text>
-      </View>
+      <Nameplate num={b.rowerNumber} name={b.displayName} />
       <Text style={[mono(12, true), { marginTop: 22 }]}>{b.byMe ? "You blocked this rower" : "This page is not available"}</Text>
       {b.byMe ? (
         <>
@@ -345,51 +319,29 @@ function marksOf(byDay: Record<string, number>): [number, number, number] {
   return [max * 0.25, max * 0.5, max * 0.75];
 }
 
-/* ALL TIME: every metre logged, the tag it has earned, the way to the next. */
-function Lifetime({ meters }: { meters: number }) {
-  const tag = lifetimeTag(meters);
-  const prev = LADDER.filter((l) => l.meters <= meters).pop()?.meters ?? 0;
-  return (
-    <View style={{ marginTop: 12 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
-        {tag?.tag ? <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: "#fff", backgroundColor: C.accent, paddingHorizontal: 7, paddingVertical: 2, marginRight: 10 }}>{tag.tag}</Text> : null}
-        <Text style={mono(11, false, C.gray)}>All time</Text>
-        <Dot size={11} />
-        <Text style={mono(11, true)}>{fmtInt(meters)} m</Text>
-        {tag?.next ? (
-          <>
-            <Dot size={11} />
-            <Text style={mono(11, false, C.gray)}>
-              {fmtInt(tag.next.meters - meters)} to {tag.next.tag}
-            </Text>
-          </>
-        ) : null}
-      </View>
-      {tag?.next ? (
-        <View style={{ marginTop: 8 }}>
-          <Bar value={meters - prev} goal={tag.next.meters - prev} height={4} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-/* THE ODOMETER: seven wheels, the leading zeros faint, sized to the line. */
+/* THE ODOMETER: the metres on wheels, big and blue, with ONE faint zero in
+ * front (owner, 2026-11-21: "only show 7 digits if there's 6 digits worth
+ * of meters rowed ... 83,000, we just show the 083,000. But if it was
+ * 100,000, then we could add that extra 0 up front"). Six wheels up to
+ * 99,999; seven from 100,000; and from a million on, as many as it takes. */
 function Odometer({ meters }: { meters: number }) {
   const [w, setW] = useState(0);
-  const digits = String(Math.max(0, Math.round(meters))).padStart(7, "0");
-  const lead = digits.length - String(Math.round(meters)).length;
-  const withCommas = `${digits.slice(0, 1)},${digits.slice(1, 4)},${digits.slice(4)}`;
-  /* How many characters of the printed string are leading zeros (and the
-   * comma after them). */
-  const faint = lead === 0 ? 0 : lead + (lead >= 1 ? 1 : 0) + (lead >= 4 ? 1 : 0);
-  /* Seven Archivo Black digits and two commas run about 5.25 em. */
-  const size = w ? Math.floor(w / 5.25) : 60;
+  const n = String(Math.max(0, Math.round(meters)));
+  const wheels = n.length >= 7 ? n.length : n.length === 6 ? 7 : 6;
+  const lead = wheels - n.length;
+  const printed = n.padStart(wheels, "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  /* How many characters of the printed string are leading zeros, with the
+   * comma that follows them when a group is all zeros. */
+  let faint = 0;
+  for (let seen = 0; faint < printed.length && (seen < lead || (printed[faint] === "," && seen === lead && lead > 0 && n !== "0")); faint++) if (printed[faint] !== ",") seen++;
+  const commas = printed.length - wheels;
+  /* An Archivo Black figure runs about two thirds of an em, a comma a third. */
+  const size = w ? Math.min(76, Math.floor(w / (wheels * 0.68 + commas * 0.34))) : 60;
   return (
     <View onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityLabel={`${fmtInt(meters)} metres`} style={{ marginTop: 10 }}>
       <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.04), letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>
-        <Text style={{ opacity: 0.28 }}>{withCommas.slice(0, faint)}</Text>
-        {withCommas.slice(faint)}
+        <Text style={{ opacity: 0.28 }}>{printed.slice(0, faint)}</Text>
+        {printed.slice(faint)}
       </Text>
     </View>
   );
@@ -421,7 +373,7 @@ function ChartHead({ children }: { children: ReactNode }) {
 /* One best: the name and its place, the day under it, the figure right. */
 function BestRow({ b }: { b: Best }) {
   return (
-    <View style={{ backgroundColor: TINT }}>
+    <View style={{ backgroundColor: C.tint }}>
       <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 12, gap: 10 }}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -470,7 +422,7 @@ function Log({ p, onRow }: { p: Profile; onRow?: (id: string) => void }) {
  * photos, its stickers and its read are. */
 function LogLine({ r, onRow }: { r: LogRow; onRow?: (id: string) => void }) {
   return (
-    <View style={{ backgroundColor: TINT }}>
+    <View style={{ backgroundColor: C.tint }}>
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the row of ${r.dayStr}: ${r.metersStr || "hidden"}`} onPress={() => onRow?.(r.id)} disabled={!onRow} style={{ paddingHorizontal: 8, paddingVertical: 11 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <Text numberOfLines={1} style={[mono(11, false, C.gray, 0.1), { flexShrink: 1 }]}>

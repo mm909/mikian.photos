@@ -33,6 +33,52 @@ Search, following, private accounts, block, report, the following feed and the n
   - Anything on a phone.
 - NEW TABLES, six, all additive: `RowSocialSetting`, `RowFollow`, `RowBlock`, `RowReport`, `RowNotification`, `RowPushToken`. They reach the live database with the production build that carries this code, and not before. Until then this branch's sandbox runs on a local database (`scripts/dev-app-db.mjs`, README).
 
+### Round 8, 2026-11-21: his read of pass 3, and what changed the same day
+
+All DECIDED (his words, spoken), and BUILT unless marked. Where a line here disagrees with something further down, this one is the later word.
+
+The shape of the app:
+
+- "I really like how Instagram's app is set up." The top bar is PLUS (log a row) on the left, ROW in the middle, the BELL on the right. "The Log a row button can be condensed into just a plus."
+- The bottom is five glyphs, no words: feed, search, board, stats, profile. "If we have that blue square in the back, then have it slide, animate, across from one to the other."
+- The bell's count sits inside the bell, which fills with the blue: "I don't like the square used for the number."
+- On a profile the mark becomes the rower's number: "ROW turns into 001 ... a nice little animation." Built as three wheels rolling over, the middle one keeping the blue.
+- On your own profile the right of the bar is the three-line menu, which opens SETTINGS; on somebody else's it is three dots (block, report). "Settings should probably just be like ... how do they have it on Instagram." Settings no longer appear in the notification list.
+
+The board: "the board is just for seeing the 100K challenge, like rankings."
+
+- CUT: the viewer's own metres big and blue at the top, with "X m to 100K" and "X m behind Y", and with it "N rowers passed you since you last looked" (asked for in round 7; gone on his word here; it could come back as a line in the notifications). "There's no blue large number callout on the board on the website. So let's not have it there in the app either."
+- CUT: "THE NOVEMBER 100K · 51 IN" and the "# ROWER METERS" heads. Kept: the dateline with its squares ("fine for now"), the tier names ("fine for now").
+- STANDING INSTRUCTION, also in the repo's `CLAUDE.md`: "please reference the website before you try to redesign a UI."
+
+Search: "rower 01, first name, last name, meters, Instagram handle. That's it."
+
+- No follow button on a line (the line opens the rower), no PRIVATE label, no FOLLOWS YOU, no tinted rows. The right of each line is the rower's lifetime metres (not shown for a rower lights out is hiding).
+
+The profile: "we really just reference the website."
+
+- CUT: the all-time line with the lifetime tag and the metres to the next ("the 250K ... at least how it's presented here, it doesn't make sense"), the PRIVATE label, the underlines on the two counts, the MORE word.
+- The name is one line, shrunk to fit, cut short only if it still will not: "the name can't be on 2 lines."
+- FOLLOW moved to the right of the followers / following line, small, with the bell beside it once following.
+- The big number shows one faint zero in front, not a fixed seven wheels: "only show 7 digits if there's 6 digits worth of meters rowed."
+- Rank on a profile stays within the rower's own division: "on your profile we can show of your gender."
+- OPEN (his, musing): colouring the rower number by lifetime metres in place of the tag ("is there enough cool colors to color their rower number? Is that crazy?"); and the profile's top split Instagram's way into sessions, following, followers ("that would be something. But until then, that's fine").
+
+Notifications and settings:
+
+- CUT: a line every time a followed rower logs a row. "Let's just remove that top one. You can't get notified when someone logs a row. That's fine." What is left: PASSED (one a day), FOLLOW, REQUEST, ACCEPTED. The bell on a rower's page stays ("we want users to be able to turn off notifications from that").
+- A follow request is one line with CONFIRM and DELETE at its right ("looks like a high school computer science student made it", of the first try).
+- The stock switch is gone; the switch is drawn in the app's own shapes ("the beige background with the blue and the green dot, not good").
+- DARK MODE, to look at: "does the app look terrible if it's dark mode? Let's see"; "I would like a dark mode version ... it's that matte blue is what we currently have." A switch in SETTINGS, kept on the phone, off unless switched on (cream stays the default). Ink ground, cream type, the site's on-ink blue `#1A90D4`.
+
+The owner's tools: "give me the ability to remove posts and photos ... sometimes maybe I don't remove the row, but I remove the photo"; "I need to be able to delete a rower." Shadow banning: not now ("is this really worth it?").
+
+- At the foot of any row, for an admin only: REMOVE PHOTO 1, REMOVE PHOTO 2, REMOVE THIS ROW, each asking once.
+- In the three dots on a rower, for an admin only: DELETE THIS ROWER, which wants the rower's number typed first. It takes their whole log and cannot be undone from the app.
+- Removing a row and deleting a rower are the site's existing routes; removing one photo is new (`/api/row100k/app/moderate`).
+
+Going live: "commit what's there now to live, then work on it, then commit again and push to live." Both pushes went to main on 2026-11-21. The app itself is still in development: the web build is unlisted, and the routes only it writes through (follow, block, report, settings, notifications) answer admins only in production until he says it is live (`SOCIAL_LIVE` in `src/app/api/row100k/app/social.ts`).
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

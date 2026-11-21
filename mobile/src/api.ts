@@ -100,7 +100,7 @@ export type FollowState = "none" | "pending" | "accepted";
 /* How the viewer and one rower stand (lib/rowSocial.ts on the server). */
 export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
 export type Counts = { followers: number; following: number };
-export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean };
+export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null };
 export type Notice = { id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
 export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[] };
 /* What the profile route answers in place of a profile across a block. */
@@ -157,6 +157,8 @@ export type Profile = {
   counts: Counts;
   /* On the viewer's own profile: follow requests waiting on them. */
   requests: number;
+  /* For an admin looking at somebody else: the id the delete-a-rower route takes. */
+  adminId: string | null;
   isMe: boolean;
   masked: boolean;
   blackoutNote: string;

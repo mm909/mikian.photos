@@ -26,8 +26,6 @@ import { C, F } from "./theme";
 
 export const mono = (size = 11, bold = false, color: string = C.ink, spacing = 0.16): TextStyle => ({ fontFamily: bold ? F.monoBold : F.mono, fontSize: size, letterSpacing: size * spacing, color, textTransform: "uppercase" });
 
-/* The warm tint the site lays behind its tables: rgba(236,220,170,.22) on the paper. */
-export const TINT = "#F2EEDF";
 
 /* A dashed rule. Drawn, not a border: a one-sided dashed border is not
  * something every phone draws. */
@@ -146,7 +144,7 @@ export function TableHead({ children }: { children: string }) {
 /* The grey column words over a full table. */
 export function Cols({ cols }: { cols: { label: string; flex?: number; width?: number; right?: boolean }[] }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: TINT, paddingHorizontal: 6, paddingVertical: 9, borderBottomWidth: 1, borderColor: C.ink }}>
+    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: C.tint, paddingHorizontal: 6, paddingVertical: 9, borderBottomWidth: 1, borderColor: C.ink }}>
       {cols.map((c) => (
         <Text key={c.label} style={[mono(10, false, C.gray, 0.12), { flex: c.flex, width: c.width, textAlign: c.right ? "right" : "left" }]}>
           {c.label}
@@ -160,13 +158,13 @@ export function Cols({ cols }: { cols: { label: string; flex?: number; width?: n
  * given as the figure. */
 export function Tr({ place, num, name, me, you, tag, children, onPress, label }: { place: number | string | null; num: number; name: string; me?: boolean; you?: boolean; tag?: string; children: ReactNode; onPress?: () => void; label?: string }) {
   return (
-    <Pressable accessibilityRole={onPress ? "link" : undefined} accessibilityLabel={label} onPress={onPress} disabled={!onPress} style={({ pressed }) => ({ backgroundColor: me ? C.pale : TINT, opacity: pressed ? 0.7 : 1 })}>
+    <Pressable accessibilityRole={onPress ? "link" : undefined} accessibilityLabel={label} onPress={onPress} disabled={!onPress} style={({ pressed }) => ({ backgroundColor: me ? C.pale : C.tint, opacity: pressed ? 0.7 : 1 })}>
       <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 6, minHeight: 44, paddingVertical: 9 }}>
         <Text style={{ width: 34, fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>{place ?? ""}</Text>
         <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, fontVariant: ["tabular-nums"] }}>{String(num).padStart(3, "0")}</Text>
         <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginHorizontal: 7 }}>·</Text>
         {you ? <You /> : null}
-        {tag ? <Text style={{ fontFamily: F.mono, fontSize: 10, color: "#fff", backgroundColor: C.ink, paddingHorizontal: 6, paddingVertical: 1, marginRight: 8 }}>{tag}</Text> : null}
+        {tag ? <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.paper, backgroundColor: C.ink, paddingHorizontal: 6, paddingVertical: 1, marginRight: 8 }}>{tag}</Text> : null}
         <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 15, color: C.ink }}>
           {name}
         </Text>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { SAME_ORIGIN, api } from "../api";
 import { useSession } from "../session";
-import { C, F } from "../theme";
+import { C, F, onLook } from "../theme";
 import { Btn, Eyebrow, styles } from "../ui";
 
 /* SIGNING IN AND JOINING, the two doors in front of a rower's own screens.
@@ -15,7 +15,11 @@ import { Btn, Eyebrow, styles } from "../ui";
  * id, which does not exist until the first phone build. In development an
  * existing account can be entered by email. */
 
-const field = { borderBottomWidth: 1, borderColor: C.ink, fontSize: 20, fontFamily: F.bold, paddingVertical: 8, color: C.ink, marginBottom: 16 } as const;
+const fieldOf = () => ({ borderBottomWidth: 1, borderColor: C.ink, fontSize: 20, fontFamily: F.bold, paddingVertical: 8, color: C.ink, marginBottom: 16 }) as const;
+let field = fieldOf();
+onLook(() => {
+  field = fieldOf();
+});
 
 export function SignIn({ why }: { why: string }) {
   const { signInDev } = useSession();

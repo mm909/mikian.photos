@@ -57,6 +57,14 @@ Owner, 2026-11-20: "Lets also move to just normal month names, the event/app is 
 
 This replaces the naming half of the edition rule above: a month is September or November on the site and in the app, and ROWVEMBER is retired as a name. A shareable (a card, a poster, a reel) is signed ROW or ROWTEMBER; of the two, the owner picked ROW the same day ("Lets try it w/ just ROW"), and the share cards carry it (`MARK` in `src/app/row100k/share/cards.ts`). The "reset never deletes" half of that rule stands. As of 2026-11-20 the code still carries the Rowvember nameplate and assets; changing them is a task the owner has not yet started.
 
+## The phone app follows the website, and is in development
+
+Owner, 2026-11-20, of the phone app in `mobile/`: "I would strongly encourage you to review the current site for style guides and UI/UX ... those things we have already iterated on while designing the website can come over." And 2026-11-21, after an app screen grew a big blue callout the site's board does not have: "please reference the website before you try to redesign a UI."
+
+Before building or changing an app screen, open the site's version of it and bring that over; add nothing the site's page does not have unless he asks. For the app's own frame (the bars, where a button lives) his reference is Instagram: "I really like how Instagram's app is set up" (plus top left, the mark in the middle, the bell top right, glyphs at the bottom). His decisions are kept in `mobile/DESIGN.md`; read it first and add to it.
+
+The app is not live. Its web build (`public/row100k/app/`, rebuilt by `npm run export:web` in `mobile/`) is unlisted, and the routes only the app writes through answer admins only in production (`SOCIAL_LIVE` in `src/app/api/row100k/app/social.ts`). "Push it live" from him, of the app, means merge to main so he can open that build on his phone; it does not lift the gate.
+
 ## The logo is ROW, the O in the blue
 
 Owner, 2026-11-14: "let's change our logo to row with the o in the Rowtemeber color."

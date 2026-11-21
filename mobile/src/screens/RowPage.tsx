@@ -3,13 +3,13 @@ import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, ScrollVie
 import { api, type BoardData, type Photo } from "../api";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
-import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, TINT, mono } from "../site";
+import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import { CLIPS, GROUNDS, LENGTHS, deck, reelStillUri, shareReel, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
 import { Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad } from "../ui";
 import { Review } from "./Review";
-import { ReportSheet } from "./Social";
+import { ConfirmSheet, ReportSheet } from "./Social";
 
 /* ONE ROW'S PAGE (owner, 2026-11-20). The journey he walked: "right as they
  * finish they submit the row and see an animation of their meters going up
@@ -57,6 +57,8 @@ type RowData = {
   digits?: number;
   elite: boolean;
   mine: boolean;
+  /* The viewer is an admin: the owner's tools show on this row. */
+  admin?: boolean;
   canShare: boolean;
   canReel: boolean;
   erg: { id: string; device: string; simulated: boolean; watts: number | null; spm: number | null; hr: number | null; drag: number | null; strokes: number } | null;
@@ -66,6 +68,8 @@ type RowData = {
 export function RowPage({ id, fresh, rows, localDoc, onRower, onDone }: { id: string; fresh?: Fresh; rows: Row[]; localDoc?: TelemetryDoc; onRower: (n: number) => void; onDone: () => void }) {
   const { me } = useSession();
   const [reporting, setReporting] = useState(false);
+  /* The owner's tools: which photo to take off, or the whole row. */
+  const [taking, setTaking] = useState<number | "row" | null>(null);
   const { data, error, reload } = useLoad(() => api<{ row: RowData }>(`/api/row100k/app/row?id=${id}`), [id]);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const r = data.row;
@@ -133,6 +137,45 @@ export function RowPage({ id, fresh, rows, localDoc, onRower, onDone }: { id: st
         </View>
       ) : null}
       {reporting ? <ReportSheet num={r.rowerNumber} name={r.name} entryId={r.id} onClose={() => setReporting(false)} /> : null}
+
+      {/* THE OWNER'S TOOLS (owner, 2026-11-21: "give me the ability to remove
+          posts and photos ... sometimes maybe I don't remove the row, but I
+          remove the photo"). Admins only; the server checks again. */}
+      {r.admin ? (
+        <>
+          <Eye left="Owner" right="Only you see this" />
+          <View style={{ gap: 18 }}>
+            {r.photos.map((_, i) => (
+              <Ctl key={i} label={`Remove photo ${i + 1}${i === 0 ? " (the rower)" : " (the monitor)"}`} onPress={() => setTaking(i)} />
+            ))}
+            <Ctl label="Remove this row" onPress={() => setTaking("row")} />
+          </View>
+        </>
+      ) : null}
+      {taking === "row" ? (
+        <ConfirmSheet
+          title="Remove this row"
+          body={`This takes the row off the feed, off ${r.name}'s page and out of their total. It cannot be undone from here.`}
+          yes="Remove the row"
+          onClose={() => setTaking(null)}
+          onYes={async () => {
+            await api(`/api/row100k/rows/${r.id}`, { method: "DELETE" });
+            onDone();
+          }}
+        />
+      ) : null}
+      {typeof taking === "number" ? (
+        <ConfirmSheet
+          title={`Remove photo ${taking + 1}`}
+          body="The row, its metres and its other photo stay. The photo cannot be put back from here."
+          yes="Remove the photo"
+          onClose={() => setTaking(null)}
+          onYes={async () => {
+            await api("/api/row100k/app/moderate", { body: { entryId: r.id, photo: taking } });
+            await reload();
+          }}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -254,7 +297,7 @@ function Climb({ meters }: { meters: number }) {
   if (!data || !me || at < 0) return null;
   const place = at + 1;
   const line = (num: number, name: string, m: number, mine: boolean) => (
-    <View style={{ height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, backgroundColor: mine ? C.pale : TINT, borderBottomWidth: 1, borderColor: C.line }}>
+    <View style={{ height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, backgroundColor: mine ? C.pale : C.tint, borderBottomWidth: 1, borderColor: C.line }}>
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 15, color: C.ink }}>
         <Text style={{ fontFamily: mine ? F.monoBold : F.mono, fontSize: 12, color: mine ? C.accent : C.gray }}>{String(num).padStart(3, "0")} · </Text>
         {name}

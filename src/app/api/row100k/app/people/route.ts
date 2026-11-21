@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { CHALLENGE } from "@/lib/row100k";
-import { resolveViewer } from "@/lib/row100kViewer";
+import { maskedIds, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { boardView } from "@/app/row100k/boardData";
 import { no, people, rowerByNum, yes } from "../social";
 
 /* PEOPLE, for the phone app (2026-11-21). One route, four lists:
@@ -14,9 +15,15 @@ import { no, people, rowerByNum, yes } from "../social";
  *   ?list=requests          the viewer's own unanswered follow requests
  *   ?list=blocked           the rowers the viewer has blocked
  *
- * Every line says how the viewer stands to that rower, so a list can carry
- * its own FOLLOW button. A private rower is found like anybody else: it is
- * their rows that are private, not their name. */
+ * Every line says how the viewer stands to that rower. A private rower is
+ * found like anybody else: it is their rows that are private, not their
+ * name.
+ *
+ * A SEARCH line also carries the rower's lifetime metres (owner,
+ * 2026-11-21: "instead of follow button, it should be lifetime meters ...
+ * rower 01, first name, last name, meters, Instagram handle. That's it").
+ * Not for a rower lights out is hiding from this viewer: their all-time
+ * total less last month's would be this month's. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -85,7 +92,20 @@ export async function GET(req: Request) {
     const lower = text.toLowerCase();
     const rank = (r: { rowerNumber: number; displayName: string }) => (digits !== null && r.rowerNumber === digits ? 0 : lower && r.displayName.toLowerCase().startsWith(lower) ? 1 : 2);
     const sorted = [...rows].sort((a, b) => rank(a) - rank(b) || a.rowerNumber - b.rowerNumber);
-    return yes({ people: await people(meId, sorted.slice(0, MAX)), more: rows.length > MAX });
+    const shown = sorted.slice(0, MAX);
+    const meters = new Map<string, number | null>();
+    try {
+      const sums = await db.rowEntry.groupBy({ by: ["participantId"], where: { challenge: CHALLENGE, participantId: { in: shown.map((r) => r.id) } }, _sum: { meters: true } });
+      const hidden = maskedIds((await boardView(viewOpts(viewer))).boards);
+      for (const r of shown) meters.set(r.id, 0);
+      for (const s of sums) meters.set(s.participantId, s._sum.meters ?? 0);
+      for (const id of hidden) if (meters.has(id)) meters.set(id, null);
+    } catch (err) {
+      /* No board, no way to know who is hidden: no metres for anybody. */
+      console.error("row app: lifetime metres unreadable for search", err);
+      meters.clear();
+    }
+    return yes({ people: await people(meId, shown, meters), more: rows.length > MAX });
   } catch (err) {
     console.error("row app: failed to list people", err);
     return no("That list could not be read just now.", 500);

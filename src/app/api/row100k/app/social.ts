@@ -47,11 +47,14 @@ export type Person = {
   following: FollowState;
   followsYou: FollowState;
   me: boolean;
+  /* Every metre the rower has logged, where the list asks for it (search).
+   * Null where it was not asked for, and for a rower lights out hides. */
+  meters: number | null;
 };
 
 /* Rowers as lines for a list, in the order given, each with how the viewer
  * stands to them. Three reads however long the list is. */
-export async function people(viewerId: string | null, rowers: { id: string; rowerNumber: number; displayName: string; instagram: string }[]): Promise<Person[]> {
+export async function people(viewerId: string | null, rowers: { id: string; rowerNumber: number; displayName: string; instagram: string }[], meters?: Map<string, number | null>): Promise<Person[]> {
   const ids = rowers.map((r) => r.id);
   if (ids.length === 0) return [];
   const [settings, out, back] = await Promise.all([
@@ -72,5 +75,6 @@ export async function people(viewerId: string | null, rowers: { id: string; rowe
     following: st(outBy.get(r.id)),
     followsYou: st(backBy.get(r.id)),
     me: r.id === viewerId,
+    meters: meters?.get(r.id) ?? null,
   }));
 }

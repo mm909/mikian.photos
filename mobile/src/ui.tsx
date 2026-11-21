@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { ActivityIndicator, Animated, Easing, Image, Modal, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
-import { C, F } from "./theme";
+import { C, F, onLook } from "./theme";
 
 /* The small pieces every screen is made of, in the website's own manner
  * (owner, 2026-11-14, of the first cut: "I don't like how boxy it looks ...
@@ -209,7 +209,7 @@ export function PhotoPair({ photos, style }: { photos: Photo[]; style?: StylePro
   );
 }
 
-export const styles = StyleSheet.create({
+const build = () => StyleSheet.create({
   eyebrow: { fontSize: 11, letterSpacing: 2.2, fontFamily: F.mono, color: C.gray, textTransform: "uppercase" },
   card: { borderTopWidth: StyleSheet.hairlineWidth * 2, borderColor: C.line, paddingVertical: 18 },
   btn: { backgroundColor: C.accent, minHeight: 52, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, borderWidth: 1, borderColor: C.accent },
@@ -219,4 +219,9 @@ export const styles = StyleSheet.create({
   mid: { fontSize: 28, fontFamily: F.black, color: C.ink, fontVariant: ["tabular-nums"] },
   body: { fontSize: 16, color: C.soft, lineHeight: 23, fontFamily: F.sans },
   row: { flexDirection: "row", alignItems: "center" },
+});
+/* Built once, and again whenever the look changes (theme.ts). */
+export let styles = build();
+onLook(() => {
+  styles = build();
 });

@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     if (!Number.isInteger(num) || num < 1 || num > 999999) return no("No such rower.", 404);
     const built = await buildProfile(num, q.get("m") ?? undefined);
     if (!built) return no("No such rower.", 404);
-    const { view: v, until, lifetime, rel } = built;
+    const { view: v, viewer, until, lifetime, rel } = built;
     /* BLOCKED, either way: the name and the number, and how to undo it if
      * the block is the viewer's own. Nothing else of the rower. */
     if (rel.access === "blocked") {
@@ -49,6 +49,8 @@ export async function GET(req: Request) {
       rel: { following: rel.following, bell: rel.bell, followsYou: rel.followsYou, isPrivate: rel.isPrivate, locked: rel.access === "private" },
       counts,
       requests: pendingIn,
+      /* For an admin only: the id the site's own delete-a-rower route takes. */
+      adminId: viewer.isAdmin && !v.isMe ? v.rower.id : null,
       rower: { rowerNumber: v.rower.rowerNumber, displayName: v.rower.displayName, instagram: v.rower.instagram, division: v.rower.division },
       isMe: v.isMe,
       masked: v.masked,

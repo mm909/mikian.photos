@@ -10,10 +10,12 @@ import { blockedIds, notifyOff } from "@/lib/rowSocial";
  *   one when I get passed on the board, and only when the person passing is
  *   someone I follow; at most once a day, OR whenever someone I follow rows.
  *
- * Built as two kinds, each with its own switch: ROWED, one line per row by
- * somebody whose bell is on; PASSED, ONE line a day that collects everybody
- * I follow who passed me that day. Plus the three a follow makes: FOLLOW,
- * REQUEST, ACCEPTED.
+ * First built as two kinds. Then (owner, 2026-11-21, of the switch for a
+ * line every time a followed rower rows: "let's just remove that top one.
+ * You can't get notified when someone logs a row. That's fine") cut to
+ * one: PASSED, ONE line a day that collects everybody I follow who passed
+ * me that day, from the rowers whose bell is on. Plus the three a follow
+ * makes: FOLLOW, REQUEST, ACCEPTED.
  *
  * Every line is a RowNotification row, which is what the app's notification
  * centre lists. A phone that has registered a push token (RowPushToken) is
@@ -25,7 +27,7 @@ import { blockedIds, notifyOff } from "@/lib/rowSocial";
 export type NoteKind = "follow" | "request" | "accepted" | "rowed" | "passed";
 /* The kinds a rower can switch off. A request and its answer always land:
  * they are things the rower has to act on or asked for. */
-export const SWITCHABLE: readonly NoteKind[] = ["rowed", "passed", "follow"];
+export const SWITCHABLE: readonly NoteKind[] = ["passed", "follow"];
 
 /* ---- push ------------------------------------------------------------ */
 
@@ -83,9 +85,9 @@ export async function clearRequest(recipientId: string, actorId: string): Promis
 
 /* ---- a row was logged ------------------------------------------------ */
 
-/* Tell the followers whose bell is on that this rower rowed, and tell the
- * ones this row carried the rower past, on this month's board, that they
- * were passed (one line a day each).
+/* Tell the followers this row carried the rower past, on this month's
+ * board, that they were passed (one line a day each; only followers whose
+ * bell for this rower is on).
  *
  * No metres in any line: a rower hidden by lights out stays hidden, and
  * the line leads to the row's page, which knows what the reader may see.
@@ -101,11 +103,7 @@ export async function notifyRowLogged(rower: { id: string; displayName: string }
     const off = await notifyOff(followers);
     const wants = (id: string, kind: NoteKind) => !off.get(id)?.has(kind);
 
-    const rowed = followers.filter((id) => wants(id, "rowed"));
-    if (rowed.length) {
-      await db.rowNotification.createMany({ data: rowed.map((participantId) => ({ challenge: CHALLENGE, participantId, kind: "rowed", actorId: rower.id, entryId: entry.id })) });
-    }
-    const pushes: Push[] = rowed.map((participantId) => ({ participantId, title: "ROW", body: `${rower.displayName} logged a row.`, data: { kind: "rowed", row: entry.id } }));
+    const pushes: Push[] = [];
 
     /* PASSED: this month's board only, both rowers on it, and no window open. */
     const inThisMonth = entry.day >= MONTH.firstDay && entry.day <= MONTH.lastDay;
