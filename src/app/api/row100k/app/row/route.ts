@@ -54,6 +54,28 @@ export async function GET(req: Request) {
       masked = blackout.active && !mine && !(viewer.isAdmin && !viewer.preview);
     }
 
+    /* THIS ROW AGAINST THE ROWER'S USUAL (owner, 2026-11-22: "there's got
+     * to be some more details here, even when it didn't come from the erg
+     * ... like this row's performance compared to how you normally
+     * perform"). From the rower's own rows and nothing else: their average
+     * split and length, and where this row's time stands among their rows
+     * of the same distance. Never for a hidden row. */
+    let usual: { rows: number; avgPace: number; avgMeters: number; same: number; place: number; best: number } | null = null;
+    if (!masked && e.meters > 0 && e.seconds > 0) {
+      try {
+        const all = await db.rowEntry.findMany({ where: { challenge: CHALLENGE, participantId: e.participantId, meters: { gt: 0 }, seconds: { gt: 0 } }, select: { meters: true, seconds: true } });
+        if (all.length >= 3) {
+          const m = all.reduce((n, r) => n + r.meters, 0);
+          const s = all.reduce((n, r) => n + r.seconds, 0);
+          const same = all.filter((r) => Math.abs(r.meters - e.meters) <= 50).map((r) => r.seconds / r.meters);
+          const mine0 = e.seconds / e.meters;
+          usual = { rows: all.length, avgPace: (s / m) * 500, avgMeters: m / all.length, same: same.length, place: same.filter((p) => p < mine0).length + 1, best: Math.min(...same) * e.meters };
+        }
+      } catch (err) {
+        console.error("row app: failed to read a rower's usual", err);
+      }
+    }
+
     const full = !masked && (mine || viewer.isAdmin);
     const t = masked
       ? null
@@ -86,6 +108,7 @@ export async function GET(req: Request) {
           /* For the three dots on the row: how the viewer stands to its rower. */
           rel: { following: rel.following, bell: rel.bell, muted: rel.muted },
           avatar: (await avatarsFor([e.participantId])).get(e.participantId) ?? null,
+          usual,
           canShare: mine || viewer.isAdmin,
           /* The owner's tools on any row: take it down, or one photo of it. */
           admin: viewer.isAdmin,

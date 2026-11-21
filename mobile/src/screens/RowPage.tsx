@@ -63,6 +63,8 @@ type RowData = {
   /* How the viewer stands to the row's rower, for the three dots. */
   rel?: { following: FollowState; bell: boolean; muted?: boolean };
   avatar?: string | null;
+  /* The rower's usual, to read this row against. */
+  usual?: { rows: number; avgPace: number; avgMeters: number; same: number; place: number; best: number } | null;
   canShare: boolean;
   canReel: boolean;
   erg: { id: string; device: string; simulated: boolean; watts: number | null; spm: number | null; hr: number | null; drag: number | null; strokes: number } | null;
@@ -124,7 +126,7 @@ export function RowPage({
   );
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 56 }}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 140 }}>
       {/* WHO AND WHEN, in two tight lines (owner, 2026-11-21: "the space
           isn't used well up at the top. I feel like we can do the same with
           less vertical space"). The rower's number is in the bar above. */}
@@ -194,6 +196,11 @@ export function RowPage({
         )}
       />
 
+      {/* AGAINST THE USUAL (owner, 2026-11-22: "there's got to be some more
+          details here, even when it didn't come from the erg ... like this
+          row's performance compared to how you normally perform"). */}
+      {r.usual && r.meters && r.seconds ? <Usual u={r.usual} meters={r.meters} seconds={r.seconds} mine={r.mine} name={r.name} /> : null}
+
       {r.canReel && !r.masked ? <Reels rowId={r.id} /> : null}
 
       {erg.length ? (
@@ -225,6 +232,46 @@ export function RowPage({
         />
       ) : null}
       {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
+    </ScrollView>
+  );
+}
+
+/* This row beside the rower's own average, and its place among their rows
+ * of the same distance. Blue where it beat the usual. */
+function Usual({ u, meters, seconds, mine, name }: { u: NonNullable<RowData["usual"]>; meters: number; seconds: number; mine: boolean; name: string }) {
+  const pace = (seconds / meters) * 500;
+  const dp = pace - u.avgPace;
+  const dm = meters - u.avgMeters;
+  const clock = (s: number) => `${Math.floor(s / 60)}:${(s - Math.floor(s / 60) * 60).toFixed(1).padStart(4, "0")}`;
+  const line = (k: string, v: string, note: string, good: boolean) => (
+    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line }}>
+      <Text style={mono(11, false, C.gray)}>{k}</Text>
+      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>
+        <Text style={{ fontFamily: F.black, fontSize: 18, color: good ? C.accent : C.ink }}>{v}</Text> {note}
+      </Text>
+    </View>
+  );
+  return (
+    <>
+      <Eye left={mine ? "Against your usual" : `Against ${name.split(" ")[0]}'s usual`} right={`${u.rows} rows`} />
+      {line("Split", `${dp <= 0 ? "−" : "+"}${Math.abs(dp).toFixed(1)} s`, `usual ${clock(u.avgPace)}`, dp < 0)}
+      {line("Length", `${dm >= 0 ? "+" : "−"}${fmtInt(Math.abs(dm))} m`, `usual ${fmtInt(u.avgMeters)} m`, dm > 0)}
+      {u.same >= 2 ? line(`At ${fmtInt(meters)} m`, `${ordinal(u.place)} of ${u.same}`, u.place === 1 ? "the fastest" : `best ${clock(u.best)}`, u.place === 1) : null}
+    </>
+  );
+}
+
+/* ONE SAVED ERG SESSION that is not tied to a logged row: its read, on its
+ * own (owner, 2026-11-22: "I should be able to click on these ... and see
+ * the stat page"). */
+export function ErgPage({ id, rows }: { id: string; rows: Row[] }) {
+  const path = `/api/row100k/app/erg?id=${id}`;
+  const { data, error, reload } = useLoad(() => api<{ session: { id: string; day: string; meters: number; doc: TelemetryDoc } }>(path), [path], path);
+  if (!data) return <Waiting error={error} onRetry={reload} />;
+  const s = data.session;
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 140 }}>
+      <Review row={{ id: s.id, day: s.day, meters: s.meters }} rows={rows} doc={s.doc} />
     </ScrollView>
   );
 }

@@ -151,6 +151,19 @@ All DECIDED (his words), BUILT unless marked.
 - Profile photo: the phone's own crop-and-zoom step when choosing one ("I need to be able to size it").
 - LEFT ALONE: dark mode's blue ("I'm just not happy with it", no direction yet). An old erg piece that was never tied to a logged row has no page to open; the ones tied to a row open it.
 
+### Round 12, 2026-11-22: his fifth spoken read
+
+All DECIDED (his words), BUILT unless marked.
+
+- The board's mark is 100K, the K in the blue.
+- A sideways swipe on a tab goes to the tab beside it ("on Instagram ... I can swipe").
+- On the feed, reading downward folds the top bar away and draws the bottom bar in; they come back on the way up. The top bar has no rule under it. The bottom bar floats over the page.
+- Photos: opening one in the feed and swiping carries on through every row's photos; a tap at the right goes on, at the left goes back; the dots at the foot are gone and a small stamp (number, name, day, meters, title) is there instead.
+- A row's page has AGAINST YOUR USUAL for every row, erg or not: this row's split and length beside the rower's averages, and its place among their rows of the same distance.
+- An erg piece on a profile that no logged row is tied to opens its own read. His Sep 23 5,000 m session was tied to its row ("Rowtember #83") on the live site with `scripts/erg-link.ts`; the Sep 17 one was left, on his word.
+- Stickers: the splits one carries the average split; two more, THE PACE (the split, as big as the card) and THE SHAPE OF IT (the 500 m splits as a line, erg rows only). "The two stickers that you made are pretty good ... give me two more."
+- NOT BUILT: a closer copy of Instagram's bar ("right now it looks more Android-like"): needs his eye on what is off. The owner's remove tools stay as they are ("nah, it's fine"). The look, light or dark: "I need to user test."
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

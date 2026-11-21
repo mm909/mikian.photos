@@ -257,7 +257,7 @@ export function SearchScreen({ text, onRower }: { text: string; onRower: (n: num
          goes through with it still up. */
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 124 }}
       ListHeaderComponent={
         searching ? undefined : (
           <View>
@@ -317,7 +317,7 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
     <FlatList
       data={data.people}
       keyExtractor={(p) => String(p.rowerNumber)}
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 124 }}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}
       renderItem={({ item }) => (
         <PersonLine
@@ -384,7 +384,7 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
     <FlatList
       data={data.items}
       keyExtractor={(it) => it.id}
-      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 124 }}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}
       ListHeaderComponent={
         requests > 0 ? (
@@ -478,7 +478,7 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
   };
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 56 }}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 140 }}>
       {s ? (
         <>
           <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Profile photo" />

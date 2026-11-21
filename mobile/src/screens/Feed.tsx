@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { api, peek, type FeedItem, type FeedPage } from "../api";
 import { DotsIcon } from "../icons";
 import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F } from "../theme";
-import { Avatar, Blocks, PhotoPair, Waiting } from "../ui";
+import { Avatar, Blocks, PhotoPair, Waiting, type Gallery } from "../ui";
 import { StickerViewer } from "./RowPage";
 import { RowMenu } from "./Social";
 
@@ -35,7 +35,7 @@ import { RowMenu } from "./Social";
 
 const PATH = "/api/row100k/app/feed";
 
-export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => void; onRow: (id: string) => void; stamp: number }) {
+export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n: number) => void; onRow: (id: string) => void; stamp: number; onScrollDir?: (down: boolean) => void }) {
   const { me } = useSession();
   /* What the app last read of the feed is on screen at once. */
   const kept = peek<FeedPage>(PATH);
@@ -78,6 +78,26 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
     more.current = false;
   };
 
+  /* EVERY PHOTO IN THE FEED, in order, with whose it is: one run a viewer
+   * can be swiped along from any of them. */
+  const run = useMemo(() => {
+    const photos: Gallery["photos"] = [];
+    const stamps: string[][] = [];
+    const owner: FeedItem[] = [];
+    const offset = new Map<string, number>();
+    for (const it of items ?? []) {
+      if (it.masked) continue;
+      offset.set(it.id, photos.length);
+      for (const p of it.photos.slice(0, 2)) {
+        photos.push(p);
+        stamps.push([`${it.numStr} · ${it.name}`, `${it.dayStr} · ${it.metersStr}${it.title ? ` · ${it.title}` : ""}`]);
+        owner.push(it);
+      }
+    }
+    return { photos, stamps, owner, offset };
+  }, [items]);
+  const lastY = useRef(0);
+
   if (!items) return <Waiting error={error} onRetry={() => first()} />;
 
   /* The sheet behind a row's three dots. `leave` also shuts whatever the
@@ -117,12 +137,28 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
       <FlatList
         data={items}
         keyExtractor={(it) => it.id}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 124 }}
         onRefresh={() => first(true)}
         refreshing={refreshing}
         onEndReached={next}
         onEndReachedThreshold={1.2}
-        renderItem={({ item }) => <Strip it={item} onRower={onRower} onRow={onRow} onMenu={() => setMenu(item)} photoMenu={(close, leave) => sheet(item, close, leave)} />}
+        /* Which way the list is going, for the bars that step aside. */
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          if (y > lastY.current + 12 && y > 80) onScrollDir?.(true);
+          else if (y < lastY.current - 12 || y < 40) onScrollDir?.(false);
+          lastY.current = y;
+        }}
+        scrollEventThrottle={64}
+        renderItem={({ item }) => (
+          <Strip
+            it={item}
+            onRower={onRower}
+            onRow={onRow}
+            onMenu={() => setMenu(item)}
+            gallery={{ photos: run.photos, stamps: run.stamps, offset: run.offset.get(item.id) ?? 0, menu: (at, close, leave) => (run.owner[at] ? sheet(run.owner[at], close, leave) : null) }}
+          />
+        )}
         ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, lineHeight: 18 }]}>Nothing logged yet. The feed starts with the first row.</Text>}
         ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
       />
@@ -133,7 +169,7 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
 }
 
 /* One row. */
-function Strip({ it, onRower, onRow, onMenu, photoMenu }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; photoMenu: (close: () => void, leave: () => void) => ReactNode }) {
+function Strip({ it, onRower, onRow, onMenu, gallery }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; gallery: Gallery }) {
   const erg = it.erg ? [it.erg.watts ? `${it.erg.watts} W` : "", it.erg.spm ? `${it.erg.spm} s/m` : "", it.erg.hr ? `${it.erg.hr} bpm` : "", it.erg.drag ? `drag ${it.erg.drag}` : ""].filter(Boolean) : [];
   return (
     <View style={{ backgroundColor: C.card, borderRadius: 8, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
@@ -173,7 +209,7 @@ function Strip({ it, onRower, onRow, onMenu, photoMenu }: { it: FeedItem; onRowe
         {erg.length ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginTop: 6, fontVariant: ["tabular-nums"] }}>{erg.join(" · ")}</Text> : null}
       </Pressable>
 
-      {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} menu={photoMenu} />}
+      {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} gallery={gallery} />}
     </View>
   );
 }

@@ -63,3 +63,26 @@ export async function POST(req: Request) {
     return no("The recording could not be saved just now.", 500);
   }
 }
+
+/* ONE SAVED SESSION, by its own id (2026-11-22; owner: "I should be able to
+ * click on these ... and see the stat page", of erg pieces on a profile
+ * that were saved before the app tied a session to a row). GET ?id=. The
+ * rower's own, or anybody's for an admin; the same gate as saving one. */
+export async function GET(req: Request) {
+  const viewer = await ergViewer();
+  const denied = ergApiDenial(viewer);
+  if (denied) return no(denied.error, denied.status);
+  try {
+    const id = new URL(req.url).searchParams.get("id") ?? "";
+    if (!/^[a-z0-9]{1,40}$/i.test(id)) return no("No such session.", 404);
+    const t = await db.rowTelemetry.findFirst({ where: { id }, select: { id: true, userId: true, startedAt: true, meters: true, entryId: true, data: true } });
+    if (!t || (!viewer.isAdmin && t.userId !== viewer.userId)) return no("No such session.", 404);
+    const doc = validateTelemetryDoc(t.data);
+    if (typeof doc === "string") return no("That recording could not be read.", 500);
+    const day = new Date(t.startedAt.getTime() - 7 * 3600_000).toISOString().slice(0, 10);
+    return NextResponse.json({ ok: true, session: { id: t.id, day, meters: t.meters, entryId: t.entryId, doc } }, { headers: { "Cache-Control": "no-store" } });
+  } catch (err) {
+    console.error("row app: failed to read a saved session", err);
+    return no("That session could not be read just now.", 500);
+  }
+}

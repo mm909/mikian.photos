@@ -3493,7 +3493,10 @@ const rowtemberSplits: ShareCard = {
     /* At most twelve bars: a long row is shown by its first eleven and its last. */
     const splits = all.length > 12 ? [...all.slice(0, 11), all[all.length - 1]] : all;
     drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: 110, size: 84, fontFamily: fonts.black });
-    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx: this.width / 2, baseline: 250, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    /* The meters, the time, and the average split the bars are read
+     * against (owner, 2026-11-22: "I want the average split pace"). */
+    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx: this.width / 2, baseline: 236, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    drawCenteredText(ctx, `AVG ${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M`, { cx: this.width / 2, baseline: 290, font: `34px ${fonts.mono}`, color: "#ffffff" });
     const fastest = Math.min(...splits.map((s) => s.seconds));
     const slowest = Math.max(...splits.map((s) => s.seconds));
     const top = 320;
@@ -3526,6 +3529,76 @@ const rowtemberSplits: ShareCard = {
   },
 };
 
+/* THE PACE (owner, 2026-11-22, of the first two: "those two are good ...
+ * give me two more"). One figure, as big as the card: the average split,
+ * with /500M under it and the meters and the time on one line below. The
+ * split is the one number a rower quotes. Every row has one. */
+const rowtemberPace: ShareCard = {
+  id: "rowtember-pace",
+  label: "The pace",
+  width: 1080,
+  height: 760,
+  light: true,
+  available: (d) => !!d.row && d.row.meters > 0 && d.row.seconds > 0,
+  draw(ctx, data, fonts) {
+    const row = data.row;
+    if (!row) return;
+    const cx = this.width / 2;
+    drawCenteredText(ctx, roundToSeconds(fmtSplit(row.meters, row.seconds)), { cx, baseline: 330, font: `330px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 80 });
+    drawCenteredText(ctx, "AVERAGE /500M", { cx, baseline: 410, font: `44px ${fonts.mono}`, color: "#ffffff" });
+    /* A hidden rower keeps the split and nothing that gives the meters away. */
+    if (!data.masked) drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx, baseline: 500, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    drawMark(ctx, [{ text: MARK }], { cx, cy: 640, size: 96, fontFamily: fonts.black, masked: data.masked });
+  },
+};
+
+/* THE LINE: the split, 500 m by 500 m, as one line across the card with a
+ * dot on each, faster drawn higher, the fastest dot ringed and named. The
+ * shape of the row at a glance: a fade, a negative split, a sprint home.
+ * Erg rows only, like the bars. */
+const rowtemberLine: ShareCard = {
+  id: "rowtember-line",
+  label: "The shape of it",
+  width: 1080,
+  height: 800,
+  light: true,
+  available: (d) => !!d.row && !d.masked && (d.row.splits?.length ?? 0) >= 3,
+  draw(ctx, data, fonts) {
+    const row = data.row;
+    const splits = row?.splits ?? [];
+    if (!row || splits.length < 3) return;
+    const cx = this.width / 2;
+    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx, baseline: 110, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    const lo = Math.min(...splits.map((s) => s.seconds));
+    const hi = Math.max(...splits.map((s) => s.seconds));
+    const x0 = 110;
+    const x1 = this.width - 110;
+    const y0 = 230;
+    const y1 = 520;
+    const px = (i: number) => x0 + ((x1 - x0) * i) / (splits.length - 1);
+    const py = (s: number) => (hi === lo ? (y0 + y1) / 2 : y0 + ((y1 - y0) * (s - lo)) / (hi - lo));
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.fillStyle = "#ffffff";
+    ctx.lineWidth = 10;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    splits.forEach((s, i) => (i ? ctx.lineTo(px(i), py(s.seconds)) : ctx.moveTo(px(i), py(s.seconds))));
+    ctx.stroke();
+    const fast = splits.findIndex((s) => s.seconds === lo);
+    splits.forEach((s, i) => {
+      ctx.beginPath();
+      ctx.arc(px(i), py(s.seconds), i === fast ? 22 : 12, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+    const clock = (sec: number) => `${Math.floor(sec / 60)}:${(sec - Math.floor(sec / 60) * 60).toFixed(1).padStart(4, "0")}`;
+    drawCenteredText(ctx, `FASTEST 500 M  ${clock(lo)}`, { cx, baseline: 610, font: `40px ${fonts.mono}`, color: "#ffffff" });
+    drawMark(ctx, [{ text: MARK }], { cx, cy: 700, size: 84, fontFamily: fonts.black });
+  },
+};
+
 export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
 
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
@@ -3535,6 +3608,8 @@ export const CARDS: ShareCard[] = [
   rowtemberRowFull,
   rowtemberReceipt,
   rowtemberSplits,
+  rowtemberPace,
+  rowtemberLine,
   rowtemberBest,
   rowtemberTotal,
   rowtemberToday,

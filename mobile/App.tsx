@@ -12,7 +12,7 @@ import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
 import { ProfileScreen } from "./src/screens/Profile";
-import { RowPage, type Fresh } from "./src/screens/RowPage";
+import { ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Logged } from "./src/screens/RowScreen";
 import { NewsScreen, PeopleScreen, SearchScreen, SettingsScreen, type PeopleList } from "./src/screens/Social";
@@ -69,6 +69,7 @@ type Over = { k: number } & (
   | { kind: "settings" }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
+  | { kind: "erg"; id: string }
 );
 type Push = Over extends infer O ? (O extends { k: number } ? Omit<O, "k"> : never) : never;
 
@@ -207,6 +208,34 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   }, [me.me?.participantId, refresh]);
   const waiting = (me.social?.unread ?? 0) + (me.social?.requests ?? 0);
 
+  /* THE BARS STEP ASIDE while the feed is being read downward, and come
+   * back on the way up (owner, 2026-11-22: "as I scroll down on the feed,
+   * the bar at the bottom should get smaller, and then the bar at the top
+   * of my page should go away. Just like on Instagram"). */
+  const [away, setAway] = useState(false);
+  const tucked = away && tab === "feed" && !over;
+  const tuck = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(tuck, { toValue: tucked ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [tuck, tucked]);
+
+  /* A SWIPE ACROSS A TAB goes to the one beside it (owner, 2026-11-22: "on
+   * Instagram, if I'm on my page, I can swipe ... so let's do that"). Only
+   * a clearly sideways drag, and only on a tab itself: anything opened
+   * over it has its own swipe, back. */
+  const tabRef = useRef<Tab>(tab);
+  tabRef.current = tab;
+  const swipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      onPanResponderRelease: (_e, g) => {
+        if (Math.abs(g.dx) < 60) return;
+        const i = TABS.findIndex((t) => t.id === tabRef.current) + (g.dx < 0 ? 1 : -1);
+        if (i >= 0 && i < TABS.length) setTab(TABS[i].id);
+      },
+    }),
+  ).current;
+
   /* A ROW LOGGED lands on its own page, with what the totals were a moment
    * before so the page can show them move (the session is read again only
    * after these are taken). A recording is kept on the phone too, so THE
@@ -250,13 +279,18 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
+    } else if (tab === "board") {
+      /* The board is the 100K (owner, 2026-11-22: "when we go to the
+       * board, row can turn into 100K ... maybe the K" in the blue). */
+      mark = "100K";
+      markIs = "meters";
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "The erg" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -265,9 +299,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} />
+      <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
+    ) : o.kind === "erg" ? (
+      <ErgPage id={o.id} rows={rows} />
     ) : o.kind === "rankings" ? (
       <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} />
     ) : o.kind === "settings" ? (
@@ -291,7 +327,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <StatusBar style={dark ? "light" : "dark"} hidden={monitor && wide} />
       <View style={{ flex: 1, width: "100%", maxWidth: monitor ? 1100 : 560, alignSelf: "center", paddingTop: Platform.OS === "android" ? 28 : 0 }}>
         {monitor ? null : (
-          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 10, minHeight: 54, borderBottomWidth: 2, borderColor: C.ink }}>
+          /* No rule under the bar (owner, 2026-11-22: "I don't need that
+             line at the top"). It folds away with the feed. */
+          <Animated.View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 10, overflow: "hidden", height: tuck.interpolate({ inputRange: [0, 1], outputRange: [54, 0] }), opacity: tuck.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
             <View style={[side, { alignItems: "flex-start" }]}>
               {over ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={8} style={press}>
@@ -350,18 +388,18 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                 </Pressable>
               ) : null}
             </View>
-          </View>
+          </Animated.View>
         )}
 
         <View style={{ flex: 1, overflow: "hidden" }}>
           {/* The tab stays where it was, mounted, under whatever is opened
               over it. */}
-          <View style={{ flex: 1 }}>
-            {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} /> : null}
+          <View style={{ flex: 1 }} {...swipe.panHandlers}>
+            {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} onScrollDir={setAway} /> : null}
             {tab === "search" ? <SearchScreen text={find} onRower={openRower} /> : null}
             {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} /> : null}
             {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} /> : null}
-            {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} /> : null}
+            {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} /> : null}
           </View>
           {stack.map((o, i) => (
             <Slide
@@ -399,6 +437,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
         {monitor ? null : (
           <TabBar
+            small={tuck}
             tab={tab}
             onTab={(t) => {
               setMenu(false);
@@ -506,7 +545,7 @@ function Wheel({ from, to, roll, delay, blue, size }: { from: string; to: string
  * slides under whichever is open. */
 const BOX = 46;
 const BAR = 60;
-function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; small: Animated.Value }) {
   const [w, setW] = useState(0);
   const at = TABS.findIndex((t) => t.id === tab);
   const x = useRef(new Animated.Value(at)).current;
@@ -516,7 +555,9 @@ function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
   }, [x, at]);
   const cell = w / TABS.length;
   return (
-    <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 10, backgroundColor: C.paper }}>
+    /* It floats over the page, which shows around and under it, and draws
+       in while the feed is read downward. */
+    <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 10, transform: [{ scale: small.interpolate({ inputRange: [0, 1], outputRange: [1, 0.8] }) }, { translateY: small.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }}>
       <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, backgroundColor: isDark() ? "#2a2d32" : "#15171a", overflow: "hidden" }}>
         {w ? (
           <Animated.View
@@ -530,6 +571,6 @@ function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
           </Pressable>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }

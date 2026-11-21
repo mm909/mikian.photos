@@ -60,7 +60,7 @@ export function BoardScreen({ onRower }: { onRower: (n: number) => void }) {
   const tierOf = (r: BoardRow) => data.tiers.find((t) => r.meters >= t.floor) ?? data.tiers[data.tiers.length - 1];
 
   return (
-    <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left={data.month.label} right={`Day ${data.month.day} of ${data.month.days}`} days={data.month.days} day={data.month.day} />
         {data.me && !data.me.in ? (

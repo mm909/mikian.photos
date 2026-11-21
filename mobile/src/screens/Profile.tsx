@@ -53,6 +53,7 @@ export function ProfileScreen({
   menu,
   onMenu,
   onGone,
+  onErg,
 }: {
   num?: number;
   onLog?: () => void;
@@ -63,6 +64,8 @@ export function ProfileScreen({
   onMenu?: (open: boolean) => void;
   /* The rower was deleted from here: leave the page. */
   onGone?: () => void;
+  /* An erg piece that no logged row is tied to: open the session itself. */
+  onErg?: (id: string) => void;
 }) {
   const { ready, me } = useSession();
   const own = num === undefined;
@@ -93,7 +96,7 @@ export function ProfileScreen({
   const rowed = p.bests.filter((b) => b.sub !== "not yet rowed" && b.value !== "—");
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <Nameplate num={p.rower.rowerNumber} name={p.rower.displayName} />
 
       <SocialLine
@@ -212,7 +215,7 @@ export function ProfileScreen({
             <>
               <Eye left="The erg" right={`${p.ergRows.length} ${p.ergRows.length === 1 ? "piece" : "pieces"}`} />
               {p.ergRows.map((r) => (
-                <Pressable key={r.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${r.when}`} disabled={!r.entryId || !onRow} onPress={() => r.entryId && onRow?.(r.entryId)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
+                <Pressable key={r.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${r.when}`} disabled={r.entryId ? !onRow : !onErg} onPress={() => (r.entryId ? onRow?.(r.entryId) : onErg?.(r.id))} style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
                   <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>
                     {r.when}
                     {r.simulated ? " · demo" : ""}

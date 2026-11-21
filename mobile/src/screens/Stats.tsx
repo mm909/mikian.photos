@@ -105,7 +105,7 @@ export function StatsScreen({ onRower, onRankings }: { onRower: (n: number) => v
   ) : null;
 
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}
@@ -386,7 +386,7 @@ export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: strin
   const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
   let place = 0;
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 56 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8 }}>
         <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which month" />
         <Dot />

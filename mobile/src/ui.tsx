@@ -231,14 +231,26 @@ export function Avatar({ uri, name, size = 36 }: { uri?: string | null; name: st
  * side, each cropped to 4:5 so a tall phone picture and a wide one sit the
  * same; a lone old photo takes the width in a 4:3 frame. Tap for the whole
  * picture. A row with none draws nothing. */
-export function PhotoPair({ photos, style, menu }: { photos: Photo[]; style?: StyleProp<ViewStyle>; menu?: (close: () => void, leave: () => void) => ReactNode }) {
+/* `gallery`: the run of photos this pair is part of (every photo in the
+ * feed, in order), so that opening one and swiping on carries into the next
+ * row's (owner, 2026-11-22: "let me just keep swiping through them, like
+ * through different rowers, through different rows"). */
+export type Gallery = { photos: Photo[]; stamps: string[][]; offset: number; menu?: (at: number, close: () => void, leave: () => void) => ReactNode };
+export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; style?: StyleProp<ViewStyle>; menu?: (close: () => void, leave: () => void) => ReactNode; gallery?: Gallery }) {
   const [open, setOpen] = useState<number | null>(null);
   /* The sheet behind the three dots, up OVER the photo (owner, 2026-11-22:
    * "clicking those three dots shouldn't go back to the page"). `leave`
    * shuts the photos too, for a line of the sheet that goes somewhere. */
   const [dots, setDots] = useState(false);
+  const at = useRef(0);
   if (!photos.length) return null;
   const shown = photos.slice(0, 2);
+  const has = gallery ? !!gallery.menu : !!menu;
+  const close = () => setDots(false);
+  const leave = () => {
+    setDots(false);
+    setOpen(null);
+  };
   return (
     <View style={[{ flexDirection: "row", gap: 4 }, style]}>
       {shown.map((p, i) => (
@@ -247,21 +259,8 @@ export function PhotoPair({ photos, style, menu }: { photos: Photo[]; style?: St
         </Pressable>
       ))}
       {open !== null ? (
-        <PhotoViewer
-          photos={shown}
-          start={open}
-          onClose={() => setOpen(null)}
-          onMenu={menu ? () => setDots(true) : undefined}
-        >
-          {dots && menu
-            ? menu(
-                () => setDots(false),
-                () => {
-                  setDots(false);
-                  setOpen(null);
-                },
-              )
-            : null}
+        <PhotoViewer photos={gallery ? gallery.photos : shown} stamps={gallery?.stamps} start={gallery ? gallery.offset + open : open} onAt={(i) => (at.current = i)} onClose={() => setOpen(null)} onMenu={has ? () => setDots(true) : undefined}>
+          {dots ? (gallery?.menu ? gallery.menu(at.current, close, leave) : menu ? menu(close, leave) : null) : null}
         </PhotoViewer>
       ) : null}
     </View>
@@ -275,12 +274,26 @@ export function PhotoPair({ photos, style, menu }: { photos: Photo[]; style?: St
  * three dots on the right side, and the three dots should bring up the
  * report button"). A black page, one photo to a screen, a swipe to the
  * other, and a mark at the foot for which of the two is showing. */
-export function PhotoViewer({ photos, start, onClose, onMenu, children }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void; children?: ReactNode }) {
+export function PhotoViewer({ photos, stamps, start, onClose, onMenu, onAt, children }: { photos: Photo[]; stamps?: string[][]; start: number; onClose: () => void; onMenu?: () => void; onAt?: (i: number) => void; children?: ReactNode }) {
   const win = useWindowDimensions();
   const [at, setAt] = useState(start);
   const list = useRef<ComponentRef<typeof ScrollView>>(null);
   const w = win.width;
   const btn = { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const };
+  const go = (i: number) => {
+    const to = Math.max(0, Math.min(photos.length - 1, i));
+    list.current?.scrollTo({ x: to * w, animated: true });
+  };
+  const see = (i: number) => {
+    if (i === at) return;
+    setAt(i);
+    onAt?.(i);
+  };
+  useEffect(() => {
+    onAt?.(start);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const stamp = stamps?.[at];
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
@@ -291,14 +304,16 @@ export function PhotoViewer({ photos, start, onClose, onMenu, children }: { phot
           showsHorizontalScrollIndicator={false}
           contentOffset={{ x: start * w, y: 0 }}
           onLayout={() => list.current?.scrollTo({ x: start * w, animated: false })}
-          onScroll={(e) => setAt(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))}
+          onScroll={(e) => see(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))}
           scrollEventThrottle={32}
           style={{ flex: 1 }}
         >
           {photos.map((p, i) => (
-            <View key={i} style={{ width: w, height: "100%", justifyContent: "center" }}>
-              <Image source={{ uri: p.full }} resizeMode="contain" style={{ width: w, height: "100%" }} />
-            </View>
+            /* A TAP at the right goes on, at the left goes back (owner,
+               2026-11-22: "let me tap through them"); a swipe does the same. */
+            <Pressable key={i} onPress={(e) => go(e.nativeEvent.locationX > w / 2 ? i + 1 : i - 1)} style={{ width: w, height: "100%", justifyContent: "center" }}>
+              {Math.abs(i - at) <= 2 ? <Image source={{ uri: p.full }} resizeMode="contain" style={{ width: w, height: "100%" }} /> : null}
+            </Pressable>
           ))}
         </ScrollView>
         <View style={{ position: "absolute", top: 44, left: 8, right: 8, flexDirection: "row", justifyContent: "space-between" }}>
@@ -311,10 +326,16 @@ export function PhotoViewer({ photos, start, onClose, onMenu, children }: { phot
             </Pressable>
           ) : null}
         </View>
-        {photos.length > 1 ? (
-          <View pointerEvents="none" style={{ position: "absolute", bottom: 36, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 8 }}>
-            {photos.map((_, i) => (
-              <View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: i === at ? "#fff" : "rgba(255,255,255,0.35)" }} />
+        {/* WHOSE AND WHEN, as a stamp at the foot, where a row of dots was
+            (owner, 2026-11-22: "I don't need the dots at the bottom ... it
+            can be the ID information ... like a stamp"). Small, under the
+            picture's own edge where the picture is not full height. */}
+        {stamp ? (
+          <View pointerEvents="none" style={{ position: "absolute", left: 16, right: 16, bottom: 30 }}>
+            {stamp.map((line, i) => (
+              <Text key={i} numberOfLines={1} style={{ fontFamily: i === 0 ? F.bold : F.mono, fontSize: i === 0 ? 15 : 11, color: "#fff", opacity: i === 0 ? 1 : 0.8, marginTop: i ? 3 : 0, textShadowColor: "rgba(0,0,0,0.7)", textShadowRadius: 6 }}>
+                {line}
+              </Text>
             ))}
           </View>
         ) : null}

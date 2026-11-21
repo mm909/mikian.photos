@@ -77,7 +77,7 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
       <Eyebrow>Concept2 PM5</Eyebrow>
       <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginVertical: 6 }}>
         Connect your <Text style={{ color: C.accent }}>erg</Text>
@@ -443,7 +443,7 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
       {fixed ? (
         <View>
           <Eyebrow>The row</Eyebrow>
