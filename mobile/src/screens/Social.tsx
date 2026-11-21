@@ -6,8 +6,8 @@ import { useLookSwitch } from "../look";
 import { useSession } from "../session";
 import { Ctl, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
-import { setAvatar } from "../upload";
-import { pickPhotos } from "../upload";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { pickFace, setAvatar } from "../upload";
 import { Avatar, Waiting, useLoad } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
@@ -160,33 +160,59 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
 
 /* SEARCH (owner, 2026-11-20: "search function"; 2026-11-21: "rower 01,
  * first name, last name, meters, Instagram handle. That's it"): one field,
- * the roster under it. A name, a handle or a rower number. The field takes
- * the keyboard as the tab opens, and with nothing typed the ten rowers with
- * the most lifetime meters are already listed ("let's just preload the
- * first 10 names ... in order of most lifetime meters rowed"). A line
- * opens the rower. */
-export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
-  const [text, setText] = useState("");
+ * the roster under it. A name, a handle or a rower number.
+ *
+ * As it stands after his read of 2026-11-22: the FIELD is in the app's top
+ * bar, where the mark is on other tabs ("maybe that's where the search text
+ * box actually goes"); the keyboard waits to be asked for ("let's not open
+ * up the keyboard right when we click the search button") and goes away
+ * when the list is dragged ("the same behavior as Instagram"). With
+ * nothing typed: the rowers lately opened from here ("a recent section,
+ * just like Instagram search"), then the ten with the most lifetime
+ * meters, wearing the board's bars. A line opens the rower. */
+export function SearchScreen({ text, onRower }: { text: string; onRower: (n: number) => void }) {
+  const TOP = "/api/row100k/app/people?q=";
   const [q, setQ] = useState("");
   /* The opening list is read as the app starts (App.tsx), so it is here. */
-  const kept = peek<{ people: Person[]; more?: boolean }>("/api/row100k/app/people?q=");
-  const [people, setPeople] = useState<Person[] | null>(kept?.people ?? null);
+  const top = peek<{ people: Person[] }>(TOP)?.people ?? null;
+  const [found, setFound] = useState<Person[] | null>(null);
   const [more, setMore] = useState(false);
   const [error, setError] = useState("");
+  const [recent, setRecent] = useState<Person[]>([]);
+  const [, bump] = useState(0);
   const turn = useRef(0);
 
-  /* The roster is read a beat after the typing stops, and only the last
-   * answer asked for is drawn. */
   useEffect(() => {
-    const t = setTimeout(() => setQ(text.trim()), 220);
-    return () => clearTimeout(t);
+    AsyncStorage.getItem(RECENT)
+      .then((raw) => setRecent(raw ? (JSON.parse(raw) as Person[]) : []))
+      .catch(() => null);
+    /* The ten, if the app has not read them yet. */
+    if (!top) api(TOP).then(() => bump((n) => n + 1), () => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* The roster is read a beat after the typing stops, and only the last
+   * answer asked for is drawn. Cleared, the ten are back AT ONCE, with
+   * nothing of the last search left on screen (owner, 2026-11-22: "I hit
+   * clear, and for a second, the bars come back, and then it swaps"). */
+  useEffect(() => {
+    const t = text.trim();
+    if (!t) {
+      turn.current++;
+      setQ("");
+      setFound(null);
+      return;
+    }
+    const wait = setTimeout(() => setQ(t), 220);
+    return () => clearTimeout(wait);
   }, [text]);
   useEffect(() => {
+    if (!q) return;
     const mine = ++turn.current;
     api<{ people: Person[]; more?: boolean }>(`/api/row100k/app/people?q=${encodeURIComponent(q)}`)
       .then((r) => {
         if (mine !== turn.current) return;
-        setPeople(r.people);
+        setFound(r.people);
         setMore(!!r.more);
         setError("");
       })
@@ -195,55 +221,65 @@ export function SearchScreen({ onRower }: { onRower: (n: number) => void }) {
       });
   }, [q]);
 
-  return (
-    <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 6, gap: 10 }}>
-          <SearchIcon size={20} />
-          <TextInput
-            accessibilityLabel="Search rowers by name, Instagram or number"
-            value={text}
-            onChangeText={setText}
-            autoFocus
-            autoCorrect={false}
-            autoCapitalize="none"
-            returnKeyType="search"
-            placeholder="Name, @handle or number"
-            placeholderTextColor={C.gray}
-            style={[{ flex: 1, fontFamily: F.bold, fontSize: 18, color: C.ink, paddingVertical: 8 }, WEB_NO_RING]}
-          />
-          {text ? <Ctl label="Clear" onPress={() => setText("")} /> : null}
-        </View>
-      </View>
-      {!people ? (
-        <Waiting error={error} />
-      ) : (
-        <FlatList
-          data={people}
-          keyExtractor={(p) => String(p.rowerNumber)}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-          renderItem={({ item }) => (
-            <PersonLine
-              p={item}
-              onRower={onRower}
-              share={!q && people[0]?.meters ? (item.meters ?? 0) / people[0].meters : undefined}
-              right={
-                item.meters !== null ? (
-                  <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
-                    {fmtInt(item.meters)} <Text style={{ color: C.gray }}>m</Text>
-                  </Text>
-                ) : null
-              }
-            />
-          )}
-          ListEmptyComponent={<Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>Nobody by that name, handle or number.</Text>}
-          ListFooterComponent={more && q ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
-        />
-      )}
+  /* A rower opened from here is remembered on the phone, newest first. */
+  const open = (p: Person) => {
+    const next = [p, ...recent.filter((r) => r.rowerNumber !== p.rowerNumber)].slice(0, 8);
+    setRecent(next);
+    AsyncStorage.setItem(RECENT, JSON.stringify(next)).catch(() => null);
+    onRower(p.rowerNumber);
+  };
+  const forget = () => {
+    setRecent([]);
+    AsyncStorage.removeItem(RECENT).catch(() => null);
+  };
+
+  const searching = text.trim() !== "";
+  const list = searching ? found : top;
+  const head = (label: string, right?: ReactNode) => (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingTop: 18, paddingBottom: 8 }}>
+      <Text style={mono(11, true)}>{label}</Text>
+      {right}
     </View>
   );
+  const meters = (p: Person) =>
+    p.meters !== null ? (
+      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
+        {fmtInt(p.meters)} <Text style={{ color: C.gray }}>m</Text>
+      </Text>
+    ) : null;
+
+  if (!list) return <Waiting error={error} />;
+  return (
+    <FlatList
+      data={list}
+      keyExtractor={(p) => String(p.rowerNumber)}
+      /* A drag on the list puts the keyboard away, and a press on a line
+         goes through with it still up. */
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+      ListHeaderComponent={
+        searching ? undefined : (
+          <View>
+            {recent.length ? (
+              <>
+                {head("Recent", <Ctl label="Clear" onPress={forget} />)}
+                {recent.map((p) => (
+                  <PersonLine key={p.rowerNumber} p={p} onRower={() => open(p)} />
+                ))}
+              </>
+            ) : null}
+            {head("Most meters, all time")}
+          </View>
+        )
+      }
+      renderItem={({ item }) => <PersonLine p={item} onRower={() => open(item)} share={!searching && list[0]?.meters ? (item.meters ?? 0) / list[0].meters : undefined} right={meters(item)} />}
+      ListEmptyComponent={<Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>Nobody by that name, handle or number.</Text>}
+      ListFooterComponent={more && searching ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
+    />
+  );
 }
+const RECENT = "search/recent/1";
 
 /* ---- followers, following, requests, blocked ------------------------- */
 
@@ -415,10 +451,10 @@ export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: Peo
   const choose = async () => {
     setFace("");
     try {
-      const got = await pickPhotos(1);
-      if (!got.length) return;
+      const got = await pickFace();
+      if (!got) return;
       setFace("busy");
-      await setAvatar(got[0]);
+      await setAvatar(got);
       setS((await api<{ settings: SocialSettings }>("/api/row100k/app/settings")).settings);
       refresh();
       setFace("");
@@ -637,7 +673,7 @@ export function RowerMenu({
  * remove one photo, or the row. */
 export type RowMenuRow = { id: string; rowerNumber: number; name: string; mine: boolean; photos: number; rel: { following: FollowState; bell: boolean; muted?: boolean } };
 export type RowMenuChange = "rel" | "muted" | "blocked" | "row-gone" | "photo";
-export function RowMenu({ row, onClose, onRower, onRow, onChange }: { row: RowMenuRow; onClose: () => void; onRower?: (n: number) => void; onRow?: (id: string) => void; onChange: (what: RowMenuChange, rel?: { following: FollowState; bell: boolean }) => void }) {
+export function RowMenu({ row, onClose, onRower, onRow, onShare, onChange }: { row: RowMenuRow; onClose: () => void; onRower?: (n: number) => void; onRow?: (id: string) => void; onShare?: () => void; onChange: (what: RowMenuChange, rel?: { following: FollowState; bell: boolean }) => void }) {
   const { me, refresh } = useSession();
   const [step, setStep] = useState<"" | "report" | "row" | number>("");
   const num = row.rowerNumber;
@@ -681,6 +717,16 @@ export function RowMenu({ row, onClose, onRower, onRow, onChange }: { row: RowMe
   const others = !row.mine && !!me.me;
   return (
     <Sheet title="This row" right={`${num3(num)} · ${row.name}`} onClose={onClose}>
+      {onShare && (row.mine || me.isAdmin) ? (
+        <Act
+          label="Share"
+          onPress={() => {
+            onClose();
+            onShare();
+          }}
+        />
+      ) : null}
+      {!me.me ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, paddingVertical: 12 }}>Sign in to follow this rower or report this row.</Text> : null}
       {onRow ? (
         <Act
           label="Open the row"

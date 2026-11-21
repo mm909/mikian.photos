@@ -135,6 +135,22 @@ All DECIDED (his words), BUILT unless marked.
 - NOT BUILT, on his own second thought: the meters rolling up beside a name in the feed ("I feel like that is not a good idea. I feel like it'll be too much. I could be wrong though").
 - LEFT ALONE: the owner's remove tools ("it's definitely okay enough"), dark mode ("I am not sure what to do about dark mode there, but it looks okay").
 
+### Round 11, 2026-11-22: his fourth spoken read
+
+All DECIDED (his words), BUILT unless marked.
+
+- SEARCH: the field is in the top bar with the blue glass at its left ("maybe that's where the search text box actually goes"); the keyboard waits to be asked for and goes away when the list is dragged ("the same behavior as Instagram"); clearing shows the ten at once; a RECENT section of the rowers lately opened from search, kept on the phone.
+- Every screen's name in the bar is in the mark's bold face with ONE letter in the blue ("always have one item blue in it ... retain that same font"): the first O, or the middle letter.
+- No spinner when switching tabs ("it looks like the data's already there"): the spinner is for a pull only.
+- The three dots over a row's photos open their sheet OVER the photo ("shouldn't go back to the page"). Signed out, the sheet says to sign in to follow or report.
+- SHARE: on the rower's own profile at the right of the handle line; in a row's three dots on the feed; in the sticker viewer SHARE is at the left and COPY at the right and filled ("copy should be the primary"); a press beside the sticker closes it.
+- TWO NEW STICKERS, from his description of another sports app's: THE RECEIPT (a line a figure with dots between: meters, pace, time, and watts and rate off an erg, the date) and 500 M SPLITS (a bar a split, the fastest whole; erg rows only). He asked for "like 3 of them, and then we can go from there"; the third is waiting on the screenshots he said he would send.
+- Feed cards: corners less round; the meters at the left with the pace and time at the right of the same line.
+- Full rankings: EVERYONE / MEN / WOMEN. Stats opens on ALL TIME.
+- Log by hand: meters and time side by side.
+- Profile photo: the phone's own crop-and-zoom step when choosing one ("I need to be able to size it").
+- LEFT ALONE: dark mode's blue ("I'm just not happy with it", no direction yet). An old erg piece that was never tied to a logged row has no page to open; the ones tied to a row open it.
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

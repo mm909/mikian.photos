@@ -458,10 +458,18 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
         </View>
       ) : (
         <View>
-          <Eyebrow>Meters</Eyebrow>
-          <TextInput style={[field, { marginBottom: 14 }]} keyboardType="number-pad" value={meters} onChangeText={setMeters} placeholder="5000" placeholderTextColor={C.line} accessibilityLabel="Meters" />
-          <Eyebrow>Time</Eyebrow>
-          <TextInput style={field} keyboardType="numbers-and-punctuation" autoCorrect={false} value={time} onChangeText={setTime} placeholder="20:00" placeholderTextColor={C.line} accessibilityLabel="Time, as minutes and seconds" />
+          {/* Side by side (owner, 2026-11-22: "let's put meters and time on
+              the same row"). */}
+          <View style={{ flexDirection: "row", gap: 18 }}>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>Meters</Eyebrow>
+              <TextInput style={field} keyboardType="number-pad" value={meters} onChangeText={setMeters} placeholder="5000" placeholderTextColor={C.line} accessibilityLabel="Meters" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow>Time</Eyebrow>
+              <TextInput style={field} keyboardType="numbers-and-punctuation" autoCorrect={false} value={time} onChangeText={setTime} placeholder="20:00" placeholderTextColor={C.line} accessibilityLabel="Time, as minutes and seconds" />
+            </View>
+          </View>
         </View>
       )}
 

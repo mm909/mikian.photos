@@ -67,6 +67,16 @@ async function upload(p: Picked): Promise<string> {
   return signed.key;
 }
 
+/* One photo for a face, with the phone's own crop-and-zoom step, square
+ * (owner, 2026-11-22: "when I'm adding a profile photo, I need to be able
+ * to size it"). A browser has no such step and takes the picture whole;
+ * every list crops it to the circle from its middle. */
+export async function pickFace(): Promise<Picked | null> {
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1, allowsEditing: true, aspect: [1, 1] });
+  const a = res.canceled ? null : res.assets[0];
+  return a ? { uri: a.uri, width: a.width, height: a.height } : null;
+}
+
 /* A PROFILE PHOTO: up like a row's photo (and with its small copy, which
  * is what every list draws), then named as the rower's own. */
 export async function setAvatar(p: Picked): Promise<void> {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { api, peek, type FeedItem, type FeedPage } from "../api";
 import { DotsIcon } from "../icons";
@@ -6,6 +6,7 @@ import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F } from "../theme";
 import { Avatar, Blocks, PhotoPair, Waiting } from "../ui";
+import { StickerViewer } from "./RowPage";
 import { RowMenu } from "./Social";
 
 /* THE FEED (owner, 2026-11-20: "a chronological list of all rows so far. No
@@ -19,13 +20,15 @@ import { RowMenu } from "./Social";
  * rowers I follow, then everybody); this screen only keeps asking for the
  * next page as the end comes near.
  *
- * ONE ROW, his order the same day: who and when, then the METERS and the
- * figures ("let's put the meters and stuff like that above the photos"),
- * then the two photos. No day heads with their totals ("no longer want
- * it"), no arrow on the figures ("we can just click on it and it'll go").
- * Three dots at the right of each row hold what can be done about it
- * ("turn on notifications, mute, unfollow, report"). A photo opens both,
- * whole, on black, with a swipe between them.
+ * ONE ROW IS A CARD (2026-11-22: "each post needs to be carded"; then, of
+ * corners at 16: "the boxes are a little round"). In it: the face, who and
+ * when, and the three dots; the meters at the left with the pace and the
+ * time at the right of the same line (he found the right of the meters
+ * empty); then the two photos. Three dots hold what can be done about a
+ * row, SHARE among them for the rower's own ("let me be able to share the
+ * row from the feed"). A photo opens both on black with a swipe between,
+ * and the dots there bring the same sheet up OVER the photo, not in place
+ * of it.
  *
  * A hidden rower's row draws blocks and no photos, as on /feed. A name
  * opens the rower; the figures open the row. */
@@ -41,6 +44,7 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [menu, setMenu] = useState<FeedItem | null>(null);
+  const [sharing, setSharing] = useState<string | null>(null);
   const more = useRef(false);
 
   const first = useCallback(async (pulled?: boolean) => {
@@ -76,6 +80,38 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
 
   if (!items) return <Waiting error={error} onRetry={() => first()} />;
 
+  /* The sheet behind a row's three dots. `leave` also shuts whatever the
+   * sheet came up over (the photos), for the lines that go somewhere. */
+  const sheet = (it: FeedItem, close: () => void, leave: () => void = close) => (
+    <RowMenu
+      row={{ id: it.id, rowerNumber: it.rowerNumber, name: it.name, mine: it.mine, photos: it.photos.length, rel: it.rel }}
+      onClose={close}
+      onRower={(n) => {
+        leave();
+        onRower(n);
+      }}
+      onRow={(id) => {
+        leave();
+        onRow(id);
+      }}
+      onShare={
+        it.masked
+          ? undefined
+          : () => {
+              leave();
+              setSharing(it.id);
+            }
+      }
+      onChange={(what, rel) => {
+        const n = it.rowerNumber;
+        if (what === "row-gone") setItems((prev) => (prev ?? []).filter((x) => x.id !== it.id));
+        else if (what === "muted" || what === "blocked") setItems((prev) => (prev ?? []).filter((x) => x.rowerNumber !== n));
+        else if (what === "photo") first();
+        else if (rel) setItems((prev) => (prev ?? []).map((x) => (x.rowerNumber === n ? { ...x, rel } : x)));
+      }}
+    />
+  );
+
   return (
     <>
       <FlatList
@@ -86,40 +122,21 @@ export function FeedScreen({ onRower, onRow, stamp }: { onRower: (n: number) => 
         refreshing={refreshing}
         onEndReached={next}
         onEndReachedThreshold={1.2}
-        renderItem={({ item }) => <Strip it={item} onRower={onRower} onRow={onRow} onMenu={() => setMenu(item)} />}
+        renderItem={({ item }) => <Strip it={item} onRower={onRower} onRow={onRow} onMenu={() => setMenu(item)} photoMenu={(close, leave) => sheet(item, close, leave)} />}
         ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, lineHeight: 18 }]}>Nothing logged yet. The feed starts with the first row.</Text>}
         ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
       />
-      {menu ? (
-        <RowMenu
-          row={{ id: menu.id, rowerNumber: menu.rowerNumber, name: menu.name, mine: menu.mine, photos: menu.photos.length, rel: menu.rel }}
-          onClose={() => setMenu(null)}
-          onRower={onRower}
-          onRow={onRow}
-          onChange={(what, rel) => {
-            const n = menu.rowerNumber;
-            if (what === "row-gone") setItems((prev) => (prev ?? []).filter((x) => x.id !== menu.id));
-            else if (what === "muted" || what === "blocked") setItems((prev) => (prev ?? []).filter((x) => x.rowerNumber !== n));
-            else if (what === "photo") first();
-            else if (rel) setItems((prev) => (prev ?? []).map((x) => (x.rowerNumber === n ? { ...x, rel } : x)));
-          }}
-        />
-      ) : null}
+      {menu ? sheet(menu, () => setMenu(null)) : null}
+      {sharing ? <StickerViewer rowId={sharing} onClose={() => setSharing(null)} /> : null}
     </>
   );
 }
 
-const fig = () => ({ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums" as const] });
-
 /* One row. */
-function Strip({ it, onRower, onRow, onMenu }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void }) {
+function Strip({ it, onRower, onRow, onMenu, photoMenu }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; photoMenu: (close: () => void, leave: () => void) => ReactNode }) {
   const erg = it.erg ? [it.erg.watts ? `${it.erg.watts} W` : "", it.erg.spm ? `${it.erg.spm} s/m` : "", it.erg.hr ? `${it.erg.hr} bpm` : "", it.erg.drag ? `drag ${it.erg.drag}` : ""].filter(Boolean) : [];
   return (
-    /* EACH ROW IS A CARD (owner, 2026-11-22: "there needs to be some depth
-     * on the feed, because right now it looks very flat ... each post needs
-     * to be carded"): its own lighter ground, rounded, lifted a little off
-     * the page, with space between one and the next. */
-    <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+    <View style={{ backgroundColor: C.card, borderRadius: 8, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.line, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
       {/* Who, and the three dots. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Pressable accessibilityLabel={`${it.name}'s page`} onPress={() => onRower(it.rowerNumber)}>
@@ -140,23 +157,23 @@ function Strip({ it, onRower, onRow, onMenu }: { it: FeedItem; onRower: (n: numb
         </Pressable>
       </View>
 
-      {/* The meters and the figures open the page of that row. */}
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open this row: ${it.masked ? "hidden" : it.metersStr}`} onPress={() => onRow(it.id)} style={{ marginTop: 10 }}>
-        {it.masked ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Blocks n={it.digits ?? 4} size={26} />
+      {/* How far at the left, how fast and how long at the right. The line
+          opens the page of that row. */}
+      <Pressable accessibilityRole="link" accessibilityLabel={`Open this row: ${it.masked ? "hidden" : it.metersStr}`} onPress={() => onRow(it.id)} style={{ marginTop: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
+          {it.masked ? <Blocks n={it.digits ?? 4} size={26} /> : <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 36, color: C.accent, fontVariant: ["tabular-nums"] }}>{it.metersStr}</Text>}
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ fontFamily: F.black, fontSize: 20, lineHeight: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>
+              {it.splitStr}
+              <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray }}> /500m</Text>
+            </Text>
+            {it.masked ? null : <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginTop: 2, fontVariant: ["tabular-nums"] }}>{it.durationStr}</Text>}
           </View>
-        ) : (
-          <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.accent, fontVariant: ["tabular-nums"] }}>{it.metersStr}</Text>
-        )}
-        <Text style={[fig(), { marginTop: 2 }]}>
-          <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{it.splitStr}</Text> /500m
-          {it.masked ? null : `   ${it.durationStr}`}
-        </Text>
-        {erg.length ? <Text style={[fig(), { marginTop: 4, fontSize: 12 }]}>{erg.join(" · ")}</Text> : null}
+        </View>
+        {erg.length ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginTop: 6, fontVariant: ["tabular-nums"] }}>{erg.join(" · ")}</Text> : null}
       </Pressable>
 
-      {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} onMenu={onMenu} />}
+      {it.masked ? null : <PhotoPair photos={it.photos} style={{ marginTop: 12 }} menu={photoMenu} />}
     </View>
   );
 }

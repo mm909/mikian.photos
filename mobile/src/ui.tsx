@@ -104,12 +104,20 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[], key?: string |
     setData(peek<T>(key));
   }
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  /* `loading` is the spinner of a PULL: true only while a read somebody
+   * asked for (pull to refresh) is out. The read every screen makes as it
+   * opens is silent, because what the app already has is on the screen
+   * (owner, 2026-11-22: "does the spinner pop up when we swap ... it looks
+   * like the data's already there"). A first read with nothing to show is
+   * the screen's own waiting state, not this. */
+  const [loading, setLoading] = useState(false);
+  const pulled = useRef(false);
   const turn = useRef(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const reload = useCallback(async () => {
     const mine = ++turn.current;
-    setLoading(true);
+    if (pulled.current) setLoading(true);
+    pulled.current = false;
     try {
       const d = await fn();
       if (mine === turn.current) {
@@ -124,7 +132,11 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[], key?: string |
   useEffect(() => {
     reload();
   }, [reload]);
-  return { data, error, loading, reload };
+  const pull = useCallback(() => {
+    pulled.current = true;
+    return reload();
+  }, [reload]);
+  return { data, error, loading, reload: pull };
 }
 
 /* What a screen shows before its first read lands, or instead of it. */
@@ -219,8 +231,12 @@ export function Avatar({ uri, name, size = 36 }: { uri?: string | null; name: st
  * side, each cropped to 4:5 so a tall phone picture and a wide one sit the
  * same; a lone old photo takes the width in a 4:3 frame. Tap for the whole
  * picture. A row with none draws nothing. */
-export function PhotoPair({ photos, style, onMenu }: { photos: Photo[]; style?: StyleProp<ViewStyle>; onMenu?: () => void }) {
+export function PhotoPair({ photos, style, menu }: { photos: Photo[]; style?: StyleProp<ViewStyle>; menu?: (close: () => void, leave: () => void) => ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);
+  /* The sheet behind the three dots, up OVER the photo (owner, 2026-11-22:
+   * "clicking those three dots shouldn't go back to the page"). `leave`
+   * shuts the photos too, for a line of the sheet that goes somewhere. */
+  const [dots, setDots] = useState(false);
   if (!photos.length) return null;
   const shown = photos.slice(0, 2);
   return (
@@ -235,16 +251,18 @@ export function PhotoPair({ photos, style, onMenu }: { photos: Photo[]; style?: 
           photos={shown}
           start={open}
           onClose={() => setOpen(null)}
-          onMenu={
-            onMenu
-              ? () => {
-                  /* One sheet at a time: the photos step aside for the menu. */
+          onMenu={menu ? () => setDots(true) : undefined}
+        >
+          {dots && menu
+            ? menu(
+                () => setDots(false),
+                () => {
+                  setDots(false);
                   setOpen(null);
-                  onMenu();
-                }
-              : undefined
-          }
-        />
+                },
+              )
+            : null}
+        </PhotoViewer>
       ) : null}
     </View>
   );
@@ -257,7 +275,7 @@ export function PhotoPair({ photos, style, onMenu }: { photos: Photo[]; style?: 
  * three dots on the right side, and the three dots should bring up the
  * report button"). A black page, one photo to a screen, a swipe to the
  * other, and a mark at the foot for which of the two is showing. */
-export function PhotoViewer({ photos, start, onClose, onMenu }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void }) {
+export function PhotoViewer({ photos, start, onClose, onMenu, children }: { photos: Photo[]; start: number; onClose: () => void; onMenu?: () => void; children?: ReactNode }) {
   const win = useWindowDimensions();
   const [at, setAt] = useState(start);
   const list = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -300,6 +318,7 @@ export function PhotoViewer({ photos, start, onClose, onMenu }: { photos: Photo[
             ))}
           </View>
         ) : null}
+        {children}
       </View>
     </Modal>
   );

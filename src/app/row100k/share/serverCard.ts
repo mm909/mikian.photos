@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { analyseSession } from "@/lib/pm5/analysis";
+import { validateTelemetryDoc } from "@/lib/pm5/session";
 import path from "node:path";
 import { GlobalFonts, createCanvas } from "@napi-rs/canvas";
 import { db } from "@/lib/db";
@@ -108,5 +110,22 @@ async function readShareData(viewer: Viewer, rowId: string | null): Promise<Shar
   const built = await buildProfile(num, month);
   if (!built || (!built.view.isMe && !viewer.isAdmin)) return null;
   const row = rowId ? built.view.rows.find((r) => r.id === rowId) : undefined;
-  return { ...built.view.shareData, row: row ? { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title } : null };
+  /* A row off a connected erg brings its averages and its 500 m splits,
+   * for the receipt and the splits stickers. A recording that cannot be
+   * read costs those two extras and nothing else. */
+  let erg: { watts: number | null; spm: number | null } | null = null;
+  let splits: { endMeters: number; seconds: number }[] = [];
+  if (row) {
+    try {
+      const t = await db.rowTelemetry.findFirst({ where: { entryId: row.id }, select: { avgWatts: true, avgSpm: true, data: true } });
+      if (t) {
+        erg = { watts: t.avgWatts, spm: t.avgSpm };
+        const doc = validateTelemetryDoc(t.data);
+        if (typeof doc !== "string") splits = analyseSession({ doc, history: [] }).splits.filter((s) => s.seconds > 0).map((s) => ({ endMeters: Math.round(s.endMeters / 10) * 10, seconds: s.seconds }));
+      }
+    } catch (err) {
+      console.error("row app: recording unreadable for a row's stickers", err);
+    }
+  }
+  return { ...built.view.shareData, row: row ? { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, erg, splits } : null };
 }

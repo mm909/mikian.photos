@@ -66,7 +66,16 @@ export type ShareData = {
    * meters, no time at all, and the SPLIT — the one figure of theirs the
    * feed prints (feed/view.ts: pace stays public, the paceTag rule), so a
    * card that leaves the site carries exactly what the board shows. */
-  row?: { day: string; meters: number; seconds: number; title?: string } | null;
+  row?: {
+    day: string;
+    meters: number;
+    seconds: number;
+    title?: string;
+    /* Off a connected erg only: the monitor's averages, and each 500 m
+     * with its time, for the receipt and the splits stickers. */
+    erg?: { watts: number | null; spm: number | null } | null;
+    splits?: { endMeters: number; seconds: number }[];
+  } | null;
   /* "M" | "F" — unlocks the profile card's board tag. */
   division?: string;
   /* Longest single row, meters. */
@@ -3406,6 +3415,117 @@ const dailyCards: ShareCard[] = [
   ...Array.from({ length: DAY_PAGES }, (_, i) => dailyDayCard("yesterday", i)),
 ];
 
+/* THE RECEIPT (owner, 2026-11-22, of the stickers another sports app
+ * hands out: "we can copy the, I'm going to call it the receipt type ...
+ * where it's like distance dot dot dot dot, and then the distance, and
+ * then next line pace dot dot dot, and then the pace"). The row as a till
+ * slip: the mark, then a line a figure, the name at the left, the figure at
+ * the right and a run of dots between. Meters, pace, time and the day for
+ * every row; the monitor's watts and rate when the row came off an erg.
+ * Never for a hidden rower: every line of it is a number. */
+function receiptLines(row: NonNullable<ShareData["row"]>): [string, string][] {
+  const out: [string, string][] = [
+    ["METERS", row.meters.toLocaleString("en-US")],
+    ["PACE", row.meters > 0 && row.seconds > 0 ? `${roundToSeconds(fmtSplit(row.meters, row.seconds))} /500M` : "-"],
+    ["TIME", fmtDuration(row.seconds)],
+  ];
+  if (row.erg?.watts) out.push(["WATTS", String(Math.round(row.erg.watts))]);
+  if (row.erg?.spm) out.push(["STROKES /MIN", String(Math.round(row.erg.spm))]);
+  const d = new Date(`${row.day}T12:00:00Z`);
+  if (!Number.isNaN(d.getTime())) out.push(["DATE", d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).toUpperCase()]);
+  return out;
+}
+function dottedLine(ctx: CanvasRenderingContext2D, left: string, right: string, x0: number, x1: number, baseline: number, size: number, fonts: ShareFonts) {
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `${size}px ${fonts.mono}`;
+  ctx.textAlign = "left";
+  ctx.fillText(left, x0, baseline);
+  const lw = ctx.measureText(left).width;
+  ctx.font = `${size}px ${fonts.black}`;
+  ctx.textAlign = "right";
+  ctx.fillText(right, x1, baseline);
+  const rw = ctx.measureText(right).width;
+  /* The dots, as many as fit between the two with air either side. */
+  ctx.font = `${size}px ${fonts.mono}`;
+  const dot = ctx.measureText(".").width;
+  const room = x1 - rw - (x0 + lw) - size * 0.9;
+  const n = Math.max(0, Math.floor(room / dot));
+  ctx.globalAlpha = 0.6;
+  ctx.textAlign = "left";
+  ctx.fillText(".".repeat(n), x0 + lw + size * 0.45, baseline);
+  ctx.restore();
+}
+const rowtemberReceipt: ShareCard = {
+  id: "rowtember-receipt",
+  label: "The receipt",
+  width: 1080,
+  height: 900,
+  light: true,
+  available: (d) => !!d.row && !d.masked,
+  draw(ctx, data, fonts) {
+    const row = data.row;
+    if (!row) return;
+    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: 120, size: 96, fontFamily: fonts.black });
+    const lines = receiptLines(row);
+    const step = Math.min(104, (this.height - 300) / lines.length);
+    lines.forEach(([k, v], i) => dottedLine(ctx, k, v, 90, this.width - 90, 300 + i * step, 50, fonts));
+  },
+};
+
+/* THE SPLITS (owner, the same day: "we can definitely replicate the mile
+ * splits shareable, because that can just be the ... 500 meter splits").
+ * Each 500 m of a row off a connected erg as a bar as long as it was fast,
+ * the distance at its left and the time on it, the fastest whole. Only for
+ * a row with a recording behind it, and never for a hidden rower. */
+const rowtemberSplits: ShareCard = {
+  id: "rowtember-splits",
+  label: "500 m splits",
+  width: 1080,
+  height: 1120,
+  light: true,
+  available: (d) => !!d.row && !d.masked && (d.row.splits?.length ?? 0) >= 2,
+  draw(ctx, data, fonts) {
+    const row = data.row;
+    const all = row?.splits ?? [];
+    if (!row || all.length < 2) return;
+    /* At most twelve bars: a long row is shown by its first eleven and its last. */
+    const splits = all.length > 12 ? [...all.slice(0, 11), all[all.length - 1]] : all;
+    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: 110, size: 84, fontFamily: fonts.black });
+    drawCenteredText(ctx, `${row.meters.toLocaleString("en-US")} M · ${fmtDuration(row.seconds)}`, { cx: this.width / 2, baseline: 250, font: `64px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 160 });
+    const fastest = Math.min(...splits.map((s) => s.seconds));
+    const slowest = Math.max(...splits.map((s) => s.seconds));
+    const top = 320;
+    const rowH = Math.min(70, (this.height - top - 50) / splits.length);
+    const x0 = 250;
+    const x1 = this.width - 90;
+    splits.forEach((s, i) => {
+      const y = top + i * rowH;
+      /* Faster is longer: the fastest runs the whole measure, the slowest 55% of it. */
+      const share = slowest === fastest ? 1 : 0.55 + (0.45 * (slowest - s.seconds)) / (slowest - fastest);
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      ctx.globalAlpha = s.seconds === fastest ? 1 : 0.5;
+      ctx.fillRect(x0, y + 6, (x1 - x0) * share, rowH - 14);
+      ctx.restore();
+      ctx.save();
+      ctx.textBaseline = "middle";
+      ctx.font = `${Math.round(rowH * 0.46)}px ${fonts.mono}`;
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "right";
+      ctx.fillText(s.endMeters.toLocaleString("en-US"), x0 - 22, y + rowH / 2);
+      ctx.font = `${Math.round(rowH * 0.5)}px ${fonts.black}`;
+      ctx.fillStyle = INK;
+      ctx.textAlign = "left";
+      const m = Math.floor(s.seconds / 60);
+      const sec = s.seconds - m * 60;
+      ctx.fillText(`${m}:${sec.toFixed(1).padStart(4, "0")}`, x0 + 18, y + rowH / 2 + 2);
+      ctx.restore();
+    });
+  },
+};
+
 export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
 
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
@@ -3413,6 +3533,8 @@ export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
 export const CARDS: ShareCard[] = [
   rowtemberRow,
   rowtemberRowFull,
+  rowtemberReceipt,
+  rowtemberSplits,
   rowtemberBest,
   rowtemberTotal,
   rowtemberToday,

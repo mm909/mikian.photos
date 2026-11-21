@@ -174,7 +174,25 @@ export function RowPage({
         </View>
       )}
 
-      <PhotoPair photos={r.photos} style={{ marginTop: 16 }} onMenu={onMenu ? () => onMenu(true) : undefined} />
+      <PhotoPair
+        photos={r.photos}
+        style={{ marginTop: 16 }}
+        menu={(close, leave) => (
+          <RowMenu
+            row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
+            onClose={close}
+            onRower={(n) => {
+              leave();
+              onRower(n);
+            }}
+            onChange={(what) => {
+              leave();
+              if (what === "row-gone" || what === "blocked") onDone();
+              else reload();
+            }}
+          />
+        )}
+      />
 
       {r.canReel && !r.masked ? <Reels rowId={r.id} /> : null}
 
@@ -380,7 +398,7 @@ const GROUND = "#1f2226";
  * ... and then I can close it"). One screen on the dark ground the stickers
  * are made for, one sticker to a page, a swipe to the next; SHARE hands the
  * one showing to the phone's share sheet, COPY puts it on the clipboard. */
-function StickerViewer({ rowId, onClose }: { rowId: string; onClose: () => void }) {
+export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () => void }) {
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
   const { data, error } = useLoad(() => deck(rowId), [rowId]);
@@ -410,7 +428,10 @@ function StickerViewer({ rowId, onClose }: { rowId: string; onClose: () => void 
   );
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: GROUND, alignItems: "center" }}>
+      {/* A press on the ground beside the sticker closes it (owner,
+          2026-11-22: "let me not have to click on the X ... let me just tap
+          on the sides"). */}
+      <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: GROUND, alignItems: "center" }}>
         <View style={{ flex: 1, width: w, paddingTop: 44, paddingBottom: 30 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={8} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
@@ -426,9 +447,11 @@ function StickerViewer({ rowId, onClose }: { rowId: string; onClose: () => void 
           ) : (
             <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setAt(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ flex: 1 }}>
               {cards.map((c) => (
-                <View key={c.id} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
-                  <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
-                </View>
+                <Pressable key={c.id} onPress={onClose} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
+                  <Pressable onPress={() => {}}>
+                    <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
+                  </Pressable>
+                </Pressable>
               ))}
             </ScrollView>
           )}
@@ -439,16 +462,18 @@ function StickerViewer({ rowId, onClose }: { rowId: string; onClose: () => void 
           </View>
           <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", marginTop: 12, minHeight: 16 }]}>{note}</Text>
           <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 20, marginTop: 10 }}>
-            {pill("Copy", "copy", false)}
-            {pill("Share", "share", true)}
+            {/* SHARE at the left, COPY at the right and the one that is
+                filled (owner, 2026-11-22: "copy should be the primary"). */}
+            {pill("Share", "share", false)}
+            {pill("Copy", "copy", true)}
           </View>
         </View>
-      </View>
+      </Pressable>
     </Modal>
   );
 }
 
-function StickerImage({ id, rowId, ratio }: { id: string; rowId: string; ratio: number }) {
+function StickerImage({ id, rowId, ratio }: { id: string; rowId?: string; ratio: number }) {
   const [uri, setUri] = useState("");
   const [bad, setBad] = useState(false);
   useEffect(() => {

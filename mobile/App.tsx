@@ -4,7 +4,7 @@ import { SpaceMono_400Regular, SpaceMono_700Bold } from "@expo-google-fonts/spac
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
 import { useErg } from "./src/erg/useErg";
 import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, SearchIcon, StatsIcon } from "./src/icons";
@@ -136,6 +136,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const [rowNum, setRowNum] = useState<Record<string, number>>({});
   /* Every meter anybody has logged, for the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
+  /* What is typed in the search field, which sits in the bar on that tab. */
+  const [find, setFind] = useState("");
   /* The pieces this phone has recorded, for THE READ to rank against. */
   const [rows, setRows] = useState<Row[]>([]);
   useEffect(() => {
@@ -147,7 +149,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * of them shows what is already here (api.ts keeps every answer). */
   const mine = me.me?.rowerNumber;
   useEffect(() => {
-    warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats", "/api/row100k/app/people?q="]);
+    warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
     if (mine) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
   }, [mine, stamp]);
@@ -241,23 +243,21 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const num3 = (n: number) => String(n).padStart(3, "0");
   const rowOf = top?.kind === "row" ? rowNum[top.id] : undefined;
   let mark: string | null = null;
-  let markIs: "word" | "meters" | "search" = "word";
+  let markIs: "word" | "meters" = "word";
   if (logOn) mark = "LOG";
   else if (!top) {
     if (tab === "profile" && mine) mark = num3(mine);
     else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
-    } else if (tab === "search") {
-      /* SEARCH, with the glass where the blue O would be (owner,
-       * 2026-11-22: "we could say search with the little glass at the end.
-       * That's like that blue O"). */
-      mark = "SEARCH";
-      markIs = "search";
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
-  const title = !top || mark ? "" : top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : "";
+  /* Every screen's name is set in the mark's own face with one letter in
+   * the blue (owner, 2026-11-22: "let's try and have that always have one
+   * item blue in it ... and we should also retain that same font"). */
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : "Row").toUpperCase();
+  const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
   const press = ({ pressed }: { pressed: boolean }) => ({ width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const, opacity: pressed ? 0.5 : 1 });
@@ -304,13 +304,34 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               )}
             </View>
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              {mark ? (
+              {searchBar ? (
+                /* THE SEARCH FIELD, where the mark is on the other tabs, the
+                   blue glass at its left (owner, 2026-11-22: "maybe that's
+                   where the search text box actually goes ... we can still
+                   have that blue magnifying glass, but maybe that gets
+                   moved to the left"). */
+                <View style={{ flexDirection: "row", alignItems: "center", alignSelf: "stretch", gap: 8, height: 38, paddingHorizontal: 12, borderRadius: 19, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
+                  <SearchIcon color={C.accent} size={18} />
+                  <TextInput
+                    accessibilityLabel="Search rowers by name, Instagram or number"
+                    value={find}
+                    onChangeText={setFind}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                    placeholder="Search"
+                    placeholderTextColor={C.gray}
+                    style={[{ flex: 1, fontFamily: F.bold, fontSize: 16, color: C.ink, paddingVertical: 0 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]}
+                  />
+                  {find ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Clear the search" onPress={() => setFind("")} hitSlop={10}>
+                      <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.gray }}>✕</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : mark ? (
                 <Mark label={mark} kind={markIs} />
-              ) : (
-                <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.ink }}>
-                  {title.toUpperCase()}
-                </Text>
-              )}
+              ) : null}
             </View>
             <View style={[side, { alignItems: "flex-end" }]}>
               {dots ? (
@@ -337,7 +358,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               over it. */}
           <View style={{ flex: 1 }}>
             {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} /> : null}
-            {tab === "search" ? <SearchScreen onRower={openRower} /> : null}
+            {tab === "search" ? <SearchScreen text={find} onRower={openRower} /> : null}
             {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} /> : null}
             {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} /> : null}
             {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} /> : null}
@@ -442,7 +463,7 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
  * over. A word or a rower's number keeps the blue in its middle; a count of
  * meters is ink with its M in the blue. */
 const WHEEL = 32;
-function Mark({ label, kind }: { label: string; kind: "word" | "meters" | "search" }) {
+function Mark({ label, kind }: { label: string; kind: "word" | "meters" }) {
   const [pair, setPair] = useState({ from: label, to: label, turn: 0 });
   useEffect(() => {
     setPair((p) => (p.to === label ? p : { from: p.to, to: label, turn: p.turn + 1 }));
@@ -450,17 +471,18 @@ function Mark({ label, kind }: { label: string; kind: "word" | "meters" | "searc
   const chars = pair.to.split("");
   const same = pair.from.length === pair.to.length;
   const size = chars.length > 9 ? 20 : chars.length > 5 ? 23 : 26;
-  const blue = (i: number) => (kind === "search" ? false : kind === "meters" ? i === chars.length - 1 : i > 0 && i < chars.length - 1);
+  /* ONE thing in the blue. A count of meters: its M. A rower's number:
+   * what is between its first and last figure. A word: its first O, as in
+   * ROW and LOG, or failing an O the letter in its middle. */
+  const digits = /^\d+$/.test(pair.to);
+  const o = pair.to.indexOf("O");
+  const one = o >= 0 ? o : Math.floor((chars.length - 1) / 2);
+  const blue = (i: number) => (kind === "meters" ? i === chars.length - 1 : digits ? i > 0 && i < chars.length - 1 : i === one);
   return (
     <View accessibilityRole="header" accessibilityLabel={pair.to === "ROW" ? "Row" : pair.to} style={{ flexDirection: "row", height: WHEEL }}>
       {chars.map((ch, i) => (
         <Wheel key={`${pair.turn}-${i}`} from={same ? pair.from[i] : ""} to={ch} roll={pair.turn > 0} delay={Math.min(i, 8) * 55} blue={blue(i)} size={size} />
       ))}
-      {kind === "search" && pair.to === "SEARCH" ? (
-        <View style={{ height: WHEEL, justifyContent: "center", marginLeft: 5 }}>
-          <SearchIcon color={C.accent} size={22} />
-        </View>
-      ) : null}
     </View>
   );
 }

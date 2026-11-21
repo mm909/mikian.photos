@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native"
 import { api, type PeriodRow, type RecordRow, type Stats } from "../api";
 import { Columns, Density, HourGrid, MonthGrid } from "../charts";
 import { useSession } from "../session";
-import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono, Ctl } from "../site";
+import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono, Ctl, Chip } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
 import { Blocks, Waiting, useLoad } from "../ui";
 
@@ -54,7 +54,9 @@ type Sum = { mean: number; median: number; sd: number; p10: number; p90: number 
 
 export function StatsScreen({ onRower, onRankings }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void }) {
   const { me } = useSession();
-  const [period, setPeriod] = useState("");
+  /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
+   * all time"). */
+  const [period, setPeriod] = useState("all");
   const [stat, setStat] = useState<StatKey>("total");
   const [slot, setSlot] = useState<number | null>(null);
   const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
@@ -370,12 +372,17 @@ function DayPanel({ month, max, value, today, onPick }: { month: Stats["month"];
 export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: string; rec: string; onRower: (n: number) => void }) {
   const [period, setPeriod] = useState(p0);
   const [key, setKey] = useState<RecordKey>((RECORDS.find((r) => r.key === r0)?.key ?? "total") as RecordKey);
+  const [who, setWho] = useState<"all" | "M" | "F">("all");
   const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(path), [path], path);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const s = data.data;
   const rec = RECORDS.find((r) => r.key === key) ?? RECORDS[0];
-  const rows: RecordRow[] = s.records[rec.key] ?? [];
+  const every: RecordRow[] = s.records[rec.key] ?? [];
+  /* EVERYONE, MEN, WOMEN (owner, 2026-11-22: "on the full rankings page,
+   * let's include a filter for men's and women's"). Places are counted
+   * within what is showing. */
+  const rows = who === "all" ? every : every.filter((r) => r.division === who);
   const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
   let place = 0;
   return (
@@ -384,6 +391,11 @@ export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: strin
         <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which month" />
         <Dot />
         <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" />
+      </View>
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
+        <Chip label="Everyone" on={who === "all"} onPress={() => setWho("all")} />
+        <Chip label="Men" on={who === "M"} onPress={() => setWho("M")} />
+        <Chip label="Women" on={who === "F"} onPress={() => setWho("F")} />
       </View>
       <TableHead>{`${rows.length} ${rows.length === 1 ? "rower" : "rowers"}`}</TableHead>
       {rows.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}

@@ -2,11 +2,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
+import { ShareIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, fmtClock, fmtInt } from "../theme";
 import { Avatar, Blocks, PhotoViewer, Waiting, useLoad } from "../ui";
 import { Join, SignIn } from "./Account";
+import { StickerViewer } from "./RowPage";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
 /* A ROWER'S PROFILE, the site's /r/[num] on a phone (looks/Profile.tsx and
@@ -74,6 +76,7 @@ export function ProfileScreen({
   );
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
+  const [sharing, setSharing] = useState(false);
   useEffect(() => setLive(null), [data]);
 
   if (own && ready && !me.signedIn) return <SignIn why="Your profile, your rows and logging a row need your account. The feed, the board and the stats are open to everyone." />;
@@ -120,7 +123,19 @@ export function ProfileScreen({
             <WordMenu options={p.periodOptions} value={p.period.key} onPick={setPeriod} ariaLabel="Which month" />
           </View>
 
-          {p.rower.instagram ? <Text style={[mono(12, false, C.accent), { marginTop: 14 }]}>@{p.rower.instagram}</Text> : null}
+          {/* The handle, and at the right of its line SHARE: the rower's
+              own stickers (owner, 2026-11-22: "I need a shareables menu on
+              the profile ... maybe it goes to the right of my Instagram"). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, minHeight: 34 }}>
+            {p.rower.instagram ? <Text style={mono(12, false, C.accent)}>@{p.rower.instagram}</Text> : <View />}
+            {p.isMe ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
+                <ShareIcon color="#fff" size={16} />
+                <Text style={mono(10, true, "#fff", 0.12)}>Share</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {sharing ? <StickerViewer onClose={() => setSharing(false)} /> : null}
 
           <View style={{ marginTop: 20 }}>
             <Ledger
