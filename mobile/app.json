@@ -52,7 +52,8 @@
           "microphonePermission": false
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "scheme": "rowtember",
     "backgroundColor": "#F4F3EE",

@@ -22,7 +22,7 @@ onLook(() => {
 });
 
 export function SignIn({ why }: { why: string }) {
-  const { signInDev } = useSession();
+  const { signInDev, signInSite } = useSession();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +54,22 @@ export function SignIn({ why }: { why: string }) {
           }}
         />
       ) : Platform.OS !== "web" ? (
-        <Text style={styles.body}>Google sign-in on the phone arrives with the first phone build.</Text>
+        /* ON A PHONE: the site's own sign-in, in the phone's sign-in sheet,
+           which hands the app its token when it is done. */
+        <Btn
+          label={busy ? "Signing in" : "Sign in with Google"}
+          disabled={busy}
+          onPress={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await signInSite();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "That did not work.");
+            }
+            setBusy(false);
+          }}
+        />
       ) : null}
       {__DEV__ ? (
         <View style={{ marginTop: 22 }}>

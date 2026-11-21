@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, loadToken, setToken, type Me } from "./api";
+import * as WebBrowser from "expo-web-browser";
+import { API, api, loadToken, setToken, type Me } from "./api";
 
 /* WHO IS HOLDING THE PHONE. One read of /api/row100k/app/me when the app
  * opens and after anything that changes it (a sign-in, a join, a logged
@@ -14,11 +15,14 @@ type Session = {
    * honours this outside a production build). */
   signInDev: (email: string) => Promise<void>;
   signInGoogle: (idToken: string) => Promise<void>;
+  /* ON A PHONE: sign in through the site, in the phone's own sign-in sheet
+   * (the site's /api/row100k/app/session/handoff says how). */
+  signInSite: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const OUT: Me = { signedIn: false };
-const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signOut: async () => {} });
+const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signInSite: async () => {}, signOut: async () => {} });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me>(OUT);
@@ -48,13 +52,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const signInSite = useCallback(async () => {
+    const res = await WebBrowser.openAuthSessionAsync(`${API}/api/row100k/app/session/handoff`, "rowtember://auth");
+    /* Closed without finishing: nothing happened, and that is not an error. */
+    if (res.type !== "success") return;
+    const q = res.url.split("?")[1] ?? "";
+    const got = Object.fromEntries(q.split("&").map((p) => p.split("=").map(decodeURIComponent) as [string, string]));
+    if (got.error) throw new Error(got.error);
+    if (!got.token) throw new Error("Sign-in did not finish. Try again.");
+    await setToken(got.token);
+    await refresh();
+  }, [refresh]);
+
   const signOut = useCallback(async () => {
     await setToken(null);
     setMe(OUT);
     await refresh();
   }, [refresh]);
 
-  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInSite, signOut }}>{children}</Ctx.Provider>;
 }
 
 export const useSession = () => useContext(Ctx);
