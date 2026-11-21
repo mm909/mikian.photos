@@ -1791,3 +1791,19 @@ model RowComment {
   @@index([entryId, createdAt])
   @@index([participantId])
 }
+
+/// One rower's like of one comment (owner, 2026-11-22: "allow me to like
+/// comments as well"). `entryId` is the row the comment is under, kept so
+/// a removed row can take these along. Additive.
+model RowCommentLike {
+  id            String   @id @default(cuid())
+  challenge     String
+  entryId       String
+  commentId     String
+  participantId String
+  createdAt     DateTime @default(now())
+
+  @@unique([commentId, participantId])
+  @@index([entryId])
+  @@index([participantId])
+}

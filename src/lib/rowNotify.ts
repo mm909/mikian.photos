@@ -24,7 +24,7 @@ import { blockedIds, notifyOff } from "@/lib/rowSocial";
  * Nothing here may fail the thing that caused it: every caller wraps it,
  * and it wraps itself. SERVER ONLY. */
 
-export type NoteKind = "follow" | "request" | "accepted" | "rowed" | "passed" | "liked" | "commented" | "replied";
+export type NoteKind = "follow" | "request" | "accepted" | "rowed" | "passed" | "liked" | "commented" | "replied" | "mentioned" | "likedComment";
 /* The kinds a rower can switch off. A request and its answer always land:
  * they are things the rower has to act on or asked for. */
 export const SWITCHABLE: readonly NoteKind[] = ["passed", "follow", "liked", "commented"];
@@ -82,17 +82,18 @@ export async function notifyPerson(kind: "follow" | "request" | "accepted", reci
  * 2026-11-22: likes and comments "also allows us to give some more
  * notifications"). One line to the rower it is about; never for their own
  * doing; not across a block. A second like of the same row by the same
- * rower replaces the first line. "replied" is switched off with
- * "commented". */
-export async function notifyTouch(kind: "liked" | "commented" | "replied", recipientId: string, actor: { id: string; displayName: string }, entryId: string): Promise<void> {
+ * rower replaces the first line. "replied" and "mentioned" (tagged in a
+ * comment) are switched off with "commented"; "likedComment" with
+ * "liked". */
+export async function notifyTouch(kind: "liked" | "commented" | "replied" | "mentioned" | "likedComment", recipientId: string, actor: { id: string; displayName: string }, entryId: string): Promise<void> {
   try {
     if (recipientId === actor.id) return;
     const off = await notifyOff([recipientId]);
-    if (off.get(recipientId)?.has(kind === "replied" ? "commented" : kind)) return;
+    if (off.get(recipientId)?.has(kind === "replied" || kind === "mentioned" ? "commented" : kind === "likedComment" ? "liked" : kind)) return;
     if ((await blockedIds(recipientId)).includes(actor.id)) return;
-    if (kind === "liked") await db.rowNotification.deleteMany({ where: { participantId: recipientId, actorId: actor.id, kind, entryId } });
+    if (kind === "liked" || kind === "likedComment") await db.rowNotification.deleteMany({ where: { participantId: recipientId, actorId: actor.id, kind, entryId } });
     await db.rowNotification.create({ data: { challenge: CHALLENGE, participantId: recipientId, kind, actorId: actor.id, entryId } });
-    const body = kind === "liked" ? `${actor.displayName} liked your row.` : kind === "commented" ? `${actor.displayName} commented on your row.` : `${actor.displayName} replied to your comment.`;
+    const body = kind === "liked" ? `${actor.displayName} liked your row.` : kind === "commented" ? `${actor.displayName} commented on your row.` : kind === "replied" ? `${actor.displayName} replied to your comment.` : kind === "mentioned" ? `${actor.displayName} mentioned you in a comment.` : `${actor.displayName} liked your comment.`;
     await push([{ participantId: recipientId, title: "ROW", body, data: { kind, row: entryId } }]);
   } catch (err) {
     console.error(`row notify: failed to write a ${kind} line`, err);

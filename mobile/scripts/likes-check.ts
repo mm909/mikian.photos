@@ -116,6 +116,29 @@ async function main() {
   check("removing another's comment is refused", bad.status === 403, String(bad.status));
   check("the counts are on the row", (await A(`row?id=${id}`)).row?.comments === 3);
 
+  /* A LIKE OF A COMMENT */
+  await Bb("notifications", { read: true });
+  const k1 = await A("like", { commentId: c1.id, on: true });
+  const k2 = await Cc("like", { commentId: c1.id, on: true });
+  check("a comment can be liked, and counts", k1.likes === 1 && k2.likes === 2, JSON.stringify([k1.likes, k2.likes]));
+  const seen = (await A(`comments?entry=${id}`)).comments?.[0];
+  const seenB = (await Bb(`comments?entry=${id}`)).comments?.[0];
+  check("the comment carries its likes, and whose", seen?.likes === 2 && seen?.liked === true && seenB?.liked === false);
+  check("its writer is told", ((await Bb("notifications")).items ?? []).some((i: Json) => i.kind === "likedComment" && i.entryId === id));
+  const k3 = await A("like", { commentId: c1.id, on: false });
+  check("and the like can be taken back", k3.likes === 1 && k3.liked === false);
+
+  /* A ROWER TAGGED IN A COMMENT */
+  await Cc("notifications", { read: true });
+  const beforeC = ((await Cc("notifications")).items ?? []).filter((i: Json) => i.kind === "mentioned").length;
+  const t1 = await Bb("comments", { entryId: id, text: `Race you, @[${c}] and @[${a}]` });
+  const tagRead = await anon(`comments?entry=${id}`);
+  check("a tag travels as a number and comes back with the name", !!t1.id && tagRead.tags?.[String(c)] === mc.me.displayName && tagRead.tags?.[String(a)] === ma.me.displayName, JSON.stringify(tagRead.tags));
+  const afterC = ((await Cc("notifications")).items ?? []).filter((i: Json) => i.kind === "mentioned").length;
+  check("the rower tagged is told", afterC === beforeC + 1, `${beforeC} -> ${afterC}`);
+  check("the row's rower, tagged on their own row, is told once, of the comment", !((await A("notifications")).items ?? []).some((i: Json) => i.kind === "mentioned"));
+  await Bb("comments", { remove: t1.id });
+
   /* BLOCK */
   await A("block", { num: c, on: true });
   const blockedView = await A(`comments?entry=${id}`);

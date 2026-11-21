@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { api } from "../api";
+import { api, type Person } from "../api";
 import { CommentIcon, HeartIcon, ShareIcon } from "../icons";
 import { useSession } from "../session";
 import { mono } from "../site";
@@ -14,7 +14,12 @@ import { ReportSheet } from "./Social";
  * want it to work just like Instagram's").
  *
  * So, as there: three marks in a line under a row, the heart and the bubble
- * each with its count, then the share. The heart fills with the blue. The
+ * each with its count at the left, the share at the right ("likes and
+ * comments on the left, shares on the right"). The heart fills with the
+ * blue. A comment has a heart of its own ("allow me to like comments as
+ * well"), and a rower can be tagged in one: an @ and the start of a name
+ * brings the roster up over the field ("I meant tagging someone in a
+ * comment"). The
  * bubble brings the comments up from the foot of the screen over whatever
  * was being read; a comment has REPLY under it, a reply sits indented under
  * the comment it answers, and the field at the foot says who is being
@@ -91,6 +96,7 @@ export function PostActions({
         <CommentIcon size={25} />
         {count(comments)}
       </Pressable>
+      <View style={{ flex: 1 }} />
       {onShare ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Share this row" onPress={onShare} hitSlop={8} style={hit}>
           <ShareIcon size={24} />
@@ -102,9 +108,11 @@ export function PostActions({
 
 /* ---- the comments ----------------------------------------------------- */
 
-type Line = { id: string; parentId: string | null; rowerNumber: number; numStr: string; name: string; avatar: string | null; text: string; mine: boolean; canRemove: boolean; dayStr: string; clockStr: string };
+type Line = { id: string; parentId: string | null; rowerNumber: number; numStr: string; name: string; avatar: string | null; text: string; likes: number; liked: boolean; mine: boolean; canRemove: boolean; dayStr: string; clockStr: string };
 type Top = Line & { replies: Line[] };
-type Answer = { comments: Top[]; count: number };
+type Answer = { comments: Top[]; count: number; tags?: Record<string, string> };
+/* A rower tagged in a comment travels as @[<rower number>]. */
+const TAG = /(@\[\d{1,6}\])/;
 
 export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId: string; onClose: () => void; onRower: (n: number) => void; onCount?: (n: number) => void }) {
   const { me } = useSession();
@@ -116,6 +124,10 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
   const [to, setTo] = useState<Line | null>(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Line | null>(null);
+  /* Names picked from the roster while writing, and whose number each is. */
+  const [picked, setPicked] = useState<Record<string, number>>({});
+  const [offer, setOffer] = useState<Person[]>([]);
+  const turn = useRef(0);
   const field = useRef<{ focus: () => void } | null>(null);
   const list = useRef<FlatList<Top>>(null);
 
@@ -136,6 +148,34 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
+  /* AN @ AND THE START OF A NAME at the end of what is being written
+   * brings up to five of the roster over the field; a press writes the
+   * name in. */
+  const at = /(?:^|\s)@([^\s@]{0,24})$/.exec(text);
+  const ask = at ? at[1] : null;
+  useEffect(() => {
+    const mine = ++turn.current;
+    if (ask === null) {
+      setOffer([]);
+      return;
+    }
+    const wait = setTimeout(() => {
+      api<{ people: Person[] }>(`/api/row100k/app/people?q=${encodeURIComponent(ask)}`).then(
+        (r) => {
+          if (mine === turn.current) setOffer(r.people.filter((p) => !p.me).slice(0, 5));
+        },
+        () => null,
+      );
+    }, 160);
+    return () => clearTimeout(wait);
+  }, [ask]);
+  const pick = (p: Person) => {
+    setText((t) => t.replace(/@[^\s@]{0,24}$/, `@${p.name} `));
+    setPicked((m) => ({ ...m, [p.name]: p.rowerNumber }));
+    setOffer([]);
+    field.current?.focus();
+  };
+
   /* Up from the foot, like every other sheet here. */
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -147,14 +187,18 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
   };
 
   const post = async () => {
-    const t = text.trim();
+    let t = text.trim();
     if (!t || busy) return;
+    /* Each picked name goes as its rower's number, the longest name first
+     * so one name inside another is not cut. */
+    for (const [name, num] of Object.entries(picked).sort((x, y) => y[0].length - x[0].length)) t = t.split(`@${name}`).join(`@[${num}]`);
     setBusy(true);
     try {
       await api("/api/row100k/app/comments", { body: { entryId, text: t, parentId: to?.id } });
       const wasReply = !!to;
       setText("");
       setTo(null);
+      setPicked({});
       await read();
       /* A new comment is the last one; a reply stays where it was read. */
       if (!wasReply) setTimeout(() => list.current?.scrollToEnd({ animated: true }), 60);
@@ -171,10 +215,55 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
     }
     read();
   };
+  /* A reply opens on the name of who it answers, as Instagram's does. */
   const reply = (c: Line) => {
     setTo(c);
+    if (!c.mine && !text.trim()) {
+      setText(`@${c.name} `);
+      setPicked((m) => ({ ...m, [c.name]: c.rowerNumber }));
+    }
     field.current?.focus();
   };
+  /* The heart on a comment answers at once; the server's count replaces
+   * the guess. */
+  const setLike = (id: string, likes: number, liked: boolean) =>
+    setData((d) => {
+      if (!d) return d;
+      const on = <T extends Line>(c: T): T => (c.id === id ? { ...c, likes, liked } : c);
+      return { ...d, comments: d.comments.map((c) => ({ ...on(c), replies: c.replies.map(on) })) };
+    });
+  const like = async (c: Line) => {
+    if (!me.me) return;
+    const next = !c.liked;
+    setLike(c.id, Math.max(0, c.likes + (next ? 1 : -1)), next);
+    try {
+      const r = await api<{ likes: number; liked: boolean }>("/api/row100k/app/like", { body: { commentId: c.id, on: next } });
+      setLike(c.id, r.likes, r.liked);
+    } catch {
+      setLike(c.id, c.likes, c.liked);
+    }
+  };
+  /* The words of a comment, a tagged rower in the blue and pressable. */
+  const words = (t: string) =>
+    t.split(TAG).map((part, i) => {
+      const m = /^@\[(\d{1,6})\]$/.exec(part);
+      if (!m) return part;
+      const name = data?.tags?.[String(Number(m[1]))];
+      if (!name) return "@rower";
+      return (
+        <Text
+          key={i}
+          accessibilityRole="link"
+          style={{ fontFamily: F.bold, color: C.accent }}
+          onPress={() => {
+            shut();
+            onRower(Number(m[1]));
+          }}
+        >
+          @{name}
+        </Text>
+      );
+    });
 
   const small = { fontFamily: F.monoBold, fontSize: 11, color: C.gray } as const;
   const one = (c: Line, inner: boolean) => (
@@ -196,7 +285,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
             {c.dayStr} · {c.clockStr}
           </Text>
         </Text>
-        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 2 }}>{c.text}</Text>
+        <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 2 }}>{words(c.text)}</Text>
         <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}>
           {me.me ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Reply to ${c.name}`} onPress={() => reply(c)} hitSlop={8}>
@@ -215,6 +304,11 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
           ) : null}
         </View>
       </View>
+      {/* Its own heart, the count under it. */}
+      <Pressable accessibilityRole="button" accessibilityLabel={c.liked ? `Unlike this comment. ${c.likes} likes` : `Like this comment. ${c.likes} likes`} accessibilityState={{ selected: c.liked }} onPress={() => like(c)} hitSlop={10} style={({ pressed }) => ({ width: 30, alignItems: "center", paddingTop: 4, opacity: pressed ? 0.5 : 1 })}>
+        <HeartIcon color={c.liked ? C.accent : C.gray} full={c.liked} size={17} />
+        {c.likes > 0 ? <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 2, fontVariant: ["tabular-nums"] }}>{fmtInt(c.likes)}</Text> : null}
+      </Pressable>
     </View>
   );
 
@@ -260,6 +354,17 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
           {me.me ? (
             <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingTop: 8, paddingBottom: Platform.OS === "ios" ? 26 : 12 }}>
               {data && error ? <Text style={[mono(10, false, C.accent), { marginBottom: 6 }]}>{error}</Text> : null}
+              {/* The roster, while a name is being written after an @. */}
+              {offer.map((p) => (
+                <Pressable key={p.rowerNumber} accessibilityRole="button" accessibilityLabel={`Tag ${p.name}`} onPress={() => pick(p)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
+                  <Avatar uri={p.avatar} name={p.name} size={28} />
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 15, color: C.ink }}>
+                    <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{p.numStr} · </Text>
+                    {p.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {offer.length ? <View style={{ height: 8 }} /> : null}
               {to ? (
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, flex: 1 }}>

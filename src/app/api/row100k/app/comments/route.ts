@@ -22,11 +22,23 @@ import { asRower, no, seeEntry, yes } from "../social";
  * under the same first comment. Only a row the viewer can see can be read
  * or written on. A comment by somebody the viewer has blocked, or who has
  * blocked them, is not shown to them. The row's rower is told of a comment,
- * and a comment's writer of a reply. */
+ * and a comment's writer of a reply.
+ *
+ * A ROWER TAGGED IN A COMMENT (owner, the same day, of "allow users to add
+ * other users": "I meant tagging someone in a comment") is written into the
+ * text as @[<rower number>], which is what the app sends once a name has
+ * been picked. The answer carries `tags`, number to name as it stands now,
+ * so a comment follows a rower who changes their name. Each rower tagged is
+ * told, unless the same comment already told them something.
+ *
+ * Text only (owner: "we just need text, I think, for comments"). Each line
+ * carries its likes (api/row100k/app/like). */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX = 500;
+const TAG = /@\[(\d{1,6})\]/g;
+const tagged = (text: string): number[] => [...new Set([...text.matchAll(TAG)].map((m) => Number(m[1])))].slice(0, 10);
 
 export async function GET(req: Request) {
   try {
@@ -37,8 +49,18 @@ export async function GET(req: Request) {
     const cut = new Set(viewer.myParticipantId ? await blockedIds(viewer.myParticipantId) : []);
     const shown = rows.filter((r) => !cut.has(r.participantId));
     const ids = [...new Set(shown.map((r) => r.participantId))];
-    const [people, faces] = await Promise.all([ids.length ? db.rowParticipant.findMany({ where: { id: { in: ids } }, select: { id: true, rowerNumber: true, displayName: true } }) : Promise.resolve([]), avatarsFor(ids)]);
+    const nums = [...new Set(shown.flatMap((r) => tagged(r.text)))];
+    const shownIds = shown.map((r) => r.id);
+    const [people, faces, named, likeRows, mineRows] = await Promise.all([
+      ids.length ? db.rowParticipant.findMany({ where: { id: { in: ids } }, select: { id: true, rowerNumber: true, displayName: true } }) : Promise.resolve([]),
+      avatarsFor(ids),
+      nums.length ? db.rowParticipant.findMany({ where: { challenge: CHALLENGE, rowerNumber: { in: nums } }, select: { rowerNumber: true, displayName: true } }) : Promise.resolve([]),
+      shownIds.length ? db.rowCommentLike.groupBy({ by: ["commentId"], where: { commentId: { in: shownIds } }, _count: true }) : Promise.resolve([]),
+      shownIds.length && viewer.myParticipantId ? db.rowCommentLike.findMany({ where: { commentId: { in: shownIds }, participantId: viewer.myParticipantId }, select: { commentId: true } }) : Promise.resolve([]),
+    ]);
     const by = new Map(people.map((p) => [p.id, p]));
+    const likes = new Map(likeRows.map((l) => [l.commentId, l._count]));
+    const liked = new Set(mineRows.map((l) => l.commentId));
     const line = (r: (typeof shown)[number]) => {
       const p = by.get(r.participantId);
       if (!p) return null;
@@ -50,6 +72,8 @@ export async function GET(req: Request) {
         name: p.displayName,
         avatar: faces.get(p.id) ?? null,
         text: r.text,
+        likes: likes.get(r.id) ?? 0,
+        liked: liked.has(r.id),
         mine: p.id === viewer.myParticipantId,
         /* Who may take it down: its writer, the row's rower, an admin. */
         canRemove: p.id === viewer.myParticipantId || entry.participantId === viewer.myParticipantId || viewer.isAdmin,
@@ -59,7 +83,7 @@ export async function GET(req: Request) {
     };
     const all = shown.map(line).filter((c): c is NonNullable<ReturnType<typeof line>> => c !== null);
     const tops = all.filter((c) => !c.parentId);
-    return yes({ comments: tops.map((c) => ({ ...c, replies: all.filter((r) => r.parentId === c.id) })), count: all.length });
+    return yes({ comments: tops.map((c) => ({ ...c, replies: all.filter((r) => r.parentId === c.id) })), count: all.length, tags: Object.fromEntries(named.map((p) => [String(p.rowerNumber), p.displayName])) });
   } catch (err) {
     console.error("row app: failed to read comments", err);
     return no("The comments could not be read just now.", 500);
@@ -102,6 +126,12 @@ export async function POST(req: Request) {
     const actor = { id: me.id, displayName: me.displayName };
     if (parentBy) await notifyTouch("replied", parentBy, actor, entry.id);
     if (entry.participantId !== parentBy) await notifyTouch("commented", entry.participantId, actor, entry.id);
+    /* Whoever was tagged, unless this comment has already told them. */
+    const nums = tagged(text);
+    if (nums.length) {
+      const people = await db.rowParticipant.findMany({ where: { challenge: CHALLENGE, rowerNumber: { in: nums } }, select: { id: true } });
+      for (const p of people) if (p.id !== parentBy && p.id !== entry.participantId) await notifyTouch("mentioned", p.id, actor, entry.id);
+    }
     return yes({ id: made.id });
   } catch (err) {
     console.error("row app: comment failed", err);

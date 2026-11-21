@@ -385,7 +385,7 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
   /* A like leads to the row; a comment or a reply to the row with its
    * comments up. */
   const open = (it: Notice) =>
-    (it.kind === "rowed" || it.kind === "liked") && it.entryId ? onRow(it.entryId) : (it.kind === "commented" || it.kind === "replied") && it.entryId ? onRow(it.entryId, true) : it.kind === "passed" ? onBoard() : onRower(it.rowerNumber);
+    (it.kind === "rowed" || it.kind === "liked") && it.entryId ? onRow(it.entryId) : (it.kind === "commented" || it.kind === "replied" || it.kind === "mentioned" || it.kind === "likedComment") && it.entryId ? onRow(it.entryId, true) : it.kind === "passed" ? onBoard() : onRower(it.rowerNumber);
   const requests = me.social?.requests ?? 0;
 
   return (
@@ -436,8 +436,8 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
   follow: ["Somebody follows me", "Requests to follow a private account always arrive."],
-  liked: ["Somebody likes my row", ""],
-  commented: ["Comments and replies", "A comment on my row, or a reply to one of mine."],
+  liked: ["Likes", "Of a row of mine, or of a comment."],
+  commented: ["Comments, replies and tags", "A comment on my row, a reply to one of mine, or my name in one."],
 };
 
 /* SETTINGS, behind the three lines on the rower's own profile (owner,

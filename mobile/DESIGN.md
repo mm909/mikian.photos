@@ -186,8 +186,12 @@ All DECIDED (his words), BUILT on the sandbox unless marked.
 - The keyboard goes away when a rower is opened from search ("when I ... click on someone, the keyboard stays up").
 - A PACE NEEDS NO UNIT ("if we're denoting a pace, we don't need to say /500"): gone from the row stickers (receipt, pace, stack, tags), from the feed card and from the row's page.
 - The splits sticker loses its title; the stat line (meters, time, average) is at the top where the title was ("we actually don't need the title 500-meter splits ... let's just put the stat line at the top").
+- Later the same day, of the built row of marks: "likes and comments on the left, shares on the right" (first "evenly spaced", then "off to the left I think is fine"). Counts beside the heart and the bubble; the share mark has none.
+- A COMMENT CAN BE LIKED ("allow me to like comments as well"): a small heart at the right of each, its count under it; the writer is told, under the Likes switch.
+- TAGGING ("allow users to add other users": "I meant tagging someone in a comment"): an @ and the start of a name brings up to five of the roster over the field; the name is written in, shows in the blue, opens that rower, and they are told ("mentioned you in a comment", under the comments switch). A reply opens on the @name of who it answers. In the database a tag is @[rower number], so it follows a changed name.
+- Comments are text only ("we just need text, I think, for comments").
+- "I like this round of shareables."
 - NOT BUILT: who liked a row (a tap on the count); a double tap on a photo to like; the hamburger menu holding more than settings ("settings and activity", the TSP and No Shortcuts events: "we don't need to build those things right now").
-- OPEN: "allow users to add other users" (tagging somebody in a comment, or adding a partner to a row? he has not said).
 
 ## Follow the website's look
 

@@ -186,7 +186,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   await db.rowEntry.deleteMany({ where: { id: guarded.entryId } });
   /* What hung on the row in the phone app's tables (no FKs there). */
   try {
-    await Promise.all([db.rowLike.deleteMany({ where: { entryId: guarded.entryId } }), db.rowComment.deleteMany({ where: { entryId: guarded.entryId } }), db.rowNotification.deleteMany({ where: { entryId: guarded.entryId } })]);
+    await Promise.all([db.rowLike.deleteMany({ where: { entryId: guarded.entryId } }), db.rowComment.deleteMany({ where: { entryId: guarded.entryId } }), db.rowCommentLike.deleteMany({ where: { entryId: guarded.entryId } }), db.rowNotification.deleteMany({ where: { entryId: guarded.entryId } })]);
   } catch (err) {
     console.error("row100k: failed to clear a removed row's likes and comments", err);
   }
