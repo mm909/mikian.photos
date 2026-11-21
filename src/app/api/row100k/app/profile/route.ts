@@ -56,6 +56,8 @@ export async function GET(req: Request) {
       rel: { following: rel.following, bell: rel.bell, followsYou: rel.followsYou, muted: rel.muted, isPrivate: rel.isPrivate, locked: rel.access === "private" },
       counts,
       avatar: (await avatarsFor([v.rower.id])).get(v.rower.id) ?? null,
+      /* What the rower wrote about themselves; nobody's across a lock. */
+      bio: rel.access === "private" ? "" : ((await db.rowParticipant.findUnique({ where: { id: v.rower.id }, select: { bio: true } }).catch(() => null))?.bio ?? ""),
       requests: pendingIn,
       /* For an admin only: the id the site's own delete-a-rower route takes. */
       adminId: viewer.isAdmin && !v.isMe ? v.rower.id : null,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, type Person } from "../api";
 import { CommentIcon, HeartIcon, SendIcon, ShareIcon } from "../icons";
 import { useSession } from "../session";
@@ -177,6 +177,33 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
     field.current?.focus();
   };
 
+  /* THE KEYBOARD (owner, 2026-11-21: "we still see those little edges
+   * around the keyboard"; "it scrolls the comments box up, but it goes a
+   * little too far up the screen"; and the field "is not vertically
+   * centered"). The sheet is moved by the keyboard's own height, read off
+   * the keyboard, and is made SHORTER while it is up so its top stays on
+   * the screen with the row still showing over it. Paper runs behind the
+   * whole keyboard, so its rounded corners show paper. And the room left
+   * under the field for the phone's home bar is given back while the
+   * keyboard covers that bar. */
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const up = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+      Keyboard.scheduleLayoutAnimation(e);
+      setKb(e.endCoordinates.height);
+    });
+    const down = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", (e) => {
+      Keyboard.scheduleLayoutAnimation(e);
+      setKb(0);
+    });
+    return () => {
+      up.remove();
+      down.remove();
+    };
+  }, []);
+  const tall = Math.round(Math.min(win.height * 0.72, win.height - kb - 110));
+
   /* Up from the foot, like every other sheet here. */
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -315,17 +342,17 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={shut}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }}>
+      <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: kb }}>
         <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
           <Pressable accessibilityLabel="Close the comments" onPress={shut} style={{ flex: 1 }} />
         </Animated.View>
         {/* Paper under the sheet, so nothing darker shows round the
             corners of the keyboard when it is up (owner, 2026-11-22: "some
             edges around there that aren't the same color"). */}
-        <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 140, alignItems: "center", opacity: a }}>
+        <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: kb + 60, alignItems: "center", opacity: a }}>
           <View style={{ flex: 1, width: "100%", maxWidth: 560, backgroundColor: C.paper }} />
         </Animated.View>
-        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, width: "100%", maxWidth: 560, alignSelf: "center", height: Math.round(win.height * 0.72), transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [win.height * 0.72, 0] }) }] }}>
+        <Animated.View style={{ backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, width: "100%", maxWidth: 560, alignSelf: "center", height: tall, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [win.height * 0.72, 0] }) }] }}>
           {/* The grip and the name of the sheet. */}
           <View style={{ alignItems: "center", paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.line }}>
             <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: C.line, marginBottom: 12 }} />
@@ -359,7 +386,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
 
           {/* The field at the foot, and who it answers. */}
           {me.me ? (
-            <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingTop: 8, paddingBottom: Platform.OS === "ios" ? 26 : 12 }}>
+            <View style={{ borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingTop: 8, paddingBottom: kb > 0 ? 8 : Platform.OS === "ios" ? 26 : 12 }}>
               {data && error ? <Text style={[mono(10, false, C.accent), { marginBottom: 6 }]}>{error}</Text> : null}
               {/* The roster, while a name is being written after an @. */}
               {offer.map((p) => (
@@ -413,7 +440,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
           )}
         </Animated.View>
         {report ? <ReportSheet num={report.rowerNumber} name={report.name} entryId={entryId} onClose={() => setReport(null)} /> : null}
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

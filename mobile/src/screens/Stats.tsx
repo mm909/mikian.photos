@@ -136,8 +136,12 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
       {s.field ? (
         <>
           <Eye left="The field" />
-          {s.field.length ? <Summary k="Length · median row" v={fmtInt(s.field.length.median)} u="m" line={`Mean ${fmtInt(s.field.length.mean)} m · SD ${fmtInt(s.field.length.sd)} m · P10–P90 ${fmtInt(s.field.length.p10)}–${fmtInt(s.field.length.p90)} m`} first /> : null}
-          {s.field.pace ? <Summary k="Pace · median split" v={m2(s.field.pace.median)} u="/500m" line={`Mean ${m2(s.field.pace.mean)} · SD ${m2(s.field.pace.sd)} · P10–P90 ${m2(s.field.pace.p10)}–${m2(s.field.pace.p90)}`} /> : null}
+          {/* The two medians, and no line of mean, deviation and
+              percentiles under them (owner, 2026-11-21: "the field on the
+              stats page, that like little copy, isn't doing much ... we
+              can probably just remove it"). */}
+          {s.field.length ? <Summary k="Length · median row" v={fmtInt(s.field.length.median)} u="m" first /> : null}
+          {s.field.pace ? <Summary k="Pace · median split" v={m2(s.field.pace.median)} u="/500m" /> : null}
           <ChartHead>Length of every row</ChartHead>
           <Density kde={s.field.lengthKde} fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)} />
           <ChartHead>Split of every row</ChartHead>
@@ -176,7 +180,7 @@ function marksOf(byDay: Record<string, number>): [number, number, number] {
 }
 
 /* A figure of the field with its line of spread, between ink rules. */
-function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; line: string; first?: boolean }) {
+function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; line?: string; first?: boolean }) {
   return (
     <View style={{ borderTopWidth: first ? 2 : 1, borderBottomWidth: first ? 0 : 2, borderColor: C.ink, paddingVertical: 14 }}>
       <Text style={mono(11, false, C.gray)}>{k}</Text>
@@ -184,7 +188,7 @@ function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; li
         <Text style={{ fontFamily: F.black, fontSize: 28, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
         <Text style={{ fontFamily: F.bold, fontSize: 13, color: C.gray }}>{u}</Text>
       </View>
-      <Text style={[mono(11, false, C.gray, 0.12), { marginTop: 6, lineHeight: 18 }]}>{line}</Text>
+      {line ? <Text style={[mono(11, false, C.gray, 0.12), { marginTop: 6, lineHeight: 18 }]}>{line}</Text> : null}
     </View>
   );
 }

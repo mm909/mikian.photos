@@ -66,6 +66,9 @@ export class ApiError extends Error {
 const seen = new Map<string, unknown>();
 export const peek = <T,>(path: string | null | undefined): T | null => (path ? ((seen.get(path) as T | undefined) ?? null) : null);
 export const forget = (): void => seen.clear();
+/* Counts what the rower has changed about themselves (the photo, the bio),
+ * so their own profile, mounted under the settings, reads again. */
+export const edits = { n: 0 };
 /* Read these now, quietly, so they are there when their screen is opened. */
 export function warm(paths: string[]): void {
   for (const p of paths) api(p).catch(() => null);
@@ -121,7 +124,12 @@ export type Rel = { following: FollowState; bell: boolean; followsYou: FollowSta
 export type Counts = { followers: number; following: number };
 export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null; avatar?: string | null };
 export type Notice = { avatar?: string | null; id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed" | "liked" | "commented" | "replied" | "mentioned" | "likedComment"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };
-export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[]; avatar?: string | null };
+export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[]; notifyOn?: string[]; optIn?: string[]; avatar?: string | null; bio?: string; heightCm?: number | null; weightKg?: number | null; birthday?: string | null };
+/* The two questions behind the stats (api/row100k/app/stories). */
+export type Stories = {
+  rowers: { today: number; todayDay: string; weeks: number[]; days: { day: string; rowers: number }[]; months: { key: string; label: string; year: string; rowers: number; rows: number; meters: number }[]; everyone: number };
+  when: { hours: number[]; weekdays: number[]; rows: number };
+};
 /* What the profile route answers in place of a profile across a block. */
 export type Blocked = { rowerNumber: number; displayName: string; byMe: boolean };
 
@@ -184,6 +192,8 @@ export type Profile = {
   rel: Rel;
   counts: Counts;
   avatar?: string | null;
+  /* What the rower wrote about themselves. */
+  bio?: string;
   /* On the viewer's own profile: follow requests waiting on them. */
   requests: number;
   /* For an admin looking at somebody else: the id the delete-a-rower route takes. */

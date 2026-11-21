@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Reac
 import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
 import { useErg } from "./src/erg/useErg";
-import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, SearchIcon, StatsIcon } from "./src/icons";
+import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon } from "./src/icons";
+import { Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
@@ -15,7 +16,9 @@ import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Logged } from "./src/screens/RowScreen";
-import { NewsScreen, PeopleScreen, SearchScreen, SettingsScreen, type PeopleList } from "./src/screens/Social";
+import { SettingsScreen, type SettingsPage } from "./src/screens/Settings";
+import { NewsScreen, PeopleScreen, SearchScreen, type PeopleList } from "./src/screens/Social";
+import { StoriesScreen, StoryScreen, type StoryId } from "./src/screens/Stories";
 import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
@@ -68,7 +71,9 @@ type Over = { k: number } & (
   | { kind: "rower"; num: number }
   | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc; talk?: boolean }
   | { kind: "news" }
-  | { kind: "settings" }
+  | { kind: "settings"; page?: SettingsPage }
+  | { kind: "stories" }
+  | { kind: "story"; id: StoryId }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -226,18 +231,70 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * Instagram, if I'm on my page, I can swipe ... so let's do that"). Only
    * a clearly sideways drag, and only on a tab itself: anything opened
    * over it has its own swipe, back. */
+  /* THE TABS LIE SIDE BY SIDE and the finger drags the row of them (owner,
+   * 2026-11-21: "I want to see the pane swipe. Like on Instagram ... it's
+   * like they exist, but they're just off the screen. On my app, it just
+   * teleports there"). `pos` is which tab is in view, counted in tabs: a
+   * drag moves it with the finger, and letting go carries it on to the next
+   * tab or back. Only the tab in view and the one being dragged toward are
+   * mounted. A press on the bar still goes straight there. */
   const tabRef = useRef<Tab>(tab);
   tabRef.current = tab;
+  const at = TABS.findIndex((t) => t.id === tab);
+  const pos = useRef(new Animated.Value(at)).current;
+  const [peek, setPeek] = useState<Tab | null>(null);
+  const peekRef = useRef<Tab | null>(null);
+  const paneW = Math.min(win.width, 560);
+  const paneRef = useRef(paneW);
+  paneRef.current = paneW;
+  const nativeDrive = Platform.OS !== "web";
+  useEffect(() => {
+    pos.setValue(at);
+  }, [pos, at]);
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      onPanResponderMove: (_e, g) => {
+        const i = TABS.findIndex((t) => t.id === tabRef.current);
+        pos.setValue(Math.max(0, Math.min(TABS.length - 1, i - g.dx / paneRef.current)));
+        const n = i + (g.dx < 0 ? 1 : -1);
+        const want = n >= 0 && n < TABS.length ? TABS[n].id : null;
+        if (peekRef.current !== want) {
+          peekRef.current = want;
+          setPeek(want);
+        }
+      },
       onPanResponderRelease: (_e, g) => {
-        if (Math.abs(g.dx) < 60) return;
-        const i = TABS.findIndex((t) => t.id === tabRef.current) + (g.dx < 0 ? 1 : -1);
-        if (i >= 0 && i < TABS.length) setTab(TABS[i].id);
+        const i = TABS.findIndex((t) => t.id === tabRef.current);
+        const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
+        const to = Math.max(0, Math.min(TABS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
+        Animated.timing(pos, { toValue: to, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
+          if (to !== i) setTab(TABS[to].id);
+          peekRef.current = null;
+          setPeek(null);
+        });
+      },
+      onPanResponderTerminate: () => {
+        const i = TABS.findIndex((t) => t.id === tabRef.current);
+        Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
+          peekRef.current = null;
+          setPeek(null);
+        });
       },
     }),
   ).current;
+  const pane = (t: Tab): ReactNode =>
+    t === "feed" ? (
+      <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} onScrollDir={setAway} />
+    ) : t === "search" ? (
+      <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} />
+    ) : t === "board" ? (
+      <BoardScreen key={stamp} onRower={openRower} onScrollDir={setAway} />
+    ) : t === "stats" ? (
+      <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
+    ) : (
+      <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+    );
 
   /* A ROW LOGGED lands on its own page, with what the totals were a moment
    * before so the page can show them move (the session is read again only
@@ -277,7 +334,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const num3 = (n: number) => String(n).padStart(3, "0");
   const rowOf = top?.kind === "row" ? rowNum[top.id] : undefined;
   let mark: string | null = null;
-  let markIs: "word" | "meters" = "word";
+  let markIs: MarkKind = "word";
   if (logOn) mark = "LOG";
   else if (!top) {
     if (tab === "profile" && mine) mark = num3(mine);
@@ -295,7 +352,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? "Settings" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "The erg" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -314,7 +371,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "rankings" ? (
       <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} />
     ) : o.kind === "settings" ? (
-      <SettingsScreen onPeople={openPeople} onSignedOut={() => setStack([])} />
+      <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} />
+    ) : o.kind === "stories" ? (
+      <StoriesScreen onStory={(id) => push({ kind: "story", id })} />
+    ) : o.kind === "story" ? (
+      <StoryScreen id={o.id} />
     ) : o.kind === "news" ? (
       <NewsScreen
         onRower={openRower}
@@ -337,6 +398,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           /* No rule under the bar (owner, 2026-11-22: "I don't need that
              line at the top"). It folds away with the feed. */
           <Animated.View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 10, overflow: "hidden", height: tuck.interpolate({ inputRange: [0, 1], outputRange: [54, 0] }), opacity: tuck.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+            {searchBar ? null : (
             <View style={[side, { alignItems: "flex-start" }]}>
               {over ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={8} style={press}>
@@ -348,6 +410,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                 </Pressable>
               )}
             </View>
+            )}
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
               {searchBar ? (
                 /* THE SEARCH FIELD, where the mark is on the other tabs, the
@@ -378,6 +441,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                 <Mark label={mark} kind={markIs} />
               ) : null}
             </View>
+            {searchBar ? null : (
             <View style={[side, { alignItems: "flex-end" }]}>
               {dots ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setMenu(true)} hitSlop={8} style={press}>
@@ -389,12 +453,20 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                     <MenuIcon />
                   </Pressable>
                 ) : null
+              ) : tab === "stats" ? (
+                /* On the stats, the questions the numbers answer (owner,
+                   2026-11-21: "the notification button on the stats page
+                   gets replaced with like little FAQ button"). */
+                <Pressable accessibilityRole="button" accessibilityLabel="Questions the stats answer" onPress={() => push({ kind: "stories" })} hitSlop={8} style={press}>
+                  <QuestionIcon />
+                </Pressable>
               ) : me.me ? (
                 <Pressable accessibilityRole="button" accessibilityLabel={waiting ? `Notifications, ${waiting} waiting` : "Notifications"} onPress={() => push({ kind: "news" })} hitSlop={8} style={press}>
                   <BellIcon count={waiting} />
                 </Pressable>
               ) : null}
             </View>
+            )}
           </Animated.View>
         )}
 
@@ -402,11 +474,13 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           {/* The tab stays where it was, mounted, under whatever is opened
               over it. */}
           <View style={{ flex: 1 }} {...swipe.panHandlers}>
-            {tab === "feed" ? <FeedScreen onRower={openRower} onRow={openRow} stamp={stamp} onScrollDir={setAway} /> : null}
-            {tab === "search" ? <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} /> : null}
-            {tab === "board" ? <BoardScreen key={stamp} onRower={openRower} onScrollDir={setAway} /> : null}
-            {tab === "stats" ? <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} /> : null}
-            {tab === "profile" ? <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} /> : null}
+            {TABS.map((t, i) =>
+              t.id === tab || t.id === peek ? (
+                <Animated.View key={t.id} pointerEvents={t.id === tab ? "auto" : "none"} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.paper, transform: [{ translateX: pos.interpolate({ inputRange: [0, TABS.length - 1], outputRange: [i * paneW, (i - (TABS.length - 1)) * paneW] }) }] }}>
+                  {pane(t.id)}
+                </Animated.View>
+              ) : null,
+            )}
           </View>
           {stack.map((o, i) => (
             <Slide
@@ -500,51 +574,6 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
       {/* Where a swipe back starts: a strip down the left edge. */}
       <View {...edge.panHandlers} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 22 }} />
     </Animated.View>
-  );
-}
-
-/* THE MARK (owner, 2026-11-14: "change our logo to ROW with the O in the
- * Rowtember color"), and what it becomes (owner, 2026-11-21: "ROW turns
- * into 001 ... a nice little animation"): each letter is a wheel that rolls
- * up to the figure under it, one after the other, as an odometer turns
- * over. A word or a rower's number keeps the blue in its middle; a count of
- * meters is ink with its M in the blue. */
-const WHEEL = 32;
-function Mark({ label, kind }: { label: string; kind: "word" | "meters" }) {
-  const [pair, setPair] = useState({ from: label, to: label, turn: 0 });
-  useEffect(() => {
-    setPair((p) => (p.to === label ? p : { from: p.to, to: label, turn: p.turn + 1 }));
-  }, [label]);
-  const chars = pair.to.split("");
-  const same = pair.from.length === pair.to.length;
-  const size = chars.length > 9 ? 20 : chars.length > 5 ? 23 : 26;
-  /* ONE thing in the blue. A count of meters: its M. A rower's number:
-   * what is between its first and last figure. A word: its first O, as in
-   * ROW and LOG, or failing an O the letter in its middle. */
-  const digits = /^\d+$/.test(pair.to);
-  const o = pair.to.indexOf("O");
-  const one = o >= 0 ? o : Math.floor((chars.length - 1) / 2);
-  const blue = (i: number) => (kind === "meters" ? i === chars.length - 1 : digits ? i > 0 && i < chars.length - 1 : i === one);
-  return (
-    <View accessibilityRole="header" accessibilityLabel={pair.to === "ROW" ? "Row" : pair.to} style={{ flexDirection: "row", height: WHEEL }}>
-      {chars.map((ch, i) => (
-        <Wheel key={`${pair.turn}-${i}`} from={same ? pair.from[i] : ""} to={ch} roll={pair.turn > 0} delay={Math.min(i, 8) * 55} blue={blue(i)} size={size} />
-      ))}
-    </View>
-  );
-}
-
-function Wheel({ from, to, roll, delay, blue, size }: { from: string; to: string; roll: boolean; delay: number; blue: boolean; size: number }) {
-  const a = useRef(new Animated.Value(roll ? 0 : 1)).current;
-  useEffect(() => {
-    if (roll) Animated.timing(a, { toValue: 1, duration: 380, delay, easing: Easing.bezier(0.2, 0.7, 0.2, 1), useNativeDriver: Platform.OS !== "web" }).start();
-  }, [a, roll, delay]);
-  const face = { fontFamily: F.black, fontSize: size, lineHeight: WHEEL, letterSpacing: 0.5, color: blue ? C.accent : C.ink, fontVariant: ["tabular-nums" as const], textAlign: "center" as const };
-  return (
-    <View style={{ height: WHEEL, overflow: "hidden" }}>
-      <Animated.Text style={[face, { transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [WHEEL, 0] }) }] }]}>{to}</Animated.Text>
-      {roll && from ? <Animated.Text style={[face, { position: "absolute", left: 0, right: 0, transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [0, -WHEEL] }) }] }]}>{from}</Animated.Text> : null}
-    </View>
   );
 }
 

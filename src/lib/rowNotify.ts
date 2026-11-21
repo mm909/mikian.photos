@@ -28,6 +28,11 @@ export type NoteKind = "follow" | "request" | "accepted" | "rowed" | "passed" | 
 /* The kinds a rower can switch off. A request and its answer always land:
  * they are things the rower has to act on or asked for. */
 export const SWITCHABLE: readonly NoteKind[] = ["passed", "follow", "liked", "commented"];
+/* The kinds that are off until a rower turns them on (RowSocialSetting.
+ * notifyOn; owner, 2026-11-21): a line whenever a rower I follow logs a
+ * row, and one whenever anybody does. Beside them, the bell on one rower
+ * (RowFollow.notify) asks for that rower's rows whatever these say. */
+export const OPT_IN = ["rowed", "rowedAll"] as const;
 
 /* ---- push ------------------------------------------------------------ */
 
@@ -116,6 +121,7 @@ export async function clearRequest(recipientId: string, actorId: string): Promis
  * PASSED is not sent at all while a lights-out window is open, since who
  * passed whom is exactly what the window hides. */
 export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number }): Promise<void> {
+  await notifyRowed(rower, entry.id);
   try {
     const follows = await db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted", notify: true }, select: { followerId: true } });
     if (follows.length === 0) return;
@@ -158,5 +164,45 @@ export async function notifyRowLogged(rower: { id: string; displayName: string }
     await push(pushes);
   } catch (err) {
     console.error("row notify: failed to tell the followers about a row", err);
+  }
+}
+
+/* A ROW WAS LOGGED, and who asked to be told (owner, 2026-11-21: "include
+ * ... rowers that I follow do a row as one of the notifications. Let's
+ * leave that as off for now"; "there's anytime someone submits a row.
+ * There's just from rowers that I follow, and then there's just from
+ * rowers that I have notifications turned on for"). Three ways in, all off
+ * until asked for:
+ *
+ *   the bell on this rower (RowFollow.notify), from a follower;
+ *   "rowed" in a follower's notifyOn: every rower they follow;
+ *   "rowedAll" in anybody's notifyOn: every rower there is.
+ *
+ * One line each, leading to the row. Never across a block, never to
+ * somebody who muted the rower, and a private rower's row is told only to
+ * the followers they accepted. No metres in the line (see above). */
+async function notifyRowed(rower: { id: string; displayName: string }, entryId: string): Promise<void> {
+  try {
+    const [follows, opted, priv, blocked, muters] = await Promise.all([
+      db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted" }, select: { followerId: true, notify: true } }),
+      db.rowSocialSetting.findMany({ where: { challenge: CHALLENGE, notifyOn: { hasSome: [...OPT_IN] } }, select: { participantId: true, notifyOn: true } }),
+      db.rowSocialSetting.findUnique({ where: { participantId: rower.id }, select: { isPrivate: true } }),
+      blockedIds(rower.id),
+      db.rowMute.findMany({ where: { mutedId: rower.id }, select: { muterId: true } }),
+    ]);
+    const on = new Map(opted.map((s) => [s.participantId, s.notifyOn]));
+    const follower = new Set(follows.map((f) => f.followerId));
+    const to = new Set<string>();
+    for (const f of follows) if (f.notify || on.get(f.followerId)?.includes("rowed")) to.add(f.followerId);
+    for (const s of opted) if (s.notifyOn.includes("rowedAll") && (!priv?.isPrivate || follower.has(s.participantId))) to.add(s.participantId);
+    to.delete(rower.id);
+    for (const id of blocked) to.delete(id);
+    for (const m of muters) to.delete(m.muterId);
+    if (to.size === 0) return;
+    const ids = [...to];
+    await db.rowNotification.createMany({ data: ids.map((participantId) => ({ challenge: CHALLENGE, participantId, kind: "rowed", actorId: rower.id, entryId })) });
+    await push(ids.map((participantId) => ({ participantId, title: "ROW", body: `${rower.displayName} logged a row.`, data: { kind: "rowed", row: entryId } })));
+  } catch (err) {
+    console.error("row notify: failed to tell who asked about a row", err);
   }
 }

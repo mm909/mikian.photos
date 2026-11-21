@@ -513,6 +513,31 @@ export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () 
   const [note, setNote] = useState("");
   const cards = data?.cards ?? [];
   const card = cards[Math.min(at, cards.length - 1)];
+  /* ROUND AND ROUND (owner, 2026-11-21: "if I try to swipe left and I
+   * can't go left, just go to the last one ... when I'm at the end ... show
+   * me the first one"). The last sticker is drawn again before the first
+   * and the first again after the last; a swipe that settles on one of
+   * those two is moved, unseen, to the real one. */
+  const loop = cards.length > 1;
+  const pages = loop ? [cards[cards.length - 1], ...cards, cards[0]] : cards;
+  const strip = useRef<{ scrollTo: (o: { x: number; animated: boolean }) => void } | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const placed = useRef(false);
+  const place = () => {
+    if (!loop || placed.current) return;
+    placed.current = true;
+    strip.current?.scrollTo({ x: w, animated: false });
+  };
+  const onStrip = (x: number) => {
+    const page = Math.round(x / Math.max(1, w));
+    if (!loop) return setAt(page);
+    setAt((page - 1 + cards.length) % cards.length);
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      if (page === 0) strip.current?.scrollTo({ x: cards.length * w, animated: false });
+      else if (page === cards.length + 1) strip.current?.scrollTo({ x: w, animated: false });
+    }, 140);
+  };
   const run = async (what: "share" | "copy") => {
     if (!card) return;
     setBusy(what);
@@ -551,9 +576,9 @@ export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () 
           {!data ? (
             <View style={{ flex: 1, justifyContent: "center" }}>{error ? <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20 }]}>{error}</Text> : <ActivityIndicator color="#fff" />}</View>
           ) : (
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setAt(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ flex: 1 }}>
-              {cards.map((c) => (
-                <Pressable key={c.id} onPress={onClose} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
+            <ScrollView ref={strip as never} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={loop ? { x: w, y: 0 } : undefined} onContentSizeChange={place} onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)} scrollEventThrottle={32} style={{ flex: 1 }}>
+              {pages.map((c, i) => (
+                <Pressable key={`${c.id}-${i}`} onPress={onClose} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
                   <Pressable onPress={() => {}}>
                     <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
                   </Pressable>
@@ -617,6 +642,17 @@ function Reels({ rowId }: { rowId: string }) {
   const [note, setNote] = useState("");
   const bar = useRef(new Animated.Value(0)).current;
   const turn = useRef(0);
+  /* HOW LONG IS LEFT, counted down over the still while the site films
+   * (owner, 2026-11-21: "if we could add an ETA ... it just shows the
+   * static screen, and that's a little confusing because it makes me
+   * think it's not working"). A reckoning, from what a film of this length
+   * has been taking: the count stops at one and waits. */
+  const [left, setLeft] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(() => setLeft((n) => Math.max(1, n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [busy]);
   const reset = () => {
     turn.current++;
     setFilm(null);
@@ -630,8 +666,10 @@ function Reels({ rowId }: { rowId: string }) {
     setBusy(true);
     setNote("");
     /* Most of the way over the time it usually takes, then it waits. */
+    const eta = Math.round(len * 0.8 + 3);
+    setLeft(eta);
     bar.setValue(0);
-    Animated.timing(bar, { toValue: 0.92, duration: len * 1300, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+    Animated.timing(bar, { toValue: 0.94, duration: eta * 1000, easing: Easing.linear, useNativeDriver: false }).start();
     try {
       const f = await filmReel(rowId, open, bg, len);
       if (mine !== turn.current) return;
@@ -682,7 +720,17 @@ function Reels({ rowId }: { rowId: string }) {
               /* The film itself, playing round. */
               createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
             ) : open ? (
-              <Still rowId={rowId} clip={open} tall />
+              <View style={{ height: "100%", alignItems: "center", justifyContent: "center" }}>
+                <View style={{ height: "100%", opacity: busy ? 0.25 : 1 }}>
+                  <Still rowId={rowId} clip={open} tall />
+                </View>
+                {busy ? (
+                  <View pointerEvents="none" style={{ position: "absolute", alignItems: "center" }}>
+                    <Text style={{ fontFamily: F.black, fontSize: 96, lineHeight: 104, color: "#fff", fontVariant: ["tabular-nums"] }}>{left}</Text>
+                    <Text style={mono(11, true, "#fff", 0.14)}>{left > 1 ? "Seconds left" : "Nearly there"}</Text>
+                  </View>
+                ) : null}
+              </View>
             ) : null}
           </View>
           {film ? (
@@ -695,7 +743,7 @@ function Reels({ rowId }: { rowId: string }) {
             </>
           ) : busy ? (
             <>
-              <Text style={[mono(11, true, "#fff", 0.12), { marginBottom: 10 }]}>Filming, about {len} seconds</Text>
+              <Text style={[mono(11, true, "#fff", 0.12), { marginBottom: 10 }]}>Filming your {len} second clip</Text>
               <View accessibilityRole="progressbar" style={{ height: 10, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }}>
                 <Animated.View style={{ height: "100%", backgroundColor: C.accent, width: bar.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
               </View>

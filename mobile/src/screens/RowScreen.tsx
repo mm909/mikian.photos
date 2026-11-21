@@ -11,9 +11,16 @@ import { Btn, Card, Eyebrow, Num, styles } from "../ui";
 import { logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
 
-/* LOG A ROW. Three ways in: connect a Concept2 PM5 and row, a demo row
- * (the simulator, for trying the screens with no erg in the room), or by
- * hand. All three end at the same form: two photos, the day, LOG.
+/* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
+ * Both end at the same form: two photos, the day, LOG.
+ *
+ * THE TWO BUTTONS ARE AT THE FOOT, side by side, under the thumb (owner,
+ * 2026-11-21: "should those buttons be down at the bottom, like a connect
+ * and then a log by hand, and then the top ... that's where the ...
+ * monitors that come up can happen"). The top is how to connect, and the
+ * monitors as they are found. The DEMO ROW is gone from here (the same
+ * day: "I don't think we need it anymore"); the simulator stays in the
+ * code for the sandbox.
  *
  * THE MONITOR (owner, 2026-11-20): "we don't need an animating wheel. Lets
  * stick to just numbers"; "I would like my avg pace and my current pace. My
@@ -76,43 +83,47 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
     );
   }
 
+  const looking = erg.phase === "scanning" || erg.phase === "connecting";
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
-      <Eyebrow>Concept2 PM5</Eyebrow>
-      <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginVertical: 6 }}>
-        Connect your <Text style={{ color: C.accent }}>erg</Text>
-      </Text>
-      <Text style={[styles.body, { marginBottom: 14 }]}>On the monitor: Menu, then Connect. Leave it on that screen and press the button. Set the piece on the monitor as usual; the app reads what you set.</Text>
-      {erg.phase === "idle" ? <Btn label="Connect" onPress={erg.connect} /> : null}
-      {erg.phase === "connecting" ? (
-        <View style={[styles.row, { gap: 10 }]}>
-          <ActivityIndicator color={C.ink} />
-          <Text style={styles.body}>Connecting...</Text>
-        </View>
-      ) : null}
-      {erg.phase === "scanning" ? (
-        <View>
-          <View style={[styles.row, { gap: 10, marginBottom: 8 }]}>
-            <ActivityIndicator color={C.ink} />
-            <Text style={styles.body}>{erg.found.length ? "Tap your monitor" : "Looking for monitors..."}</Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        <Eyebrow>Telemetry · Concept2 PM5</Eyebrow>
+        <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginVertical: 6 }}>
+          Connect your <Text style={{ color: C.accent }}>erg</Text>
+        </Text>
+        {["On the monitor: Menu, then Connect. Leave it on that screen.", "Press CONNECT here and tap your monitor when it shows up.", "Set the piece on the monitor as usual. The app reads what you set."].map((line, i) => (
+          <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
+            <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: C.accent, width: 18 }}>{i + 1}</Text>
+            <Text style={[styles.body, { flex: 1 }]}>{line}</Text>
           </View>
-          {erg.found.map((d) => (
-            <Pressable key={d.id} accessibilityRole="button" onPress={() => erg.pick(d)} style={{ borderTopWidth: 1, borderColor: C.line, paddingVertical: 16 }}>
-              <Text style={{ fontSize: 17, fontFamily: F.bold, color: C.ink }}>{d.name}</Text>
-            </Pressable>
-          ))}
-          <Btn label="Stop looking" quiet onPress={erg.discard} style={{ marginTop: 10 }} />
-        </View>
-      ) : null}
-      {erg.error ? <Text style={[styles.body, { color: C.accent, marginTop: 12 }]}>{erg.error}</Text> : null}
-
-      <View style={{ marginTop: 26, borderTopWidth: 2, borderColor: C.ink, paddingTop: 16 }}>
-        <Eyebrow style={{ color: C.ink, marginBottom: 10 }}>No erg connected</Eyebrow>
-        <Btn label="Log by hand" quiet onPress={() => setForm("manual")} disabled={erg.phase !== "idle"} />
-        <Btn label="Demo row" quiet onPress={() => erg.startDemo()} disabled={erg.phase !== "idle"} style={{ marginTop: 10 }} />
-        <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>A demo row runs the simulator, sped up, so the monitor can be tried with no erg in the room.</Text>
+        ))}
+        {erg.phase === "connecting" ? (
+          <View style={[styles.row, { gap: 10, marginTop: 18 }]}>
+            <ActivityIndicator color={C.ink} />
+            <Text style={styles.body}>Connecting...</Text>
+          </View>
+        ) : null}
+        {erg.phase === "scanning" ? (
+          <View style={{ marginTop: 18 }}>
+            <View style={[styles.row, { gap: 10, marginBottom: 8 }]}>
+              <ActivityIndicator color={C.ink} />
+              <Text style={styles.body}>{erg.found.length ? "Tap your monitor" : "Looking for monitors..."}</Text>
+            </View>
+            {erg.found.map((d) => (
+              <Pressable key={d.id} accessibilityRole="button" onPress={() => erg.pick(d)} style={{ borderTopWidth: 1, borderColor: C.line, paddingVertical: 16 }}>
+                <Text style={{ fontSize: 17, fontFamily: F.bold, color: C.ink }}>{d.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        {erg.error ? <Text style={[styles.body, { color: C.accent, marginTop: 12 }]}>{erg.error}</Text> : null}
+      </ScrollView>
+      {/* The foot, clear of the app's own bar. */}
+      <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 92, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.paper }}>
+        <Btn label="Log by hand" quiet onPress={() => setForm("manual")} disabled={erg.phase !== "idle"} style={{ flex: 1 }} />
+        {looking ? <Btn label="Stop looking" quiet onPress={erg.discard} style={{ flex: 1 }} /> : <Btn label="Connect" onPress={erg.connect} style={{ flex: 1 }} />}
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

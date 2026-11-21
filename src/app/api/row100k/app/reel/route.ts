@@ -57,6 +57,10 @@ export async function GET(req: Request) {
     const before = month
       ? await db.rowEntry.aggregate({ where: { challenge: CHALLENGE, participantId: entry.participantId, day: { gte: month.firstDay, lt: entry.day } }, _sum: { meters: true } })
       : null;
+    /* And the timed ones among them, for the month's own average pace. */
+    const timed = month
+      ? await db.rowEntry.aggregate({ where: { challenge: CHALLENGE, participantId: entry.participantId, day: { gte: month.firstDay, lt: entry.day }, seconds: { gt: 0 } }, _sum: { meters: true, seconds: true } })
+      : null;
 
     const format = oneOf<ReelFormat>(q.get("format"), Object.keys(REEL_FORMATS) as ReelFormat[], "story");
     const len = Number(q.get("len"));
@@ -69,6 +73,8 @@ export async function GET(req: Request) {
       format,
       lengthS: (REEL_LENGTHS as readonly number[]).includes(len) ? len : 10,
       startTotal: before?._sum.meters ?? 0,
+      startPaceM: timed?._sum.meters ?? 0,
+      startPaceS: timed?._sum.seconds ?? 0,
       /* The month in capitals. Its plain name: months wear their normal names. */
       label: (month ? month.label.split(" ")[0] : "Month").toUpperCase(),
     };

@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { api, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
+import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
-import { ShareIcon } from "../icons";
+import { RingIcon, ShareIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
-import { C, F, fmtClock, fmtInt } from "../theme";
-import { Avatar, Blocks, PhotoViewer, Waiting, useLoad, useScrollDir } from "../ui";
+import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
+import { Avatar, Bar, Blocks, PhotoViewer, Waiting, useLoad, useScrollDir } from "../ui";
+import { RowerRows } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
@@ -38,6 +39,19 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  * it's presented here"), the PRIVATE label, the underlines on the two
  * counts. The name is ONE line, shrunk to fit and cut short only if it
  * still will not ("the name can't be on 2 lines").
+ *
+ * THREE TABS UNDER THE LEDGER (owner, 2026-11-21: "the profile maybe needs
+ * some tabs like the Strava one does ... not having to scroll so far down
+ * to look at the log ... one for stats, one for the activities. And then
+ * ... maybe it's something about the 100K"):
+ *
+ *   ROWS    the rower's rows as the feed's own cards, newest first
+ *   STATS   the pace, the field, the bests, the telemetry
+ *   100K    the month's calendar, and every month against the 100K
+ *
+ * The followers and the following are STACKED, the figure over its word,
+ * as Instagram sets them; the bio sits under them; and on somebody else's
+ * page a bell beside FOLLOWING asks to be told when that rower rows.
  *
  * Everything is the view the site computes (api/row100k/app/profile), so a
  * hidden rower is hidden here by the same rule and gets the same dog tag. */
@@ -80,12 +94,13 @@ export function ProfileScreen({
   const path = `/api/row100k/app/profile?${own ? "" : `num=${num}&`}${period ? `m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(
     () => (own && !mine ? Promise.resolve(null) : api<{ profile?: Profile; blocked?: Blocked }>(path)),
-    [path, mine],
+    [path, mine, own ? edits.n : 0],
     own && !mine ? null : path,
   );
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [tab, setTab] = useState<"rows" | "stats" | "100k">("rows");
   useEffect(() => setLive(null), [data]);
 
   if (own && ready && !me.signedIn) return <SignIn why="Your profile, your rows and logging a row need your account. The feed, the board and the stats are open to everyone." />;
@@ -174,13 +189,12 @@ export function ProfileScreen({
             </View>
           ) : null}
 
-          {p.month && !locked ? (
-            <>
-              <Eye left="The month" right="Meters per day" />
-              <MonthGrid month={p.month} byDay={p.byDay} today={p.period.key === p.thisMonthKey ? p.days : undefined} marks={marksOf(p.byDay)} />
-            </>
-          ) : null}
+          {locked ? null : <Tabs value={tab} onPick={setTab} />}
 
+          {tab === "100k" && !locked ? <Hundred p={p} /> : null}
+
+          {tab === "stats" && !locked ? (
+          <>
           {p.paceCurve.length >= 2 ? (
             <>
               <Eye left="The pace" right="Each row, and the running average" />
@@ -225,10 +239,11 @@ export function ProfileScreen({
             </>
           ) : null}
 
-          {/* THE ERG: each piece opens the page of its row. */}
+          {/* TELEMETRY (owner, 2026-11-21: "instead of the erg, let's label
+              that telemetry"): each piece opens the page of its row. */}
           {p.ergRows.length ? (
             <>
-              <Eye left="The erg" right={`${p.ergRows.length} ${p.ergRows.length === 1 ? "piece" : "pieces"}`} />
+              <Eye left="Telemetry" right={`${p.ergRows.length} ${p.ergRows.length === 1 ? "piece" : "pieces"}`} />
               {p.ergRows.map((r) => (
                 <Pressable key={r.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${r.when}`} disabled={r.entryId ? !onRow : !onErg} onPress={() => (r.entryId ? onRow?.(r.entryId) : onErg?.(r.id))} style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
                   <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>
@@ -242,10 +257,14 @@ export function ProfileScreen({
               ))}
             </>
           ) : null}
+          {p.paceCurve.length < 2 && !p.field && !rowed.length && !p.ergRows.length ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>The stats fill in with the first timed rows.</Text> : null}
+          </>
+          ) : null}
         </>
       )}
 
-      {locked ? null : <Log p={p} onRow={onRow} />}
+      {locked || p.masked || tab !== "rows" ? null : <RowerRows num={p.rower.rowerNumber} mine={p.isMe} onRower={() => null} onRow={(id) => onRow?.(id)} />}
+      {p.masked && !locked ? <Log p={p} onRow={onRow} /> : null}
     </ScrollView>
   );
 }
@@ -280,24 +299,102 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
   const { me } = useSession();
   const n = p.rower.rowerNumber;
   const count = (v: number, one: string, many: string, list: PeopleList) => (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8}>
-      <Text style={mono(11, false, C.gray)}>
-        <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(v)}</Text> {v === 1 ? one : many}
-      </Text>
+    <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8} style={{ alignItems: "center", minWidth: 62 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 20, lineHeight: 24, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text>
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 2 }]}>{v === 1 ? one : many}</Text>
     </Pressable>
   );
+  /* THE BELL on this rower: told when they log a row (and when they pass
+   * me), or not. Off until pressed. */
+  const [ringing, setRinging] = useState(false);
+  const ring = async () => {
+    setRinging(true);
+    try {
+      onChange(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num: n, action: "bell", on: !rel.bell } }));
+    } catch {
+      /* The bell stays as it was; a second press tries again. */
+    }
+    setRinging(false);
+  };
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 16, minHeight: 36, marginTop: 12 }}>
-      <Avatar uri={p.avatar} name={p.rower.displayName} size={52} />
-      {count(counts.followers, "follower", "followers", "followers")}
-      {count(counts.following, "following", "following", "following")}
-      <View style={{ flex: 1 }} />
-      {!p.isMe && me.me ? (
+    <>
+      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 14, minHeight: 52, marginTop: 12 }}>
+        <Avatar uri={p.avatar} name={p.rower.displayName} size={52} />
+        {count(counts.followers, "follower", "followers", "followers")}
+        {count(counts.following, "following", "following", "following")}
+        <View style={{ flex: 1 }} />
+        {!p.isMe && me.me ? (
+          <>
+            {rel.following === "accepted" ? (
+              <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 34, height: 32, alignItems: "center", justifyContent: "center", opacity: pressed || ringing ? 0.5 : 1 })}>
+                <RingIcon on={rel.bell} />
+              </Pressable>
+            ) : null}
+            <FollowButton num={n} state={rel.following} onChange={onChange} />
+          </>
+        ) : null}
+      </View>
+      {p.bio ? <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 12 }}>{p.bio}</Text> : null}
+    </>
+  );
+}
+
+/* THE THREE TABS of a profile: words on a rule, the open one inked and
+ * underlined, each a third of the width. */
+function Tabs({ value, onPick }: { value: "rows" | "stats" | "100k"; onPick: (t: "rows" | "stats" | "100k") => void }) {
+  const tabs: { id: "rows" | "stats" | "100k"; label: string }[] = [
+    { id: "rows", label: "Rows" },
+    { id: "stats", label: "Stats" },
+    { id: "100k", label: "100K" },
+  ];
+  return (
+    <View accessibilityRole="tablist" style={{ flexDirection: "row", marginTop: 26, marginBottom: 16, borderBottomWidth: 1, borderColor: C.line }}>
+      {tabs.map((t) => (
+        <Pressable key={t.id} accessibilityRole="tab" accessibilityState={{ selected: value === t.id }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 3, borderColor: value === t.id ? C.ink : "transparent", marginBottom: -1 }}>
+          <Text style={mono(12, true, value === t.id ? C.ink : C.gray)}>{t.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/* THE 100K TAB: the calendar of the month in view, then every month the
+ * rower has logged in against the 100,000 (owner, 2026-11-21: "maybe it's
+ * something about the 100K"; and his aim for the whole app: "make making
+ * the 100K as appealing as possible"). The months are reckoned from the
+ * rower's whole log, read once and kept. */
+function Hundred({ p }: { p: Profile }) {
+  const path = `/api/row100k/app/profile?num=${p.rower.rowerNumber}&m=all`;
+  const { data } = useLoad(() => api<{ profile?: Profile }>(path), [path], path);
+  const by = new Map<string, number>();
+  for (const r of data?.profile?.logRows ?? []) if (!r.masked && r.meters) by.set(r.day.slice(0, 7), (by.get(r.day.slice(0, 7)) ?? 0) + r.meters);
+  const months = [...by.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  const GOAL = 100_000;
+  return (
+    <>
+      {p.month ? (
         <>
-          <FollowButton num={n} state={rel.following} onChange={onChange} />
+          <Eye style={{ marginTop: 14 }} left={p.period.label} right="Meters per day" />
+          <MonthGrid month={p.month} byDay={p.byDay} today={p.period.key === p.thisMonthKey ? p.days : undefined} marks={marksOf(p.byDay)} />
         </>
       ) : null}
-    </View>
+      <Eye style={p.month ? undefined : { marginTop: 14 }} left="Every month" right="Against 100,000 m" />
+      {months.length === 0 ? <Text style={mono(11, false, C.gray)}>{data ? "No month yet." : "Reading"}</Text> : null}
+      {months.map(([key, meters]) => (
+        <View key={key} style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line }}>
+          <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>
+              {MONTHS[Number(key.slice(5, 7)) - 1]} <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{key.slice(0, 4)}</Text>
+            </Text>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: meters >= GOAL ? C.good : C.ink, fontVariant: ["tabular-nums"] }}>
+              {fmtInt(meters)} <Text style={{ fontFamily: F.mono, color: C.gray }}>m</Text>
+            </Text>
+          </View>
+          <Bar value={meters} goal={GOAL} height={10} />
+          <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8 }]}>{meters >= GOAL ? "100K made" : `${fmtInt(GOAL - meters)} m short of the 100K`}</Text>
+        </View>
+      ))}
+    </>
   );
 }
 
@@ -357,7 +454,7 @@ function Odometer({ meters }: { meters: number }) {
   return (
     <View onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityLabel={`${fmtInt(meters)} meters`} style={{ marginTop: 10 }}>
       <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.04), letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>
-        <Text style={{ opacity: 0.28 }}>{printed.slice(0, faint)}</Text>
+        <Text style={{ opacity: isDark() ? 0.5 : 0.28 }}>{printed.slice(0, faint)}</Text>
         {printed.slice(faint)}
       </Text>
     </View>

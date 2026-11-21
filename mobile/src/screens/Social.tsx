@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
-import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel, type SocialSettings } from "../api";
+import { Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel } from "../api";
 import { SearchIcon } from "../icons";
-import { useLookSwitch } from "../look";
 import { useSession } from "../session";
-import { Ctl, Eye, mono } from "../site";
+import { Ctl, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { pickFace, setAvatar } from "../upload";
 import { Avatar, Waiting, useLoad, useModalHold, useScrollDir } from "../ui";
 
 /* FOLLOWING, SEARCH, THE NOTIFICATION CENTRE, PRIVACY, BLOCK AND REPORT
@@ -66,16 +64,20 @@ export function FollowButton({ num, state, onChange }: { num: number; state: Rel
 /* One rower in a list: the grey number, the bold name, the handle under
  * it, and whatever the list puts at the right. The whole line opens them. */
 function PersonLine({ p, onRower, right, share }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number }) {
+  /* Over a bar, the small type is a shade darker (owner, 2026-11-21: "the
+   * lighter text is a little hard to read, especially when we have ... the
+   * colored bars behind them"). */
+  const small = share !== undefined ? C.soft : C.gray;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 58, borderBottomWidth: 1, borderColor: C.line }}>
       {share !== undefined ? <Wash share={share} /> : null}
       <Avatar uri={p.avatar} name={p.name} size={36} />
       <Pressable accessibilityRole="link" accessibilityLabel={`${p.name}, rower ${p.numStr}`} onPress={() => onRower(p.rowerNumber)} style={({ pressed }) => ({ flex: 1, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>
         <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>
-          <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{p.numStr} · </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: small }}>{p.numStr} · </Text>
           {p.name}
         </Text>
-        {p.instagram ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray, marginTop: 3 }}>@{p.instagram}</Text> : null}
+        {p.instagram ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: small, marginTop: 3 }}>@{p.instagram}</Text> : null}
       </Pressable>
       {right}
     </View>
@@ -131,7 +133,7 @@ export function Sheet({ title, right, onClose, children }: { title: string; righ
 }
 
 /* A line of a sheet that does something. */
-function Act({ label, onPress, danger }: { label: string; onPress: () => void; danger?: boolean }) {
+export function Act({ label, onPress, danger }: { label: string; onPress: () => void; danger?: boolean }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ minHeight: 52, justifyContent: "center", borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
       <Text style={{ fontFamily: F.bold, fontSize: 16, color: danger ? C.accent : C.ink }}>{label}</Text>
@@ -249,7 +251,7 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
   const meters = (p: Person) =>
     p.meters !== null ? (
       <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
-        {fmtInt(p.meters)} <Text style={{ color: C.gray }}>m</Text>
+        {fmtInt(p.meters)} <Text style={{ color: searching ? C.gray : C.soft }}>m</Text>
       </Text>
     ) : null;
 
@@ -359,7 +361,8 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
  * way a phone's own apps lay one out (owner, 2026-11-21, of the first
  * version: "looks like a high school computer science student made it").
  * Unread lines wear a blue square. Opening the screen marks them read.
- * Nothing else lives here: settings are behind the menu on the profile. */
+ * Nothing else lives here: settings are behind the menu on the profile
+ * (screens/Settings.tsx). */
 export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n: number) => void; onRow: (id: string, talk?: boolean) => void; onBoard: () => void; onPeople: (list: PeopleList) => void }) {
   const { me, refresh } = useSession();
   const { data, error, loading, reload } = useLoad(() => api<{ items: Notice[]; unread: number }>("/api/row100k/app/notifications"), [], "/api/row100k/app/notifications");
@@ -429,122 +432,6 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
       )}
       ListEmptyComponent={requests > 0 ? undefined : <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.soft, paddingTop: 24 }}>Nothing yet. Follow a rower and you are told when they pass you on the board.</Text>}
     />
-  );
-}
-
-/* ---- settings -------------------------------------------------------- */
-
-const KIND: Record<string, [string, string]> = {
-  passed: ["A rower I follow passes me", "At most one a day, however many passed."],
-  follow: ["Somebody follows me", "Requests to follow a private account always arrive."],
-  liked: ["Likes", "Of a row of mine, or of a comment."],
-  commented: ["Comments, replies and tags", "A comment on my row, a reply to one of mine, or my name in one."],
-};
-
-/* SETTINGS, behind the three lines on the rower's own profile (owner,
- * 2026-11-21: "the settings should probably just be like ... how do they
- * have it on Instagram"). The account (private or not), the two kinds of
- * notification, the look of this phone, the blocked list, and the way out.
- * A change saves as it is made. */
-export function SettingsScreen({ onPeople, onSignedOut }: { onPeople: (list: PeopleList) => void; onSignedOut: () => void }) {
-  const { refresh, signOut, me } = useSession();
-  const look = useLookSwitch();
-  const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>("/api/row100k/app/settings"), [], "/api/row100k/app/settings");
-  const [s, setS] = useState<SocialSettings | null>(data?.settings ?? null);
-  const [failed, setFailed] = useState("");
-  useEffect(() => {
-    if (data) setS(data.settings);
-  }, [data]);
-
-  /* The profile photo: one picture out of the library, sent, then named
-   * as mine. `face` is "busy" while it goes, or what went wrong. */
-  const [face, setFace] = useState("");
-  const choose = async () => {
-    setFace("");
-    try {
-      const got = await pickFace();
-      if (!got) return;
-      setFace("busy");
-      await setAvatar(got);
-      setS((await api<{ settings: SocialSettings }>("/api/row100k/app/settings")).settings);
-      refresh();
-      setFace("");
-    } catch (err) {
-      setFace(err instanceof Error ? err.message : "That photo did not go up.");
-    }
-  };
-
-  const save = async (body: { isPrivate?: boolean; notifyOff?: string[]; avatarKey?: null }) => {
-    if (!s) return;
-    const before = s;
-    setS({ ...s, ...(body.avatarKey === null ? { avatar: null } : body) });
-    setFailed("");
-    try {
-      setS((await api<{ settings: SocialSettings }>("/api/row100k/app/settings", { body })).settings);
-      refresh();
-    } catch (err) {
-      setS(before);
-      setFailed(err instanceof Error ? err.message : "That did not save.");
-    }
-  };
-
-  return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 140 }}>
-      {s ? (
-        <>
-          <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Profile photo" />
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line }}>
-            <Avatar uri={s.avatar} name={me.me?.displayName ?? ""} size={64} />
-            <View style={{ flex: 1, gap: 10 }}>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Small label={face === "busy" ? "Sending" : s.avatar ? "Change photo" : "Add a photo"} fill disabled={face === "busy"} onPress={choose} />
-                {s.avatar ? <Small label="Remove" disabled={face === "busy"} onPress={() => save({ avatarKey: null })} /> : null}
-              </View>
-              <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray }}>{face && face !== "busy" ? face : "Shown beside your name. Without one, your initials are."}</Text>
-            </View>
-          </View>
-
-          <Eye style={{ marginBottom: 0 }} left="Account" />
-          <Setting title="Private account" body="Your rows and photos are shown only to followers you accept. You stay on the board, and your page keeps your totals." on={s.isPrivate} onChange={(v) => save({ isPrivate: v })} />
-          {failed ? <Text style={[mono(11, false, C.accent, 0.1), { marginTop: 10 }]}>{failed}</Text> : null}
-
-          <Eye style={{ marginBottom: 0 }} left="Notifications" right="From rowers you follow" />
-          {s.kinds.map((k) => (
-            <Setting key={k} title={KIND[k]?.[0] ?? k} body={KIND[k]?.[1] ?? ""} on={!s.notifyOff.includes(k)} onChange={(v) => save({ notifyOff: v ? s.notifyOff.filter((x) => x !== k) : [...s.notifyOff, k] })} />
-          ))}
-          <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 12 }}>Notifications are off for a rower until you turn them on, from the three dots on their page or on one of their rows.</Text>
-        </>
-      ) : (
-        <Waiting error={error} onRetry={reload} />
-      )}
-
-      <Eye style={{ marginBottom: 0 }} left="This phone" />
-      <Setting title="Dark mode" body="Ink for the page, cream for the type. Only on this phone." on={look.dark} onChange={look.setDark} />
-
-      <Eye style={{ marginBottom: 0 }} left="More" />
-      <Act label="Muted rowers" onPress={() => onPeople("muted")} />
-      <Act label="Blocked rowers" onPress={() => onPeople("blocked")} />
-      <Act
-        label="Sign out"
-        onPress={async () => {
-          await signOut();
-          onSignedOut();
-        }}
-      />
-    </ScrollView>
-  );
-}
-
-/* A setting: what it is, what it does in a sentence, and its switch. */
-function Setting({ title, body, on, onChange }: { title: string; body: string; on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: C.line }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>{title}</Text>
-        {body ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 4 }}>{body}</Text> : null}
-      </View>
-      <Toggle label={title} on={on} onChange={onChange} />
-    </View>
   );
 }
 

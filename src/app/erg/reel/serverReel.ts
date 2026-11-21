@@ -34,6 +34,12 @@ export const REEL_CLIPS: readonly ClipId[] = ["meters", "clock", "pace", "stack"
 export const REEL_GROUNDS: readonly BgId[] = ["green", "blue", "black", "ink", "cream"];
 export const REEL_LENGTHS = [5, 10, 15] as const;
 const FPS = 30;
+/* THE PHONE'S FILM RUNS AT 20 FRAMES A SECOND (owner, 2026-11-21: "there's
+ * got to be a really smart way for us to reduce the amount of time needed
+ * to film ... we don't need it to be ... 60 frames per second"). Figures
+ * counting up read the same at 20 as at 30, and a third of the frames are
+ * never painted or encoded. */
+const FPS_OF: Partial<Record<ReelFormat, number>> = { phone: 20 };
 
 /* THE ENCODER, loaded by Node at the moment a clip is asked for and never
  * by the bundler: it is a megabyte of WebAssembly that one route needs, and
@@ -84,6 +90,10 @@ export type ReelAsk = {
   startTotal: number;
   /* The month, in capitals: "NOVEMBER". */
   label: string;
+  /* The month's timed metres and their seconds before this row, so the
+   * running total can carry the month's own average pace. */
+  startPaceM?: number;
+  startPaceS?: number;
 };
 
 function optsOf(a: ReelAsk, series: ReturnType<typeof buildSeries>): PaintOpts {
@@ -93,6 +103,8 @@ function optsOf(a: ReelAsk, series: ReturnType<typeof buildSeries>): PaintOpts {
     unit: a.unit,
     screen: a.screen,
     startTotal: a.startTotal,
+    startPaceM: a.startPaceM ?? 0,
+    startPaceS: a.startPaceS ?? 0,
     label: a.label,
     fromS: series.startS,
     toS: series.totalS,
@@ -131,15 +143,16 @@ export async function renderReelMp4(a: ReelAsk): Promise<Buffer> {
   try {
     enc.width = W;
     enc.height = H;
-    enc.frameRate = FPS;
+    const fps = FPS_OF[a.format] ?? FPS;
+    enc.frameRate = fps;
     enc.quantizationParameter = 24;
-    enc.speed = 8;
-    enc.groupOfPictures = FPS;
+    enc.speed = fps === FPS ? 8 : 10;
+    enc.groupOfPictures = fps;
     enc.initialize();
-    const frames = Math.round(a.lengthS * FPS);
+    const frames = Math.round(a.lengthS * fps);
     /* One more than the length, so the clip holds its last figure for a frame. */
     for (let i = 0; i <= frames; i++) {
-      const clipS = Math.min(a.lengthS, i / FPS);
+      const clipS = Math.min(a.lengthS, i / fps);
       ctx.clearRect(0, 0, W, H);
       paintClip(ctx as unknown as Ctx, W, H, series, frameAt(series, rowTimeAt(clipS, a.lengthS, series.startS, series.totalS)), o);
       const px = ctx.getImageData(0, 0, W, H).data;

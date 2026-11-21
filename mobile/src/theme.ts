@@ -83,6 +83,16 @@ export function fmtClock(seconds: number, tenths = true): string {
   return h ? `${h}:${body}` : body;
 }
 
+/* "1:57.3" -> "1:57", rounded: a split where the tenths are noise (owner,
+ * 2026-11-21, of the feed: "we do not need the decimal points. We can just
+ * leave it at 157"). Anything that is not a clock is handed back as it is. */
+export function wholeSplit(s: string): string {
+  const m = /^(\d+):(\d{2})\.(\d)$/.exec(s);
+  if (!m) return s;
+  const t = Math.round(Number(m[1]) * 60 + Number(m[2]) + Number(m[3]) / 10);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+}
+
 export const fmtPace = (pace: number): string => (pace > 0 && pace < 600 ? fmtClock(pace) : "-:--.-");
 
 /* Local calendar day, "YYYY-MM-DD". */

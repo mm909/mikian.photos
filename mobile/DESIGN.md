@@ -208,6 +208,28 @@ All DECIDED (his words), BUILT on the sandbox unless marked.
 - "I really like how the best page turned out." Searching for another rower from it: dropped by him ("never mind ... you just got to go to their profile").
 - NOT BUILT: reels inside the share menu, beginning with one that counts up to the row's meters ("eventually, on the shareables, I'm going to want those reels"). The count-up clip exists (METERS); reels are still the owner's only.
 
+### Round 16, 2026-11-21: his read after the first over-the-air build
+
+Built the same day, checked on the sandbox (`scripts/rowed-check.ts`, and at phone width in a browser). His words in quotes.
+
+- **The tabs slide.** "I want to see the pane swipe ... it's like they exist, but they're just off the screen. On my app, it just teleports there." The tab in view and the one being dragged toward are both mounted and follow the finger (`pos` in `App.tsx`). A press on the bar still goes straight there.
+- **The mark leaves as it came.** "The old item that was there kind of just leaves ... settings just kind of disappears." A word of a different length rolls up and out while the new one rolls in. And every letter has its own moment ("the ATIONS ... comes up almost as one block"): the stagger is spread over the whole word (`src/mark.tsx`).
+- **The feed card.** The name is ink, his own too ("it doesn't need to be blue"). The pace is to the second ("we can just leave it at 157"). Watts, strokes and drag are off the card; a row the monitor recorded wears a small ink TELEMETRY tag beside its meters ("on the same row as that 5,000 meters"). Photos have a little round at the corners.
+- **TELEMETRY is the name** for what comes off the erg ("I like the name telemetry as like a product"): the section on the profile, the bar's title, the eyebrow on the log screen.
+- **Log a row.** CONNECT and LOG BY HAND side by side at the foot; the three steps and the monitors found above. The demo row is off the screen ("I don't think we need it anymore").
+- **Search.** The bar is the field alone, no plus and no bell. Small type over a bar is a shade darker.
+- **Profile.** Followers and following stacked, figure over word. A bio under them. A bell beside FOLLOWING asks for that rower's rows. Three tabs under the ledger: ROWS (the feed's own cards, ten at a time), STATS (pace, field, bests, telemetry), 100K (the month's calendar, and every month against 100,000). The third tab was his "maybe it's something about the 100K"; it is the one to change if he wants another.
+- **Settings are a list that leads to pages**: Account (photo, bio, birthday, height, weight), Privacy (private account, muted, blocked), Notifications, Appearance (dark mode). `screens/Settings.tsx`.
+- **Notifications when a row is logged**, all off until turned on: the bell on one rower, "a rower I follow logs a row", "anybody logs a row" (`notifyOn`, `notifyRowed` in `lib/rowNotify.ts`). In the app's notification centre today. On the phone's lock screen they need `expo-notifications`, which is a new build and an Apple push key: NOT built.
+- **Questions behind the stats.** The bell on the stats tab is a question mark; it lists questions, each a page with one big figure, a chart and plain sentences. Two to start: how many people are rowing, when do people row (`screens/Stories.tsx`, `api/row100k/app/stories`). He called them FAQs, then "really stories".
+- **Stats page**: the line of mean, deviation and percentiles under the two medians of THE FIELD is gone. This was my reading of "that like little copy, isn't doing much"; if he meant something else, put it back.
+- **Comments sheet**: moved by the keyboard's own height, made shorter while the keyboard is up so the row still shows over it, paper behind the whole keyboard, and no home-bar room under the field while the keyboard covers it. Only a phone can confirm these three.
+- **Stickers go round**: past the last is the first, before the first is the last.
+- **Reels**: seconds left count down over the still while the site films; the phone's film is 20 frames a second (a 10 second clip in about 6 s on the sandbox, from 9); under a running month total the pace is the month's, not the row's.
+- **Dark mode**: the faint leading zero on the profile is lighter. Changing the look still mounts the screens afresh; with the switch on its own short page that no longer loses a place in a long one.
+
+Not built, with why: sharing the rankings table (he set it aside), other makes of erg (needs a machine to test against; see Questions), birthday and gender from Google (two sensitive scopes that Google must review for the whole site's sign-in), more than two photos and video (after release), push to the lock screen (above).
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

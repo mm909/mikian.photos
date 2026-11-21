@@ -565,6 +565,9 @@ model RowParticipant {
   /// ft/in and lb and converts. Nothing prints either yet.
   heightCm    Int?
   weightKg    Float?
+  /// A line or two about the rower, on their profile in the phone app
+  /// (owner, 2026-11-21: "allow me to put in a bio"). Optional. Additive.
+  bio         String?
   /// Home gym, free text, optional (owner, 2026-09-25: "give them the
   /// option to enter their HOME GYM"). Settings page only; nothing prints
   /// it yet. Capped at HOME_GYM_MAX characters by the participants API.
@@ -1648,6 +1651,10 @@ model RowSocialSetting {
   participantId String   @unique
   isPrivate     Boolean  @default(false)
   notifyOff     String[] @default([])
+  /// The kinds that are OFF until a rower turns them on (owner, 2026-11-21:
+  /// "leave that as off for now, like default off"): "rowed" (a rower I
+  /// follow logs a row), "rowedAll" (anybody does). Additive.
+  notifyOn      String[] @default([])
   /// THE PROFILE PHOTO (owner, 2026-11-22: "I think the answer is yes, we do
   /// profile photos"). The storage key of the picture, under the rower's
   /// own upload prefix like a row's photos; null means none, and every

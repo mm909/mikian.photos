@@ -183,3 +183,28 @@ export function Square({ color = C.ink, size = 24 }: P) {
     </Svg>
   );
 }
+
+/* THE QUESTIONS behind the stats (owner, 2026-11-21: "a little FAQ
+ * button"): a question mark in a ring. */
+export function QuestionIcon({ color = C.ink, size = 26 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Circle cx={12} cy={12} r={9} {...line(color)} />
+      <Path d="M9.4 9.6 a2.7 2.7 0 1 1 4.1 2.3 c-.9 .6 -1.5 1.1 -1.5 2.2" {...line(color)} />
+      <Circle cx={12} cy={17.1} r={1.15} fill={color} />
+    </Svg>
+  );
+}
+
+/* THE BELL ON ONE ROWER, beside FOLLOWING: an outline while it is off,
+ * filled once it is on. */
+export function RingIcon({ on, color = C.ink, size = 22 }: P & { on: boolean }) {
+  const ink = on ? C.accent : color;
+  return (
+    <Svg {...box(size)}>
+      <Path d="M5 17.5 V11 a7 7 0 0 1 14 0 V17.5 Z" stroke={ink} strokeWidth={2} strokeLinejoin="round" fill={on ? C.accent : "none"} />
+      <Line x1={3.5} y1={17.5} x2={20.5} y2={17.5} {...line(ink)} />
+      <Line x1={10.5} y1={21} x2={13.5} y2={21} {...line(ink)} />
+    </Svg>
+  );
+}

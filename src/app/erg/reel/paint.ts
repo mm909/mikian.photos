@@ -27,6 +27,13 @@ export type PaintOpts = {
   startTotal: number;
   /* "ROWVEMBER" — the word over the running total. */
   label: string;
+  /* The month's timed metres and seconds before this row. With them, the
+   * pace under a RUNNING total is the month's (owner, 2026-11-21: "if
+   * we're showing the ... meters starting at 100K ... then the average
+   * pace should probably be the average pace of the whole" month: one
+   * row's own pace swings as it warms up, the month's barely moves). */
+  startPaceM?: number;
+  startPaceS?: number;
   /* The stretch of the row the clip covers, for the pace graph's x axis. */
   fromS: number;
   toS: number;
@@ -292,7 +299,9 @@ export function paintClip(ctx: Ctx, W: number, H: number, series: ReelSeries, f:
     const running = o.startTotal > 0;
     lab(ctx, T, fonts, running ? `${o.label} meters` : "Meters", cx, cy - 190 * s, 44 * s, "center", T.label);
     num(ctx, T, fonts, fmtInt(o.startTotal + Math.floor(f.m)), cx, cy + 40 * s, 250 * s, "center", T.fg, W * 0.88);
-    pair(ctx, T, fonts, fmtPace(f.avgPace), "avg /500m", cx, cy + 170 * s, 92 * s, T.fg);
+    const pm = (o.startPaceM ?? 0) + f.m;
+    const monthPace = running && (o.startPaceM ?? 0) > 0 && (o.startPaceS ?? 0) > 0 && pm > 0 ? (((o.startPaceS ?? 0) + f.t) / pm) * 500 : 0;
+    pair(ctx, T, fonts, fmtPace(monthPace || f.avgPace), "avg /500m", cx, cy + 170 * s, 92 * s, T.fg);
     if (running) lab(ctx, T, fonts, `+${fmtInt(Math.floor(f.m))} m today`, cx, cy + 260 * s, 40 * s, "center", T.dim);
     return;
   }

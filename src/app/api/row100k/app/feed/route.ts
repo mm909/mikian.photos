@@ -31,6 +31,12 @@ import { buildFeed, type FeedData } from "@/app/row100k/feed/feedData";
  *   rest~<since>[~<createdAt>~<id>]  in the rest (`since` is where the lead
  *                                    began, so the two never overlap)
  *
+ * ?rower=<number> is ONE rower's rows and nobody else's, newest first,
+ * for the ROWS tab of a profile (owner, 2026-11-21: "seeing the exact same
+ * cards that are in the feed, but on an activities tab in your profile").
+ * The same masking and the same privacy: buildFeed leaves out what this
+ * viewer may not see.
+ *
  * Beside each row that came off a connected erg ride the monitor's
  * averages, never for a hidden row; and how the viewer stands to the row's
  * rower, for the menu on the row. */
@@ -44,7 +50,11 @@ type Erg = { id: string; watts: number | null; spm: number | null; hr: number | 
 
 export async function GET(req: Request) {
   try {
-    const raw = new URL(req.url).searchParams.get("before") ?? "";
+    const q = new URL(req.url).searchParams;
+    const raw = q.get("before") ?? "";
+    const rowerNum = Number(q.get("rower"));
+    const one = q.has("rower") && Number.isInteger(rowerNum) && rowerNum > 0 ? await db.rowParticipant.findFirst({ where: { challenge: CHALLENGE, rowerNumber: rowerNum }, select: { id: true } }) : null;
+    if (q.has("rower") && !one) return NextResponse.json({ ok: true, items: [], older: null, lead: 0 }, { headers: NO_STORE });
     const viewer = await resolveViewer();
     const me = viewer.myParticipantId;
     const follows = me ? await followingIds(me) : [];
@@ -58,7 +68,10 @@ export async function GET(req: Request) {
     let feed: FeedData;
     let older: string | null;
     let leadRows = 0;
-    if (!lead) {
+    if (one) {
+      feed = await buildFeed(viewer, phase === "one" ? inner : "", { lead: { ids: [one.id], since: new Date(0) } });
+      older = feed.olderCursor ? `one~x~${feed.olderCursor}` : null;
+    } else if (!lead) {
       /* Nobody followed: the whole river, on the plain cursor. */
       feed = await buildFeed(viewer, phase === "rest" ? inner : raw);
       older = feed.olderCursor ? `rest~${since.toISOString()}~${feed.olderCursor}` : null;

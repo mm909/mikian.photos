@@ -210,12 +210,26 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
 /* WHICH WAY A SCREEN IS BEING READ, for the bars that step aside while it
  * goes down and come back on the way up (App.tsx). Spread onto any
  * ScrollView or FlatList. */
-export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => void; scrollEventThrottle: number } {
+/* AT THE FOOT OF A SCREEN THE BARS HOLD STILL (owner, 2026-11-21: "wants to
+ * fight you as you scroll down, and the bottom bar ... goes large, goes
+ * small, goes large, goes small again ... You are already at the bottom").
+ * There the list bounces back by itself, which read as a scroll upward and
+ * brought the bars back; the bars coming back change the height of the
+ * list, which moved it again. So nothing is told within a short way of the
+ * end, nor while the list is pulled past either end. */
+type ScrollEv = { nativeEvent: { contentOffset: { y: number }; contentSize?: { height: number }; layoutMeasurement?: { height: number } } };
+export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: ScrollEv) => void; scrollEventThrottle: number } {
   const last = useRef(0);
   return {
     scrollEventThrottle: 64,
     onScroll: (e) => {
-      const y = e.nativeEvent.contentOffset.y;
+      const n = e.nativeEvent;
+      const y = n.contentOffset.y;
+      const end = n.contentSize && n.layoutMeasurement ? n.contentSize.height - n.layoutMeasurement.height : Infinity;
+      if (y >= end - 90) {
+        last.current = y;
+        return;
+      }
       if (y > last.current + 12 && y > 80) tell?.(true);
       else if (y < last.current - 12 || y < 40) tell?.(false);
       last.current = y;
@@ -270,7 +284,7 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
   return (
     <View style={[{ flexDirection: "row", gap: 4 }, style]}>
       {shown.map((p, i) => (
-        <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale }}>
+        <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale, borderRadius: 8, overflow: "hidden" }}>
           <Image source={{ uri: p.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
         </Pressable>
       ))}
