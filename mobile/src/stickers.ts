@@ -117,3 +117,16 @@ const reelName = (rowId: string, clip: ClipId, bg: GroundId, len: number) => `ro
 export const filmReel = (rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<Fetched> =>
   once(`reel|${rowId}|${clip}|${bg}|${len}`, () => fetchFile(`${reelUrl(rowId, clip, bg, len, false)}&format=phone`, reelName(rowId, clip, bg, len), 90_000));
 export const shareFilm = (f: Fetched, rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, reelName(rowId, clip, bg, len), "video/mp4", "public.mpeg-4");
+
+/* THE CLIP WITH NOTHING BEHIND IT (owner, 2026-11-22, of keying the green
+ * out in his editor: "if we can get the same thing, but with the
+ * transparent background, that I don't have to do this ... copy these and
+ * paste them onto an Instagram story"). The site paints the same clip on
+ * no ground at all and sends an animated GIF, cropped to the drawing. It
+ * goes to the share sheet as the films do; COPY there puts it on the
+ * clipboard. The app cannot put a moving GIF on the clipboard itself: the
+ * clipboard module in the build takes a still picture only. */
+const gifName = (rowId: string, clip: ClipId, len: number) => `row-${clip}-clear-${len}s-${rowId.slice(-6)}.gif`;
+export const gifReel = (rowId: string, clip: ClipId, len: number): Promise<Fetched> =>
+  once(`gif|${rowId}|${clip}|${len}`, () => fetchFile(`${reelUrl(rowId, clip, "green", len, false)}&gif=1`, gifName(rowId, clip, len), 90_000));
+export const shareGif = (f: Fetched, rowId: string, clip: ClipId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, gifName(rowId, clip, len), "image/gif", "com.compuserve.gif");

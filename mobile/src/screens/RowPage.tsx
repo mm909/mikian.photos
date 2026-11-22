@@ -8,7 +8,7 @@ import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import type { Fetched } from "../files";
-import { CLIPS, GROUNDS, LENGTHS, STRIP, deck, filmReel, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
+import { CLIPS, GROUNDS, LENGTHS, STRIP, deck, filmReel, gifReel, shareGif, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
 import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold } from "../ui";
@@ -682,6 +682,11 @@ function Reels({ rowId }: { rowId: string }) {
    * opens its share sheet for. */
   const [busy, setBusy] = useState(false);
   const [film, setFilm] = useState<Fetched | null>(null);
+  /* What was made: the film on its ground, or the same clip with nothing
+   * behind it, a GIF to paste on a story (owner, 2026-11-22: "build a
+   * version of these that we can just copy with the transparent
+   * background"). */
+  const [made, setMade] = useState<"film" | "gif">("film");
   const [note, setNote] = useState("");
   const bar = useRef(new Animated.Value(0)).current;
   const turn = useRef(0);
@@ -701,18 +706,19 @@ function Reels({ rowId }: { rowId: string }) {
     setNote("");
   };
   useEffect(reset, [open, bg, len]);
-  const shoot = async () => {
+  const shoot = async (what: "film" | "gif" = "film") => {
     if (!open) return;
     const mine = ++turn.current;
     setBusy(true);
+    setMade(what);
     setNote("");
     /* Most of the way over the time it usually takes, then it waits. */
-    const eta = Math.round(len * 0.8 + 3);
+    const eta = what === "gif" ? Math.round(len * 0.6 + 3) : Math.round(len * 0.8 + 3);
     setLeft(eta);
     bar.setValue(0);
     Animated.timing(bar, { toValue: 0.94, duration: eta * 1000, easing: Easing.linear, useNativeDriver: false }).start();
     try {
-      const f = await filmReel(rowId, open, bg, len);
+      const f = what === "gif" ? await gifReel(rowId, open, len) : await filmReel(rowId, open, bg, len);
       if (mine !== turn.current) return;
       setFilm(f);
     } catch (err) {
@@ -725,7 +731,7 @@ function Reels({ rowId }: { rowId: string }) {
     if (!open || !film) return;
     setNote("");
     try {
-      const did = await shareFilm(film, rowId, open, bg, len);
+      const did = made === "gif" ? await shareGif(film, rowId, open, len) : await shareFilm(film, rowId, open, bg, len);
       if (did === "download") setNote("Saved to your downloads.");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "That did not work.");
@@ -815,7 +821,9 @@ function Reels({ rowId }: { rowId: string }) {
                 const live = c.id === open;
                 return (
                   <View key={`${c.id}-${p}`} style={{ width: w, height: tall || undefined, paddingHorizontal: 20, paddingVertical: 10, alignItems: "center", justifyContent: "center" }}>
-                    {live && film && Platform.OS === "web" ? (
+                    {live && film && made === "gif" ? (
+                      <Image source={{ uri: film.uri }} resizeMode="contain" accessibilityLabel="The clip with no background, playing" accessibilityIgnoresInvertColors style={{ width: "100%", height: "100%" }} />
+                    ) : live && film && Platform.OS === "web" ? (
                       createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
                     ) : live && film ? (
                       <Film uri={film.uri} />
@@ -835,16 +843,16 @@ function Reels({ rowId }: { rowId: string }) {
             <View style={{ paddingHorizontal: 20 }}>
               {film ? (
                 <>
-                  <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note || `Filmed: ${len} seconds on ${bg}, 20 frames a second. Key the ${bg === "black" ? "black out with a Screen blend" : `${bg} out`} in your edit.`}</Text>
+                  <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note || (made === "gif" ? `Made: ${len} seconds with nothing behind it, a GIF. Share it, tap Copy, and paste it on your story. Nothing to key out.` : `Filmed: ${len} seconds on ${bg}, 20 frames a second. Key the ${bg === "black" ? "black out with a Screen blend" : `${bg} out`} in your edit.`)}</Text>
                   <Btn label="Share it" onPress={share} />
                   <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingTop: 16 }}>
-                    <Text style={mono(11, true, "#fff", 0.12)}>Film another</Text>
+                    <Text style={mono(11, true, "#fff", 0.12)}>Make another</Text>
                   </Pressable>
                 </>
               ) : busy ? (
                 <>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                    <Text style={mono(11, true, "#fff", 0.12)}>Filming your {len} second clip</Text>
+                    <Text style={mono(11, true, "#fff", 0.12)}>{made === "gif" ? `Making your ${len} second GIF` : `Filming your ${len} second clip`}</Text>
                     <Text style={[mono(11, true, "#fff", 0.12), { fontVariant: ["tabular-nums"] }]}>{left > 1 ? `${left} s left` : "Nearly there"}</Text>
                   </View>
                   <View accessibilityRole="progressbar" style={{ height: 10, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }}>
@@ -875,7 +883,12 @@ function Reels({ rowId }: { rowId: string }) {
                     </View>
                   </View>
                   {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note}</Text> : null}
-                  <Btn label={`Film it · ${len} s`} onPress={shoot} />
+                  <Btn label={`Film it · ${len} s`} onPress={() => shoot("film")} />
+                  {/* THE SAME CLIP WITH NOTHING BEHIND IT: no ground to
+                      key out, so the ground picked above is not read. */}
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Make it with no background, a ${len} second GIF`} onPress={() => shoot("gif")} hitSlop={10} style={{ alignItems: "center", paddingTop: 16 }}>
+                    <Text style={mono(11, true, "#fff", 0.12)}>No background · GIF · {len} s</Text>
+                  </Pressable>
                 </>
               )}
             </View>

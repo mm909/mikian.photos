@@ -6,7 +6,7 @@ import { monthFromKey } from "@/lib/rowPeriod";
 import { validateTelemetryDoc } from "@/lib/pm5/session";
 import { ergAppDenial, ergViewer } from "@/app/erg/gate";
 import type { BgId, ClipId, ScreenId, UnitId } from "@/app/erg/reel/paint";
-import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, renderReelMp4, renderReelStill, renderReelStrip, type ReelFormat } from "@/app/erg/reel/serverReel";
+import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, renderReelGif, renderReelMp4, renderReelStill, renderReelStrip, type ReelFormat } from "@/app/erg/reel/serverReel";
 
 /* ONE REEL OVERLAY for the phone app (2026-11-20): a row's numbers as a
  * short video to lay over the rower's own footage in an editing app. GET
@@ -18,6 +18,10 @@ import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, render
  *   &still=1   the last frame as a PNG, for a preview, instead of the film
  *   &strip=1   the five-second version as fifty small frames on one JPEG
  *              (serverReel.ts REEL_STRIP), for a preview that moves
+ *   &gif=1     the clip with NOTHING behind it, as an animated GIF cropped
+ *              to the drawing (serverReel.ts renderReelGif), to paste on a
+ *              story or lay over footage with no keying; bg and format are
+ *              not read
  *
  * The frames are the site's own reel painting (erg/reel/paint.ts), filmed
  * on the server (erg/reel/serverReel.ts).
@@ -90,6 +94,12 @@ export async function GET(req: Request) {
     if (still) {
       const png = renderReelStill(ask);
       return new NextResponse(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=300" } });
+    }
+    if (q.get("gif") === "1") {
+      const gif = await renderReelGif(ask);
+      return new NextResponse(new Uint8Array(gif), {
+        headers: { "Content-Type": "image/gif", "Content-Disposition": `attachment; filename="${name}.gif"`, "Cache-Control": "private, max-age=300" },
+      });
     }
     const mp4 = await renderReelMp4(ask);
     return new NextResponse(new Uint8Array(mp4), {
