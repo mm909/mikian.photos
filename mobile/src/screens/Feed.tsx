@@ -380,7 +380,12 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, gallery }:
  * we'll make the exact same Instagram grid with just a photo ... none of
  * the stats"). Each tile is the first photo of a row, three by four, and
  * opens that row's page. A row with no photo (an old one, or a hidden one)
- * is a quiet tile with its day. Thirty to begin with, and MORE. */
+ * is a quiet tile with its day. Thirty to begin with, and MORE.
+ *
+ * A tile does not dim under the finger (owner, 2026-11-22: "when you tap to
+ * scroll it, it like flashes, it highlights for a little bit. We can get
+ * rid of that"): a finger that lands on the grid is nearly always there to
+ * scroll it, and every scroll lit a photo. */
 export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRow: (id: string) => void }) {
   const rows = useRows(`${PATH}?rower=${num}`, []);
   const { items, older, error, first, next } = rows;
@@ -395,7 +400,7 @@ export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRo
         {items.slice(0, shown).map((it) => {
           const photo = it.masked ? null : it.photos[0];
           return (
-            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} style={({ pressed }) => ({ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP, opacity: pressed ? 0.7 : 1 })}>
+            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
               <View style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}>
                 {photo ? <Image source={{ uri: photo.thumb ?? photo.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
               </View>

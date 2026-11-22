@@ -1,12 +1,12 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
-import { Avatar, Bar, Blocks, PhotoViewer, Waiting, useLoad, useScrollDir } from "../ui";
+import { Avatar, Bar, Blocks, PhotoViewer, Waiting, modals, scrub, useLoad, useScrollDir } from "../ui";
 import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
@@ -82,7 +82,30 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  * was (App.tsx). The third tab is still the 100K: he had not decided what
  * it becomes ("I kind of want it to be like a trophy case, but not like a
  * badge collector"). Until that day the head was the site's nameplate over
- * the big blue odometer of the month. */
+ * the big blue odometer of the month.
+ *
+ * THE THREE TABS LIE SIDE BY SIDE, AND A DRAG UNDER THE SELECTOR MOVES
+ * BETWEEN THEM (owner, 2026-11-22: "if I'm on the Stats tab of the profile
+ * and I'm swiping left or right, then that should just swap whether I'm
+ * looking at the 100K or the grid view ... those little panels should
+ * change. Right now ... it takes me to the rankings page ... it swipes that
+ * whole profile through"). A sideways drag that starts under the selector
+ * is this page's, and drags the row of the three as the shell drags its
+ * own tabs (App.tsx); at either end it is the shell's again ("unless ...
+ * I'm on the very far left ... and then I swipe to the right. That should
+ * take me to the stats page"), and so is a drag on the head above the
+ * selector. The rule under the open tab travels with the finger.
+ *
+ * A MONTH PICKED IN THE STATS TAB READS THE STATS AGAIN AND NOTHING ELSE
+ * (owner, the same day: "why is it that when I select the time frame for
+ * the stats section on the profile, it reloads the whole page instead of
+ * just ... the stats ... we just can't reload the whole page"). The page
+ * was one read keyed by its month, so a new month had nothing to show and
+ * the whole screen went to its waiting state. What was last read stays up
+ * now, the stats faint under the new word until the month arrives. */
+
+const SUBS = ["rows", "stats", "100k"] as const;
+type Sub = (typeof SUBS)[number];
 
 const m2 = (s: number) => fmtClock(s, false);
 const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
@@ -134,9 +157,76 @@ export function ProfileScreen({
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
   const [sharing, setSharing] = useState(false);
-  const [tab, setTab] = useState<"rows" | "stats" | "100k">("rows");
+  const [tab, setTab] = useState<Sub>("rows");
   useEffect(() => setLive(null), [data]);
-  const shown = data?.profile;
+  /* What was last read of this rower stays up while another month of them
+   * is read. */
+  const who = own ? `me${mine ?? ""}` : `r${num}`;
+  const keep = useRef<{ who: string; d: NonNullable<typeof data> } | null>(null);
+  if (data) keep.current = { who, d: data };
+  const held = data ?? (keep.current?.who === who ? keep.current.d : null);
+  const turning = !data && !!held;
+  const shown = held?.profile;
+
+  /* The three tabs as one row, dragged: `pos` is which is in view, counted
+   * in tabs. Only the one in view and the one dragged toward are mounted. */
+  const win = useWindowDimensions();
+  const paneW = Math.min(win.width, 560);
+  const paneRef = useRef(paneW);
+  paneRef.current = paneW;
+  const tabRef = useRef<Sub>(tab);
+  tabRef.current = tab;
+  const at = SUBS.indexOf(tab);
+  const pos = useRef(new Animated.Value(at)).current;
+  const [peek, setPeek] = useState<Sub | null>(null);
+  const peekRef = useRef<Sub | null>(null);
+  /* Whether there are tabs to drag: not on a private or a hidden page. */
+  const swipeOk = useRef(false);
+  swipeOk.current = false;
+  const nativeDrive = Platform.OS !== "web";
+  useEffect(() => {
+    pos.setValue(at);
+  }, [pos, at]);
+  const swipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => {
+        if (!swipeOk.current || modals.open !== 0 || scrub.on) return false;
+        if (!(Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2)) return false;
+        /* Past either end there is no tab of this page: the drag is left
+         * for the shell, which moves to the tab beside the profile. */
+        const i = SUBS.indexOf(tabRef.current);
+        return g.dx < 0 ? i < SUBS.length - 1 : i > 0;
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_e, g) => {
+        const i = SUBS.indexOf(tabRef.current);
+        pos.setValue(Math.max(0, Math.min(SUBS.length - 1, i - g.dx / paneRef.current)));
+        const n = i + (g.dx < 0 ? 1 : -1);
+        const want = n >= 0 && n < SUBS.length ? SUBS[n] : null;
+        if (peekRef.current !== want) {
+          peekRef.current = want;
+          setPeek(want);
+        }
+      },
+      onPanResponderRelease: (_e, g) => {
+        const i = SUBS.indexOf(tabRef.current);
+        const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
+        const to = Math.max(0, Math.min(SUBS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
+        Animated.timing(pos, { toValue: to, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
+          if (to !== i) setTab(SUBS[to]);
+          peekRef.current = null;
+          setPeek(null);
+        });
+      },
+      onPanResponderTerminate: () => {
+        const i = SUBS.indexOf(tabRef.current);
+        Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
+          peekRef.current = null;
+          setPeek(null);
+        });
+      },
+    }),
+  ).current;
   useEffect(() => {
     if (shown) onPlus?.(shown.rower.rowerNumber, !!shown.plus);
     // The page's own word about its rower, once it is read.
@@ -145,10 +235,10 @@ export function ProfileScreen({
 
   if (own && ready && !me.signedIn) return <SignIn why="Your profile, your rows and logging a row need your account. The feed, the board and the stats are open to everyone." />;
   if (own && ready && me.signedIn && !me.me) return <Join />;
-  if (!data) return <Waiting error={error} onRetry={reload} />;
-  if (data.blocked) return <BlockedPage b={data.blocked} onChange={reload} />;
-  if (!data.profile) return <Waiting error="That profile could not be read." onRetry={reload} />;
-  const p = data.profile;
+  if (!held) return <Waiting error={error} onRetry={reload} />;
+  if (held.blocked) return <BlockedPage b={held.blocked} onChange={reload} />;
+  if (!held.profile) return <Waiting error="That profile could not be read." onRetry={reload} />;
+  const p = held.profile;
   const t = p.totals;
   const rel = live?.rel ?? p.rel;
   const counts = live?.counts ?? p.counts;
@@ -156,64 +246,22 @@ export function ProfileScreen({
   /* Only the bests there are: a distance never rowed is not a line. */
   const rowed = p.bests.filter((b) => b.sub !== "not yet rowed" && b.value !== "—");
 
-  return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      <SocialLine
-        p={p}
-        rel={rel}
-        counts={counts}
-        onPeople={onPeople}
-        onChange={(r) => {
-          setLive(r);
-          /* A follow that opened a private page: read it again. */
-          if (r.rel.following !== p.rel.following) reload();
-        }}
-      />
-      {menu && onMenu && !p.isMe ? <RowerMenu num={p.rower.rowerNumber} name={p.rower.displayName} rel={rel} adminId={p.adminId} onClose={() => onMenu(false)} onRel={setLive} onBlocked={reload} onGone={() => onGone?.()} /> : null}
-
-      {p.masked ? (
-        <DogTag p={p} />
-      ) : (
-        <>
-          {/* Two buttons side by side, as Instagram sets them (owner,
-              2026-11-22, of SHARE alone across the page: "it's just so
-              large ... what are the other actions that we could even take
-              there?"): EDIT PROFILE, which is the account's settings, and
-              SHARE, the rower's own stickers. */}
-          {p.isMe ? (
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
-              {onEdit ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={onEdit} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
-                  <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Edit profile</Text>
-                </Pressable>
-              ) : null}
-              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
-                <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {sharing ? <StickerViewer onClose={() => setSharing(false)} /> : null}
-
-          {locked ? (
-            <View style={{ borderWidth: 2, borderColor: C.ink, padding: 18, marginTop: 30 }}>
-              <Text style={mono(12, true)}>Private account</Text>
-              <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.soft, marginTop: 8 }}>
-                {rel.following === "pending" ? "Your request is waiting. The rows open when it is accepted." : "The rows and photos are shown to followers this rower has accepted."}
-              </Text>
-            </View>
-          ) : null}
-
-          {locked ? null : <Tabs value={tab} onPick={setTab} />}
-
-          {tab === "100k" && !locked ? <Hundred p={p} /> : null}
-
-          {tab === "stats" && !locked ? (
+  swipeOk.current = !locked && !p.masked;
+  const panel = (sub: Sub): ReactNode =>
+    sub === "rows" ? (
+      <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} />
+    ) : sub === "100k" ? (
+      <Hundred p={p} />
+    ) : (
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the
               head (owner, 2026-11-22). The word is the menu. */}
-          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", marginTop: 16, marginBottom: 12 }}>
-            <WordMenu options={p.periodOptions} value={p.period.key} onPick={setPeriod} ariaLabel="Which month" />
+          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", columnGap: 10, marginTop: 16, marginBottom: 12 }}>
+            <WordMenu options={p.periodOptions} value={turning && period ? period : p.period.key} onPick={setPeriod} ariaLabel="Which month" />
+            {turning ? <Text style={mono(11, false, C.gray)}>Reading</Text> : null}
           </View>
+          {/* The month before, faint, until the one picked is read. */}
+          <View pointerEvents={turning ? "none" : "auto"} style={{ opacity: turning ? 0.3 : 1 }}>
           <Ledger
             cells={[
               [fmtInt(t?.meters ?? 0), "Meters"],
@@ -291,14 +339,84 @@ export function ProfileScreen({
             </>
           ) : null}
           {p.paceCurve.length < 2 && !p.field && !rowed.length && !p.ergRows.length ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>The stats fill in with the first timed rows.</Text> : null}
+          </View>
           </>
+    );
+
+  return (
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+      <SocialLine
+        p={p}
+        rel={rel}
+        counts={counts}
+        onPeople={onPeople}
+        onChange={(r) => {
+          setLive(r);
+          /* A follow that opened a private page: read it again. */
+          if (r.rel.following !== p.rel.following) reload();
+        }}
+      />
+      {menu && onMenu && !p.isMe ? <RowerMenu num={p.rower.rowerNumber} name={p.rower.displayName} rel={rel} adminId={p.adminId} onClose={() => onMenu(false)} onRel={setLive} onBlocked={reload} onGone={() => onGone?.()} /> : null}
+
+      {p.masked ? (
+        <DogTag p={p} />
+      ) : (
+        <>
+          {/* Two buttons side by side, as Instagram sets them (owner,
+              2026-11-22, of SHARE alone across the page: "it's just so
+              large ... what are the other actions that we could even take
+              there?"): EDIT PROFILE, which is the account's settings, and
+              SHARE, the rower's own stickers. */}
+          {p.isMe ? (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+              {onEdit ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={onEdit} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                  <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Edit profile</Text>
+                </Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
+              </Pressable>
+            </View>
           ) : null}
+          {sharing ? <StickerViewer onClose={() => setSharing(false)} /> : null}
+
+          {locked ? (
+            <View style={{ borderWidth: 2, borderColor: C.ink, padding: 18, marginTop: 30 }}>
+              <Text style={mono(12, true)}>Private account</Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.soft, marginTop: 8 }}>
+                {rel.following === "pending" ? "Your request is waiting. The rows open when it is accepted." : "The rows and photos are shown to followers this rower has accepted."}
+              </Text>
+            </View>
+          ) : null}
+
+          {locked ? null : <Tabs value={tab} onPick={setTab} pos={pos} width={paneW - 32} />}
         </>
       )}
 
-      {locked || p.masked || tab !== "rows" ? null : (
-        <View style={{ marginHorizontal: -16 }}>
-          <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} />
+      {/* UNDER THE SELECTOR: the tab in view, and during a drag the one
+          beside it, each moved by the finger. The one in view keeps its
+          place in the page and the other is laid over the same ground
+          beside it, so nothing under the finger changes height mid-drag (a
+          page that grew then moved itself, and in a browser that movement
+          ended the drag). Tall enough that a drag under a short tab is
+          still a drag on it. */}
+      {locked || p.masked ? null : (
+        <View {...swipe.panHandlers} style={{ marginHorizontal: -16, overflow: "hidden", minHeight: Math.max(360, win.height - 300) }}>
+          {SUBS.map((t, i) =>
+            t === tab || t === peek ? (
+              <Animated.View
+                key={t}
+                pointerEvents={t === tab ? "auto" : "none"}
+                style={[
+                  t === tab ? null : { position: "absolute", left: 0, top: 0, width: paneW },
+                  { paddingHorizontal: t === "rows" ? 0 : 16, transform: [{ translateX: pos.interpolate({ inputRange: [0, SUBS.length - 1], outputRange: [i * paneW, (i - (SUBS.length - 1)) * paneW] }) }] },
+                ]}
+              >
+                {panel(t)}
+              </Animated.View>
+            ) : null,
+          )}
         </View>
       )}
       {p.masked && !locked ? <Log p={p} onRow={onRow} /> : null}
@@ -375,8 +493,9 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
 /* THE THREE TABS of a profile, as Instagram draws them: a picture each, a
  * short ink rule under the open one. The grid of photos, the stats, and
  * the 100K, which keeps its name until he decides what that tab becomes. */
-function Tabs({ value, onPick }: { value: "rows" | "stats" | "100k"; onPick: (t: "rows" | "stats" | "100k") => void }) {
-  const tabs: { id: "rows" | "stats" | "100k"; label: string }[] = [
+function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => void; pos: Animated.Value; width: number }) {
+  const cell = width / SUBS.length;
+  const tabs: { id: Sub; label: string }[] = [
     { id: "rows", label: "Photos of every row" },
     { id: "stats", label: "Stats" },
     { id: "100k", label: "The 100K" },
@@ -389,10 +508,12 @@ function Tabs({ value, onPick }: { value: "rows" | "stats" | "100k"; onPick: (t:
         return (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingTop: 10 }}>
             <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : <Text style={{ fontFamily: F.black, fontSize: 15, color: tone }}>100K</Text>}</View>
-            <View style={{ width: 64, height: 2, marginTop: 10, backgroundColor: on ? C.ink : "transparent" }} />
+            <View style={{ height: 2, marginTop: 10 }} />
           </Pressable>
         );
       })}
+      {/* The short ink rule under the open tab: it goes with the finger. */}
+      <Animated.View pointerEvents="none" style={{ position: "absolute", left: (cell - 64) / 2, bottom: 0, width: 64, height: 2, backgroundColor: C.ink, transform: [{ translateX: pos.interpolate({ inputRange: [0, SUBS.length - 1], outputRange: [0, cell * (SUBS.length - 1)] }) }] }} />
     </View>
   );
 }

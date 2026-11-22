@@ -225,8 +225,22 @@ function forcePoints(series: ReelSeries, points: number[], x: number, y: number,
 
 /* ---- the pace graph's memory ------------------------------------------- */
 
-type PaceShape = { key: string; pts: { t: number; pace: number }[]; lo: number; hi: number; avg: number };
-let paceShape: PaceShape | null = null;
+/* THE PACE GRAPH IS A ROLLING AVERAGE OVER THE LAST 500 METERS (owner,
+ * 2026-11-22: "let's make that pace 1, a rolling average, so it looks a
+ * little smoother. 2 ... only showing 500 meters, the most recent 500
+ * meters at a time. That way we can see more detail. And we need some
+ * y-axis markings for the different pace values").
+ *
+ * Until that day the whole stretch was on the sheet from the first frame
+ * and the line filled it in: a 5 k was a thousand ticks across eight hundred
+ * pixels, so five ticks of smoothing were enough. With 500 m across the
+ * same width each tick is wide, so the line is the average of the fifteen
+ * seconds behind it. */
+const PACE_WINDOW_M = 500;
+const PACE_ROLL_S = 15;
+
+type PacePt = { t: number; m: number; pace: number };
+type PaceShape = { key: string; pts: PacePt[]; lo: number; hi: number; avg: number; fromM: number; toM: number; marks: number[]; step: number };
 const shapes = new WeakMap<ReelSeries, PaceShape>();
 
 function paceOf(series: ReelSeries, fromS: number, toS: number): PaceShape {
@@ -234,29 +248,47 @@ function paceOf(series: ReelSeries, fromS: number, toS: number): PaceShape {
   const kept = shapes.get(series);
   if (kept && kept.key === key) return kept;
   const raw = series.ticks.filter((k) => k.pace > 0 && k.pace < 600);
-  /* Five ticks of smoothing: the monitor's pace jumps stroke to stroke and a
-   * time-lapse of that is noise. */
-  const smooth = raw.map((k, i) => {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) {
-      sum += raw[j].pace;
-      n++;
-    }
-    return { t: k.t, pace: sum / n };
-  });
-  const pts = smooth.filter((k) => k.t >= fromS && k.t <= toS);
+  /* The average of the ticks in the fifteen seconds behind each one, kept
+   * as a running sum so a long piece is one pass. */
+  const rolled: PacePt[] = [];
+  let sum = 0;
+  let j = 0;
+  for (let i = 0; i < raw.length; i++) {
+    sum += raw[i].pace;
+    while (raw[i].t - raw[j].t > PACE_ROLL_S) sum -= raw[j++].pace;
+    rolled.push({ t: raw[i].t, m: raw[i].m, pace: sum / (i - j + 1) });
+  }
+  const pts = rolled.filter((k) => k.t >= fromS && k.t <= toS);
   const sorted = pts.map((k) => k.pace).sort((a, b) => a - b);
   const q = (f: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(f * (sorted.length - 1))))] ?? 120;
-  const lo = q(0.02);
-  const hi = q(0.98);
-  const pad = Math.max(1.5, (hi - lo) * 0.25);
+  const pad = Math.max(1.5, (q(0.98) - q(0.02)) * 0.25);
+  const lo = q(0.02) - pad;
+  const hi = q(0.98) + pad;
   const a = frameAt(series, fromS);
   const b = frameAt(series, toS);
   const avg = b.m - a.m > 1 ? ((b.t - a.t) / (b.m - a.m)) * 500 : (lo + hi) / 2;
-  paceShape = { key, pts, lo: lo - pad, hi: hi + pad, avg };
-  shapes.set(series, paceShape);
-  return paceShape;
+  /* The marks up the side: the smallest round step of pace that leaves no
+   * more than five of them on the sheet. */
+  const step = [0.5, 1, 2, 5, 10, 15, 20, 30, 60, 120].find((v) => (hi - lo) / v <= 5) ?? 120;
+  const marks: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) marks.push(Math.round(v * 10) / 10);
+  const shape: PaceShape = { key, pts, lo, hi, avg, fromM: a.m, toM: b.m, marks, step };
+  shapes.set(series, shape);
+  return shape;
+}
+
+/* The rolled pace at a distance, between the two points either side of it. */
+function paceAtM(pts: PacePt[], m: number): number | null {
+  if (!pts.length) return null;
+  if (m <= pts[0].m) return pts[0].pace;
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].m >= m) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      return b.m > a.m ? a.pace + ((b.pace - a.pace) * (m - a.m)) / (b.m - a.m) : b.pace;
+    }
+  }
+  return pts[pts.length - 1].pace;
 }
 
 /* ---- the clips ---------------------------------------------------------- */
@@ -340,20 +372,53 @@ export function paintClip(ctx: Ctx, W: number, H: number, series: ReelSeries, f:
     lab(ctx, T, fonts, o.unit === "pace" ? "Pace" : o.unit === "watts" ? "Power" : "Burn", cx, cy - 430 * s, 44 * s, "center", T.label);
     pair(ctx, T, fonts, e.v, e.u, cx, cy - 290 * s, 150 * s, T.fg);
 
-    const x0 = W * 0.09;
-    const x1 = W * 0.91;
+    /* The marks' own column at the left, and the graph beside it. */
+    const xl = W * 0.05;
+    const x0 = xl + 132 * s;
+    const x1 = W * 0.95;
     const y0 = cy - 200 * s;
     const y1 = cy + 300 * s;
-    const span = Math.max(1, o.toS - o.fromS);
-    const X = (t: number) => x0 + ((t - o.fromS) / span) * (x1 - x0);
+    /* THE LAST 500 METERS: the window stands at the start of the stretch
+     * until the rower is 500 m into it, then travels with them, the head of
+     * the line at its right edge. A stretch shorter than that is all of it. */
+    const reach = Math.max(50, Math.min(PACE_WINDOW_M, shape.toM - shape.fromM));
+    const headM = Math.max(shape.fromM, Math.min(shape.toM, f.m));
+    const winA = Math.max(shape.fromM, headM - reach);
+    const X = (m: number) => x0 + ((m - winA) / reach) * (x1 - x0);
     /* Faster is higher. */
     const Y = (p: number) => y0 + ((Math.max(shape.lo, Math.min(shape.hi, p)) - shape.lo) / Math.max(0.1, shape.hi - shape.lo)) * (y1 - y0);
+    const mark = (p: number): string => {
+      if (o.unit === "watts") return fmtInt(wattsFromPace(p));
+      if (o.unit === "cal") return fmtInt(calHrFromWatts(wattsFromPace(p)));
+      return fmtClock(p, shape.step < 1);
+    };
 
-    /* The floor, and the average of the stretch as a dashed rule. */
+    /* The pace marks: a thin rule across for each, its value at the left. */
+    for (const v of shape.marks) {
+      const y = Y(v);
+      if (y < y0 + 16 * s || y > y1 - 16 * s) continue;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x1, y);
+      line(ctx, T, T.dim, 2 * s);
+      lab(ctx, T, fonts, mark(v), x0 - 18 * s, y + 11 * s, 30 * s, "right", T.dim);
+    }
+
+    /* The floor, a notch on it every 100 m that travels with the window,
+     * and the average of the stretch as a dashed rule. */
     ctx.beginPath();
     ctx.moveTo(x0, y1);
     ctx.lineTo(x1, y1);
     line(ctx, T, T.dim, 4 * s);
+    for (let m = Math.ceil(winA / 100) * 100; m <= winA + reach; m += 100) {
+      ctx.beginPath();
+      ctx.moveTo(X(m), y1);
+      ctx.lineTo(X(m), y1 + 16 * s);
+      ctx.lineCap = "butt";
+      ctx.strokeStyle = T.dim;
+      ctx.lineWidth = 4 * s;
+      ctx.stroke();
+    }
     ctx.setLineDash([18 * s, 18 * s]);
     ctx.beginPath();
     ctx.moveTo(x0, Y(shape.avg));
@@ -364,7 +429,15 @@ export function paintClip(ctx: Ctx, W: number, H: number, series: ReelSeries, f:
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const drawn: [number, number][] = shape.pts.filter((k) => k.t <= f.t).map((k) => [X(k.t), Y(k.pace)]);
+    /* The line: where it enters the window, the points inside it, and the
+     * rower's own place between two ticks, so the head glides and the line
+     * does not hop a tick at a time as the window moves. */
+    const drawn: [number, number][] = [];
+    const inA = paceAtM(shape.pts, winA);
+    const inB = paceAtM(shape.pts, headM);
+    if (inA !== null && shape.pts[0].m <= winA) drawn.push([X(winA), Y(inA)]);
+    for (const k of shape.pts) if (k.m > winA && k.m < headM && k.t <= f.t) drawn.push([X(k.m), Y(k.pace)]);
+    if (inB !== null && headM > winA) drawn.push([X(headM), Y(inB)]);
     if (drawn.length >= 2) {
       curve(ctx, drawn);
       line(ctx, T, T.fg, 10 * s);
@@ -380,11 +453,9 @@ export function paintClip(ctx: Ctx, W: number, H: number, series: ReelSeries, f:
       ctx.fillStyle = T.accent;
       ctx.fill();
     }
-    const a = frameAt(series, o.fromS);
-    const b = frameAt(series, o.toS);
-    lab(ctx, T, fonts, `${fmtInt(a.m)} m`, x0, y1 + 60 * s, 34 * s, "left", T.dim);
-    lab(ctx, T, fonts, `${fmtInt(b.m)} m`, x1, y1 + 60 * s, 34 * s, "right", T.dim);
-    lab(ctx, T, fonts, `avg ${fmtPace(shape.avg)}`, cx, y1 + 60 * s, 34 * s, "center", T.label);
+    lab(ctx, T, fonts, `${fmtInt(winA)} m`, x0, y1 + 68 * s, 34 * s, "left", T.dim);
+    lab(ctx, T, fonts, `${fmtInt(winA + reach)} m`, x1, y1 + 68 * s, 34 * s, "right", T.dim);
+    lab(ctx, T, fonts, `avg ${fmtPace(shape.avg)}`, (x0 + x1) / 2, y1 + 68 * s, 34 * s, "center", T.label);
     return;
   }
 
