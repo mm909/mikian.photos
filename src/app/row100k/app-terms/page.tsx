@@ -10,7 +10,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-const MAIL = "hello@mikian.photos";
+const MAIL = "row@rowtember.com";
 
 export default function Page() {
   return (

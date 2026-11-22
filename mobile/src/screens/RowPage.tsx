@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { createElement } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, type BoardData, type FollowState, type Photo } from "../api";
@@ -7,11 +7,12 @@ import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import type { Fetched } from "../files";
-import { CLIPS, GROUNDS, LENGTHS, deck, filmReel, reelStillUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
+import { CLIPS, GROUNDS, LENGTHS, STRIP, deck, filmReel, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
 import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
+import { EditRow } from "./EditRow";
 import { Review } from "./Review";
 import { RowMenu, Sheet } from "./Social";
 
@@ -58,6 +59,8 @@ type RowData = {
   durationStr: string;
   splitStr: string;
   photos: Photo[];
+  /* On the rower's own row: the photos' storage keys, for EDIT ROW. */
+  photoKeys?: string[];
   masked: boolean;
   digits?: number;
   elite: boolean;
@@ -109,9 +112,11 @@ export function RowPage({
   const [sharing, setSharing] = useState(false);
   const [talking, setTalking] = useState(!!talk);
   const [said, setSaid] = useState<number | null>(null);
-  /* The caption as last saved here, and whether it is being written. */
-  const [words, setWords] = useState<string | null>(null);
+  /* EDIT ROW is open. It comes up a moment after the menu that asked for
+   * it has gone: a phone will not raise one sheet while another is still
+   * leaving, which is what made it stutter. */
   const [writing, setWriting] = useState(false);
+  const edit = () => setTimeout(() => setWriting(true), 260);
   const who = data?.row.rowerNumber;
   useEffect(() => {
     if (who) onWho?.(who);
@@ -193,7 +198,7 @@ export function RowPage({
             }}
             onEdit={() => {
               leave();
-              setWriting(true);
+              edit();
             }}
             onChange={(what) => {
               leave();
@@ -216,9 +221,9 @@ export function RowPage({
           dots and then explicitly editing it"; and of the word: "maybe
           caption isn't best word. Description is probably a better
           word"). */}
-      {(words ?? r.caption) ? (
+      {r.caption ? (
         <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 10 }}>
-          <Text style={{ fontFamily: F.bold }}>{r.name}</Text> {words ?? r.caption}
+          <Text style={{ fontFamily: F.bold }}>{r.name}</Text> {r.caption}
         </Text>
       ) : null}
 
@@ -263,19 +268,18 @@ export function RowPage({
           row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
           onClose={() => onMenu(false)}
           onRower={onRower}
-          onEdit={() => setWriting(true)}
+          onEdit={edit}
           onChange={(what) => (what === "row-gone" || what === "blocked" ? onDone() : reload())}
         />
       ) : null}
       {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
-      {writing ? (
-        <CaptionSheet
-          id={r.id}
-          start={words ?? r.caption ?? ""}
+      {writing && r.mine && r.meters && r.seconds ? (
+        <EditRow
+          row={{ id: r.id, day: r.day, meters: r.meters, seconds: r.seconds, title: r.title, caption: r.caption ?? "", photos: r.photos, photoKeys: r.photoKeys ?? [], telemetry: !!r.erg }}
           onClose={() => setWriting(false)}
-          onSaved={(c) => {
-            setWords(c);
+          onSaved={() => {
             setWriting(false);
+            reload();
           }}
         />
       ) : null}
@@ -508,30 +512,6 @@ function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
   );
 }
 
-/* The description, written or changed after the row is up: EDIT ROW. */
-function CaptionSheet({ id, start, onClose, onSaved }: { id: string; start: string; onClose: () => void; onSaved: (caption: string) => void }) {
-  const [text, setText] = useState(start);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const save = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      onSaved((await api<{ caption: string }>("/api/row100k/app/row", { body: { id, caption: text } })).caption);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "That did not save.");
-      setBusy(false);
-    }
-  };
-  return (
-    <Sheet title="Edit row" right="Description" onClose={onClose}>
-      <TextInput accessibilityLabel="Description" value={text} onChangeText={setText} multiline autoFocus maxLength={500} placeholder="Say something about this row" placeholderTextColor={C.gray} style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 96, paddingVertical: 10, textAlignVertical: "top" }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]} />
-      {error ? <Text style={[mono(11, false, C.accent), { marginBottom: 8 }]}>{error}</Text> : null}
-      <Btn label={busy ? "Saving" : "Save"} disabled={busy} onPress={save} />
-    </Sheet>
-  );
-}
-
 /* ---- STICKERS ---------------------------------------------------------- */
 
 /* The art is white on nothing, so it is shown on ink, the way the site's
@@ -669,28 +649,31 @@ function StickerImage({ id, rowId, ratio }: { id: string; rowId?: string; ratio:
  * cannot be see-through, so the overlay comes on a colour to key out
  * (green, blue) or to blend away (black). */
 function Reels({ rowId }: { rowId: string }) {
-  const [open, setOpen] = useState<ClipId | null>(null);
+  const win = useWindowDimensions();
+  const w = Math.min(win.width, 560);
+  const n = CLIPS.length;
+  /* Which clip is showing in the viewer; null while it is shut. */
+  const [at, setAt] = useState<number | null>(null);
+  const open = at === null ? null : CLIPS[at].id;
   const [bg, setBg] = useState<GroundId>("green");
   const [len, setLen] = useState<number>(10);
   /* FILM, THEN SHARE (owner, 2026-11-22: "when I click that filming
    * button, there should be a progress bar ... also preview me the film
    * ... I clicked filming and nothing's happening"). A bar runs while the
-   * site films; the film then plays where the still was; SHARE is its own
-   * press, which is the only kind a browser opens its share sheet for. */
+   * site films; SHARE is its own press, which is the only kind a browser
+   * opens its share sheet for. */
   const [busy, setBusy] = useState(false);
   const [film, setFilm] = useState<Fetched | null>(null);
   const [note, setNote] = useState("");
   const bar = useRef(new Animated.Value(0)).current;
   const turn = useRef(0);
-  /* HOW LONG IS LEFT, counted down over the still while the site films
-   * (owner, 2026-11-21: "if we could add an ETA ... it just shows the
-   * static screen, and that's a little confusing because it makes me
-   * think it's not working"). A reckoning, from what a film of this length
-   * has been taking: the count stops at one and waits. */
+  /* HOW LONG IS LEFT, counted down beside the bar while the site films. A
+   * reckoning, from what a film of this length has been taking: the count
+   * stops at one and waits. */
   const [left, setLeft] = useState(0);
   useEffect(() => {
     if (!busy) return;
-    const t = setInterval(() => setLeft((n) => Math.max(1, n - 1)), 1000);
+    const t = setInterval(() => setLeft((k) => Math.max(1, k - 1)), 1000);
     return () => clearInterval(t);
   }, [busy]);
   const reset = () => {
@@ -730,12 +713,48 @@ function Reels({ rowId }: { rowId: string }) {
       setNote(err instanceof Error ? err.message : "That did not work.");
     }
   };
+
+  /* THE CLIPS ARE SWIPED THROUGH, AS THE STICKERS ARE (owner, 2026-11-21:
+   * "I can't swipe through the video, like the reels, like I can on the
+   * shareables ... I want to be able to do the same thing with the reel
+   * overlays"), and round and round the same way: the last is drawn again
+   * before the first and the first again after the last, and a swipe that
+   * settles on one of those two is moved, unseen, to the real one. */
+  const pages = [CLIPS[n - 1], ...CLIPS, CLIPS[0]];
+  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const first = useRef(0);
+  const placed = useRef(false);
+  /* How tall the strip is, measured: a page of a sideways list has no
+   * height of its own in a browser, and the clip is sized by its height. */
+  const [tall, setTall] = useState(0);
+  const show = (i: number) => {
+    first.current = i;
+    placed.current = false;
+    setAt(i);
+  };
+  const place = () => {
+    if (placed.current) return;
+    placed.current = true;
+    strip.current?.scrollTo({ x: (first.current + 1) * w, animated: false });
+  };
+  const onStrip = (x: number) => {
+    if (!placed.current) return;
+    const page = Math.round(x / Math.max(1, w));
+    setAt((page - 1 + n) % n);
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      if (page === 0) strip.current?.scrollTo({ x: n * w, animated: false });
+      else if (page === n + 1) strip.current?.scrollTo({ x: w, animated: false });
+    }, 140);
+  };
+
   return (
     <>
       <Eye left="Reel overlays" right="For your edit" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-        {CLIPS.map((c) => (
-          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => setOpen(c.id)} style={{ width: 124 }}>
+        {CLIPS.map((c, i) => (
+          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => show(i)} style={{ width: 124 }}>
             <View style={{ height: 220, backgroundColor: GROUND, alignItems: "center", justifyContent: "center" }}>
               <Still rowId={rowId} clip={c.id} />
             </View>
@@ -747,78 +766,160 @@ function Reels({ rowId }: { rowId: string }) {
       </ScrollView>
       <Dash style={{ marginTop: 14 }} />
 
-      <Modal visible={open !== null} transparent animationType="none" onRequestClose={() => setOpen(null)}>
-        <View style={{ flex: 1, backgroundColor: GROUND, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 30 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={mono(12, true, "#fff")}>{CLIPS.find((c) => c.id === open)?.label}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(null)} hitSlop={14}>
-              <Text style={mono(12, true, "#fff")}>Close</Text>
-            </Pressable>
-          </View>
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 14 }}>
-            {film && Platform.OS === "web" ? (
-              /* The film itself, playing round. */
-              createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
-            ) : open ? (
-              <View style={{ height: "100%", alignItems: "center", justifyContent: "center" }}>
-                <View style={{ height: "100%", opacity: busy ? 0.25 : 1 }}>
-                  <Still rowId={rowId} clip={open} tall />
-                </View>
-                {busy ? (
-                  <View pointerEvents="none" style={{ position: "absolute", alignItems: "center" }}>
-                    <Text style={{ fontFamily: F.black, fontSize: 96, lineHeight: 104, color: "#fff", fontVariant: ["tabular-nums"] }}>{left}</Text>
-                    <Text style={mono(11, true, "#fff", 0.14)}>{left > 1 ? "Seconds left" : "Nearly there"}</Text>
+      <Modal visible={at !== null} animationType="fade" onRequestClose={() => setAt(null)}>
+        <View style={{ flex: 1, backgroundColor: GROUND, alignItems: "center" }}>
+          <View style={{ flex: 1, width: w, paddingTop: 50, paddingBottom: 30 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setAt(null)} hitSlop={8} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+                <CloseIcon color="#fff" size={26} />
+              </Pressable>
+              <Text numberOfLines={1} style={[mono(12, true, "#fff"), { flex: 1, textAlign: "center" }]}>
+                {CLIPS.find((c) => c.id === open)?.label ?? ""}
+              </Text>
+              <View style={{ width: 44 }} />
+            </View>
+
+            {/* THE CLIP, MOVING (owner, 2026-11-21: "when I go to click on
+                the reel, I want to see a preview of that reel going"): the
+                five-second version at ten frames a second, round and
+                round, from the moment the clip is opened, while the site
+                films and after. In a browser the film itself takes its
+                place once it is made. */}
+            <ScrollView ref={strip} horizontal pagingEnabled scrollEnabled={!busy} showsHorizontalScrollIndicator={false} contentOffset={{ x: (first.current + 1) * w, y: 0 }} onContentSizeChange={place}
+              onLayout={(e) => {
+                setTall(Math.floor(e.nativeEvent.layout.height));
+                place();
+              }}
+              onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={32}
+              style={{ flex: 1 }}
+            >
+              {pages.map((c, p) => {
+                const live = c.id === open;
+                return (
+                  <View key={`${c.id}-${p}`} style={{ width: w, height: tall || undefined, paddingHorizontal: 20, paddingVertical: 10, alignItems: "center", justifyContent: "center" }}>
+                    {live && film && Platform.OS === "web" ? (
+                      createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
+                    ) : (
+                      <Motion rowId={rowId} clip={c.id} play={live} />
+                    )}
                   </View>
-                ) : null}
-              </View>
-            ) : null}
+                );
+              })}
+            </ScrollView>
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 7, marginTop: 6, marginBottom: 12, minHeight: 8 }}>
+              {CLIPS.map((c) => (
+                <View key={c.id} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.id === open ? "#fff" : "rgba(255,255,255,0.3)" }} />
+              ))}
+            </View>
+
+            <View style={{ paddingHorizontal: 20 }}>
+              {film ? (
+                <>
+                  <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note || `Filmed: ${len} seconds on ${bg}, 20 frames a second. Key the ${bg === "black" ? "black out with a Screen blend" : `${bg} out`} in your edit.`}</Text>
+                  <Btn label="Share it" onPress={share} />
+                  <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingTop: 16 }}>
+                    <Text style={mono(11, true, "#fff", 0.12)}>Film another</Text>
+                  </Pressable>
+                </>
+              ) : busy ? (
+                <>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                    <Text style={mono(11, true, "#fff", 0.12)}>Filming your {len} second clip</Text>
+                    <Text style={[mono(11, true, "#fff", 0.12), { fontVariant: ["tabular-nums"] }]}>{left > 1 ? `${left} s left` : "Nearly there"}</Text>
+                  </View>
+                  <View accessibilityRole="progressbar" style={{ height: 10, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }}>
+                    <Animated.View style={{ height: "100%", backgroundColor: C.accent, width: bar.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
+                  </View>
+                  <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingVertical: 8 }}>
+                    <Text style={mono(11, true, "#fff", 0.12)}>Stop</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
+                    <View>
+                      <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>The ground to key out</Text>
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        {GROUNDS.map((g) => (
+                          <Light key={g.id} label={g.label} on={bg === g.id} onPress={() => setBg(g.id)} />
+                        ))}
+                      </View>
+                    </View>
+                    <View>
+                      <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>How long</Text>
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        {LENGTHS.map((l) => (
+                          <Light key={l} label={`${l}`} on={len === l} onPress={() => setLen(l)} />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                  {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note}</Text> : null}
+                  <Btn label={`Film it · ${len} s`} onPress={shoot} />
+                </>
+              )}
+            </View>
           </View>
-          {film ? (
-            <>
-              <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note || `Filmed: ${len} seconds on ${bg}. Key the ${bg === "black" ? "black out with a Screen blend" : `${bg} out`} in your edit.`}</Text>
-              <Btn label="Share it" onPress={share} />
-              <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingTop: 16 }}>
-                <Text style={mono(11, true, "#fff", 0.12)}>Film another</Text>
-              </Pressable>
-            </>
-          ) : busy ? (
-            <>
-              <Text style={[mono(11, true, "#fff", 0.12), { marginBottom: 10 }]}>Filming your {len} second clip</Text>
-              <View accessibilityRole="progressbar" style={{ height: 10, backgroundColor: "rgba(255,255,255,0.18)", marginBottom: 16 }}>
-                <Animated.View style={{ height: "100%", backgroundColor: C.accent, width: bar.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }} />
-              </View>
-              <Pressable accessibilityRole="button" onPress={reset} hitSlop={10} style={{ alignItems: "center", paddingVertical: 8 }}>
-                <Text style={mono(11, true, "#fff", 0.12)}>Stop</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>The ground to key out</Text>
-              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
-                {GROUNDS.map((g) => (
-                  <Light key={g.id} label={g.label} on={bg === g.id} onPress={() => setBg(g.id)} />
-                ))}
-              </View>
-              <Text style={[mono(10, false, C.gray, 0.12), { marginBottom: 8 }]}>How long</Text>
-              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
-                {LENGTHS.map((l) => (
-                  <Light key={l} label={`${l} s`} on={len === l} onPress={() => setLen(l)} />
-                ))}
-              </View>
-              {note ? <Text style={[mono(11, false, "#fff", 0.12), { marginBottom: 12, lineHeight: 16 }]}>{note}</Text> : null}
-              <Btn label="Film it" onPress={shoot} />
-            </>
-          )}
         </View>
       </Modal>
     </>
   );
 }
 
+/* A CLIP, MOVING, WITHOUT A VIDEO PLAYER. The site paints the five-second
+ * version of the clip as fifty small frames on one picture, ten to a line
+ * (erg/reel/serverReel.ts REEL_STRIP); this shows one frame of it at a
+ * time, ten a second, holds the last for a beat and goes round. Until the
+ * picture has come, the clip's last frame stands in its place. `play`
+ * false: the still alone, for a clip that is beside the one being looked
+ * at. */
+const HOLD = 12;
+function Motion({ rowId, clip, play }: { rowId: string; clip: ClipId; play: boolean }) {
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [uri, setUri] = useState("");
+  const [f, setF] = useState(0);
+  useEffect(() => {
+    if (!play) return;
+    let live = true;
+    reelStripUri(rowId, clip).then(
+      (u) => live && setUri(u),
+      () => null,
+    );
+    return () => {
+      live = false;
+    };
+  }, [rowId, clip, play]);
+  const moving = play && !!uri;
+  useEffect(() => {
+    if (!moving) return;
+    setF(0);
+    const t = setInterval(() => setF((k) => (k + 1) % (STRIP.frames + HOLD)), 1000 / STRIP.fps);
+    return () => clearInterval(t);
+  }, [moving]);
+  /* Whole points, so one frame's edge is the next one's edge exactly. */
+  const h = Math.floor(Math.min(box.h, (box.w * 16) / 9));
+  const fw = Math.round((h * 9) / 16);
+  const k = Math.min(f, STRIP.frames - 1);
+  return (
+    <View onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} style={{ flex: 1, alignSelf: "stretch", alignItems: "center", justifyContent: "center" }}>
+      {h <= 0 ? null : moving ? (
+        <View accessibilityLabel="A preview of the clip, playing" style={{ width: fw, height: h, overflow: "hidden" }}>
+          <Image source={{ uri }} resizeMode="stretch" fadeDuration={0} accessibilityIgnoresInvertColors style={{ position: "absolute", left: -(k % STRIP.cols) * fw, top: -Math.floor(k / STRIP.cols) * h, width: fw * STRIP.cols, height: h * STRIP.rows }} />
+        </View>
+      ) : (
+        <View style={{ height: h }}>
+          <Still rowId={rowId} clip={clip} tall />
+        </View>
+      )}
+    </View>
+  );
+}
+
 /* A choice on the ink sheet: outlined in white, white when on. */
 function Light({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: on }} onPress={onPress} style={{ borderWidth: 2, borderColor: "#fff", backgroundColor: on ? "#fff" : "transparent", minHeight: 40, paddingHorizontal: 14, justifyContent: "center" }}>
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: on }} onPress={onPress} style={{ borderWidth: 2, borderColor: "#fff", backgroundColor: on ? "#fff" : "transparent", minHeight: 38, paddingHorizontal: 10, justifyContent: "center" }}>
       <Text style={mono(12, true, on ? GROUND : "#fff", 0.08)}>{label}</Text>
     </Pressable>
   );

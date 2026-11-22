@@ -6,7 +6,7 @@ import { monthFromKey } from "@/lib/rowPeriod";
 import { validateTelemetryDoc } from "@/lib/pm5/session";
 import { ergAppDenial, ergViewer } from "@/app/erg/gate";
 import type { BgId, ClipId, ScreenId, UnitId } from "@/app/erg/reel/paint";
-import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, renderReelMp4, renderReelStill, type ReelFormat } from "@/app/erg/reel/serverReel";
+import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, renderReelMp4, renderReelStill, renderReelStrip, type ReelFormat } from "@/app/erg/reel/serverReel";
 
 /* ONE REEL OVERLAY for the phone app (2026-11-20): a row's numbers as a
  * short video to lay over the rower's own footage in an editing app. GET
@@ -16,6 +16,8 @@ import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, render
  *   &format=story|post|square  &len=5|10|15  &unit=pace|watts|cal
  *   &screen=all|large|force|bars       (the monitor clip's screen)
  *   &still=1   the last frame as a PNG, for a preview, instead of the film
+ *   &strip=1   the five-second version as fifty small frames on one JPEG
+ *              (serverReel.ts REEL_STRIP), for a preview that moves
  *
  * The frames are the site's own reel painting (erg/reel/paint.ts), filmed
  * on the server (erg/reel/serverReel.ts).
@@ -36,7 +38,8 @@ export async function GET(req: Request) {
   if (denied) return no(denied.error, denied.status);
   try {
     const q = new URL(req.url).searchParams;
-    const still = q.get("still") === "1";
+    const strip = q.get("strip") === "1";
+    const still = strip || q.get("still") === "1";
     const rl = await rateLimit({ key: `row-app-reel:${viewer.userId}:${still ? "still" : "film"}`, limit: still ? 300 : 40, windowSec: 3600 });
     if (!rl.ok) return no("Too many reels at once. Try again in a bit.", 429);
 
@@ -80,6 +83,10 @@ export async function GET(req: Request) {
     };
     const name = `row-${entry.participant.rowerNumber}-${entry.day}-${ask.clip}`;
 
+    if (strip) {
+      const jpg = renderReelStrip(ask);
+      return new NextResponse(new Uint8Array(jpg), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=300" } });
+    }
     if (still) {
       const png = renderReelStill(ask);
       return new NextResponse(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=300" } });

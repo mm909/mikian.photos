@@ -25,7 +25,7 @@ import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
 import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
-import { Avatar, modals } from "./src/ui";
+import { Avatar, modals, scrub } from "./src/ui";
 
 /* ROW, THE APP.
  *
@@ -258,7 +258,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   }, [pos, at]);
   const swipe = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && !scrub.on && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
       onPanResponderMove: (_e, g) => {
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         pos.setValue(Math.max(0, Math.min(TABS.length - 1, i - g.dx / paneRef.current)));
@@ -370,7 +370,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
-      <BestsScreen num={o.num} best={o.best} onRow={openRow} />
+      <BestsScreen num={o.num} best={o.best} onRow={openRow} onRower={openRower} />
     ) : o.kind === "erg" ? (
       <ErgPage id={o.id} rows={rows} />
     ) : o.kind === "rankings" ? (
@@ -478,7 +478,15 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         <View style={{ flex: 1, overflow: "hidden" }}>
           {/* The tab stays where it was, mounted, under whatever is opened
               over it. */}
-          <View style={{ flex: 1 }} {...swipe.panHandlers}>
+          <View
+            style={{ flex: 1 }}
+            {...swipe.panHandlers}
+            /* Every touch starts clean; a chart under it then says if it is
+               the chart's (ui.tsx scrub). */
+            onTouchStartCapture={() => {
+              scrub.on = false;
+            }}
+          >
             {TABS.map((t, i) =>
               t.id === tab || t.id === peek ? (
                 <Animated.View key={t.id} pointerEvents={t.id === tab ? "auto" : "none"} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.paper, transform: [{ translateX: pos.interpolate({ inputRange: [0, TABS.length - 1], outputRange: [i * paneW, (i - (TABS.length - 1)) * paneW] }) }] }}>

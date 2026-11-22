@@ -100,6 +100,12 @@ const reelUrl = (rowId: string, clip: ClipId, bg: string, len: number, still: bo
 /* What a clip ends on, on ink, for the tile. */
 export const reelStillUri = (rowId: string, clip: ClipId) => once(`still|${rowId}|${clip}`, () => fetchFile(reelUrl(rowId, clip, "ink", 10, true), `reel-${clip}-${rowId.slice(-6)}.png`)).then((f) => f.uri);
 
+/* THE CLIP, MOVING: its five-second version as fifty small frames on one
+ * picture (the site's REEL_STRIP, which these numbers repeat), for the
+ * preview that plays when a clip is opened. Fetched once and kept. */
+export const STRIP = { frames: 50, cols: 10, rows: 5, fps: 10 } as const;
+export const reelStripUri = (rowId: string, clip: ClipId) => once(`strip|${rowId}|${clip}`, () => fetchFile(`${reelUrl(rowId, clip, "ink", 5, false)}&strip=1`, `reel-${clip}-${rowId.slice(-6)}-strip.jpg`)).then((f) => f.uri);
+
 /* FILM A CLIP, THEN SHARE IT, as two steps (2026-11-22, after the owner
  * pressed FILM and the button stayed grey: "I clicked filming and
  * nothing's happening"). The site takes a while to film; a browser only

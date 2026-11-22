@@ -298,10 +298,14 @@ function Nameplate({ num, name }: { num: number; name: string }) {
 function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
   const { me } = useSession();
   const n = p.rower.rowerNumber;
+  /* SIDE BY SIDE, the figure and then its word on one line (owner,
+   * 2026-11-21: "0 followers, 3 following, but side by side instead of one
+   * on top of another"). On somebody else's page, where FOLLOW shares the
+   * line, the two fold under each other only if the phone is too narrow. */
   const count = (v: number, one: string, many: string, list: PeopleList) => (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8} style={{ alignItems: "center", minWidth: 62 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 20, lineHeight: 24, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text>
-      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 2 }]}>{v === 1 ? one : many}</Text>
+    <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8} style={{ flexDirection: "row", alignItems: "baseline", gap: 5 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 24, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text>
+      <Text style={mono(10, false, C.gray, 0.08)}>{v === 1 ? one : many}</Text>
     </Pressable>
   );
   /* THE BELL on this rower: told when they log a row (and when they pass
@@ -320,9 +324,10 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
     <>
       <View style={{ flexDirection: "row", alignItems: "center", columnGap: 14, minHeight: 52, marginTop: 12 }}>
         <Avatar uri={p.avatar} name={p.rower.displayName} size={52} />
-        {count(counts.followers, "follower", "followers", "followers")}
-        {count(counts.following, "following", "following", "following")}
-        <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 16, rowGap: 2 }}>
+          {count(counts.followers, "follower", "followers", "followers")}
+          {count(counts.following, "following", "following", "following")}
+        </View>
         {!p.isMe && me.me ? (
           <>
             {rel.following === "accepted" ? (
@@ -367,21 +372,36 @@ function Hundred({ p }: { p: Profile }) {
   const path = `/api/row100k/app/profile?num=${p.rower.rowerNumber}&m=all`;
   const { data } = useLoad(() => api<{ profile?: Profile }>(path), [path], path);
   const by = new Map<string, number>();
-  for (const r of data?.profile?.logRows ?? []) if (!r.masked && r.meters) by.set(r.day.slice(0, 7), (by.get(r.day.slice(0, 7)) ?? 0) + r.meters);
+  const days: Record<string, number> = {};
+  for (const r of data?.profile?.logRows ?? []) {
+    if (r.masked || !r.meters) continue;
+    by.set(r.day.slice(0, 7), (by.get(r.day.slice(0, 7)) ?? 0) + r.meters);
+    days[r.day] = (days[r.day] ?? 0) + r.meters;
+  }
   const months = [...by.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
   const GOAL = 100_000;
+  /* A MONTH PRESSED IN THE LIST IS THE MONTH THE CALENDAR SHOWS (owner,
+   * 2026-11-21: "if I click on one of those, then the calendar above it
+   * should update"). Worked out here from the log already read, so the
+   * page does not read again or move. Until one is pressed: the month the
+   * page is on, or the newest. */
+  const [pick, setPick] = useState<string | null>(null);
+  const open = pick ?? p.month?.key ?? months[0]?.[0] ?? null;
+  const ownMonth = open !== null && open === p.month?.key;
+  const cal = open ? { key: open, firstDow: new Date(Date.UTC(Number(open.slice(0, 4)), Number(open.slice(5, 7)) - 1, 1)).getUTCDay(), days: new Date(Date.UTC(Number(open.slice(0, 4)), Number(open.slice(5, 7)), 0)).getUTCDate() } : null;
+  const calDays: Record<string, number> = ownMonth ? p.byDay : Object.fromEntries(Object.entries(days).filter(([d]) => open !== null && d.startsWith(open)));
   return (
     <>
-      {p.month ? (
+      {cal ? (
         <>
-          <Eye style={{ marginTop: 14 }} left={p.period.label} right="Meters per day" />
-          <MonthGrid month={p.month} byDay={p.byDay} today={p.period.key === p.thisMonthKey ? p.days : undefined} marks={marksOf(p.byDay)} />
+          <Eye style={{ marginTop: 14 }} left={`${MONTHS[Number(cal.key.slice(5, 7)) - 1]} ${cal.key.slice(0, 4)}`} right="Meters per day" />
+          <MonthGrid month={cal} byDay={calDays} today={cal.key === p.thisMonthKey ? p.days : undefined} marks={marksOf(calDays)} />
         </>
       ) : null}
-      <Eye style={p.month ? undefined : { marginTop: 14 }} left="Every month" right="Against 100,000 m" />
+      <Eye style={cal ? undefined : { marginTop: 14 }} left="Every month" right="Against 100,000 m" />
       {months.length === 0 ? <Text style={mono(11, false, C.gray)}>{data ? "No month yet." : "Reading"}</Text> : null}
       {months.map(([key, meters]) => (
-        <View key={key} style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line }}>
+        <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: key === open }} accessibilityLabel={`Show ${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)} on the calendar`} onPress={() => setPick(key)} style={({ pressed }) => ({ paddingVertical: 12, paddingHorizontal: 8, marginHorizontal: -8, borderBottomWidth: 1, borderColor: C.line, borderLeftWidth: 3, borderLeftColor: key === open ? C.accent : "transparent", backgroundColor: key === open ? C.tint : "transparent", opacity: pressed ? 0.6 : 1 })}>
           <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>
               {MONTHS[Number(key.slice(5, 7)) - 1]} <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{key.slice(0, 4)}</Text>
@@ -392,7 +412,7 @@ function Hundred({ p }: { p: Profile }) {
           </View>
           <Bar value={meters} goal={GOAL} height={10} />
           <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8 }]}>{meters >= GOAL ? "100K made" : `${fmtInt(GOAL - meters)} m short of the 100K`}</Text>
-        </View>
+        </Pressable>
       ))}
     </>
   );
@@ -518,8 +538,50 @@ const BESTS: { key: string; label: string; at?: number }[] = [
   { key: "longest", label: "Longest row" },
   { key: "bigday", label: "Biggest day" },
 ];
-export function BestsScreen({ num, best, onRow }: { num: number; best: string; onRow: (id: string) => void }) {
-  const [key, setKey] = useState(BESTS.some((b) => b.key === best) ? best : "longest");
+/* RACE DAY IS ITS OWN KIND OF BEST (owner, 2026-11-21: "when we click on
+ * the race day 5K for the best, we can just show all the results from race
+ * day ... it's okay if it's a little different than all the other ones"):
+ * not the rower's own rows ranked, but everybody who raced, in order of
+ * time, the rower's own line marked. Only on the menu of a rower who came
+ * here from that line. */
+const RACE = { key: "raceday", label: "Race day 5k" };
+type RaceLine = { place: number; rowerNumber: number; name: string; division: string; bracket: string; bracketPlace: number; time: string; wave: number | null };
+function RaceDay({ num, onRower }: { num: number; onRower?: (n: number) => void }) {
+  const path = "/api/row100k/app/raceday";
+  const { data, error, reload } = useLoad(() => api<{ title: string; dayStr: string; results: RaceLine[] }>(path), [path], path);
+  if (!data) return <Waiting error={error} onRetry={reload} />;
+  const nth = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+  return (
+    <>
+      <Text style={[mono(11, true), { borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8, marginTop: 24 }]}>
+        {data.results.length} {data.results.length === 1 ? "finisher" : "finishers"} · {data.dayStr}
+      </Text>
+      {data.results.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 16 }]}>No times posted yet.</Text> : null}
+      {data.results.map((r) => {
+        const me = r.rowerNumber === num;
+        return (
+          <Pressable key={r.rowerNumber} accessibilityRole="link" accessibilityLabel={`${r.name}, ${r.time}`} disabled={!onRower} onPress={() => onRower?.(r.rowerNumber)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54, borderBottomWidth: 1, borderColor: C.line, backgroundColor: me ? C.pale : "transparent", paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ width: 30, fontFamily: F.mono, fontSize: 13, color: me ? C.accent : C.gray, fontVariant: ["tabular-nums"] }}>{r.place}</Text>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 15, color: C.ink }}>
+                <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{String(r.rowerNumber).padStart(3, "0")} </Text>
+                {r.name}
+              </Text>
+              <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 11, color: C.gray, marginTop: 2 }}>
+                {[r.bracket ? `${nth(r.bracketPlace)} ${r.bracket.toLowerCase()}` : "", r.wave !== null ? `wave ${r.wave}` : ""].filter(Boolean).join(" · ")}
+              </Text>
+            </View>
+            <Text style={{ fontFamily: F.black, fontSize: 17, color: me ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{r.time}</Text>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+}
+
+export function BestsScreen({ num, best, onRow, onRower }: { num: number; best: string; onRow: (id: string) => void; onRower?: (n: number) => void }) {
+  const options = best === RACE.key ? [...BESTS, RACE] : BESTS;
+  const [key, setKey] = useState(options.some((b) => b.key === best) ? best : "longest");
   const path = `/api/row100k/app/profile?num=${num}&m=all`;
   const { data, error, reload } = useLoad(() => api<{ profile?: Profile }>(path), [path], path);
   if (!data?.profile) return <Waiting error={error} onRetry={reload} />;
@@ -550,8 +612,12 @@ export function BestsScreen({ num, best, onRow }: { num: number; best: string; o
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }}>
       <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8 }}>
         <Text style={mono(12, false, C.gray)}>{p.rower.displayName} · </Text>
-        <WordMenu options={BESTS} value={key} onPick={setKey} ariaLabel="Which best" />
+        <WordMenu options={options} value={key} onPick={setKey} ariaLabel="Which best" />
       </View>
+      {key === RACE.key ? (
+        <RaceDay num={num} onRower={onRower} />
+      ) : (
+        <>
       <Text style={[mono(11, true), { borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8, marginTop: 24 }]}>
         {lines.length} {def.key === "bigday" ? (lines.length === 1 ? "day" : "days") : lines.length === 1 ? "row" : "rows"} · all time
       </Text>
@@ -568,6 +634,8 @@ export function BestsScreen({ num, best, onRow }: { num: number; best: string; o
           <Text style={{ fontFamily: F.black, fontSize: 17, color: i === 0 ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{l.value}</Text>
         </Pressable>
       ))}
+        </>
+      )}
     </ScrollView>
   );
 }

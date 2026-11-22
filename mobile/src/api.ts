@@ -129,6 +129,11 @@ export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: s
 export type Stories = {
   rowers: { today: number; todayDay: string; weeks: number[]; days: { day: string; rowers: number }[]; months: { key: string; label: string; year: string; rowers: number; rows: number; meters: number }[]; everyone: number };
   when: { hours: number[]; weekdays: number[]; rows: number };
+  /* Three more (2026-11-21): who makes the 100K, how far a row is, how
+   * long a 5K takes. Absent from a server that has not been updated. */
+  club?: { months: { key: string; label: string; year: string; rowers: number; made: number; rowsToMake: number; live: boolean }[]; everMade: number; goal: number };
+  length?: { bins: number[]; median: number; rows: number; fives: number; tens: number; longest: number };
+  fivek?: { bins: number[]; from: number; step: number; median: number; rows: number; rowers: number; under20: number };
 };
 /* What the profile route answers in place of a profile across a block. */
 export type Blocked = { rowerNumber: number; displayName: string; byMe: boolean };

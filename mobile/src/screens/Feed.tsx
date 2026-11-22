@@ -5,7 +5,7 @@ import { DotsIcon } from "../icons";
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, wholeSplit } from "../theme";
-import { Avatar, Blocks, PhotoPair, Waiting, useScrollDir, type Gallery } from "../ui";
+import { Avatar, Blocks, PhotoPair, Waiting, useScrollDir, type Gallery, SkelCards } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { deck } from "../stickers";
 import { StickerViewer } from "./RowPage";
@@ -198,7 +198,7 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
     for (const id of mineIds ? mineIds.split(",") : []) deck(id).catch(() => null);
   }, [mineIds]);
 
-  if (!items) return <Waiting error={error} onRetry={() => first()} />;
+  if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <SkelCards n={3} pad={12} />;
 
   return (
     <>
@@ -233,7 +233,7 @@ export function RowerRows({ num, mine, onRower, onRow }: { num: number; mine: bo
   /* Ten cards at a time: this list is inside a page that scrolls by itself,
    * so every card shown is a card drawn, photos and all. */
   const [shown, setShown] = useState(10);
-  if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <ActivityIndicator color={C.ink} style={{ marginVertical: 30 }} />;
+  if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <View style={{ marginHorizontal: -8 }}><SkelCards n={2} /></View>;
   return (
     /* The cards run a little wider than the page's own margin, as they do
        on the feed. */

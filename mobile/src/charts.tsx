@@ -3,6 +3,7 @@ import { PanResponder, Platform, Pressable, ScrollView, Text, View, type Gesture
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import type { Kde, KdeYou } from "./api";
 import { mono } from "./site";
+import { scrub } from "./ui";
 import { C, F, fmtInt } from "./theme";
 
 /* THE CHARTS, drawn from what the site's own stats and profile compute
@@ -110,6 +111,10 @@ function useTouch(handlers: TouchHandlers) {
       },
     });
     const surface = {
+      /* This touch began on a chart: the tabs do not swipe under it. */
+      onTouchStart: () => {
+        scrub.on = true;
+      },
       onStartShouldSetResponder: () => true,
       onResponderGrant: (e: GestureResponderEvent) => {
         const n = e.nativeEvent;

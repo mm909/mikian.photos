@@ -103,6 +103,9 @@ export async function GET(req: Request) {
           durationStr: masked ? "" : fmtDuration(e.seconds),
           splitStr: fmtSplit(e.meters, e.seconds),
           photos: masked ? [] : await resolvePhotoMedia(e.photos),
+          /* The storage keys of the two photos, for the rower's own EDIT ROW:
+           * a photo that is kept goes back to the site's edit by its key. */
+          photoKeys: mine ? e.photos : undefined,
           masked,
           digits: masked ? digitCount(e.meters) : undefined,
           elite,

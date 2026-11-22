@@ -130,6 +130,40 @@ export function renderReelStill(a: ReelAsk): Buffer {
   return canvas.toBuffer("image/png");
 }
 
+/* THE CLIP AS A STRIP OF SMALL FRAMES, for a preview that moves (owner,
+ * 2026-11-21: "when I go to click on the reel, I want to see a preview of
+ * that reel going ... the preview of the reel can be like, you know, one
+ * frame every 10th of a second"). The five-second version of the clip at
+ * ten frames a second: fifty frames, each painted once and laid side by
+ * side on ONE picture, ten to a line. The app shows one cell of it at a
+ * time. A picture, so it needs no video player on the phone and is back in
+ * about a second, where the film itself takes several. */
+export const REEL_STRIP = { frames: 50, cols: 10, rows: 5, fps: 10, w: 216, h: 384 } as const;
+export function renderReelStrip(a: ReelAsk): Buffer {
+  loadFaces();
+  const S = REEL_STRIP;
+  /* Painted at twice the cell and drawn down into it, so the small type
+   * stays clean. */
+  const W = S.w * 2;
+  const H = S.h * 2;
+  const series = buildSeries(a.doc);
+  const lengthS = S.frames / S.fps;
+  const ask = { ...a, lengthS };
+  const o = optsOf(ask, series);
+  const one = createCanvas(W, H);
+  const ctx = one.getContext("2d");
+  const sheet = createCanvas(S.w * S.cols, S.h * S.rows);
+  const out = sheet.getContext("2d");
+  for (let i = 0; i < S.frames; i++) {
+    /* The last cell is the clip's last moment, as the film ends on it. */
+    const clipS = i === S.frames - 1 ? lengthS : i / S.fps;
+    ctx.clearRect(0, 0, W, H);
+    paintClip(ctx as unknown as Ctx, W, H, series, frameAt(series, rowTimeAt(clipS, lengthS, series.startS, series.totalS)), o);
+    out.drawImage(one, (i % S.cols) * S.w, Math.floor(i / S.cols) * S.h, S.w, S.h);
+  }
+  return sheet.toBuffer("image/jpeg", 78);
+}
+
 /* The clip, as an MP4. */
 export async function renderReelMp4(a: ReelAsk): Promise<Buffer> {
   loadFaces();

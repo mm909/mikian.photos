@@ -391,7 +391,7 @@ onLook(() => {
 
 /* A typed time, in seconds: "20:00", "1:02:30", or a bare number for whole
  * minutes. The website's own reading of it (lib/row100k parseDurationText). */
-function parseTime(text: string): number | null {
+export function parseTime(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
   const parts = t.split(":").map((p) => p.trim());

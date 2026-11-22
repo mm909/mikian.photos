@@ -53,7 +53,7 @@ async function put(url: string, blob: Blob): Promise<void> {
 }
 
 /* One photo up; answers its key. The thumb is best effort, as on the site. */
-async function upload(p: Picked): Promise<string> {
+export async function uploadPhoto(p: Picked): Promise<string> {
   const main = await shrink(p, 1600, 0.82);
   const signed = await api<{ key: string; url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: main.size } });
   await put(signed.url, main);
@@ -80,7 +80,7 @@ export async function pickFace(): Promise<Picked | null> {
 /* A PROFILE PHOTO: up like a row's photo (and with its small copy, which
  * is what every list draws), then named as the rower's own. */
 export async function setAvatar(p: Picked): Promise<void> {
-  const key = await upload(p);
+  const key = await uploadPhoto(p);
   await api("/api/row100k/app/settings", { body: { avatarKey: key } });
 }
 
@@ -90,9 +90,9 @@ export type NewRow = { day: string; meters: number; seconds: number; title: stri
  * row's id and whether the recording went with it. */
 export async function logRow(row: NewRow, step: (s: string) => void): Promise<{ id: string; recorded: boolean }> {
   step("Photo 1 of 2");
-  const a = await upload(row.photos[0]);
+  const a = await uploadPhoto(row.photos[0]);
   step("Photo 2 of 2");
-  const b = await upload(row.photos[1]);
+  const b = await uploadPhoto(row.photos[1]);
   step("Logging");
   const made = await api<{ id: string }>("/api/row100k/rows", { body: { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, photos: [a, b] } });
   /* The caption goes on once the row exists; a row is not lost for it. */

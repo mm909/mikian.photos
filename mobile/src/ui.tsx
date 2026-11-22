@@ -139,18 +139,120 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[], key?: string |
   return { data, error, loading, reload: pull };
 }
 
-/* What a screen shows before its first read lands, or instead of it. */
-export function Waiting({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+/* A PLACE WHERE SOMETHING IS COMING: a pale block that breathes (owner,
+ * 2026-11-21, of a screen that sat on a spinner: "Did I lose internet? I'm
+ * still looking for those like flashing boxes, right? Like those loading
+ * screen boxes. I don't see them here, and I feel like we should"). Every
+ * block on the screen breathes together, off one clock. */
+const breath = new Animated.Value(1);
+let breathing = 0;
+let breathLoop: Animated.CompositeAnimation | null = null;
+function useBreath(): Animated.Value {
+  useEffect(() => {
+    if (breathing++ === 0) {
+      const native = Platform.OS !== "web";
+      breathLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(breath, { toValue: 0.4, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: native }),
+          Animated.timing(breath, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: native }),
+        ]),
+      );
+      breathLoop.start();
+    }
+    return () => {
+      if (--breathing === 0) {
+        breathLoop?.stop();
+        breath.setValue(1);
+      }
+    };
+  }, []);
+  return breath;
+}
+export function Skel({ w = "100%", h = 14, r = 4, style }: { w?: number | `${number}%`; h?: number; r?: number; style?: StyleProp<ViewStyle> }) {
+  const a = useBreath();
+  return <Animated.View style={[{ width: w, height: h, borderRadius: r, backgroundColor: C.line, opacity: a.interpolate({ inputRange: [0.4, 1], outputRange: [0.22, 0.5] }) }, style]} />;
+}
+/* A page that has not arrived, in the shape most pages have: a head, a big
+ * figure, a few lines, a picture, a list. */
+export function SkelPage({ lines = 4 }: { lines?: number }) {
   return (
-    <View style={{ padding: 28, alignItems: "center" }}>
-      {error ? (
-        <>
-          <Text style={[styles.body, { textAlign: "center", marginBottom: 14 }]}>{error}</Text>
-          {onRetry ? <Btn label="Try again" quiet onPress={onRetry} /> : null}
-        </>
-      ) : (
-        <ActivityIndicator color={C.ink} />
-      )}
+    <View accessibilityLabel="Loading" style={{ paddingHorizontal: 20, paddingTop: 22 }}>
+      <Skel w="46%" h={12} />
+      <Skel w="72%" h={48} r={6} style={{ marginTop: 14 }} />
+      <Skel w="38%" h={12} style={{ marginTop: 12 }} />
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+        <Skel h={56} r={6} style={{ flex: 1 }} />
+        <Skel h={56} r={6} style={{ flex: 1 }} />
+        <Skel h={56} r={6} style={{ flex: 1 }} />
+      </View>
+      <Skel h={150} r={8} style={{ marginTop: 22 }} />
+      {Array.from({ length: lines }, (_, i) => (
+        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 18 }}>
+          <Skel w={40} h={40} r={20} />
+          <View style={{ flex: 1 }}>
+            <Skel w={i % 2 ? "58%" : "72%"} h={13} />
+            <Skel w="34%" h={10} style={{ marginTop: 8 }} />
+          </View>
+          <Skel w={56} h={16} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/* Rows that have not arrived, in the shape of the feed's cards. */
+export function SkelCards({ n = 2, pad = 0 }: { n?: number; pad?: number }) {
+  return (
+    <View accessibilityLabel="Loading" style={{ paddingHorizontal: pad, paddingTop: pad }}>
+      {Array.from({ length: n }, (_, i) => (
+        <View key={i} style={{ backgroundColor: C.card, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Skel w={36} h={36} r={18} />
+            <View style={{ flex: 1 }}>
+              <Skel w="52%" h={13} />
+              <Skel w="30%" h={10} style={{ marginTop: 7 }} />
+            </View>
+          </View>
+          <Skel w="44%" h={26} r={5} style={{ marginTop: 14 }} />
+          <View style={{ flexDirection: "row", gap: 4, marginTop: 12 }}>
+            <Skel h={190} r={8} style={{ flex: 1 }} />
+            <Skel h={190} r={8} style={{ flex: 1 }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/* What a screen shows before its first read lands, or instead of it: the
+ * breathing blocks, and, when the read is taking long, a sentence so that
+ * a slow signal does not look like a broken app. */
+export function Waiting({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+  if (error)
+    return (
+      <View style={{ padding: 28, alignItems: "center" }}>
+        <Text style={[styles.body, { textAlign: "center", marginBottom: 14 }]}>{error}</Text>
+        {onRetry ? <Btn label="Try again" quiet onPress={onRetry} /> : null}
+      </View>
+    );
+  return (
+    <View>
+      {slow ? (
+        <View style={{ paddingHorizontal: 20, paddingTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={[styles.body, { fontSize: 14, flex: 1 }]}>Still reading. The signal may be slow.</Text>
+          {onRetry ? (
+            <Text accessibilityRole="button" onPress={onRetry} suppressHighlighting style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1.4, color: C.accent }}>
+              TRY AGAIN
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      <SkelPage />
     </View>
   );
 }
@@ -329,6 +431,13 @@ export function useKeyboardHeight(): number {
  * swipes to the search"): whatever opens counts itself in here, and the
  * swipe between tabs (App.tsx) stands down while the count is over none. */
 export const modals = { open: 0 };
+/* A FINGER THAT CAME DOWN ON A CHART IS READING THE CHART (owner,
+ * 2026-11-21: "when I'm scrubbing on a graph ... if I scroll too fast, it
+ * starts to scroll the whole page ... if I'm scrubbing on the charts, then
+ * we shouldn't change pages"). A chart says so as the finger lands
+ * (charts.tsx); the shell clears it as every touch begins and will not
+ * take a touch that has it set for a swipe between tabs (App.tsx). */
+export const scrub = { on: false };
 export function useModalHold(): void {
   useEffect(() => {
     modals.open++;

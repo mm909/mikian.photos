@@ -255,6 +255,33 @@ For the store, the same day ("Do all the items to get it Apple App Store ready")
 - Sign in with Apple: the server takes an Apple identity (`appleToken` on the session route). The button is in the build that carries `expo-apple-authentication`.
 - Left for him, because only he can: an App Store Connect listing (name, screenshots, description, age rating, the privacy questionnaire), a production build and its submission.
 
+### Round 18, 2026-11-21 (afternoon): his spoken read of the phone build
+
+His words in quotes. Built the same day; what was looked at in a browser on the sandbox is marked SEEN, the rest is typechecked only and wants his thumb.
+
+- **100K tab.** A month pressed under EVERY MONTH is the month the calendar above shows ("if I click on one of those, then the calendar above it should update"). Worked out from the log already read; the page does not read again. SEEN.
+- **EDIT ROW is a page, with everything on it** ("I need to be able to edit all of the things about it ... we'll allow them to edit the meters and time, even on telemetry ... add and remove photos and edit caption"; of the old sheet: "it kind of like glitches ... the keyboard is still covering the place where you type"). `screens/EditRow.tsx`: description first, at the top; meters and time; title; the two photos, each swapped from the library or the camera, or taken out (a row still saves only with two). It comes up a moment after the menu has gone. Saves through the site's own edit route. SEEN, a save included.
+- **Reel overlays.** Opening a clip plays it at once: the five-second version at ten frames a second, as fifty small frames on one picture (`REEL_STRIP` in `erg/reel/serverReel.ts`, `&strip=1` on the reel route; about a tenth of a second to paint, 250 KB). It keeps playing while the site films and after. The clips are swiped through and go round, as the stickers do. The count of seconds left is beside the bar, not over the picture. SEEN moving; the swipe wants a phone.
+  - His questions, answered: the film is made on the SERVER (the site paints every frame and encodes an MP4), not on the phone; the phone's film is 720 by 1280 at 20 frames a second, the site's studio 30; a film costs a few seconds of server time, which is nothing at this size.
+  - NOT BUILT: the FILM ITSELF playing on the phone after it is made ("we've already made it, so we should play it"). A phone needs a video module in the build for that (`expo-video`), which is a new build and a version bump; it belongs in the store build. Until then the preview is what plays. In a browser the film plays, as before.
+- **Analytics.**
+  - THE READ is under the head's figures, where the line of strokes, watts and drag was ("instead of that text ... we can have the read here"); those figures are in THE NUMBERS.
+  - Cut, on his word: "as the monitor read it" on the drag; "Not about speed"; STROKES TO SETTLE and SECOND HALF; "read five strokes at a time"; the sentence explaining the score; "it does not know how fast the piece was".
+  - RATE AND LENGTH wears its two lines beside their names (a blue line, a dashed grey one) in place of "rate solid, length dashed".
+  - THE FORCE CURVE IS TWO CARDS: a swipe brings AGAINST EVERYONE, the rower's average stroke over the average stroke of every real recording, each as a percent of its own peak, with where each peaks ("what should it be at? Like how far away am I?"). `api/row100k/app/field`: one curve a rower, then the rowers averaged, kept half an hour. It says how many rows and rowers are in it, and says so when the field is under five rowers. NOT SEEN: the sandbox has no real recordings.
+  - COACHING replaces WHAT NEXT ("a specific call to action for what to do next row, like a cue or a reminder"): at most four, numbered, each a thing to do in bold and the row's own numbers under it: pacing (with the steady score as the reason when it needs nothing: "let's support that by saying like what my consistency is"), rate against length, a warm-up when the work per stroke peaks well into the piece (his own example), where the push peaks. The rate chart's sentence ends on what to do next row. SEEN.
+  - A SPLIT PRESSED in the table draws the pace, the rate and length and the work per stroke from that split's strokes alone; a blue bar over the charts says which and brings the whole piece back. SEEN.
+  - The foot is packets, strokes, and the monitor.
+  - NOT BUILT, his to decide: THE READ written by a language model ("is that a crazy cost? If it's not a crazy cost, then let's do it"). It is not a crazy cost (a fraction of a cent a row, written once and kept). It needs an API key of his on the server, and the privacy policy has to say a row's numbers go to a model, so it waits on his yes.
+- **Profile.** Followers and following side by side, figure then word ("0 followers, 3 following, but side by side"). SEEN.
+- **A finger on a chart does not change tab** ("if I'm scrubbing on the charts, then we shouldn't change pages"): `scrub` in `ui.tsx`.
+- **RACE DAY 5K on THE BESTS opens every race-day result** in order of time, the rower's own line marked ("we can just show all the results from race day ... it's okay if it's a little different"). `api/row100k/app/raceday`.
+- **Loading is breathing blocks, not a spinner** ("I'm still looking for those like flashing boxes"): `Skel`, `SkelPage`, `SkelCards` in `ui.tsx`; after six seconds a line says the signal may be slow, with TRY AGAIN.
+- **The mark.** A word of another length leaves fast and is gone before the new one starts ("make sure the animation of the item leaving the top finishes before the animation of something new coming in ... move faster or wait. Probably a combination of both"). QUESTIONS wears its Q in the blue.
+- **Three more questions** ("take that as free rein to add a couple more"): how many make the 100K, how far a typical row is, how long a 5K takes. SEEN.
+- **The contact address** on the app's policy and terms is `row@rowtember.com` ("this should be just row@rowtember.com for now"). The mailbox has to exist before a store reviewer writes to it.
+- LEFT AS IT IS: the TELEMETRY tag ("this is fine"), the stickers and the overlays menus ("looks pretty good").
+
 ## Follow the website's look
 
 - DECIDED (round 6, 2026-11-20): the app's screens follow what the site already settled on. "I would strongly encourage you to review the current site for style guides and UI/UX ... I dont like the 'the 100k' header, we dont have that on the site, we also use a different ui to select what record and time frame we are looking at. Those things we have already iterated on while designing the website can come over."

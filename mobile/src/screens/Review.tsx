@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { ActivityIndicator, Animated, Easing, PanResponder, Platform, Pressable, ScrollView, Text, View, type GestureResponderEvent } from "react-native";
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import { along, blocks500, computePlot, computeSpread, densityAt, fmtNum, FORCE_GRID, lastAtOrBefore, nearestByX, pieceTicks, resample, spreadWords, stepOf, thinPoints, ticks, type Block, type Pad, type Plot, type Series, type Spread, type Tick, type XY } from "../erg/reviewGeom";
+import { api } from "../api";
 import { analyseSession, comparableRows, fmtGap, fmtSplit, fmtWhen, type AnalysisForce, type AnalysisSplit, type AnalysisTrend, type ErgAnalysis } from "../pm5/analysis";
 import { fmtClock, fmtMeters, fmtPace, lbfToNewtons } from "../pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc } from "../pm5/session";
 import { Chip, Ctl, Dash, Eye, mono } from "../site";
 import { asSaved, loadDoc, type Row } from "../store";
 import { C, F, fmtInt } from "../theme";
+import { Skel } from "../ui";
 
 /* THE READ (owner, 2026-11-14, of the website's saved-session screen: "this
  * needs to be a focus of the app ... make it really good"; and 2026-11-21,
@@ -63,6 +65,23 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   /* The width the page gives the read, measured: every chart is drawn at
    * that many points, so a point on the glass is a point in the chart. */
   const [w, setW] = useState(0);
+  /* The split pressed in the table, or none: the pictures above it then
+   * show only that split's strokes. */
+  const [pick, setPick] = useState<number | null>(null);
+  /* The average stroke of everybody's recordings, for the card behind the
+   * force curve (api/row100k/app/field). Nothing is drawn of it until it
+   * has come. */
+  const [field, setField] = useState<FieldForce | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<{ force: FieldForce | null }>("/api/row100k/app/field").then(
+      (r) => live && setField(r.force),
+      () => null,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -110,7 +129,19 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
     }
   }, [state, row.id, rows]);
 
-  if (state === null) return <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} />;
+  if (state === null)
+    return (
+      /* Keyed apart from the read below: in a browser a View that gains its
+       * onLayout after it is mounted is never measured. */
+      <View key="waiting" accessibilityLabel="Loading the analytics" style={{ marginTop: 30 }}>
+        <Skel w="34%" h={12} />
+        <Skel w="60%" h={52} r={6} style={{ marginTop: 14 }} />
+        <Skel h={14} style={{ marginTop: 18 }} />
+        <Skel w="82%" h={14} style={{ marginTop: 8 }} />
+        <Skel h={190} r={8} style={{ marginTop: 22 }} />
+        <Skel h={190} r={8} style={{ marginTop: 14 }} />
+      </View>
+    );
   /* No recording, or one too thin to analyse: the row page says what it has. */
   const doc = state === "missing" ? null : state.doc;
   if (!a || !doc || !state || state === "missing") return null;
@@ -123,7 +154,7 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
     num(a.avgWatts) ? { k: "Watts", v: fmtInt(a.avgWatts), u: "average power" } : null,
     num(a.workPerStrokeJ) ? { k: "Work a stroke", v: fmtInt(a.workPerStrokeJ), u: "joules" } : null,
     dr && num(dr.ratio) ? { k: "Drive to recovery", v: `1 : ${dr.ratio.toFixed(1)}`, u: `${dr.driveS.toFixed(2)} s drive` } : null,
-    num(a.dragFactor) ? { k: "Drag factor", v: fmtInt(a.dragFactor), u: "the damper, as the monitor read it" } : null,
+    num(a.dragFactor) ? { k: "Drag factor", v: fmtInt(a.dragFactor), u: "the damper" } : null,
     a.strokes > 0 ? { k: "Strokes", v: fmtInt(a.strokes), u: "in the piece" } : null,
   ].filter((c): c is Exclude<CellData, null> => c !== null);
 
@@ -132,21 +163,36 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   const steady: CellData[] = [
     num(st.paceSdTenths) ? { k: "Split spread", v: `± ${fmtGap(st.paceSdTenths)}`, u: num(st.paceMeanTenths) ? `around ${split(Math.round(st.paceMeanTenths))}` : "" } : null,
     craft.rateSd !== null ? { k: "Rate held", v: `± ${craft.rateSd.toFixed(1)}`, u: "strokes a minute" } : null,
-    /* Never settling is an answer; having nothing to measure is not. */
-    num(st.paceSdTenths) ? (st.settle ? { k: "Strokes to settle", v: String(st.settle.count), u: `settled at stroke ${st.settle.strokeN}` } : { k: "Strokes to settle", v: "Never", u: "never inside the band" }) : null,
-    a.halves ? { k: "Second half", v: a.halves.level ? "Level" : `${a.halves.negative ? "−" : "+"}${fmtGap(Math.abs(a.halves.deltaTenths))}`, u: a.halves.level ? "with the first" : a.halves.negative ? "faster than the first" : "slower than the first" } : null,
   ].filter((c): c is Exclude<CellData, null> => c !== null);
 
   /* The pictures, each with what it needs to exist. Every line is a
    * moving average of the strokes of the piece, the first and the last of
-   * them left off. */
+   * them left off.
+   *
+   * ONE SPLIT, WHEN ONE IS PRESSED IN THE TABLE (owner, 2026-11-21: "if I
+   * click on a split ... let the graphs above change their x-axis or
+   * change their data to only have strokes from that split"): the pace,
+   * the rate and length, and the work per stroke are then drawn from the
+   * strokes inside that split and nothing else. The scores, the force
+   * curve and the coaching stay the whole piece's. */
   const counted = a.series.filter((s) => s.counted);
-  const win = windowOf(counted.length);
-  const paceRaw = trimEnds(counted.filter((s) => num(s.paceTenths) && (s.paceTenths as number) > 0 && num(s.distanceM)).map((s) => ({ x: s.distanceM, y: (s.paceTenths as number) / 10 })));
+  const sel = pick !== null ? (a.splits[pick] ?? null) : null;
+  const range = sel ? { from: sel.endMeters - sel.meters, to: sel.endMeters } : null;
+  const shown = range ? counted.filter((s) => s.distanceM > range.from && s.distanceM <= range.to + 0.5) : counted;
+  /* The whole piece loses its first strokes and its last. A split from the
+   * middle has none to lose; the first split and the last lose their own. */
+  const cut = (pts: XY[]): XY[] => {
+    if (!range) return trimEnds(pts);
+    const head = pick === 0 && pts.length > 8 ? 2 : 0;
+    const tail = pick === a.splits.length - 1 && pts.length > 8 ? 2 : 0;
+    return pts.slice(head, pts.length - tail);
+  };
+  const win = windowOf(shown.length);
+  const paceRaw = cut(shown.filter((s) => num(s.paceTenths) && (s.paceTenths as number) > 0 && num(s.distanceM)).map((s) => ({ x: s.distanceM, y: (s.paceTenths as number) / 10 })));
   const pace = thinPoints(smooth(paceRaw, win * 2));
-  const rate = thinPoints(smooth(trimEnds(counted.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number }))), win));
-  const len = thinPoints(smooth(trimEnds(counted.filter((s) => num(s.mps)).map((s) => ({ x: s.n, y: s.mps as number }))), win));
-  const workRaw = trimEnds(counted.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number })));
+  const rate = thinPoints(smooth(cut(shown.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number }))), win));
+  const len = thinPoints(smooth(cut(shown.filter((s) => num(s.mps)).map((s) => ({ x: s.n, y: s.mps as number }))), win));
+  const workRaw = cut(shown.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number })));
   const work = thinPoints(workRaw);
   const workAvg = thinPoints(smooth(workRaw, win));
   const has = { pace: pace.length >= 3, rate: rate.length >= 3 || len.length >= 3, force: a.force !== null, work: work.length >= 3 };
@@ -154,50 +200,52 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   /* A chart is drawn inside its box: the box's edge and its padding off
    * each side. */
   const cw = w - 2 * BOX_PAD - 2;
-  const avgS = num(a.avgPaceTenths) ? a.avgPaceTenths / 10 : meanOf(paceRaw.map((p) => p.y));
+  const avgS = range ? meanOf(paceRaw.map((p) => p.y)) : num(a.avgPaceTenths) ? a.avgPaceTenths / 10 : meanOf(paceRaw.map((p) => p.y));
+  const only = sel && range ? `Split ${sel.n} · ${fmtInt(range.from)} to ${fmtInt(range.to)} m` : "";
 
-  /* What each picture says. */
+  /* What each picture says. With one split showing, the sentences about
+   * the whole piece are left off: they would not be about the picture. */
   let paceSay: string | null = null;
-  if (has.pace) {
+  if (sel && range) {
+    const d = num(sel.paceTenths) && num(a.avgPaceTenths) ? sel.paceTenths - a.avgPaceTenths : null;
+    paceSay = `Split ${sel.n}, ${fmtInt(range.from)} to ${fmtInt(range.to)} m, at ${split(sel.paceTenths)}${d === null ? "" : Math.abs(d) < 3 ? ": level with the average of the piece." : `: ${fmtGap(Math.abs(d))} ${d < 0 ? "quicker" : "slower"} than the average of the piece.`}`;
+  } else if (has.pace) {
     const quick = pace.reduce((m, p) => (p.y < m.y ? p : m), pace[0]);
     const slow = pace.reduce((m, p) => (p.y > m.y ? p : m), pace[0]);
     const halves = a.halves ? (a.halves.level ? "The two halves came in level." : a.halves.negative ? `The second half was ${fmtGap(Math.abs(a.halves.deltaTenths))} a 500 quicker than the first: a negative split.` : `The second half was ${fmtGap(Math.abs(a.halves.deltaTenths))} a 500 slower than the first: it went out harder than it could hold.`) : "";
     paceSay = `Quickest around ${fmtInt(Math.round(quick.x / 50) * 50)} m (${paceFmt(quick.y)}), slowest around ${fmtInt(Math.round(slow.x / 50) * 50)} m (${paceFmt(slow.y)}). ${halves}`.trim();
   }
   let rateSay: string | null = null;
-  if (a.rateTrend && a.mpsTrend) {
+  if (!range && a.rateTrend && a.mpsTrend) {
     const dSpm = a.rateTrend.last - a.rateTrend.first;
     const dMps = a.mpsTrend.last - a.mpsTrend.first;
+    const r0 = a.rateTrend.first.toFixed(0);
+    const m0 = a.mpsTrend.first.toFixed(1);
+    /* What happened, and then what to do about it (owner, 2026-11-21:
+     * "when we say rate climbed and stroke dropped, then like let's maybe
+     * give a suggestion"). */
     rateSay =
       Math.abs(dSpm) < 1 && Math.abs(dMps) < 0.1
-        ? `Rate and length both held: about ${a.rateTrend.mean.toFixed(0)} strokes a minute at ${a.mpsTrend.mean.toFixed(1)} m a stroke from start to finish.`
+        ? `Rate and length both held: about ${a.rateTrend.mean.toFixed(0)} strokes a minute at ${a.mpsTrend.mean.toFixed(1)} m a stroke from start to finish. Next row: the same stroke, a beat higher.`
         : dSpm >= 1 && dMps <= -0.1
-          ? `The rate climbed (${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)}) while each stroke got shorter (${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m): the speed was kept by taking more strokes, not longer ones.`
+          ? `The rate climbed (${r0} to ${a.rateTrend.last.toFixed(0)}) while each stroke got shorter (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): the speed was kept by taking more strokes, not longer ones. Next row: hold ${r0} strokes a minute and keep ${m0} m a stroke to the end.`
           : dSpm <= -1 && dMps >= 0.1
-            ? `The rate came down (${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)}) and each stroke went further (${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m): longer, slower strokes as it went on.`
-            : `Rate went ${a.rateTrend.first.toFixed(0)} to ${a.rateTrend.last.toFixed(0)} strokes a minute, and the stroke ${a.mpsTrend.first.toFixed(1)} m to ${a.mpsTrend.last.toFixed(1)} m.`;
+            ? `The rate came down (${r0} to ${a.rateTrend.last.toFixed(0)}) and each stroke went further (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): longer, slower strokes as it went on. Next row: keep that length and bring the rate back to ${r0} for the last third.`
+            : `Rate went ${r0} to ${a.rateTrend.last.toFixed(0)} strokes a minute, and the stroke ${m0} m to ${a.mpsTrend.last.toFixed(1)} m.`;
   }
-  const steadySay =
-    craft.steady !== null
-      ? `${Math.round(craft.within1 * 100)}% of the piece was rowed within a second of the average split, ${paceFmt(craft.paceMean)}, read five strokes at a time. The score is 100, less ten for every 1% the split wandered from its own average. It does not know how fast the piece was: a 2:30 held dead level beats a 1:50 that swings.`
-      : null;
+  const steadySay = craft.steady !== null ? `${Math.round(craft.within1 * 100)}% of the piece was rowed within a second of the average split, ${paceFmt(craft.paceMean)}.` : null;
+
+  /* COACHING is about the whole piece, whichever split is showing. */
+  const allWork = range ? smooth(trimEnds(counted.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number }))), windowOf(counted.length)) : smooth(workRaw, win);
+  const cues = coachOf(a, craft, allWork, new Map(counted.map((s) => [s.n, s.distanceM])), field);
 
   return (
-    <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
-      <Head a={a} />
-
-      {/* THE READ: the point of the screen. Every sentence is worked out in
-          analysis.ts and says only what the numbers carry. */}
-      {a.read.length ? (
-        <>
-          <Eye left="The read" />
-          {a.read.map((line, i) => (
-            <Text key={i} style={{ color: C.ink, fontSize: i === 0 ? 19 : 17, lineHeight: i === 0 ? 26 : 25, fontFamily: i === 0 ? F.black : F.sans, marginBottom: i < a.read.length - 1 ? 10 : 0 }}>
-              {plain(line)}
-            </Text>
-          ))}
-        </>
-      ) : null}
+    <View key="read" onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
+      {/* THE HEAD, and under its figures THE READ, where a line of strokes,
+          watts and drag used to be (owner, 2026-11-21: "instead of that
+          text where we say 483 strokes, 215 watt average, we can have the
+          read here"): those figures are in THE NUMBERS. */}
+      <Head a={a} read={a.read.map(plain)} />
 
       {numbers.length ? (
         <>
@@ -206,10 +254,18 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
         </>
       ) : null}
 
-      {/* HOW STEADY, first among the pictures: the one score here that is
+      {/* ONE SPLIT IS SHOWING: said over the pictures, with the way back. */}
+      {sel ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the whole piece again" onPress={() => setPick(null)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 22, paddingHorizontal: 12, minHeight: 44, borderRadius: 8, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
+          <Text style={mono(11, true, "#fff", 0.1)}>{only}</Text>
+          <Text style={mono(10, true, "#fff", 0.1)}>Whole piece ✕</Text>
+        </Pressable>
+      ) : null}
+
+      {/* HOW STEADY, first among the pictures: the two scores here that are
           not about speed. */}
       {w > 0 && (craft.steady !== null || steady.length) ? (
-        <Box title="How steady" note="Not about speed" say={steadySay}>
+        <Box title="How steady" say={steadySay}>
           {craft.steady !== null || craft.same !== null ? (
             <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
               {craft.steady !== null ? <Score k="Steady pace" v={craft.steady} word={steadyWord(craft.steady)} /> : null}
@@ -226,38 +282,67 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
       ) : null}
 
       {w > 0 && has.pace ? (
-        <Box title="Pace along the piece" note="Moving average" say={paceSay}>
+        <Box title="Pace along the piece" note={only || "Moving average"} say={paceSay}>
           <PaceAlong pts={pace} avgS={avgS} w={cw} />
         </Box>
       ) : null}
       {w > 0 && has.rate ? (
-        <Box title="Rate and length" note="Rate solid · length dashed" say={rateSay}>
+        <Box
+          title="Rate and length"
+          note={
+            /* Each line beside its name (owner, 2026-11-21: "instead of
+               saying solid and dashed, let's just show like a blue line
+               next to rate and a dashed gray line next to length"). */
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <Key color={C.accent} label="Rate" />
+              <Key color={C.gray} label="Length" dashed />
+            </View>
+          }
+          say={rateSay}
+        >
           <RateLength rate={rate} len={len} w={cw} />
         </Box>
       ) : null}
-      {w > 0 && a.force ? (
-        <Box title="Force curve" note={`${fmtInt(a.force.curves)} strokes averaged`} say={forceWords(a.force, a.compare)}>
-          <ForceCurve force={a.force} compare={a.compare} w={cw} />
-        </Box>
-      ) : null}
+      {w > 0 && a.force ? <ForceCards a={a} field={field} w={w} cw={cw} /> : null}
       {w > 0 && has.work ? (
-        <Box title="Work per stroke" note="Joules" say={workWords(workAvg, state.usual)}>
-          <WorkPerStroke pts={work} avg={workAvg} trend={a.workTrend} usual={state.usual} w={cw} />
+        <Box title="Work per stroke" note={only || "Joules"} say={range ? null : workWords(workAvg, state.usual)}>
+          <WorkPerStroke pts={work} avg={workAvg} trend={range ? null : a.workTrend} usual={range ? null : state.usual} w={cw} />
         </Box>
       ) : null}
 
       {/* The splits as the monitor recorded them, or cut out of the tick
-          stream and said so when the monitor sent none. */}
+          stream and said so when the monitor sent none. A press on one
+          draws the pictures above from that split alone; a second press,
+          or the blue bar over the pictures, brings the whole piece back. */}
       {w && a.splits.length ? (
         <>
           <Eye left="Splits" right={a.splitsDerived ? `Derived, not the monitor's own figures${from ? ` · the first begins at ${from} m, where this recording starts` : ""}` : "As the monitor recorded them"} />
-          <SplitsTable splits={a.splits} fastest={a.fastestSplit} w={w} />
+          <Text style={[mono(10, false, C.gray, 0.1), { marginBottom: 8, lineHeight: 15 }]}>{sel ? `${only}: the charts above show only its strokes. Press it again for the whole piece.` : "Press a split to see only its strokes in the charts above."}</Text>
+          <SplitsTable splits={a.splits} fastest={a.fastestSplit} w={w} on={pick ?? -1} onPick={(k) => setPick((cur) => (cur === k ? null : k))} />
         </>
       ) : null}
 
-      {a.next.length ? (
+      {/* COACHING (owner, 2026-11-21: "let's just add a coaching section
+          and have like a specific call to action for what to do next row,
+          like a cue or a reminder"). Each is the thing to do, in a line,
+          and under it the numbers of this row that say so. A piece too
+          thin for any of them keeps the plain sentences. */}
+      {cues.length ? (
         <>
-          <Eye left="What next" />
+          <Eye left="Coaching" right="For the next row" />
+          {cues.map((c, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderBottomWidth: i < cues.length - 1 ? 1 : 0, borderColor: C.line }}>
+              <Text style={{ width: 18, fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.accent }}>{i + 1}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.ink }}>{c.act}</Text>
+                <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft, marginTop: 4 }}>{c.why}</Text>
+              </View>
+            </View>
+          ))}
+        </>
+      ) : a.next.length ? (
+        <>
+          <Eye left="Coaching" right="For the next row" />
           <View style={{ borderLeftWidth: 3, borderColor: C.accent, paddingLeft: 14, paddingVertical: 2 }}>
             {a.next.map((line, i) => (
               <Text key={i} style={{ fontFamily: F.sans, fontSize: 16, lineHeight: 24, color: C.soft, marginBottom: i < a.next.length - 1 ? 8 : 0 }}>
@@ -268,21 +353,12 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
         </>
       ) : null}
 
-      {/* AT THE FOOT: what the arithmetic was allowed to see (a monitor
-          sitting between pieces keeps sending strokes nobody rowed, and
-          they are left out of the averages), and which monitor it was
-          (owner, 2026-11-21: "whatever the rower identifier was, we can
-          include that down there"). */}
+      {/* AT THE FOOT: how much came off the monitor, and which monitor it
+          was (owner, 2026-11-21: "we can just do number of packets and
+          number of strokes, and then the rower ID"). */}
       <View style={{ marginTop: 40, borderTopWidth: 1, borderColor: C.line, paddingTop: 14 }}>
         <Text style={[mono(10, false, C.gray, 0.1), { lineHeight: 16 }]}>
-          {[
-            `${fmtInt(a.packetsRecorded)} packets recorded`,
-            a.force ? `${fmtInt(a.force.curves)} force curves` : "no force curves",
-            `${fmtInt(a.strokesCounted)} of ${fmtInt(a.series.length)} strokes counted`,
-            a.strokesSetAside > 0 ? `${fmtInt(a.strokesSetAside)} set aside as the monitor between pieces` : "",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          {fmtInt(a.packetsRecorded)} packets · {fmtInt(a.strokesCounted)} strokes
         </Text>
         <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6, lineHeight: 16 }]}>
           {[doc.device.simulated ? "Simulated monitor" : doc.device.name || "Monitor", doc.device.serial ? `serial ${doc.device.serial}` : "", doc.device.model ?? "", doc.device.firmware ? `firmware ${doc.device.firmware}` : ""].filter(Boolean).join(" · ")}
@@ -292,13 +368,82 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   );
 }
 
+/* A line beside its name, as it is drawn in the chart. */
+function Key({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Svg width={22} height={8}>
+        <Line x1={0} x2={22} y1={4} y2={4} stroke={color} strokeWidth={dashed ? 1.8 : 2.4} strokeDasharray={dashed ? "5 4" : undefined} />
+      </Svg>
+      <Text style={mono(10, false, C.gray, 0.1)}>{label}</Text>
+    </View>
+  );
+}
+
+/* ---- coaching ----------------------------------------------------------- */
+
+/* WHAT TO DO NEXT ROW, at most four things, each read off this row's own
+ * numbers and nothing else: how it was paced, what the rate and the length
+ * did, where the work per stroke peaked (a piece whose strongest strokes
+ * come a thousand meters in wanted a warm-up: owner, 2026-11-21, "I reach
+ * a peak work per stroke at like 110 strokes in. So maybe I should warm up
+ * for 1,000 before doing a fast 5K"), and where the push peaks against
+ * everybody's. When the pacing needs nothing, the steady score is the
+ * reason given ("let's support that by saying like what my consistency
+ * is"). */
+type Cue = { act: string; why: string };
+function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, number>, field: FieldForce | null): Cue[] {
+  const out: Cue[] = [];
+  const h = a.halves;
+  if (h) {
+    const score = c.steady !== null ? `Steady pace ${c.steady} out of 100: ${Math.round(c.within1 * 100)}% of the strokes within a second of ${paceFmt(c.paceMean)}. ` : "";
+    if (h.level) out.push({ act: "Pace the next one the same way.", why: `${score}The two halves came in level, so pacing is not the thing to work on here: the time is in the boat speed.` });
+    else if (h.negative) out.push({ act: `Start ${fmtGap(Math.abs(h.deltaTenths) / 2)} a 500 quicker.`, why: `The second half was ${fmtGap(Math.abs(h.deltaTenths))} a 500 faster than the first, so the front half had room. ${score}`.trim() });
+    else out.push({ act: `Take the first half out ${fmtGap(h.deltaTenths / 2)} a 500 slower.`, why: `This one gave back ${fmtGap(h.deltaTenths)} a 500 over the second half. ${score}`.trim() });
+  }
+  const r = a.rateTrend;
+  const m = a.mpsTrend;
+  if (r && m) {
+    const dS = r.last - r.first;
+    const dM = m.last - m.first;
+    if (dS >= 1 && dM <= -0.05) out.push({ act: `Hold ${r.first.toFixed(0)} strokes a minute and ${m.first.toFixed(1)} m a stroke.`, why: `The rate climbed ${r.first.toFixed(0)} to ${r.last.toFixed(0)} while the stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m. When it starts to bite, finish the legs before the arms bend and take the recovery slower than the drive: the same speed for less work.` });
+    else if (dM <= -0.05) out.push({ act: `Hold ${m.first.toFixed(1)} m a stroke to the end.`, why: `The stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m at much the same rate. In the last third, reach the same catch every stroke.` });
+    else if (dS <= -1 && dM >= 0) out.push({ act: `Bring the rate back to ${r.first.toFixed(0)} for the last third.`, why: `The rate came down ${r.first.toFixed(0)} to ${r.last.toFixed(0)} and the stroke held at ${m.last.toFixed(2)} m, so the length is there to rate up on.` });
+    else out.push({ act: `Row the next one a beat higher: ${(r.mean + 1).toFixed(0)} strokes a minute.`, why: "Rate and stroke length both held inside a few percent from start to finish, so there is nothing to fix there." });
+  }
+  if (work.length >= 30) {
+    const top = work.reduce((b, p) => (p.y > b.y ? p : b), work[0]);
+    const at = work.indexOf(top) / (work.length - 1);
+    const open = meanOf(work.slice(0, Math.max(3, Math.round(work.length * 0.06))).map((p) => p.y));
+    const dist = metersAt.get(top.x) ?? 0;
+    const third = Math.floor(work.length / 3);
+    const first = meanOf(work.slice(0, third).map((p) => p.y));
+    const last = meanOf(work.slice(-third).map((p) => p.y));
+    if (at >= 0.06 && at <= 0.6 && dist >= 300 && open > 0 && open < top.y * 0.96) {
+      const warm = Math.max(500, Math.round(dist / 250) * 250);
+      out.push({ act: `Warm up for ${fmtInt(warm)} m before a fast one.`, why: `Work per stroke peaked around stroke ${Math.round(top.x)}, about ${fmtInt(Math.round(dist / 50) * 50)} m in, ${Math.round((top.y / open - 1) * 100)}% over the opening strokes. Row that far easy first and the piece starts where this one peaked.` });
+    } else if (first > 0 && last < first * 0.95) {
+      out.push({ act: "Open a little lighter.", why: `Each stroke did ${Math.round((1 - last / first) * 100)}% less work in the last third than in the first. A lighter first 500 leaves that push for the end.` });
+    }
+  }
+  if (a.force) {
+    const p = a.force.peakPct;
+    if (field ? p - field.peakPct >= 5 : p > 50) out.push({ act: "Legs first: push before you pull.", why: `Peak force comes at ${p.toFixed(0)}% of the drive${field ? `; the average stroke of ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"} peaks at ${field.peakPct}%` : ""}. Squeeze the legs down off the catch with the arms still long, and the peak moves forward.` });
+    else if (field ? field.peakPct - p >= 8 : p < 30) out.push({ act: "Hold the pressure on through the back.", why: `Peak force comes early, at ${p.toFixed(0)}% of the drive${field ? ` against ${field.peakPct}% for the field` : ""}: a hard hit off the catch that falls away. Keep pushing as the back opens and the rest of the curve fills in.` });
+  }
+  if (c.same !== null && c.same < 70) out.push({ act: "Make every stroke the same stroke.", why: `Same stroke ${c.same} out of 100: the shape of the push kept changing. For the first 1,000 m think only of repeating the stroke before.` });
+  return out.slice(0, 4);
+}
+
 /* ---- the head ----------------------------------------------------------- */
 
 /* The time is the headline, in the one colour this product has; everything
  * beside it is what makes that time mean something. */
-function Head({ a }: { a: ErgAnalysis }) {
+function Head({ a, read }: { a: ErgAnalysis; read: string[] }) {
   const when = fig(fmtWhen(a.startedAt));
-  const meta = [a.strokes > 0 ? `${fmtInt(a.strokes)} strokes` : "", num(a.avgWatts) ? `${fmtInt(a.avgWatts)} W average` : "", num(a.dragFactor) ? `Drag ${fmtInt(a.dragFactor)}` : "", when === "--" ? "" : when, a.device, a.recordedVia].filter(Boolean);
+  /* When it was rowed and what recorded it: one quiet line. The strokes,
+   * the watts and the drag are in THE NUMBERS. */
+  const meta = [when === "--" ? "" : when, a.device, a.recordedVia].filter(Boolean);
   /* The totals describe the whole row; when the detail below does not, that
    * is said out loud rather than letting a half-row be read as a row. */
   const flags = [
@@ -329,7 +474,16 @@ function Head({ a }: { a: ErgAnalysis }) {
           </View>
         ) : null}
       </View>
-      <Text style={[mono(11, false, C.gray, 0.1), { marginTop: 12, lineHeight: 18 }]}>{meta.join(" · ")}</Text>
+      {read.length ? (
+        <View style={{ marginTop: 14 }}>
+          {read.map((line, i) => (
+            <Text key={i} style={{ color: C.ink, fontSize: i === 0 ? 19 : 16, lineHeight: i === 0 ? 26 : 23, fontFamily: i === 0 ? F.black : F.sans, marginBottom: i < read.length - 1 ? 10 : 0 }}>
+              {line}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {meta.length ? <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 12, lineHeight: 16 }]}>{meta.join(" · ")}</Text> : null}
       {flags.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
           {flags.map((f) => (
@@ -486,7 +640,7 @@ type Col = { label: string; width: number; black?: boolean };
  * the warm tint, a dashed rule between rows. The first column takes what
  * room is left; when the columns want more than the page has, the table
  * scrolls sideways and nothing is squeezed. `on` is a row to mark. */
-function Table({ cols, rows, w, on = -1, accent = -1 }: { cols: Col[]; rows: string[][]; w: number; on?: number; accent?: number }) {
+function Table({ cols, rows, w, on = -1, accent = -1, onRow }: { cols: Col[]; rows: string[][]; w: number; on?: number; accent?: number; onRow?: (k: number) => void }) {
   const need = cols.reduce((s, c) => s + c.width, 0) + 12;
   const cell = (c: Col, i: number) => ({ width: i === 0 ? undefined : c.width, flex: i === 0 ? 1 : undefined, textAlign: i === 0 ? ("left" as const) : ("right" as const) });
   const body = (
@@ -499,8 +653,8 @@ function Table({ cols, rows, w, on = -1, accent = -1 }: { cols: Col[]; rows: str
         ))}
       </View>
       {rows.map((r, k) => (
-        <View key={k} style={{ backgroundColor: k === on ? C.pale : C.tint }}>
-          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: 9 }}>
+        <Pressable key={k} accessibilityRole={onRow ? "button" : undefined} accessibilityState={onRow ? { selected: k === on } : undefined} disabled={!onRow} onPress={() => onRow?.(k)} style={{ backgroundColor: k === on ? C.pale : C.tint, borderLeftWidth: onRow ? 3 : 0, borderLeftColor: k === on ? C.accent : "transparent" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: onRow ? 12 : 9 }}>
             {r.map((v, i) => (
               <Text key={i} numberOfLines={1} style={[{ fontFamily: cols[i].black ? F.black : F.mono, fontSize: cols[i].black ? 13 : 11.5, color: i === 0 ? C.gray : cols[i].black && k === accent ? C.accent : C.ink, fontVariant: ["tabular-nums"] }, cell(cols[i], i)]}>
                 {v}
@@ -508,7 +662,7 @@ function Table({ cols, rows, w, on = -1, accent = -1 }: { cols: Col[]; rows: str
             ))}
           </View>
           <Dash />
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -525,7 +679,7 @@ function Table({ cols, rows, w, on = -1, accent = -1 }: { cols: Col[]; rows: str
 /* The splits. A column the monitor sent nothing for (a derived split has no
  * rate, watts or drag) is left off, so the table does not carry three
  * columns of nothing. The fastest split's figure is in the blue. */
-function SplitsTable({ splits, fastest, w }: { splits: AnalysisSplit[]; fastest: AnalysisSplit | null; w: number }) {
+function SplitsTable({ splits, fastest, w, on, onPick }: { splits: AnalysisSplit[]; fastest: AnalysisSplit | null; w: number; on: number; onPick: (k: number) => void }) {
   const extra = [
     { label: "Rate", width: 40, pick: (s: AnalysisSplit) => s.spm },
     { label: "Watts", width: 46, pick: (s: AnalysisSplit) => s.watts },
@@ -534,6 +688,8 @@ function SplitsTable({ splits, fastest, w }: { splits: AnalysisSplit[]; fastest:
   return (
     <Table
       w={w}
+      on={on}
+      onRow={onPick}
       accent={fastest ? splits.indexOf(fastest) : -1}
       cols={[{ label: "Split", width: 104 }, { label: "Meters", width: 50 }, { label: "Time", width: 60 }, { label: "Per 500 m", width: 60, black: true }, ...extra]}
       rows={splits.map((s) => [`${s.n} · to ${fmtInt(s.endMeters)} m`, fmtInt(s.meters), fmtTenthsClock(Math.round(s.seconds * 10)), split(s.paceTenths), ...extra.map((c) => (num(c.pick(s)) ? fmtInt(c.pick(s) as number) : "--"))])}
@@ -551,12 +707,12 @@ function SplitsTable({ splits, fastest, w }: { splits: AnalysisSplit[]; fastest:
  * thing the picture says, worked out from the same numbers and never made
  * up: a chart with nothing to say says nothing. */
 const BOX_PAD = 14;
-function Box({ title, note, say, children }: { title: string; note?: string; say?: string | null; children: ReactNode }) {
+function Box({ title, note, say, fill, children }: { title: string; note?: ReactNode; say?: string | null; /* Takes the height it is given: one of two cards side by side. */ fill?: boolean; children: ReactNode }) {
   return (
-    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: BOX_PAD, marginTop: 14 }}>
+    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: BOX_PAD, marginTop: 14, flex: fill ? 1 : undefined }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", columnGap: 10, rowGap: 2, marginBottom: 10 }}>
         <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: C.ink }}>{title}</Text>
-        {note ? <Text style={mono(10, false, C.gray, 0.1)}>{note}</Text> : null}
+        {typeof note === "string" ? <Text style={mono(10, false, C.gray, 0.1)}>{note}</Text> : (note ?? null)}
       </View>
       {children}
       {say ? (
@@ -751,6 +907,112 @@ function ForceCurve({ force, compare, w }: { force: AnalysisForce; compare: { ti
       </Lab>
     </Svg>
   );
+}
+
+/* THE FORCE CURVE IS TWO CARDS, SIDE BY SIDE (owner, 2026-11-21: "if I
+ * swipe the card of force curve ... it would show us the averages across
+ * everyone ... it says that the peak comes late at 52% of the drive. What
+ * should it be at? Like how far away am I?"). The first is the rower's own
+ * average stroke; a swipe to the left brings the second, the same stroke
+ * laid over the average stroke of everybody's recordings. The two are the
+ * same height, whichever has more to say. With no field to show (it has
+ * not come, or nobody has recorded), there is the one card and no swipe. */
+export type FieldForce = { points: number[]; peakPct: number; rows: number; rowers: number };
+function ForceCards({ a, field, w, cw }: { a: ErgAnalysis; field: FieldForce | null; w: number; cw: number }) {
+  const [page, setPage] = useState(0);
+  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+  const f = a.force;
+  if (!f) return null;
+  const own = (fill: boolean) => (
+    <Box fill={fill} title="Force curve" note={`${fmtInt(f.curves)} strokes averaged`} say={forceWords(f, a.compare)}>
+      <ForceCurve force={f} compare={a.compare} w={cw} />
+    </Box>
+  );
+  if (!field || field.points.length < 2 || !num(f.peakLbf) || f.peakLbf <= 0) return own(false);
+  const go = (i: number) => strip.current?.scrollTo({ x: i * w, animated: true });
+  return (
+    <>
+      <ScrollView ref={strip} horizontal pagingEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ width: w }}>
+        <View style={{ width: w }}>{own(true)}</View>
+        <View style={{ width: w }}>
+          <Box fill title="Against everyone" note={`${fmtInt(field.rows)} ${field.rows === 1 ? "row" : "rows"} · ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"}`} say={fieldWords(f, field)}>
+            <ForceField mine={f} field={field} w={cw} />
+          </Box>
+        </View>
+      </ScrollView>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
+        {[0, 1].map((i) => (
+          <Pressable key={i} accessibilityRole="button" accessibilityLabel={i === 0 ? "Your force curve" : "Your force curve against everyone"} onPress={() => go(i)} hitSlop={10}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? C.accent : C.line }} />
+          </Pressable>
+        ))}
+        <Text accessibilityRole="button" onPress={() => go(page === 0 ? 1 : 0)} suppressHighlighting style={mono(10, false, C.gray, 0.1)}>
+          {page === 0 ? "Swipe: against everyone" : "Swipe back: yours"}
+        </Text>
+      </View>
+    </>
+  );
+}
+
+/* THE SHAPE OF THE ROWER'S STROKE OVER THE FIELD'S. Each is scaled to its
+ * own peak, so this is where along the drive the push comes, not how hard
+ * it is: a light rower and a strong one with the same timing draw the same
+ * line. The field's is the grey hill; the rower's is the blue line; a rule
+ * drops from each peak to the foot, which is the distance between them. */
+function ForceField({ mine, field, w }: { mine: AnalysisForce; field: FieldForce; w: number }) {
+  const H = 190;
+  const pw = w - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+  if (pw < 40 || mine.points.length < 2) return null;
+  const sy = (v: number) => PAD.t + (1 - Math.max(0, v) / 1.12) * ph;
+  const line = (pts: number[], top: number) => pts.map((v, i) => `${i ? "L" : "M"}${(PAD.l + (i / (pts.length - 1)) * pw).toFixed(1)} ${sy(v / top).toFixed(1)}`).join(" ");
+  const all = line(field.points, Math.max(...field.points) || 1);
+  const me = line(mine.points, mine.peakLbf || 1);
+  const mx = PAD.l + (mine.peakPct / 100) * pw;
+  const fx = PAD.l + (field.peakPct / 100) * pw;
+  const base = H - PAD.b;
+  /* The two names sit away from each other: the earlier peak's to its
+   * left, the later one's to its right. */
+  const meLater = mine.peakPct >= field.peakPct;
+  return (
+    <>
+      <Svg width={w} height={H}>
+        <Axes W={w} H={H} pad={PAD} ys={[0, 0.25, 0.5, 0.75, 1]} sy={sy} fmt={(v) => String(Math.round(v * 100))} />
+        <Path d={`${all} L${(PAD.l + pw).toFixed(1)} ${sy(0).toFixed(1)} L${PAD.l.toFixed(1)} ${sy(0).toFixed(1)} Z`} fill={C.ink} opacity={0.09} />
+        <Path d={all} stroke={C.gray} strokeWidth={1.6} fill="none" strokeLinejoin="round" />
+        <Line x1={fx} x2={fx} y1={sy(1)} y2={base} stroke={C.gray} strokeWidth={1.2} strokeDasharray="3 3" />
+        <Line x1={mx} x2={mx} y1={sy(1)} y2={base} stroke={C.accent} strokeWidth={1.2} strokeDasharray="3 3" />
+        <Path d={me} stroke={C.accent} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        <Circle cx={fx} cy={sy(1)} r={3} fill={C.gray} />
+        <Circle cx={mx} cy={sy(1)} r={3.4} fill={C.accent} />
+        <Lab x={mx + (meLater ? 6 : -6)} y={sy(1) - 5} anchor={meLater ? "start" : "end"} color={C.accent} bold>{`YOU ${mine.peakPct.toFixed(0)}%`}</Lab>
+        <Lab x={fx + (meLater ? -6 : 6)} y={sy(1) - 5} anchor={meLater ? "end" : "start"} color={C.soft}>{`EVERYONE ${field.peakPct}%`}</Lab>
+        {[0, 25, 50, 75, 100].map((p) => (
+          <Lab key={p} x={PAD.l + (p / 100) * pw} y={H - PAD.b + 12} anchor={p === 100 ? "end" : "middle"}>
+            {String(p)}
+          </Lab>
+        ))}
+        <Lab x={w - PAD.r} y={H - 2} anchor="end" size={8}>
+          PERCENT OF THE DRIVE
+        </Lab>
+      </Svg>
+      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 12, rowGap: 2, marginTop: 4 }}>
+        <Key color={C.accent} label="You" />
+        <Key color={C.gray} label="Everyone" />
+        <Text style={mono(9, false, C.gray, 0.1)}>Each as a percent of its own peak</Text>
+      </View>
+    </>
+  );
+}
+
+/* How far the rower's peak is from the field's, and which way to move it. */
+function fieldWords(f: AnalysisForce, field: FieldForce): string {
+  const d = Math.round(f.peakPct - field.peakPct);
+  const mine = f.peakPct.toFixed(0);
+  const small = field.rowers < 5 ? ` The field is small so far: ${field.rowers === 1 ? "one rower" : `${field.rowers} rowers`}, so read it as a mark and not a rule.` : "";
+  if (Math.abs(d) < 4) return `Your peak sits where everybody's does: ${mine}% of the drive against ${field.peakPct}%.${small}`;
+  if (d > 0) return `Your peak comes at ${mine}% of the drive; the average stroke peaks at ${field.peakPct}%, ${d} points earlier. Loading the legs sooner off the catch moves yours forward.${small}`;
+  return `Your peak comes at ${mine}% of the drive, ${-d} points earlier than the average stroke (${field.peakPct}%): a harder hit off the catch than most. Holding the pressure on through the back fills the rest of the curve.${small}`;
 }
 
 /* What the shape of the average stroke says. Two things can be read off it
