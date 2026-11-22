@@ -1,19 +1,28 @@
-/* The Rowtember ground, the same as the website: cream paper, ink, and the
- * water blue (owner, 2026-11-14: "good text size and font and blue color ...
- * we should keep it the same"). */
+/* BLACK AND WHITE (owner, 2026-11-22, with Instagram and Strava open
+ * beside the app: "we need the black and white. That's what we need to
+ * be"; "the color scheme we have to take"; "I don't really give a shit
+ * about the blue ... we're kind of going over something that's pretty
+ * blue heavy to not blue ... I think this is better. It's easier on the
+ * eyes"). A white page, near-black type, one grey for what is secondary
+ * and a hairline for what divides. Until that day the ground was the
+ * website's cream (#F4F3EE) with the water blue on every figure
+ * (2026-11-14: "good text size and font and blue color"). The blue stays
+ * as the accent for the few things that act or are the rower's own (the
+ * button that follows, a like, the rower's boat on the race page, the
+ * charts), and is off the figures of a row. */
 const LIGHT = {
-  paper: "#F4F3EE",
+  paper: "#FFFFFF",
   card: "#FFFFFF",
   ink: "#15171a",
   soft: "#3b3e42",
-  gray: "#8a8a85",
-  line: "#c9c8c0",
+  gray: "#737373",
+  line: "#DBDBDB",
   accent: "#0077B6",
   accentLight: "#4FB3EA",
-  pale: "#e3eef5",
+  pale: "#EFEFEF",
   good: "#2f7d4f",
-  /* The warm tint the site lays behind its tables: rgba(236,220,170,.22) on the paper. */
-  tint: "#F2EEDF",
+  /* The quiet ground behind a table or a chosen line. */
+  tint: "#F5F5F5",
   /* The board's wash behind a row: the field's, and the viewer's own. */
   wash: "rgba(21,23,26,0.09)",
   washMe: "rgba(0,119,182,0.3)",
@@ -27,17 +36,17 @@ const LIGHT = {
  * Never the default: cream is (CLAUDE.md, "never dark by default"). A rower
  * turns it on in SETTINGS, on that phone only. */
 const DARK: typeof LIGHT = {
-  paper: "#15171a",
-  card: "#1d2024",
-  ink: "#F4F3EE",
-  soft: "#cfcec6",
-  gray: "#8f8f8a",
-  line: "#3a3d42",
+  paper: "#000000",
+  card: "#000000",
+  ink: "#F5F5F5",
+  soft: "#d0d0d0",
+  gray: "#A8A8A8",
+  line: "#262626",
   accent: "#1A90D4",
   accentLight: "#4FB3EA",
-  pale: "#17303f",
+  pale: "#1c1c1c",
   good: "#58b07c",
-  tint: "#1c1f23",
+  tint: "#121212",
   wash: "rgba(244,243,238,0.08)",
   washMe: "rgba(26,144,212,0.34)",
 };

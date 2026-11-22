@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { plusUsers } from "@/lib/rowPlus";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { buildProfile } from "@/app/row100k/r/[num]/profileData";
 import { avatarsFor, followCounts } from "@/lib/rowSocial";
@@ -58,6 +59,8 @@ export async function GET(req: Request) {
       avatar: (await avatarsFor([v.rower.id])).get(v.rower.id) ?? null,
       /* What the rower wrote about themselves; nobody's across a lock. */
       bio: rel.access === "private" ? "" : ((await db.rowParticipant.findUnique({ where: { id: v.rower.id }, select: { bio: true } }).catch(() => null))?.bio ?? ""),
+      /* The black check after the name (lib/rowPlus.ts). */
+      plus: (await plusUsers([(await db.rowParticipant.findUnique({ where: { id: v.rower.id }, select: { userId: true } }).catch(() => null))?.userId ?? ""])).size > 0,
       requests: pendingIn,
       /* For an admin only: the id the site's own delete-a-rower route takes. */
       adminId: viewer.isAdmin && !v.isMe ? v.rower.id : null,

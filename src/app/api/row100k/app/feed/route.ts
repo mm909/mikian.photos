@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { CHALLENGE } from "@/lib/row100k";
 import { avatarsFor, followingIds } from "@/lib/rowSocial";
+import { plusUsers } from "@/lib/rowPlus";
 import { buildFeed, type FeedData } from "@/app/row100k/feed/feedData";
 
 /* THE FEED for the phone app (2026-11-20; owner the same day: "a
@@ -147,12 +148,15 @@ export async function GET(req: Request) {
 
     /* The face beside each name. */
     const faceOf = new Map<number, string>();
+    /* And who wears the black check after it (lib/rowPlus.ts). */
+    const plusNums = new Set<number>();
     if (nums.length) {
-      const who = await db.rowParticipant.findMany({ where: { challenge: CHALLENGE, rowerNumber: { in: nums } }, select: { id: true, rowerNumber: true } });
-      const faces = await avatarsFor(who.map((p) => p.id));
+      const who = await db.rowParticipant.findMany({ where: { challenge: CHALLENGE, rowerNumber: { in: nums } }, select: { id: true, rowerNumber: true, userId: true } });
+      const [faces, plus] = await Promise.all([avatarsFor(who.map((p) => p.id)), plusUsers(who.map((p) => p.userId))]);
       for (const p of who) {
         const f = faces.get(p.id);
         if (f) faceOf.set(p.rowerNumber, f);
+        if (plus.has(p.userId)) plusNums.add(p.rowerNumber);
       }
     }
 
@@ -160,7 +164,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, likes: likes.get(it.id) ?? 0, liked: liked.has(it.id), comments: comments.get(it.id) ?? 0, caption: it.masked ? "" : (captions.get(it.id) ?? ""), rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
+        items: feed.items.map((it) => ({ ...it, erg: erg[it.id] ?? null, mine: it.rowerNumber === mine, avatar: faceOf.get(it.rowerNumber) ?? null, plus: plusNums.has(it.rowerNumber), likes: likes.get(it.id) ?? 0, liked: liked.has(it.id), comments: comments.get(it.id) ?? 0, caption: it.masked ? "" : (captions.get(it.id) ?? ""), rel: rel.get(it.rowerNumber) ?? { following: "none", bell: false } })),
         /* How many of these rows are the lead (the rowers the viewer follows). */
         lead: leadRows,
         older,

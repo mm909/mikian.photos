@@ -11,7 +11,28 @@ import type { TelemetryDoc } from "./pm5/session";
  * the two keys. A row that came off a connected erg then sends its whole
  * recording to api/row100k/app/erg, tied to the row. */
 
-export type Picked = { uri: string; width: number; height: number };
+/* A photo off the phone. `fx` and `fy` say where the three-by-four frame
+ * of a row sits on it, from 0 (its left, its top) to 1 (its right, its
+ * foot); unset is the middle. */
+export type Picked = { uri: string; width: number; height: number; fx?: number; fy?: number };
+
+/* THE FRAME OF A ROW'S PHOTO: three wide by four tall, the tallest
+ * Instagram takes (owner, 2026-11-22). */
+export const FRAME = 3 / 4;
+
+/* The part of a photo the frame shows, in the photo's own pixels. A photo
+ * wider than the frame loses its sides; a taller one its top and foot;
+ * which of them is where the rower slid it. */
+export function frameOf(p: Picked): { originX: number; originY: number; width: number; height: number } {
+  const fx = Math.min(1, Math.max(0, p.fx ?? 0.5));
+  const fy = Math.min(1, Math.max(0, p.fy ?? 0.5));
+  if (p.width / p.height > FRAME) {
+    const w = Math.round(p.height * FRAME);
+    return { originX: Math.round((p.width - w) * fx), originY: 0, width: w, height: p.height };
+  }
+  const h = Math.round(p.width / FRAME);
+  return { originX: 0, originY: Math.round((p.height - h) * fy), width: p.width, height: h };
+}
 
 export async function pickPhoto(from: "camera" | "library"): Promise<Picked | null> {
   if (from === "camera") {
@@ -33,10 +54,17 @@ export async function pickPhotos(limit: number): Promise<Picked[]> {
   return res.assets.slice(0, limit).map((a) => ({ uri: a.uri, width: a.width, height: a.height }));
 }
 
-async function shrink(p: Picked, edge: number, compress: number): Promise<Blob> {
-  const wide = p.width >= p.height;
-  const long = Math.max(p.width, p.height);
-  const out = await manipulateAsync(p.uri, long > edge ? [{ resize: wide ? { width: edge } : { height: edge } }] : [], { compress, format: SaveFormat.JPEG });
+/* `framed`: cut to the row's frame first, where the rower set it (owner,
+ * 2026-11-22: "we also need to be considerate now of crop whenever we
+ * upload"), so the picture that is stored is the picture they saw. A face
+ * for a profile is cut square by the phone's own tool and is not framed. */
+async function shrink(p: Picked, edge: number, compress: number, framed = false): Promise<Blob> {
+  const cut = framed && p.width > 0 && p.height > 0 ? frameOf(p) : null;
+  const w = cut ? cut.width : p.width;
+  const h = cut ? cut.height : p.height;
+  const wide = w >= h;
+  const long = Math.max(w, h);
+  const out = await manipulateAsync(p.uri, [...(cut ? [{ crop: cut }] : []), ...(long > edge ? [{ resize: wide ? { width: edge } : { height: edge } }] : [])], { compress, format: SaveFormat.JPEG });
   return (await fetch(out.uri)).blob();
 }
 
@@ -54,11 +82,11 @@ async function put(url: string, blob: Blob): Promise<void> {
 
 /* One photo up; answers its key. The thumb is best effort, as on the site. */
 export async function uploadPhoto(p: Picked): Promise<string> {
-  const main = await shrink(p, 1600, 0.82);
+  const main = await shrink(p, 1600, 0.82, true);
   const signed = await api<{ key: string; url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: main.size } });
   await put(signed.url, main);
   try {
-    const thumb = await shrink(p, 320, 0.7);
+    const thumb = await shrink(p, 320, 0.7, true);
     const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
     await put(t.url, thumb);
   } catch {

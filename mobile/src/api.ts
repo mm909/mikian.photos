@@ -168,6 +168,8 @@ export type FeedItem = {
   comments?: number;
   /* What the rower wrote under the photos. */
   caption?: string;
+  /* The rower wears the black check (lib/rowPlus.ts). */
+  plus?: boolean;
 };
 export type FeedPage = { items: FeedItem[]; older: string | null; lead?: number };
 
@@ -199,6 +201,8 @@ export type Profile = {
   avatar?: string | null;
   /* What the rower wrote about themselves. */
   bio?: string;
+  /* The rower wears the black check (lib/rowPlus.ts). */
+  plus?: boolean;
   /* On the viewer's own profile: follow requests waiting on them. */
   requests: number;
   /* For an admin looking at somebody else: the id the delete-a-rower route takes. */

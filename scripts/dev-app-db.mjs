@@ -53,6 +53,24 @@ if (me && process.argv.includes("--seed")) {
   process.exit(0);
 }
 
+/* --ghosts: a field for the race page of the phone's monitor (rows over
+ * 5,000 m, recordings, follows) for the first account, or the one --me
+ * names. scripts/dev-app-ghosts-seed.ts; run it again any time. */
+if (me && process.argv.includes("--ghosts")) {
+  const meFlag = process.argv.find((a) => a.startsWith("--me="));
+  const email = (meFlag ? meFlag.slice(5).split(",")[0] : "mikianmusser@gmail.com").trim();
+  const r = spawnSync(`npx tsx scripts/dev-app-ghosts-seed.ts ${email}`, { stdio: "inherit", env: { ...process.env, ...LOCAL_ENV }, shell: true });
+  process.exit(r.status ?? 1);
+}
+
+/* --photos: real photos on the sandbox's newest rows, read off the live
+ * board (scripts/dev-app-photos-seed.ts: it reads live and writes only
+ * here). .env.local supplies the live address; this supplies the local. */
+if (me && process.argv.includes("--photos")) {
+  const r = spawnSync("npx dotenv -e .env.local -- npx tsx scripts/dev-app-photos-seed.ts", { stdio: "inherit", env: { ...process.env, SANDBOX_DB_URL: LOCAL_DB }, shell: true });
+  process.exit(r.status ?? 1);
+}
+
 if (me) {
   if (!existsSync(path.join(HOME, "node_modules", "embedded-postgres"))) {
     console.error("\n.rowapp-db/ has no Postgres yet. Run `npm install` inside .rowapp-db/ first.\n");

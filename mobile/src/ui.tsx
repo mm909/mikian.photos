@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentRef, type React
 import type { Photo } from "./api";
 import { peek } from "./api";
 import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { CloseIcon, DotsIcon } from "./icons";
 import { C, F, onLook } from "./theme";
 
@@ -545,3 +546,76 @@ export let styles = build();
 onLook(() => {
   styles = build();
 });
+
+/* THE METAL PLATE (owner, 2026-11-22: "whenever we have telemetry, I need
+ * it to look premium ... like Amex Platinum ... think like a premium metal
+ * credit card ... that card ... or maybe just their nameplate"). One word
+ * engraved on brushed platinum: light across it at a slant, a bright edge
+ * along the top, a hairline round it. The metal is the same on the white
+ * page and the black one, which is what makes it read as a thing and not
+ * as a label. Until that day the word was white mono capitals on an ink
+ * box. */
+let plates = 0;
+export function Plate({ label, height = 18 }: { label: string; height?: number }) {
+  const [w, setW] = useState(0);
+  const id = useRef(`plate${++plates}`).current;
+  return (
+    <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))} style={{ height, paddingHorizontal: 7, justifyContent: "center", borderRadius: 3, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: "#6d7176", backgroundColor: "#cfd2d5" }}>
+      {w ? (
+        <Svg width={w} height={height} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor="#f7f7f5" />
+              <Stop offset="0.3" stopColor="#c3c6ca" />
+              <Stop offset="0.52" stopColor="#eeefef" />
+              <Stop offset="0.74" stopColor="#a6aaaf" />
+              <Stop offset="1" stopColor="#dddfe1" />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={w} height={height} fill={`url(#${id})`} />
+          <Rect x={0} y={0} width={w} height={1} fill="#ffffff" opacity={0.85} />
+          <Rect x={0} y={height - 1} width={w} height={1} fill="#5f6368" opacity={0.35} />
+        </Svg>
+      ) : null}
+      <Text style={{ fontFamily: F.monoBold, fontSize: 9, letterSpacing: 1.6, color: "#23262a" }}>{label}</Text>
+    </View>
+  );
+}
+
+/* THE TWO PHOTOS OF A ROW AS ONE PICTURE, edge to edge, in the tallest
+ * frame Instagram takes, three wide by four tall (owner, 2026-11-22: "I
+ * definitely like tall ... whatever the largest format Instagram uses,
+ * that's the one we're using"). A TAP SWAPS TO THE OTHER ("ours is going
+ * to have two photos only, and if you tap them, it'll swap back and
+ * forth"), and there are no dots under it ("let's take away the dots
+ * because every post is going to have two photos"). Both are loaded from
+ * the start, so the swap is at once. A long press opens the photo whole,
+ * with the run of every photo in the list behind it as before. */
+export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4 }: { photos: Photo[]; gallery?: Gallery; style?: StyleProp<ViewStyle>; ratio?: number }) {
+  const [at, setAt] = useState(0);
+  const [open, setOpen] = useState<number | null>(null);
+  const [dots, setDots] = useState(false);
+  const seen = useRef(0);
+  if (!photos.length) return null;
+  const shown = photos.slice(0, 2);
+  const i = Math.min(at, shown.length - 1);
+  const close = () => setDots(false);
+  const leave = () => {
+    setDots(false);
+    setOpen(null);
+  };
+  return (
+    <View style={style}>
+      <Pressable accessibilityRole="imagebutton" accessibilityLabel={shown.length > 1 ? (i === 0 ? "The rower's photo. Tap for the monitor's." : "The monitor's photo. Tap for the rower's.") : "The row's photo"} onPress={() => (shown.length > 1 ? setAt(1 - i) : setOpen(0))} onLongPress={() => setOpen(i)} style={{ width: "100%", aspectRatio: ratio, backgroundColor: C.pale }}>
+        {shown.map((p, k) => (
+          <Image key={k} source={{ uri: p.full }} resizeMode="cover" style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", opacity: k === i ? 1 : 0 }]} />
+        ))}
+      </Pressable>
+      {open !== null ? (
+        <PhotoViewer photos={gallery ? gallery.photos : shown} stamps={gallery?.stamps} start={gallery ? gallery.offset + open : open} onAt={(n) => (seen.current = n)} onClose={() => setOpen(null)} onMenu={gallery?.menu ? () => setDots(true) : undefined}>
+          {dots && gallery?.menu ? gallery.menu(seen.current, close, leave) : null}
+        </PhotoViewer>
+      ) : null}
+    </View>
+  );
+}

@@ -33,7 +33,8 @@ export type Erg = {
   bluetooth: boolean;
   connect: () => void;
   pick: (d: Found) => void;
-  startDemo: (distanceM?: number) => void;
+  /* The simulator, as many times faster than a clock as `speed` says. */
+  startDemo: (distanceM?: number, speed?: number) => void;
   /* Drop the connection and whatever was recorded. */
   discard: () => void;
   /* The whole piece as a saved document, or undefined when it is too short
@@ -140,9 +141,9 @@ export function useErg(): Erg {
     bluetooth: ble.available(),
     connect,
     pick,
-    startDemo: (distanceM) => {
+    startDemo: (distanceM, speed) => {
       fresh();
-      begin(simulate(handlers, { distanceM: distanceM ?? 5000 }), true);
+      begin(simulate(handlers, { distanceM: distanceM ?? 5000, speed }), true);
     },
     discard: () => {
       leave();

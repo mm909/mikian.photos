@@ -2,6 +2,7 @@ import type { Pm5Packet } from "../pm5/encode";
 import {
   DurationType,
   PM5_UUID,
+  StrokeState,
   createForceCurveAssembler,
   isEnded,
   isNewPiece,
@@ -66,6 +67,14 @@ export type Live = {
   /* Sum and count of stroke watts, for the average at the end. */
   wattSum: number;
   wattN: number;
+  /* THE STROKE AS IT IS BEING PULLED, for a picture that rows with the
+   * rower (owner, 2026-11-22: "if the boats have oars, the oars need to
+   * match my stroke"): whether the handle is on the drive right now, as the
+   * monitor's status says, and how long the last stroke's drive and its
+   * way back took. */
+  driving: boolean;
+  driveS: number;
+  recoveryS: number;
 };
 
 export const EMPTY_LIVE: Live = {
@@ -88,6 +97,9 @@ export const EMPTY_LIVE: Live = {
   peakLbf: 0,
   wattSum: 0,
   wattN: 0,
+  driving: false,
+  driveS: 0,
+  recoveryS: 0,
 };
 
 /* A phone holds a long row; past these the oldest detail is not the worry,
@@ -138,6 +150,7 @@ export function createLive() {
     live.elapsedS = g.elapsedS;
     live.meters = g.distanceM;
     live.drag = g.dragFactor;
+    live.driving = g.strokeState === StrokeState.DRIVING;
     live.targetM = g.workoutDurationType === DurationType.DISTANCE && g.workoutDuration > 0 ? g.workoutDuration : 0;
     live.targetS = g.workoutDurationType === DurationType.TIME && g.workoutDuration > 0 ? g.workoutDuration / 100 : 0;
     live.ended = isEnded(g.workoutState) && g.distanceM > 0;
@@ -158,6 +171,8 @@ export function createLive() {
   };
   const stroke = (s: StrokeData) => {
     live.strokes = s.strokeCount;
+    if (s.driveTimeS > 0) live.driveS = s.driveTimeS;
+    if (s.recoveryTimeS > 0) live.recoveryS = s.recoveryTimeS;
     const row = {
       n: s.strokeCount,
       elapsedS: s.elapsedS,

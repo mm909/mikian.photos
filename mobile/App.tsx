@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Reac
 import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
 import { useErg } from "./src/erg/useErg";
-import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon } from "./src/icons";
+import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
 import { Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
@@ -144,6 +144,13 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const [menu, setMenu] = useState(false);
   /* Whose row a row's page is, once the page knows: its number goes in the bar. */
   const [rowNum, setRowNum] = useState<Record<string, number>>({});
+  /* WHICH ROWERS WEAR THE BLACK CHECK, as their pages say so (owner,
+   * 2026-11-22, of the top of his Instagram page: "up at the top where we
+   * put that verified check mark ... where mine says mikian_, that's where
+   * we're going to put their rower number"). It stands after the number in
+   * the bar while a page of theirs is the one in view. */
+  const [checked, setChecked] = useState<Record<number, boolean>>({});
+  const onPlus = (n: number, on: boolean) => setChecked((prev) => (!!prev[n] === on ? prev : { ...prev, [n]: on }));
   /* Every meter anybody has logged, for the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
   /* What is typed in the search field, which sits in the bar on that tab. */
@@ -298,7 +305,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
-      <ProfileScreen key={stamp} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen key={stamp} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     );
 
   /* A ROW LOGGED lands on its own page, with what the totals were a moment
@@ -354,6 +361,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
+  const pageOf = logOn ? null : !top ? (tab === "profile" && mine ? mine : null) : top.kind === "rower" ? top.num : null;
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
@@ -366,7 +374,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen num={o.num} onPlus={onPlus} onRow={openRow} onPeople={openPeople} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
@@ -443,7 +451,10 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                   ) : null}
                 </View>
               ) : mark ? (
-                <Mark label={mark} kind={markIs} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Mark label={mark} kind={markIs} />
+                  {pageOf !== null && checked[pageOf] ? <VerifiedIcon size={17} /> : null}
+                </View>
               ) : null}
             </View>
             {searchBar ? null : (

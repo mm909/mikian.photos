@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { ActivityIndicator, Image, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import Svg, { Line, Path } from "react-native-svg";
 import { milestone, projectedMeters } from "../erg/milestone";
@@ -8,8 +8,9 @@ import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
-import { logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
+import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
+import { GhostRace } from "./GhostRace";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -40,6 +41,22 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
   /* The piece as it stood when LOG was pressed: the monitor may still be
    * talking, and the row being logged must not move under the form. */
   const [snap, setSnap] = useState<{ meters: number; seconds: number; strokes: number; avgWatts: number; doc?: TelemetryDoc } | null>(null);
+
+  /* A DEMO ROW BY ADDRESS, in a browser only: ?demo=5000 starts the
+   * simulator over that distance as this screen opens, and &speed=4 sets
+   * how many times faster than a clock it runs. For looking at the
+   * monitor's pages with no rowing machine in the room; a demo row is
+   * never logged outside development (Monitor, canLog). */
+  useEffect(() => {
+    if (Platform.OS !== "web" || erg.phase !== "idle" || typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    const m = Number(q.get("demo"));
+    if (!(m >= 100 && m <= 100_000)) return;
+    const sp = Number(q.get("speed"));
+    erg.startDemo(Math.round(m), sp >= 1 && sp <= 40 ? sp : undefined);
+    // Once, as the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (ready && !me.signedIn) return <SignIn why="Logging a row needs your account." />;
 
@@ -132,6 +149,10 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
 const signed = (v: number) => `${v < 0 ? "−" : "+"}${Math.abs(v).toFixed(1)} s`;
 /* How long the meters stand still before the row counts as stopped. */
 const IDLE_MS = 6000;
+/* The monitor's pages count from 0: the race and the numbers (the race
+ * first when the piece is a set distance), the four figures, the split,
+ * the splits, and the way out, which is the last. */
+const LAST = 5;
 
 function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave: () => void }) {
   const { live, name, error, demo } = erg;
@@ -172,6 +193,25 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
       <Btn label={canLog ? `Log ${fmtInt(meters)} m` : demo ? "Demo row" : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
     </View>
   );
+  /* THE RACE (GhostRace.tsx) IS THE FIRST PAGE of a set distance (owner,
+   * 2026-11-22: "let's have that be the main screen"), with the numbers one
+   * swipe on. A plain row or a set time has nobody to race, so there the
+   * numbers stay first and the race page, which says so, is the second.
+   * Drawn only while it is the page in view. */
+  const raceFirst = live.targetM > 0;
+  /* The monitor names its distance a moment after it connects, and the
+   * race page arrives ahead of the numbers when it does: the pages go back
+   * to the first, so the race is what the rower lands on. */
+  const pages = useRef<ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => {
+    pages.current?.scrollTo({ x: 0, animated: false });
+    setPage(0);
+  }, [raceFirst]);
+  const race = (
+    <View style={{ width: w, height: h, paddingHorizontal: 20 }}>
+      <GhostRace erg={erg} width={w - 40} height={h} active={page === (raceFirst ? 0 : 1)} />
+    </View>
+  );
   const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
 
@@ -189,10 +229,12 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
 
       <View style={{ flex: 1 }} onLayout={onLayout}>
         {w ? (
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
+          <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
+            {raceFirst ? race : null}
             <View style={{ width: w, height: h, paddingHorizontal: 20 }}>
               <Main erg={erg} wide={wide} width={w - 40} />
             </View>
+            {raceFirst ? null : race}
             <View style={{ width: w, height: h, paddingHorizontal: 20, justifyContent: "center" }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                 <Big k="Strokes a minute" v={live.spm > 0 ? `${live.spm}` : "--"} wide={wide} />
@@ -217,8 +259,8 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
         ) : null}
       </View>
 
-      <View accessibilityLabel={`Page ${page + 1} of 5`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: wide ? 4 : 10 }}>
-        {[0, 1, 2, 3, 4].map((i) => (
+      <View accessibilityLabel={`Page ${page + 1} of ${LAST + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: wide ? 4 : 10 }}>
+        {Array.from({ length: LAST + 1 }, (_, i) => i).map((i) => (
           <View key={i} style={{ width: i === page ? 18 : 6, height: 6, backgroundColor: i === page ? C.accent : C.line }} />
         ))}
       </View>
@@ -226,7 +268,7 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
       {/* While the rower is rowing the screen is numbers and nothing else.
           The buttons come up by themselves once the piece is over or the
           handle has been down a few seconds. */}
-      {over && page !== 4 ? <View style={{ paddingHorizontal: 20, paddingBottom: wide ? 8 : 16 }}>{ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+      {over && page !== LAST ? <View style={{ paddingHorizontal: 20, paddingBottom: wide ? 8 : 16 }}>{ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
     </View>
   );
 }
@@ -237,41 +279,50 @@ function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) 
   const { live } = erg;
   const ms = milestone(live);
   const pm = projectedMeters(live);
-  /* Six characters of Archivo Black run about 3.6 times the type size wide. */
-  const avgSize = Math.min(wide ? 150 : 132, Math.floor((wide ? width * 0.56 : width) / 3.65));
+  /* THE AVERAGE KEEPS ITS TENTH AND STAYS ON ONE LINE (owner, 2026-11-22,
+   * of the phone on its side: "the average pace number has that decimal and
+   * it doesn't fit in the box. It's two lines"; "I'd like having the average
+   * pace decimal there"). Six characters of Archivo Black run close to four
+   * times the type size wide on the phone, wider than the 3.6 this was cut
+   * to, and on its side the column is 1.35 parts of 2.35 less the gap. The
+   * size is cut for that, and the phone is told to shrink the line, never
+   * to break it, should a face come out wider still. */
+  const avgBox = wide ? (width * 1.35) / 2.35 - 8 : width;
+  const avgSize = Math.min(wide ? 150 : 132, Math.floor(avgBox / 4.05));
   const avg = (
     <View style={{ flex: wide ? 1.35 : undefined, justifyContent: "center" }}>
       <Eyebrow style={{ color: C.ink }}>Average /500 m</Eyebrow>
-      <Text style={{ fontFamily: F.black, fontSize: avgSize, lineHeight: Math.round(avgSize * 1.08), color: C.accent, fontVariant: ["tabular-nums"], letterSpacing: -2 }}>{fmtPace(live.avgPace)}</Text>
-      {ms ? (
-        /* What the row will finish in at this pace, to the second (owner,
-         * 2026-11-21, of the line that said how many seconds a split to give
-         * up for the next mark: "I think I actually just want what's below
-         * it, which is the on pace for, and then give me just the minute
-         * second, not the dot ... it'll be a little hard to parse"). */
-        <View>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>ON PACE FOR {fmtClock(ms.projected, false)}</Text>
-          <Eyebrow style={{ marginTop: 4 }}>{fmtInt(ms.metersLeft)} m to go</Eyebrow>
-        </View>
-      ) : pm ? (
-        <Text style={{ fontFamily: F.monoBold, fontSize: 22, color: C.ink }}>ON PACE FOR {fmtInt(pm)} M</Text>
-      ) : live.ended && live.targetM > 0 ? (
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontFamily: F.black, fontSize: avgSize, lineHeight: Math.round(avgSize * 1.08), color: C.accent, fontVariant: ["tabular-nums"], letterSpacing: -2 }}>
+        {fmtPace(live.avgPace)}
+      </Text>
+      {live.ended && live.targetM > 0 ? (
         <Eyebrow style={{ marginTop: 4 }}>Finished · {fmtInt(live.targetM)} m</Eyebrow>
       ) : (
         <Eyebrow style={{ marginTop: 4 }}>{live.targetM > 0 ? `${fmtInt(Math.max(0, live.targetM - live.meters))} m to go` : " "}</Eyebrow>
       )}
     </View>
   );
+  /* WHAT THE ROW WILL FINISH IN, AT THE HEAD OF THE FIGURES AT THE RIGHT
+   * (owner, 2026-11-22: it was a line under the average, "like subtitle
+   * text ... I actually want to move that just on to the right with the
+   * other stats there ... the most important stat there is probably that
+   * expected finish time"). To the second, as he asked of it the day
+   * before ("just the minute second, not the dot"). A set time has no
+   * finish to name: its line is the meters it is on pace for. */
+  const finish = ms ? fmtClock(ms.projected, false) : pm ? `${fmtInt(pm)} m` : null;
   /* One figure to a line, the word on the left and the number on the right,
    * so each can be as big as the line is tall. */
-  const cell = (k: string, v: string) => (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderColor: C.line, paddingVertical: wide ? 4 : 10 }}>
-      <Eyebrow>{k}</Eyebrow>
-      <Text style={{ fontFamily: F.black, fontSize: wide ? 44 : 52, lineHeight: wide ? 50 : 58, color: C.ink, fontVariant: ["tabular-nums"], letterSpacing: -1 }}>{v}</Text>
+  const cell = (k: string, v: string, lead = false) => (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: lead ? 2 : 1, borderColor: lead ? C.ink : C.line, paddingVertical: wide ? (finish ? 2 : 4) : 10 }}>
+      <Eyebrow style={lead ? { color: C.ink } : undefined}>{k}</Eyebrow>
+      <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: wide ? (finish ? 40 : 44) : 52, lineHeight: wide ? (finish ? 45 : 50) : 58, color: C.ink, fontVariant: ["tabular-nums"], letterSpacing: -1 }}>
+        {v}
+      </Text>
     </View>
   );
   const three = (
     <View style={wide ? { flex: 1, justifyContent: "center", paddingLeft: 28 } : { marginTop: 26 }}>
+      {finish ? cell("On pace for", finish, true) : null}
       {/* The split right now, to the second: its tenths only flicker. */}
       {cell("Now /500 m", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace, false) : "-:--")}
       {cell("Meters", fmtInt(Math.floor(live.meters)))}
@@ -491,6 +542,16 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
             this one you, this one the monitor"). */}
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
           <Eyebrow style={{ color: C.ink }}>Two photos: you, and the monitor</Eyebrow>
+          {/* WHICH IS FIRST (owner, 2026-11-22: "let's allow people to
+              rearrange which photo is first or second when they're
+              submitting"). With two photos, moving one is swapping them:
+              one press. The first is the one the feed opens on and the
+              tile on the rower's grid. */}
+          {photos[0] && photos[1] ? (
+            <Text accessibilityRole="button" accessibilityLabel="Swap which photo is first" onPress={() => setPhotos((prev) => [prev[1], prev[0]])} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.ink }}>
+              ⇄ SWAP
+            </Text>
+          ) : null}
           {Platform.OS !== "web" ? (
             <Text accessibilityRole="button" onPress={() => pick(empty, "camera")} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
               CAMERA
@@ -501,12 +562,11 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
           {[0, 1].map((i) => {
             const p = photos[i];
             return (
-              <Pressable key={i} accessibilityRole="button" accessibilityLabel={p ? `Photo ${i + 1}: change it` : "Choose the two photos"} onPress={() => pick(i, "library")} style={{ flex: 1, aspectRatio: 4 / 5, backgroundColor: C.pale, borderWidth: 1, borderColor: p ? C.ink : C.line, borderStyle: p ? "solid" : "dashed", alignItems: "center", justifyContent: "center" }}>
-                {p ? <Image source={{ uri: p.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={{ fontFamily: F.black, fontSize: 34, color: C.accent }}>+</Text>}
-              </Pressable>
+              <CropFrame key={i} p={p} label={p ? `Photo ${i + 1}: drag to move it in its frame, tap to change it` : "Choose the two photos"} onPress={() => pick(i, "library")} onMove={(fx, fy) => setPhotos((prev) => prev.map((x, k) => (k === i && x ? { ...x, fx, fy } : x)))} />
             );
           })}
         </View>
+        {photos[0] || photos[1] ? <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>Drag a photo to choose the part that shows.</Text> : null}
       </Card>
 
       <Card>
@@ -538,5 +598,53 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
       {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
       <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
     </ScrollView>
+  );
+}
+
+/* ONE OF THE TWO FRAMES, the shape a row's photo is shown in everywhere,
+ * three by four (owner, 2026-11-22: "we also need to be considerate now
+ * of crop whenever we upload ... let's allow a nice user interface for
+ * that"; and, reading that it had not been built: "why do we not build
+ * cropping on upload?"). The photo fills the frame and what does not fit
+ * hangs over two of its edges; A DRAG SLIDES THE PHOTO under the frame, so
+ * the rower chooses which part is kept, and what is in the frame as LOG is
+ * pressed is the picture that is sent (upload.ts frameOf). A tap, as
+ * before, goes to the library for another photo. It does not zoom: a
+ * photo is as large as fills the frame and no larger. */
+function CropFrame({ p, label, onPress, onMove }: { p: Picked | null; label: string; onPress: () => void; onMove: (fx: number, fy: number) => void }) {
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const fx = p?.fx ?? 0.5;
+  const fy = p?.fy ?? 0.5;
+  /* How the photo sits: as wide or as tall as the frame, whichever makes
+   * it cover, and how much of it hangs over each way. */
+  const r = p && p.height > 0 ? p.width / p.height : FRAME;
+  const wider = r > FRAME;
+  const iw = wider ? box.h * r : box.w;
+  const ih = wider ? box.h : r > 0 ? box.w / r : box.h;
+  const overX = Math.max(0, iw - box.w);
+  const overY = Math.max(0, ih - box.h);
+  const now = useRef({ fx, fy, overX, overY, onMove });
+  now.current = { fx, fy, overX, overY, onMove };
+  const from = useRef({ fx: 0.5, fy: 0.5 });
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) + Math.abs(g.dy) > 5 && now.current.overX + now.current.overY > 0,
+      onPanResponderGrant: () => {
+        from.current = { fx: now.current.fx, fy: now.current.fy };
+      },
+      onPanResponderMove: (_, g) => {
+        const c = now.current;
+        const clamp = (v: number) => Math.min(1, Math.max(0, v));
+        c.onMove(c.overX > 0 ? clamp(from.current.fx - g.dx / c.overX) : 0.5, c.overY > 0 ? clamp(from.current.fy - g.dy / c.overY) : 0.5);
+      },
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+  return (
+    <View {...(p ? pan.panHandlers : {})} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} style={{ flex: 1, aspectRatio: FRAME, backgroundColor: C.pale, borderWidth: 1, borderColor: p ? C.ink : C.line, borderStyle: p ? "solid" : "dashed", overflow: "hidden" }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        {p && box.w ? <Image source={{ uri: p.uri }} resizeMode="cover" style={{ position: "absolute", left: -overX * fx, top: -overY * fy, width: iw, height: ih }} /> : p ? null : <Text style={{ fontFamily: F.black, fontSize: 34, color: C.ink }}>+</Text>}
+      </Pressable>
+    </View>
   );
 }

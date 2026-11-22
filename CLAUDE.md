@@ -67,6 +67,14 @@ Owner, 2026-11-21, of "open the app's routes to non-admins; they are admin-only 
 
 A rower can delete their own account from the app (`api/row100k/app/account`, Apple asks for it). That is the rower's own request about their own data, not a reset; the rule that a reset never deletes stands. The app's privacy policy and terms are public pages (`/row100k/app-privacy`, `/row100k/app-terms`; on rowtember.com they are `/app-privacy` and `/app-terms`) because a store listing links to them; they say what the code does, so change the two together.
 
+### Since 2026-11-22 the app has its own look, and the website is frozen
+
+Owner, 2026-11-22, with Strava and Instagram open beside the app: "we need the black and white. That's what we need to be"; "I need you to rebuild a lot of this Instagram UI ... we have to make it exactly like Instagram"; of a row in the feed, of Strava's: "we really want to build almost the same exact UI here." And: "let's keep white mode default."
+
+So the app no longer copies the site's cream and blue: it is a white page with near-black type (`mobile/src/theme.ts`), a row in the feed is laid out as Strava lays one out, and a profile as Instagram does. White is the default look; the black one is the switch in settings. `mobile/DESIGN.md` (rounds 20 and 21) has what was decided and what is still open.
+
+The same day, asked whether to push a new website page: "let's not update the website ... in most of these conversations, especially when we're talking about the app, we're freezing the website code and just working on the app code ... in most cases." Work goes into `mobile/` and the routes it reads; site pages are left as they are unless he names one.
+
 ### His installed build takes new code over the air; say when it needs a rebuild
 
 Owner, 2026-11-21, asked whether every change needs `eas build` again: "lets do this and make sure to tell me if i need to re run".

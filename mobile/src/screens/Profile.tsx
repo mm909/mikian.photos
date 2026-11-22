@@ -1,13 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Image, Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
-import { RingIcon, ShareIcon } from "../icons";
+import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
 import { Avatar, Bar, Blocks, PhotoViewer, Waiting, useLoad, useScrollDir } from "../ui";
-import { RowerRows } from "./Feed";
+import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
@@ -54,7 +54,35 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  * page a bell beside FOLLOWING asks to be told when that rower rows.
  *
  * Everything is the view the site computes (api/row100k/app/profile), so a
- * hidden rower is hidden here by the same rule and gets the same dog tag. */
+ * hidden rower is hidden here by the same rule and gets the same dog tag.
+ *
+ * THE HEAD AND THE FIRST TAB ARE INSTAGRAM'S (owner, 2026-11-22, with his
+ * own Instagram page open beside the app: "I need you to rebuild a lot of
+ * this Instagram UI. It's just so good"; "we have to make it exactly like
+ * Instagram"). What he named, and where it went:
+ *
+ *   the face at the left, and beside it three counts, the figure over its
+ *     word: ROWS ("it's definitely rows, bro. 161 rows"), followers,
+ *     following;
+ *   the name under them, the black check after it for a rower who has
+ *     Telemetry ("it's a black verified check mark");
+ *   under the name, where Instagram prints what an account is, THE TOTAL
+ *     METERS ROWED, in the secondary grey ("instead of 100X being where
+ *     the photographer is, let's put total meters rowed");
+ *   the bio; no link to Instagram ("let's not link to their Instagram
+ *     anymore"); no highlights;
+ *   the first tab a GRID of the rower's photos and nothing else ("the
+ *     exact same Instagram grid with just a photo ... none of the stats");
+ *   the month word, the meters of that month, the time rowed, the sessions
+ *     and the average split moved INTO the stats tab ("I don't want to see
+ *     that if I don't have to ... we're always just going to be showing
+ *     the total amounts on the main screen").
+ *
+ * The rower's number is the word in the app's top bar on this page, as it
+ * was (App.tsx). The third tab is still the 100K: he had not decided what
+ * it becomes ("I kind of want it to be like a trophy case, but not like a
+ * badge collector"). Until that day the head was the site's nameplate over
+ * the big blue odometer of the month. */
 
 const m2 = (s: number) => fmtClock(s, false);
 const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
@@ -70,8 +98,14 @@ export function ProfileScreen({
   onErg,
   onScrollDir,
   onBest,
+  onPlus,
+  onEdit,
 }: {
   num?: number;
+  /* EDIT PROFILE, pressed on the rower's own page: the account's settings. */
+  onEdit?: () => void;
+  /* Whether this rower wears the black check, for the bar over the page. */
+  onPlus?: (num: number, on: boolean) => void;
   onLog?: () => void;
   onRow?: (id: string) => void;
   onPeople?: (list: PeopleList, num?: number) => void;
@@ -102,6 +136,12 @@ export function ProfileScreen({
   const [sharing, setSharing] = useState(false);
   const [tab, setTab] = useState<"rows" | "stats" | "100k">("rows");
   useEffect(() => setLive(null), [data]);
+  const shown = data?.profile;
+  useEffect(() => {
+    if (shown) onPlus?.(shown.rower.rowerNumber, !!shown.plus);
+    // The page's own word about its rower, once it is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown?.rower.rowerNumber, shown?.plus]);
 
   if (own && ready && !me.signedIn) return <SignIn why="Your profile, your rows and logging a row need your account. The feed, the board and the stats are open to everyone." />;
   if (own && ready && me.signedIn && !me.me) return <Join />;
@@ -117,9 +157,7 @@ export function ProfileScreen({
   const rowed = p.bests.filter((b) => b.sub !== "not yet rowed" && b.value !== "—");
 
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      <Nameplate num={p.rower.rowerNumber} name={p.rower.displayName} />
-
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <SocialLine
         p={p}
         rel={rel}
@@ -137,48 +175,24 @@ export function ProfileScreen({
         <DogTag p={p} />
       ) : (
         <>
-          {/* THE METERS of the month, and under them which month it is: the
-              word is the menu (owner, 2026-11-21: "it's just meters and then
-              that time", in place of the hours on the erg, which the ledger
-              below already carries). */}
-          <Odometer meters={t?.meters ?? 0} />
-          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", marginTop: 8 }}>
-            <Text style={mono(12, false, C.gray)}>Meters · </Text>
-            <WordMenu options={p.periodOptions} value={p.period.key} onPick={setPeriod} ariaLabel="Which month" />
-          </View>
-
-          {/* The handle, and at the right of its line SHARE: the rower's
-              own stickers (owner, 2026-11-22: "I need a shareables menu on
-              the profile ... maybe it goes to the right of my Instagram"). */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, minHeight: 34 }}>
-            {/* A press on the handle is Instagram, at that account (owner,
-                2026-11-22: "if I click on ... their Instagram at, it should
-                take me ... to their Instagram page"). */}
-            {p.rower.instagram ? (
-              <Text accessibilityRole="link" accessibilityLabel={`${p.rower.instagram} on Instagram`} onPress={() => Linking.openURL(`https://www.instagram.com/${encodeURIComponent(p.rower.instagram)}/`).catch(() => null)} suppressHighlighting style={[mono(12, false, C.accent), { paddingVertical: 8 }]}>
-                @{p.rower.instagram}
-              </Text>
-            ) : (
-              <View />
-            )}
-            {p.isMe ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} hitSlop={8} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 12, borderRadius: 17, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
-                <ShareIcon color="#fff" size={16} />
-                <Text style={mono(10, true, "#fff", 0.12)}>Share</Text>
+          {/* Two buttons side by side, as Instagram sets them (owner,
+              2026-11-22, of SHARE alone across the page: "it's just so
+              large ... what are the other actions that we could even take
+              there?"): EDIT PROFILE, which is the account's settings, and
+              SHARE, the rower's own stickers. */}
+          {p.isMe ? (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+              {onEdit ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={onEdit} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                  <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Edit profile</Text>
+                </Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
               </Pressable>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
           {sharing ? <StickerViewer onClose={() => setSharing(false)} /> : null}
-
-          <View style={{ marginTop: 20 }}>
-            <Ledger
-              cells={[
-                [hours(t?.seconds ?? 0), "Time rowed"],
-                [fmtInt(t?.sessions ?? 0), "Sessions"],
-                [t && t.meters > 0 && t.seconds > 0 ? fmtClock((t.seconds / t.meters) * 500) : "-:--.-", "Average split"],
-              ]}
-            />
-          </View>
 
           {locked ? (
             <View style={{ borderWidth: 2, borderColor: C.ink, padding: 18, marginTop: 30 }}>
@@ -195,6 +209,25 @@ export function ProfileScreen({
 
           {tab === "stats" && !locked ? (
           <>
+          {/* WHICH MONTH, and that month's figures, here and not in the
+              head (owner, 2026-11-22). The word is the menu. */}
+          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", marginTop: 16, marginBottom: 12 }}>
+            <WordMenu options={p.periodOptions} value={p.period.key} onPick={setPeriod} ariaLabel="Which month" />
+          </View>
+          <Ledger
+            cells={[
+              [fmtInt(t?.meters ?? 0), "Meters"],
+              [fmtInt(t?.sessions ?? 0), "Sessions"],
+            ]}
+          />
+          <View style={{ marginTop: -2 }}>
+            <Ledger
+              cells={[
+                [hours(t?.seconds ?? 0), "Time rowed"],
+                [t && t.meters > 0 && t.seconds > 0 ? fmtClock((t.seconds / t.meters) * 500) : "-:--.-", "Average split"],
+              ]}
+            />
+          </View>
           {p.paceCurve.length >= 2 ? (
             <>
               <Eye left="The pace" right="Each row, and the running average" />
@@ -263,49 +296,30 @@ export function ProfileScreen({
         </>
       )}
 
-      {locked || p.masked || tab !== "rows" ? null : <RowerRows num={p.rower.rowerNumber} mine={p.isMe} onRower={() => null} onRow={(id) => onRow?.(id)} />}
+      {locked || p.masked || tab !== "rows" ? null : (
+        <View style={{ marginHorizontal: -16 }}>
+          <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} />
+        </View>
+      )}
       {p.masked && !locked ? <Log p={p} onRow={onRow} /> : null}
     </ScrollView>
   );
 }
 
-/* THE NAMEPLATE, as the site's: the number grey, the name ink, capitals,
- * on a hairline. ONE line: the type comes down from 30 until the name fits
- * the width, and a name too long even at the floor is cut with an ellipsis.
- * (The width of a line of Archivo Black capitals is reckoned, letter by
- * letter, because a phone in a browser cannot shrink type to fit by itself.) */
-function Nameplate({ num, name }: { num: number; name: string }) {
-  const [w, setW] = useState(0);
-  const n3 = String(num).padStart(3, "0");
-  const em = `${n3} ${name}`
-    .toUpperCase()
-    .split("")
-    .reduce((sum, ch) => sum + (ch === " " ? 0.3 : /[IJ1.,'-]/.test(ch) ? 0.44 : /[MW]/.test(ch) ? 0.98 : 0.76), 0);
-  const size = w ? Math.max(16, Math.min(30, Math.floor(w / em))) : 30;
-  return (
-    <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ borderBottomWidth: 1, borderColor: C.ink, paddingBottom: 6 }}>
-      <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.14), color: C.ink, textTransform: "uppercase" }}>
-        <Text style={{ color: C.gray }}>{n3} </Text>
-        {name}
-      </Text>
-    </View>
-  );
-}
-
-/* FOLLOWERS AND FOLLOWING, each a way into its list; and, on somebody
- * else's page, the bell (told when this rower passes me, or not) and FOLLOW
- * at the right of the same line. */
+/* THE HEAD, as Instagram sets one: the face, and beside it the three
+ * counts, each a figure over its word (ROWS is not a way anywhere; the
+ * other two open their lists). Under them the name with the black check,
+ * the total meters in the secondary grey, the bio, and on somebody else's
+ * page FOLLOW with the bell beside it once they are followed. */
 function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
   const { me } = useSession();
   const n = p.rower.rowerNumber;
-  /* SIDE BY SIDE, the figure and then its word on one line (owner,
-   * 2026-11-21: "0 followers, 3 following, but side by side instead of one
-   * on top of another"). On somebody else's page, where FOLLOW shares the
-   * line, the two fold under each other only if the phone is too narrow. */
-  const count = (v: number, one: string, many: string, list: PeopleList) => (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${v} ${v === 1 ? one : many}`} onPress={() => onPeople?.(list, n)} disabled={!onPeople} hitSlop={8} style={{ flexDirection: "row", alignItems: "baseline", gap: 5 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 24, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text>
-      <Text style={mono(10, false, C.gray, 0.08)}>{v === 1 ? one : many}</Text>
+  const count = (v: number, word: string, list?: PeopleList) => (
+    <Pressable accessibilityRole={list ? "link" : "text"} accessibilityLabel={`${v} ${word}`} onPress={() => list && onPeople?.(list, n)} disabled={!list || !onPeople} hitSlop={8} style={{ flex: 1 }}>
+      <Text style={{ fontFamily: F.semi, fontSize: 16, lineHeight: 21, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(v)}</Text>
+      <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink }}>
+        {word}
+      </Text>
     </Pressable>
   );
   /* THE BELL on this rower: told when they log a row (and when they pass
@@ -320,45 +334,65 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
     }
     setRinging(false);
   };
+  const rows = p.lifetime?.sessions ?? p.sessions;
+  /* To his screenshot of it: the name beside the face with the three
+   * counts under it, each set from its own left edge; then, under the
+   * face, the line in grey, and the bio. The check is in the bar over the
+   * page, after the number (App.tsx), where Instagram has it. */
   return (
     <>
-      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 14, minHeight: 52, marginTop: 12 }}>
-        <Avatar uri={p.avatar} name={p.rower.displayName} size={52} />
-        <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: 16, rowGap: 2 }}>
-          {count(counts.followers, "follower", "followers", "followers")}
-          {count(counts.following, "following", "following", "following")}
+      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 18 }}>
+        <Avatar uri={p.avatar} name={p.rower.displayName} size={88} />
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, marginBottom: 8 }}>
+            {p.rower.displayName}
+          </Text>
+          <View style={{ flexDirection: "row" }}>
+            {count(rows, rows === 1 ? "row" : "rows")}
+            {count(counts.followers, counts.followers === 1 ? "follower" : "followers", "followers")}
+            {count(counts.following, "following", "following")}
+          </View>
         </View>
-        {!p.isMe && me.me ? (
-          <>
-            {rel.following === "accepted" ? (
-              <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 34, height: 32, alignItems: "center", justifyContent: "center", opacity: pressed || ringing ? 0.5 : 1 })}>
-                <RingIcon on={rel.bell} />
-              </Pressable>
-            ) : null}
-            <FollowButton num={n} state={rel.following} onChange={onChange} />
-          </>
-        ) : null}
       </View>
-      {p.bio ? <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 12 }}>{p.bio}</Text> : null}
+      {p.lifetime ? <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.gray, marginTop: 10 }}>{fmtInt(p.lifetime.meters)} meters rowed</Text> : null}
+      {p.bio ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: p.lifetime ? 1 : 10 }}>{p.bio}</Text> : null}
+      {!p.isMe && me.me ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
+          <View style={{ flex: 1 }}>
+            <FollowButton num={n} state={rel.following} onChange={onChange} />
+          </View>
+          {rel.following === "accepted" ? (
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.pale, opacity: pressed || ringing ? 0.5 : 1 })}>
+              <RingIcon on={rel.bell} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </>
   );
 }
 
-/* THE THREE TABS of a profile: words on a rule, the open one inked and
- * underlined, each a third of the width. */
+/* THE THREE TABS of a profile, as Instagram draws them: a picture each, a
+ * short ink rule under the open one. The grid of photos, the stats, and
+ * the 100K, which keeps its name until he decides what that tab becomes. */
 function Tabs({ value, onPick }: { value: "rows" | "stats" | "100k"; onPick: (t: "rows" | "stats" | "100k") => void }) {
   const tabs: { id: "rows" | "stats" | "100k"; label: string }[] = [
-    { id: "rows", label: "Rows" },
+    { id: "rows", label: "Photos of every row" },
     { id: "stats", label: "Stats" },
-    { id: "100k", label: "100K" },
+    { id: "100k", label: "The 100K" },
   ];
   return (
-    <View accessibilityRole="tablist" style={{ flexDirection: "row", marginTop: 26, marginBottom: 16, borderBottomWidth: 1, borderColor: C.line }}>
-      {tabs.map((t) => (
-        <Pressable key={t.id} accessibilityRole="tab" accessibilityState={{ selected: value === t.id }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 3, borderColor: value === t.id ? C.ink : "transparent", marginBottom: -1 }}>
-          <Text style={mono(12, true, value === t.id ? C.ink : C.gray)}>{t.label}</Text>
-        </Pressable>
-      ))}
+    <View accessibilityRole="tablist" style={{ flexDirection: "row", marginTop: 18, marginBottom: 2 }}>
+      {tabs.map((t) => {
+        const on = value === t.id;
+        const tone = on ? C.ink : C.gray;
+        return (
+          <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingTop: 10 }}>
+            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : <Text style={{ fontFamily: F.black, fontSize: 15, color: tone }}>100K</Text>}</View>
+            <View style={{ width: 64, height: 2, marginTop: 10, backgroundColor: on ? C.ink : "transparent" }} />
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -434,7 +468,9 @@ function BlockedPage({ b, onChange }: { b: Blocked; onChange: () => void }) {
   };
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 22 }}>
-      <Nameplate num={b.rowerNumber} name={b.displayName} />
+      <Text numberOfLines={1} style={{ fontFamily: F.semi, fontSize: 18, color: C.ink }}>
+        {b.displayName}
+      </Text>
       <Text style={[mono(12, true), { marginTop: 22 }]}>{b.byMe ? "You blocked this rower" : "This page is not available"}</Text>
       {b.byMe ? (
         <>

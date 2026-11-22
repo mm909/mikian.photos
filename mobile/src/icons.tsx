@@ -208,3 +208,30 @@ export function RingIcon({ on, color = C.ink, size = 22 }: P & { on: boolean }) 
     </Svg>
   );
 }
+
+/* THE BLACK CHECK (owner, 2026-11-22: "it's a black verified check mark";
+ * "we should denote somewhere here if they are a telemetry subscriber ...
+ * definitely never say subscriber ... Strava does the banner thing. That
+ * looks weird. I think it should be more like a check mark"). The rosette
+ * a phone has taught everybody means the real one, in the ink of the page
+ * and not in anybody's blue, the tick cut out of it in the page's own
+ * colour. It sits after a rower's name. */
+const ROSETTE = "M12.00 1.10 L14.36 3.21 L17.45 2.56 L18.43 5.57 L21.44 6.55 L20.79 9.64 L22.90 12.00 L20.79 14.36 L21.44 17.45 L18.43 18.43 L17.45 21.44 L14.36 20.79 L12.00 22.90 L9.64 20.79 L6.55 21.44 L5.57 18.43 L2.56 17.45 L3.21 14.36 L1.10 12.00 L3.21 9.64 L2.56 6.55 L5.57 5.57 L6.55 2.56 L9.64 3.21 Z";
+export function VerifiedIcon({ color = C.ink, size = 15 }: P) {
+  return (
+    <Svg {...box(size)} accessibilityLabel="Telemetry">
+      <Path d={ROSETTE} fill={color} stroke={color} strokeWidth={1.6} strokeLinejoin="round" />
+      <Path d="M7.9 12.3 L10.7 15.1 L16.2 9.2" stroke={C.paper} strokeWidth={2.1} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/* THE GRID: nine squares, the first tab of a profile. */
+export function GridIcon({ color = C.ink, size = 24 }: P) {
+  const at = [4, 10.25, 16.5];
+  return (
+    <Svg {...box(size)}>
+      {at.flatMap((y) => at.map((x) => <Rect key={`${x}-${y}`} x={x} y={y} width={3.5} height={3.5} rx={0.6} fill={color} />))}
+    </Svg>
+  );
+}
