@@ -67,7 +67,7 @@ Everything builds in Expo's cloud (EAS), so no Mac is needed.
    `npx eas-cli@latest build --profile development --platform ios`. Install it from the link EAS prints.
 4. Store builds: `npx eas-cli@latest build --profile production --platform all`.
 5. Upload: `npx eas-cli@latest submit --platform ios` and `--platform android`.
-6. In App Store Connect: screenshots, description, privacy answers, then submit for review. Tell the reviewer DEMO ROW runs the monitor without a rowing machine.
+6. In App Store Connect: screenshots, description, privacy answers, then submit for review. `STORE.md` has every field's text, the privacy answers and the notes for the reviewer (the review sign-in, and the demo row that runs the monitor without a rowing machine).
 
 The display name is `ROW` and the bundle id is `com.rowtember.app` (both in `app.json`).
 

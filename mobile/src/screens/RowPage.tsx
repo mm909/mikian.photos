@@ -319,6 +319,18 @@ function Usual({ u, meters, seconds, mine, name }: { u: NonNullable<RowData["usu
   );
 }
 
+/* A DEMO ROW'S ANALYTICS (2026-11-22): the read of the piece the simulator
+ * just rowed, straight off the phone. Nothing of it is logged or kept, and
+ * the line at the top says so. */
+export function DemoPage({ doc, meters, rows, onMetric }: { doc: TelemetryDoc; meters: number; rows: Row[]; onMetric?: (id: MetricId, mine: RowMeasure) => void }) {
+  return (
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 140 }}>
+      <Text style={[mono(10, true, C.ink, 0.12), { lineHeight: 16 }]}>Demo row · simulated · not logged</Text>
+      <Review row={{ id: "demo", day: doc.startedAt.slice(0, 10), meters }} rows={rows} doc={doc} onMetric={onMetric} />
+    </ScrollView>
+  );
+}
+
 /* ONE SAVED ERG SESSION that is not tied to a logged row: its read, on its
  * own (owner, 2026-11-22: "I should be able to click on these ... and see
  * the stat page"). */

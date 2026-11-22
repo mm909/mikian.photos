@@ -19,9 +19,15 @@ import { GhostRace } from "./GhostRace";
  * 2026-11-21: "should those buttons be down at the bottom, like a connect
  * and then a log by hand, and then the top ... that's where the ...
  * monitors that come up can happen"). The top is how to connect, and the
- * monitors as they are found. The DEMO ROW is gone from here (the same
- * day: "I don't think we need it anymore"); the simulator stays in the
- * code for the sandbox.
+ * monitors as they are found.
+ *
+ * THE DEMO ROW IS BACK, as a quiet line under the steps (owner, 2026-11-22,
+ * for the App Store's reviewer, who has no rowing machine: "We can bring
+ * back the demo row for now"; it had gone on 2026-11-21, "I don't think we
+ * need it anymore"). It runs the simulator over 2,000 m at six times a
+ * clock. A demo row is never logged outside development, so it ends on its
+ * own analytics instead (`onDemoRead`): the read of the piece the simulator
+ * rowed, kept nowhere.
  *
  * THE MONITOR (owner, 2026-11-20): "we don't need an animating wheel. Lets
  * stick to just numbers"; "I would like my avg pace and my current pace. My
@@ -35,7 +41,11 @@ import { GhostRace } from "./GhostRace";
 
 export type Logged = { id: string; meters: number; seconds: number; day: string; doc?: TelemetryDoc; demo: boolean; device: string; strokes: number; avgWatts: number };
 
-export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: Logged) => void; onLeave: () => void }) {
+/* The demo row's distance, and how many times faster than a clock it runs. */
+const DEMO_METERS = 2000;
+const DEMO_SPEED = 6;
+
+export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; onLogged: (r: Logged) => void; onLeave: () => void; /* A demo row, finished or left: its analytics open, and nothing is logged. */ onDemoRead: (doc: TelemetryDoc, meters: number) => void }) {
   const { ready, me } = useSession();
   const [form, setForm] = useState<"none" | "manual" | "erg">("none");
   /* The piece as it stood when LOG was pressed: the monitor may still be
@@ -95,6 +105,13 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
           setSnap({ meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, doc: erg.doc() });
           setForm("erg");
         }}
+        onRead={() => {
+          const doc = erg.doc();
+          if (!doc) return;
+          const meters = Math.floor(l.meters);
+          erg.discard();
+          onDemoRead(doc, meters);
+        }}
         onLeave={onLeave}
       />
     );
@@ -114,6 +131,13 @@ export function RowScreen({ erg, onLogged, onLeave }: { erg: Erg; onLogged: (r: 
             <Text style={[styles.body, { flex: 1 }]}>{line}</Text>
           </View>
         ))}
+        {erg.phase === "idle" ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Run a demo row" onPress={() => erg.startDemo(DEMO_METERS, DEMO_SPEED)} hitSlop={6} style={({ pressed }) => ({ paddingVertical: 16, opacity: pressed ? 0.5 : 1 })}>
+            <Text style={[styles.body, { fontSize: 14 }]}>
+              No rowing machine here? <Text style={{ fontFamily: F.bold, color: C.ink, textDecorationLine: "underline" }}>Run a demo row</Text>
+            </Text>
+          </Pressable>
+        ) : null}
         {erg.phase === "connecting" ? (
           <View style={[styles.row, { gap: 10, marginTop: 18 }]}>
             <ActivityIndicator color={C.ink} />
@@ -154,7 +178,7 @@ const IDLE_MS = 6000;
  * the splits, and the way out, which is the last. */
 const LAST = 5;
 
-function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave: () => void }) {
+function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void; onRead: () => void; onLeave: () => void }) {
   const { live, name, error, demo } = erg;
   /* The screen stays on for as long as the monitor is up: a rower's hands
    * are on the handle, not the phone. */
@@ -187,12 +211,25 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
     return () => clearInterval(t);
   }, []);
   const over = meters >= 1 && (live.ended || !!error || still);
-  const ends = (
-    <View style={{ flexDirection: "row", gap: 10 }}>
-      <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
-      <Btn label={canLog ? `Log ${fmtInt(meters)} m` : demo ? "Demo row" : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
-    </View>
-  );
+  /* A demo row ends on its analytics: it is not logged, so that is what
+   * there is to see of it. Eight strokes in, there is a piece to read. In
+   * development it can be logged as well, and the read is a second line. */
+  const canRead = demo && live.strokes >= 8;
+  const ends =
+    demo && !canLog ? (
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
+        <Btn label="See its analytics" onPress={onRead} disabled={!canRead} style={{ flex: 2 }} />
+      </View>
+    ) : (
+      <View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
+          <Btn label={canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
+        </View>
+        {demo ? <Btn label="See its analytics, not logged" quiet onPress={onRead} disabled={!canRead} style={{ marginTop: 10 }} /> : null}
+      </View>
+    );
   /* THE RACE (GhostRace.tsx) IS THE FIRST PAGE of a set distance (owner,
    * 2026-11-22: "let's have that be the main screen"), with the numbers one
    * swipe on. A plain row or a set time has nobody to race, so there the
@@ -252,7 +289,7 @@ function Monitor({ erg, onLog, onLeave }: { erg: Erg; onLog: () => void; onLeave
             {/* THE LAST PAGE: the way out, always a swipe away. */}
             <View style={{ width: w, height: h, paddingHorizontal: 20, justifyContent: "center" }}>
               <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
-              <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.` : demo && meters >= 1 ? "A demo row shows the monitor. It is not logged." : "Nothing rowed yet."}</Text>
+              <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.` : demo && meters >= 1 ? "A demo row is not logged. Its analytics open from here." : "Nothing rowed yet."}</Text>
               {ends}
             </View>
           </ScrollView>

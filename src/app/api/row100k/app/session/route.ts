@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { mintAppToken, verifyAppleIdToken, verifyGoogleIdToken } from "@/lib/appToken";
+import { reviewAccountFor } from "@/lib/appReview";
 import { upsertAppleAccount, upsertGoogleAccount } from "@/lib/auth";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -13,7 +14,11 @@ import { rateLimit } from "@/lib/rateLimit";
  * DEVELOPMENT ONLY: POST { devEmail } signs in as an EXISTING account by
  * email, the way the mk_dev_actor cookie does for the site, so the app can
  * be walked on a laptop without a Google client. Inert in any production
- * build (Vercel production and preview both). */
+ * build (Vercel production and preview both).
+ *
+ * THE APP STORE REVIEWER: POST { reviewUser, reviewPass } signs in as the
+ * one review account when both match what the owner set on the server
+ * (lib/appReview.ts). With nothing set there, nothing matches. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -36,6 +41,14 @@ export async function POST(req: Request) {
       const row = await db.photographer.findFirst({ where: { email: body.devEmail.trim().toLowerCase() }, select: { id: true } });
       if (!row) return no("No such account.", 404);
       return NextResponse.json({ ok: true, token: await mintAppToken(row.id) }, { headers: NO_STORE });
+    }
+    if (typeof body.reviewUser === "string" && typeof body.reviewPass === "string") {
+      /* A guess at the password is rarer than a sign-in, and is held to it. */
+      const tries = await rateLimit({ key: `row-app-review:${ip}`, limit: 8, windowSec: 600 }).catch(() => null);
+      if (tries && !tries.ok) return no("Too many sign-ins. Try again in a few minutes.", 429);
+      const id = await reviewAccountFor(body.reviewUser, body.reviewPass);
+      if (!id) return no("That is not the review sign-in.", 401);
+      return NextResponse.json({ ok: true, token: await mintAppToken(id) }, { headers: NO_STORE });
     }
     /* SIGN IN WITH APPLE: POST { appleToken, name? }. */
     if (typeof body.appleToken === "string") {

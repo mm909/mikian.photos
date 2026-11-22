@@ -23,8 +23,22 @@ onLook(() => {
 });
 
 export function SignIn({ why }: { why: string }) {
-  const { signInDev, signInSite, signInApple } = useSession();
+  const { signInDev, signInSite, signInApple, signInReview } = useSession();
   const [email, setEmail] = useState("");
+  /* The App Store reviewer's sign-in, folded away until asked for. */
+  const [review, setReview] = useState(false);
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const asReviewer = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await signInReview(user, pass);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not work.");
+    }
+    setBusy(false);
+  };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const dev = async () => {
@@ -106,6 +120,22 @@ export function SignIn({ why }: { why: string }) {
         </Text>
         . There is no tolerance for abusive content: rows and rowers can be reported and blocked.
       </Text>
+      {/* APP REVIEW SIGN-IN (owner, 2026-11-22: "Add a reviewer login").
+          Apple's reviewer is handed a name and a password in the review
+          notes; nobody else has them, and with none set on the server the
+          door is shut. A quiet line until it is pressed. */}
+      {review ? (
+        <View style={{ marginTop: 22 }}>
+          <Eyebrow>App review sign-in</Eyebrow>
+          <TextInput style={field} value={user} onChangeText={setUser} autoCapitalize="none" autoCorrect={false} placeholder="Name" placeholderTextColor={C.gray} accessibilityLabel="Review sign-in name" />
+          <TextInput style={field} value={pass} onChangeText={setPass} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="Password" placeholderTextColor={C.gray} accessibilityLabel="Review sign-in password" onSubmitEditing={asReviewer} />
+          <Btn label={busy ? "Signing in" : "Sign in"} quiet disabled={busy || user.trim().length < 3 || pass.length < 8} onPress={asReviewer} />
+        </View>
+      ) : (
+        <Text accessibilityRole="button" onPress={() => setReview(true)} suppressHighlighting style={[styles.body, { fontSize: 13, marginTop: 18, textDecorationLine: "underline" }]}>
+          App review sign-in
+        </Text>
+      )}
       {__DEV__ ? (
         <View style={{ marginTop: 22 }}>
           <Eyebrow>Development: an existing account's email</Eyebrow>

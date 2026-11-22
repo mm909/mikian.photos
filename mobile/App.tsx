@@ -13,7 +13,7 @@ import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
-import { ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
+import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Logged } from "./src/screens/RowScreen";
 import { SettingsScreen, type SettingsPage } from "./src/screens/Settings";
@@ -80,6 +80,8 @@ type Over = { k: number } & (
   /* The questions behind one card of a row's analytics, with that row's
    * own figures (screens/Field.tsx). */
   | { kind: "metric"; id: MetricId; mine: RowMeasure }
+  /* The analytics of a demo row: read off the phone, logged nowhere. */
+  | { kind: "demo"; doc: TelemetryDoc; meters: number }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -379,7 +381,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -405,6 +407,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <StoryScreen id={o.id} />
     ) : o.kind === "metric" ? (
       <MetricScreen id={o.id} mine={o.mine} />
+    ) : o.kind === "demo" ? (
+      <DemoPage doc={o.doc} meters={o.meters} rows={rows} onMetric={openMetric} />
     ) : o.kind === "news" ? (
       <NewsScreen
         onRower={openRower}
@@ -540,7 +544,15 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               form survives a look at the feed. */}
           {log !== "closed" ? (
             <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.paper, display: logOn ? "flex" : "none" }}>
-              <RowScreen erg={erg} onLogged={logged} onLeave={back} />
+              <RowScreen
+                erg={erg}
+                onLogged={logged}
+                onLeave={back}
+                onDemoRead={(doc, meters) => {
+                  setLog("closed");
+                  setStack([{ k: nextKey++, kind: "demo", doc, meters }]);
+                }}
+              />
             </View>
           ) : null}
         </View>
