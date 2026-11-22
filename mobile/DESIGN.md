@@ -575,3 +575,12 @@ His third read, by voice, of the race page and the redesign. BUILT in the worktr
 - **White stays the default look** ("let's keep white mode default").
 - **The 26 race day recordings were assigned** to their racers on his word (`scripts/raceday-telemetry-match.ts --write`).
 - The sandbox's sample rows carry real photos now: `node scripts/dev-app-db.mjs --photos`.
+
+## Round 22 (2026-11-22, toward 2 in the morning): passing, the best, and a sheet for the board
+
+Rounds 19 to 21 were PUSHED to main as 5097de0 on his word ("push the update") and published over the air to the preview channel at runtime 1.2.0. What follows is BUILT in the worktree and NOT committed.
+
+- **The race is about passing** ("let's optimize for the number of times we're passing people or getting passed ... that dynamic race feeling"). A boat off the water is out at once ("as soon as they fall off screen, they're out"). Nothing slides in ("do not have someone swoop in from the back. That looks terrible"): the lane goes to a row that is off the water and coming onto it at its own pace, one ahead that the rower is catching or one behind that is catching the rower, the soonest to be past the rower first; a boat dropped behind is answered from the front ("if we drop someone, that means we're catching up to someone else"). One row a rower, the rower's own past rows included ("not have multiple copies of the same person").
+- **The rower's best is a red line** where their fastest row over the distance is now, and the water reddens within 60 m of it, from 500 m on ("when you are chasing a PR, the whole track starts glowing that red"). NOT BUILT: the zoom out and back in.
+- **The board's sheet, a MOCK** (`Board.tsx` Sheet): the viewer's total big at the top; a rower is a line (place, number, name, total) over eleven boxes, the seven days gone, today, and three ahead, each with that day's meters in thousands ("like an attendance sheet ... on GitHub ... that heat map"). The viewer's own three boxes ahead step through a few distances and are kept on the phone only; declaring a plan to others ("publicly declare their rowing plan") needs a table and a route and waits on his yes to the look. The board route answers the week (`week`).
+- **A look being tried is one press away for an admin**: the 100K at the top of the board swaps bars and sheet ("the secret dev trick").

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
-import Svg, { Circle, Line, Path } from "react-native-svg";
+import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import { api } from "../api";
 import { DRIVE, ghostMeters, oarAngle, phaseOf, pickRivals, rowerKey, standing, type Ghost, type Ghosts } from "../erg/ghosts";
 import { milestone } from "../erg/milestone";
@@ -42,11 +42,24 @@ import { Eyebrow, Num, styles } from "../ui";
  * trade lanes, and only while they are a boat's length apart along the
  * water, so neither rows through the other ("we can predict a nice path").
  *
- * ONE THAT IS GONE IS REPLACED ("if they fall too far behind, they can get
- * replaced by someone ... that can kind of slide in"). A boat off the
- * water for four seconds gives its lane to the best rival not yet racing
- * for the finish the rower is now on pace for, near the rower if there is
- * one, and that boat slides in from the end of the lane it is coming from.
+ * A BOAT OFF THE WATER IS OUT AT ONCE, AND THE NEXT COMES ON BY ITSELF
+ * (his fourth read: "as soon as they fall off screen, they're out"; "a new
+ * person from the front has to come. Do not have someone swoop in from the
+ * back. That looks terrible ... if we drop someone, that means we're
+ * catching up to someone else"; "let's optimize for the number of times
+ * we're passing people or getting passed ... that dynamic race feeling").
+ * Nothing is slid in. The lane goes to a row that is off the water now and
+ * coming onto it at its own pace: one ahead that the rower is catching,
+ * or one behind that is catching the rower. Of those, the one that will
+ * be past the rower soonest, a recorded row before an even one; and when
+ * the boat that left was dropped behind, one from the front before any
+ * from the back. Nobody rows two of one rower's rows at once.
+ *
+ * THE ROWER'S BEST IS A RED LINE ON THE WATER, where their fastest row
+ * over the distance is at this moment, and the water takes its red as the
+ * rower closes on it ("when you are chasing a PR, the whole track starts
+ * glowing that red ... kind of like when Olympians run the track ...
+ * against a light that shows the fastest paces").
  *
  * THE REST OF THE FIELD IS IN THE WATER, as small dots where each of those
  * rows is at this moment (he did not take to the strip of ticks under the
@@ -68,17 +81,16 @@ const PUDDLE_S = 2.4;
 const LANES = 5;
 const MID = 2;
 const RIVALS = 4;
-/* How long a boat is off the water before its lane is given away, and how
- * long the boat that takes it is sliding in. */
-const GONE_MS = 4000;
-const ENTER_MS = 1400;
+/* The rower's best over the distance, and the water as they close on it. */
+const BEST = "#D8362A";
+/* Within this many meters of their best, the water starts to take its red. */
+const BEST_NEAR = 60;
 
 type Puddle = { wm: number; y: number; born: number };
 type Stroke = { phase: number; puddles: Puddle[] };
-/* One of the four: the row, which side of the rower it is on for good, the
- * lane it is drawn in (between two while it changes), when it came on, and
- * since when it has been off the water. */
-type Rival = { g: Ghost; side: -1 | 1; lane: number; born: number; gone: number };
+/* One of the four: the row, which side of the rower it is on for good, and
+ * the lane it is drawn in (between two while it changes). */
+type Rival = { g: Ghost; side: -1 | 1; lane: number };
 
 /* One boat, bow to the right, as two paths: the thin lines (hull, rigger,
  * looms, the wake) and the blades. */
@@ -139,6 +151,8 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
    * own rows, or of the field's when they have none. The finish the four
    * are first picked for, before this row has a pace. */
   const usual = useMemo(() => median(ghosts.filter((g) => g.kind === "me").map((g) => g.seconds)) || median(ghosts.map((g) => g.seconds)), [ghosts]);
+
+  const best = useMemo(() => ghosts.filter((g) => g.kind === "me").sort((a, b) => a.seconds - b.seconds)[0] ?? null, [ghosts]);
 
   /* Thirty frames a second while this page is the one in view. */
   const [, setFrame] = useState(0);
@@ -238,31 +252,51 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     strokes.current.clear();
     const four = pickRivals(ghosts, target, usual, RIVALS).sort((a, b) => a.seconds - b.seconds);
     const sides: (-1 | 1)[] = [-1, 1, -1, 1];
-    rivals.current = four.map((g, i) => ({ g, side: sides[i], lane: MID, born: 0, gone: 0 }));
+    rivals.current = four.map((g, i) => ({ g, side: sides[i], lane: MID }));
     for (const s of [-1, 1] as const) {
       const two = rivals.current.filter((r) => r.side === s).sort((a, b) => Math.abs(a.g.seconds - usual) - Math.abs(b.g.seconds - usual));
       two.forEach((r, i) => (r.lane = MID + s * (i + 1)));
     }
   }
 
-  /* A boat that has been off the water for a while gives up its lane. */
-  for (const r of rivals.current) {
-    const d = gapOf(r.g);
-    const off = d < -(back + 6) || d > front + 6;
-    if (!off) {
-      r.gone = 0;
-      continue;
+  /* A boat off the water has given up its lane: who takes it. How fast a
+   * row is closing on the rower, in meters a second: under nothing, the
+   * rower is gaining on it; over, it is gaining on the rower. */
+  const drift = (g: Ghost): number => (gapOf(g, t + 10, myM + 10 * speed) - gapOf(g)) / 10;
+  if (t > 0 && speed > 0 && target - myM > 60) {
+    for (const r of rivals.current) {
+      const d = gapOf(r.g);
+      if (d >= -back && d <= front) continue;
+      const dropped = d < -back;
+      const racing = new Set(rivals.current.map((x) => rowerKey(x.g)));
+      let best: Ghost | null = null;
+      let least = Infinity;
+      /* One row a rower first; a field of the rower's own rows is let off. */
+      for (const strict of [true, false]) {
+        if (best) break;
+        for (const g of ghosts) {
+          const key = rowerKey(g);
+          if (t >= g.seconds || rivals.current.some((x) => x.g === g) || (racing.has(key) && (strict || key !== "me"))) continue;
+          const gd = gapOf(g);
+          const v = drift(g);
+          const ahead = gd > front && v < -0.05;
+          const behind = gd < -back && v > 0.05;
+          if (!ahead && !behind) continue;
+          /* Seconds until it is on the water, and from there to the rower. */
+          const toEdge = ahead ? (gd - front) / -v : (-back - gd) / v;
+          const toRower = (ahead ? front : back) / Math.abs(v);
+          const cost = toEdge + toRower * 0.5 - (g.marks.length >= 2 ? 15 : 0) + (behind && dropped ? 90 : 0);
+          if (cost < least) {
+            least = cost;
+            best = g;
+          }
+        }
+      }
+      if (best) {
+        strokes.current.delete(r.g.id);
+        r.g = best;
+      }
     }
-    if (!r.gone) r.gone = now;
-    if (now - r.gone < GONE_MS || t < 20 || target - myM < 250) continue;
-    const racing = new Set(rivals.current.map((x) => rowerKey(x.g)));
-    const [next] = pickRivals(ghosts, target, near, 1, racing, (g) => Math.max(0, Math.abs(gapOf(g)) - 30) * 0.25);
-    /* Nobody better placed than the one that left: the lane waits. */
-    if (!next || Math.abs(gapOf(next)) >= Math.abs(d)) continue;
-    strokes.current.delete(r.g.id);
-    r.g = next;
-    r.born = now;
-    r.gone = 0;
   }
 
   /* WHO IS BESIDE THE ROWER. Of the two on a side, the nearer over the
@@ -330,12 +364,9 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     const done = t >= r.g.seconds;
     const y = yOf(r.lane);
     const s = pull(r.g.id, done || t <= 0 ? 0 : r.g.spm > 0 ? r.g.spm : 24, y, myM + d);
-    /* A boat that has just been given the lane slides in from the end of
-     * it that it is coming from. */
-    const k = r.born ? Math.min(1, (now - r.born) / ENTER_MS) : 1;
-    const edge = d < 0 ? -BOAT_M * u : W + BOAT_M * u;
-    const x = edge + (xOf(myM + d) - edge) * (1 - Math.pow(1 - k, 3));
-    return { r, g: r.g, d, y, s, shape: boat(x, y, u, pitch, s.phase) };
+    /* On the water or not: a lane whose boat is off it says nothing. */
+    const on = d >= -back && d <= front;
+    return { r, g: r.g, d, y, s, on, shape: boat(xOf(myM + d), y, u, pitch, s.phase) };
   });
   const racing = new Set(rivals.current.map((r) => r.g.id));
 
@@ -371,6 +402,12 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     }),
   );
 
+  /* THE ROWER'S BEST over this distance: where that row is now, and how
+   * near the rower is to it, from 0 (sixty meters off, or no best) to 1. */
+  const bestD = best && t > 0 ? gapOf(best) : null;
+  /* Not off the start, where the whole field is level: from 500 m on. */
+  const heat = bestD === null || myM < 500 ? 0 : Math.max(0, 1 - Math.abs(bestD) / BEST_NEAR);
+  const bestX = bestD === null ? null : xOf(myM + bestD);
   const place = standing(ghosts, target, t, myM);
   const finish = live.ended ? fmtClock(live.elapsedS, false) : ms ? fmtClock(ms.projected, false) : "--:--";
   /* Three figures across: six characters of the black face run about four
@@ -401,7 +438,7 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
                 YOU
               </Text>
             </View>
-            {others.map(({ g, y }) => (
+            {others.filter((o) => o.on).map(({ g, y }) => (
               <View key={g.id} style={{ position: "absolute", left: 0, right: 10, top: y - 17 }}>
                 <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 19, color: C.ink }}>
                   {who(g)}
@@ -414,9 +451,12 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
           </View>
         ) : null}
 
-        <View style={{ width: W, height: waterH, overflow: "hidden", borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.ink }}>
+        <View style={{ width: W, height: waterH, overflow: "hidden", borderTopWidth: 1, borderBottomWidth: 1, borderColor: heat > 0.4 ? BEST : C.ink }}>
           <Svg width={W} height={waterH}>
+            {heat > 0 ? <Rect x={0} y={0} width={W} height={waterH} fill={BEST} fillOpacity={0.1 * heat} /> : null}
             <Path d={ropes} stroke={C.line} strokeWidth={1} fill="none" />
+            {heat > 0 ? <Path d={ropes} stroke={BEST} strokeWidth={1} strokeOpacity={0.85 * heat} fill="none" /> : null}
+            {bestX !== null && bestX > -2 && bestX < W + 2 ? <Line x1={bestX} y1={0} x2={bestX} y2={waterH} stroke={BEST} strokeWidth={2} /> : null}
             <Path d={ticks} stroke={C.gray} strokeWidth={1} fill="none" />
             {hundreds.map((m) => (
               <Line key={m} x1={xOf(m)} y1={0} x2={xOf(m)} y2={waterH} stroke={C.line} strokeWidth={1} strokeDasharray="2 5" />
@@ -449,11 +489,16 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
             </Text>
           ))}
           {xOf(target) > 0 && xOf(target) < W ? <Text style={{ position: "absolute", left: xOf(target) - 46, top: 2, fontFamily: F.monoBold, fontSize: 10, letterSpacing: 0.6, color: C.ink }}>FINISH</Text> : null}
+          {best && bestX !== null && bestX > 0 && bestX < W ? (
+            <Text numberOfLines={1} style={[{ position: "absolute", bottom: 2, fontFamily: F.monoBold, fontSize: 10, letterSpacing: 0.6, color: BEST }, bestX > W - 130 ? { right: W - bestX + 5 } : { left: bestX + 5 }]}>
+              YOUR BEST {fmtClock(best.seconds, false)}
+            </Text>
+          ) : null}
           {/* Upright there is no room beside the water: the lane's words
               stand in the lane, over its boat. */}
           {wide
             ? null
-            : others.map(({ g, d, r }) => (
+            : others.filter((o) => o.on).map(({ g, d, r }) => (
                 <View key={g.id} style={{ position: "absolute", left: 6, right: 6, top: r.lane * pitch + 4, flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
                   <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 14, color: C.ink, flexShrink: 1 }}>
                     {who(g)} <Text style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: 0.6, color: C.gray }}>{how(g)}</Text>
@@ -467,7 +512,7 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
         {/* How far ahead of the rower that lane's boat is, in meters. */}
         {wide ? (
           <View style={{ width: GR, height: waterH }}>
-            {others.map(({ g, d, y }) => (
+            {others.filter((o) => o.on).map(({ g, d, y }) => (
               <Text key={g.id} numberOfLines={1} style={{ position: "absolute", left: 6, right: 0, top: y - 14, textAlign: "right", fontFamily: F.black, fontSize: 21, lineHeight: 27, color: C.ink, fontVariant: ["tabular-nums"] }}>
                 {gapWord(d)}
               </Text>

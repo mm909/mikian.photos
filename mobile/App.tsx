@@ -151,6 +151,13 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * the bar while a page of theirs is the one in view. */
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   const onPlus = (n: number, on: boolean) => setChecked((prev) => (!!prev[n] === on ? prev : { ...prev, [n]: on }));
+  /* A LOOK BEING TRIED IS ONE PRESS AWAY, for an admin (owner, 2026-11-22:
+   * "when I'm redesigning pages like this, let's have the secret dev trick
+   * be that you just click the top button ... this 100K ... it'll swap the
+   * look to the thing that we're testing out"). Today: the board, between
+   * its bars and the sheet (screens/Board.tsx). Nobody else's press does
+   * anything. */
+  const [boardLook, setBoardLook] = useState<"bars" | "sheet">("bars");
   /* Every meter anybody has logged, for the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
   /* What is typed in the search field, which sits in the bar on that tab. */
@@ -301,7 +308,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "search" ? (
       <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} />
     ) : t === "board" ? (
-      <BoardScreen key={stamp} onRower={openRower} onScrollDir={setAway} />
+      <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
@@ -362,6 +369,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
   const pageOf = logOn ? null : !top ? (tab === "profile" && mine ? mine : null) : top.kind === "rower" ? top.num : null;
+  const flip = !logOn && !top && tab === "board" && !!me.isAdmin;
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
@@ -451,10 +459,10 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                   ) : null}
                 </View>
               ) : mark ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Pressable accessibilityLabel={flip ? "Swap the look being tried" : undefined} disabled={!flip} onPress={() => setBoardLook((v) => (v === "bars" ? "sheet" : "bars"))} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Mark label={mark} kind={markIs} />
                   {pageOf !== null && checked[pageOf] ? <VerifiedIcon size={17} /> : null}
-                </View>
+                </Pressable>
               ) : null}
             </View>
             {searchBar ? null : (

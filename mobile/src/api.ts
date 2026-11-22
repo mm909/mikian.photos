@@ -181,6 +181,9 @@ export type BoardData = {
   tiers: { key: string; title: string; floor: number }[];
   me: { rowerNumber: number; name: string; meters: number; in: boolean; unranked: boolean; blocks?: number; shape?: string } | null;
   unreadable: boolean;
+  /* The seven days before today and today ("YYYY-MM-DD"), and each listed
+   * rower's meters on them, by rower number. */
+  week?: { days: string[]; meters: Record<number, number[]> } | null;
 };
 
 export type Kde = { xs: number[]; ys: number[]; xMin: number; xMax: number; ticks: number[]; mean: number; sd: number; median: number; rug: number[]; take: string };

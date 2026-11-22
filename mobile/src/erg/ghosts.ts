@@ -121,9 +121,11 @@ export function standing(ghosts: Ghost[], meters: number, t: number, mine: numbe
 
 /* ---- who to race ------------------------------------------------------ */
 
-/* Two rows of one rower are not raced at once; the rower's own rows are
- * each their own. */
-export const rowerKey = (g: Ghost): string => (g.kind === "me" ? `me:${g.id}` : `r:${g.numStr || g.name}`);
+/* TWO ROWS OF ONE ROWER ARE NOT RACED AT ONCE, the rower's own past rows
+ * among them (owner, 2026-11-22, of a race with two lanes that both said
+ * You: "let's really try to not have multiple copies of the same person in
+ * the race"). */
+export const rowerKey = (g: Ghost): string => (g.kind === "me" ? "me" : `r:${g.numStr || g.name}`);
 
 /* HOW OFTEN A GHOST AND THE ROWER WOULD CHANGE PLACES, if the rower held
  * an even pace to `near`: the lead changing hands is what makes a race of
@@ -157,9 +159,9 @@ export function rivalCost(g: Ghost, meters: number, near: number): number {
  * relatively close to me by my finish time"). The best by rivalCost, with
  * two rules that a second pass lets go of when the field is too thin to
  * keep them: no more than two that finish ahead of `near` and two behind,
- * so there is somebody to chase and somebody to hold off; and no more than
- * two of the rower's own rows, so a field with other people in it is a
- * race against other people. Never two rows of one rower. `skip` holds the
+ * so there is somebody to chase and somebody to hold off; and one row a
+ * rower, the rower's own past rows counted as one rower, which a field of
+ * nothing but the rower's own rows is let off. `skip` holds the
  * rowers already on the water. `extra` adds to a ghost's cost (the screen
  * uses it to prefer a ghost that is near the rower right now when it
  * brings one in mid-row). */
@@ -174,11 +176,10 @@ export function pickRivals(ghosts: Ghost[], meters: number, near: number, n: num
     for (const { g } of ranked) {
       if (out.length >= n) break;
       const key = rowerKey(g);
-      if (used.has(key) || out.includes(g)) continue;
+      if (out.includes(g) || (used.has(key) && (strict || key !== "me"))) continue;
       if (strict) {
         const side = g.seconds < near ? 1 : -1;
         if (out.filter((o) => (o.seconds < near ? 1 : -1) === side).length >= Math.ceil(n / 2)) continue;
-        if (g.kind === "me" && out.filter((o) => o.kind === "me").length >= Math.ceil(n / 2)) continue;
       }
       used.add(key);
       out.push(g);
