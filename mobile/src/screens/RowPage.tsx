@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { createElement } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { api, type BoardData, type FollowState, type Photo } from "../api";
 import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
@@ -782,9 +783,8 @@ function Reels({ rowId }: { rowId: string }) {
             {/* THE CLIP, MOVING (owner, 2026-11-21: "when I go to click on
                 the reel, I want to see a preview of that reel going"): the
                 five-second version at ten frames a second, round and
-                round, from the moment the clip is opened, while the site
-                films and after. In a browser the film itself takes its
-                place once it is made. */}
+                round, from the moment the clip is opened and while the site
+                films. The film itself takes its place once it is made. */}
             <ScrollView ref={strip} horizontal pagingEnabled scrollEnabled={!busy} showsHorizontalScrollIndicator={false} contentOffset={{ x: (first.current + 1) * w, y: 0 }} onContentSizeChange={place}
               onLayout={(e) => {
                 setTall(Math.floor(e.nativeEvent.layout.height));
@@ -800,6 +800,8 @@ function Reels({ rowId }: { rowId: string }) {
                   <View key={`${c.id}-${p}`} style={{ width: w, height: tall || undefined, paddingHorizontal: 20, paddingVertical: 10, alignItems: "center", justifyContent: "center" }}>
                     {live && film && Platform.OS === "web" ? (
                       createElement("video", { src: film.uri, autoPlay: true, loop: true, muted: true, playsInline: true, style: { height: "100%", maxWidth: "100%", aspectRatio: "9 / 16", objectFit: "contain" } })
+                    ) : live && film ? (
+                      <Film uri={film.uri} />
                     ) : (
                       <Motion rowId={rowId} clip={c.id} play={live} />
                     )}
@@ -865,6 +867,20 @@ function Reels({ rowId }: { rowId: string }) {
       </Modal>
     </>
   );
+}
+
+/* THE FILM ITSELF, on a phone, once it is made (owner, 2026-11-21: "even
+ * after it's done making it, it doesn't show me the video playing. But
+ * we've already made it, so we should play it"). The file the site sent,
+ * round and round, silent, with no controls over it. This is the one thing
+ * here that needs a video module in the build (expo-video, from 1.2.0). */
+function Film({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return <VideoView player={player} nativeControls={false} contentFit="contain" allowsPictureInPicture={false} style={{ height: "100%", aspectRatio: 9 / 16 }} />;
 }
 
 /* A CLIP, MOVING, WITHOUT A VIDEO PLAYER. The site paints the five-second
