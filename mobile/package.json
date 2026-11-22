@@ -40,12 +40,13 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "sync:pm5": "node -e \"const f=require('fs');for(const n of ['pm5','encode','simulate','session','analysis'])f.copyFileSync('../src/lib/pm5/'+n+'.ts','src/pm5/'+n+'.ts')\"",
+    "sync:pm5": "node -e \"const f=require('fs');for(const n of ['pm5','encode','simulate','session','analysis','craft'])f.copyFileSync('../src/lib/pm5/'+n+'.ts','src/pm5/'+n+'.ts')\"",
     "export:web": "bash scripts/export-web.sh",
     "typecheck": "tsc --noEmit",
     "check:sandbox": "tsx scripts/sandbox-check.ts",
     "check:social": "tsx scripts/social-check.ts",
-    "check:notify": "tsx scripts/notify-check.ts"
+    "check:notify": "tsx scripts/notify-check.ts",
+    "check:field": "tsx scripts/field-check.ts"
   },
   "private": true
 }

@@ -63,6 +63,17 @@ if (me && process.argv.includes("--ghosts")) {
   process.exit(r.status ?? 1);
 }
 
+/* --field: whole recordings for nine sample rowers and one for the first
+ * account (or the one --me names), so the cards of a row's analytics have
+ * somebody to be compared against. mobile/scripts/field-seed.ts; run it
+ * again any time. */
+if (me && process.argv.includes("--field")) {
+  const meFlag = process.argv.find((a) => a.startsWith("--me="));
+  const email = (meFlag ? meFlag.slice(5).split(",")[0] : "mikianmusser@gmail.com").trim();
+  const r = spawnSync(`npx tsx mobile/scripts/field-seed.ts ${email}`, { stdio: "inherit", env: { ...process.env, ...LOCAL_ENV }, shell: true });
+  process.exit(r.status ?? 1);
+}
+
 /* --photos: real photos on the sandbox's newest rows, read off the live
  * board (scripts/dev-app-photos-seed.ts: it reads live and writes only
  * here). .env.local supplies the live address; this supplies the local. */

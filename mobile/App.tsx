@@ -19,6 +19,8 @@ import { RowScreen, type Logged } from "./src/screens/RowScreen";
 import { SettingsScreen, type SettingsPage } from "./src/screens/Settings";
 import { NewsScreen, PeopleScreen, SearchScreen, type PeopleList } from "./src/screens/Social";
 import { StoriesScreen, StoryScreen, type StoryId } from "./src/screens/Stories";
+import { MetricScreen, type MetricId } from "./src/screens/Field";
+import type { RowMeasure } from "./src/pm5/craft";
 import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
@@ -75,6 +77,9 @@ type Over = { k: number } & (
   | { kind: "settings"; page?: SettingsPage }
   | { kind: "stories" }
   | { kind: "story"; id: StoryId }
+  /* The questions behind one card of a row's analytics, with that row's
+   * own figures (screens/Field.tsx). */
+  | { kind: "metric"; id: MetricId; mine: RowMeasure }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -221,6 +226,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const openRower = (num: number) => push({ kind: "rower", num });
   const openRow = (id: string, talk?: boolean) => push({ kind: "row", id, talk });
   const openPeople = (list: PeopleList, num?: number) => push({ kind: "people", list, num });
+  const openMetric = (id: MetricId, mine: RowMeasure) => push({ kind: "metric", id, mine });
 
   /* The bell is read again every minute the app is open, so a line that
    * lands while a screen is being looked at still shows up on it. */
@@ -373,7 +379,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -388,7 +394,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "bests" ? (
       <BestsScreen num={o.num} best={o.best} onRow={openRow} onRower={openRower} />
     ) : o.kind === "erg" ? (
-      <ErgPage id={o.id} rows={rows} />
+      <ErgPage id={o.id} rows={rows} onMetric={openMetric} />
     ) : o.kind === "rankings" ? (
       <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} />
     ) : o.kind === "settings" ? (
@@ -397,6 +403,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <StoriesScreen onStory={(id) => push({ kind: "story", id })} />
     ) : o.kind === "story" ? (
       <StoryScreen id={o.id} />
+    ) : o.kind === "metric" ? (
+      <MetricScreen id={o.id} mine={o.mine} />
     ) : o.kind === "news" ? (
       <NewsScreen
         onRower={openRower}
@@ -408,7 +416,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         }}
       />
     ) : (
-      <RowPage id={o.id} talk={o.talk} fresh={o.fresh} localDoc={o.doc} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} />
+      <RowPage id={o.id} talk={o.talk} fresh={o.fresh} localDoc={o.doc} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} onMetric={openMetric} />
     );
 
   return (

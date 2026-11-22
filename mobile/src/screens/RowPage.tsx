@@ -15,6 +15,8 @@ import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useMod
 import { CommentsSheet, PostActions } from "./Comments";
 import { EditRow } from "./EditRow";
 import { Review } from "./Review";
+import type { MetricId } from "./Field";
+import type { RowMeasure } from "../pm5/craft";
 import { RowMenu, Sheet } from "./Social";
 
 /* ONE ROW'S PAGE (owner, 2026-11-20). The journey he walked: "right as they
@@ -93,6 +95,7 @@ export function RowPage({
   onMenu,
   onWho,
   talk,
+  onMetric,
 }: {
   id: string;
   fresh?: Fresh;
@@ -107,6 +110,8 @@ export function RowPage({
   onWho?: (num: number) => void;
   /* Opened from a line about a comment: the comments come up at once. */
   talk?: boolean;
+  /* A card of the analytics, asked about: its questions open (Field.tsx). */
+  onMetric?: (id: MetricId, mine: RowMeasure) => void;
 }) {
   const path = `/api/row100k/app/row?id=${id}`;
   const { data, error, reload } = useLoad(() => api<{ row: RowData }>(path), [path], path);
@@ -258,7 +263,7 @@ export function RowPage({
         </>
       ) : null}
 
-      {doc ? <Review row={{ id: r.id, day: r.day, meters: r.meters ?? 0 }} rows={rows} doc={doc} /> : null}
+      {doc ? <Review row={{ id: r.id, day: r.day, meters: r.meters ?? 0 }} rows={rows} doc={doc} onMetric={onMetric} /> : null}
 
       {fresh ? <Btn label="Done" onPress={onDone} style={{ marginTop: 34 }} /> : null}
 
@@ -317,14 +322,14 @@ function Usual({ u, meters, seconds, mine, name }: { u: NonNullable<RowData["usu
 /* ONE SAVED ERG SESSION that is not tied to a logged row: its read, on its
  * own (owner, 2026-11-22: "I should be able to click on these ... and see
  * the stat page"). */
-export function ErgPage({ id, rows }: { id: string; rows: Row[] }) {
+export function ErgPage({ id, rows, onMetric }: { id: string; rows: Row[]; onMetric?: (id: MetricId, mine: RowMeasure) => void }) {
   const path = `/api/row100k/app/erg?id=${id}`;
   const { data, error, reload } = useLoad(() => api<{ session: { id: string; day: string; meters: number; doc: TelemetryDoc } }>(path), [path], path);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const s = data.session;
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 140 }}>
-      <Review row={{ id: s.id, day: s.day, meters: s.meters }} rows={rows} doc={s.doc} />
+      <Review row={{ id: s.id, day: s.day, meters: s.meters }} rows={rows} doc={s.doc} onMetric={onMetric} />
     </ScrollView>
   );
 }

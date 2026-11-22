@@ -4,12 +4,15 @@ import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-
 import { along, blocks500, computePlot, computeSpread, densityAt, fmtNum, FORCE_GRID, lastAtOrBefore, nearestByX, pieceTicks, resample, spreadWords, stepOf, thinPoints, ticks, type Block, type Pad, type Plot, type Series, type Spread, type Tick, type XY } from "../erg/reviewGeom";
 import { api } from "../api";
 import { analyseSession, comparableRows, fmtGap, fmtSplit, fmtWhen, type AnalysisForce, type AnalysisSplit, type AnalysisTrend, type ErgAnalysis } from "../pm5/analysis";
+import { craftOf, meanOf, measureOf, smooth, trimEnds, windowOf, type Craft, type RowMeasure } from "../pm5/craft";
 import { fmtClock, fmtMeters, fmtPace, lbfToNewtons } from "../pm5/pm5";
 import { fmtTenthsClock, type TelemetryDoc } from "../pm5/session";
 import { Chip, Ctl, Dash, Eye, mono } from "../site";
 import { asSaved, loadDoc, type Row } from "../store";
 import { C, F, fmtInt } from "../theme";
 import { Skel } from "../ui";
+import { Ask, FIELD_PATH, fieldHas, Flip, PaceField, RateField, smallField, SteadyField, WorkField, type FieldAnswer, type FieldForce, type MetricId } from "./Field";
+import { Axes, Box, BOX_PAD, Key, Lab, PAD, pathOf } from "./reviewBits";
 
 /* THE READ (owner, 2026-11-14, of the website's saved-session screen: "this
  * needs to be a focus of the app ... make it really good"; and 2026-11-21,
@@ -38,6 +41,12 @@ import { Skel } from "../ui";
  * A PIECE CAN BE THIN: a 500 m demo, no force curve, no ticks. A section
  * with nothing to show is not drawn; nothing prints a placeholder chart.
  *
+ * EVERY CARD IS TWO, SIDE BY SIDE, since 2026-11-22 (owner: "for as many as
+ * we're able to, let's create that second pane like we have for the force
+ * curve where it compares us against other people"): a swipe brings AGAINST
+ * EVERYONE, and its last line opens the card's questions through
+ * `onMetric`. The second cards and the questions are Field.tsx.
+ *
  * NO HEART RATE, as on the site: the document carries it and nothing here
  * reads it. */
 
@@ -60,7 +69,7 @@ const whole = (y: number) => String(Math.round(y));
 
 /* `doc` is the recording when the caller already has it (the row page
  * reads it off the site); without it the phone's own copy is opened. */
-export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null }) {
+export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null; /* Opens a card's questions, with this row's figures. */ onMetric?: (id: MetricId, mine: RowMeasure) => void }) {
   const [state, setState] = useState<{ doc: TelemetryDoc; compare: { title: string; doc: TelemetryDoc } | null; usual: number[] | null } | "missing" | null>(null);
   /* The width the page gives the read, measured: every chart is drawn at
    * that many points, so a point on the glass is a point in the chart. */
@@ -68,14 +77,14 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
   /* The split pressed in the table, or none: the pictures above it then
    * show only that split's strokes. */
   const [pick, setPick] = useState<number | null>(null);
-  /* The average stroke of everybody's recordings, for the card behind the
-   * force curve (api/row100k/app/field). Nothing is drawn of it until it
-   * has come. */
-  const [field, setField] = useState<FieldForce | null>(null);
+  /* Everybody's recordings, for the card behind each card: their average
+   * stroke, and their figures one a rower (api/row100k/app/field). Nothing
+   * is drawn of it until it has come. */
+  const [all, setAll] = useState<FieldAnswer | null>(null);
   useEffect(() => {
     let live = true;
-    api<{ force: FieldForce | null }>("/api/row100k/app/field").then(
-      (r) => live && setField(r.force),
+    api<FieldAnswer>(FIELD_PATH).then(
+      (r) => live && setAll(r),
       () => null,
     );
     return () => {
@@ -160,6 +169,13 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
 
   const st = a.steady;
   const craft = craftOf(a, doc);
+  /* This row as the figures the field is kept in, the field itself, and
+   * the last line of a card: the way to its questions. */
+  const mine = measureOf(a, doc, craft);
+  const field = all?.force ?? null;
+  const stats = all?.stats ?? null;
+  const ask = (id: MetricId) => (onMetric ? <Ask onPress={() => onMetric(id, mine)} /> : undefined);
+  const versus = (id: MetricId) => fieldHas(id, mine, stats);
   const steady: CellData[] = [
     num(st.paceSdTenths) ? { k: "Split spread", v: `± ${fmtGap(st.paceSdTenths)}`, u: num(st.paceMeanTenths) ? `around ${split(Math.round(st.paceMeanTenths))}` : "" } : null,
     craft.rateSd !== null ? { k: "Rate held", v: `± ${craft.rateSd.toFixed(1)}`, u: "strokes a minute" } : null,
@@ -265,49 +281,81 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
       {/* HOW STEADY, first among the pictures: the two scores here that are
           not about speed. */}
       {w > 0 && (craft.steady !== null || steady.length) ? (
-        <Box title="How steady" say={steadySay}>
-          {craft.steady !== null || craft.same !== null ? (
-            <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
-              {craft.steady !== null ? <Score k="Steady pace" v={craft.steady} word={steadyWord(craft.steady)} /> : null}
-              {craft.same !== null ? <Score k="Same stroke" v={craft.same} word={craft.same >= 85 ? "One stroke, repeated" : craft.same >= 70 ? "Mostly the same stroke" : "The stroke kept changing"} /> : null}
-            </View>
-          ) : null}
-          <PaceSpread c={craft} w={cw} />
-          {steady.length ? (
-            <View style={{ marginTop: 10 }}>
-              <Cells cells={steady} />
-            </View>
-          ) : null}
-        </Box>
+        <Flip
+          w={w}
+          name="steadiness"
+          own={(fill) => (
+            <Box fill={fill} title="How steady" say={steadySay} foot={versus("steady") ? undefined : ask("steady")}>
+              {craft.steady !== null || craft.same !== null ? (
+                <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
+                  {craft.steady !== null ? <Score k="Steady pace" v={craft.steady} word={steadyWord(craft.steady)} /> : null}
+                  {craft.same !== null ? <Score k="Same stroke" v={craft.same} word={craft.same >= 85 ? "One stroke, repeated" : craft.same >= 70 ? "Mostly the same stroke" : "The stroke kept changing"} /> : null}
+                </View>
+              ) : null}
+              <PaceSpread c={craft} w={cw} />
+              {steady.length ? (
+                <View style={{ marginTop: 10 }}>
+                  <Cells cells={steady} />
+                </View>
+              ) : null}
+            </Box>
+          )}
+          other={versus("steady") && stats ? <SteadyField m={mine} f={stats} w={cw} foot={ask("steady")} /> : null}
+        />
       ) : null}
 
+      {/* The second card of each is the WHOLE piece against everyone,
+          whichever split the first is showing. */}
       {w > 0 && has.pace ? (
-        <Box title="Pace along the piece" note={only || "Moving average"} say={paceSay}>
-          <PaceAlong pts={pace} avgS={avgS} w={cw} />
-        </Box>
+        <Flip
+          w={w}
+          name="pace along the piece"
+          own={(fill) => (
+            <Box fill={fill} title="Pace along the piece" note={only || "Moving average"} say={paceSay} foot={versus("pace") ? undefined : ask("pace")}>
+              <PaceAlong pts={pace} avgS={avgS} w={cw} />
+            </Box>
+          )}
+          other={versus("pace") && stats ? <PaceField m={mine} f={stats} w={cw} foot={ask("pace")} /> : null}
+        />
       ) : null}
       {w > 0 && has.rate ? (
-        <Box
-          title="Rate and length"
-          note={
-            /* Each line beside its name (owner, 2026-11-21: "instead of
-               saying solid and dashed, let's just show like a blue line
-               next to rate and a dashed gray line next to length"). */
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <Key color={C.accent} label="Rate" />
-              <Key color={C.gray} label="Length" dashed />
-            </View>
-          }
-          say={rateSay}
-        >
-          <RateLength rate={rate} len={len} w={cw} />
-        </Box>
+        <Flip
+          w={w}
+          name="rate and length"
+          other={versus("rate") && stats ? <RateField m={mine} f={stats} w={cw} foot={ask("rate")} /> : null}
+          own={(fill) => (
+            <Box
+              fill={fill}
+              foot={versus("rate") ? undefined : ask("rate")}
+              title="Rate and length"
+              note={
+                /* Each line beside its name (owner, 2026-11-21: "instead of
+                   saying solid and dashed, let's just show like a blue line
+                   next to rate and a dashed gray line next to length"). */
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <Key color={C.accent} label="Rate" />
+                  <Key color={C.gray} label="Length" dashed />
+                </View>
+              }
+              say={rateSay}
+            >
+              <RateLength rate={rate} len={len} w={cw} />
+            </Box>
+          )}
+        />
       ) : null}
-      {w > 0 && a.force ? <ForceCards a={a} field={field} w={w} cw={cw} /> : null}
+      {w > 0 && a.force ? <ForceCards a={a} field={field} w={w} cw={cw} foot={ask("force")} /> : null}
       {w > 0 && has.work ? (
-        <Box title="Work per stroke" note={only || "Joules"} say={range ? null : workWords(workAvg, state.usual)}>
-          <WorkPerStroke pts={work} avg={workAvg} trend={range ? null : a.workTrend} usual={range ? null : state.usual} w={cw} />
-        </Box>
+        <Flip
+          w={w}
+          name="work per stroke"
+          own={(fill) => (
+            <Box fill={fill} title="Work per stroke" note={only || "Joules"} say={range ? null : workWords(workAvg, state.usual)} foot={versus("work") ? undefined : ask("work")}>
+              <WorkPerStroke pts={work} avg={workAvg} trend={range ? null : a.workTrend} usual={range ? null : state.usual} w={cw} />
+            </Box>
+          )}
+          other={versus("work") && stats ? <WorkField m={mine} f={stats} w={cw} foot={ask("work")} /> : null}
+        />
       ) : null}
 
       {/* The splits as the monitor recorded them, or cut out of the tick
@@ -364,18 +412,6 @@ export function Review({ row, rows, doc: given }: { row: Pick<Row, "id" | "day" 
           {[doc.device.simulated ? "Simulated monitor" : doc.device.name || "Monitor", doc.device.serial ? `serial ${doc.device.serial}` : "", doc.device.model ?? "", doc.device.firmware ? `firmware ${doc.device.firmware}` : ""].filter(Boolean).join(" · ")}
         </Text>
       </View>
-    </View>
-  );
-}
-
-/* A line beside its name, as it is drawn in the chart. */
-function Key({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Svg width={22} height={8}>
-        <Line x1={0} x2={22} y1={4} y2={4} stroke={color} strokeWidth={dashed ? 1.8 : 2.4} strokeDasharray={dashed ? "5 4" : undefined} />
-      </Svg>
-      <Text style={mono(10, false, C.gray, 0.1)}>{label}</Text>
     </View>
   );
 }
@@ -523,37 +559,6 @@ function Cells({ cells, accent }: { cells: CellData[]; accent?: boolean }) {
 
 /* ---- what every chart is made of ---------------------------------------- */
 
-const PAD: Pad = { l: 40, r: 8, t: 16, b: 28 };
-
-/* A word or a number inside a chart: Space Mono, small, grey unless told. */
-function Lab({ x, y, anchor = "start", size = 9, color, bold, children }: { x: number; y: number; anchor?: "start" | "middle" | "end"; size?: number; color?: string; bold?: boolean; children: string }) {
-  return (
-    <SvgText x={x} y={y} textAnchor={anchor} fontSize={size} fontFamily={bold ? F.monoBold : F.mono} fill={color ?? C.gray}>
-      {children}
-    </SvgText>
-  );
-}
-
-/* The grid, the labels down the left and the two axes. */
-function Axes({ W, H, pad, ys, sy, fmt }: { W: number; H: number; pad: Pad; ys: number[]; sy: (v: number) => number; fmt: (v: number) => string }) {
-  return (
-    <G>
-      {ys.map((v) => (
-        <G key={v}>
-          <Line x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} stroke={C.line} strokeWidth={1} opacity={0.55} />
-          <Lab x={pad.l - 5} y={sy(v) + 3} anchor="end">
-            {fmt(v)}
-          </Lab>
-        </G>
-      ))}
-      <Line x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} stroke={C.line} strokeWidth={1} />
-      <Line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke={C.ink} strokeWidth={1.5} />
-    </G>
-  );
-}
-
-const pathOf = (pts: XY[], sx: (x: number) => number, sy: (y: number) => number) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}`).join(" ");
-
 /* The name of a chart on the left, the quiet word on the right. */
 function PanelHead({ title, unit, note }: { title: string; unit?: string; note?: string }) {
   return (
@@ -698,72 +703,6 @@ function SplitsTable({ splits, fastest, w, on, onPick }: { splits: AnalysisSplit
 }
 
 /* ---- THE PICTURES, EACH IN ITS OWN BOX ---------------------------------- */
-
-/* A CHART IS A CARD (owner, 2026-11-21: "should we make the profile page a
- * little less flat and box these charts up a little bit? ... give them a
- * little bit more formal section ... a more formal title"; and "is there
- * anything useful we can say ... below these charts?"). Its name in the
- * head's own face, a quiet word at the right, the picture, and under it ONE
- * thing the picture says, worked out from the same numbers and never made
- * up: a chart with nothing to say says nothing. */
-const BOX_PAD = 14;
-function Box({ title, note, say, fill, children }: { title: string; note?: ReactNode; say?: string | null; /* Takes the height it is given: one of two cards side by side. */ fill?: boolean; children: ReactNode }) {
-  return (
-    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: BOX_PAD, marginTop: 14, flex: fill ? 1 : undefined }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", columnGap: 10, rowGap: 2, marginBottom: 10 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: C.ink }}>{title}</Text>
-        {typeof note === "string" ? <Text style={mono(10, false, C.gray, 0.1)}>{note}</Text> : (note ?? null)}
-      </View>
-      {children}
-      {say ? (
-        <View style={{ borderLeftWidth: 3, borderColor: C.accent, paddingLeft: 10, marginTop: 12 }}>
-          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft }}>{say}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-/* A MOVING AVERAGE, centred: each point is the mean of the points around
- * it, `win` of them, fewer at the two ends. What a stroke-by-stroke figure
- * is doing, without each stroke's own wobble. */
-function smooth(pts: XY[], win: number): XY[] {
-  const half = Math.max(1, Math.floor(win / 2));
-  return pts.map((p, i) => {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - half); j <= Math.min(pts.length - 1, i + half); j++) {
-      sum += pts[j].y;
-      n++;
-    }
-    return { x: p.x, y: sum / n };
-  });
-}
-/* How wide the window is for a piece of this many strokes: about a
- * twentieth of it, never under five strokes. */
-const windowOf = (n: number) => Math.max(5, Math.round(n / 20) | 1);
-
-/* THE FIRST AND THE LAST STROKES ARE NOT THE PIECE (owner, 2026-11-21:
- * "we can also cut off like the last or first stroke ... the meters per
- * stroke dropped a lot because it finished"): the flywheel spinning up and
- * the handle being let go. Two off each end, and then any stroke left at
- * either end that still sits far outside the rest. */
-function trimEnds(pts: XY[]): XY[] {
-  if (pts.length < 14) return pts;
-  let out = pts.slice(2, -2);
-  const ys = out.map((p) => p.y);
-  const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
-  const sd = Math.sqrt(ys.reduce((a, b) => a + (b - mean) ** 2, 0) / ys.length) || 1;
-  while (out.length > 10 && Math.abs(out[0].y - mean) > 3 * sd) out = out.slice(1);
-  while (out.length > 10 && Math.abs(out[out.length - 1].y - mean) > 3 * sd) out = out.slice(0, -1);
-  return out;
-}
-
-const meanOf = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0);
-const sdOf = (v: number[]) => {
-  const m = meanOf(v);
-  return v.length ? Math.sqrt(meanOf(v.map((x) => (x - m) ** 2))) : 0;
-};
 
 /* THE PACE ALONG THE PIECE, as one line (owner, 2026-11-21: "instead of
  * showing split pace in that bar chart with one bar per 500 ... let's show
@@ -917,40 +856,27 @@ function ForceCurve({ force, compare, w }: { force: AnalysisForce; compare: { ti
  * laid over the average stroke of everybody's recordings. The two are the
  * same height, whichever has more to say. With no field to show (it has
  * not come, or nobody has recorded), there is the one card and no swipe. */
-export type FieldForce = { points: number[]; peakPct: number; rows: number; rowers: number };
-function ForceCards({ a, field, w, cw }: { a: ErgAnalysis; field: FieldForce | null; w: number; cw: number }) {
-  const [page, setPage] = useState(0);
-  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+function ForceCards({ a, field, w, cw, foot }: { a: ErgAnalysis; field: FieldForce | null; w: number; cw: number; foot?: ReactNode }) {
   const f = a.force;
   if (!f) return null;
-  const own = (fill: boolean) => (
-    <Box fill={fill} title="Force curve" note={`${fmtInt(f.curves)} strokes averaged`} say={forceWords(f, a.compare)}>
-      <ForceCurve force={f} compare={a.compare} w={cw} />
-    </Box>
-  );
-  if (!field || field.points.length < 2 || !num(f.peakLbf) || f.peakLbf <= 0) return own(false);
-  const go = (i: number) => strip.current?.scrollTo({ x: i * w, animated: true });
+  const two = !!field && field.points.length >= 2 && num(f.peakLbf) && f.peakLbf > 0;
   return (
-    <>
-      <ScrollView ref={strip} horizontal pagingEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ width: w }}>
-        <View style={{ width: w }}>{own(true)}</View>
-        <View style={{ width: w }}>
-          <Box fill title="Against everyone" note={`${fmtInt(field.rows)} ${field.rows === 1 ? "row" : "rows"} · ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"}`} say={fieldWords(f, field)}>
+    <Flip
+      w={w}
+      name="force curve"
+      own={(fill) => (
+        <Box fill={fill} title="Force curve" note={`${fmtInt(f.curves)} strokes averaged`} say={forceWords(f, a.compare)} foot={two ? undefined : foot}>
+          <ForceCurve force={f} compare={a.compare} w={cw} />
+        </Box>
+      )}
+      other={
+        two && field ? (
+          <Box fill title="Against everyone" note={`${fmtInt(field.rows)} ${field.rows === 1 ? "row" : "rows"} · ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"}`} say={fieldWords(f, field)} foot={foot}>
             <ForceField mine={f} field={field} w={cw} />
           </Box>
-        </View>
-      </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
-        {[0, 1].map((i) => (
-          <Pressable key={i} accessibilityRole="button" accessibilityLabel={i === 0 ? "Your force curve" : "Your force curve against everyone"} onPress={() => go(i)} hitSlop={10}>
-            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? C.accent : C.line }} />
-          </Pressable>
-        ))}
-        <Text accessibilityRole="button" onPress={() => go(page === 0 ? 1 : 0)} suppressHighlighting style={mono(10, false, C.gray, 0.1)}>
-          {page === 0 ? "Swipe: against everyone" : "Swipe back: yours"}
-        </Text>
-      </View>
-    </>
+        ) : null
+      }
+    />
   );
 }
 
@@ -1009,7 +935,7 @@ function ForceField({ mine, field, w }: { mine: AnalysisForce; field: FieldForce
 function fieldWords(f: AnalysisForce, field: FieldForce): string {
   const d = Math.round(f.peakPct - field.peakPct);
   const mine = f.peakPct.toFixed(0);
-  const small = field.rowers < 5 ? ` The field is small so far: ${field.rowers === 1 ? "one rower" : `${field.rowers} rowers`}, so read it as a mark and not a rule.` : "";
+  const small = smallField(field);
   if (Math.abs(d) < 4) return `Your peak sits where everybody's does: ${mine}% of the drive against ${field.peakPct}%.${small}`;
   if (d > 0) return `Your peak comes at ${mine}% of the drive; the average stroke peaks at ${field.peakPct}%, ${d} points earlier. Loading the legs sooner off the catch moves yours forward.${small}`;
   return `Your peak comes at ${mine}% of the drive, ${-d} points earlier than the average stroke (${field.peakPct}%): a harder hit off the catch than most. Holding the pressure on through the back fills the rest of the curve.${small}`;
@@ -1119,51 +1045,6 @@ function workWords(avg: XY[], usual: number[] | null): string | null {
 
 /* ---- HOW STEADY --------------------------------------------------------- */
 
-/* A SCORE TO CHASE THAT IS NOT SPEED (owner, 2026-11-21: "I really like the
- * idea of the how steady metric ... giving you like a rating for how steady
- * you are that you can work on ... it doesn't matter if I'm rowing a 201 or
- * a 230 if I am going for this like constant rate"; "the consistency of
- * your force curve is probably something that you would want to optimize").
- *
- *   STEADY        100, less ten for every 1% the split wandered from its
- *                 own average, read five strokes at a time (the standard
- *                 deviation of the split over its mean). A 2:00 split held within a
- *                 second and a bit scores 90.
- *   SAME STROKE   100, less three for every 1% the shape of a stroke
- *                 differed from the average stroke, each curve first scaled
- *                 to its own peak, so pulling harder does not count against
- *                 it: only pulling differently does.
- *
- * Both leave out the first strokes and the last, which are the flywheel
- * and the finish. Neither knows how fast the piece was. */
-export type Craft = { steady: number | null; paceMean: number; paceSd: number; within1: number; paces: number[]; same: number | null; rateSd: number | null };
-function craftOf(a: ErgAnalysis, doc: TelemetryDoc): Craft {
-  const counted = a.series.filter((s) => s.counted);
-  /* Five strokes at a time: one stroke's split jumps a second or two by
-   * itself on any monitor, and that is not the rower wandering. */
-  const paces = smooth(trimEnds(counted.filter((s) => num(s.paceTenths) && (s.paceTenths as number) > 0).map((s) => ({ x: s.n, y: (s.paceTenths as number) / 10 }))), 5).map((p) => p.y);
-  const paceMean = meanOf(paces);
-  const paceSd = sdOf(paces);
-  const steady = paces.length >= 10 && paceMean > 0 ? Math.max(0, Math.min(100, Math.round(100 - (paceSd / paceMean) * 1000))) : null;
-  const within1 = paces.length ? paces.filter((p) => Math.abs(p - paceMean) <= 1).length / paces.length : 0;
-  /* The shape of each stroke against the average shape. */
-  const shapes = doc.forceCurves
-    .slice(3, -2)
-    .filter((c) => c.points.length >= 6 && Math.max(...c.points) > 0)
-    .map((c) => {
-      const r = resample(c.points, 32);
-      const peak = Math.max(...r) || 1;
-      return r.map((v) => v / peak);
-    });
-  let same: number | null = null;
-  if (shapes.length >= 8) {
-    const mean = shapes[0].map((_, i) => meanOf(shapes.map((s) => s[i])));
-    const rms = meanOf(shapes.map((s) => Math.sqrt(meanOf(s.map((v, i) => (v - mean[i]) ** 2)))));
-    same = Math.max(0, Math.min(100, Math.round(100 - rms * 300)));
-  }
-  const rates = trimEnds(counted.filter((s) => num(s.spm)).map((s) => ({ x: s.n, y: s.spm as number }))).map((p) => p.y);
-  return { steady, paceMean, paceSd, within1, paces, same, rateSd: rates.length >= 10 ? sdOf(rates) : null };
-}
 const steadyWord = (n: number) => (n >= 92 ? "Metronome" : n >= 85 ? "Steady" : n >= 75 ? "Mostly steady" : n >= 60 ? "Wandering" : "All over the place");
 
 /* WHERE EVERY STROKE'S SPLIT FELL: columns of how many strokes were rowed
