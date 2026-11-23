@@ -2,7 +2,7 @@
   "expo": {
     "name": "ROW",
     "slug": "rowtember",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -38,7 +38,8 @@
       [
         "react-native-ble-plx",
         {
-          "isBackgroundEnabled": false,
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
           "neverForLocation": true,
           "bluetoothAlwaysPermission": "ROW connects to your Concept2 monitor over Bluetooth to read your row."
         }
