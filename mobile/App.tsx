@@ -30,6 +30,16 @@ import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
 import { Avatar, modals, scrub, setSideDrag } from "./src/ui";
 import { buzz } from "./src/buzz";
+import { Splash } from "./src/splash";
+
+/* Android pads the app clear of its own bars (src/insets.tsx); required here
+   and only on Android, so an iPhone build without the module never loads it. */
+const Insets: ComponentType<{ color: string; children: ReactNode }> | null =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Platform.OS === "android" ? require("./src/insets").default : null;
+function Padded({ children }: { children: ReactNode }) {
+  return Insets ? <Insets color={C.paper}>{children}</Insets> : <>{children}</>;
+}
 
 /* ROW, THE APP.
  *
@@ -131,7 +141,12 @@ function Root({ dark }: { dark: boolean }) {
   const keep = useRef((n: Nav) => {
     nav.current = n;
   }).current;
-  return <Shell key={dark ? "dark" : "light"} dark={dark} erg={erg} init={nav.current} onNav={keep} />;
+  return (
+    <>
+      <Shell key={dark ? "dark" : "light"} dark={dark} erg={erg} init={nav.current} onNav={keep} />
+      <Splash />
+    </>
+  );
 }
 
 function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<typeof useErg>; init: Nav; onNav: (n: Nav) => void }) {
@@ -486,8 +501,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.paper }}>
       <StatusBar style={dark ? "light" : "dark"} hidden={monitor && wide} />
+      <Padded>
       <View
-        style={{ flex: 1, width: "100%", maxWidth: monitor ? 1100 : 560, alignSelf: "center", paddingTop: Platform.OS === "android" ? 28 : 0 }}
+        style={{ flex: 1, width: "100%", maxWidth: monitor ? 1100 : 560, alignSelf: "center", paddingTop: 0 }}
         /* EVERY TOUCH STARTS CLEAN; a chart under it then says if it is the
            chart's (ui.tsx scrub). Here, over the whole app, and not on the
            tabs alone (owner, 2026-11-23: "if I'm on the stats part of the
@@ -651,6 +667,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           />
         )}
       </View>
+      </Padded>
     </SafeAreaView>
   );
 }
