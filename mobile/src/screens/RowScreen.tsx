@@ -10,7 +10,7 @@ import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
 import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
-import { GhostRace } from "./GhostRace";
+import { GhostRace, useRace } from "./GhostRace";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -243,6 +243,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
    * numbers stay first and the race page, which says so, is the second.
    * Drawn only while it is the page in view. */
   const raceFirst = live.targetM > 0;
+  const shared = useRace(live.targetM);
   /* The monitor names its distance a moment after it connects, and the
    * race page arrives ahead of the numbers when it does: the pages go back
    * to the first, so the race is what the rower lands on. */
@@ -254,11 +255,26 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
   /* Edge to edge: the lanes are the width of the page ("let's extend the
    * lanes to be the full width"), and the race page keeps its own margins
    * for its figures. */
+  /* THE SAME RACE UP THE PAGE is the page after it while the phone is
+   * upright (owner, 2026-11-22: "make a vertical option for when my phone
+   * is vertical ... the boat still goes side to side ... I do want another
+   * option. Like another slide on that thing for now can be the vertical
+   * version"). One race for the two (GhostRace.tsx useRace): the page in
+   * view moves it on and says who has a lane; the other draws the same
+   * boats. On its side the phone has the one page, across the screen. */
+  const upPage = raceFirst && !wide ? 1 : -1;
+  const last = LAST + (upPage > 0 ? 1 : 0);
   const race = (
     <View style={{ width: w, height: h }}>
-      <GhostRace erg={erg} width={w} height={h} active={page === (raceFirst ? 0 : 1)} />
+      <GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage} active={page === (raceFirst ? 0 : 1)} />
     </View>
   );
+  const raceUp =
+    upPage > 0 ? (
+      <View style={{ width: w, height: h }}>
+        <GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />
+      </View>
+    ) : null;
   const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
 
@@ -278,6 +294,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
         {w ? (
           <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
             {raceFirst ? race : null}
+            {raceUp}
             <View style={{ width: w, height: h, paddingHorizontal: 20 }}>
               <Main erg={erg} wide={wide} width={w - 40} />
             </View>
@@ -306,8 +323,8 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
         ) : null}
       </View>
 
-      <View accessibilityLabel={`Page ${page + 1} of ${LAST + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: wide ? 4 : 10 }}>
-        {Array.from({ length: LAST + 1 }, (_, i) => i).map((i) => (
+      <View accessibilityLabel={`Page ${page + 1} of ${last + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: wide ? 4 : 10 }}>
+        {Array.from({ length: last + 1 }, (_, i) => i).map((i) => (
           <View key={i} style={{ width: i === page ? 18 : 6, height: 6, backgroundColor: i === page ? C.accent : C.line }} />
         ))}
       </View>
@@ -315,7 +332,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
       {/* While the rower is rowing the screen is numbers and nothing else.
           The buttons come up by themselves once the piece is over or the
           handle has been down a few seconds. */}
-      {over && page !== LAST ? <View style={{ paddingHorizontal: 20, paddingBottom: wide ? 8 : 16 }}>{ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+      {over && page !== last ? <View style={{ paddingHorizontal: 20, paddingBottom: wide ? 8 : 16 }}>{ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
     </View>
   );
 }
