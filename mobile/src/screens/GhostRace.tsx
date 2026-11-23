@@ -805,9 +805,10 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
             </View>
           ) : null}
 
-          {/* Over each bow: that boat's average split so far. */}
+          {/* Over each bow: that boat's average split so far. The rower's
+              own is in the full ink, the others' in half of it. */}
           {live.avgPace > 0 && paceTop(xMe) > gapLine + 26 ? (
-            <Text numberOfLines={1} style={[paint(upPace, upPaceLine), { position: "absolute", left: laneX(MID), width: pitch, top: paceTop(xMe), textAlign: "center", letterSpacing: 0, color: C.accent, opacity: 0.9 }]}>{fmtPace(live.avgPace)}</Text>
+            <Text numberOfLines={1} style={[paint(upPace, upPaceLine), { position: "absolute", left: laneX(MID), width: pitch, top: paceTop(xMe), textAlign: "center", letterSpacing: 0, color: C.ink }]}>{fmtPace(live.avgPace)}</Text>
           ) : null}
           {others.map(({ g, r, on, x, pace, rise }) =>
             on && paceTop(x) > gapLine + 8 ? (
@@ -923,6 +924,17 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
               </Text>
             ))
           : null}
+        {/* The rower's own average ahead of their own bow, as every other
+            boat has its, and in the full ink where the others are half of
+            it (owner, 2026-11-22: "I want my average pace to be in front of
+            my boat, just like the other boats ... the same amount of
+            boldness, but more dark ... the other ones are kind of like in
+            the background"). */}
+        {live.avgPace > 0 && paceFits(xMe) ? (
+          <Text numberOfLines={1} style={[paint(paceSize, paceLine), { position: "absolute", left: xMe + bow, top: yOf(MID) - paceLine / 2, color: C.ink }]}>
+            {fmtPace(live.avgPace)}
+          </Text>
+        ) : null}
         {others.map(({ g, on, x, y, pace, rise }) =>
           on && paceFits(x) ? (
             <Text key={`p${g.id}`} numberOfLines={1} style={[paint(paceSize, paceLine), { position: "absolute", left: x + bow, top: y - paceLine / 2, color: C.ink, opacity: 0.5 * rise }]}>

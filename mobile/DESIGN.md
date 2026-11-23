@@ -696,3 +696,12 @@ His read of round 27 from two screenshots, and "build these changes and push the
 - NOT on the website's version of this screen: he asked for it, of the app.
 - 4, the app goes on reading the monitor from behind another app (`app.json`: the Bluetooth plugin's background mode, `central`). A build setting, so the version went to 1.3.0 and it needs a new build from him.
 - SEEN: the types pass, and two simulated pieces fed one after the other through the model hand the first over whole (1,000 m, 117 strokes). NOT seen on a phone, and not against a real monitor: the list, the line over the monitor and the background reading are untried there.
+
+## Round 32 (2026-11-22, night): the rower's own average ahead of their own bow
+
+"on the racing animation, I didn't have my average pace there. I want my average pace to be in front of my boat, just like the other boats ... the same amount of boldness, but more dark, right? Because the other ones are pretty light ... full black ... the other ones are kind of like in the background."
+
+- **The page across the screen had no average for the rower at all** (`GhostRace.tsx`): every other boat had its split ahead of its bow and the rower's own lane had only the name. It is there now, the same size and face as the others', in the full ink where theirs are half of it. On the page up the screen it was already over the bow, in the blue at nine tenths; it is the full ink there too.
+- The rower's best, the red boat in the same lane, rows over the figure while it is within a few seconds ahead. Left so: the boat is a thin line and the figure reads under it. MINE.
+- **RACE DAY without TELEMETRY is right where it shows** ("Are not all the race day entries telemetry?"). Read off the live recordings, 2026-11-22: of the 26 race day rows, 10 carry the second-by-second series and 16 carry the finish time alone. A lane says TELEMETRY only for the 10; the others are replayed at an even pace.
+- SEEN in a browser on the sandbox: upright across, upright up the page, and on its side. NOT seen on a phone.
