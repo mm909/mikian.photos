@@ -291,10 +291,11 @@ const SOON_S = 8;
  *     when a boat was dropped, behind when one went away up the course),
  *     one that is about to pass or be passed, a recorded row, and the one
  *     that will be on the water longest.
- *  2. Failing any, another row of a rower who is racing already, the
- *     rower's own past rows among them (owner, the same day, of the pace
- *     boats: "rows from past recorded rows can be played there").
- *  3. Failing that too, a pace boat: an even pace to the nearest round finish
+ *     Never a second row of a rower who is racing already. For a few
+ *     hours of 2026-11-22 it was, before a pace boat, and the owner's
+ *     first row with it had four lanes in his own name: "4 of these rowers
+ *     are me. Fix it".
+ *  2. Failing any, a pace boat: an even pace to the nearest round finish
  *     on that side of the finish the rower is headed for (`near`), every
  *     five seconds, and every second when none of those is on the water.
  *
@@ -324,22 +325,18 @@ export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: 
 
   let best: Next | null = null;
   let least = Infinity;
-  /* A rower not on the water already; and when there is none, a second row
-   * of one who is, before any pace boat. */
-  for (const again of [false, true]) {
-    for (const g of ghosts) {
-      if (g.kind === "pace" || ids.has(g.id) || keys.has(rowerKey(g)) !== again || ghostDone(g, t)) continue;
-      const s = look(g);
-      if (!s) continue;
-      const cost = -Math.min(s.stay, 120) * 0.4 - (s.pass ? 40 : 0) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.3;
-      if (cost < least) {
-        least = cost;
-        best = { g, on: s.on };
-      }
+  /* ONE ROW A ROWER, ALWAYS: nobody is in two lanes. */
+  for (const g of ghosts) {
+    if (g.kind === "pace" || ids.has(g.id) || keys.has(rowerKey(g)) || ghostDone(g, t)) continue;
+    const s = look(g);
+    if (!s) continue;
+    const cost = -Math.min(s.stay, 120) * 0.4 - (s.pass ? 40 : 0) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.3;
+    if (cost < least) {
+      least = cost;
+      best = { g, on: s.on };
     }
-    if (best) return best;
   }
-  if (!(near > 0)) return best;
+  if (best || !(near > 0)) return best;
 
   for (const step of [5, 1]) {
     const base = Math.round(near / step) * step;

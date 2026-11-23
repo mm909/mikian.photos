@@ -70,8 +70,10 @@ ok("asked for one behind, it finishes later", behind?.g.kind === "pace" && behin
 const second = nextBoat({ ...at, near: 1203, ghosts: [], racing: [ahead!.g], want: 1 });
 ok("a second one ahead is a different boat", second?.g.kind === "pace" && second.g.id !== ahead!.g.id && second.g.seconds < 1203, second);
 ok("nobody is given a lane twice", nextBoat({ ...at, ghosts: some, racing: [some[1]], want: 0 })?.g.id !== "close");
-ok("a second row of a rower who is racing has it before a pace boat", nextBoat({ ...at, ghosts: [row("twin", 1203, "011")], racing: [some[1]], want: 0 })?.g.id === "twin");
-ok("but not before a row of somebody who is not", nextBoat({ ...at, ghosts: [row("twin", 1201, "011"), row("other", 1206, "013")], racing: [some[1]], want: 0 })?.g.id === "other");
+ok("nor two rows of one rower: a pace boat has the lane first", nextBoat({ ...at, ghosts: [row("twin", 1203, "011")], racing: [some[1]], want: 0 })?.g.kind === "pace");
+ok("a row of somebody who is not racing has it", nextBoat({ ...at, ghosts: [row("twin", 1201, "011"), row("other", 1206, "013")], racing: [some[1]], want: 0 })?.g.id === "other");
+const own: Ghost[] = [1198, 1202, 1205].map((s2, i) => ({ ...even, id: `own${i}`, kind: "me", seconds: s2 }));
+ok("with one of the rower's own rows racing, no other of theirs is given a lane", nextBoat({ ...at, ghosts: own, racing: [own[0]], want: 0 })?.g.kind === "pace");
 /* Late in a long piece, upright, only a few seconds either side are on the
  * water: four lanes still fill. */
 const late = { ...at, t: 1150, mine: (1150 / 1203) * 5000, near: 1203 };
