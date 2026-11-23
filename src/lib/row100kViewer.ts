@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { isDevAccount, resetIfNewDay } from "@/lib/devAccount";
 import { getEffectiveActor, type Actor } from "@/lib/permissions";
 import { CHALLENGE, isRow100kAdmin, type Boards } from "@/lib/row100k";
 import type { BlackoutState } from "@/lib/blackout";
@@ -112,6 +113,11 @@ export async function resolveViewer(): Promise<Viewer> {
     const actor = await getEffectiveActor();
     if (!actor) return ANON_VIEWER;
     const isAdmin = isRow100kAdmin(actor.email, actor.roles);
+    /* THE DEVELOPER (lib/devAccount.ts): the first use on a new day puts
+     * its copy of rower 001 back. */
+    if (await isDevAccount(actor.photographerId)) {
+      await resetIfNewDay().catch((err) => console.error("row100k: the Developer's daily reset failed", err));
+    }
     const me = await db.rowParticipant.findUnique({
       where: { challenge_userId: { challenge: CHALLENGE, userId: actor.photographerId } },
       select: { id: true, rowerNumber: true, displayName: true, instagram: true, division: true },

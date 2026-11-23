@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isDevAccount } from "@/lib/devAccount";
 import { CHALLENGE, GOAL_METERS, MONTH } from "@/lib/row100k";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
@@ -55,6 +56,8 @@ export async function GET() {
       ok: true,
       signedIn: true,
       isAdmin: viewer.isAdmin,
+      /* The Developer account, rower 000 (lib/devAccount.ts). */
+      isDev: await isDevAccount(viewer.actor.photographerId).catch(() => false),
       name: viewer.actor.name,
       me: me ? { participantId: me.id, rowerNumber: me.rowerNumber, displayName: me.displayName, instagram: me.instagram, division: me.division } : null,
       totals,

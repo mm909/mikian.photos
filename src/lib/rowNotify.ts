@@ -1,4 +1,5 @@
-import { db } from "@/lib/db";
+import { db, rawDb } from "@/lib/db";
+import { devIds } from "@/lib/devHide";
 import { activeBlackout } from "@/lib/blackout";
 import { CHALLENGE, MONTH, fmtMeters, nowMs, pacificDay, splitSeconds } from "@/lib/row100k";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
@@ -68,8 +69,15 @@ async function push(notes: Push[]): Promise<void> {
 
 /* One line about one rower doing something to another. A second follow by
  * the same rower replaces the first line instead of stacking beside it. */
+/* THE DEVELOPER (rower 000, lib/devAccount.ts) tells nobody anything: what
+ * it does is seen by it alone, so no line and no push leaves it. */
+async function fromDeveloper(participantId: string): Promise<boolean> {
+  return (await devIds(rawDb).catch(() => null))?.pid === participantId;
+}
+
 export async function notifyPerson(kind: "follow" | "request" | "accepted", recipientId: string, actor: { id: string; displayName: string }): Promise<void> {
   try {
+    if (await fromDeveloper(actor.id)) return;
     if (kind === "follow") {
       const off = await notifyOff([recipientId]);
       if (off.get(recipientId)?.has("follow")) return;
@@ -93,6 +101,7 @@ export async function notifyPerson(kind: "follow" | "request" | "accepted", reci
 export async function notifyTouch(kind: "liked" | "commented" | "replied" | "mentioned" | "likedComment", recipientId: string, actor: { id: string; displayName: string }, entryId: string): Promise<void> {
   try {
     if (recipientId === actor.id) return;
+    if (await fromDeveloper(actor.id)) return;
     const off = await notifyOff([recipientId]);
     if (off.get(recipientId)?.has(kind === "replied" || kind === "mentioned" ? "commented" : kind === "likedComment" ? "liked" : kind)) return;
     if ((await blockedIds(recipientId)).includes(actor.id)) return;
@@ -120,6 +129,7 @@ export async function clearRequest(recipientId: string, actorId: string): Promis
  * sent at all while a lights-out window is open, since who passed whom is
  * exactly what the window hides. */
 export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number; seconds?: number }): Promise<void> {
+  if (await fromDeveloper(rower.id)) return;
   await notifyRowed(rower, entry);
   try {
     const follows = await db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted", notify: true }, select: { followerId: true } });

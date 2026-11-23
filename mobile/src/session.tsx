@@ -20,7 +20,7 @@ type Session = {
   signInApple: (appleToken: string, name: string) => Promise<void>;
   /* THE APP STORE REVIEWER'S SIGN-IN: a name and a password the owner sets
    * on the server and writes in the review notes (lib/appReview.ts). */
-  signInReview: (user: string, pass: string) => Promise<void>;
+  signInReview: (pass: string) => Promise<void>;
   /* ON A PHONE: sign in through the site, in the phone's own sign-in sheet
    * (the site's /api/row100k/app/session/handoff says how). */
   signInSite: () => Promise<void>;
@@ -76,7 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
-  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInApple: (appleToken, name) => take({ appleToken, name }), signInReview: (reviewUser, reviewPass) => take({ reviewUser, reviewPass }), signInSite, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInApple: (appleToken, name) => take({ appleToken, name }), signInReview: (reviewPass) => take({ reviewPass }), signInSite, signOut }}>{children}</Ctx.Provider>;
 }
 
 export const useSession = () => useContext(Ctx);

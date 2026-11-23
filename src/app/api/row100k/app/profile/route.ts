@@ -30,7 +30,8 @@ export async function GET(req: Request) {
       if (!viewer.me) return no(viewer.actor ? "Join first." : "Sign in first.", viewer.actor ? 404 : 401);
       num = viewer.me.rowerNumber;
     }
-    if (!Number.isInteger(num) || num < 1 || num > 999999) return no("No such rower.", 404);
+    /* 0 is the Developer, found only when the Developer asks (lib/devHide.ts). */
+    if (!Number.isInteger(num) || num < 0 || num > 999999) return no("No such rower.", 404);
     const built = await buildProfile(num, q.get("m") ?? undefined);
     if (!built) return no("No such rower.", 404);
     const { view: v, viewer, until, lifetime, rel } = built;

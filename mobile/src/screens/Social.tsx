@@ -308,7 +308,7 @@ export type PeopleList = "followers" | "following" | "requests" | "blocked" | "m
  * viewer's own two: requests to answer, and the rowers they have blocked. */
 export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: number; onRower: (n: number) => void }) {
   const { refresh, me } = useSession();
-  const path = `/api/row100k/app/people?list=${list}${num ? `&num=${num}` : ""}`;
+  const path = `/api/row100k/app/people?list=${list}${num != null ? `&num=${num}` : ""}`;
   const { data, error, loading, reload } = useLoad(() => api<{ people: Person[] }>(path), [path], path);
   /* My own FOLLOWING list is where I stop following (owner, 2026-11-21:
    * "when I'm on my profile and I click following ... I should be able to

@@ -1,43 +1,30 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { db } from "@/lib/db";
+import { devPasswordMatches, ensureDev } from "@/lib/devAccount";
+import { DEV_EMAIL } from "@/lib/devHide";
 
-/* THE APP STORE REVIEWER'S ACCOUNT (owner, 2026-11-22: "Add a reviewer
- * login"). The phone app signs in with Apple or Google and nothing else, so
- * there is no name and password to write in Apple's review notes. This is
- * one: a single account, "App Review", that a name and a password open.
+/* THE DEVELOPER SIGN-IN (owner, 2026-11-22: "Add a reviewer login";
+ * 2026-11-23: "We just need a single reviewer/dev account ... We also just
+ * need a password for it no username ... can we set one up w/o me being in
+ * vercel?"). The phone app signs in with Apple or Google; this is the one
+ * account that opens with a password alone, for Apple's reviewer and for
+ * the owner's own testing: the Developer, rower 000 (lib/devAccount.ts).
  *
- * THE OWNER SETS BOTH, on the host and nowhere in this repository:
- *   APP_REVIEW_USER       at least 3 characters
- *   APP_REVIEW_PASSWORD   at least 8
- * With either one missing or shorter the door is shut: nothing matches, and
- * the route says the same thing it says to a wrong password. Taking the two
- * off the host after the review closes it again.
- *
- * The account is a plain rower's: no admin, no roles beyond a user's. It is
- * made the first time the sign-in succeeds, and made again if the reviewer
- * deleted it (Apple tries DELETE ACCOUNT). The reviewer joins as a rower
- * the way anybody does, which mails the owner like any sign-up; the rower
- * can be deleted from the app's own admin menu when the review is over. */
+ * THE OWNER SETS THE PASSWORD in the app's settings, signed in as himself
+ * (api/row100k/app/dev); only its digest is kept. APP_REVIEW_PASSWORD on
+ * the host, if it is ever set, opens it too. With neither, the door is
+ * shut: nothing matches, and the route says what it says to a wrong one. */
 
-export const REVIEW_EMAIL = "appreview@rowtember.com";
+export const REVIEW_EMAIL = DEV_EMAIL;
 
 /* Compared by digest, in a time that does not depend on where they differ. */
 const same = (a: string, b: string) => timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
 
-/* The review account's id when the name and the password are the ones set
- * on the host; null otherwise, whatever the reason. */
-export async function reviewAccountFor(user: string, pass: string): Promise<string | null> {
-  const wantUser = (process.env.APP_REVIEW_USER ?? "").trim().toLowerCase();
-  const wantPass = process.env.APP_REVIEW_PASSWORD ?? "";
-  if (wantUser.length < 3 || wantPass.length < 8) return null;
-  const okUser = same(user.trim().toLowerCase(), wantUser);
-  const okPass = same(pass, wantPass);
-  if (!okUser || !okPass) return null;
-  const row = await db.photographer.upsert({
-    where: { email: REVIEW_EMAIL },
-    create: { email: REVIEW_EMAIL, name: "App Review", roles: ["user"], isAdmin: false },
-    update: {},
-    select: { id: true },
-  });
-  return row.id;
+/* The Developer's account id when the password is right; null otherwise,
+ * whatever the reason. */
+export async function reviewAccountFor(pass: string): Promise<string | null> {
+  if (pass.length < 8) return null;
+  const host = process.env.APP_REVIEW_PASSWORD ?? "";
+  const ok = (host.length >= 8 && same(pass, host)) || (await devPasswordMatches(pass));
+  if (!ok) return null;
+  return ensureDev();
 }

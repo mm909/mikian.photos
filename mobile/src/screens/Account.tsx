@@ -25,15 +25,15 @@ onLook(() => {
 export function SignIn({ why }: { why: string }) {
   const { signInDev, signInSite, signInApple, signInReview } = useSession();
   const [email, setEmail] = useState("");
-  /* The App Store reviewer's sign-in, folded away until asked for. */
+  /* The Developer's sign-in, a password alone, folded away until asked
+     for: Apple's reviewer and the owner's own testing (2026-11-23). */
   const [review, setReview] = useState(false);
-  const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const asReviewer = async () => {
     setBusy(true);
     setError("");
     try {
-      await signInReview(user, pass);
+      await signInReview(pass);
     } catch (err) {
       setError(err instanceof Error ? err.message : "That did not work.");
     }
@@ -126,14 +126,13 @@ export function SignIn({ why }: { why: string }) {
           door is shut. A quiet line until it is pressed. */}
       {review ? (
         <View style={{ marginTop: 22 }}>
-          <Eyebrow>App review sign-in</Eyebrow>
-          <TextInput style={field} value={user} onChangeText={setUser} autoCapitalize="none" autoCorrect={false} placeholder="Name" placeholderTextColor={C.gray} accessibilityLabel="Review sign-in name" />
-          <TextInput style={field} value={pass} onChangeText={setPass} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="Password" placeholderTextColor={C.gray} accessibilityLabel="Review sign-in password" onSubmitEditing={asReviewer} />
-          <Btn label={busy ? "Signing in" : "Sign in"} quiet disabled={busy || user.trim().length < 3 || pass.length < 8} onPress={asReviewer} />
+          <Eyebrow>Developer sign-in</Eyebrow>
+          <TextInput style={field} value={pass} onChangeText={setPass} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="Password" placeholderTextColor={C.gray} accessibilityLabel="Developer password" onSubmitEditing={asReviewer} />
+          <Btn label={busy ? "Signing in" : "Sign in"} quiet disabled={busy || pass.length < 8} onPress={asReviewer} />
         </View>
       ) : (
         <Text accessibilityRole="button" onPress={() => setReview(true)} suppressHighlighting style={[styles.body, { fontSize: 13, marginTop: 18, textDecorationLine: "underline" }]}>
-          App review sign-in
+          Developer sign-in
         </Text>
       )}
       {__DEV__ ? (

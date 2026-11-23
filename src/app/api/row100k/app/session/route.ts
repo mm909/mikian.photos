@@ -16,9 +16,10 @@ import { rateLimit } from "@/lib/rateLimit";
  * be walked on a laptop without a Google client. Inert in any production
  * build (Vercel production and preview both).
  *
- * THE APP STORE REVIEWER: POST { reviewUser, reviewPass } signs in as the
- * one review account when both match what the owner set on the server
- * (lib/appReview.ts). With nothing set there, nothing matches. */
+ * THE DEVELOPER: POST { reviewPass } signs in as the one Developer
+ * account, rower 000, when the password is the one the owner set
+ * (lib/appReview.ts). With none set, nothing matches. A name sent beside it
+ * (the app before 2026-11-23 asked for one) is ignored. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,12 @@ export async function POST(req: Request) {
       if (!row) return no("No such account.", 404);
       return NextResponse.json({ ok: true, token: await mintAppToken(row.id) }, { headers: NO_STORE });
     }
-    if (typeof body.reviewUser === "string" && typeof body.reviewPass === "string") {
+    if (typeof body.reviewPass === "string") {
       /* A guess at the password is rarer than a sign-in, and is held to it. */
       const tries = await rateLimit({ key: `row-app-review:${ip}`, limit: 8, windowSec: 600 }).catch(() => null);
       if (tries && !tries.ok) return no("Too many sign-ins. Try again in a few minutes.", 429);
-      const id = await reviewAccountFor(body.reviewUser, body.reviewPass);
-      if (!id) return no("That is not the review sign-in.", 401);
+      const id = await reviewAccountFor(body.reviewPass);
+      if (!id) return no("That is not the Developer password.", 401);
       return NextResponse.json({ ok: true, token: await mintAppToken(id) }, { headers: NO_STORE });
     }
     /* SIGN IN WITH APPLE: POST { appleToken, name? }. */

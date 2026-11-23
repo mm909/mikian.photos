@@ -46,7 +46,7 @@ export type Subject = { id: string; rowerNumber: number; displayName: string; in
 
 export async function rowerByNum(raw: unknown): Promise<Subject | null> {
   const num = Number(raw);
-  if (!Number.isInteger(num) || num < 1 || num > 999999) return null;
+  if (!Number.isInteger(num) || num < 0 || num > 999999) return null;
   return db.rowParticipant.findFirst({ where: { challenge: CHALLENGE, rowerNumber: num }, select: { id: true, rowerNumber: true, displayName: true, instagram: true, userId: true } });
 }
 

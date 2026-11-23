@@ -151,9 +151,9 @@ export function ProfileScreen({
   const mine = me.me?.rowerNumber;
   const path = `/api/row100k/app/profile?${own ? "" : `num=${num}&`}${period ? `m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(
-    () => (own && !mine ? Promise.resolve(null) : api<{ profile?: Profile; blocked?: Blocked }>(path)),
+    () => (own && mine == null ? Promise.resolve(null) : api<{ profile?: Profile; blocked?: Blocked }>(path)),
     [path, mine, own ? edits.n : 0],
-    own && !mine ? null : path,
+    own && mine == null ? null : path,
   );
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);

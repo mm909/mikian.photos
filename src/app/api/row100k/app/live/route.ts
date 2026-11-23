@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     if (dark) return yes({ on: true, rowers: [] });
     const lines = await db.$queryRaw<Line[]>`SELECT l."participantId", l."elapsed", l."distance", l."spm", l."marks", l."ended", EXTRACT(EPOCH FROM (NOW() - l."updatedAt"))::float8 AS "age", p."displayName", p."rowerNumber"
       FROM "RowLive" l JOIN "RowParticipant" p ON p."id" = l."participantId"
-      WHERE l."challenge" = ${CHALLENGE} AND l."meters" = ${meters} AND l."participantId" <> ${me.id} AND l."distance" >= 20
+      WHERE l."challenge" = ${CHALLENGE} AND l."meters" = ${meters} AND l."participantId" <> ${me.id} AND p."rowerNumber" <> 0 AND l."distance" >= 20
         AND (l."updatedAt" > NOW() - make_interval(secs => ${FRESH_S}) OR (l."ended" AND l."updatedAt" > NOW() - make_interval(secs => ${KEPT_S})))
       ORDER BY l."updatedAt" DESC LIMIT ${MOST * 3}`;
     const rowers = lines

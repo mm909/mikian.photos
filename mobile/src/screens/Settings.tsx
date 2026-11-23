@@ -28,8 +28,13 @@ import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
  *   APPEARANCE     dark mode, on this phone
  *
  * and the way out. A switch saves as it is pressed; what is typed on the
- * account page saves with SAVE. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance";
+ * account page saves with SAVE.
+ *
+ * THE DEVELOPER ACCOUNT (owner, 2026-11-23; lib/devAccount.ts on the site):
+ * signed in as the Developer, RESET THIS ACCOUNT puts rower 001's copy
+ * back at once; signed in as an admin, DEVELOPER PASSWORD sets the one
+ * password that opens it, so the host's settings never need opening. */
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -87,6 +92,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
         {/* What the store asks to be a press away: the policy and the terms. */}
         <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
         <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)} />
+        {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("developer")} onReset={() => refresh()} /> : null}
         <View style={{ height: 26 }} />
         <Act
           label="Sign out"
@@ -99,6 +105,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
     );
   }
 
+  if (page === "developer") return wrap(<DeveloperPassword />);
   if (page === "appearance") {
     return wrap(<Setting title="Dark mode" body="Ink for the page, cream for the type. Only on this phone." on={look.dark} onChange={look.setDark} />);
   }
@@ -344,6 +351,99 @@ function DeleteSheet({ num, onClose, onDeleted }: { num: number; onClose: () => 
 
 /* A line that leads to a page: its name, a word about what is there, and
  * the arrow. */
+/* What the Developer and an admin see in the list, under the policy and
+ * the terms. A reset is pressed twice: once to ask, once to do it. */
+function DeveloperRows({ isDev, onPassword, onReset }: { isDev: boolean; onPassword: () => void; onReset: () => void }) {
+  const [ask, setAsk] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const reset = async () => {
+    if (!ask) {
+      setAsk(true);
+      setNote("Everything this account changed goes, and rower 001's rows are copied back. Press again to reset.");
+      return;
+    }
+    setBusy(true);
+    setNote("");
+    try {
+      const r = await api<{ rows: number }>("/api/row100k/app/dev", { body: { reset: true } });
+      edits.n++;
+      onReset();
+      setNote(`Reset. ${r.rows.toLocaleString("en-US")} rows copied from rower 001.`);
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "That did not work.");
+    }
+    setAsk(false);
+    setBusy(false);
+  };
+  return (
+    <>
+      <View style={{ height: 26 }} />
+      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Developer" />
+      {isDev ? <Act label={busy ? "Resetting" : ask ? "Press again to reset" : "Reset this account"} danger={ask} onPress={busy ? () => null : reset} /> : null}
+      {isDev && !note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>A copy of rower 001 that only this account sees. What you change stays until tomorrow, then rower 001 is copied again.</Text> : null}
+      {note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>{note}</Text> : null}
+      {!isDev ? <Go label="Developer password" sub="Opens the Developer account, rower 000" onPress={onPassword} /> : null}
+    </>
+  );
+}
+
+/* THE PASSWORD, for an admin: typed here, kept on the site only as a
+ * digest. Nobody can read it back, so a forgotten one is set again. */
+function DeveloperPassword() {
+  const { data } = useLoad(() => api<{ passwordSet: boolean }>("/api/row100k/app/dev"), [], "/api/row100k/app/dev");
+  const [pass, setPass] = useState("");
+  const [state, setState] = useState<"" | "busy" | "saved">("");
+  const [bad, setBad] = useState("");
+  const field = { borderWidth: 1, borderColor: C.line, backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: F.sans, fontSize: 16, color: C.ink } as const;
+  const submit = async () => {
+    if (pass.length < 8) {
+      setBad("At least 8 characters.");
+      return;
+    }
+    setBad("");
+    setState("busy");
+    try {
+      await api("/api/row100k/app/dev", { body: { password: pass } });
+      setPass("");
+      setState("saved");
+    } catch (err) {
+      setBad(err instanceof Error ? err.message : "That did not save.");
+      setState("");
+    }
+  };
+  return (
+    <>
+      <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 21, color: C.ink }}>
+        The Developer account is rower 000: a copy of rower 001 that only it can see. Under the sign-in buttons, Developer sign-in opens it with this password alone. Give it to Apple's reviewer in the review notes.
+      </Text>
+      <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 22, marginBottom: 6 }]}>
+        {state === "saved" || data?.passwordSet ? "New password · one is set" : "Password · none set yet"}
+      </Text>
+      <TextInput
+        accessibilityLabel="Developer password"
+        value={pass}
+        onChangeText={(t) => {
+          setPass(t);
+          if (state === "saved") setState("");
+        }}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="8 characters or more"
+        placeholderTextColor={C.gray}
+        onSubmitEditing={submit}
+        style={[field, WEB_NO_RING]}
+      />
+      {bad ? <Text style={[mono(11, false, C.accent, 0.1), { marginTop: 12 }]}>{bad}</Text> : null}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 18 }}>
+        <Small label={state === "busy" ? "Saving" : "Save"} fill disabled={state === "busy"} onPress={submit} />
+        {state === "saved" ? <Text style={mono(11, false, C.gray)}>Saved</Text> : null}
+      </View>
+    </>
+  );
+}
+
 function Go({ label, sub, onPress }: { label: string; sub?: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", minHeight: 60, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>

@@ -105,6 +105,8 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 export type Me = {
   signedIn: boolean;
   isAdmin?: boolean;
+  /* The Developer account, rower 000. */
+  isDev?: boolean;
   name?: string;
   me?: { participantId: string; rowerNumber: number; displayName: string; instagram: string; division: string } | null;
   totals?: { meters: number; seconds: number; sessions: number; monthMeters: number };

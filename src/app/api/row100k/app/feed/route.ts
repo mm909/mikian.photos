@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     const q = new URL(req.url).searchParams;
     const raw = q.get("before") ?? "";
     const rowerNum = Number(q.get("rower"));
-    const one = q.has("rower") && Number.isInteger(rowerNum) && rowerNum > 0 ? await db.rowParticipant.findFirst({ where: { challenge: CHALLENGE, rowerNumber: rowerNum }, select: { id: true } }) : null;
+    const one = q.has("rower") && Number.isInteger(rowerNum) && rowerNum >= 0 ? await db.rowParticipant.findFirst({ where: { challenge: CHALLENGE, rowerNumber: rowerNum }, select: { id: true } }) : null;
     if (q.has("rower") && !one) return NextResponse.json({ ok: true, items: [], older: null, lead: 0 }, { headers: NO_STORE });
     const viewer = await resolveViewer();
     const me = viewer.myParticipantId;

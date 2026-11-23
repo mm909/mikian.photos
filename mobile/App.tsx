@@ -201,7 +201,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const mine = me.me?.rowerNumber;
   useEffect(() => {
     warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
-    if (mine) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
+    if (mine != null) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
   }, [mine, stamp]);
 
@@ -439,7 +439,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   let markIs: MarkKind = "word";
   if (logOn) mark = "LOG";
   else if (!top) {
-    if (tab === "profile" && mine) mark = num3(mine);
+    if (tab === "profile" && mine != null) mark = num3(mine);
     else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
@@ -451,7 +451,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
-  const pageOf = logOn ? null : !top ? (tab === "profile" && mine ? mine : null) : top.kind === "rower" ? top.num : null;
+  const pageOf = logOn ? null : !top ? (tab === "profile" && mine != null ? mine : null) : top.kind === "rower" ? top.num : null;
   const flip = !logOn && !top && tab === "board" && !!me.isAdmin;
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one

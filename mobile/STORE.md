@@ -80,15 +80,14 @@ Works with the Concept2 PM5 monitor. Concept2 and PM5 are trademarks of Concept2
 
 ## Notes for the reviewer
 
-Paste into App Review Information. The two values in angle brackets are the ones you set on the host as `APP_REVIEW_USER` and `APP_REVIEW_PASSWORD` (see "Before you submit").
+Paste into App Review Information. The value in angle brackets is the Developer password you set in the app (see "Before you submit"). App Store Connect also asks for a user name: write `Developer` there; the app asks for the password only.
 
 ```
 SIGNING IN
-The app signs in with Apple or with Google. For review there is also a name and a password:
-on the sign-in screen, press "App review sign-in" under the buttons, and enter
-  Name: <APP_REVIEW_USER>
-  Password: <APP_REVIEW_PASSWORD>
-The first time, the app asks you to join as a rower (a name, a division, a birthday). Any values work.
+The app signs in with Apple or with Google. For review there is also a demo account that opens with a password alone:
+on the Profile tab, press "Developer sign-in" under the sign-in buttons, and enter
+  Password: <DEVELOPER PASSWORD>
+It is rower 000, "Developer", already full of a year of real rows and photos. Anything you change in it (a row logged, a like, a comment) is seen by this account alone and is put back the next day; Settings > Reset this account puts it back at once.
 
 THE ROWING MACHINE
 The app reads a Concept2 PM5 rowing machine monitor over Bluetooth. Without one:
@@ -154,8 +153,8 @@ Expect something above the lowest rating because of the user content. The privac
 
 ## Before you submit
 
-1. **Set the reviewer's sign-in on the host** (Vercel, Production): `APP_REVIEW_USER` (3 characters or more) and `APP_REVIEW_PASSWORD` (8 or more), then redeploy. Until both are set the review sign-in refuses everybody. Take them off after the review to shut it again.
+1. **Set the Developer password in the app**: signed in as yourself (an admin), Settings > Developer password, 8 characters or more. Only its digest is kept; nobody, you included, can read it back, so a forgotten one is set again. No host settings needed. Until one is set the Developer sign-in refuses everybody.
 2. **The mailbox** `row@rowtember.com` has to receive mail: the policy, the terms and these notes all name it.
 3. **The store build must carry today's code.** It takes updates from the `production` channel: `npx eas-cli@latest update --channel production --environment production --platform ios --non-interactive --message "<what changed>"` from `mobile/`, or a fresh `build --profile production`.
 4. **Upload**: `npx eas-cli@latest submit --platform ios`, then try the build in TestFlight before pressing Submit for Review.
-5. After the review: delete the "App Review" rower from the three dots on its page, if the reviewer joined as one.
+5. After the review: nothing to clean up. The Developer account puts itself back the next day, and nobody else ever saw it.
