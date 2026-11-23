@@ -1,12 +1,13 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { api, type Stories } from "../api";
+import Svg, { Circle, Line, Path, Text as SvgText } from "react-native-svg";
+import { api, type Stories as Base } from "../api";
 import { Columns } from "../charts";
 import { Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Bar, Waiting, useLoad } from "../ui";
 
-/* THE QUESTIONS BEHIND THE STATS (owner, 2026-11-21: "there's a desire to
+/* THE FAQS BEHIND THE STATS, called QUESTIONS until 2026-11-23 (owner, 2026-11-21: "there's a desire to
  * look at charts ... if they're answering a cool question"; "the
  * notification button on the stats page gets replaced with like little FAQ
  * button. And then the FAQ button has ... row after row of a question ...
@@ -23,13 +24,31 @@ import { Bar, Waiting, useLoad } from "../ui";
  * questions are good ... take that as free rein to add a couple more"):
  * who makes the 100K (the question the whole app leans on), how far a
  * typical row is, and how long a 5K takes the field. */
-export type StoryId = "rowers" | "when" | "club" | "length" | "fivek";
+/* THE FAQS (owner, 2026-11-23: "instead of questions, let's just make it
+ * FAQs. Still the Q be the thing that is blue"): the page's name in the bar
+ * over it (App.tsx, mark.tsx). And two more answers ("spend some time
+ * adding some more stats in that FAQ, and like a couple of them I think is
+ * appropriate"; a scatter was the kind of picture he named):
+ *
+ *   slower   do longer rows go slower: every timed row, its length against
+ *            its split, a dot the size of how many rows are there, and the
+ *            middle split of each thousand meters as the blue line
+ *   often    how many days of a week a rower who rows in it rows
+ *
+ * Absent from a server that has not been updated, as the three before. */
+type Slower = { bands: { rows: number; median: number }[]; cells: { b: number; p: number; n: number }[]; paceFrom: number; paceTo: number; paceStep: number; rows: number; short: { rows: number; median: number }; long: { rows: number; median: number } };
+type Often = { days: number[]; weeks: number; median: number; mean: number; rowers: number; spans: number };
+type Stories = Base & { slower?: Slower; often?: Often };
+
+export type StoryId = "rowers" | "when" | "club" | "length" | "fivek" | "slower" | "often";
 const STORIES: { id: StoryId; q: string; sub: string }[] = [
   { id: "rowers", q: "How many people are rowing?", sub: "Today, this week, and each month so far" },
   { id: "club", q: "How many make the 100K?", sub: "Each month, and how many rows it took them" },
   { id: "when", q: "When do people row?", sub: "The hour of the day, and the day of the week" },
   { id: "length", q: "How far is a typical row?", sub: "Every row by its length, a thousand meters at a time" },
   { id: "fivek", q: "How long does a 5K take?", sub: "Every timed 5,000 m, half a minute at a time" },
+  { id: "slower", q: "Do longer rows go slower?", sub: "Every timed row, its length against its split" },
+  { id: "often", q: "How many days a week do people row?", sub: "Every rower's week, by the days rowed in it" },
 ];
 const PATH = "/api/row100k/app/stories";
 
@@ -62,7 +81,7 @@ export function StoryScreen({ id }: { id: StoryId }) {
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }}>
       <Text style={{ fontFamily: F.black, fontSize: 28, lineHeight: 32, color: C.ink }}>{story.q}</Text>
-      {id === "rowers" ? <Rowers r={data.rowers} /> : id === "club" && data.club ? <Club c={data.club} /> : id === "length" && data.length ? <Length l={data.length} /> : id === "fivek" && data.fivek ? <FiveK f={data.fivek} /> : id === "when" ? <When w={data.when} /> : <Words>This answer is not here yet. Pull the stats down to refresh and open it again.</Words>}
+      {id === "rowers" ? <Rowers r={data.rowers} /> : id === "club" && data.club ? <Club c={data.club} /> : id === "length" && data.length ? <Length l={data.length} /> : id === "fivek" && data.fivek ? <FiveK f={data.fivek} /> : id === "slower" && data.slower ? <SlowerStory s={data.slower} /> : id === "often" && data.often ? <OftenStory o={data.often} /> : id === "when" ? <When w={data.when} /> : <Words>This answer is not here yet. Pull the stats down to refresh and open it again.</Words>}
     </ScrollView>
   );
 }
@@ -139,6 +158,135 @@ function FiveK({ f }: { f: NonNullable<Stories["fivek"]> }) {
       <Columns values={f.bins} accent={at} height={110} />
       <Under labels={marks} />
       <Words>One column is half a minute of finishing time, quicker to the left. The blue one holds the 5K in the middle. A rower who has rowed forty of them is in here forty times, so this is every 5K rowed and not every rower's best.</Words>
+    </>
+  );
+}
+
+/* DO LONGER ROWS GO SLOWER: how many seconds a 500 the rows of 9,000 m and
+ * over give away to the rows under 3,000 m, as the big figure; then every
+ * timed row as a field of dots, length across and split up the side, faster
+ * at the top. */
+function SlowerStory({ s }: { s: Slower }) {
+  const [w, setW] = useState(0);
+  if (!s.rows) return <Words>Nobody has logged a timed row yet.</Words>;
+  const both = s.short.rows >= 5 && s.long.rows >= 5;
+  const gap = both ? Math.round(s.long.median - s.short.median) : 0;
+  const value = !both ? mmss(mid(s.bands)) : gap === 0 ? "0 s" : `${gap > 0 ? "+" : "-"}${Math.abs(gap)} s`;
+  const unit = !both ? "the split in the middle" : gap > 0 ? "a 500, short rows to long" : gap < 0 ? "a 500: the long rows are quicker" : "a 500: no difference";
+
+  /* The frame: the pace band that has rows in it, a little air either
+   * side, to the ten seconds. */
+  const used = s.cells.map((c) => s.paceFrom + c.p * s.paceStep);
+  const top = used.length ? Math.max(s.paceFrom, Math.floor((Math.min(...used) - 5) / 10) * 10) : s.paceFrom;
+  const foot = used.length ? Math.min(s.paceTo, Math.ceil((Math.max(...used) + s.paceStep + 5) / 10) * 10) : s.paceTo;
+  const H = 240;
+  const L = 40;
+  const R = 8;
+  const T = 10;
+  const B = 8;
+  const N = s.bands.length;
+  const col = w > L + R ? (w - L - R) / N : 0;
+  const cx = (b: number) => L + (b + 0.5) * col;
+  const cy = (pace: number) => T + ((pace - top) / Math.max(1, foot - top)) * (H - T - B);
+  const most = Math.max(1, ...s.cells.map((c) => c.n));
+  const rMax = Math.max(3, Math.min(col / 2 - 0.5, 9));
+  const marks: number[] = [];
+  const stepY = foot - top > 80 ? 20 : 10;
+  for (let v = Math.ceil(top / stepY) * stepY; v <= foot; v += stepY) marks.push(v);
+  let line = "";
+  s.bands.forEach((b, i) => {
+    if (b.rows >= 5) line += `${line ? "L" : "M"}${cx(i).toFixed(1)} ${cy(b.median).toFixed(1)}`;
+  });
+  const fastest = s.bands.map((b, i) => ({ ...b, i })).filter((b) => b.rows >= 5).sort((a, b) => a.median - b.median)[0];
+  const bandWord = (i: number) => (i >= N - 1 ? `${fmtInt(i * 1000)} m and over` : `${fmtInt(i * 1000)} to ${fmtInt((i + 1) * 1000)} m`);
+  return (
+    <>
+      <Answer value={value} unit={unit}>
+        {both
+          ? `The ${fmtInt(s.short.rows)} timed rows under 3,000 m went at ${mmss(s.short.median)} a 500 in the middle, and the ${fmtInt(s.long.rows)} of 9,000 m and over at ${mmss(s.long.median)}.`
+          : `There are not yet five timed rows under 3,000 m and five of 9,000 m and over to set against each other, out of ${fmtInt(s.rows)} timed rows.`}
+        {fastest ? ` The quickest of all are the rows of ${bandWord(fastest.i)}, at ${mmss(fastest.median)} in the middle.` : ""}
+      </Answer>
+
+      <Eye left="Length against split" right={`${fmtInt(s.rows)} timed rows`} />
+      <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))} style={{ height: H }}>
+        {col > 0 ? (
+          <Svg width={w} height={H}>
+            {marks.map((v) => (
+              <Line key={v} x1={L} x2={w - R} y1={cy(v)} y2={cy(v)} stroke={C.line} strokeWidth={1} />
+            ))}
+            {marks.map((v) => (
+              <SvgText key={`t${v}`} x={L - 6} y={cy(v) + 3.5} textAnchor="end" fontSize={10} fontFamily={F.mono} fill={C.gray}>
+                {mmss(v)}
+              </SvgText>
+            ))}
+            <Line x1={L} x2={w - R} y1={H - 1} y2={H - 1} stroke={C.ink} strokeWidth={2} />
+            {s.cells.map((c) => {
+              const pace = s.paceFrom + (c.p + 0.5) * s.paceStep;
+              if (pace < top || pace > foot) return null;
+              return <Circle key={`${c.b}:${c.p}`} cx={cx(c.b)} cy={cy(pace)} r={Math.max(1.6, rMax * Math.sqrt(c.n / most))} fill={C.ink} opacity={0.3} />;
+            })}
+            {line ? <Path d={line} stroke={C.accent} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : null}
+            {s.bands.map((b, i) => (b.rows >= 5 ? <Circle key={`m${i}`} cx={cx(i)} cy={cy(b.median)} r={3.2} fill={C.accent} /> : null))}
+          </Svg>
+        ) : null}
+      </View>
+      {/* Under the columns: the thousands at their own edges, and the last
+          column, which is every row of 12,000 m and more. */}
+      <View style={{ height: 18, marginTop: 5 }}>
+        {col > 0
+          ? [0, 3, 6, 9].map((k) => (
+              <Text key={k} style={[mono(10, false, C.gray, 0.1), { position: "absolute", left: L + k * col - 20, width: 40, textAlign: "center" }]}>
+                {k ? `${k}K` : "0"}
+              </Text>
+            ))
+          : null}
+        {col > 0 ? <Text style={[mono(10, false, C.gray, 0.1), { position: "absolute", right: 0, width: 48, textAlign: "right" }]}>12K+</Text> : null}
+      </View>
+      <Words>Across is how long the row was, a column a thousand meters; up the side is its split, faster at the top. A dot is every row of that length at that split, five seconds to a step, and a bigger dot is more rows. The blue line joins the split in the middle of each thousand that has five rows or more.</Words>
+      <Words>It is every row and not every rower: somebody who rows a 10K every morning is in the last columns many times over, so the line says what the rows did, not what a longer row would cost you.</Words>
+    </>
+  );
+}
+/* The split in the middle of every timed row, from the thousands' own
+ * middles weighted by their rows: only for the figure when the short and
+ * the long rows cannot yet be set against each other. */
+function mid(bands: { rows: number; median: number }[]): number {
+  const total = bands.reduce((a, b) => a + b.rows, 0);
+  let run = 0;
+  for (const b of [...bands].filter((x) => x.rows > 0).sort((a, b) => a.median - b.median)) {
+    run += b.rows;
+    if (run >= total / 2) return b.median;
+  }
+  return 0;
+}
+
+/* HOW MANY DAYS A WEEK: the week in the middle as the big figure, then
+ * every rower's week in seven columns, by the days rowed in it. */
+function OftenStory({ o }: { o: Often }) {
+  if (!o.weeks) return <Words>There is not a whole week of rows yet.</Words>;
+  /* A few weeks out of hundreds are not none of them. */
+  const share = (n: number) => (n > 0 && n / o.weeks < 0.005 ? "under 1%" : `${Math.round((n / o.weeks) * 100)}%`);
+  const peak = o.days.indexOf(Math.max(...o.days));
+  const five = o.days.slice(4).reduce((a, b) => a + b, 0);
+  const m = Math.round(o.median * 2) / 2;
+  return (
+    <>
+      <Answer value={String(m)} unit={m === 1 ? "day a week, in the middle" : "days a week, in the middle"}>
+        Out of {fmtInt(o.weeks)} weeks rowed by {fmtInt(o.rowers)} rowers, half had that many days with a row in them or fewer. The average is {o.mean.toFixed(1)}. {share(o.days[0])} of those weeks had one day with a row, {share(five)} had five or more, and {share(o.days[6])} had all seven.
+      </Answer>
+
+      <Eye left="Weeks by days rowed" right={`${fmtInt(o.spans)} ${o.spans === 1 ? "week" : "weeks"} so far`} />
+      <Columns values={o.days} accent={peak} height={110} />
+      {/* A number under the middle of each column. */}
+      <View style={{ flexDirection: "row", gap: 2, marginTop: 5 }}>
+        {o.days.map((_, i) => (
+          <Text key={i} style={[mono(10, false, C.gray, 0.1), { flex: 1, textAlign: "center" }]}>
+            {i + 1}
+          </Text>
+        ))}
+      </View>
+      <Words>A week is Monday to Sunday, and a rower is counted in it once they have logged one row in it: a week off is not in here. One column is how many of those weeks had that many days with a row. The blue one is the commonest. The week still being rowed is left out.</Words>
     </>
   );
 }

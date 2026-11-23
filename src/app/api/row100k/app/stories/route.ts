@@ -1,5 +1,8 @@
 import { db } from "@/lib/db";
+import { activeBlackout } from "@/lib/blackout";
 import { CHALLENGE, nowMs, pacificDay } from "@/lib/row100k";
+import { maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
+import { boardView } from "@/app/row100k/boardData";
 import { no, yes } from "../social";
 
 /* THE QUESTIONS BEHIND THE STATS, for the phone app (owner, 2026-11-21:
@@ -21,9 +24,21 @@ import { no, yes } from "../social";
  *   length   how far a typical row is
  *   fivek    how long a 5K takes the field
  *
+ * Two more on 2026-11-23 (owner, of the FAQs: "spend some time adding some
+ * more stats in that FAQ, and like a couple of them I think is
+ * appropriate"; a scatter was what he named):
+ *
+ *   slower   whether longer rows go slower: every timed row, its length
+ *            against its split
+ *   often    how many days of a week a rower who rows in it rows
+ *
  * Counts of the whole field only: how many rowers, how many rows, on which
  * day and at which hour. Nobody's own figure is in here, so lights out has
- * nothing to hide, and the route is open the way the stats page is.
+ * nothing to hide, and the route is open the way the stats page is. The one
+ * place a single row could be picked out is the dots of `slower` (a dot can
+ * be one row's length and split), so those leave out the rowers the board
+ * is hiding from whoever asks, as the marks under the stats' curves do
+ * (stats/field.ts); its middles count everybody, as every aggregate does.
  *
  * A day is the Pacific day the rower logged the row under. An hour is the
  * Pacific hour the row was LOGGED, which is when most are rowed but not
@@ -119,7 +134,70 @@ export async function GET() {
     for (const r of fives) tbins[Math.max(0, Math.min(31, Math.floor((r.seconds - T0) / STEP)))]++;
     const times = fives.map((r) => r.seconds);
 
+    /* DO LONGER ROWS GO SLOWER: every timed row with a split a rower can
+     * hold (1:20 to 4:00 a 500), by the thousand meters of its length. The
+     * middle split of each thousand; the rows under 3,000 m against those
+     * of 9,000 m and over; and, for the picture, how many rows fall in each
+     * square of a thousand meters by five seconds of split. */
+    const LO = 80;
+    const HI = 240;
+    const PACE_STEP = 5;
+    const timed = rows.filter((r) => r.meters > 0 && r.seconds > 0).map((r) => ({ pid: r.participantId, m: r.meters, s: r.seconds / (r.meters / 500) })).filter((r) => r.s >= LO && r.s <= HI);
+    const bandOf = (m: number) => Math.min(12, Math.floor(m / 1000));
+    const bands = Array.from({ length: 13 }, (_, b) => {
+      const v = timed.filter((r) => bandOf(r.m) === b).map((r) => r.s);
+      return { rows: v.length, median: v.length ? Math.round(mid(v) * 10) / 10 : 0 };
+    });
+    const group = (v: number[]) => ({ rows: v.length, median: v.length ? Math.round(mid(v) * 10) / 10 : 0 });
+    /* Whose rows the dots leave out: the rowers the board hides from this
+     * viewer; with the board unreadable under lights out, there are no dots. */
+    const hidden = new Set<string>();
+    let noDots = false;
+    try {
+      const viewer = await resolveViewer();
+      try {
+        const view = await boardView(viewOpts(viewer));
+        for (const id of maskedIds(view.boards)) hidden.add(id);
+      } catch {
+        const blackout = previewBlackout(viewer, await activeBlackout());
+        noDots = blackout.active && !(viewer.isAdmin && !viewer.preview);
+      }
+    } catch {
+      noDots = true;
+    }
+    const cellN = new Map<string, number>();
+    if (!noDots)
+      for (const r of timed) {
+        if (hidden.has(r.pid)) continue;
+        const k = `${bandOf(r.m)}:${Math.min((HI - LO) / PACE_STEP - 1, Math.floor((r.s - LO) / PACE_STEP))}`;
+        cellN.set(k, (cellN.get(k) ?? 0) + 1);
+      }
+    const cells = [...cellN.entries()].map(([k, n]) => {
+      const [b, p] = k.split(":").map(Number);
+      return { b, p, n };
+    });
+
+    /* HOW MANY DAYS A WEEK: every week, Monday to Sunday, that is over, and
+     * in it every rower who logged at least one row: on how many of its
+     * seven days. The week still being rowed is left out. */
+    const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7));
+    const thisWeek = mondayOf(today);
+    const rowerWeeks = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const wk = mondayOf(r.day);
+      if (wk >= thisWeek) continue;
+      const k = `${wk}|${r.participantId}`;
+      let d = rowerWeeks.get(k);
+      if (!d) rowerWeeks.set(k, (d = new Set()));
+      d.add(r.day);
+    }
+    const dayCounts = Array.from({ length: 7 }, () => 0);
+    for (const d of rowerWeeks.values()) dayCounts[Math.min(7, d.size) - 1]++;
+    const perWeek = [...rowerWeeks.values()].map((d) => d.size);
+
     return yes({
+      slower: { bands, cells, paceFrom: LO, paceTo: HI, paceStep: PACE_STEP, rows: timed.length, short: group(timed.filter((r) => r.m < 3000).map((r) => r.s)), long: group(timed.filter((r) => r.m >= 9000).map((r) => r.s)) },
+      often: { days: dayCounts, weeks: perWeek.length, median: mid(perWeek), mean: perWeek.length ? Math.round((perWeek.reduce((a, b) => a + b, 0) / perWeek.length) * 10) / 10 : 0, rowers: new Set([...rowerWeeks.keys()].map((k) => k.split("|")[1])).size, spans: new Set([...rowerWeeks.keys()].map((k) => k.split("|")[0])).size },
       rowers: { today: on(today), todayDay: today, weeks: [week(0), week(1), week(2)], days, months, everyone: new Set(rows.map((r) => r.participantId)).size },
       when: { hours, weekdays, rows: rows.length },
       club: { months: club, everMade: everMade.size, goal: GOAL },

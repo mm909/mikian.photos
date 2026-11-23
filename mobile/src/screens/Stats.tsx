@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { api, type PeriodRow, type RecordRow, type Stats } from "../api";
-import { Columns, Density, HourGrid, MonthGrid } from "../charts";
+import { api, type Kde, type KdeYou, type PeriodRow, type RecordRow, type Stats } from "../api";
+import { Columns, Density, HourGrid, MonthGrid, kdeAtShare, kdePeak, kdeShareUnder } from "../charts";
 import { useSession } from "../session";
 import { Cols, Dash, Dot, Eye, Fig, Lead, TableHead, Tr, WordMenu, mono, Ctl, Chip } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
-import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
+import { Blocks, Waiting, scrub, useLoad, useScrollDir } from "../ui";
+import { Flip } from "./Field";
+import { Box } from "./reviewBits";
 
 /* THE STATS, the site's /stats on a phone (stats/StatsShell.tsx, Stats.tsx),
  * in the order and the manner the site settled on:
@@ -25,6 +27,25 @@ import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
  *     over it and the day word dropping a calendar.
  *   Then THE MONTH, THE HOURS, THE FIELD and PERFECT ATTENDANCE under
  *     eyebrows. All time drops the month's sections, as the site does.
+ *
+ * THE FIELD'S CURVES ARE CARDS WITH TWO FACES (owner, 2026-11-23: "what if
+ * we gave more room to some of these KDEs ... a little more real estate to
+ * each one of them vertically? ... can we say anything cooler about them?
+ * Can we do that swiping like the cards we did with the post hoc, where
+ * this one will show everyone's, but then if I swipe, maybe it can show
+ * mine overlaid on it"). Each curve is half as tall again as it was, in the
+ * card a row's analytics draws its pictures in, with one sentence under it
+ * worked out from the curve. The first face is everyone's rows; a swipe to
+ * the left, or a press on the line under the dots, brings the second, the
+ * signed-in rower's own rows and curve over the same field, as a row's
+ * cards turn to AGAINST EVERYONE (Field.tsx Flip). The rower's half comes
+ * from /api/row100k/app/standing for the same period. Signed out, or with
+ * no rows over that measure, a card has the one face and no dots.
+ *
+ * A finger across a curve still reads it (the hairline), so the card is
+ * turned from its name, its sentence or the line under it, not from the
+ * curve; and a touch that lands on one of these cards is the card's, so the
+ * tabs do not change under it (ui.tsx scrub).
  *
  * One answer of /api/row100k/stats per period, the route the site's own
  * page swaps months with; every period seen is kept, so the way back is
@@ -51,6 +72,16 @@ type Payload = Stats & {
   field: (Stats["field"] & { length?: Sum; pace?: Sum }) | null;
 };
 type Sum = { mean: number; median: number; sd: number; p10: number; p90: number };
+/* The signed-in rower over the field, for one period (app/standing). */
+type Standing = {
+  period: string;
+  you: { sessions: number; avgLen: number; avgPace: number | null; lenPct: number | null; pacePct: number | null; lengthYou: KdeYou | null; paceYou: KdeYou | null } | null;
+  distances: { meters: number; you: KdeYou; youN: number }[];
+};
+const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/* "about 62%": a share read off a drawn curve is never said to the unit as
+ * if it were counted, and never as all or none. */
+const about = (share: number) => `about ${Math.max(1, Math.min(99, Math.round(share * 100)))}%`;
 
 export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void; onScrollDir?: (down: boolean) => void }) {
   const dir = useScrollDir(onScrollDir);
@@ -62,8 +93,15 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
   const [slot, setSlot] = useState<number | null>(null);
   const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(path), [path, me.me?.rowerNumber], path);
+  /* The rower's own half of the field's cards, when somebody is signed in. */
+  const minePath = me.me ? `/api/row100k/app/standing${period ? `?m=${period}` : ""}` : null;
+  const own = useLoad(() => (minePath ? api<Standing>(minePath) : Promise.resolve(null)), [minePath, me.me?.rowerNumber], minePath);
+  const [cardW, setCardW] = useState(0);
   if (!data) return <Waiting error={error} onRetry={reload} />;
   const s = data.data;
+  /* Only the answer for the period on the screen: its curves sit on that
+   * period's grid and no other's. */
+  const st = own.data && own.data.period === s.period.key ? own.data : null;
   const month = s.period.kind === "month";
   const key: StatKey = !month && (stat === "day" || stat === "week") ? "total" : stat;
   const rec = RECORDS.find((r) => r.key === key);
@@ -142,20 +180,58 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
               can probably just remove it"). */}
           {s.field.length ? <Summary k="Length · median row" v={fmtInt(s.field.length.median)} u="m" first /> : null}
           {s.field.pace ? <Summary k="Pace · median split" v={m2(s.field.pace.median)} u="/500m" /> : null}
-          <ChartHead>Length of every row</ChartHead>
-          <Density kde={s.field.lengthKde} fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)} />
-          <ChartHead>Split of every row</ChartHead>
-          <Density kde={s.field.paceKde} fmt={m2} lowerIsBetter />
-          {s.distances
-            .filter((d) => d.fieldN > 0)
-            .map((d) => (
-              <View key={d.meters}>
-                <ChartHead>
-                  The {d.label} · {d.fieldN} timed rows
-                </ChartHead>
-                <Density kde={d.field} you={d.you} fmt={m2} lowerIsBetter />
-              </View>
-            ))}
+          <View onLayout={(e) => setCardW(Math.round(e.nativeEvent.layout.width))} style={{ marginTop: 10 }}>
+            {s.field.lengthKde ? (
+              <FieldCard
+                w={cardW}
+                name="the length of every row"
+                title="Length of every row"
+                note={`${fmtInt(s.field.sessions)} rows`}
+                kde={s.field.lengthKde}
+                fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)}
+                say={lengthSay(s.field.lengthKde)}
+                you={st?.you?.lengthYou ?? null}
+                youNote={st?.you ? `${fmtInt(st.you.sessions)} of yours` : undefined}
+                sayYou={st?.you?.lengthYou ? lengthYouSay(st.you.lengthYou, st.you.lenPct) : null}
+              />
+            ) : null}
+            {s.field.paceKde ? (
+              <FieldCard
+                w={cardW}
+                name="the split of every row"
+                title="Split of every row"
+                note="/500m"
+                kde={s.field.paceKde}
+                fmt={m2}
+                lowerIsBetter
+                say={`Half of all timed rows hold a split faster than ${m2(s.field.paceKde.median)} /500m${middleHalf(s.field.paceKde, m2, 1, "sit")}. Faster is to the left.`}
+                you={st?.you?.paceYou ?? null}
+                youNote={st?.you?.paceYou ? `${fmtInt(st.you.paceYou.rug.length)} of yours` : undefined}
+                sayYou={st?.you?.paceYou ? paceYouSay(st.you.paceYou, st.you.pacePct) : null}
+              />
+            ) : null}
+            {s.distances
+              .filter((d) => d.fieldN > 0)
+              .map((d) => {
+                const mine = st?.distances.find((x) => x.meters === d.meters) ?? null;
+                return (
+                  <FieldCard
+                    key={d.meters}
+                    w={cardW}
+                    name={`every ${d.label}`}
+                    title={`The ${d.label}`}
+                    note={`${fmtInt(d.fieldN)} timed rows`}
+                    kde={d.field}
+                    fmt={m2}
+                    lowerIsBetter
+                    say={`The ${d.label} in the middle takes ${m2(d.field.median)}: half of the ${fmtInt(d.fieldN)} timed rows are quicker${middleHalf(d.field, m2, 5, "finish")}. Faster is to the left.`}
+                    you={mine?.you ?? d.you ?? null}
+                    youNote={mine ? `${fmtInt(mine.youN)} of yours` : undefined}
+                    sayYou={mine ? distanceYouSay(d.label, d.field, mine.you, mine.youN) : null}
+                  />
+                );
+              })}
+          </View>
           {month && s.hourGrid.length ? null : hoursOfDay}
         </>
       ) : null}
@@ -191,6 +267,93 @@ function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; li
       {line ? <Text style={[mono(11, false, C.gray, 0.12), { marginTop: 6, lineHeight: 18 }]}>{line}</Text> : null}
     </View>
   );
+}
+
+/* ONE CURVE OF THE FIELD AS A CARD, and where there is a rower to lay over
+ * it, two: everyone, then the rower over everyone. The same curve, the same
+ * frame of numbers, the same height, so the eye keeps its place across the
+ * turn. */
+const CURVE_H = 180;
+function FieldCard({ w, name, title, note, kde, fmt, lowerIsBetter, say, you, youNote, sayYou }: { w: number; name: string; title: string; note?: string; kde: Kde; fmt: (x: number) => string; lowerIsBetter?: boolean; say: string | null; you: KdeYou | null; youNote?: string; sayYou: string | null }) {
+  const everyone = (fill: boolean) => (
+    <Box fill={fill} title={title} note={note} say={say}>
+      <Density kde={kde} fmt={fmt} lowerIsBetter={lowerIsBetter} height={CURVE_H} />
+    </Box>
+  );
+  /* Before the width is known there is nothing to page across. */
+  if (!you || w <= 0) return everyone(false);
+  return (
+    /* A touch that begins on the card is the card's: the tabs stay put
+       while it is turned (ui.tsx scrub; the app's outer view clears it as
+       the next touch begins). */
+    <View
+      onTouchStart={() => {
+        scrub.on = true;
+      }}
+      onTouchEnd={() => {
+        scrub.on = false;
+      }}
+      onTouchCancel={() => {
+        scrub.on = false;
+      }}
+    >
+      <Flip
+        w={w}
+        name={name}
+        words={["Swipe: you over everyone", "Swipe back: everyone"]}
+        labels={[`Everyone: ${name}`, `You over everyone: ${name}`]}
+        own={everyone}
+        other={
+          /* The same name over it, so the second face still says what it
+             is a curve of. */
+          <Box fill title={title} note={youNote ? `You over everyone · ${youNote}` : "You over everyone"} say={sayYou}>
+            <Density kde={kde} you={you} fmt={fmt} lowerIsBetter={lowerIsBetter} height={CURVE_H} />
+          </Box>
+        }
+      />
+    </View>
+  );
+}
+
+/* THE ONE THING SAID UNDER A CURVE, each worked out from what the card
+ * draws: the field's middle (counted by the server) and where its curve is
+ * tallest; the rower's own middle and best, how their average stands among
+ * the other rowers' (counted by the server, stats/field.ts), or the share
+ * of the field's curve their middle is ahead of. Which way is better is
+ * said where one way is: a longer row is not a better one. */
+/* ", and the middle half sit between about 1:55 and 2:12": the quarter and
+ * the three-quarter marks of the curve, to a round step. Nothing when the
+ * curve cannot be read or the two round to one value. */
+function middleHalf(kde: Kde, fmt: (x: number) => string, step: number, verb: string): string {
+  const a = Math.round(kdeAtShare(kde, 0.25) / step) * step;
+  const b = Math.round(kdeAtShare(kde, 0.75) / step) * step;
+  return num(a) && num(b) && b > a ? `, and the middle half ${verb} between about ${fmt(a)} and ${fmt(b)}` : "";
+}
+function lengthSay(kde: Kde): string {
+  const peak = kdePeak(kde);
+  const top = num(peak) ? Math.round(peak / 100) * 100 : NaN;
+  const mid = `Half of all rows are shorter than ${fmtInt(kde.median)} m and half are longer${middleHalf(kde, (x) => `${fmtInt(x)} m`, 100, "run")}.`;
+  /* The commonest length is said only when it is not the middle again. */
+  return num(top) && top > 0 && Math.abs(top - kde.median) > 0.1 * kde.median ? `${mid} The commonest length is about ${fmtInt(top)} m.` : mid;
+}
+function lengthYouSay(you: KdeYou, pct: number | null): string {
+  const a = `Your average row is ${fmtInt(you.median)} m`;
+  const b = pct === null ? "." : `, longer than the average of ${pct}% of the other rowers.`;
+  const c = num(you.best) ? ` Your longest is ${fmtInt(you.best)} m.` : "";
+  return `${a}${b}${c} Longer is more meters in a sitting, not a better row.`;
+}
+function paceYouSay(you: KdeYou, pct: number | null): string {
+  const a = `Your average split is ${m2(you.median)} /500m`;
+  const b = pct === null ? "." : `, faster than the average of ${pct}% of the other rowers.`;
+  const c = num(you.best) ? ` Your fastest row held ${m2(you.best)}.` : "";
+  return `${a}${b}${c} Faster is to the left.`;
+}
+function distanceYouSay(label: string, field: Kde, you: KdeYou, n: number): string {
+  /* The share of the field's rows slower than the rower's middle. */
+  const under = kdeShareUnder(field, you.median);
+  const ahead = num(under) ? ` ${n > 1 ? "That middle" : "It"} is quicker than ${about(1 - under)} of every ${label} here.` : "";
+  if (n <= 1) return `Your one timed ${label} took ${m2(you.median)}.${ahead} Faster is to the left.`;
+  return `The middle of your ${n} timed ${label}s is ${m2(you.median)}${num(you.best) ? ` and your best is ${m2(you.best)}` : ""}.${ahead} Faster is to the left.`;
 }
 
 function ChartHead({ children }: { children: ReactNode }) {

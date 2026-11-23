@@ -72,8 +72,13 @@ function against(vals: number[], mine: number, better: "low" | "high", tie: numb
  * first is the rower's own; a swipe to the left brings the second. The two
  * are the same height, whichever has more to say. With nothing to compare
  * against there is the one card and no swipe. `name` is what the card is
- * of, for a screen reader. */
-export function Flip({ w, name, own, other }: { w: number; name: string; own: (fill: boolean) => ReactNode; other: ReactNode | null }) {
+ * of, for a screen reader.
+ *
+ * The stats tab's cards turn the same way with the faces the other way
+ * about, everyone first and the rower over them second (Stats.tsx): `words`
+ * are the two lines under the dots, and `labels` what a screen reader is
+ * told each dot is. */
+export function Flip({ w, name, own, other, words, labels }: { w: number; name: string; own: (fill: boolean) => ReactNode; other: ReactNode | null; words?: [string, string]; labels?: [string, string] }) {
   const [page, setPage] = useState(0);
   const strip = useRef<ComponentRef<typeof ScrollView>>(null);
   if (!other) return <>{own(false)}</>;
@@ -86,12 +91,12 @@ export function Flip({ w, name, own, other }: { w: number; name: string; own: (f
       </ScrollView>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
         {[0, 1].map((i) => (
-          <Pressable key={i} accessibilityRole="button" accessibilityLabel={i === 0 ? `Your ${name}` : `Your ${name} against everyone`} onPress={() => go(i)} hitSlop={10}>
+          <Pressable key={i} accessibilityRole="button" accessibilityLabel={labels ? labels[i] : i === 0 ? `Your ${name}` : `Your ${name} against everyone`} onPress={() => go(i)} hitSlop={10}>
             <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? C.accent : C.line }} />
           </Pressable>
         ))}
         <Text accessibilityRole="button" onPress={() => go(page === 0 ? 1 : 0)} suppressHighlighting style={mono(10, false, C.gray, 0.1)}>
-          {page === 0 ? "Swipe: against everyone" : "Swipe back: yours"}
+          {words ? words[page === 0 ? 0 : 1] : page === 0 ? "Swipe: against everyone" : "Swipe back: yours"}
         </Text>
       </View>
     </>

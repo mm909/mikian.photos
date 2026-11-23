@@ -306,6 +306,35 @@ function densityModel(kde: Kde, you: KdeYou | null) {
   return { lo, hi, cdf, field, own, rug, mark: own ? null : middle };
 }
 
+/* WHAT A SENTENCE UNDER A DENSITY IS WORKED OUT FROM (Stats.tsx): the share
+ * of the field's rows at or under a value, the value a share of them sits
+ * under, and the value the curve is tallest at, all read off the curve
+ * that is drawn, as the hairline's own line is. NaN where there is no
+ * curve to read. */
+export function kdeAtShare(kde: Kde, p: number): number {
+  const n = Math.min(kde.xs.length, kde.ys.length);
+  if (n < 2) return NaN;
+  const c = cdfOf(
+    kde.xs.slice(0, n),
+    kde.ys.slice(0, n).map((y) => (fin(y) && y > 0 ? y : 0)),
+  );
+  return fin(c.at(kde.xs[n - 1])) ? c.inv(p) : NaN;
+}
+export function kdeShareUnder(kde: Kde, v: number): number {
+  const n = Math.min(kde.xs.length, kde.ys.length);
+  if (n < 2 || !fin(v)) return NaN;
+  return cdfOf(
+    kde.xs.slice(0, n),
+    kde.ys.slice(0, n).map((y) => (fin(y) && y > 0 ? y : 0)),
+  ).at(v);
+}
+export function kdePeak(kde: Kde): number {
+  const n = Math.min(kde.xs.length, kde.ys.length);
+  let at = -1;
+  for (let i = 0; i < n; i++) if (fin(kde.ys[i]) && (at < 0 || kde.ys[i] > kde.ys[at])) at = i;
+  return at < 0 ? NaN : kde.xs[at];
+}
+
 /* A curve's height at x, between its points. */
 function heightAt(c: { xs: number[]; ys: number[] }, x: number): number {
   const n = c.xs.length;

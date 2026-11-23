@@ -42,13 +42,14 @@ export type MarkKind = "word" | "meters";
  * last figure. A word: its first O, as in ROW and LOG, or failing an O the
  * letter in its middle; and a word that opens on a Q wears it there
  * (owner, 2026-11-21: "let's make the Q on the questions the highlighted
- * thing here"). */
+ * thing here"), as FAQS wears its own (2026-11-23: "instead of questions,
+ * let's just make it FAQs. Still the Q be the thing that is blue"). */
 function setting(word: string, kind: MarkKind) {
   const n = word.length;
   const size = n > 9 ? 20 : n > 5 ? 23 : 26;
   const digits = /^\d+$/.test(word);
   const o = word.indexOf("O");
-  const one = word[0] === "Q" ? 0 : o >= 0 ? o : Math.floor((n - 1) / 2);
+  const one = word === "FAQS" ? 2 : word[0] === "Q" ? 0 : o >= 0 ? o : Math.floor((n - 1) / 2);
   const blue = (i: number) => (kind === "meters" ? i === n - 1 : digits ? i > 0 && i < n - 1 : i === one);
   /* The whole word is under way inside about half a second. */
   const step = Math.min(55, 460 / Math.max(1, n));

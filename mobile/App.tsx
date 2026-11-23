@@ -441,7 +441,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "Questions" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -566,7 +566,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                 /* On the stats, the questions the numbers answer (owner,
                    2026-11-21: "the notification button on the stats page
                    gets replaced with like little FAQ button"). */
-                <Pressable accessibilityRole="button" accessibilityLabel="Questions the stats answer" onPress={() => push({ kind: "stories" })} hitSlop={8} style={press}>
+                <Pressable accessibilityRole="button" accessibilityLabel="FAQs about the stats" onPress={() => push({ kind: "stories" })} hitSlop={8} style={press}>
                   <QuestionIcon />
                 </Pressable>
               ) : me.me ? (
