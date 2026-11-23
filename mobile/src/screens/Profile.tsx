@@ -6,7 +6,7 @@ import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
-import { Avatar, Bar, Blocks, PhotoViewer, Waiting, modals, scrub, useLoad, useScrollDir } from "../ui";
+import { Avatar, Bar, Blocks, PhotoViewer, Waiting, modals, scrub, setSideDrag, useLoad, useScrollDir } from "../ui";
 import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
@@ -198,6 +198,8 @@ export function ProfileScreen({
         return g.dx < 0 ? i < SUBS.length - 1 : i > 0;
       },
       onPanResponderTerminationRequest: () => false,
+      /* The page does not scroll up and down under a drag across it. */
+      onPanResponderGrant: () => setSideDrag(true),
       onPanResponderMove: (_e, g) => {
         const i = SUBS.indexOf(tabRef.current);
         pos.setValue(Math.max(0, Math.min(SUBS.length - 1, i - g.dx / paneRef.current)));
@@ -209,6 +211,7 @@ export function ProfileScreen({
         }
       },
       onPanResponderRelease: (_e, g) => {
+        setSideDrag(false);
         const i = SUBS.indexOf(tabRef.current);
         const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
         const to = Math.max(0, Math.min(SUBS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
@@ -219,6 +222,7 @@ export function ProfileScreen({
         });
       },
       onPanResponderTerminate: () => {
+        setSideDrag(false);
         const i = SUBS.indexOf(tabRef.current);
         Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
           peekRef.current = null;

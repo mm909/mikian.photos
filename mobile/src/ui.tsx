@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { peek } from "./api";
 import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
@@ -321,10 +321,13 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
  * list, which moved it again. So nothing is told within a short way of the
  * end, nor while the list is pulled past either end. */
 type ScrollEv = { nativeEvent: { contentOffset: { y: number }; contentSize?: { height: number }; layoutMeasurement?: { height: number } } };
-export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: ScrollEv) => void; scrollEventThrottle: number } {
+export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: ScrollEv) => void; scrollEventThrottle: number; scrollEnabled: boolean } {
   const last = useRef(0);
+  const across = useSyncExternalStore(sideListen, sideRead, sideRead);
   return {
     scrollEventThrottle: 64,
+    /* A page stands still under a drag across it (setSideDrag, below). */
+    scrollEnabled: !across,
     onScroll: (e) => {
       const n = e.nativeEvent;
       const y = n.contentOffset.y;
@@ -439,6 +442,30 @@ export const modals = { open: 0 };
  * (charts.tsx); the shell clears it as every touch begins and will not
  * take a touch that has it set for a swipe between tabs (App.tsx). */
 export const scrub = { on: false };
+/* A DRAG ACROSS THE SCREEN DOES NOT ALSO SCROLL THE PAGE UP AND DOWN
+ * (owner, 2026-11-22, of the profile's three tabs: "whenever I'm swiping
+ * back and forth between them, I can still scroll up and down. We probably
+ * want to make it to where if you're scrolling left or right, you can't
+ * scroll up and down"). A drag between tabs is taken by a responder in
+ * the app's own code, and the phone's scroller under it knows nothing of
+ * that: it went on following the finger's up and down. Whatever takes a
+ * drag across says so here as it takes it and again as it lets go (the
+ * profile's tabs, the shell's tabs, the edge a page is dragged back by),
+ * and every page that scrolls (useScrollDir, above) is held still in
+ * between. */
+const side = { on: false, subs: new Set<() => void>() };
+const sideListen = (f: () => void) => {
+  side.subs.add(f);
+  return () => {
+    side.subs.delete(f);
+  };
+};
+const sideRead = () => side.on;
+export function setSideDrag(on: boolean): void {
+  if (side.on === on) return;
+  side.on = on;
+  side.subs.forEach((f) => f());
+}
 export function useModalHold(): void {
   useEffect(() => {
     modals.open++;

@@ -28,7 +28,7 @@ import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
 import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
-import { Avatar, modals, scrub } from "./src/ui";
+import { Avatar, modals, scrub, setSideDrag } from "./src/ui";
 
 /* ROW, THE APP.
  *
@@ -285,6 +285,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && !scrub.on && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      /* The page does not scroll up and down under a drag across it
+       * (ui.tsx setSideDrag). */
+      onPanResponderGrant: () => setSideDrag(true),
       onPanResponderMove: (_e, g) => {
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         pos.setValue(Math.max(0, Math.min(TABS.length - 1, i - g.dx / paneRef.current)));
@@ -296,6 +299,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         }
       },
       onPanResponderRelease: (_e, g) => {
+        setSideDrag(false);
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
         const to = Math.max(0, Math.min(TABS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
@@ -306,6 +310,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         });
       },
       onPanResponderTerminate: () => {
+        setSideDrag(false);
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
           peekRef.current = null;
@@ -614,12 +619,15 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
   const edge = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => g.dx > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderGrant: () => setSideDrag(true),
       onPanResponderMove: (_e, g) => x.setValue(Math.max(0, g.dx)),
       onPanResponderRelease: (_e, g) => {
+        setSideDrag(false);
         if (g.dx > width / 3 || g.vx > 0.6) leave();
         else Animated.spring(x, { toValue: 0, friction: 9, tension: 90, useNativeDriver: native }).start();
       },
       onPanResponderTerminate: () => {
+        setSideDrag(false);
         Animated.spring(x, { toValue: 0, friction: 9, tension: 90, useNativeDriver: native }).start();
       },
     }),
