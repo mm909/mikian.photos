@@ -108,7 +108,11 @@ const MAX_SAMPLES = 30_000;
 const MAX_STROKES = 12_000;
 const MAX_CURVES = 4_000;
 
-export function createLive() {
+/* `onNewPiece` is told the piece that is about to be dropped because the
+ * monitor re-armed, while it is still whole (owner, 2026-11-22, of a row
+ * lost that way: "is there a way to get that data back?"). The caller keeps
+ * it as an unlogged row (store.ts). */
+export function createLive(onNewPiece?: (was: Live, doc: TelemetryDoc | undefined) => void) {
   let live: Live = { ...EMPTY_LIVE };
   let prevState: number | null = null;
   const curves = createForceCurveAssembler();
@@ -142,7 +146,18 @@ export function createLive() {
 
   const general = (g: GeneralStatus) => {
     /* The monitor re-armed: a new piece starts from nothing. */
-    if (isNewPiece(prevState, g.workoutState)) wipe();
+    if (isNewPiece(prevState, g.workoutState)) {
+      if (onNewPiece && live.meters >= 1) {
+        let doc: TelemetryDoc | undefined;
+        try {
+          doc = live.strokes >= 8 ? toDoc(docName, docSim) : undefined;
+        } catch {
+          doc = undefined;
+        }
+        onNewPiece({ ...live }, doc);
+      }
+      wipe();
+    }
     prevState = g.workoutState;
     gen = g;
     live.awake = true;
@@ -221,6 +236,29 @@ export function createLive() {
     live.ended = s.distanceM > 0;
   };
 
+  /* The name and kind the next document is signed with, for a piece kept
+   * as the monitor re-arms. */
+  let docName = "PM5";
+  let docSim = false;
+  /* The piece so far as a saved document, small enough to store. */
+  const toDoc = (deviceName: string, simulated: boolean): TelemetryDoc => {
+    const model: TelemetryModel = {
+      device: { name: deviceName, serial: "", simulated, model: null, firmware: null, hardware: null },
+      general: gen,
+      a1: la1,
+      a2: la2,
+      summary: sum,
+      summary1: sum1,
+      summary2: sum2,
+      strokes,
+      samples,
+      splits,
+      forces,
+      rec: { startedAt, packets: { length: packets, [Math.max(0, packets - 1)]: { t: lastAt } }, dropped: 0 },
+    };
+    return fitTelemetryDoc(buildTelemetryDoc(model));
+  };
+
   return {
     get: (): Live => live,
     reset() {
@@ -228,24 +266,12 @@ export function createLive() {
       prevState = null;
       curves.reset();
     },
-    /* The piece so far as a saved document, small enough to store. */
-    toDoc(deviceName: string, simulated: boolean): TelemetryDoc {
-      const model: TelemetryModel = {
-        device: { name: deviceName, serial: "", simulated, model: null, firmware: null, hardware: null },
-        general: gen,
-        a1: la1,
-        a2: la2,
-        summary: sum,
-        summary1: sum1,
-        summary2: sum2,
-        strokes,
-        samples,
-        splits,
-        forces,
-        rec: { startedAt, packets: { length: packets, [Math.max(0, packets - 1)]: { t: lastAt } }, dropped: 0 },
-      };
-      return fitTelemetryDoc(buildTelemetryDoc(model));
+    /* Who the monitor is, for a document made without being asked. */
+    sign(deviceName: string, simulated: boolean) {
+      docName = deviceName || "PM5";
+      docSim = simulated;
     },
+    toDoc,
     feed({ uuid, dv }: Pm5Packet) {
       const u = uuid.toLowerCase();
       packets++;

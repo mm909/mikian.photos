@@ -684,3 +684,14 @@ His read of round 27 from two screenshots, and "build these changes and push the
 - Now whatever takes a drag across says so as it takes it and as it lets go (`ui.tsx` setSideDrag), and every page that scrolls is held still in between (`useScrollDir` hands the scroller `scrollEnabled`). Said by the profile's three tabs, which he named, and by the two other drags across that had the same fault: the shell's tabs and the edge a page is dragged back by. MINE to have done all three.
 - The first 28 points of a drag are still the scroller's: that is how far a finger goes across before the drag is taken as one between tabs, so that a scroll with a little sideways in it stays a scroll.
 - SEEN in a browser only as the lock going on during a drag and off at its end. A mouse does not scroll a page by dragging, so the fault itself cannot be shown there: NOT seen on a phone.
+
+## Round 31 (2026-11-22, night): a row is never only in memory
+
+"I just did a row on the rower, but when I left the app to do other things and came back to it ... is there a way to get that data back?"; "how do we prevent this from happening again? If I go to log a row, maybe there should be a history of all my rows that have been done on a rower." Then: "build 1 through 3, ship, and then also build 4."
+
+- That row was not recoverable. Until this round a piece lived in the app's memory until LOG: nothing on the phone's storage, nothing on the site (the live line, `RowLive`, is not on). The phone closing the app behind him, or the monitor going back to its menu (`isNewPiece` wiped the recording), lost it. The monitor's own memory has the totals and splits; he logs that one by hand.
+- 1, written as it goes: a real piece of 100 m or more is kept on the phone every fifteen seconds, as the app is left, as the monitor says it is over, and as the connection drops (`erg/useErg.ts` keep; `store.ts` Pending). A demo row is never kept.
+- 3, the monitor re-arming keeps the piece: the model hands it over whole before it wipes (`erg/model.ts` onNewPiece) and the next piece is another row.
+- 2, ROWED, NOT LOGGED YET, at the top of the log screen (`RowScreen.tsx` Unlogged): newest first, meters, time, split, when. A press opens the usual form with the meters and time in it and the day it was rowed; the photos go on there. DELETE asks once more in place. While a monitor is up and showing nothing, the last one is a line over it, LOG IT. Logging one, or DISCARD on the monitor, takes it off the phone; the most kept is 20.
+- NOT on the website's version of this screen: he asked for it, of the app.
+- SEEN: the types pass, and two simulated pieces fed one after the other through the model hand the first over whole (1,000 m, 117 strokes). NOT seen on a phone, and not against a real monitor: the list, the line over the monitor and the background reading are untried there.

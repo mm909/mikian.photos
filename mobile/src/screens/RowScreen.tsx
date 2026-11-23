@@ -6,6 +6,7 @@ import { milestone, projectedMeters } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
+import { dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
 import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
@@ -54,10 +55,30 @@ const DEMO_SPEED = 10;
 
 export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; onLogged: (r: Logged) => void; onLeave: () => void; /* A demo row, finished or left: its analytics open, and nothing is logged. */ onDemoRead: (doc: TelemetryDoc, meters: number) => void }) {
   const { ready, me } = useSession();
-  const [form, setForm] = useState<"none" | "manual" | "erg">("none");
+  const [form, setForm] = useState<"none" | "manual" | "erg" | "old">("none");
   /* The piece as it stood when LOG was pressed: the monitor may still be
    * talking, and the row being logged must not move under the form. */
   const [snap, setSnap] = useState<{ meters: number; seconds: number; strokes: number; avgWatts: number; doc?: TelemetryDoc } | null>(null);
+  /* ROWS RECORDED AND NOT LOGGED (store.ts, Pending): read as the screen
+   * opens and again whenever one is kept, logged or deleted. */
+  const [pending, setPending] = useState<Pending[]>([]);
+  /* The one being logged, with its recording read back off the phone. */
+  const [old, setOld] = useState<{ p: Pending; doc?: TelemetryDoc } | null>(null);
+  useEffect(() => {
+    let on = true;
+    const read = () => loadPending().then((list) => on && setPending(list));
+    read();
+    const off = onPending(read);
+    return () => {
+      on = false;
+      off();
+    };
+  }, []);
+  const openOld = async (p: Pending) => {
+    const doc = p.hasDoc ? ((await loadPendingDoc(p.id)) ?? undefined) : undefined;
+    setOld({ p, doc });
+    setForm("old");
+  };
 
   /* A DEMO ROW BY ADDRESS, in a browser only: ?demo=5000 starts the
    * simulator over that distance as this screen opens, and &speed=4 sets
@@ -92,6 +113,23 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
       />
     );
   }
+  if (form === "old" && old) {
+    const { p, doc } = old;
+    return (
+      <LogForm
+        fixed={{ meters: p.meters, seconds: p.seconds }}
+        doc={doc}
+        day0={pacificToday(p.at)}
+        onCancel={() => setForm("none")}
+        onDone={(id, day, meters, seconds, d) => {
+          dropPending(p.id).catch(() => null);
+          setForm("none");
+          setOld(null);
+          onLogged({ id, meters, seconds, day, doc: d, demo: false, device: p.device || "PM5", strokes: p.strokes, avgWatts: p.avgWatts });
+        }}
+      />
+    );
+  }
   if (form === "manual") {
     return (
       <LogForm
@@ -105,7 +143,19 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
   }
   if (erg.phase === "live") {
     const l = erg.live;
+    /* The monitor went back to its menu, or a new piece has not started:
+     * what was rowed before is one press away, over the monitor. */
+    const waiting = l.meters < 1 ? pending[pending.length - 1] : undefined;
     return (
+      <View style={{ flex: 1 }}>
+        {waiting ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Log the ${fmtInt(waiting.meters)} meters you rowed`} onPress={() => openOld(waiting)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 20, minHeight: 52, borderBottomWidth: 1, borderColor: C.line, backgroundColor: C.paper, opacity: pressed ? 0.6 : 1 })}>
+            <Text style={[styles.body, { flex: 1, color: C.ink }]} numberOfLines={1}>
+              Not logged: <Text style={{ fontFamily: F.bold }}>{fmtInt(waiting.meters)} m</Text> in {fmtClock(waiting.seconds, false)}
+            </Text>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>LOG IT</Text>
+          </Pressable>
+        ) : null}
       <Monitor
         erg={erg}
         onLog={() => {
@@ -121,6 +171,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
         }}
         onLeave={onLeave}
       />
+      </View>
     );
   }
 
@@ -128,6 +179,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        {pending.length ? <Unlogged rows={pending} onLog={openOld} /> : null}
         <Eyebrow>Telemetry · Concept2 PM5</Eyebrow>
         <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginVertical: 6 }}>
           Connect your <Text style={{ color: C.accent }}>erg</Text>
@@ -171,6 +223,53 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
         <Btn label="Log by hand" quiet onPress={() => setForm("manual")} disabled={erg.phase !== "idle"} style={{ flex: 1 }} />
         {looking ? <Btn label="Stop looking" quiet onPress={erg.discard} style={{ flex: 1 }} /> : <Btn label="Connect" onPress={erg.connect} style={{ flex: 1 }} />}
       </View>
+    </View>
+  );
+}
+
+/* ---- rows not logged yet ----------------------------------------------- */
+
+/* What the phone recorded off a monitor and the rower never logged (owner,
+ * 2026-11-22: "if I go to log a row, maybe there should be a history of all
+ * my rows that have been done on a rower"), newest first. A press opens the
+ * same form a row ends on, with the meters and the time already in it; the
+ * photos are added there. DELETE asks once more in place, and then the
+ * recording is gone from the phone. */
+function Unlogged({ rows, onLog }: { rows: Pending[]; onLog: (p: Pending) => void }) {
+  const [sure, setSure] = useState("");
+  const today = pacificToday();
+  const when = (p: Pending) => {
+    const day = pacificToday(p.at);
+    const word = day === today ? "Today" : day === shiftDay(today, -1) ? "Yesterday" : day;
+    const d = new Date(p.at);
+    const h = d.getHours();
+    return `${word}, ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  };
+  return (
+    <View style={{ marginBottom: 26 }}>
+      <Eyebrow>Rowed, not logged yet</Eyebrow>
+      {[...rows].reverse().map((p) => (
+        <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderColor: C.line }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Log ${fmtInt(p.meters)} meters, ${when(p)}`} onPress={() => onLog(p)} style={({ pressed }) => ({ flex: 1, paddingVertical: 12, opacity: pressed ? 0.6 : 1 })}>
+            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10 }}>
+              <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(p.meters)} m</Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.soft, fontVariant: ["tabular-nums"] }}>
+                {fmtClock(p.seconds, false)} · {fmtPace(p.meters > 0 ? (p.seconds / p.meters) * 500 : 0)}
+              </Text>
+            </View>
+            <Text style={[styles.body, { fontSize: 13 }]}>
+              {when(p)}
+              {p.hasDoc ? "" : " · totals only"}
+            </Text>
+          </Pressable>
+          <Text accessibilityRole="button" accessibilityLabel={sure === p.id ? "Delete this recording for good" : "Delete this recording"} onPress={() => (sure === p.id ? (setSure(""), void dropPending(p.id).catch(() => null)) : setSure(p.id))} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.soft, paddingVertical: 14 }}>
+            {sure === p.id ? "SURE?" : "DELETE"}
+          </Text>
+          <Text accessibilityRole="button" accessibilityLabel={`Log ${fmtInt(p.meters)} meters`} onPress={() => onLog(p)} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent, paddingVertical: 14 }}>
+            LOG
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -517,7 +616,7 @@ export function parseTime(text: string): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : null;
 }
 
-function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc) => void }) {
+function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; /* The day it was rowed, for a row logged later; today when left out. */ day0?: string; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc) => void }) {
   const today = pacificToday();
   const [meters, setMeters] = useState(fixed ? String(fixed.meters) : "");
   /* The time as ONE entry, as the website takes it (owner, 2026-11-21:
@@ -525,7 +624,7 @@ function LogForm({ fixed, doc, onCancel, onDone }: { fixed?: { meters: number; s
    * minutes and seconds, just like we do on the website"): 20:00, 1:02:30,
    * or a bare number for whole minutes. */
   const [time, setTime] = useState("");
-  const [day, setDay] = useState(today);
+  const [day, setDay] = useState(day0 && day0 <= today ? day0 : today);
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
