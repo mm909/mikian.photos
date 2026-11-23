@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { ROWER_URL, shareLink } from "../files";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
@@ -428,11 +429,27 @@ export function ProfileScreen({
   );
 }
 
-/* THE HEAD, as Instagram sets one: the face, and beside it the three
- * counts, each a figure over its word (ROWS is not a way anywhere; the
- * other two open their lists). Under them the name with the black check,
- * the total meters in the secondary grey, the bio, and on somebody else's
- * page FOLLOW with the bell beside it once they are followed. */
+/* THE HEAD, as Instagram sets one: the face, and beside it the name and
+ * the three counts, each a figure over its word (ROWS is not a way
+ * anywhere; the other two open their lists). Under them the bio, and on
+ * somebody else's page FOLLOW and SHARE, with the bell beside them once
+ * they are followed.
+ *
+ * EVERY METER THE ROWER HAS LOGGED IS AFTER THE NAME, on its line (owner,
+ * 2026-11-23: "I want it to be a little more prominent ... it should just
+ * say that number meters, not meters rowed ... let's put it after the
+ * person's name ... their name, hyphen, and then their total number
+ * lifetime. And we could probably just put an M"): "Ada Lovelace - 412,300
+ * m", the figure in the heavier face. Until that day it was a grey line of
+ * its own under the face, "412,300 meters rowed".
+ *
+ * FOLLOW IS HALF THE WIDTH ("I also don't like how long this follow button
+ * is. Like it's so massive ... the follow button and the following button
+ * are too big. I don't know if we can come up with some other options"):
+ * it was one bar across the page. It is now one of two, as the rower's own
+ * page has EDIT PROFILE and SHARE: FOLLOW, in the blue until it is
+ * pressed, and SHARE, which hands the address of this rower's page to the
+ * phone's share sheet. SHARE beside it is MINE. */
 function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
   const { me } = useSession();
   const n = p.rower.rowerNumber;
@@ -466,9 +483,21 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
       <View style={{ flexDirection: "row", alignItems: "center", columnGap: 18 }}>
         <Avatar uri={p.avatar} name={p.rower.displayName} size={88} />
         <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, marginBottom: 8 }}>
-            {p.rower.displayName}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 8 }}>
+            <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, flexShrink: 1 }}>
+              {p.rower.displayName}
+            </Text>
+            {p.lifetime ? (
+              <>
+                {/* The hyphen has its room as a margin: a browser folds a
+                    space at the start of a line of type away. */}
+                <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, marginHorizontal: 5 }}>-</Text>
+                <Text numberOfLines={1} accessibilityLabel={`${fmtInt(p.lifetime.meters)} meters`} style={{ fontFamily: F.semi, fontSize: 14, color: C.ink, fontVariant: ["tabular-nums"] }}>
+                  {fmtInt(p.lifetime.meters)} m
+                </Text>
+              </>
+            ) : null}
+          </View>
           <View style={{ flexDirection: "row" }}>
             {count(rows, rows === 1 ? "row" : "rows")}
             {count(counts.followers, counts.followers === 1 ? "follower" : "followers", "followers")}
@@ -476,15 +505,15 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
           </View>
         </View>
       </View>
-      {p.lifetime ? <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.gray, marginTop: 10 }}>{fmtInt(p.lifetime.meters)} meters rowed</Text> : null}
-      {p.bio ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: p.lifetime ? 1 : 10 }}>{p.bio}</Text> : null}
+      {p.bio ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: 10 }}>{p.bio}</Text> : null}
       {!p.isMe && me.me ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
-          <View style={{ flex: 1 }}>
-            <FollowButton num={n} state={rel.following} onChange={onChange} />
-          </View>
+          <FollowButton block num={n} state={rel.following} onChange={onChange} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`Share a link to ${p.rower.displayName}'s page`} onPress={() => shareLink(`${p.rower.displayName} on ROW.`, ROWER_URL(n)).catch(() => null)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
+          </Pressable>
           {rel.following === "accepted" ? (
-            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.pale, opacity: pressed || ringing ? 0.5 : 1 })}>
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.pale, opacity: pressed || ringing ? 0.5 : 1 })}>
               <RingIcon on={rel.bell} />
             </Pressable>
           ) : null}

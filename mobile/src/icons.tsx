@@ -235,3 +235,43 @@ export function GridIcon({ color = C.ink, size = 24 }: P) {
     </Svg>
   );
 }
+
+/* THE MENU A HELD ROW OPENS (ui.tsx HoldMenu). Two arrows, one each way:
+ * the other photo. */
+export function SwapIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M4 8.5 H19 M15.5 5 L19 8.5 L15.5 12" {...line(color)} />
+      <Path d="M20 15.5 H5 M8.5 12 L5 15.5 L8.5 19" {...line(color)} />
+    </Svg>
+  );
+}
+
+/* Two links of a chain: an address to send. */
+export function LinkIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M10.2 13.8 a4 4 0 0 0 5.7 0 l3 -3 a4 4 0 0 0 -5.7 -5.7 l-1.4 1.4" {...line(color)} />
+      <Path d="M13.8 10.2 a4 4 0 0 0 -5.7 0 l-3 3 a4 4 0 0 0 5.7 5.7 l1.4 -1.4" {...line(color)} />
+    </Svg>
+  );
+}
+
+/* A square with a corner peeled up: a sticker. */
+export function StickerIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M20 13 V6.5 A2.5 2.5 0 0 0 17.5 4 H6.5 A2.5 2.5 0 0 0 4 6.5 V17.5 A2.5 2.5 0 0 0 6.5 20 H13 Z" {...line(color)} />
+      <Path d="M13 20 V15.5 A2.5 2.5 0 0 1 15.5 13 H20" {...line(color)} />
+    </Svg>
+  );
+}
+
+/* Four corners pulled apart: the photo whole. */
+export function ExpandIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Path d="M4.5 9.5 V4.5 H9.5 M14.5 4.5 H19.5 V9.5 M19.5 14.5 V19.5 H14.5 M9.5 19.5 H4.5 V14.5" {...line(color)} />
+    </Svg>
+  );
+}

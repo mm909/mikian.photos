@@ -435,7 +435,20 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.paper }}>
       <StatusBar style={dark ? "light" : "dark"} hidden={monitor && wide} />
-      <View style={{ flex: 1, width: "100%", maxWidth: monitor ? 1100 : 560, alignSelf: "center", paddingTop: Platform.OS === "android" ? 28 : 0 }}>
+      <View
+        style={{ flex: 1, width: "100%", maxWidth: monitor ? 1100 : 560, alignSelf: "center", paddingTop: Platform.OS === "android" ? 28 : 0 }}
+        /* EVERY TOUCH STARTS CLEAN; a chart under it then says if it is the
+           chart's (ui.tsx scrub). Here, over the whole app, and not on the
+           tabs alone (owner, 2026-11-23: "if I'm on the stats part of the
+           profile page and I ... scrubbed the pace meter graph ... then I can
+           no longer swipe left or right between the two tabs"). A page opened
+           over the tabs, a rower's profile from the feed among them, is not
+           inside the tabs' view: the mark a chart left there was never taken
+           off, and the profile's own tabs would not swipe again. */
+        onTouchStartCapture={() => {
+          scrub.on = false;
+        }}
+      >
         {monitor ? null : (
           /* No rule under the bar (owner, 2026-11-22: "I don't need that
              line at the top"). It folds away with the feed. */
@@ -521,11 +534,6 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           <View
             style={{ flex: 1 }}
             {...swipe.panHandlers}
-            /* Every touch starts clean; a chart under it then says if it is
-               the chart's (ui.tsx scrub). */
-            onTouchStartCapture={() => {
-              scrub.on = false;
-            }}
           >
             {TABS.map((t, i) =>
               t.id === tab || t.id === peek ? (

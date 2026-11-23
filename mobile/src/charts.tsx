@@ -111,9 +111,16 @@ function useTouch(handlers: TouchHandlers) {
       },
     });
     const surface = {
-      /* This touch began on a chart: the tabs do not swipe under it. */
+      /* This touch began on a chart: the tabs do not swipe under it. It
+       * is over when the finger lifts, or the page takes it to scroll. */
       onTouchStart: () => {
         scrub.on = true;
+      },
+      onTouchEnd: () => {
+        scrub.on = false;
+      },
+      onTouchCancel: () => {
+        scrub.on = false;
       },
       onStartShouldSetResponder: () => true,
       onResponderGrant: (e: GestureResponderEvent) => {

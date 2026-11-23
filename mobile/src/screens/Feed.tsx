@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, Text, View } from "react-native";
 import { api, peek, type FeedItem, type FeedPage } from "../api";
-import { DotsIcon, VerifiedIcon } from "../icons";
+import { shareLink, ROWER_URL } from "../files";
+import { DotsIcon, ExpandIcon, LinkIcon, StickerIcon, SwapIcon, VerifiedIcon } from "../icons";
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, MONTHS, dayKey, wholeSplit } from "../theme";
-import { Avatar, Blocks, PhotoSwap, Waiting, useScrollDir, type Gallery, SkelCards } from "../ui";
+import { Avatar, Blocks, HOLD_MS, HoldMenu, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, SkelCards } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { deck } from "../stickers";
 import { StickerViewer } from "./RowPage";
@@ -43,6 +44,13 @@ import { RowMenu } from "./Social";
  * ("let's not show it on the feed, but let's do note that ... the erg data
  * was logged ... on the same row as that 5,000 meters"); the photos have a
  * little round at the corners.
+ *
+ * A PHOTO THAT IS HELD brings the row forward over a dark screen with a
+ * short list under it, as Instagram does (owner, 2026-11-23; ui.tsx
+ * HoldMenu): SWAP PHOTO, the same as a tap on it; SHARE LINK, a line about
+ * the row and the address of its rower's page, to the phone's share sheet;
+ * STICKERS; and VIEW PHOTO, which is what holding a photo did until that
+ * day and is MINE to have kept. The grid of a profile has the first two.
  *
  * THE SAME CARDS, ONE ROWER'S, are the ROWS tab of a profile (RowerRows).
  *
@@ -110,6 +118,7 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
   const [menu, setMenu] = useState<FeedItem | null>(null);
   const [sharing, setSharing] = useState<string | null>(null);
   const [talk, setTalk] = useState<string | null>(null);
+  const [held, setHeld] = useState<{ it: FeedItem; h: Held } | null>(null);
 
   /* EVERY PHOTO IN THE LIST, in order, with whose it is: one run a viewer
    * can be swiped along from any of them. */
@@ -171,12 +180,26 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
       onTalk={() => setTalk(item.id)}
       onShare={item.masked ? undefined : () => setSharing(item.id)}
       onLike={(likes, liked) => touch(item.id, { likes, liked })}
+      onHold={item.masked ? undefined : (h) => setHeld({ it: item, h })}
       gallery={{ photos: run.photos, stamps: run.stamps, offset: run.offset.get(item.id) ?? 0, menu: (at, close, leave) => (run.owner[at] ? sheet(run.owner[at], close, leave) : null) }}
     />
   );
   const overlays = (
     <>
       {menu ? sheet(menu, () => setMenu(null)) : null}
+      {held && held.it.photos[held.h.at] ? (
+        <HoldMenu
+          head={{ name: held.it.name, sub: when(held.it), avatar: held.it.avatar }}
+          photo={held.it.photos[held.h.at]}
+          onClose={() => setHeld(null)}
+          items={[
+            ...(held.h.flip ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: held.h.flip }] : []),
+            { label: "Share link", icon: <LinkIcon />, onPress: () => shareRow(held.it) },
+            { label: "Stickers", icon: <StickerIcon />, onPress: () => setSharing(held.it.id) },
+            { label: "View photo", icon: <ExpandIcon />, onPress: held.h.view },
+          ]}
+        />
+      ) : null}
       {sharing ? <StickerViewer rowId={sharing} onClose={() => setSharing(null)} /> : null}
       {talk ? <CommentsSheet entryId={talk} onClose={() => setTalk(null)} onRower={onRower} onCount={(n) => touch(talk, { comments: n })} /> : null}
     </>
@@ -260,6 +283,12 @@ export function RowerRows({ num, mine, onRower, onRow }: { num: number; mine: bo
   );
 }
 
+/* A ROW, SENT AS A LINK: what was rowed, in a line, and the address of the
+ * rower's page (files.ts shareLink says why that page). */
+function shareRow(it: FeedItem): void {
+  shareLink(`${it.name} rowed ${it.metersStr} at ${wholeSplit(it.splitStr)} /500m.`, ROWER_URL(it.rowerNumber)).catch(() => null);
+}
+
 /* One row. */
 /* WHEN, as Strava says it (owner, 2026-11-22: "how does Strava do their
  * dates? Strava does their dates by yesterday at"): Today at 6:12 AM,
@@ -304,7 +333,7 @@ const Rule = () => <View style={{ width: 30 }} />;
  * the comments and the share; the caption. No box round it and no rule:
  * the picture is what parts one row from the next. Until that day a row
  * was a white card with the meters big and blue. */
-function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, gallery }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; onTalk: () => void; onShare?: () => void; onLike: (likes: number, liked: boolean) => void; gallery: Gallery }) {
+function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, gallery }: { it: FeedItem; onRower: (n: number) => void; onRow: (id: string) => void; onMenu: () => void; onTalk: () => void; onShare?: () => void; onLike: (likes: number, liked: boolean) => void; onHold?: (h: Held) => void; gallery: Gallery }) {
   const PAD = 14;
   return (
     <View style={{ paddingTop: 14, paddingBottom: 14, borderBottomWidth: 6, borderColor: C.tint }}>
@@ -355,7 +384,7 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, gallery }:
         </View>
       </Pressable>
 
-      {it.masked ? null : <PhotoSwap photos={it.photos} style={{ marginTop: 16 }} gallery={gallery} />}
+      {it.masked ? null : <PhotoSwap photos={it.photos} style={{ marginTop: 16 }} gallery={gallery} onHold={onHold} />}
 
       <PostActions id={it.id} likes={it.likes ?? 0} liked={!!it.liked} comments={it.comments ?? 0} onComments={onTalk} onShare={onShare} onChange={onLike} style={{ marginTop: 8, marginBottom: -4, paddingHorizontal: PAD }} />
 
@@ -391,6 +420,12 @@ export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRo
   const { items, older, error, first, next } = rows;
   const [shown, setShown] = useState(30);
   const [busy, setBusy] = useState(false);
+  /* A tile that is held: the row forward and a short list, as on the feed.
+   * SWAP PHOTO turns the tile to the row's other photo, here and until the
+   * page is left; SHARE LINK is the feed's. */
+  const [held, setHeld] = useState<FeedItem | null>(null);
+  const [turned, setTurned] = useState<Record<string, boolean>>({});
+  const face = (it: FeedItem) => (it.masked ? null : (turned[it.id] && it.photos[1]) || it.photos[0] || null);
   if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <SkelCards n={1} />;
   if (items.length === 0) return <Text style={[mono(11, false, C.gray), { paddingVertical: 24, paddingHorizontal: 14 }]}>{mine ? "Nothing logged yet." : "No rows to show."}</Text>;
   const GAP = 2;
@@ -398,9 +433,9 @@ export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRo
     <View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginRight: -GAP }}>
         {items.slice(0, shown).map((it) => {
-          const photo = it.masked ? null : it.photos[0];
+          const photo = face(it);
           return (
-            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
+            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} delayLongPress={HOLD_MS} onLongPress={photo ? () => setHeld(it) : undefined} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
               <View style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}>
                 {photo ? <Image source={{ uri: photo.thumb ?? photo.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
               </View>
@@ -422,6 +457,17 @@ export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRo
             }}
           />
         </View>
+      ) : null}
+      {held && face(held) ? (
+        <HoldMenu
+          head={{ name: held.name, sub: when(held), avatar: held.avatar }}
+          photo={face(held) as NonNullable<ReturnType<typeof face>>}
+          onClose={() => setHeld(null)}
+          items={[
+            ...(held.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => setTurned((t) => ({ ...t, [held.id]: !t[held.id] })) } as HoldItem] : []),
+            { label: "Share link", icon: <LinkIcon />, onPress: () => shareRow(held) },
+          ]}
+        />
       ) : null}
     </View>
   );

@@ -44,7 +44,7 @@ export function Small({ label, onPress, fill, disabled }: { label: string; onPre
 /* FOLLOW (the blue), REQUESTED (a private rower has been asked; a press
  * takes it back), FOLLOWING (a press stops). The server answers how the
  * two now stand and the caller redraws from that. */
-export function FollowButton({ num, state, onChange }: { num: number; state: Rel["following"]; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
+export function FollowButton({ num, state, onChange, block }: { num: number; state: Rel["following"]; onChange: (r: { rel: Rel; counts: Counts }) => void; /* On a profile: one of the two buttons under the head, as Instagram sets them. */ block?: boolean }) {
   const { me, refresh } = useSession();
   const [busy, setBusy] = useState(false);
   if (!me.me) return null;
@@ -58,7 +58,14 @@ export function FollowButton({ num, state, onChange }: { num: number; state: Rel
     }
     setBusy(false);
   };
-  return <Small label={state === "none" ? "Follow" : state === "pending" ? "Requested" : "Following"} fill={state === "none"} disabled={busy} onPress={press} />;
+  const label = state === "none" ? "Follow" : state === "pending" ? "Requested" : "Following";
+  if (block)
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: state === "none" ? C.accent : C.pale, opacity: busy ? 0.4 : pressed ? 0.6 : 1 })}>
+        <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: state === "none" ? "#fff" : C.ink }}>{label}</Text>
+      </Pressable>
+    );
+  return <Small label={label} fill={state === "none"} disabled={busy} onPress={press} />;
 }
 
 /* One rower in a list: the grey number, the bold name, the handle under

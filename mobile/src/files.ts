@@ -1,7 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Platform } from "react-native";
+import { Platform, Share } from "react-native";
 import { SAME_ORIGIN, loadToken } from "./api";
 
 /* A PICTURE OR A VIDEO THE SITE MADE, fetched as the signed-in rower and
@@ -105,4 +105,33 @@ export async function copyImage(f: Fetched): Promise<void> {
     b64 = await new File(f.uri).base64();
   }
   await Clipboard.setImageAsync(b64);
+}
+
+/* AN ADDRESS AND A LINE ABOUT IT, handed to the phone's share sheet (owner,
+ * 2026-11-23: "we can have a share option. Like I can send this person the
+ * row ... share a link"). The address is the rower's page on the site, the
+ * one page of theirs anybody can open today: a page for one row is not
+ * built, so the line says the row and the address leads to whose it is. In
+ * a browser with no share sheet the two go on the clipboard. */
+export const ROWER_URL = (num: number) => `https://www.rowtember.com/r/${num}`;
+export async function shareLink(words: string, url: string): Promise<"share" | "copy" | "none"> {
+  if (Platform.OS !== "web") {
+    try {
+      await Share.share(Platform.OS === "ios" ? { message: words, url } : { message: `${words} ${url}` });
+      return "share";
+    } catch {
+      return "none";
+    }
+  }
+  const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+  if (nav.share) {
+    try {
+      await nav.share({ text: words, url });
+      return "share";
+    } catch {
+      return "none";
+    }
+  }
+  await Clipboard.setStringAsync(`${words} ${url}`);
+  return "copy";
 }
