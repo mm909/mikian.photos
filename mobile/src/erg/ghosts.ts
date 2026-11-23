@@ -291,18 +291,20 @@ const SOON_S = 8;
  *     when a boat was dropped, behind when one went away up the course),
  *     one that is about to pass or be passed, a recorded row, and the one
  *     that will be on the water longest.
- *     Never a second row of a rower who is racing already. For a few
- *     hours of 2026-11-22 it was, before a pace boat, and the owner's
- *     first row with it had four lanes in his own name: "4 of these rowers
- *     are me. Fix it".
- *  2. Failing any, a pace boat: an even pace to the nearest round finish
+ *     Somebody else: not a past row of the rower's own, and not a second
+ *     row of a rower who is racing already.
+ *  2. Failing any, a duplicate: one of those two (owner, 2026-11-22,
+ *     after a finish with his name on four lanes and a fix that took his
+ *     rows out altogether: "If we cannot find any other people to put in
+ *     that lane, then it's okay to duplicate").
+ *  3. Failing that too, a pace boat: an even pace to the nearest round finish
  *     on that side of the finish the rower is headed for (`near`), every
  *     five seconds, and every second when none of those is on the water.
  *
  * `on` says the boat is on the water already, so the screen brings it up
  * out of the water where it is, and does not slide it in from an edge. */
-export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: number; speed: number; near: number; water: Water; racing: Ghost[]; want: -1 | 0 | 1 }): Next | null {
-  const { ghosts, meters, t, mine, speed, near, water, racing, want } = o;
+export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: number; speed: number; near: number; water: Water; racing: Ghost[]; want: -1 | 0 | 1; /* Somebody else or nobody: no duplicate, no pace boat. */ others?: boolean }): Next | null {
+  const { ghosts, meters, t, mine, speed, near, water, racing, want, others } = o;
   const keys = new Set(racing.map(rowerKey));
   const ids = new Set(racing.map((g) => g.id));
   const gap = (g: Ghost, at: number, m: number) => ghostMeters(g, meters, at) - m;
@@ -325,18 +327,24 @@ export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: 
 
   let best: Next | null = null;
   let least = Infinity;
-  /* ONE ROW A ROWER, ALWAYS: nobody is in two lanes. */
-  for (const g of ghosts) {
-    if (g.kind === "pace" || ids.has(g.id) || keys.has(rowerKey(g)) || ghostDone(g, t)) continue;
-    const s = look(g);
-    if (!s) continue;
-    const cost = -Math.min(s.stay, 120) * 0.4 - (s.pass ? 40 : 0) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.3;
-    if (cost < least) {
-      least = cost;
-      best = { g, on: s.on };
+  /* SOMEBODY ELSE FIRST: a rower who is not the one rowing and is not on
+   * the water already. Only when there is no such row near is a lane given
+   * to a duplicate: a past row of the rower's own, or a second row of
+   * somebody racing. */
+  for (const dup of [false, true]) {
+    for (const g of ghosts) {
+      if (g.kind === "pace" || ids.has(g.id) || (g.kind === "me" || keys.has(rowerKey(g))) !== dup || ghostDone(g, t)) continue;
+      const s = look(g);
+      if (!s) continue;
+      const cost = -Math.min(s.stay, 120) * 0.4 - (s.pass ? 40 : 0) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.3;
+      if (cost < least) {
+        least = cost;
+        best = { g, on: s.on };
+      }
     }
+    if (best || others) return best;
   }
-  if (best || !(near > 0)) return best;
+  if (!(near > 0)) return best;
 
   for (const step of [5, 1]) {
     const base = Math.round(near / step) * step;

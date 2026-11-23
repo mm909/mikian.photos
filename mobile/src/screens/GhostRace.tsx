@@ -32,9 +32,9 @@ import { Eyebrow, Num, styles } from "../ui";
  * the rower or behind ("I don't think I care about the number of meters
  * behind me they are, but probably the number of seconds"); and ahead of
  * the bow, going with the boat, its average split so far. The rower's own
- * lane has their name and their own average (his sixth read: "instead of
- * saying you, let's put their name"). No lane says a date ("let's drop the
- * dates").
+ * lane has their name and their own average, and a past row of theirs has
+ * their name too (his sixth read: "instead of saying you, let's put their
+ * name"). No lane says a date ("let's drop the dates").
  *
  * WHO THE FOUR ARE (erg/ghosts.ts pickRivals): the rows that will finish
  * nearest the finish the rower is headed for, a recorded row before one
@@ -61,10 +61,12 @@ import { Eyebrow, Num, styles } from "../ui";
  * off the water is out at once, as before, and its lane goes at once to the
  * next boat (erg/ghosts.ts nextBoat): a real row that is on the water now
  * or about to be, one ahead when a boat was dropped and one behind when a
- * boat went away up the course; and when no real row is near, a PACE BOAT,
- * an even pace to a round finish, named by that finish. NOBODY IS IN TWO
- * LANES, and the rower's own past rows are in none ("4 of these rowers are
- * me. Fix it"): their best is the red boat in their own lane.
+ * boat went away up the course. SOMEBODY ELSE FIRST: a past row of the
+ * rower's own, or a second row of somebody racing, has a lane only when
+ * nobody else is near ("4 of these rowers are me. Fix it"; "If we cannot
+ * find any other people to put in that lane, then it's okay to
+ * duplicate"). And when no real row at all is near, a PACE BOAT, an even
+ * pace to a round finish, named by that finish.
  * A rower on the water this minute (erg/liveRace.ts) is where they are this
  * second and is given a lane like anybody, while they are on the water:
  * "if someone is live and we're catching up to them, then show them like in
@@ -206,12 +208,15 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
 
   const ghosts = useMemo(() => field?.ghosts ?? [], [field]);
   /* The rower's fastest row over the distance: it rows in the rower's own
-   * lane. THE FOUR ARE OTHER PEOPLE: no past row of the rower's own takes a
-   * lane (owner, 2026-11-22, of a finish with his name on four lanes: "4 of
-   * these rowers are me. Fix it"). The rower is on the page once, with
-   * their best beside them; their other rows are dots in the water. */
+   * lane, and is never one of the four. THE FOUR ARE OTHER PEOPLE WHILE
+   * THERE ARE OTHER PEOPLE (owner, 2026-11-22, of a finish with his name on
+   * four lanes: "4 of these rowers are me. Fix it"; and then, told why:
+   * "If we cannot find any other people to put in that lane, then it's okay
+   * to duplicate"). A past row of the rower's own, or a second row of
+   * somebody racing, is given a lane only when nobody else is near enough
+   * to be on the water (erg/ghosts.ts nextBoat). */
   const best = useMemo(() => ghosts.filter((g) => g.kind === "me").sort((a, b) => a.seconds - b.seconds)[0] ?? null, [ghosts]);
-  const pool = useMemo(() => ghosts.filter((g) => g.kind !== "me"), [ghosts]);
+  const pool = useMemo(() => (best ? ghosts.filter((g) => g !== best) : ghosts), [ghosts, best]);
   /* Who is rowing the distance this minute (erg/liveRace.ts; nobody, until
    * the owner turns it on). */
   const liveNow = useLiveRowers();
@@ -256,6 +261,8 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   const path = useRef<{ t: number; m: number }[]>([]);
   /* When the rower's best came onto the water (0: it is not on it). */
   const bestBorn = useRef(0);
+  /* When the lanes were last looked over for a duplicate to hand back. */
+  const handedAt = useRef(0);
   const now = Date.now();
   if (live.elapsedS !== said.current.t || live.meters !== said.current.m) {
     /* A new piece on the monitor starts the picture, and the race, again. */
@@ -363,7 +370,9 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     strokes.current.clear();
     rivals.current = [];
     if (t <= 2) {
-      for (const g of pickRivals(pool, target, usual, RIVALS).sort((a, b) => a.seconds - b.seconds)) add(g, 0);
+      /* Other people on the start; lanes they do not fill are filled just
+       * below, with a duplicate before a pace boat. */
+      for (const g of pickRivals(pool.filter((x) => x.kind !== "me"), target, usual, RIVALS).sort((a, b) => a.seconds - b.seconds)) add(g, 0);
       for (const s of [-1, 1] as const) {
         const two = rivals.current.filter((r) => r.side === s).sort((a, b) => Math.abs(a.g.seconds - usual) - Math.abs(b.g.seconds - usual));
         two.forEach((r, i) => (r.lane = MID + s * (i + 1)));
@@ -414,6 +423,22 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
       strokes.current.delete(r.g.id);
       r.g = next.g;
       r.born = next.on ? now : 0;
+    }
+    /* A DUPLICATE HAS ITS LANE ONLY UNTIL SOMEBODY ELSE COMES ONTO THE
+     * WATER: a past row of the rower's own, or a second row of somebody
+     * racing, gives the lane to the first other person who is on it.
+     * Looked at once a second. */
+    if (t > 0 && now - handedAt.current > 1000) {
+      handedAt.current = now;
+      rivals.current.forEach((r, i) => {
+        const dup = r.g.kind === "me" || rivals.current.findIndex((x) => rowerKey(x.g) === rowerKey(r.g)) !== i;
+        if (!dup) return;
+        const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.filter((x) => x !== r).map((x) => x.g), want: 0, others: true });
+        if (!next || !next.on) return;
+        strokes.current.delete(r.g.id);
+        r.g = next.g;
+        r.born = now;
+      });
     }
     while (rivals.current.length < RIVALS) {
       const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.map((x) => x.g), want: 0 });
@@ -549,7 +574,7 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   /* THE REST OF THE FIELD: a dot for every other row that is within the
    * water right now, each in a place of its own up and down it. */
   const fish: { id: string; x: number; y: number; mine: boolean }[] = [];
-  for (const g of [...all, ...ghosts.filter((x) => x.kind === "me" && x !== best)]) {
+  for (const g of all) {
     if (racing.has(g.id) || fish.length >= 70) continue;
     const d = gapOf(g);
     if (!inView(d)) continue;

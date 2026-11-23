@@ -70,10 +70,15 @@ ok("asked for one behind, it finishes later", behind?.g.kind === "pace" && behin
 const second = nextBoat({ ...at, near: 1203, ghosts: [], racing: [ahead!.g], want: 1 });
 ok("a second one ahead is a different boat", second?.g.kind === "pace" && second.g.id !== ahead!.g.id && second.g.seconds < 1203, second);
 ok("nobody is given a lane twice", nextBoat({ ...at, ghosts: some, racing: [some[1]], want: 0 })?.g.id !== "close");
-ok("nor two rows of one rower: a pace boat has the lane first", nextBoat({ ...at, ghosts: [row("twin", 1203, "011")], racing: [some[1]], want: 0 })?.g.kind === "pace");
-ok("a row of somebody who is not racing has it", nextBoat({ ...at, ghosts: [row("twin", 1201, "011"), row("other", 1206, "013")], racing: [some[1]], want: 0 })?.g.id === "other");
+ok("with nobody else near, a second row of a rower who is racing has the lane before a pace boat", nextBoat({ ...at, ghosts: [row("twin", 1203, "011")], racing: [some[1]], want: 0 })?.g.id === "twin");
+ok("but a row of somebody who is not racing has it first", nextBoat({ ...at, ghosts: [row("twin", 1201, "011"), row("other", 1206, "013")], racing: [some[1]], want: 0 })?.g.id === "other");
 const own: Ghost[] = [1198, 1202, 1205].map((s2, i) => ({ ...even, id: `own${i}`, kind: "me", seconds: s2 }));
-ok("with one of the rower's own rows racing, no other of theirs is given a lane", nextBoat({ ...at, ghosts: own, racing: [own[0]], want: 0 })?.g.kind === "pace");
+ok("somebody else has a lane before any past row of the rower's own", nextBoat({ ...at, ghosts: [...own, row("other", 1207, "013")], racing: [], want: 0 })?.g.id === "other");
+ok("with nobody else near, a past row of the rower's own has it", nextBoat({ ...at, ghosts: [...own, row("gone", 1300, "012")], racing: [], want: 0 })?.g.kind === "me");
+ok("and another of theirs the next lane, before a pace boat", nextBoat({ ...at, ghosts: own, racing: [own[0]], want: 0 })?.g.kind === "me");
+ok("asked for somebody else only, a duplicate is not offered", nextBoat({ ...at, ghosts: own, racing: [], want: 0, others: true }) === null);
+ok("and somebody else is", nextBoat({ ...at, ghosts: [...own, row("other", 1207, "013")], racing: [own[0]], want: 0, others: true })?.g.id === "other");
+ok("a pace boat when there is no real row at all", nextBoat({ ...at, ghosts: [], racing: [own[0]], want: 0 })?.g.kind === "pace");
 /* Late in a long piece, upright, only a few seconds either side are on the
  * water: four lanes still fill. */
 const late = { ...at, t: 1150, mine: (1150 / 1203) * 5000, near: 1203 };
