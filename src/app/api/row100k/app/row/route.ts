@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
@@ -141,13 +142,32 @@ export async function GET(req: Request) {
  * can display that caption"). POST { id, caption }: the row's own rower
  * writes it, changes it, or clears it with an empty one. Sent by the app
  * straight after the row is logged, so the site's log route stays as it
- * is. Wears the app's gate (social.ts). */
+ * is. Wears the app's gate (social.ts).
+ *
+ * AND WHICH PHOTO IS FIRST (owner, 2026-11-23, of SWAP PHOTO in the menu a
+ * held row opens: "the reason why I want to swap photos is because I want
+ * to swap which one shows up first ... it should be swap which one shows
+ * to other users. And I shouldn't be able to swap other people's photos.
+ * Just me"). POST { id, swap: true }: the row's own rower turns its two
+ * photos about, for everybody and for good; the answer is the pair as it
+ * now stands. Nobody else may, the owner of the site included: this is the
+ * rower's own choice of face, not moderation. */
 export async function POST(req: Request) {
   const who = await asRower();
   if ("denied" in who) return who.denied;
   try {
-    const body = (await req.json().catch(() => null)) as { id?: unknown; caption?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { id?: unknown; caption?: unknown; swap?: unknown } | null;
     const id = typeof body?.id === "string" ? body.id : "";
+    if (body?.swap === true) {
+      const row = await db.rowEntry.findFirst({ where: { id, challenge: CHALLENGE }, select: { id: true, participantId: true, photos: true } });
+      if (!row) return no("No such row.", 404);
+      if (row.participantId !== who.me.id) return no("That row is not yours.", 403);
+      if (row.photos.length < 2) return no("This row has one photo.", 400);
+      const photos = [row.photos[1], row.photos[0], ...row.photos.slice(2)];
+      await db.rowEntry.update({ where: { id: row.id }, data: { photos } });
+      revalidateTag("row100k-boards");
+      return NextResponse.json({ ok: true, photos: await resolvePhotoMedia(photos) }, { headers: NO_STORE });
+    }
     const caption = typeof body?.caption === "string" ? body.caption.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 500) : null;
     if (caption === null) return no("Nothing to save.", 400);
     const e = await db.rowEntry.findFirst({ where: { id, challenge: CHALLENGE }, select: { id: true, participantId: true } });

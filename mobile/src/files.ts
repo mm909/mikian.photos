@@ -109,11 +109,13 @@ export async function copyImage(f: Fetched): Promise<void> {
 
 /* AN ADDRESS AND A LINE ABOUT IT, handed to the phone's share sheet (owner,
  * 2026-11-23: "we can have a share option. Like I can send this person the
- * row ... share a link"). The address is the rower's page on the site, the
- * one page of theirs anybody can open today: a page for one row is not
- * built, so the line says the row and the address leads to whose it is. In
- * a browser with no share sheet the two go on the clipboard. */
+ * row ... share a link"; then: "let's make a shareable link for a row, just
+ * like we can for a profile"). A rower's page is /r/<number> on the site;
+ * a row's own page is /r/<number>/<row> (src/app/row100k/r/[num]/[entry]),
+ * which shows a visitor what the feed would show them and no more. In a
+ * browser with no share sheet the two go on the clipboard. */
 export const ROWER_URL = (num: number) => `https://www.rowtember.com/r/${num}`;
+export const ROW_URL = (num: number, id: string) => `https://www.rowtember.com/r/${num}/${encodeURIComponent(id)}`;
 export async function shareLink(words: string, url: string): Promise<"share" | "copy" | "none"> {
   if (Platform.OS !== "web") {
     try {

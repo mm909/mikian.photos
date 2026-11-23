@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, Text, View } from "react-native";
-import { api, peek, type FeedItem, type FeedPage } from "../api";
-import { shareLink, ROWER_URL } from "../files";
+import { api, edits, peek, type FeedItem, type FeedPage } from "../api";
+import { buzz } from "../buzz";
+import { ROW_URL, shareLink } from "../files";
 import { DotsIcon, ExpandIcon, LinkIcon, StickerIcon, SwapIcon, VerifiedIcon } from "../icons";
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
@@ -47,10 +48,20 @@ import { RowMenu } from "./Social";
  *
  * A PHOTO THAT IS HELD brings the row forward over a dark screen with a
  * short list under it, as Instagram does (owner, 2026-11-23; ui.tsx
- * HoldMenu): SWAP PHOTO, the same as a tap on it; SHARE LINK, a line about
- * the row and the address of its rower's page, to the phone's share sheet;
- * STICKERS; and VIEW PHOTO, which is what holding a photo did until that
- * day and is MINE to have kept. The grid of a profile has the first two.
+ * HoldMenu): SHARE LINK, a line about the row and the address of its own
+ * page on the site, to the phone's share sheet; STICKERS; and VIEW PHOTO,
+ * which is what holding a photo did until that day and is MINE to have
+ * kept. The grid of a profile has SHARE LINK.
+ *
+ * SWAP PHOTO IS THE ROWER'S OWN, AND IT IS KEPT (owner, the same day, of a
+ * first one that turned the card about for the looker alone: "I swapped
+ * photos and none of them saved ... the reason why I want to swap photos is
+ * because I want to swap which one shows up first ... it should be swap
+ * which one shows to other users. And I shouldn't be able to swap other
+ * people's photos. Just me"). On a row of the viewer's own with two photos,
+ * on the feed and on their grid: the two change places on the site, for
+ * everybody, and the card shows the new first at once (swapPhotos). Nobody
+ * else's row has the line.
  *
  * THE SAME CARDS, ONE ROWER'S, are the ROWS tab of a profile (RowerRows).
  *
@@ -193,8 +204,8 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
           photo={held.it.photos[held.h.at]}
           onClose={() => setHeld(null)}
           items={[
-            ...(held.h.flip ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: held.h.flip }] : []),
-            { label: "Share link", icon: <LinkIcon />, onPress: () => shareRow(held.it) },
+            ...(held.it.mine && held.it.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held.it) } as HoldItem] : []),
+            { label: "Share link", icon: <LinkIcon />, wait: true, onPress: () => shareRow(held.it) },
             { label: "Stickers", icon: <StickerIcon />, onPress: () => setSharing(held.it.id) },
             { label: "View photo", icon: <ExpandIcon />, onPress: held.h.view },
           ]}
@@ -284,9 +295,28 @@ export function RowerRows({ num, mine, onRower, onRow }: { num: number; mine: bo
 }
 
 /* A ROW, SENT AS A LINK: what was rowed, in a line, and the address of the
- * rower's page (files.ts shareLink says why that page). */
-function shareRow(it: FeedItem): void {
-  shareLink(`${it.name} rowed ${it.metersStr} at ${wholeSplit(it.splitStr)} /500m.`, ROWER_URL(it.rowerNumber)).catch(() => null);
+ * row's own page on the site (files.ts ROW_URL). */
+function shareRow(it: FeedItem): Promise<unknown> {
+  return shareLink(`${it.name} rowed ${it.metersStr} at ${wholeSplit(it.splitStr)} /500m.`, ROW_URL(it.rowerNumber, it.id)).catch(() => null);
+}
+
+/* THE ROWER'S OWN TWO PHOTOS CHANGE PLACES, for everybody and for good
+ * (api/row100k/app/row, swap). The card turns at once; the site's answer
+ * is the pair as it now stands, and a swap that did not go through is put
+ * back. */
+async function swapPhotos(touch: (id: string, f: Partial<FeedItem>) => void, it: FeedItem): Promise<void> {
+  if (!it.mine || it.photos.length < 2) return;
+  const was = it.photos;
+  buzz.tap();
+  touch(it.id, { photos: [was[1], was[0], ...was.slice(2)] });
+  try {
+    const r = await api<{ photos: FeedItem["photos"] }>("/api/row100k/app/row", { body: { id: it.id, swap: true } });
+    touch(it.id, { photos: r.photos });
+    /* The rower's own page reads itself again. */
+    edits.n++;
+  } catch {
+    touch(it.id, { photos: was });
+  }
 }
 
 /* One row. */
@@ -384,7 +414,7 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
         </View>
       </Pressable>
 
-      {it.masked ? null : <PhotoSwap photos={it.photos} style={{ marginTop: 16 }} gallery={gallery} onHold={onHold} />}
+      {it.masked ? null : <PhotoSwap key={it.photos[0]?.full ?? "none"} photos={it.photos} style={{ marginTop: 16 }} gallery={gallery} onHold={onHold} />}
 
       <PostActions id={it.id} likes={it.likes ?? 0} liked={!!it.liked} comments={it.comments ?? 0} onComments={onTalk} onShare={onShare} onChange={onLike} style={{ marginTop: 8, marginBottom: -4, paddingHorizontal: PAD }} />
 
@@ -409,23 +439,43 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
  * we'll make the exact same Instagram grid with just a photo ... none of
  * the stats"). Each tile is the first photo of a row, three by four, and
  * opens that row's page. A row with no photo (an old one, or a hidden one)
- * is a quiet tile with its day. Thirty to begin with, and MORE.
+ * is a quiet tile with its day. Thirty to begin with, and the next thirty
+ * as the end of the page comes near (owner, 2026-11-23: "there's a button
+ * down there that says more rows. I don't want that. I want that continuous
+ * loading page"): the page that holds the grid counts `more` up while its
+ * end is near (Profile.tsx), and each count shows what is in hand or reads
+ * the next page from the site. A spinner stands at the foot while there is
+ * more.
  *
  * A tile does not dim under the finger (owner, 2026-11-22: "when you tap to
  * scroll it, it like flashes, it highlights for a little bit. We can get
  * rid of that"): a finger that lands on the grid is nearly always there to
  * scroll it, and every scroll lit a photo. */
-export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRow: (id: string) => void }) {
+export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boolean; onRow: (id: string) => void; more?: number }) {
   const rows = useRows(`${PATH}?rower=${num}`, []);
-  const { items, older, error, first, next } = rows;
+  const { items, older, error, first, next, touch } = rows;
   const [shown, setShown] = useState(30);
-  const [busy, setBusy] = useState(false);
+  const reading = useRef(false);
   /* A tile that is held: the row forward and a short list, as on the feed.
-   * SWAP PHOTO turns the tile to the row's other photo, here and until the
-   * page is left; SHARE LINK is the feed's. */
+   * SHARE LINK is the feed's, and so is SWAP PHOTO, on the rower's own. */
   const [held, setHeld] = useState<FeedItem | null>(null);
-  const [turned, setTurned] = useState<Record<string, boolean>>({});
-  const face = (it: FeedItem) => (it.masked ? null : (turned[it.id] && it.photos[1]) || it.photos[0] || null);
+  const face = (it: FeedItem) => (it.masked ? null : it.photos[0] || null);
+  const have = items?.length ?? 0;
+  useEffect(() => {
+    if (!more || reading.current) return;
+    if (have > shown) {
+      setShown((n) => n + 30);
+      return;
+    }
+    if (!older) return;
+    reading.current = true;
+    next().then(() => {
+      setShown((n) => n + 30);
+      reading.current = false;
+    });
+    // Each count of `more` is one step; the rest is read as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [more]);
   if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <SkelCards n={1} />;
   if (items.length === 0) return <Text style={[mono(11, false, C.gray), { paddingVertical: 24, paddingHorizontal: 14 }]}>{mine ? "Nothing logged yet." : "No rows to show."}</Text>;
   const GAP = 2;
@@ -443,29 +493,15 @@ export function RowGrid({ num, mine, onRow }: { num: number; mine: boolean; onRo
           );
         })}
       </View>
-      {older || items.length > shown ? (
-        <View style={{ alignItems: "center", paddingVertical: 16 }}>
-          <Ctl
-            label={busy ? "Reading" : "More rows"}
-            disabled={busy}
-            onPress={async () => {
-              if (items.length > shown) return setShown(shown + 30);
-              setBusy(true);
-              await next();
-              setShown(shown + 30);
-              setBusy(false);
-            }}
-          />
-        </View>
-      ) : null}
+      {older || items.length > shown ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : null}
       {held && face(held) ? (
         <HoldMenu
           head={{ name: held.name, sub: when(held), avatar: held.avatar }}
           photo={face(held) as NonNullable<ReturnType<typeof face>>}
           onClose={() => setHeld(null)}
           items={[
-            ...(held.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => setTurned((t) => ({ ...t, [held.id]: !t[held.id] })) } as HoldItem] : []),
-            { label: "Share link", icon: <LinkIcon />, onPress: () => shareRow(held) },
+            ...(held.mine && held.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held) } as HoldItem] : []),
+            { label: "Share link", icon: <LinkIcon />, wait: true, onPress: () => shareRow(held) },
           ]}
         />
       ) : null}

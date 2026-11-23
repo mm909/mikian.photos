@@ -29,6 +29,7 @@ import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
 import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
 import { Avatar, modals, scrub, setSideDrag } from "./src/ui";
+import { buzz } from "./src/buzz";
 
 /* ROW, THE APP.
  *
@@ -278,16 +279,75 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const paneW = Math.min(win.width, 560);
   const paneRef = useRef(paneW);
   paneRef.current = paneW;
-  const nativeDrive = Platform.OS !== "web";
   useEffect(() => {
     pos.setValue(at);
   }, [pos, at]);
+  /* A PAGE THAT CAME UP BLANK (owner, 2026-11-23: "if I've had the app open
+   * for a bit and I'm like flicking back and forth between a bunch of the
+   * pages, it'll go blank ... the data's still there. I just have to like
+   * move it a little bit and it'll show up"). Where a pane stands was held
+   * in two places: the app's own count of it, and the phone's copy, which
+   * ran the glide after a drag. A page drawn while the two disagreed (a
+   * second drag begun before the first glide was over, a press on the bar
+   * mid-glide) was put where the stale one said, a screen's width off, and
+   * stayed there until a finger moved the count again. Now there is one
+   * place: the glide is run by the app itself, the count is right before
+   * anything is drawn from it, and a glide that is cut short is finished on
+   * the spot, the tab it was on its way to becoming the tab, before the
+   * next drag or press is read. NOT seen on a phone: the fault could not be
+   * made to happen in a browser, so this is the cause as read from the code. */
+  const glide = useRef<number | null>(null);
+  const settle = useCallback(() => {
+    const to = glide.current;
+    if (to === null) return;
+    glide.current = null;
+    pos.stopAnimation();
+    pos.setValue(to);
+    peekRef.current = null;
+    setPeek(null);
+    if (TABS[to].id !== tabRef.current) {
+      tabRef.current = TABS[to].id;
+      setTab(TABS[to].id);
+    }
+  }, [pos]);
+  const glideTo = useCallback(
+    (to: number, ms: number) => {
+      glide.current = to;
+      Animated.timing(pos, { toValue: to, duration: ms, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+        if (finished && glide.current === to) settle();
+      });
+    },
+    [pos, settle],
+  );
+  /* A press on the bar, or the app itself going to a tab: straight there. */
+  const goTab = useCallback(
+    (t: Tab) => {
+      glide.current = null;
+      pos.stopAnimation();
+      pos.setValue(TABS.findIndex((x) => x.id === t));
+      peekRef.current = null;
+      setPeek(null);
+      tabRef.current = t;
+      setTab(t);
+    },
+    [pos],
+  );
+  /* THE LITTLE BUZZ as the tab changes, by a press or by a drag (buzz.ts). */
+  const buzzed = useRef(tab);
+  useEffect(() => {
+    if (buzzed.current === tab) return;
+    buzzed.current = tab;
+    buzz.tick();
+  }, [tab]);
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && !scrub.on && Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
       /* The page does not scroll up and down under a drag across it
-       * (ui.tsx setSideDrag). */
-      onPanResponderGrant: () => setSideDrag(true),
+       * (ui.tsx setSideDrag). A glide still under way is finished first. */
+      onPanResponderGrant: () => {
+        settle();
+        setSideDrag(true);
+      },
       onPanResponderMove: (_e, g) => {
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         pos.setValue(Math.max(0, Math.min(TABS.length - 1, i - g.dx / paneRef.current)));
@@ -302,20 +362,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         setSideDrag(false);
         const i = TABS.findIndex((t) => t.id === tabRef.current);
         const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
-        const to = Math.max(0, Math.min(TABS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
-        Animated.timing(pos, { toValue: to, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
-          if (to !== i) setTab(TABS[to].id);
-          peekRef.current = null;
-          setPeek(null);
-        });
+        glideTo(Math.max(0, Math.min(TABS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i)), 220);
       },
       onPanResponderTerminate: () => {
         setSideDrag(false);
-        const i = TABS.findIndex((t) => t.id === tabRef.current);
-        Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
-          peekRef.current = null;
-          setPeek(null);
-        });
+        glideTo(TABS.findIndex((t) => t.id === tabRef.current), 180);
       },
     }),
   ).current;
@@ -360,7 +411,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     /* Every sticker counts this row now. */
     forgetStickers();
     refresh();
-    setTab("board");
+    goTab("board");
     setLog("closed");
     setStack([{ k: nextKey++, kind: "row", id: r.id, fresh, doc: r.doc }]);
   };
@@ -425,7 +476,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         onPeople={openPeople}
         onBoard={() => {
           setStack([]);
-          setTab("board");
+          goTab("board");
         }}
       />
     ) : (
@@ -595,7 +646,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               leave.current = null;
               setStack([]);
               if (logOn) setLog("hidden");
-              setTab(t);
+              goTab(t);
             }}
           />
         )}

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ROWER_URL, shareLink } from "../files";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { Density, MonthGrid, PaceLine } from "../charts";
@@ -159,6 +159,9 @@ export function ProfileScreen({
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
   const [sharing, setSharing] = useState(false);
   const [tab, setTab] = useState<Sub>("rows");
+  /* Counts up while the end of the page is near, for the gallery. */
+  const [near, setNear] = useState(0);
+  const nearAt = useRef(0);
   useEffect(() => setLive(null), [data]);
   /* What was last read of this rower stays up while another month of them
    * is read. */
@@ -184,10 +187,46 @@ export function ProfileScreen({
   /* Whether there are tabs to drag: not on a private or a hidden page. */
   const swipeOk = useRef(false);
   swipeOk.current = false;
-  const nativeDrive = Platform.OS !== "web";
   useEffect(() => {
     pos.setValue(at);
   }, [pos, at]);
+  /* One place for where a tab stands, and a glide that is cut short is
+   * finished on the spot: App.tsx says why (the page that came up blank). */
+  const glide = useRef<number | null>(null);
+  const settle = useCallback(() => {
+    const to = glide.current;
+    if (to === null) return;
+    glide.current = null;
+    pos.stopAnimation();
+    pos.setValue(to);
+    peekRef.current = null;
+    setPeek(null);
+    if (SUBS[to] !== tabRef.current) {
+      tabRef.current = SUBS[to];
+      setTab(SUBS[to]);
+    }
+  }, [pos]);
+  const glideTo = useCallback(
+    (to: number, ms: number) => {
+      glide.current = to;
+      Animated.timing(pos, { toValue: to, duration: ms, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+        if (finished && glide.current === to) settle();
+      });
+    },
+    [pos, settle],
+  );
+  const pickTab = useCallback(
+    (t: Sub) => {
+      glide.current = null;
+      pos.stopAnimation();
+      pos.setValue(SUBS.indexOf(t));
+      peekRef.current = null;
+      setPeek(null);
+      tabRef.current = t;
+      setTab(t);
+    },
+    [pos],
+  );
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => {
@@ -195,12 +234,15 @@ export function ProfileScreen({
         if (!(Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2)) return false;
         /* Past either end there is no tab of this page: the drag is left
          * for the shell, which moves to the tab beside the profile. */
-        const i = SUBS.indexOf(tabRef.current);
+        const i = glide.current ?? SUBS.indexOf(tabRef.current);
         return g.dx < 0 ? i < SUBS.length - 1 : i > 0;
       },
       onPanResponderTerminationRequest: () => false,
       /* The page does not scroll up and down under a drag across it. */
-      onPanResponderGrant: () => setSideDrag(true),
+      onPanResponderGrant: () => {
+        settle();
+        setSideDrag(true);
+      },
       onPanResponderMove: (_e, g) => {
         const i = SUBS.indexOf(tabRef.current);
         pos.setValue(Math.max(0, Math.min(SUBS.length - 1, i - g.dx / paneRef.current)));
@@ -215,20 +257,11 @@ export function ProfileScreen({
         setSideDrag(false);
         const i = SUBS.indexOf(tabRef.current);
         const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
-        const to = Math.max(0, Math.min(SUBS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i));
-        Animated.timing(pos, { toValue: to, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
-          if (to !== i) setTab(SUBS[to]);
-          peekRef.current = null;
-          setPeek(null);
-        });
+        glideTo(Math.max(0, Math.min(SUBS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i)), 220);
       },
       onPanResponderTerminate: () => {
         setSideDrag(false);
-        const i = SUBS.indexOf(tabRef.current);
-        Animated.timing(pos, { toValue: i, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDrive }).start(() => {
-          peekRef.current = null;
-          setPeek(null);
-        });
+        glideTo(SUBS.indexOf(tabRef.current), 180);
       },
     }),
   ).current;
@@ -254,7 +287,7 @@ export function ProfileScreen({
   swipeOk.current = !locked && !p.masked;
   const panel = (sub: Sub): ReactNode =>
     sub === "rows" ? (
-      <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} />
+      <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} more={near} />
     ) : sub === "100k" ? (
       <Hundred p={p} />
     ) : (
@@ -349,7 +382,22 @@ export function ProfileScreen({
     );
 
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView
+      {...dir}
+      /* THE GALLERY GOES ON AS IT IS READ (owner, 2026-11-23: "there's a
+         button down there that says more rows. I don't want that. I want
+         that continuous loading page"): as the end of the page comes near,
+         the grid is told, and it shows its next rows (Feed.tsx RowGrid). */
+      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        dir.onScroll(e);
+        const n = e.nativeEvent;
+        if (tabRef.current !== "rows" || n.contentOffset.y + n.layoutMeasurement.height < n.contentSize.height - 900) return;
+        const now = Date.now();
+        if (now - nearAt.current < 350) return;
+        nearAt.current = now;
+        setNear((x) => x + 1);
+      }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <SocialLine
         p={p}
         rel={rel}
@@ -395,7 +443,7 @@ export function ProfileScreen({
             </View>
           ) : null}
 
-          {locked ? null : <Tabs value={tab} onPick={setTab} pos={pos} width={paneW - 32} />}
+          {locked ? null : <Tabs value={tab} onPick={pickTab} pos={pos} width={paneW - 32} />}
         </>
       )}
 

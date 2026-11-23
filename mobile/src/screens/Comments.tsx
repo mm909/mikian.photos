@@ -6,6 +6,7 @@ import { useSession } from "../session";
 import { mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Avatar, useModalHold } from "../ui";
+import { buzz } from "../buzz";
 import { ReportSheet } from "./Social";
 
 /* LIKE, COMMENT, SHARE (owner, 2026-11-22: "I've officially bit the bullet.
@@ -67,6 +68,8 @@ export function PostActions({
     setN(guess);
     onChange?.(guess, next);
     if (next) {
+      /* The little knock of a like (buzz.ts). */
+      buzz.tap();
       pop.setValue(0.7);
       Animated.timing(pop, { toValue: 1, duration: 260, easing: Easing.out(Easing.back(3)), useNativeDriver: Platform.OS !== "web" }).start();
     }
@@ -209,9 +212,19 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
   useEffect(() => {
     Animated.timing(a, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [a]);
-  const shut = () => {
+  /* AND DOWN TO THE FOOT AGAIN (owner, 2026-11-23: "there's an animation
+   * when it comes in, but there's not an animation when it goes out"): the
+   * sheet goes down and the shade lifts, and only then is it gone; what a
+   * press was on its way to (a rower's page) opens after it. */
+  const going = useRef(false);
+  const shut = (then?: () => void) => {
+    if (going.current) return;
+    going.current = true;
     Keyboard.dismiss();
-    onClose();
+    Animated.timing(a, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start(() => {
+      onClose();
+      then?.();
+    });
   };
 
   const post = async () => {
@@ -284,8 +297,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
           accessibilityRole="link"
           style={{ fontFamily: F.bold, color: C.accent }}
           onPress={() => {
-            shut();
-            onRower(Number(m[1]));
+            shut(() => onRower(Number(m[1])));
           }}
         >
           @{name}
@@ -298,16 +310,16 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
     <View key={c.id} style={{ flexDirection: "row", gap: 10, paddingVertical: 10, paddingLeft: inner ? 44 : 0 }}>
       <Pressable
         accessibilityLabel={`${c.name}'s page`}
-        onPress={() => {
-          shut();
-          onRower(c.rowerNumber);
-        }}
+        onPress={() => shut(() => onRower(c.rowerNumber))}
       >
         <Avatar uri={c.avatar} name={c.name} size={inner ? 26 : 34} />
       </Pressable>
       <View style={{ flex: 1 }}>
         <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 20, color: C.ink }}>
-          <Text style={{ fontFamily: F.bold, color: c.mine ? C.accent : C.ink }}>{c.name}</Text>
+          {/* The viewer's own name is ink like anybody's (owner, 2026-11-23:
+              "my name whenever I'm in the comments is blue. I don't like
+              that"). */}
+          <Text style={{ fontFamily: F.bold, color: C.ink }}>{c.name}</Text>
           <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.gray }}>
             {"  "}
             {c.dayStr} · {c.clockStr}
@@ -341,10 +353,10 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
   );
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={shut}>
+    <Modal visible transparent animationType="none" onRequestClose={() => shut()}>
       <View style={{ flex: 1, justifyContent: "flex-end", paddingBottom: kb }}>
         <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", opacity: a }}>
-          <Pressable accessibilityLabel="Close the comments" onPress={shut} style={{ flex: 1 }} />
+          <Pressable accessibilityLabel="Close the comments" onPress={() => shut()} style={{ flex: 1 }} />
         </Animated.View>
         {/* Paper under the sheet, so nothing darker shows round the
             corners of the keyboard when it is up (owner, 2026-11-22: "some

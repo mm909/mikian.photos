@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Co
 import type { Photo } from "./api";
 import { peek } from "./api";
 import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { buzz } from "./buzz";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { CloseIcon, DotsIcon } from "./icons";
 import { C, F, onLook } from "./theme";
@@ -621,7 +622,7 @@ export function Plate({ label, height = 18 }: { label: string; height?: number }
  * with the run of every photo in the list behind it as before; or, where
  * the list has a menu for a held row (`onHold`, HoldMenu below), it opens
  * that, and the photo whole is a line of the menu. */
-export type Held = { at: number; flip?: () => void; view: () => void };
+export type Held = { at: number; view: () => void };
 export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { photos: Photo[]; gallery?: Gallery; style?: StyleProp<ViewStyle>; ratio?: number; onHold?: (h: Held) => void }) {
   const [at, setAt] = useState(0);
   const [open, setOpen] = useState<number | null>(null);
@@ -637,7 +638,7 @@ export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { p
   };
   return (
     <View style={style}>
-      <Pressable accessibilityRole="imagebutton" accessibilityLabel={shown.length > 1 ? (i === 0 ? "The rower's photo. Tap for the monitor's." : "The monitor's photo. Tap for the rower's.") : "The row's photo"} onPress={() => (shown.length > 1 ? setAt(1 - i) : setOpen(0))} delayLongPress={onHold ? HOLD_MS : undefined} onLongPress={() => (onHold ? onHold({ at: i, flip: shown.length > 1 ? () => setAt(1 - i) : undefined, view: () => setOpen(i) }) : setOpen(i))} style={{ width: "100%", aspectRatio: ratio, backgroundColor: C.pale }}>
+      <Pressable accessibilityRole="imagebutton" accessibilityLabel={shown.length > 1 ? (i === 0 ? "The rower's photo. Tap for the monitor's." : "The monitor's photo. Tap for the rower's.") : "The row's photo"} onPress={() => (shown.length > 1 ? setAt(1 - i) : setOpen(0))} delayLongPress={onHold ? HOLD_MS : undefined} onLongPress={() => (onHold ? onHold({ at: i, view: () => setOpen(i) }) : setOpen(i))} style={{ width: "100%", aspectRatio: ratio, backgroundColor: C.pale }}>
         {shown.map((p, k) => (
           <Image key={k} source={{ uri: p.full }} resizeMode="cover" style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", opacity: k === i ? 1 : 0 }]} />
         ))}
@@ -662,16 +663,23 @@ export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { p
  * the card a short list, a picture and a word to a line. A press anywhere
  * off the list closes it. The lines are the caller's: SWAP PHOTO, SHARE
  * LINK and STICKERS on the feed ("swap photo ... switches the two photos
- * ... share a link, and then the stickers"). There is no buzz under the
- * thumb as it opens: the build on his phone has nothing to make one with,
- * and the phone's own long buzz is worse than none. */
+ * ... share a link, and then the stickers"). It buzzes under the thumb as
+ * it opens, in a build that can (buzz.ts).
+ *
+ * A LINE THAT HANDS SOMETHING TO THE PHONE'S SHARE SHEET KEEPS THE MENU UP
+ * UNTIL THE SHEET IS DONE (`wait`; owner, 2026-11-23: "when I hit the ...
+ * share link, nothing happened"). The menu closed first and the sheet was
+ * asked for in the same breath; a phone will not bring a sheet up from a
+ * screen that is on its way out, and says nothing about it. Now the sheet
+ * comes up over the menu, and the menu goes when the sheet does. */
 export const HOLD_MS = 320;
-export type HoldItem = { label: string; icon: ReactNode; onPress: () => void };
+export type HoldItem = { label: string; icon: ReactNode; onPress: () => void | Promise<unknown>; wait?: boolean };
 export function HoldMenu({ head, photo, items, onClose }: { head?: { name: string; sub?: string; avatar?: string | null }; photo: Photo; items: HoldItem[]; onClose: () => void }) {
   useModalHold();
   const win = useWindowDimensions();
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    buzz.thud();
     Animated.timing(a, { toValue: 1, duration: 190, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [a]);
   const LINE = 50;
@@ -715,6 +723,12 @@ export function HoldMenu({ head, photo, items, onClose }: { head?: { name: strin
                 accessibilityRole="menuitem"
                 accessibilityLabel={it.label}
                 onPress={() => {
+                  if (it.wait) {
+                    Promise.resolve(it.onPress())
+                      .catch(() => null)
+                      .then(onClose);
+                    return;
+                  }
                   onClose();
                   it.onPress();
                 }}

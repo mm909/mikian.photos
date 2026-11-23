@@ -22,7 +22,11 @@ import { groupByDay, type DayTotal, type FeedDayGroup, type FeedItem, type FeedP
  * theirs but the split anyway (page.tsx blanks the strings and drops the
  * photos before they reach this client component). Client module: the
  * thumbs carry the onError swap and the page-wide lightbox index lives
- * here. */
+ * here.
+ *
+ * THE ELITE mark, the bare block and the meters are
+ * exported since 2026-11-23 for the page of one row (r/[num]/[entry]),
+ * which draws a hidden row exactly as its strip is drawn here. */
 
 function photoAlt(item: FeedItem, i: number): string {
   return i === 0 ? `${item.name} after the row` : "Erg screen";
@@ -83,7 +87,7 @@ function NoPhoto() {
  * squares of the brand after it (paper on ink, the way the elite table
  * flips its blocks), as a link to the board's elite block, for everyone
  * (view.ts eliteListHref). */
-function EliteMark({ href }: { href: string }) {
+export function EliteMark({ href }: { href: string }) {
   return (
     <a className="fd-elite" href={href}>
       <span className="w">{ELITE_LABEL}</span>
@@ -98,7 +102,7 @@ function EliteMark({ href }: { href: string }) {
 /* The same footprint, bare: the ink block a row hidden by the fail-closed
  * rule keeps — its photos are gone like an elite rower's, but nothing on
  * it says ELITE and nothing links, because the feed does not know. */
-function HiddenBlock() {
+export function HiddenBlock() {
   return <span className="fd-hid" role="img" aria-label="hidden" />;
 }
 
@@ -126,7 +130,7 @@ function DayHead({ group, total }: { group: FeedDayGroup; total?: DayTotal }) {
 }
 
 /* A row's meters: blocks of the right width while masked. */
-function MetersOf({ item }: { item: FeedItem }) {
+export function MetersOf({ item }: { item: FeedItem }) {
   return item.masked ? (
     <>
       <Blocks digits={item.digits ?? 1} /> m
