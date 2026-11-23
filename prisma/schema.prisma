@@ -1824,3 +1824,28 @@ model RowCommentLike {
   @@index([entryId])
   @@index([participantId])
 }
+
+/// A ROW BEING ROWED THIS MINUTE over a set distance, one line a rower
+/// (owner, 2026-11-22: "you should work on supporting this live. We don't
+/// have to turn it on right now ... if me and someone else are across the
+/// world and someone's rowing a 5K, and I'm also rowing a 5K, I should be
+/// able to see them"). The phone app says where its rower is every few
+/// seconds (api/row100k/app/live) and reads back everybody else over the
+/// same distance, for the race page of its monitor. `marks` is the second
+/// each 100 m line was crossed so far; `startedAt` is the clock's time at
+/// the first stroke, kept for a race started together. Nothing reads or
+/// writes it until ROW_LIVE_RACE is set on the host. Additive.
+model RowLive {
+  participantId String   @id
+  challenge     String
+  meters        Int
+  elapsed       Float    @default(0)
+  distance      Float    @default(0)
+  spm           Int      @default(0)
+  marks         Json
+  ended         Boolean  @default(false)
+  startedAt     DateTime
+  updatedAt     DateTime @default(now())
+
+  @@index([challenge, meters, updatedAt])
+}

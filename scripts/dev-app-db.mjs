@@ -74,6 +74,15 @@ if (me && process.argv.includes("--field")) {
   process.exit(r.status ?? 1);
 }
 
+/* --live: two sample rowers rowing 5,000 m right now, for the LIVE boats
+ * on the race page (scripts/dev-app-live.ts; --speed=10 keeps up with the
+ * app's demo row). Stop it with Ctrl-C. */
+if (me && process.argv.includes("--live")) {
+  const speed = process.argv.find((a) => a.startsWith("--speed=")) ?? "";
+  const r = spawnSync(`npx tsx scripts/dev-app-live.ts ${speed}`, { stdio: "inherit", env: { ...process.env, ...LOCAL_ENV }, shell: true });
+  process.exit(r.status ?? 1);
+}
+
 /* --photos: real photos on the sandbox's newest rows, read off the live
  * board (scripts/dev-app-photos-seed.ts: it reads live and writes only
  * here). .env.local supplies the live address; this supplies the local. */

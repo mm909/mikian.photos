@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
-import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import { api } from "../api";
-import { DRIVE, ghostMeters, oarAngle, phaseOf, pickRivals, rowerKey, standing, type Ghost, type Ghosts } from "../erg/ghosts";
+import { DRIVE, ghostClock, ghostDone, ghostMeters, ghostTrend, leadSeconds, nextBoat, oarAngle, phaseOf, pickRivals, rowerKey, trendOf, type Ghost, type Ghosts } from "../erg/ghosts";
+import { useLiveRowers } from "../erg/liveRace";
 import { milestone } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
+import { useSession } from "../session";
 import { C, F, fmtClock, fmtInt, fmtPace } from "../theme";
 import { Eyebrow, Num, styles } from "../ui";
 
@@ -17,60 +19,99 @@ import { Eyebrow, Num, styles } from "../ui";
  * FIVE LANES AND FIVE BOATS, the rower's in the middle (his second read,
  * the same night: "let's cap this animation at 5 boats. And like in 5
  * lanes. I really don't like the 3 boats in a lane look"; "let's think
- * about lanes on a track ... so that way we can put their name larger";
- * "I won't be able to see those names when I'm rowing. They're going to be
- * too small"). A lane is ruled off like a lane of a track and carries
- * whose boat is in it in type a rower can read from the seat, and how many
- * meters that boat is ahead or behind.
+ * about lanes on a track ... so that way we can put their name larger").
+ *
+ * THE LANES RUN EDGE TO EDGE, AND WHAT A LANE SAYS IS PAINTED ON IT (his
+ * fifth read: "let's extend the lanes to be the full width, and let's write
+ * their names on the lanes"; "in the lane, like in front of the boat, we
+ * should write their average pace ... like when you go to a high school
+ * track and they write their high school name on the track"; "I'm going to
+ * be reading this from, like 3 to 6 feet away"). There are no columns
+ * beside the water any more. On a lane, under the boats: whose it is at the
+ * left, in capitals; at the right, HOW MANY SECONDS that boat is ahead of
+ * the rower or behind ("I don't think I care about the number of meters
+ * behind me they are, but probably the number of seconds"); and ahead of
+ * the bow, going with the boat, its average split so far. The rower's own
+ * lane has their name and their own average, and a past row of theirs has
+ * their name too (his sixth read: "instead of saying you, let's put their
+ * name"). No lane says a date ("let's drop the dates").
  *
  * WHO THE FOUR ARE (erg/ghosts.ts pickRivals): the rows that will finish
  * nearest the finish the rower is headed for, a recorded row before one
- * logged by hand ("we should prioritize people with telemetry data, and we
- * should denote that it's telemetry data ... you are literally rowing
- * against every stroke that they did"), two that finish ahead and two
- * behind where the field has them. Each lane says which it is: EVERY
- * STROKE for a recording, EVEN PACE for a row of which only the time is
- * known.
+ * logged by hand ("we should prioritize people with telemetry data ... you
+ * are literally rowing against every stroke that they did"), two that
+ * finish ahead and two behind where the field has them. A recorded row
+ * says TELEMETRY, as a row in the feed does, and a row of which only the
+ * time is known says nothing ("let's say telemetry ... the way that you
+ * denoted it on the feed ... and if it's not, then we just ... don't put
+ * anything"; it used to say EVERY STROKE and EVEN PACE).
  *
  * THE CLOSEST ARE NEXT TO THE ROWER ("I need the rowers that are going to
  * be closest to me for any given period of the race to be in the lanes
- * closest to me ... if assuming A and B were on the same side, I want A to
- * be closer to me when we're neck and neck, and B ... when they're neck
- * and neck with me"). Two of the four are above the rower and two below,
- * for the whole row. Of each two, the one that will be nearer over the
- * next half minute has the lane beside the rower; when that changes they
- * trade lanes, and only while they are a boat's length apart along the
- * water, so neither rows through the other ("we can predict a nice path").
+ * closest to me"). Two of the four are above the rower and two below, for
+ * the whole row. Of each two, the one that will be nearer over the next
+ * half minute has the lane beside the rower; when that changes they trade
+ * lanes, and only while they are a boat's length apart along the water, so
+ * neither rows through the other.
  *
- * A BOAT OFF THE WATER IS OUT AT ONCE, AND THE NEXT COMES ON BY ITSELF
- * (his fourth read: "as soon as they fall off screen, they're out"; "a new
- * person from the front has to come. Do not have someone swoop in from the
- * back. That looks terrible ... if we drop someone, that means we're
- * catching up to someone else"; "let's optimize for the number of times
- * we're passing people or getting passed ... that dynamic race feeling").
- * Nothing is slid in. The lane goes to a row that is off the water now and
- * coming onto it at its own pace: one ahead that the rower is catching,
- * or one behind that is catching the rower. Of those, the one that will
- * be past the rower soonest, a recorded row before an even one; and when
- * the boat that left was dropped behind, one from the front before any
- * from the back. Nobody rows two of one rower's rows at once.
+ * NO LANE IS EMPTY (his fifth read: "when the rowers went off the screen,
+ * no one came to replace them"; "we need to make sure we have rowers in
+ * every lane"; "once a rower leaves, we need a rower to fill in ... and we
+ * need rowers to fill from the back if someone goes ahead of us"). A boat
+ * off the water is out at once, as before, and its lane goes at once to the
+ * next boat (erg/ghosts.ts nextBoat): a real row that is on the water now
+ * or about to be, one ahead when a boat was dropped and one behind when a
+ * boat went away up the course; failing one, another row of somebody who
+ * is racing already (his sixth read, of the pace boats: "rows from past
+ * recorded rows can be played there"); and only when no real row at all is
+ * near, a PACE BOAT, an even pace to a round finish, named by that finish.
+ * A rower on the water this minute (erg/liveRace.ts) is where they are this
+ * second and is given a lane like anybody, while they are on the water:
+ * "if someone is live and we're catching up to them, then show them like in
+ * someone's lane, and have that rower ... drop"; "what I don't want to have
+ * happen is a lane be empty". A boat that was
+ * already on the water (it was one of the dots) comes up where it is, in
+ * under a second; nothing is slid in from an edge ("do not have someone
+ * swoop in from the back").
  *
- * THE ROWER'S BEST IS A RED LINE ON THE WATER, where their fastest row
- * over the distance is at this moment, and the water takes its red as the
- * rower closes on it ("when you are chasing a PR, the whole track starts
- * glowing that red ... kind of like when Olympians run the track ...
- * against a light that shows the fastest paces").
+ * THE ROWER'S BEST ROWS IN THE ROWER'S OWN LANE (his sixth read: "we don't
+ * need to show my best all the time or how far away I am from my best ...
+ * if I get close to it, then that boat should appear in my lane, right? In
+ * my lane, I can race my best self there"). Their fastest row over the
+ * distance is a red boat in the middle lane for as long as it is on the
+ * water, with the seconds between the two at the lane's end, and nothing
+ * of it shows when it is not. It is never one of the four. The red line
+ * across the water and the strip that named it are gone. The lane ropes
+ * still go red as the finish this row is headed for nears that best (his
+ * fifth read: "I want the track to light up red as your PB gets closer"):
+ * none at 2.5% behind it, all of it on pace to beat it. It is the ropes
+ * and not the water now, because the water has a color of its own:
+ *
+ * THE WATER BEHIND A BOAT SAYS WHAT ITS ROWER IS DOING (his sixth read:
+ * "can we tint the water behind them ... red when you're slowing down ...
+ * green ... when you're speeding up"; "the number to be the average pace
+ * ... but the coloring ... can be based off of ... the last 100 meters or
+ * so"). The lane behind each stern is green while the last 100 m was
+ * quicker than the 100 m before it, red while it was slower, and plain
+ * while the two are within half a percent (erg/ghosts.ts trendOf). A row
+ * of which only the time is known is always plain.
  *
  * THE REST OF THE FIELD IS IN THE WATER, as small dots where each of those
- * rows is at this moment (he did not take to the strip of ticks under the
- * water: "it's hard to see ... a bunch of fish in the water ... fish-sized
- * dots kind of going through the water that shows the other rowers").
+ * rows is at this moment ("fish-sized dots kind of going through the water
+ * that shows the other rowers").
  *
- * FOUR FIGURES AND NO MORE: the finish the row is on pace for at the top,
- * in ink ("we're going to remove the blue here"), and under the water the
- * meters to go, the time and the average.
+ * THREE FIGURES UNDER THE WATER AND NONE OVER IT: the meters to go, the
+ * time, and the finish the row is headed for (his sixth read: "I kind of
+ * want to drop the ETA from the copy and just have it be the final or the
+ * expected time"; "since we're putting the average ... on my rower ... we
+ * can move the ETA to where the current average is. That way we can make
+ * the lanes a little taller"). The average is on the rower's own lane.
  *
- * EVERY BOAT LEFT THE START WITH THE ROWER. The rower's boat holds its
+ * EVERY BOAT BUT A LIVE ONE LEFT THE START WITH THE ROWER, and the clock
+ * stops on the
+ * line with them: a boat a second behind used to be put on the finish line
+ * by a clock that ran on after the piece ("Sandbox Rower 2 was like at the
+ * finish line, even though we passed them"). The rower's boat holds its
  * place on the screen and the water runs under it. The monitor speaks a
  * few times a second; the picture is drawn thirty times a second from
  * where the last word put the rower, carried on at the split it gave. */
@@ -83,14 +124,23 @@ const MID = 2;
 const RIVALS = 4;
 /* The rower's best over the distance, and the water as they close on it. */
 const BEST = "#D8362A";
-/* Within this many meters of their best, the water starts to take its red. */
-const BEST_NEAR = 60;
+/* How far behind their best the finish they are headed for can be, as a
+ * share of that best, before the water has none of its red. */
+const BEST_SHARE = 0.025;
+/* How much of its color the water right behind a boat has, when its rower
+ * is speeding up or slowing down as hard as the tint reads. */
+const WAKE = 0.5;
+/* How long a boat takes to come up where it is. */
+const RISE_MS = 900;
 
 type Puddle = { wm: number; y: number; born: number };
-type Stroke = { phase: number; puddles: Puddle[] };
-/* One of the four: the row, which side of the rower it is on for good, and
- * the lane it is drawn in (between two while it changes). */
-type Rival = { g: Ghost; side: -1 | 1; lane: number };
+/* A boat's place in its stroke, the puddles it has left, and how much of
+ * the green (over nothing) or the red (under it) the water behind it has. */
+type Stroke = { phase: number; puddles: Puddle[]; tint: number };
+/* One of the four: the row, which side of the rower it is on for good, the
+ * lane it is drawn in (between two while it changes), and when it came up
+ * out of the water (0: it rowed on, or was there from the start). */
+type Rival = { g: Ghost; side: -1 | 1; lane: number; born: number };
 
 /* One boat, bow to the right, as two paths: the thin lines (hull, rigger,
  * looms, the wake) and the blades. */
@@ -123,11 +173,19 @@ function boat(cx: number, cy: number, u: number, pitch: number, phase: number): 
 }
 
 const median = (v: number[]): number => (v.length ? [...v].sort((a, b) => a - b)[v.length >> 1] : 0);
-/* "+12", "−8", "0": meters ahead of the rower, or behind. */
-const gapWord = (d: number): string => (d >= 0.5 ? `+${fmtInt(d)}` : d <= -0.5 ? `−${fmtInt(-d)}` : "0");
+const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+/* "+3.4", "−12", "0.0": seconds ahead of the rower, or behind. A tenth
+ * under ten seconds, where a tenth is the race. */
+function gapWord(s: number): string {
+  const a = Math.abs(s);
+  if (a < 0.05) return "0.0";
+  return `${s > 0 ? "+" : "−"}${a >= 9.95 ? Math.round(a) : a.toFixed(1)}`;
+}
 
 export function GhostRace({ erg, width, height, active }: { erg: Erg; width: number; height: number; active: boolean }) {
   const { live } = erg;
+  const { me } = useSession();
+  const myName = (me.me?.displayName || "You").toUpperCase();
   const target = live.targetM;
   const [field, setField] = useState<Ghosts | null>(null);
   const [failed, setFailed] = useState(false);
@@ -147,12 +205,18 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   }, [target]);
 
   const ghosts = useMemo(() => field?.ghosts ?? [], [field]);
+  /* The rower's fastest row over the distance: it rows in the rower's own
+   * lane, and is never one of the four. */
+  const best = useMemo(() => ghosts.filter((g) => g.kind === "me").sort((a, b) => a.seconds - b.seconds)[0] ?? null, [ghosts]);
+  const pool = useMemo(() => (best ? ghosts.filter((g) => g !== best) : ghosts), [ghosts, best]);
+  /* Who is rowing the distance this minute (erg/liveRace.ts; nobody, until
+   * the owner turns it on). */
+  const liveNow = useLiveRowers();
+  const all = useMemo(() => (liveNow.length ? [...pool, ...liveNow] : pool), [pool, liveNow]);
   /* What the rower usually does over this distance: the middle of their
    * own rows, or of the field's when they have none. The finish the four
    * are first picked for, before this row has a pace. */
   const usual = useMemo(() => median(ghosts.filter((g) => g.kind === "me").map((g) => g.seconds)) || median(ghosts.map((g) => g.seconds)), [ghosts]);
-
-  const best = useMemo(() => ghosts.filter((g) => g.kind === "me").sort((a, b) => a.seconds - b.seconds)[0] ?? null, [ghosts]);
 
   /* Thirty frames a second while this page is the one in view. */
   const [, setFrame] = useState(0);
@@ -181,14 +245,30 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   /* Whether the handle was on the drive at the last frame, and since when. */
   const pulling = useRef({ on: false, at: 0 });
   const rivals = useRef<Rival[]>([]);
-  const seeded = useRef<Ghosts | null>(null);
+  const seeded = useRef<Ghosts | "none" | null>(null);
+  /* The second the rower's boat reached the line. */
+  const lineAt = useRef<number | null>(null);
+  /* Where the monitor has put the rower over the last 260 m, for what they
+   * have done over the last 100 m against the 100 m before. */
+  const path = useRef<{ t: number; m: number }[]>([]);
+  /* When the rower's best came onto the water (0: it is not on it). */
+  const bestBorn = useRef(0);
   const now = Date.now();
   if (live.elapsedS !== said.current.t || live.meters !== said.current.m) {
     /* A new piece on the monitor starts the picture, and the race, again. */
     if (live.meters + 5 < said.current.m) {
       shown.current = { at: now, t: live.elapsedS, m: live.meters };
       strokes.current.clear();
+      rivals.current = [];
       seeded.current = null;
+      lineAt.current = null;
+      path.current = [];
+      bestBorn.current = 0;
+    }
+    const tail = path.current[path.current.length - 1];
+    if (live.meters > 0 && (!tail || live.meters >= tail.m + 2)) {
+      path.current.push({ t: live.elapsedS, m: live.meters });
+      while (path.current.length > 2 && path.current[1].m < live.meters - 260) path.current.shift();
     }
     const wall = (now - said.current.at) / 1000;
     const step = live.elapsedS - said.current.t;
@@ -199,10 +279,17 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     said.current = { at: now, t: live.elapsedS, m: live.meters };
   }
   const moving = live.awake && !live.ended && live.pace > 0 && live.pace < 600;
-  const since = Math.min(1.5, (now - said.current.at) / 1000) * rate.current;
-  const wantT = said.current.t < 0 ? 0 : said.current.t + (moving ? since : 0);
+  let since = moving ? Math.min(1.5, (now - said.current.at) / 1000) * rate.current : 0;
+  /* No further than the line: the clock that the other boats are placed by
+   * stops there with the rower. */
+  if (moving && target > 0) since = Math.min(since, Math.max(0, ((target - said.current.m) * live.pace) / 500));
+  let wantT = said.current.t < 0 ? 0 : said.current.t + since;
   let wantM = said.current.m < 0 ? 0 : said.current.m + (moving ? (since * 500) / live.pace : 0);
   if (target > 0) wantM = Math.min(target, wantM);
+  if (target > 0 && said.current.m > 0 && (live.ended || wantM >= target - 0.01)) {
+    if (lineAt.current === null) lineAt.current = wantT;
+    wantT = Math.min(wantT, lineAt.current);
+  } else lineAt.current = null;
   const dt = shown.current.at ? Math.min(0.25, (now - shown.current.at) / 1000) : 0;
   const ease = Math.min(1, dt * 9);
   shown.current = { at: now, t: shown.current.t + (wantT - shown.current.t) * ease, m: Math.max(0, shown.current.m + (wantM - shown.current.m) * ease) };
@@ -211,91 +298,124 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
 
   if (!(target > 0)) {
     return (
-      <View style={{ width, height, justifyContent: "center" }}>
+      <View style={{ width, height, justifyContent: "center", paddingHorizontal: 20 }}>
         <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>The race</Eyebrow>
         <Text style={styles.body}>Set a distance on the monitor and four rows already rowed over it line up beside you: your own, and the rowers you follow.</Text>
       </View>
     );
   }
 
-  /* THE PAGE: on its side, whose lane it is at the left of the water and
-   * the meters at the right; upright, both inside the lane, over the boat. */
+  /* THE PAGE, from the top: the meters along the course, over the water
+   * and clear of the lanes; the water, edge to edge; the three figures. */
   const wide = width >= 520;
-  const GL = wide ? 150 : 0;
-  const GR = wide ? 72 : 0;
-  const W = width - GL - GR;
-  const TOP = wide ? 44 : 60;
-  const FOOT = 60;
-  const waterH = Math.max(150, height - TOP - FOOT - 10);
+  const PAD = 20;
+  const W = width;
+  const TOP = wide ? 2 : 6;
+  const RULE = wide ? 20 : 22;
+  const FOOT = wide ? 62 : 64;
+  const waterH = Math.max(150, height - TOP - RULE - FOOT - 8);
   const pitch = waterH / LANES;
-  const drop = wide ? 0 : 9;
+  /* Upright, a lane is tall: its words are along its top and its boat a
+   * little under the middle. On its side the words are across the middle
+   * and the boats row over them, as over paint. */
+  const drop = wide ? 0 : pitch * 0.12;
   const u = PX_PER_M;
   const xMe = W * 0.42;
   const xOf = (m: number) => xMe + (m - myM) * u;
   const yOf = (lane: number) => (lane + 0.5) * pitch + drop;
   const n1 = (v: number) => v.toFixed(1);
+  /* The seconds at the end of a lane: on its side they are across the
+   * middle of it, where a boat would row over them, so there the water a
+   * boat can be on stops short of them. */
+  const gapSize = Math.round(wide ? clamp(pitch * 0.72, 18, 30) : clamp(pitch * 0.3, 22, 32));
+  const gapLine = Math.round(gapSize * 1.12);
+  const gapW = gapSize * 3.6;
   const back = xMe / u + BOAT_M / 2;
-  const front = (W - xMe) / u + BOAT_M / 2;
+  const front = wide ? (W - gapW - 18 - xMe) / u - BOAT_M / 2 : (W - xMe) / u + BOAT_M / 2;
 
-  /* The finish the rower is headed for: this row's own, once there is
-   * 300 m of it to go on; their usual before that. */
+  /* The finish the rower is headed for: this row's own once it has 100 m
+   * to go on; before that their usual, or what the first strokes say. */
   const ms = milestone(live);
-  const near = ms && live.meters >= 300 ? ms.projected : usual;
+  const proj = live.ended ? t : ms ? ms.projected : 0;
+  const near = proj > 0 ? proj : usual > 0 ? usual : live.avgPace > 0 && live.meters > 20 ? (target * live.avgPace) / 500 : 0;
   const speed = live.avgPace > 0 ? 500 / live.avgPace : near > 0 ? target / near : 0;
   const gapOf = (g: Ghost, at = t, mine = myM) => ghostMeters(g, target, at) - mine;
+  const inView = (d: number) => d >= -back && d <= front;
 
-  /* THE FOUR, picked once the field is in: two above the rower and two
-   * below, a quicker and a slower row on each side, the nearer finish in
-   * the lane beside the rower. */
-  if (seeded.current !== field && field) {
-    seeded.current = field;
+  /* A boat takes a lane on the side with fewer boats on it. */
+  const add = (g: Ghost, born: number) => {
+    const up = rivals.current.filter((r) => r.side === -1).length;
+    const side: -1 | 1 = up <= rivals.current.length - up ? -1 : 1;
+    rivals.current.push({ g, side, lane: MID + side * (rivals.current.filter((r) => r.side === side).length + 1), born });
+  };
+
+  /* THE FOUR, picked once the field is in (or has failed, and the lanes
+   * are pace boats): two above the rower and two below, a quicker and a
+   * slower row on each side, the nearer finish in the lane beside the
+   * rower. A field that arrives with the row under way is not lined up on
+   * the start: the lanes are filled from who is on the water. */
+  const ready = field !== null || failed;
+  if (ready && seeded.current !== (field ?? "none")) {
+    seeded.current = field ?? "none";
     strokes.current.clear();
-    const four = pickRivals(ghosts, target, usual, RIVALS).sort((a, b) => a.seconds - b.seconds);
-    const sides: (-1 | 1)[] = [-1, 1, -1, 1];
-    rivals.current = four.map((g, i) => ({ g, side: sides[i], lane: MID }));
-    for (const s of [-1, 1] as const) {
-      const two = rivals.current.filter((r) => r.side === s).sort((a, b) => Math.abs(a.g.seconds - usual) - Math.abs(b.g.seconds - usual));
-      two.forEach((r, i) => (r.lane = MID + s * (i + 1)));
+    rivals.current = [];
+    if (t <= 2) {
+      for (const g of pickRivals(pool, target, usual, RIVALS).sort((a, b) => a.seconds - b.seconds)) add(g, 0);
+      for (const s of [-1, 1] as const) {
+        const two = rivals.current.filter((r) => r.side === s).sort((a, b) => Math.abs(a.g.seconds - usual) - Math.abs(b.g.seconds - usual));
+        two.forEach((r, i) => (r.lane = MID + s * (i + 1)));
+      }
     }
   }
 
-  /* A boat off the water has given up its lane: who takes it. How fast a
-   * row is closing on the rower, in meters a second: under nothing, the
-   * rower is gaining on it; over, it is gaining on the rower. */
-  const drift = (g: Ghost): number => (gapOf(g, t + 10, myM + 10 * speed) - gapOf(g)) / 10;
-  if (t > 0 && speed > 0 && target - myM > 60) {
+  /* A ROWER ON THE WATER THIS MINUTE is where they are this second, and
+   * has a lane while that is on the water: the lane of their own past row
+   * if that is racing, or of the boat farthest from the rower, which
+   * drops. Their boat is their latest word; one who has stopped sending,
+   * or is off the water, gives the lane up like anybody. */
+  const stale = new Set<Rival>();
+  for (const r of rivals.current) {
+    if (r.g.kind !== "live") continue;
+    const fresh = liveNow.find((g) => g.id === r.g.id);
+    if (fresh) r.g = fresh;
+    else stale.add(r);
+  }
+  const refill = ready && !live.ended && target - myM > 30;
+  if (refill && t > 0) {
+    for (const g of liveNow) {
+      if (rivals.current.some((r) => r.g.id === g.id) || ghostDone(g, t) || !inView(gapOf(g))) continue;
+      if (rivals.current.length < RIVALS) {
+        add(g, t > 1 ? now : 0);
+        continue;
+      }
+      const out = rivals.current.find((r) => rowerKey(r.g) === rowerKey(g)) ?? rivals.current.filter((r) => r.g.kind !== "live").sort((a, b) => Math.abs(gapOf(b.g)) - Math.abs(gapOf(a.g)))[0];
+      if (!out) continue;
+      strokes.current.delete(out.g.id);
+      out.g = g;
+      out.born = now;
+    }
+  }
+
+  /* NO LANE IS EMPTY. A boat off the water has given up its lane, and the
+   * next has it at once (erg/ghosts.ts nextBoat); so has a lane that never
+   * had a boat, when the field was short of four. Not in the last strokes,
+   * where the picture is the finish. */
+  if (refill && speed > 0) {
+    const water = { back, front };
     for (const r of rivals.current) {
       const d = gapOf(r.g);
-      if (d >= -back && d <= front) continue;
-      const dropped = d < -back;
-      const racing = new Set(rivals.current.map((x) => rowerKey(x.g)));
-      let best: Ghost | null = null;
-      let least = Infinity;
-      /* One row a rower first; a field of the rower's own rows is let off. */
-      for (const strict of [true, false]) {
-        if (best) break;
-        for (const g of ghosts) {
-          const key = rowerKey(g);
-          if (t >= g.seconds || rivals.current.some((x) => x.g === g) || (racing.has(key) && (strict || key !== "me"))) continue;
-          const gd = gapOf(g);
-          const v = drift(g);
-          const ahead = gd > front && v < -0.05;
-          const behind = gd < -back && v > 0.05;
-          if (!ahead && !behind) continue;
-          /* Seconds until it is on the water, and from there to the rower. */
-          const toEdge = ahead ? (gd - front) / -v : (-back - gd) / v;
-          const toRower = (ahead ? front : back) / Math.abs(v);
-          const cost = toEdge + toRower * 0.5 - (g.marks.length >= 2 ? 15 : 0) + (behind && dropped ? 90 : 0);
-          if (cost < least) {
-            least = cost;
-            best = g;
-          }
-        }
-      }
-      if (best) {
-        strokes.current.delete(r.g.id);
-        r.g = best;
-      }
+      if (inView(d) && !stale.has(r)) continue;
+      if (!(t > 0)) continue;
+      const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.filter((x) => x !== r).map((x) => x.g), want: d < -back ? 1 : d > front ? -1 : 0 });
+      if (!next) continue;
+      strokes.current.delete(r.g.id);
+      r.g = next.g;
+      r.born = next.on ? now : 0;
+    }
+    while (rivals.current.length < RIVALS) {
+      const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.map((x) => x.g), want: 0 });
+      if (!next) break;
+      add(next.g, next.on && t > 1 ? now : 0);
     }
   }
 
@@ -328,7 +448,7 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   const pull = (id: string, spm: number, y: number, wm: number): Stroke => {
     let s = strokes.current.get(id);
     if (!s) {
-      s = { phase: phaseOf(id), puddles: [] };
+      s = { phase: phaseOf(id), puddles: [], tint: 0 };
       strokes.current.set(id, s);
     }
     const before = s.phase;
@@ -347,7 +467,7 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
    * catch for the next pull, however long that is. */
   let mine = strokes.current.get("me");
   if (!mine) {
-    mine = { phase: 0, puddles: [] };
+    mine = { phase: 0, puddles: [], tint: 0 };
     strokes.current.set("me", mine);
   }
   if (live.driving !== pulling.current.on) {
@@ -358,17 +478,56 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   mine.phase = live.driving ? Math.min(0.999, held / (live.driveS > 0 ? live.driveS : 0.8)) * DRIVE : DRIVE + Math.min(0.999, held / (live.recoveryS > 0 ? live.recoveryS : 1.6)) * (1 - DRIVE);
   mine.puddles = mine.puddles.filter((p) => now - p.born < PUDDLE_S * 1000);
   const myBoat = boat(xMe, yOf(MID), u, pitch, mine.phase);
+  /* What the rower has done over the last 100 m against the 100 m before
+   * it, eased so the water does not flicker. */
+  const tintStep = Math.min(1, dt * 1.5);
+  const sinceAt = (m: number): number | null => {
+    const p = path.current;
+    if (p.length < 2 || m < p[0].m) return null;
+    for (let i = p.length - 1; i > 0; i--) {
+      if (p[i - 1].m > m) continue;
+      const [a, b] = [p[i - 1], p[i]];
+      return b.m > a.m ? a.t + ((m - a.m) / (b.m - a.m)) * (b.t - a.t) : b.t;
+    }
+    return null;
+  };
+  const head = path.current[path.current.length - 1];
+  const lap1 = head ? sinceAt(head.m - 100) : null;
+  const lap2 = head ? sinceAt(head.m - 200) : null;
+  const myTrend = moving && head && lap1 !== null && lap2 !== null ? trendOf(lap1 - lap2, head.t - lap1) : 0;
+  mine.tint += (myTrend - mine.tint) * tintStep;
 
   const others = rivals.current.map((r) => {
     const d = gapOf(r.g);
-    const done = t >= r.g.seconds;
+    const done = ghostDone(r.g, t);
     const y = yOf(r.lane);
     const s = pull(r.g.id, done || t <= 0 ? 0 : r.g.spm > 0 ? r.g.spm : 24, y, myM + d);
-    /* On the water or not: a lane whose boat is off it says nothing. */
-    const on = d >= -back && d <= front;
-    return { r, g: r.g, d, y, s, on, shape: boat(xOf(myM + d), y, u, pitch, s.phase) };
+    s.tint += (ghostTrend(r.g, target, t) - s.tint) * tintStep;
+    /* Its average split so far, as the rower's own figure is; the whole
+     * row's before it has gone anywhere. */
+    const gone = myM + d;
+    const pace = t > 0 && gone > 20 ? (Math.min(ghostClock(r.g, t), r.g.seconds) / gone) * 500 : (r.g.seconds / target) * 500;
+    return { r, g: r.g, d, y, s, on: inView(d), rise: r.born ? Math.min(1, (now - r.born) / RISE_MS) : 1, lead: leadSeconds(r.g, target, t, myM), pace, x: xOf(gone), shape: boat(xOf(gone), y, u, pitch, s.phase) };
   });
   const racing = new Set(rivals.current.map((r) => r.g.id));
+
+  /* THE ROWER'S BEST, in the rower's own lane while it is on the water.
+   * Once it has finished it is waiting on the line, which comes onto the
+   * water however far behind it the rower is: it is shown there only when
+   * the two finishes are within eight seconds, which is a race. */
+  let pb: { x: number; lead: number; rise: number; shape: ReturnType<typeof boat> } | null = null;
+  if (best && t > 0) {
+    const d = gapOf(best);
+    const lead = leadSeconds(best, target, t, myM);
+    if (inView(d) && (!ghostDone(best, t) || Math.abs(lead) <= 8)) {
+      if (!bestBorn.current) bestBorn.current = t > 3 ? now : 1;
+      const s = pull(best.id, ghostDone(best, t) ? 0 : best.spm > 0 ? best.spm : 24, yOf(MID), myM + d);
+      pb = { x: xOf(myM + d), lead, rise: Math.min(1, (now - bestBorn.current) / RISE_MS), shape: boat(xOf(myM + d), yOf(MID), u, pitch, s.phase) };
+    } else bestBorn.current = 0;
+  }
+  /* THE WATER BEHIND EACH BOAT: its lane from the left edge to its stern. */
+  const stern = (BOAT_M * u) / 2 + 7;
+  const wakes = [{ id: "me", x: xMe - stern, lane: MID, tint: mine.tint, rise: 1 }, ...others.map((o) => ({ id: o.g.id, x: o.x - stern, lane: o.r.lane, tint: o.s.tint, rise: o.rise }))].filter((w) => w.x > 4 && Math.abs(w.tint) > 0.04);
 
   /* THE WATER: the lanes ruled off, a tick every 10 m along both edges, a
    * line and its figure every 100 m, the start and the finish. */
@@ -387,10 +546,10 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
   /* THE REST OF THE FIELD: a dot for every other row that is within the
    * water right now, each in a place of its own up and down it. */
   const fish: { id: string; x: number; y: number; mine: boolean }[] = [];
-  for (const g of ghosts) {
+  for (const g of all) {
     if (racing.has(g.id) || fish.length >= 70) continue;
     const d = gapOf(g);
-    if (d < -back || d > front) continue;
+    if (!inView(d)) continue;
     fish.push({ id: g.id, x: xOf(myM + d), y: 6 + phaseOf(`${g.id}y`) * (waterH - 12), mine: g.kind === "me" });
   }
   const puddles = [{ id: "me", s: mine, me: true }, ...others.map((o) => ({ id: o.g.id, s: o.s, me: false }))].flatMap(({ id, s, me }) =>
@@ -402,127 +561,173 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
     }),
   );
 
-  /* THE ROWER'S BEST over this distance: where that row is now, and how
-   * near the rower is to it, from 0 (sixty meters off, or no best) to 1. */
-  const bestD = best && t > 0 ? gapOf(best) : null;
-  /* Not off the start, where the whole field is level: from 500 m on. */
-  const heat = bestD === null || myM < 500 ? 0 : Math.max(0, 1 - Math.abs(bestD) / BEST_NEAR);
-  const bestX = bestD === null ? null : xOf(myM + bestD);
-  const place = standing(ghosts, target, t, myM);
-  const finish = live.ended ? fmtClock(live.elapsedS, false) : ms ? fmtClock(ms.projected, false) : "--:--";
+  /* How much of their red the ropes have: none while the finish this row
+   * is headed for is 2.5% of the rower's best behind it, or worse, and all
+   * of it on pace to beat it. Nothing before the row has a finish. */
+  const heat = best && proj > 0 ? clamp(1 - (proj - best.seconds) / Math.max(6, best.seconds * BEST_SHARE), 0, 1) : 0;
+  const clock = (s: number) => fmtClock(s, false);
+  const finish = live.ended ? clock(live.elapsedS) : ms ? clock(ms.projected) : "--:--";
   /* Three figures across: six characters of the black face run about four
    * times the type size wide, and each has a third of the width. */
-  const fig = Math.min(40, Math.floor(width / 3 / 4.15));
-  const who = (g: Ghost) => (g.kind === "me" ? "You" : g.name);
-  const how = (g: Ghost) => `${g.kind === "race" ? "RACE DAY" : g.day} · ${g.marks.length >= 2 ? "EVERY STROKE" : "EVEN PACE"}`;
+  const fig = Math.min(40, Math.floor((width - PAD * 2) / 3 / 4.15));
+
+  /* WHAT A LANE SAYS. Whose: a pace boat by its finish, a past row of the
+   * rower's own by the rower's name, anybody else by theirs. And under
+   * that, small: TELEMETRY when the monitor recorded the row, and nothing
+   * when it did not. No dates. */
+  const who = (g: Ghost) => (g.kind === "pace" ? clock(g.seconds) : g.kind === "me" ? myName : g.name).toUpperCase();
+  const how = (g: Ghost) => (g.kind === "pace" ? "PACE BOAT" : g.kind === "live" ? "LIVE" : [g.kind === "race" ? "RACE DAY" : "", g.marks.length >= 2 ? "TELEMETRY" : ""].filter(Boolean).join(" · "));
+  /* The name over the small line wherever a lane is tall enough for the
+   * two, which upright is always ("the name in bold, and then on the second
+   * line ... telemetry"). */
+  const stacked = !wide || pitch >= 46;
+  const nameSize = Math.round(wide ? (stacked ? clamp(pitch * 0.4, 16, 24) : clamp(pitch * 0.6, 15, 24)) : clamp(pitch * 0.25, 16, 22));
+  const nameLine = Math.round(nameSize * 1.14);
+  const tagSize = wide && !stacked ? 9 : 10;
+  const tagLine = tagSize + 4;
+  const paceSize = Math.round(wide ? clamp(pitch * 0.5, 13, 20) : clamp(pitch * 0.2, 14, 20));
+  const paceLine = Math.round(paceSize * 1.14);
+  const paceW = paceSize * 3.9;
+  const bow = (BOAT_M * u) / 2 + 12;
+  const paint = (size: number, line: number) => ({ fontFamily: F.black, fontSize: size, lineHeight: line, letterSpacing: 0.8, fontVariant: ["tabular-nums" as const] });
+  /* The top of a lane's words: across the middle of the lane on its side
+   * (the small line after the name there, not under it, so the name can be
+   * as tall as the lane allows), along its top upright. */
+  const wordsTop = (lane: number, h: number) => lane * pitch + (wide ? (pitch - h) / 2 : 5);
+  /* The split painted ahead of a bow, when there is water for it short of
+   * the seconds at the lane's end. */
+  const paceFits = (x: number) => x + bow > 0 && (wide ? x + bow + paceW < W - gapW - 14 : x + bow < W);
+  const note = !ready ? "Finding the field" : failed ? "The field did not load" : "";
 
   return (
     <View style={{ width, height }}>
-      {/* The finish the row is on pace for, and how the field stands. */}
-      <View style={{ height: TOP, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingBottom: 6 }}>
-        <View style={wide ? { flexDirection: "row", alignItems: "baseline", gap: 10 } : undefined}>
-          <Eyebrow style={{ color: C.ink }}>{live.ended ? "Finished in" : "On pace for"}</Eyebrow>
-          <Num size={30} color={C.ink}>
-            {finish}
-          </Num>
-        </View>
-        <Eyebrow style={{ flexShrink: 1, textAlign: "right" }}>{ghosts.length ? `${place.ahead} ahead · ${place.behind} behind` : field ? "No rows over this distance yet" : failed ? "The field did not load" : "Finding the field"}</Eyebrow>
+      <View style={{ height: TOP }} />
+
+      {/* The meters along the course, over the water. */}
+      <View style={{ height: RULE, overflow: "hidden" }}>
+        {hundreds.map((m) => (
+          <Text key={m} style={{ position: "absolute", left: xOf(m) + 5, bottom: 0, fontFamily: F.monoBold, fontSize: wide ? 15 : 16, lineHeight: 20, color: C.ink, fontVariant: ["tabular-nums"] }}>
+            {fmtInt(m)}
+          </Text>
+        ))}
+        {xOf(target) > 0 && xOf(target) < W + 70 ? <Text style={{ position: "absolute", left: xOf(target) - 72, bottom: 0, fontFamily: F.monoBold, fontSize: wide ? 15 : 16, lineHeight: 20, letterSpacing: 0.6, color: C.ink }}>FINISH</Text> : null}
       </View>
 
-      <View style={{ height: waterH, flexDirection: "row" }}>
-        {/* WHOSE LANE, in type to be read from the seat. */}
-        {wide ? (
-          <View style={{ width: GL, height: waterH }}>
-            <View style={{ position: "absolute", left: 0, right: 10, top: yOf(MID) - 10 }}>
-              <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 15, lineHeight: 20, color: C.accent }}>
-                YOU
+      <View style={{ width: W, height: waterH, overflow: "hidden", borderTopWidth: heat > 0.4 ? 2 : 1, borderBottomWidth: heat > 0.4 ? 2 : 1, borderColor: heat > 0.4 ? BEST : C.ink }}>
+        {/* PAINTED ON THE LANES, under the boats: whose lane, how many
+            seconds that boat is ahead or behind, and its split ahead of
+            its bow. */}
+        {note ? <Eyebrow style={{ position: "absolute", left: 0, right: 0, top: wordsTop(MID - 1, 14), textAlign: "center" }}>{note}</Eyebrow> : null}
+        <Text numberOfLines={1} style={[paint(nameSize, nameLine), { position: "absolute", left: 10, right: gapW + (stacked ? 18 : 64), top: wordsTop(MID, nameLine), color: C.accent }]}>
+          {myName}
+        </Text>
+        {/* The rower's best, while it is on their water: the seconds
+            between the two, in its red. */}
+        {pb ? (
+          <View pointerEvents="none" style={{ position: "absolute", right: 10, top: wordsTop(MID, stacked ? gapLine + tagLine : gapLine), opacity: pb.rise, alignItems: "flex-end" }}>
+            <Text numberOfLines={1} style={[paint(gapSize, gapLine), { color: BEST, letterSpacing: 0 }]}>
+              {stacked ? null : <Text style={{ fontFamily: F.monoBold, fontSize: Math.round(gapSize * 0.48), letterSpacing: 1 }}>BEST </Text>}
+              {gapWord(pb.lead)}
+              <Text style={{ fontFamily: F.monoBold, fontSize: Math.round(gapSize * 0.48), letterSpacing: 0 }}> S</Text>
+            </Text>
+            {stacked ? <Text style={{ fontFamily: F.monoBold, fontSize: tagSize + 2, lineHeight: tagLine, letterSpacing: 1.2, color: BEST }}>YOUR BEST</Text> : null}
+          </View>
+        ) : null}
+        {others.map(({ g, r, rise, on, x }) => {
+          const tag = how(g);
+          /* On its side the boat rows over the name: the paint goes faint
+           * under it, and the small line steps aside, so the boat and its
+           * split are what is read there. */
+          const nameW = 16 + who(g).length * nameSize * 0.74;
+          const under = wide && on && x - bow < nameW;
+          const overTag = wide && on && x - bow < (stacked ? 16 : nameW + 14) + tag.length * tagSize * 0.8;
+          return (
+            <View key={`w${g.id}`} pointerEvents="none" style={[{ position: "absolute", left: 10, right: gapW + 18, top: wordsTop(r.lane, stacked ? nameLine + (tag ? tagLine : 0) : nameLine), opacity: rise }, stacked ? null : { flexDirection: "row", alignItems: "baseline", columnGap: 10 }]}>
+              <Text numberOfLines={1} style={[paint(nameSize, nameLine), { color: g.kind === "live" ? C.good : C.ink, opacity: under ? (g.kind === "live" ? 0.4 : 0.16) : g.kind === "live" ? 0.95 : 0.6, flexShrink: 1 }]}>
+                {who(g)}
               </Text>
+              {/* A rower on the water this minute is in the green the
+                  monitor's own LIVE is in, and says so whatever is rowing
+                  over the lane. */}
+              {tag && (!overTag || g.kind === "live") ? (
+                <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: g.kind === "live" ? tagSize + 2 : tagSize, lineHeight: tagLine, letterSpacing: 1.2, color: g.kind === "live" ? C.good : C.gray }}>
+                  {tag}
+                </Text>
+              ) : null}
             </View>
-            {others.filter((o) => o.on).map(({ g, y }) => (
-              <View key={g.id} style={{ position: "absolute", left: 0, right: 10, top: y - 17 }}>
-                <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 19, color: C.ink }}>
-                  {who(g)}
-                </Text>
-                <Text numberOfLines={1} style={{ fontFamily: F.mono, fontSize: 9.5, lineHeight: 14, letterSpacing: 0.6, color: C.gray }}>
-                  {how(g)}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        <View style={{ width: W, height: waterH, overflow: "hidden", borderTopWidth: 1, borderBottomWidth: 1, borderColor: heat > 0.4 ? BEST : C.ink }}>
-          <Svg width={W} height={waterH}>
-            {heat > 0 ? <Rect x={0} y={0} width={W} height={waterH} fill={BEST} fillOpacity={0.1 * heat} /> : null}
-            <Path d={ropes} stroke={C.line} strokeWidth={1} fill="none" />
-            {heat > 0 ? <Path d={ropes} stroke={BEST} strokeWidth={1} strokeOpacity={0.85 * heat} fill="none" /> : null}
-            {bestX !== null && bestX > -2 && bestX < W + 2 ? <Line x1={bestX} y1={0} x2={bestX} y2={waterH} stroke={BEST} strokeWidth={2} /> : null}
-            <Path d={ticks} stroke={C.gray} strokeWidth={1} fill="none" />
-            {hundreds.map((m) => (
-              <Line key={m} x1={xOf(m)} y1={0} x2={xOf(m)} y2={waterH} stroke={C.line} strokeWidth={1} strokeDasharray="2 5" />
-            ))}
-            {xOf(0) > -4 && xOf(0) < W + 4 ? <Line x1={xOf(0)} y1={0} x2={xOf(0)} y2={waterH} stroke={C.ink} strokeWidth={1} /> : null}
-            {xOf(target) > -6 && xOf(target) < W + 6 ? (
-              <>
-                <Line x1={xOf(target)} y1={0} x2={xOf(target)} y2={waterH} stroke={C.ink} strokeWidth={1.5} />
-                <Line x1={xOf(target) + 4} y1={0} x2={xOf(target) + 4} y2={waterH} stroke={C.ink} strokeWidth={1.5} strokeDasharray="5 5" />
-              </>
-            ) : null}
-            {fish.map((f) => (
-              <Circle key={f.id} cx={f.x} cy={f.y} r={1.7} fill={f.mine ? C.gray : C.ink} fillOpacity={f.mine ? 0.55 : 0.6} />
-            ))}
-            {puddles.map((p) => (
-              <Circle key={p.key} cx={p.x} cy={p.y} r={p.r} stroke={p.me ? C.accent : C.gray} strokeWidth={1} strokeOpacity={p.o} fill="none" />
-            ))}
-            {others.map(({ g, shape }) => (
-              <Path key={`l${g.id}`} d={shape.lines} stroke={C.ink} strokeWidth={1.2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-            ))}
-            {others.map(({ g, shape }) => (
-              <Path key={`b${g.id}`} d={shape.blades} stroke={C.ink} strokeWidth={shape.wet ? 2.6 : 1.4} fill="none" strokeLinecap="round" />
-            ))}
-            <Path d={myBoat.lines} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-            <Path d={myBoat.blades} stroke={C.accent} strokeWidth={myBoat.wet ? 3.4 : 1.8} fill="none" strokeLinecap="round" />
-          </Svg>
-          {hundreds.map((m) => (
-            <Text key={m} style={{ position: "absolute", left: xOf(m) + 4, top: 2, fontFamily: F.mono, fontSize: 10, letterSpacing: 0.6, color: C.gray }}>
-              {fmtInt(m)}
-            </Text>
-          ))}
-          {xOf(target) > 0 && xOf(target) < W ? <Text style={{ position: "absolute", left: xOf(target) - 46, top: 2, fontFamily: F.monoBold, fontSize: 10, letterSpacing: 0.6, color: C.ink }}>FINISH</Text> : null}
-          {best && bestX !== null && bestX > 0 && bestX < W ? (
-            <Text numberOfLines={1} style={[{ position: "absolute", bottom: 2, fontFamily: F.monoBold, fontSize: 10, letterSpacing: 0.6, color: BEST }, bestX > W - 130 ? { right: W - bestX + 5 } : { left: bestX + 5 }]}>
-              YOUR BEST {fmtClock(best.seconds, false)}
-            </Text>
-          ) : null}
-          {/* Upright there is no room beside the water: the lane's words
-              stand in the lane, over its boat. */}
-          {wide
-            ? null
-            : others.filter((o) => o.on).map(({ g, d, r }) => (
-                <View key={g.id} style={{ position: "absolute", left: 6, right: 6, top: r.lane * pitch + 4, flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
-                  <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 14, color: C.ink, flexShrink: 1 }}>
-                    {who(g)} <Text style={{ fontFamily: F.mono, fontSize: 9.5, letterSpacing: 0.6, color: C.gray }}>{how(g)}</Text>
-                  </Text>
-                  <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, fontVariant: ["tabular-nums"] }}>{gapWord(d)}</Text>
-                </View>
-              ))}
-          {wide ? null : <Text style={{ position: "absolute", left: 6, top: MID * pitch + 4, fontFamily: F.black, fontSize: 14, color: C.accent }}>YOU</Text>}
-        </View>
-
-        {/* How far ahead of the rower that lane's boat is, in meters. */}
-        {wide ? (
-          <View style={{ width: GR, height: waterH }}>
-            {others.filter((o) => o.on).map(({ g, d, y }) => (
-              <Text key={g.id} numberOfLines={1} style={{ position: "absolute", left: 6, right: 0, top: y - 14, textAlign: "right", fontFamily: F.black, fontSize: 21, lineHeight: 27, color: C.ink, fontVariant: ["tabular-nums"] }}>
-                {gapWord(d)}
+          );
+        })}
+        {t > 0
+          ? others.map(({ g, r, d, on, lead, rise }) => (
+              <Text key={`s${g.id}`} numberOfLines={1} style={[paint(gapSize, gapLine), { position: "absolute", right: 10, top: wordsTop(r.lane, gapLine), color: C.ink, opacity: rise, letterSpacing: 0 }]}>
+                {/* A boat off the water in the last strokes, where no lane
+                    changes hands: which way it is. */}
+                {!on && d < 0 ? <Text style={{ fontSize: Math.round(gapSize * 0.6), color: C.gray }}>◂ </Text> : null}
+                {gapWord(lead)}
+                <Text style={{ fontFamily: F.monoBold, fontSize: Math.round(gapSize * 0.48), letterSpacing: 0 }}> S</Text>
+                {!on && d > 0 ? <Text style={{ fontSize: Math.round(gapSize * 0.6), color: C.gray }}> ▸</Text> : null}
               </Text>
-            ))}
-            <Text style={{ position: "absolute", left: 6, right: 0, top: yOf(MID) - 7, textAlign: "right", fontFamily: F.mono, fontSize: 9.5, letterSpacing: 0.6, color: C.gray }}>METERS</Text>
-          </View>
-        ) : null}
+            ))
+          : null}
+        {others.map(({ g, on, x, y, pace, rise }) =>
+          on && paceFits(x) ? (
+            <Text key={`p${g.id}`} numberOfLines={1} style={[paint(paceSize, paceLine), { position: "absolute", left: x + bow, top: y - paceLine / 2, color: C.ink, opacity: 0.5 * rise }]}>
+              {fmtPace(pace)}
+            </Text>
+          ) : null,
+        )}
+
+        <Svg width={W} height={waterH} style={{ position: "absolute", left: 0, top: 0 }}>
+          <Defs>
+            <LinearGradient id="raceWakeUp" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor={C.good} stopOpacity={0.1} />
+              <Stop offset="1" stopColor={C.good} stopOpacity={1} />
+            </LinearGradient>
+            <LinearGradient id="raceWakeDown" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor={BEST} stopOpacity={0.1} />
+              <Stop offset="1" stopColor={BEST} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          {wakes.map((w) => (
+            <Rect key={`k${w.id}`} x={0} y={w.lane * pitch + 1.5} width={w.x} height={pitch - 3} fill={w.tint > 0 ? "url(#raceWakeUp)" : "url(#raceWakeDown)"} fillOpacity={Math.abs(w.tint) * WAKE * w.rise} />
+          ))}
+          <Path d={ropes} stroke={C.line} strokeWidth={1} fill="none" />
+          {heat > 0 ? <Path d={ropes} stroke={BEST} strokeWidth={1 + 2 * heat} strokeOpacity={0.3 + 0.6 * heat} fill="none" /> : null}
+          <Path d={ticks} stroke={C.gray} strokeWidth={1} fill="none" />
+          {hundreds.map((m) => (
+            <Line key={m} x1={xOf(m)} y1={0} x2={xOf(m)} y2={waterH} stroke={C.line} strokeWidth={1} strokeDasharray="2 5" />
+          ))}
+          {xOf(0) > -4 && xOf(0) < W + 4 ? <Line x1={xOf(0)} y1={0} x2={xOf(0)} y2={waterH} stroke={C.ink} strokeWidth={1} /> : null}
+          {xOf(target) > -6 && xOf(target) < W + 6 ? (
+            <>
+              <Line x1={xOf(target)} y1={0} x2={xOf(target)} y2={waterH} stroke={C.ink} strokeWidth={1.5} />
+              <Line x1={xOf(target) + 4} y1={0} x2={xOf(target) + 4} y2={waterH} stroke={C.ink} strokeWidth={1.5} strokeDasharray="5 5" />
+            </>
+          ) : null}
+          {fish.map((f) => (
+            <Circle key={f.id} cx={f.x} cy={f.y} r={1.7} fill={f.mine ? C.gray : C.ink} fillOpacity={f.mine ? 0.55 : 0.6} />
+          ))}
+          {puddles.map((p) => (
+            <Circle key={p.key} cx={p.x} cy={p.y} r={p.r} stroke={p.me ? C.accent : C.gray} strokeWidth={1} strokeOpacity={p.o} fill="none" />
+          ))}
+          {others.map(({ g, shape, rise }) => (
+            <Path key={`l${g.id}`} d={shape.lines} stroke={C.ink} strokeWidth={1.2} strokeOpacity={rise} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          ))}
+          {others.map(({ g, shape, rise }) => (
+            <Path key={`b${g.id}`} d={shape.blades} stroke={C.ink} strokeWidth={shape.wet ? 2.6 : 1.4} strokeOpacity={rise} fill="none" strokeLinecap="round" />
+          ))}
+          {pb ? (
+            <>
+              <Path d={pb.shape.lines} stroke={BEST} strokeWidth={1.5} strokeOpacity={pb.rise} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+              <Path d={pb.shape.blades} stroke={BEST} strokeWidth={pb.shape.wet ? 2.8 : 1.5} strokeOpacity={pb.rise} fill="none" strokeLinecap="round" />
+            </>
+          ) : null}
+          <Path d={myBoat.lines} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          <Path d={myBoat.blades} stroke={C.accent} strokeWidth={myBoat.wet ? 3.4 : 1.8} fill="none" strokeLinecap="round" />
+        </Svg>
       </View>
 
-      <View style={{ height: FOOT + 10, flexDirection: "row", alignItems: "flex-end" }}>
+      <View style={{ height: FOOT + 4, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: PAD }}>
         <View style={{ flex: 1 }}>
           <Eyebrow>Meters to go</Eyebrow>
           <Num size={fig}>{fmtInt(Math.max(0, Math.ceil(target - live.meters)))}</Num>
@@ -532,8 +737,8 @@ export function GhostRace({ erg, width, height, active }: { erg: Erg; width: num
           <Num size={fig}>{fmtClock(live.elapsedS, false)}</Num>
         </View>
         <View style={{ flex: 1, alignItems: "flex-end" }}>
-          <Eyebrow>Average</Eyebrow>
-          <Num size={fig}>{fmtPace(live.avgPace)}</Num>
+          <Eyebrow>Finish</Eyebrow>
+          <Num size={fig}>{finish}</Num>
         </View>
       </View>
     </View>

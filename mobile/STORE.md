@@ -92,7 +92,7 @@ The first time, the app asks you to join as a rower (a name, a division, a birth
 
 THE ROWING MACHINE
 The app reads a Concept2 PM5 rowing machine monitor over Bluetooth. Without one:
-press + (top left), then "Run a demo row" under the three steps. A simulated 2,000 m row plays in about 80 seconds.
+press + (top left), then "Run a demo row" under the three steps. A simulated 5,000 m row plays in about two minutes.
 Swipe sideways for the monitor's other pages. When it ends, press "See its analytics" to open the
 full read of that row. A demo row is not saved or posted.
 Bluetooth is used only to talk to the rowing machine. The app does not use location.

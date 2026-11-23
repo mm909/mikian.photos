@@ -110,7 +110,10 @@ export function createPm5Sim(opts: { distanceM?: number; seed?: number; statusEv
   let nextStatusMs = 0;
   let statusEveryMs = opts.statusEveryMs ?? 250;
 
-  const elapsedS = () => Math.max(0, (now - WARM_IN_MS) / 1000);
+  /* The clock stops on the line, as a monitor's does: the two seconds of
+   * status after the end say the finish time, not a time still running
+   * (the demo row's race page said FINISHED two seconds over its finish). */
+  const elapsedS = () => Math.max(0, ((ended ? endedAt : now) - WARM_IN_MS) / 1000);
   const rowing = () => now >= WARM_IN_MS && !ended;
   const hr = () => Math.round(120 + 48 * Math.min(1, distance / target));
   const spm = () => (rowing() && strokeCount > 0 ? Math.round(60 / strokePeriodS) : 0);

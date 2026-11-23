@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
+import { useLiveRaceFeed } from "./src/erg/liveRace";
 import { useErg } from "./src/erg/useErg";
 import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
 import { Mark, type MarkKind } from "./src/mark";
@@ -122,6 +123,9 @@ export default function App() {
  * app was. */
 function Root({ dark }: { dark: boolean }) {
   const erg = useErg();
+  /* Who else is rowing the same distance this minute, for the race page
+   * (erg/liveRace.ts). It asks once a piece and is told it is not on. */
+  useLiveRaceFeed(erg);
   const nav = useRef<Nav>({ tab: "board", stack: [] });
   const keep = useRef((n: Nav) => {
     nav.current = n;

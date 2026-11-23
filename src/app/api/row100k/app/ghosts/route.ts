@@ -26,6 +26,15 @@ import { asRower, no, yes } from "../social";
  *    somebody's best a minute up the lake.
  *  - "race": the recordings the race day monitors saved, when the distance
  *    is the race's, for every racer a recording was assigned to.
+ *  - "field": rows over it by ANYBODY ELSE the viewer may be shown, two a
+ *    rower at most, the FIELD_ROWERS rowers nearest the viewer's usual time
+ *    (owner, 2026-11-22: "sometimes when I demo the row, we don't have
+ *    rowers in every lane ... we need to make sure we have rowers in every
+ *    lane"). The rowers a viewer follows were the whole field until that
+ *    day, and somebody who follows nobody, the App Store's reviewer among
+ *    them, opened the race on an empty lake. These are the rows the feed
+ *    already shows them. What is still short of four, the app fills with
+ *    pace boats (mobile/src/erg/ghosts.ts nextBoat).
  *
  * WHO IS LEFT OUT, by the rules the feed keeps: a private rower who has not
  * accepted the viewer and anybody across a block (lib/rowSocial.ts
@@ -41,11 +50,15 @@ export const dynamic = "force-dynamic";
 
 const MINE = 200;
 const PER_FOLLOW = 3;
+const PER_FIELD = 2;
+const FIELD_ROWERS = 60;
 const CAP = 80;
+/* Recordings read for the field's rows, over the CAP of the rest. */
+const FIELD_CAP = 40;
 const STEP = 100;
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-type Ghost = { id: string; kind: "me" | "follow" | "race"; name: string; numStr: string; day: string; seconds: number; spm: number; marks: number[] };
+type Ghost = { id: string; kind: "me" | "follow" | "race" | "field"; name: string; numStr: string; day: string; seconds: number; spm: number; marks: number[] };
 type Rec = { id: string; entryId: string | null; participantId: string | null; tenths: number; avgSpm: number | null; startedAt: Date; samples: unknown };
 
 /* "2026-08-12" -> "AUG 12", with the year when it is not this one. */
@@ -138,8 +151,32 @@ export async function GET(req: Request) {
       picked.push(...order.slice(0, PER_FOLLOW));
     }
 
+    /* Everybody else: the newest rows over the distance by rowers who are
+     * not the viewer, not followed (they are above) and not hidden. Each
+     * rower's two nearest the viewer's usual time; then the rowers whose
+     * nearest is nearest. With no usual time, the middle of these rows
+     * stands in for it. */
+    const known = new Set([me.id, ...follows]);
+    const rest = lightsOut
+      ? []
+      : await db.rowEntry.findMany({
+          where: { challenge: CHALLENGE, meters, seconds: { gt: 0 }, participantId: { notIn: [...known, ...hidden] } },
+          orderBy: { day: "desc" },
+          take: 3000,
+          select: { id: true, day: true, seconds: true, participantId: true },
+        });
+    const restSorted = rest.map((r) => r.seconds).sort((a, b) => a - b);
+    const aim = usual || (restSorted.length ? restSorted[restSorted.length >> 1] : 0);
+    const byOther = new Map<string, typeof rest>();
+    for (const r of rest) byOther.set(r.participantId, [...(byOther.get(r.participantId) ?? []), r]);
+    const others = [...byOther.values()]
+      .map((rows) => [...rows].sort((a, b) => Math.abs(a.seconds - aim) - Math.abs(b.seconds - aim)).slice(0, PER_FIELD))
+      .sort((a, b) => Math.abs(a[0].seconds - aim) - Math.abs(b[0].seconds - aim))
+      .slice(0, FIELD_ROWERS)
+      .flat();
+
     const people = new Map<string, { displayName: string; rowerNumber: number }>();
-    const need = [...new Set(picked.map((r) => r.participantId))];
+    const need = [...new Set([...picked, ...others].map((r) => r.participantId))];
     if (need.length) for (const p of await db.rowParticipant.findMany({ where: { id: { in: need } }, select: { id: true, displayName: true, rowerNumber: true } })) people.set(p.id, p);
 
     /* The recordings behind those rows: the series only. */
@@ -148,11 +185,15 @@ export async function GET(req: Request) {
     const recs = entryIds.length
       ? await db.$queryRaw<Rec[]>`SELECT "id", "entryId", "participantId", "tenths", "avgSpm", "startedAt", "data"->'samples' AS "samples" FROM "RowTelemetry" WHERE "meters" = ${meters} AND ("simulated" = false OR ${sim}) AND "entryId" IN (${Prisma.join(entryIds)}) ORDER BY "startedAt" DESC LIMIT ${CAP}`
       : [];
+    const otherIds = others.map((r) => r.id);
+    const fieldRecs = otherIds.length
+      ? await db.$queryRaw<Rec[]>`SELECT "id", "entryId", "participantId", "tenths", "avgSpm", "startedAt", "data"->'samples' AS "samples" FROM "RowTelemetry" WHERE "meters" = ${meters} AND ("simulated" = false OR ${sim}) AND "entryId" IN (${Prisma.join(otherIds)}) ORDER BY "startedAt" DESC LIMIT ${FIELD_CAP}`
+      : [];
     const recOf = new Map<string, Rec>();
-    for (const r of recs) if (r.entryId && !recOf.has(r.entryId)) recOf.set(r.entryId, r);
+    for (const r of [...recs, ...fieldRecs]) if (r.entryId && !recOf.has(r.entryId)) recOf.set(r.entryId, r);
 
     const ghosts: Ghost[] = [];
-    const push = (r: { id: string; day: string; seconds: number; participantId: string }, kind: "me" | "follow") => {
+    const push = (r: { id: string; day: string; seconds: number; participantId: string }, kind: "me" | "follow" | "field") => {
       const rec = recOf.get(r.id);
       const seconds = rec && rec.tenths > 0 ? rec.tenths / 10 : r.seconds;
       const who = people.get(r.participantId);
@@ -169,6 +210,7 @@ export async function GET(req: Request) {
     };
     for (const r of mine) push(r, "me");
     for (const r of picked) push(r, "follow");
+    for (const r of others) push(r, "field");
 
     /* RACE DAY: what the monitors in the room recorded, for the racers a
      * recording carries. One a racer, their own row left to "me" above when

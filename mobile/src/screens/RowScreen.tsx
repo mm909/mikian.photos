@@ -24,10 +24,17 @@ import { GhostRace } from "./GhostRace";
  * THE DEMO ROW IS BACK, as a quiet line under the steps (owner, 2026-11-22,
  * for the App Store's reviewer, who has no rowing machine: "We can bring
  * back the demo row for now"; it had gone on 2026-11-21, "I don't think we
- * need it anymore"). It runs the simulator over 2,000 m at six times a
- * clock. A demo row is never logged outside development, so it ends on its
- * own analytics instead (`onDemoRead`): the read of the piece the simulator
- * rowed, kept nowhere.
+ * need it anymore"). A demo row is never logged outside development, so it
+ * ends on its own analytics instead (`onDemoRead`): the read of the piece
+ * the simulator rowed, kept nowhere.
+ *
+ * THERE IS ONE DEMO, 5,000 m at ten times a clock, about two minutes
+ * (owner, 2026-11-22: "when I click the plus button, occasionally it brings
+ * up like this full animation, and then if I click the plus, after, then it
+ * brings me up like a worse demo"). There were two: the address a browser
+ * can open the screen with rowed 5,000 m, the distance the field has most
+ * rows over, and the line under the steps rowed 2,000 m, which hardly
+ * anybody has rowed, so its race page was a lake with nobody on it.
  *
  * THE MONITOR (owner, 2026-11-20): "we don't need an animating wheel. Lets
  * stick to just numbers"; "I would like my avg pace and my current pace. My
@@ -42,8 +49,8 @@ import { GhostRace } from "./GhostRace";
 export type Logged = { id: string; meters: number; seconds: number; day: string; doc?: TelemetryDoc; demo: boolean; device: string; strokes: number; avgWatts: number };
 
 /* The demo row's distance, and how many times faster than a clock it runs. */
-const DEMO_METERS = 2000;
-const DEMO_SPEED = 6;
+const DEMO_METERS = 5000;
+const DEMO_SPEED = 10;
 
 export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; onLogged: (r: Logged) => void; onLeave: () => void; /* A demo row, finished or left: its analytics open, and nothing is logged. */ onDemoRead: (doc: TelemetryDoc, meters: number) => void }) {
   const { ready, me } = useSession();
@@ -63,7 +70,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
     const m = Number(q.get("demo"));
     if (!(m >= 100 && m <= 100_000)) return;
     const sp = Number(q.get("speed"));
-    erg.startDemo(Math.round(m), sp >= 1 && sp <= 40 ? sp : undefined);
+    erg.startDemo(Math.round(m), sp >= 1 && sp <= 40 ? sp : DEMO_SPEED);
     // Once, as the screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -244,9 +251,12 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
     pages.current?.scrollTo({ x: 0, animated: false });
     setPage(0);
   }, [raceFirst]);
+  /* Edge to edge: the lanes are the width of the page ("let's extend the
+   * lanes to be the full width"), and the race page keeps its own margins
+   * for its figures. */
   const race = (
-    <View style={{ width: w, height: h, paddingHorizontal: 20 }}>
-      <GhostRace erg={erg} width={w - 40} height={h} active={page === (raceFirst ? 0 : 1)} />
+    <View style={{ width: w, height: h }}>
+      <GhostRace erg={erg} width={w} height={h} active={page === (raceFirst ? 0 : 1)} />
     </View>
   );
   const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
