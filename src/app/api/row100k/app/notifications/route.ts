@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { stampParts } from "@/app/row100k/feed/view";
+import { numbersHidden, rowedWords } from "@/lib/rowNotify";
 import { avatarsFor } from "@/lib/rowSocial";
 import { asRower, no, yes } from "../social";
 
@@ -10,7 +11,10 @@ import { asRower, no, yes } from "../social";
  * about and where a tap should lead; POST { read: true } marks them read.
  *
  * A line whose rower has since left, or been blocked, is dropped here and
- * not shown as a blank. No metres in any sentence (lib/rowNotify.ts). */
+ * not shown as a blank. A row's line says how far and how fast, as its push
+ * did ("rowed 5,000 m at 1:57.0."), read off the row as it is now; while
+ * lights out or its run-up is on it says "logged a row." and no more
+ * (lib/rowNotify.ts). No other sentence has metres in it. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -28,11 +32,15 @@ export async function GET() {
       select: { id: true, kind: true, actorId: true, entryId: true, actors: true, readAt: true, createdAt: true },
     });
     const ids = [...new Set(rows.flatMap((r) => [...(r.actorId ? [r.actorId] : []), ...r.actors]))];
-    const [actors, blocks, pending] = await Promise.all([
+    const rowedIds = [...new Set(rows.flatMap((r) => (r.kind === "rowed" && r.entryId ? [r.entryId] : [])))];
+    const [actors, blocks, pending, entries, dark] = await Promise.all([
       ids.length ? db.rowParticipant.findMany({ where: { id: { in: ids } }, select: { id: true, rowerNumber: true, displayName: true } }) : Promise.resolve([]),
       db.rowBlock.findMany({ where: { OR: [{ blockerId: me.id }, { blockedId: me.id }] }, select: { blockerId: true, blockedId: true } }),
       db.rowFollow.findMany({ where: { followeeId: me.id, status: "pending" }, select: { followerId: true } }),
+      rowedIds.length ? db.rowEntry.findMany({ where: { id: { in: rowedIds } }, select: { id: true, participantId: true, meters: true, seconds: true } }) : Promise.resolve([]),
+      rowedIds.length ? numbersHidden() : Promise.resolve(true),
     ]);
+    const rowOf = new Map(entries.map((e) => [e.id, e]));
     const by = new Map(actors.map((a) => [a.id, a]));
     const faces = await avatarsFor(ids);
     const cut = new Set(blocks.map((b) => (b.blockerId === me.id ? b.blockedId : b.blockerId)));
@@ -45,7 +53,12 @@ export async function GET() {
       if (r.kind === "follow") text = "started following you.";
       else if (r.kind === "request") text = "asked to follow you.";
       else if (r.kind === "accepted") text = "accepted your follow request.";
-      else if (r.kind === "rowed") text = "logged a row.";
+      else if (r.kind === "rowed") {
+        /* The row's numbers, when it is still that rower's and nothing is
+         * hiding them. */
+        const e = r.entryId ? rowOf.get(r.entryId) : undefined;
+        text = !dark && e && e.participantId === a.id ? rowedWords(e.meters, e.seconds) : "logged a row.";
+      }
       else if (r.kind === "liked") text = "liked your row.";
       else if (r.kind === "commented") text = "commented on your row.";
       else if (r.kind === "replied") text = "replied to your comment.";

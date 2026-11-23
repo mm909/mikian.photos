@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { CHALLENGE, MONTH, nowMs, pacificDay } from "@/lib/row100k";
+import { CHALLENGE, MONTH, fmtMeters, fmtSplit, nowMs, pacificDay } from "@/lib/row100k";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
 import { blockedIds, notifyOff } from "@/lib/rowSocial";
 
@@ -116,12 +116,11 @@ export async function clearRequest(recipientId: string, actorId: string): Promis
  * board, that they were passed (one line a day each; only followers whose
  * bell for this rower is on).
  *
- * No metres in any line: a rower hidden by lights out stays hidden, and
- * the line leads to the row's page, which knows what the reader may see.
- * PASSED is not sent at all while a lights-out window is open, since who
- * passed whom is exactly what the window hides. */
-export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number }): Promise<void> {
-  await notifyRowed(rower, entry.id);
+ * No metres in the PASSED line: the line leads to the board. PASSED is not
+ * sent at all while a lights-out window is open, since who passed whom is
+ * exactly what the window hides. */
+export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number; seconds?: number }): Promise<void> {
+  await notifyRowed(rower, entry);
   try {
     const follows = await db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted", notify: true }, select: { followerId: true } });
     if (follows.length === 0) return;
@@ -180,8 +179,29 @@ export async function notifyRowLogged(rower: { id: string; displayName: string }
  *
  * One line each, leading to the row. Never across a block, never to
  * somebody who muted the rower, and a private rower's row is told only to
- * the followers they accepted. No metres in the line (see above). */
-async function notifyRowed(rower: { id: string; displayName: string }, entryId: string): Promise<void> {
+ * the followers they accepted.
+ *
+ * THE LINE SAYS HOW FAR AND HOW FAST (owner, 2026-11-22: "on the push
+ * notifications for ... logged a row, we should include the distance that
+ * they rowed and the pace ... just this rower rowed this many meters at
+ * this pace ... That's probably the cleanest version"): "Ada Lovelace rowed
+ * 5,000 m at 1:57.0." It used to carry no metres, so that a rower hidden
+ * by lights out stayed hidden. That still holds: while a lights-out window
+ * is open, or its run-up is covering digits, the line is the old one,
+ * "logged a row.", for everybody (rowedWords, numbersHidden). */
+export function rowedWords(meters: number, seconds: number): string {
+  if (!(meters > 0)) return "logged a row.";
+  return seconds > 0 ? `rowed ${fmtMeters(meters)} at ${fmtSplit(meters, seconds)}.` : `rowed ${fmtMeters(meters)}.`;
+}
+
+/* Whether a line about a row may say its numbers right now. */
+export async function numbersHidden(): Promise<boolean> {
+  const b = await activeBlackout();
+  return b.active || (b.hideLow ?? 0) > 0;
+}
+
+async function notifyRowed(rower: { id: string; displayName: string }, entry: { id: string; meters: number; seconds?: number }): Promise<void> {
+  const entryId = entry.id;
   try {
     const [follows, opted, priv, blocked, muters] = await Promise.all([
       db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted" }, select: { followerId: true, notify: true } }),
@@ -201,7 +221,8 @@ async function notifyRowed(rower: { id: string; displayName: string }, entryId: 
     if (to.size === 0) return;
     const ids = [...to];
     await db.rowNotification.createMany({ data: ids.map((participantId) => ({ challenge: CHALLENGE, participantId, kind: "rowed", actorId: rower.id, entryId })) });
-    await push(ids.map((participantId) => ({ participantId, title: "ROW", body: `${rower.displayName} logged a row.`, data: { kind: "rowed", row: entryId } })));
+    const words = (await numbersHidden()) ? "logged a row." : rowedWords(entry.meters, entry.seconds ?? 0);
+    await push(ids.map((participantId) => ({ participantId, title: "ROW", body: `${rower.displayName} ${words}`, data: { kind: "rowed", row: entryId } })));
   } catch (err) {
     console.error("row notify: failed to tell who asked about a row", err);
   }

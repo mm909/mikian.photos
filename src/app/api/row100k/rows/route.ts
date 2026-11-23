@@ -223,7 +223,7 @@ export async function POST(req: Request) {
 
   /* The rower's followers (lib/rowNotify.ts). Awaited for the same reason
    * as the mail, and it cannot throw. */
-  await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters });
+  await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters, seconds: entry.seconds });
 
   return NextResponse.json({ ok: true, id: entry.id });
 }
