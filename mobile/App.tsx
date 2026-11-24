@@ -755,6 +755,11 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
  * floats over the page's ground, and a rounded square of the blue that
  * slides under whichever is open. */
 const BAR = 62;
+/* The tab row's inset from the bar's ends, the capsule's gap from the bar's
+ * ends, and its gap from the bar's top and foot. */
+const TAB_PAD = 10;
+const TAB_EDGE = 6;
+const TAB_AIR = 7;
 function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; small: Animated.Value }) {
   const [w, setW] = useState(0);
   const at = TABS.findIndex((t) => t.id === tab);
@@ -763,7 +768,11 @@ function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; smal
     /* Eased, not sprung: a spring carries the highlight past the end of the bar. */
     Animated.timing(x, { toValue: at, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
   }, [x, at]);
-  const cell = w / TABS.length;
+  /* The row stands IN from the bar's ends by PAD, so the end tabs' capsules
+   * have room to be centred on their icons; each capsule is its slot plus
+   * PAD - EDGE either side, and is EDGE from the bar's end at the ends. */
+  const cell = (w - 2 * TAB_PAD) / TABS.length;
+  const pill = cell + 2 * (TAB_PAD - TAB_EDGE);
   const { me } = useSession();
   return (
     /* It floats over the page, which shows around and through it, and draws
@@ -773,16 +782,20 @@ function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; smal
        of its slot under the open tab, and the rower's own face where the
        profile is. */
     <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 18, paddingBottom: 10, transform: [{ scale: small.interpolate({ inputRange: [0, 1], outputRange: [1, 0.8] }) }, { translateY: small.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }}>
-      <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={[{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, backgroundColor: isDark() ? "rgba(52,56,62,0.9)" : "rgba(21,23,26,0.9)", overflow: "hidden" }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
+      <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={[{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, paddingHorizontal: TAB_PAD, backgroundColor: isDark() ? "rgba(52,56,62,0.9)" : "rgba(21,23,26,0.9)", overflow: "hidden" }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
         {w ? (
           <Animated.View
             pointerEvents="none"
             /* BIGGER, as Instagram's (owner, 2026-11-23: "the highlighting of
                what icon we're on could be slightly larger ... a little bit
-               taller and wider, close to the Instagram view of it"): nearly
-               the bar's height, a little wider than its slot, and kept 4
-               points inside the bar at either end. */
-            style={{ position: "absolute", top: 4, left: 0, width: cell + 10, height: BAR - 8, borderRadius: (BAR - 8) / 2, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ translateX: x.interpolate({ inputRange: TABS.map((_, i) => i), outputRange: TABS.map((_, i) => Math.max(4, Math.min(w - (cell + 10) - 4, cell * i - 5))) }) }] }}
+               taller and wider, close to the Instagram view of it"), a
+               little wider than its slot. CENTRED ON ITS ICON, WITH AIR
+               ABOVE AND BELOW (owner, 2026-11-24: "The highlight on the
+               button at the home button is like off center, and there
+               should be some vertical margin"): it had been pushed in at the
+               ends to stay inside the bar, off its icon, and stood 4 points
+               from the bar's top and foot. */
+            style={{ position: "absolute", top: TAB_AIR, left: 0, width: pill, height: BAR - 2 * TAB_AIR, borderRadius: (BAR - 2 * TAB_AIR) / 2, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ translateX: x.interpolate({ inputRange: TABS.map((_, i) => i), outputRange: TABS.map((_, i) => TAB_EDGE + cell * i) }) }] }}
           />
         ) : null}
         {TABS.map((t) => (
