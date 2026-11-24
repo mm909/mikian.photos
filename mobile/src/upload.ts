@@ -9,7 +9,13 @@ import type { TelemetryDoc } from "./pm5/session";
  * straight to storage through a signed address (api/row100k/photos/sign),
  * a 320 px thumb after it, and the row itself goes to api/row100k/rows with
  * the two keys. A row that came off a connected erg then sends its whole
- * recording to api/row100k/app/erg, tied to the row. */
+ * recording to api/row100k/app/erg, tied to the row.
+ *
+ * A ROW OFF THE MONITOR IS LOGGED BEFORE ITS PHOTOS since 2026-11-24
+ * (autolog.ts): it is on the site the moment it ends, and `finishRow` below
+ * puts the two photos, the title and the words on a row that is already
+ * there. A row typed in by hand still goes in whole, photos first, through
+ * `logRow`. */
 
 /* A photo off the phone. `fx` and `fy` say where the three-by-four frame
  * of a row sits on it, from 0 (its left, its top) to 1 (its right, its
@@ -175,18 +181,14 @@ export type NewRow = { day: string; meters: number; seconds: number; title: stri
  * recording when there is one. */
 export type Progress = { at: number; to: number; word: string };
 
-/* Log it. `step` says where it has got to, for the bar. Answers the new
- * row's id and whether the recording went with it. */
-export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<{ id: string; recorded: boolean }> {
-  const PREP = 0.12;
-  const REC = row.doc ? 0.1 : 0;
-  const SAVE = 0.1;
-  const UP = 1 - PREP - SAVE - REC;
-
+/* THE TWO PHOTOS UP, with the bar told as they go: the first PREP of it for
+ * cutting them down, the next UP of it by the bytes that have left the
+ * phone. Answers their two keys. */
+async function sendTwo(photos: [Picked, Picked], step: (p: Progress) => void, PREP: number, UP: number): Promise<[string, string]> {
   step({ at: 0, to: PREP / 2, word: "Getting photo 1 ready" });
-  const one = await ready(row.photos[0]);
+  const one = await ready(photos[0]);
   step({ at: PREP / 2, to: PREP, word: "Getting photo 2 ready" });
-  const two = await ready(row.photos[1]);
+  const two = await ready(photos[1]);
 
   const all = Math.max(1, bytesOf(one) + bytesOf(two));
   /* While a photo's address is being asked for nothing is counted yet: the
@@ -199,6 +201,18 @@ export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<
   const a = await send(one, (n) => up(n, "Sending photo 1 of 2"));
   up(bytesOf(one), "Sending photo 2 of 2");
   const b = await send(two, (n) => up(bytesOf(one) + n, "Sending photo 2 of 2"));
+  return [a, b];
+}
+
+/* Log it. `step` says where it has got to, for the bar. Answers the new
+ * row's id and whether the recording went with it. */
+export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<{ id: string; recorded: boolean }> {
+  const PREP = 0.12;
+  const REC = row.doc ? 0.1 : 0;
+  const SAVE = 0.1;
+  const UP = 1 - PREP - SAVE - REC;
+
+  const [a, b] = await sendTwo(row.photos, step, PREP, UP);
 
   const saved = PREP + UP;
   step({ at: saved, to: saved + SAVE * 0.9, word: "Saving the row" });
@@ -217,6 +231,36 @@ export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<
   }
   step({ at: 1, to: 1, word: "Logged" });
   return { id: made.id, recorded };
+}
+
+/* WHAT GOES ON A ROW THAT IS ALREADY LOGGED (a row off the monitor, which
+ * logs itself with no photos: autolog.ts): the two photos, a title typed
+ * over the one the site gave it, the words under it, another day. Any of
+ * them, or none. The same bar as a row going in whole. The row's meters and
+ * time ride along because the site's edit asks for the whole row
+ * (api/row100k/rows/[id]); they are the ones it already has. */
+export type RowFinish = { id: string; day: string; meters: number; seconds: number; title?: string; caption?: string; photos?: [Picked, Picked] };
+
+export async function finishRow(row: RowFinish, step: (p: Progress) => void): Promise<void> {
+  const PREP = row.photos ? 0.12 : 0;
+  const SAVE = row.photos ? 0.12 : 1;
+  const UP = 1 - PREP - SAVE;
+  let keys: [string, string] | undefined;
+  if (row.photos) {
+    try {
+      keys = await sendTwo(row.photos, step, PREP, UP);
+    } catch (err) {
+      /* The words a photo fails with were written for a row that does not
+       * exist yet ("nothing was logged"). This one does. */
+      const said = err instanceof Error ? err.message.replace(/[;.]? ?nothing was logged\.?/i, ".") : "The photos could not be sent.";
+      throw new Error(`${said} The row itself is logged; try the photos again.`);
+    }
+  }
+  const at = PREP + UP;
+  step({ at, to: at + SAVE * 0.9, word: keys ? "Putting the photos on the row" : "Saving" });
+  await api(`/api/row100k/rows/${row.id}`, { method: "PATCH", body: { day: row.day, meters: row.meters, seconds: row.seconds, ...(row.title !== undefined ? { title: row.title } : {}), ...(keys ? { photos: keys } : {}) } });
+  if (row.caption?.trim()) await api("/api/row100k/app/row", { body: { id: row.id, caption: row.caption } }).catch(() => null);
+  step({ at: 1, to: 1, word: "Saved" });
 }
 
 /* The day the site calls today: Pacific, the fixed seven hours its boards

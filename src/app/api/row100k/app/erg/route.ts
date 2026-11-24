@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { CHALLENGE } from "@/lib/row100k";
+import { CHALLENGE, nowMs, pacificDay, validateEntry } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
-import { validateTelemetryDoc } from "@/lib/pm5/session";
+import { columnsFrom, validateTelemetryDoc, type TelemetryDoc } from "@/lib/pm5/session";
 import { ErgStoreError, insertErgSession } from "@/lib/pm5/store";
-import { ergAppDenial, ergViewer } from "@/app/erg/gate";
+import { ergAppDenial, ergViewer, type ErgViewer } from "@/app/erg/gate";
+import { saveRow } from "@/app/row100k/logEntry";
 
 /* THE PIECE BEHIND A LOGGED ROW (2026-11-20). The phone app logs a row
  * through /api/row100k/rows like everybody else, then, when the row came
@@ -14,9 +15,29 @@ import { ergAppDenial, ergViewer } from "@/app/erg/gate";
  * row, which is how the feed and the profile know a row has the monitor's
  * figures behind it.
  *
- * Wears the erg gate (app/erg/gate.ts): the erg product is in development,
- * so in production this answers admins only, as /api/erg/sessions does. The
- * row must be the caller's own. */
+ * AND THE ROW ITSELF, WITH NO PHOTOS (owner, 2026-11-23: "Strava does this
+ * thing where it's like it automatically logs the row and then lets you add
+ * the photos ... the intention is that every row gets logged"; 2026-11-24,
+ * asked whether to build it: "Yes, build every single thing you need").
+ * { doc, log: {} } and no entryId: the row is made HERE, out of the
+ * recording, the moment the piece ends on the phone, and the recording is
+ * tied to it in the same breath. The two photos are added afterwards
+ * through the row's own edit (api/row100k/rows/[id]); a row logged by hand
+ * still needs its two (api/row100k/rows).
+ *
+ *   WHAT THE ROW IS comes off the recording and nothing else: its meters,
+ *     its time, and the Pacific day it finished on. The phone names none of
+ *     them, so a row cannot come in here saying more than its recording.
+ *   THE SAME RULES as any row: validateEntry, then app/row100k/logEntry.ts
+ *     (the caps, the title, the note to the owner, the word to followers).
+ *   NEVER A DEMO: a recording the simulator made is refused.
+ *   ONCE: a phone that lost the answer asks again, and the recording it
+ *     sends starts at the same instant as the one already tied to a row, so
+ *     it is told of that row and no second one is made. If the rower has
+ *     deleted that row since, it stays deleted (410).
+ *
+ * Open to any signed-in account (app/erg/gate.ts ergAppDenial). The row
+ * must be the caller's own. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -42,6 +63,7 @@ export async function POST(req: Request) {
   try {
     const doc = validateTelemetryDoc(body.doc);
     if (typeof doc === "string") return no(doc, 400);
+    if (!entryId && body.log && typeof body.log === "object") return await logOffTheMonitor(viewer, userId, doc);
     const entry = entryId
       ? await db.rowEntry.findFirst({
           where: { id: entryId, challenge: CHALLENGE, participant: { userId } },
@@ -62,6 +84,52 @@ export async function POST(req: Request) {
     console.error("row app: failed to save the piece behind a row", err);
     return no("The recording could not be saved just now.", 500);
   }
+}
+
+/* Under this many strokes a recording is a few pulls, not a row to log by
+ * itself (the phone makes no document under it either). */
+const LOG_MIN_STROKES = 8;
+
+async function logOffTheMonitor(viewer: ErgViewer, userId: string, doc: TelemetryDoc): Promise<NextResponse> {
+  if (doc.device.simulated) return no("A demo row is not logged.", 400);
+  const cols = columnsFrom(doc);
+  if (cols.strokes < LOG_MIN_STROKES) return no("That recording is too short to log by itself.", 400);
+
+  const participant = await db.rowParticipant.findUnique({ where: { challenge_userId: { challenge: CHALLENGE, userId } } });
+  if (!participant) return no("Join the challenge first — it takes 30 seconds.", 400);
+
+  /* ASKED BEFORE? The same piece off the same account starts at the same
+   * instant. */
+  const had = await db.rowTelemetry.findFirst({ where: { userId, startedAt: cols.startedAt, simulated: false, entryId: { not: null } }, select: { id: true, entryId: true } });
+  if (had?.entryId) {
+    const e = await db.rowEntry.findFirst({ where: { id: had.entryId, participantId: participant.id }, select: { id: true, day: true, meters: true, seconds: true, title: true } });
+    if (!e) return no("That row was logged and then deleted.", 410);
+    return NextResponse.json({ ok: true, id: had.id, entryId: e.id, day: e.day, meters: e.meters, seconds: e.seconds, title: e.title, recorded: true, again: true });
+  }
+
+  /* The day it finished, Pacific, as the boards count days. A phone whose
+   * clock runs ahead cannot date a row into tomorrow; and the clock the
+   * rest of the site is on (lib/row100k nowMs: shifted in the demo copy,
+   * not at all on the live site) is the one the day is read against. */
+  const end = Math.min(cols.startedAt.getTime() + cols.tenths * 100, Date.now());
+  const day = pacificDay(end + (nowMs() - Date.now()));
+  const check = validateEntry({ day, meters: Math.floor(cols.meters), seconds: Math.max(1, Math.round(cols.tenths / 10)), title: "" }, nowMs(), { admin: viewer.isAdmin });
+  if (!check.ok) return no(check.error, 400);
+
+  const saved = await saveRow(participant, check.value, []);
+  if (!saved.ok) return no(saved.error, saved.status);
+
+  /* The recording, tied to the row. The row is logged whether or not this
+   * lands: the phone keeps its own copy of the recording and is told. */
+  let recId: string | null = null;
+  try {
+    const rec = await insertErgSession({ userId, doc, title: saved.title, rower: { participantId: participant.id, rowerNumber: participant.rowerNumber, challenge: CHALLENGE } });
+    await db.rowTelemetry.update({ where: { id: rec.id }, data: { entryId: saved.id } });
+    recId = rec.id;
+  } catch (err) {
+    console.error("row app: a monitor row was logged and its recording could not be saved", err);
+  }
+  return NextResponse.json({ ok: true, id: recId, entryId: saved.id, day: check.value.day, meters: check.value.meters, seconds: check.value.seconds, title: saved.title, recorded: recId !== null });
 }
 
 /* ONE SAVED SESSION, by its own id (2026-11-22; owner: "I should be able to

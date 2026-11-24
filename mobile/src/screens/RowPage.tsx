@@ -231,6 +231,17 @@ export function RowPage({
         )}
       />
 
+      {/* A ROW OFF THE MONITOR IS LOGGED BEFORE ITS PHOTOS (autolog.ts,
+          2026-11-24), so the rower's own row can be here with none. Where
+          the two would be is the way to add them: EDIT ROW, which opens on
+          its photos for a row that has none. Nobody else sees this. */}
+      {r.mine && !r.masked && !fake && r.photos.length === 0 && r.meters && r.seconds ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Add the two photos to this row" onPress={() => setWriting(true)} style={({ pressed }) => ({ marginTop: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: C.gray, paddingVertical: 26, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+          <Text style={mono(12, true, C.accent, 0.14)}>Add the two photos</Text>
+          <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6 }]}>You, and the monitor</Text>
+        </Pressable>
+      ) : null}
+
       {/* LIKE, COMMENT, SHARE, under the row as under a post (owner,
           2026-11-22: "that's where that share button can go"). The stickers
           are behind the share mark. */}

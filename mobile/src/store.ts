@@ -104,6 +104,17 @@ export type Pending = {
   /* The monitor said the piece was over. */
   ended: boolean;
   hasDoc: boolean;
+  /* WHAT A ROW THAT LOGS ITSELF NEEDS TO KNOW (autolog.ts, 2026-11-24).
+   * `full`: a set piece rowed to its end, all of its meters or all of its
+   * time. `over`: the monitor has gone on to another piece, so this one
+   * cannot be picked up again. `refused`: the site would not take it, in
+   * the site's own words, so it is not sent again by itself. `dup`: the
+   * same piece as a longer recording (the connection dropped and came
+   * back), which is the one that is logged. */
+  full?: boolean;
+  over?: boolean;
+  refused?: string;
+  dup?: boolean;
 };
 
 const PENDING = "pending/1";
@@ -132,6 +143,10 @@ const queued = <T,>(job: () => Promise<T>): Promise<T> => {
   return next;
 };
 
+/* Every write asked for so far has landed: for a reader that must see the
+ * piece that was kept a moment ago (autolog.ts). */
+export const pendingSettled = (): Promise<unknown> => chain;
+
 /* Who is told when the list changes, so the log screen shows a piece the
  * moment it is kept. */
 const pendingSubs = new Set<() => void>();
@@ -150,11 +165,23 @@ export function putPending(p: Pending, doc?: TelemetryDoc): Promise<void> {
     if (doc) await AsyncStorage.setItem(pendingDocKey(p.id), JSON.stringify(doc));
     const list = await loadPending();
     const had = list.find((x) => x.id === p.id);
-    const row: Pending = { ...p, hasDoc: !!doc || !!had?.hasDoc };
+    /* What was noted against the piece stays noted when it is written again. */
+    const row: Pending = { ...p, hasDoc: !!doc || !!had?.hasDoc, over: p.over || had?.over, refused: p.refused ?? had?.refused, dup: p.dup || had?.dup };
     const next = [...list.filter((x) => x.id !== p.id), row].sort((a, b) => a.at - b.at);
     const gone = next.length > PENDING_MOST ? next.splice(0, next.length - PENDING_MOST) : [];
     await AsyncStorage.setItem(PENDING, JSON.stringify(next));
     for (const g of gone) await AsyncStorage.removeItem(pendingDocKey(g.id)).catch(() => null);
+    toldPending();
+  });
+}
+
+/* A note against a piece that is kept: the site refused it, or it is the
+ * short half of a longer one. */
+export function markPending(id: string, note: Partial<Pick<Pending, "refused" | "dup" | "over">>): Promise<void> {
+  return queued(async () => {
+    const list = await loadPending();
+    if (!list.some((x) => x.id === id)) return;
+    await AsyncStorage.setItem(PENDING, JSON.stringify(list.map((x) => (x.id === id ? { ...x, ...note } : x))));
     toldPending();
   });
 }

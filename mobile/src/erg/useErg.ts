@@ -5,6 +5,7 @@ import * as ble from "./ble";
 import { simulate, type ErgLink, type Found, type Handlers } from "./link";
 import { EMPTY_LIVE, createLive, type Live } from "./model";
 import { PENDING_MIN_M, dropPending, putPending } from "../store";
+import { armAuto, autoOf, logsItself, onAuto, sendPiece, sweep, type AutoState } from "../autolog";
 
 /* THE ROW IN PROGRESS, held above the screens (owner, 2026-11-20: "allow me
  * to go to another part of the app and have it not disrupt the logging of
@@ -25,9 +26,23 @@ import { PENDING_MIN_M, dropPending, putPending } from "../store";
  * 100 m or more is kept as an unlogged row (store.ts) every fifteen
  * seconds, as the app is left, as the monitor says it is over, as the
  * connection drops, and whole as the monitor re-arms. It stays until it is
- * logged or deleted; the log screen lists them. A demo row is never kept. */
+ * logged or deleted; the log screen lists them. A demo row is never kept.
+ *
+ * AND IT LOGS ITSELF (owner, 2026-11-23: "it automatically logs the row and
+ * then lets you add the photos ... the intention is that every row gets
+ * logged"; autolog.ts has the whole of it). The sending is started HERE, at
+ * the root of the app and not on the monitor's screen, so a rower who is
+ * looking at the feed when the piece ends, or who never comes back to the
+ * monitor at all, has the row logged all the same. `auto` is where the
+ * piece on the monitor has got to on its way in, for the screen to print. */
 
 const KEEP_EVERY_MS = 15_000;
+/* How long the monitor has to have called a piece finished before it is
+ * sent: one stray word from it as a piece starts must not log anything, and
+ * its closing figures (the summary) land a moment after the word. */
+const END_HOLD_MS = 1500;
+/* How often what is kept is gone through for pieces that are over. */
+const SWEEP_EVERY_MS = 45_000;
 
 export type ErgPhase = "idle" | "scanning" | "connecting" | "live";
 /* Where the rower was at each 500 m line, for the splits so far. */
@@ -47,14 +62,25 @@ export type Erg = {
   bluetooth: boolean;
   connect: () => void;
   pick: (d: Found) => void;
-  /* The simulator, as many times faster than a clock as `speed` says. */
-  startDemo: (distanceM?: number, speed?: number) => void;
+  /* The simulator, as many times faster than a clock as `speed` says.
+   * `real`, in development only: the simulator's row is treated as a row
+   * off a monitor, kept and logged, so the whole of a row logging itself
+   * can be driven on a laptop against the sandbox (RowScreen.tsx). */
+  startDemo: (distanceM?: number, speed?: number, real?: boolean) => void;
   /* Drop the connection and whatever was recorded, the copy kept on the
    * phone included: the rower logged it, or said to throw it away. */
   discard: () => void;
   /* The whole piece as a saved document, or undefined when it is too short
    * to analyse. Does not end the row. */
   doc: () => TelemetryDoc | undefined;
+  /* Where the piece on the monitor has got to on its way to the site
+   * (autolog.ts): null until it is sent. A demo row is "saved" with the
+   * row id "demo" and nothing sent. */
+  auto: AutoState | null;
+  /* Send the piece now, because the rower pressed LOG: a piece stopped
+   * short of logging itself. Null when there is nothing that can be sent
+   * (under 100 m, or too few strokes for a recording). */
+  logNow: () => Promise<AutoState | null>;
 };
 
 export function useErg(): Erg {
@@ -64,6 +90,10 @@ export function useErg(): Erg {
   const [name, setName] = useState("");
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState("");
+  const [auto, setAuto] = useState<AutoState | null>(null);
+  /* The connection to the monitor has gone: its piece is no longer one the
+   * monitor is "still on", and is sent once it has stood long enough. */
+  const dropped = useRef(false);
   /* The piece being kept: its id among the unlogged rows, when it began,
    * and what was last written, so a monitor sitting on its result is not
    * written again and again. */
@@ -72,20 +102,27 @@ export function useErg(): Erg {
   const keptAt = useRef(0);
   const isDemo = useRef(false);
   const who = useRef("PM5");
-  const keepAs = (l: Live, doc: TelemetryDoc | undefined) => {
+  /* A set piece rowed to its end: all of its meters, or all of its time. */
+  const isFull = (l: Live) => l.ended && ((l.targetM > 0 && l.meters >= l.targetM - 1) || (l.targetS > 0 && l.elapsedS >= l.targetS - 1));
+  const keepAs = (l: Live, doc: TelemetryDoc | undefined, over = false) => {
     const p = piece.current;
     if (!p || isDemo.current || l.meters < PENDING_MIN_M) return;
-    const mark = `${p.id}/${Math.floor(l.meters)}/${l.strokes}/${l.ended}`;
+    /* Logged already: it is the site's now, and is not kept here again. */
+    if (autoOf(p.id)?.state === "saved") return;
+    const mark = `${p.id}/${Math.floor(l.meters)}/${l.strokes}/${l.ended}/${over}`;
     if (mark === kept.current) return;
     kept.current = mark;
-    putPending({ id: p.id, at: p.at, savedAt: Date.now(), meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, device: who.current, ended: l.ended, hasDoc: !!doc }, doc).catch(() => null);
+    putPending({ id: p.id, at: p.at, savedAt: Date.now(), meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, device: who.current, ended: l.ended, hasDoc: !!doc, full: isFull(l), ...(over ? { over: true } : {}) }, doc).catch(() => null);
   };
   const model = useRef(
     createLive((was, doc) => {
       /* The monitor re-armed: what was rowed is kept whole, and the next
-       * piece is another row. */
-      keepAs(was, doc);
+       * piece is another row. The one it left cannot be picked up again, so
+       * it is sent now if it has not been (autolog.ts). */
+      keepAs(was, doc, true);
       piece.current = null;
+      setAuto(null);
+      void sweep(null);
     }),
   ).current;
   const keep = () => {
@@ -100,6 +137,45 @@ export function useErg(): Erg {
     }
     keepAs(l, doc);
   };
+  /* THE PIECE IS FINISHED, says the monitor, and has said so for a moment:
+   * its last figures are written, and it is sent if it is a row that logs
+   * itself. A demo row is "logged" on the phone and goes nowhere. */
+  const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demoSaved = (l: Live): AutoState => ({ state: "saved", rowId: "demo", day: new Date(Date.now() - 7 * 3600_000).toISOString().slice(0, 10), meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), title: "", recorded: false });
+  const finished = (id: string | null) => {
+    const l = model.get();
+    if (!l.ended) return;
+    if (isDemo.current) {
+      setAuto(demoSaved(l));
+      return;
+    }
+    if (!id || piece.current?.id !== id) return;
+    keep();
+    if (l.meters >= PENDING_MIN_M && l.strokes >= 8 && logsItself({ meters: Math.floor(l.meters), full: isFull(l) })) void sendPiece(id);
+  };
+  /* What the sender says of the piece on the monitor is what the screen
+   * prints; and the pieces that are over are gone through as the app opens,
+   * as it comes back to the front, and every so often while it is open. */
+  useEffect(() => {
+    armAuto();
+    const off = onAuto((id, st) => {
+      if (piece.current?.id === id) setAuto(st);
+    });
+    const pass = () => void sweep(dropped.current ? null : (piece.current?.id ?? null));
+    pass();
+    const t = setInterval(pass, SWEEP_EVERY_MS);
+    const sub = AppState.addEventListener("change", (st) => {
+      if (st === "active") pass();
+    });
+    return () => {
+      off();
+      clearInterval(t);
+      sub.remove();
+      if (endTimer.current) clearTimeout(endTimer.current);
+    };
+    // Refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const link = useRef<ErgLink | null>(null);
   const stopScan = useRef<(() => void) | null>(null);
   const marks = useRef<Mark[]>([]);
@@ -114,6 +190,11 @@ export function useErg(): Erg {
       /* By the packets' own clock as well as the timer below: a timer may
        * not run while the app is behind another, and packets still land. */
       if ((l.ended && !wasOver) || Date.now() - keptAt.current > KEEP_EVERY_MS) keep();
+      if (l.ended && !wasOver) {
+        const id = piece.current?.id ?? null;
+        if (endTimer.current) clearTimeout(endTimer.current);
+        endTimer.current = setTimeout(() => finished(id), END_HOLD_MS);
+      }
       /* A new piece on the monitor starts the splits and the trail again. */
       const lastM = trail.current.length ? trail.current[trail.current.length - 1].m : 0;
       if (l.meters + 5 < lastM) {
@@ -128,6 +209,7 @@ export function useErg(): Erg {
     onDrop: (reason) => {
       setError(reason);
       link.current = null;
+      dropped.current = true;
       /* The numbers stay so a dropped piece can still be logged. */
       keep();
     },
@@ -159,6 +241,9 @@ export function useErg(): Erg {
 
   const fresh = () => {
     setError("");
+    setAuto(null);
+    dropped.current = false;
+    if (endTimer.current) clearTimeout(endTimer.current);
     model.reset();
     piece.current = null;
     kept.current = "";
@@ -218,9 +303,9 @@ export function useErg(): Erg {
     bluetooth: ble.available(),
     connect,
     pick,
-    startDemo: (distanceM, speed) => {
+    startDemo: (distanceM, speed, real) => {
       fresh();
-      begin(simulate(handlers, { distanceM: distanceM ?? 5000, speed }), true);
+      begin(simulate(handlers, { distanceM: distanceM ?? 5000, speed }), !(real && __DEV__));
     },
     discard: () => {
       const p = piece.current;
@@ -235,6 +320,19 @@ export function useErg(): Erg {
       } catch {
         return undefined;
       }
+    },
+    auto,
+    logNow: async () => {
+      const l = model.get();
+      if (isDemo.current) {
+        const st = demoSaved(l);
+        setAuto(st);
+        return st;
+      }
+      const p = piece.current;
+      if (!p || l.meters < PENDING_MIN_M || l.strokes < 8) return null;
+      keep();
+      return sendPiece(p.id);
     },
   };
 }

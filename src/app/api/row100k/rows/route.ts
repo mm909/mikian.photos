@@ -1,35 +1,8 @@
 import { NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
-import { activeBlackout } from "@/lib/blackout";
-import { digitCount } from "@/lib/blackoutRules";
-import { sendOwnerNotification } from "@/lib/email";
-import { notifyRowLogged } from "@/lib/rowNotify";
 import { getEffectiveActor } from "@/lib/permissions";
-import { rateLimit } from "@/lib/rateLimit";
-import {
-  CHALLENGE,
-  MAX_ENTRIES_PER_DAY,
-  MAX_ENTRIES_TOTAL,
-  daysElapsed,
-  defaultRowTitle,
-  isRow100kAdmin,
-  nowMs,
-  validateEntry,
-} from "@/lib/row100k";
-import { monthFromKey, type Month } from "@/lib/rowPeriod";
-import { siteSettings } from "@/lib/rowSettings";
-import { boardDataRaw } from "@/app/row100k/boardData";
-import {
-  censorFor,
-  crossedMilestones,
-  freshPublicRow,
-  milestoneMail,
-  rowLoggedMail,
-  type Censor,
-  type RowLogged,
-} from "@/app/row100k/rowMail";
-import { ROWTEMBER_ORIGIN } from "@/lib/rowSegments";
+import { CHALLENGE, isRow100kAdmin, nowMs, validateEntry } from "@/lib/row100k";
+import { saveRow } from "@/app/row100k/logEntry";
 
 export const runtime = "nodejs";
 
@@ -87,143 +60,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const limit = await rateLimit({
-    key: `row100k-log:${participant.id}`,
-    limit: 40,
-    windowSec: 3600,
-  });
-  if (!limit.ok) {
+  /* The saving itself (the rate limit, the caps, the title, the row, the
+   * notes to the owner and the followers) is app/row100k/logEntry.ts since
+   * 2026-11-24, shared with the door a monitor row comes in by with no
+   * photos (api/row100k/app/erg). THIS door still wants its two. */
+  const saved = await saveRow(participant, check.value, photos);
+  if (!saved.ok) {
     return NextResponse.json(
-      { ok: false, error: "Too many logs at once — try again in a bit." },
-      { status: 429, headers: { "Retry-After": String(Math.max(1, limit.retryAfterSec)) } },
+      { ok: false, error: saved.error },
+      { status: saved.status, ...(saved.retryAfterSec ? { headers: { "Retry-After": String(saved.retryAfterSec) } } : {}) },
     );
   }
 
-  // Count-then-create is racy under concurrency, but the 40/hr rate limit
-  // above bounds any overshoot to one window — these caps are anti-absurdity
-  // guards on an honor-system board, not hard invariants. The meters BEFORE
-  // this row ride along for the milestone note below (rowMail.ts): a
-  // milestone is a line crossed, so it needs the total on both sides.
-  // THE MONTH OF THE ROW bounds all of it (rollover review, 2026-09-28):
-  // the boards are monthly, so the entry cap, the default title's number
-  // and the milestone line are this row's month's, not all time's — a Sep
-  // 30 row filed on Oct 1 counts among September's.
-  const rowMonth = monthFromKey(check.value.day.slice(0, 7)) as Month;
-  const inMonth = { participantId: participant.id, day: { gte: rowMonth.firstDay, lte: rowMonth.lastDay } };
-  const [dayCount, totalCount, before] = await Promise.all([
-    db.rowEntry.count({ where: { participantId: participant.id, day: check.value.day } }),
-    db.rowEntry.count({ where: inMonth }),
-    db.rowEntry.aggregate({ where: inMonth, _sum: { meters: true } }),
-  ]);
-  const prevTotal = before._sum.meters ?? 0;
-  if (dayCount >= MAX_ENTRIES_PER_DAY) {
-    return NextResponse.json(
-      { ok: false, error: `That's already ${MAX_ENTRIES_PER_DAY} sessions on that day — the max.` },
-      { status: 400 },
-    );
-  }
-  if (totalCount >= MAX_ENTRIES_TOTAL) {
-    return NextResponse.json(
-      { ok: false, error: "You've hit the entry cap for the month." },
-      { status: 400 },
-    );
-  }
-
-  // No title typed → "Rowtember #7" ("October #7" outside September),
-  // numbered by how many rows they'll have in the row's month.
-  const value = check.value.title
-    ? check.value
-    : { ...check.value, title: defaultRowTitle(totalCount + 1, rowMonth) };
-
-  const entry = await db.rowEntry.create({
-    data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
-  });
-  revalidateTag("row100k-boards");
-
-  /* Heads-up to the owner on every logged row (owner call, launch day), and
-   * a second note when the row crossed a milestone (owner, 2026-09-16). The
-   * wording lives in rowMail.ts. Awaited so serverless can't kill it
-   * mid-send, but never allowed to fail the log — sendOwnerNotification
-   * swallows transport errors itself, and a thrown surprise here is caught
-   * and logged. */
-  try {
-    const totals = await db.rowEntry.aggregate({
-      where: inMonth,
-      _sum: { meters: true },
-      _count: true,
-    });
-    const totalNow = totals._sum.meters ?? prevTotal + value.meters;
-    const logged: RowLogged = {
-      name: participant.displayName,
-      rowerNumber: participant.rowerNumber,
-      meters: value.meters,
-      seconds: value.seconds,
-      day: value.day,
-      title: value.title,
-      total: totalNow,
-      sessions: totals._count,
-      profileUrl: `${ROWTEMBER_ORIGIN}/r/${participant.rowerNumber}`,
-    };
-    // Same inbox as the signup emails (OWNER_EMAIL / mikian.photos@gmail.com)
-    // unless explicitly rerouted — both notes go to the same place.
-    const notifyTo = process.env.ROW100K_NOTIFY_EMAIL || undefined;
-
-    // The owner is a rower himself, so his inbox is censored like the feed
-    // (owner, 2026-09-16): while a window or its run-up is on, the PUBLIC
-    // board says whether this rower is hidden. The tag revalidated above
-    // lands only after this handler returns, so the cached board is still
-    // the one from BEFORE this insert — freshPublicRow lays this row over
-    // it and masks the result, so the row that lifts a rower into the
-    // elite is judged elite (review, 2026-09-16). A board that cannot be
-    // read while a window or run-up is on hides everything (fail closed) —
-    // a hiccup must not print an elite rower's numbers. Outside a window
-    // the mail is what it always was.
-    const blackout = await activeBlackout();
-    let censor: Censor = { kind: "none" };
-    if (blackout.active || (blackout.hideLow ?? 0) > 0) {
-      try {
-        const [raw, settings] = await Promise.all([boardDataRaw(), siteSettings()]);
-        const row = freshPublicRow(
-          raw,
-          {
-            participantId: participant.id,
-            name: participant.displayName,
-            division: participant.division,
-            rowerNumber: participant.rowerNumber,
-            instagram: participant.instagram,
-          },
-          logged,
-          blackout,
-          settings.blackout,
-        );
-        censor = censorFor(row, totalNow, blackout);
-      } catch (err) {
-        console.error("row100k: board unreadable during a blackout — censoring the row-logged note", err);
-        censor = { kind: "full", digits: digitCount(totalNow), why: "unknown" };
-      }
-    }
-    const note = rowLoggedMail(logged, censor);
-    await sendOwnerNotification(note.subject, note.text, undefined, notifyTo);
-
-    // The milestone note: censored JUST FOR THE ELITE (owner, 2026-09-16,
-    // second telling: "make emails censored just for the elite"). A rower
-    // the board hides or rounds gets no milestone note while that lasts,
-    // and neither does anybody when the board could not say (both leave
-    // `censor` set); everyone else's rung is public on the board already,
-    // so their note goes out window or no window. It prints every real
-    // number, which is the point of it.
-    const crossed = crossedMilestones(prevTotal, totalNow);
-    if (crossed.length > 0 && censor.kind === "none") {
-      const star = milestoneMail(logged, crossed, daysElapsed());
-      await sendOwnerNotification(star.subject, star.text, undefined, notifyTo);
-    }
-  } catch (err) {
-    console.error("row100k: row-logged notification failed", err);
-  }
-
-  /* The rower's followers (lib/rowNotify.ts). Awaited for the same reason
-   * as the mail, and it cannot throw. */
-  await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters, seconds: entry.seconds });
-
-  return NextResponse.json({ ok: true, id: entry.id });
+  return NextResponse.json({ ok: true, id: saved.id });
 }

@@ -7,10 +7,12 @@ import type { Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { mono } from "../site";
-import { dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
+import { ApiError, api } from "../api";
+import { autoOf, onAuto, sendPiece, type Saved } from "../autolog";
+import { PENDING_MIN_M, dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
-import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked, type Progress } from "../upload";
+import { FRAME, finishRow, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked, type Progress } from "../upload";
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
@@ -19,6 +21,16 @@ import { ArcadeOverlay } from "./ArcadeGame";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
+ *
+ * A ROW OFF THE MONITOR IS LOGGED BEFORE THE FORM (owner, 2026-11-23:
+ * "Strava does this thing where it's like it automatically logs the row and
+ * then lets you add the photos ... the intention is that every row gets
+ * logged"; autolog.ts has when and which). The monitor says LOGGED at its
+ * foot the moment the piece is over, with DONE and ADD PHOTOS under it. The
+ * form is the same form, come to with the row already on the board: its
+ * photos are two or none, its button adds them, and DELETE THIS ROW at its
+ * foot is what DISCARD was. A row typed in by hand still needs its two
+ * photos before it is logged at all.
  *
  * THE TWO BUTTONS ARE AT THE FOOT, side by side, under the thumb (owner,
  * 2026-11-21: "should those buttons be down at the bottom, like a connect
@@ -70,12 +82,17 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
   const [form, setForm] = useState<"none" | "manual" | "erg" | "old">("none");
   /* The piece as it stood when LOG was pressed: the monitor may still be
    * talking, and the row being logged must not move under the form. */
-  const [snap, setSnap] = useState<{ meters: number; seconds: number; strokes: number; avgWatts: number; doc?: TelemetryDoc } | null>(null);
+  const [snap, setSnap] = useState<{ meters: number; seconds: number; strokes: number; avgWatts: number; doc?: TelemetryDoc; /* The row is on the site already (autolog.ts). */ logged?: Saved } | null>(null);
   /* ROWS RECORDED AND NOT LOGGED (store.ts, Pending): read as the screen
    * opens and again whenever one is kept, logged or deleted. */
   const [pending, setPending] = useState<Pending[]>([]);
   /* The one being logged, with its recording read back off the phone. */
-  const [old, setOld] = useState<{ p: Pending; doc?: TelemetryDoc } | null>(null);
+  const [old, setOld] = useState<{ p: Pending; doc?: TelemetryDoc; logged?: Saved } | null>(null);
+  /* The kept piece LOG was pressed on, while it is on its way in; and a
+   * fresh look at the list whenever the sender has news of any of them. */
+  const [sending, setSending] = useState("");
+  const [, setNews] = useState(0);
+  useEffect(() => onAuto(() => setNews((n) => n + 1)), []);
   useEffect(() => {
     let on = true;
     const read = () => loadPending().then((list) => on && setPending(list));
@@ -86,9 +103,22 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
       off();
     };
   }, []);
+  /* LOG on a kept piece. With its recording it is logged there and then,
+   * and the form comes up on a row that exists; a piece the phone kept only
+   * the totals of goes in the old way, with its two photos. */
   const openOld = async (p: Pending) => {
+    if (sending) return;
     const doc = p.hasDoc ? ((await loadPendingDoc(p.id)) ?? undefined) : undefined;
-    setOld({ p, doc });
+    if (!doc) {
+      setOld({ p, doc });
+      setForm("old");
+      return;
+    }
+    setSending(p.id);
+    const st = await sendPiece(p.id);
+    setSending("");
+    if (st.state !== "saved") return;
+    setOld({ p, doc, logged: st });
     setForm("old");
   };
 
@@ -103,7 +133,10 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
     const m = Number(q.get("demo"));
     if (!(m >= 100 && m <= 100_000)) return;
     const sp = Number(q.get("speed"));
-    erg.startDemo(Math.round(m), sp >= 1 && sp <= 40 ? sp : DEMO_SPEED);
+    /* &as=real, in development only (useErg.ts): the simulator's row as a
+     * row off a monitor, so a row logging itself can be seen end to end
+     * against the sandbox. The site's build ignores it. */
+    erg.startDemo(Math.round(m), sp >= 1 && sp <= 40 ? sp : DEMO_SPEED, q.get("as") === "real");
     // Once, as the screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -111,15 +144,24 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
   if (ready && !me.signedIn) return <SignIn why="Logging a row needs your account." />;
 
   if (form === "erg" && snap) {
+    /* Is the piece on the monitor still the one this form is about? A
+     * rower who started another piece while the form was open keeps that
+     * piece: the monitor is let go of only when it is still on this row. */
+    const stillIt = !snap.logged || (erg.auto?.state === "saved" && erg.auto.rowId === snap.logged.rowId);
     return (
       <LogForm
         fixed={{ meters: snap.meters, seconds: snap.seconds }}
         doc={snap.doc}
         fake={erg.demo}
+        logged={snap.logged}
         onCancel={() => setForm("none")}
+        onGone={() => {
+          if (stillIt) erg.discard();
+          setForm("none");
+        }}
         onDone={(id, day, meters, seconds, doc, fake) => {
           const out: Logged = { id, meters, seconds, day, doc, demo: erg.demo, device: erg.name || "PM5", strokes: snap.strokes, avgWatts: snap.avgWatts, fake };
-          erg.discard();
+          if (stillIt) erg.discard();
           setForm("none");
           onLogged(out);
         }}
@@ -133,7 +175,13 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
         fixed={{ meters: p.meters, seconds: p.seconds }}
         doc={doc}
         day0={pacificToday(p.at)}
+        logged={old.logged}
+        back="Back"
         onCancel={() => setForm("none")}
+        onGone={() => {
+          setForm("none");
+          setOld(null);
+        }}
         onDone={(id, day, meters, seconds, d) => {
           dropPending(p.id).catch(() => null);
           setForm("none");
@@ -159,6 +207,13 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
     /* The monitor went back to its menu, or a new piece has not started:
      * what was rowed before is one press away, over the monitor. */
     const waiting = l.meters < 1 ? pending[pending.length - 1] : undefined;
+    /* To the form, with the piece as it stands; `logged` when it is on the
+     * site already, whose own count of the meters and the time is the one
+     * the form shows. */
+    const toForm = (logged?: Saved) => {
+      setSnap({ meters: logged?.meters ?? Math.floor(l.meters), seconds: logged?.seconds ?? Math.max(1, Math.round(l.elapsedS)), strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, doc: erg.doc(), logged });
+      setForm("erg");
+    };
     return (
       <View style={{ flex: 1 }}>
         {waiting ? (
@@ -166,14 +221,30 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
             <Text style={[styles.body, { flex: 1, color: C.ink }]} numberOfLines={1}>
               Not logged: <Text style={{ fontFamily: F.bold }}>{fmtInt(waiting.meters)} m</Text> in {fmtClock(waiting.seconds, false)}
             </Text>
-            <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>LOG IT</Text>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>{sending === waiting.id ? "LOGGING" : "LOG IT"}</Text>
           </Pressable>
         ) : null}
       <Monitor
         erg={erg}
-        onLog={() => {
-          setSnap({ meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, doc: erg.doc() });
-          setForm("erg");
+        onLog={async () => {
+          /* A piece too short to have a recording (under 100 m, or a few
+           * pulls) goes in the old way: the form first, two photos. */
+          if (!erg.demo && (l.meters < PENDING_MIN_M || l.strokes < 8)) {
+            toForm();
+            return;
+          }
+          const st = await erg.logNow();
+          if (st?.state === "saved") toForm(st);
+        }}
+        onAdd={() => {
+          if (erg.auto?.state === "saved") toForm(erg.auto);
+        }}
+        onDone={() => {
+          const a = erg.auto;
+          if (a?.state !== "saved") return;
+          const out: Logged = { id: a.rowId, meters: a.meters, seconds: a.seconds, day: a.day, doc: erg.doc(), demo: erg.demo, device: erg.name || "PM5", strokes: l.strokes, avgWatts: l.wattN ? Math.round(l.wattSum / l.wattN) : 0, ...(erg.demo ? { fake: { title: "", caption: "", seconds: a.seconds, photos: [] } } : {}) };
+          erg.discard();
+          onLogged(out);
         }}
         onRead={() => {
           const doc = erg.doc();
@@ -192,7 +263,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-        {pending.length ? <Unlogged rows={pending} onLog={openOld} /> : null}
+        {pending.length ? <Unlogged rows={pending} sending={sending} onLog={openOld} /> : null}
         <Eyebrow>Telemetry · Concept2 PM5</Eyebrow>
         <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginVertical: 6 }}>
           Connect your <Text style={{ color: C.accent }}>erg</Text>
@@ -248,7 +319,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
  * same form a row ends on, with the meters and the time already in it; the
  * photos are added there. DELETE asks once more in place, and then the
  * recording is gone from the phone. */
-function Unlogged({ rows, onLog }: { rows: Pending[]; onLog: (p: Pending) => void }) {
+function Unlogged({ rows, sending, onLog }: { rows: Pending[]; /* The one LOG was pressed on, on its way in. */ sending: string; onLog: (p: Pending) => void }) {
   const [sure, setSure] = useState("");
   const today = pacificToday();
   const when = (p: Pending) => {
@@ -257,6 +328,18 @@ function Unlogged({ rows, onLog }: { rows: Pending[]; onLog: (p: Pending) => voi
     const d = new Date(p.at);
     const h = d.getHours();
     return `${word}, ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  };
+  /* WHY IT IS STILL HERE, when there is a reason to give: the site would
+   * not take it (its own words), it has not got through yet, or it is the
+   * short half of a piece that was logged whole (autolog.ts). */
+  const why = (p: Pending) => {
+    const st = autoOf(p.id);
+    if (st?.state === "saving") return "Logging it now";
+    if (p.refused) return p.refused;
+    if (st?.state === "refused") return st.error;
+    if (st?.state === "waiting") return "Not sent yet. It sends itself when there is a signal.";
+    if (p.dup) return "The first part of a longer row that is logged. Delete it, unless it was a row of its own.";
+    return "";
   };
   return (
     <View style={{ marginBottom: 26 }}>
@@ -274,12 +357,13 @@ function Unlogged({ rows, onLog }: { rows: Pending[]; onLog: (p: Pending) => voi
               {when(p)}
               {p.hasDoc ? "" : " · totals only"}
             </Text>
+            {why(p) ? <Text style={[styles.body, { fontSize: 13, color: C.accent }]}>{why(p)}</Text> : null}
           </Pressable>
           <Text accessibilityRole="button" accessibilityLabel={sure === p.id ? "Delete this recording for good" : "Delete this recording"} onPress={() => (sure === p.id ? (setSure(""), void dropPending(p.id).catch(() => null)) : setSure(p.id))} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.soft, paddingVertical: 14 }}>
             {sure === p.id ? "SURE?" : "DELETE"}
           </Text>
           <Text accessibilityRole="button" accessibilityLabel={`Log ${fmtInt(p.meters)} meters`} onPress={() => onLog(p)} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent, paddingVertical: 14 }}>
-            LOG
+            {sending === p.id ? "LOGGING" : "LOG"}
           </Text>
         </View>
       ))}
@@ -302,8 +386,19 @@ const END_HOLD_MS = 1200;
  * that; those are counted where they are added. */
 const LAST = 5;
 
-function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void; onRead: () => void; onLeave: () => void }) {
-  const { live, name, error, demo } = erg;
+function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
+  const { live, name, error, demo, auto } = erg;
+  /* LOG was pressed and the row is on its way in. */
+  const [asking, setAsking] = useState(false);
+  const log = async () => {
+    if (asking) return;
+    setAsking(true);
+    try {
+      await onLog();
+    } finally {
+      setAsking(false);
+    }
+  };
   /* The screen stays on for as long as the monitor is up: a rower's hands
    * are on the handle, not the phone. */
   useKeepAwake();
@@ -361,19 +456,46 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
   const at = Date.now();
   const still = at - moved.current.at > IDLE_MS;
   const finished = live.ended && at - endedSince.current >= END_HOLD_MS;
-  const over = meters >= 1 && (finished || !!error || still);
+  const over = meters >= 1 && (finished || !!error || still || !!auto);
   /* A demo row's LOG is a pretend one (Faked); its analytics on their own
    * are the second line. Eight strokes in, there is a piece to read. */
   const canRead = demo && live.strokes >= 8;
-  const ends = (
-    <View>
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
-        <Btn label={canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
-      </View>
-      {demo ? <Btn label="Just its analytics" quiet onPress={onRead} disabled={!canRead} style={{ marginTop: 10 }} /> : null}
+  /* THE FOOT OF A ROW THAT IS OVER. A piece that logs itself (autolog.ts)
+   * says so here, big enough to read from the seat: LOGGED, and under it
+   * DONE and ADD PHOTOS. While it is on its way in the two wait. A piece
+   * that did not get through says why, and keeps DISCARD and a second try.
+   * A piece that does not log itself (stopped short of 500 m, or still
+   * being rowed) has DISCARD and LOG as it always had, and LOG now logs it
+   * there and then. */
+  const said = (big: string, small: string, color: string) => (
+    <View style={{ marginBottom: 10 }}>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontFamily: F.black, fontSize: 24, lineHeight: 28, color, fontVariant: ["tabular-nums"] }}>
+        {big}
+      </Text>
+      {small ? <Text style={{ fontFamily: F.mono, fontSize: 12, lineHeight: 17, color: C.soft, marginTop: 2 }}>{small}</Text> : null}
     </View>
   );
+  const analytics = demo ? <Btn label="Just its analytics" quiet onPress={onRead} disabled={!canRead} style={{ marginTop: 10 }} /> : null;
+  const ends =
+    auto?.state === "saved" || auto?.state === "saving" || asking ? (
+      <View>
+        {auto?.state === "saved" ? said(`Logged · ${fmtInt(auto.meters)} m`, demo ? "A demo: nothing was saved. The photos are next, or not at all." : "It is on the board. Add the two photos now, or later from the row.", C.good) : said(`Logging ${fmtInt(meters)} m`, "Sending the row.", C.ink)}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Btn label="Done" quiet onPress={onDone} disabled={auto?.state !== "saved"} style={{ flex: 1 }} />
+          <Btn label="Add photos" onPress={onAdd} disabled={auto?.state !== "saved"} style={{ flex: 2 }} />
+        </View>
+        {analytics}
+      </View>
+    ) : (
+      <View>
+        {auto?.state === "waiting" ? said("Not sent yet", `${auto.error} The row is kept on this phone and sends itself when it can.`, C.accent) : auto?.state === "refused" ? said("Not logged", auto.error, C.accent) : null}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
+          <Btn label={auto ? "Try again" : canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={log} disabled={!canLog} style={{ flex: 2 }} />
+        </View>
+        {analytics}
+      </View>
+    );
   /* THE RACE (GhostRace.tsx) IS THE FIRST PAGE of a set distance (owner,
    * 2026-11-22: "let's have that be the main screen"), with the numbers one
    * swipe on. A plain row or a set time has nobody to race, so there the
@@ -451,7 +573,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
   const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && page !== prodPage} active={page === (raceFirst ? 0 : 1)} />);
   const produced = prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} arcade={arcade.id ? arcade : null} />) : null;
   const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
-  const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
+  const status = error ? "Disconnected" : auto?.state === "saved" ? "Logged" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
 
   return (
@@ -493,7 +615,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
             {leaf(
               <>
                 <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
-                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? (demo ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}. A demo: logging it goes through the form and the page after, and nothing is saved.` : `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.`) : "Nothing rowed yet."}</Text>
+                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? (demo ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}. A demo: logging it goes through the form and the page after, and nothing is saved.` : auto?.state === "saved" ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}.` : `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging it puts it on the board at once; the two photos can be added after.`) : "Nothing rowed yet."}</Text>
                 {ends}
               </>,
               { paddingHorizontal: 20, justifyContent: "center" },
@@ -701,7 +823,35 @@ export function parseTime(text: string): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : null;
 }
 
-function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; /* The day it was rowed, for a row logged later; today when left out. */ day0?: string; /* A demo row: the form is the same, the photos are not required, and LOG sends nothing (Faked). */ fake?: boolean; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc, fake?: Faked) => void }) {
+function LogForm({
+  fixed,
+  doc,
+  day0,
+  fake,
+  logged,
+  back,
+  onCancel,
+  onGone,
+  onDone,
+}: {
+  fixed?: { meters: number; seconds: number };
+  doc?: TelemetryDoc;
+  /* The day it was rowed, for a row logged later; today when left out. */
+  day0?: string;
+  /* A demo row: the form is the same, the photos are not required, and LOG sends nothing (Faked). */
+  fake?: boolean;
+  /* THE ROW IS ON THE SITE ALREADY (a row off the monitor: autolog.ts). The
+   * form adds to it: two photos or none, the title the site gave it there
+   * to be typed over, the words, another day. Its button says what it will
+   * do, and DELETE THIS ROW is at the foot. */
+  logged?: Saved;
+  /* The word on the way back out, when it is not the monitor behind it. */
+  back?: string;
+  onCancel: () => void;
+  /* The logged row was deleted from here. */
+  onGone?: () => void;
+  onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc, fake?: Faked) => void;
+}) {
   const today = pacificToday();
   const [meters, setMeters] = useState(fixed ? String(fixed.meters) : "");
   /* The time as ONE entry, as the website takes it (owner, 2026-11-21:
@@ -709,7 +859,7 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
    * minutes and seconds, just like we do on the website"): 20:00, 1:02:30,
    * or a bare number for whole minutes. */
   const [time, setTime] = useState("");
-  const [day, setDay] = useState(day0 && day0 <= today ? day0 : today);
+  const [day, setDay] = useState(logged && !fake ? logged.day : day0 && day0 <= today ? day0 : today);
   /* THE TITLE COMES FILLED IN (owner, 2026-11-23: "when I'm manually
    * logging a row, fill in the title as like November number X, and we can
    * leave the description blank"): the month and which row of it this will
@@ -721,8 +871,13 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
   const { me } = useSession();
   const count = me.totals?.monthSessions;
   const auto = me.month && count !== undefined ? `${me.month.label.split(" ")[0]} #${count + 1}` : "";
-  const [title, setTitle] = useState(day.slice(0, 7) === today.slice(0, 7) ? auto : "");
+  /* A row that is logged has the title the site gave it, which is the same
+   * count made where the rows are. */
+  const [title, setTitle] = useState(logged?.title ? logged.title : day.slice(0, 7) === today.slice(0, 7) ? auto : "");
+  /* The title the form opened with: what "changed" is measured against. */
+  const title0 = useRef(title).current;
   const pickDay = (d: string) => {
+    if (logged?.title) return setDay(d);
     const was = day.slice(0, 7) === today.slice(0, 7);
     const is = d.slice(0, 7) === today.slice(0, 7);
     if (was && !is && title === auto) setTitle("");
@@ -739,7 +894,14 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
 
   const m = fixed ? fixed.meters : Math.round(Number(meters));
   const s = fixed ? fixed.seconds : (parseTime(time) ?? 0);
-  const ok = m > 0 && s > 0 && (!!fake || (photos[0] !== null && photos[1] !== null));
+  const both = photos[0] !== null && photos[1] !== null;
+  const none = photos[0] === null && photos[1] === null;
+  /* A row typed in needs its two. A row that is logged, and a demo, take
+   * two or none: one photo is neither. */
+  const ok = m > 0 && s > 0 && (logged ? both || none : !!fake || both);
+  /* What the form would change on a row that is logged. */
+  const changed = !!logged && (both || title.trim() !== title0.trim() || !!caption.trim() || (!fake && day !== logged.day));
+  const [sure, setSure] = useState(false);
 
   /* BOTH PHOTOS IN ONE VISIT to the library: two picked fill both frames;
    * one picked fills the frame that was pressed. The camera takes one, into
@@ -764,6 +926,9 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
   /* The pretend send: the steps a real one goes through, at about the pace
    * of a good signal, and then the page. */
   const pretend = async () => {
+    const shownNow = photos.filter((p): p is Picked => p !== null).map((p) => ({ full: p.uri, thumb: null }));
+    /* A demo that is "logged" already and has no photos to pretend to send. */
+    if (logged && none) return onDone("demo", day, m, s, doc, { title, caption, seconds: s, photos: shownNow });
     const wait = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
     const steps: Progress[] = [
       { at: 0, to: 0.1, word: "Getting photo 1 ready" },
@@ -784,6 +949,21 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
 
   const submit = async () => {
     if (fake) return pretend();
+    if (logged) {
+      /* Nothing to add: the row is as the site has it. */
+      if (!changed) return onDone(logged.rowId, day, m, s, doc);
+      setError("");
+      setBusy({ at: 0, to: 0.02, word: both ? "Getting photo 1 ready" : "Saving" });
+      try {
+        await finishRow({ id: logged.rowId, day, meters: m, seconds: s, ...(title.trim() && title.trim() !== title0.trim() ? { title: title.trim() } : {}), caption, photos: photos[0] && photos[1] ? [photos[0], photos[1]] : undefined }, setBusy);
+        setBusy(null);
+        onDone(logged.rowId, day, m, s, doc);
+      } catch (err) {
+        setBusy(null);
+        setError(err instanceof Error ? err.message : "That did not work.");
+      }
+      return;
+    }
     if (!photos[0] || !photos[1]) return;
     setError("");
     setBusy({ at: 0, to: 0.02, word: "Getting photo 1 ready" });
@@ -799,10 +979,10 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
-      {fake ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing is saved · photos optional</Text> : null}
+      {fake && !logged ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing is saved · photos optional</Text> : null}
       {fixed ? (
         <View>
-          <Eyebrow>The row</Eyebrow>
+          {logged ? <Eyebrow style={{ color: C.good }}>{fake ? "Logged · a demo, nothing was saved" : "Logged · it is on the board"}</Eyebrow> : <Eyebrow>The row</Eyebrow>}
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
             <Num size={56} color={C.accent}>
               {fmtInt(m)} m
@@ -811,6 +991,7 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
               {fmtClock(s, false)} · {fmtPace(m > 0 ? (s / m) * 500 : 0)}
             </Text>
           </View>
+          {logged ? <Text style={[styles.body, { fontSize: 14, marginTop: 4 }]}>Add the two photos now, or later from the row's own page.</Text> : null}
         </View>
       ) : (
         <View>
@@ -892,9 +1073,35 @@ function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meter
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
       {/* While the row is going in, the button gives its place to the bar. */}
-      {busy ? <Sending p={busy} fake={fake} /> : <Btn label={m > 0 ? `Log ${fmtInt(m)} m` : "Log"} onPress={submit} disabled={!ok} />}
-      {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
-      <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
+      {busy ? <Sending p={busy} fake={fake} /> : <Btn label={logged ? (both ? "Add the photos" : changed ? "Save" : "Done") : m > 0 ? `Log ${fmtInt(m)} m` : "Log"} onPress={submit} disabled={!ok} />}
+      {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? (logged ? "Two photos, or none: you, and the monitor." : "Both photos are needed: you, and the monitor.") : "Enter the meters and the time."}</Text> : null}
+      <Btn label={back ?? (fixed ? "Back to the monitor" : "Cancel")} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
+      {/* WHAT DISCARD WAS: the row is logged, so throwing it away is
+          deleting it, and that is asked twice. */}
+      {logged && onGone && !busy ? (
+        <Text
+          accessibilityRole="button"
+          accessibilityLabel={sure ? "Delete this row for good" : "Delete this row"}
+          onPress={async () => {
+            if (!sure) return setSure(true);
+            if (fake) return onGone();
+            setError("");
+            try {
+              await api(`/api/row100k/rows/${logged.rowId}`, { method: "DELETE" });
+              onGone();
+            } catch (err) {
+              /* Gone already is gone. */
+              if (err instanceof ApiError && err.status === 404) return onGone();
+              setSure(false);
+              setError(err instanceof Error ? err.message : "That did not delete. Try again.");
+            }
+          }}
+          suppressHighlighting
+          style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: sure ? C.accent : C.soft, textAlign: "center", paddingVertical: 18 }}
+        >
+          {sure ? "SURE? DELETE THIS ROW" : "DELETE THIS ROW"}
+        </Text>
+      ) : null}
     </ScrollView>
   );
 }

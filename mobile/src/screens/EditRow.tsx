@@ -26,10 +26,13 @@ import { parseTime } from "./RowScreen";
  * carries what is typed here, and the recording under it keeps what the
  * monitor read.
  *
- * TWO PHOTOS, as on every row (the site's rule: the rower, and the
- * monitor). Either can be swapped for one from the library or the camera;
- * taking one out leaves its place open, and the row saves once both places
- * are full again.
+ * TWO PHOTOS (the site's rule: the rower, and the monitor), or, on a row
+ * off the monitor that logged itself (autolog.ts, 2026-11-24), none yet.
+ * Either can be swapped for one from the library or the camera; taking one
+ * out leaves its place open, and the row saves once both places are full
+ * again. A ROW WITH NO PHOTOS OPENS ON ITS PHOTOS: they are what it was
+ * opened for, so they are at the top, and one visit to the library fills
+ * both places.
  *
  * It saves through the site's own edit (PATCH api/row100k/rows/[id]: the
  * same checks as logging) and the description's own route. */
@@ -72,8 +75,15 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
   const choose = async (i: number, from: "library" | "camera") => {
     setError("");
     try {
-      const p = from === "camera" ? await pickPhoto("camera") : (await pickPhotos(1))[0];
-      if (p) put(i, { kind: "new", pick: p });
+      if (from === "camera") {
+        const p = await pickPhoto("camera");
+        if (p) put(i, { kind: "new", pick: p });
+        return;
+      }
+      /* Both places open: two picked fill both, as on the log's own form. */
+      const got = await pickPhotos(slots.every((x) => x === null) ? 2 : 1);
+      if (got.length >= 2) setSlots([{ kind: "new", pick: got[0] }, { kind: "new", pick: got[1] }]);
+      else if (got[0]) put(i, { kind: "new", pick: got[0] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "That photo could not be opened.");
     }
@@ -116,6 +126,8 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
   const label = (t: string) => <Text style={[mono(10, false, C.gray, 0.14), { marginBottom: 6 }]}>{t}</Text>;
   const noRing = Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null;
   const figure = [{ borderBottomWidth: 1, borderColor: C.ink, fontFamily: F.black, fontSize: 28, paddingVertical: 6, color: C.ink, fontVariant: ["tabular-nums" as const] }, noRing];
+  /* The row came with no photos: its photos lead the page. */
+  const bare = row.photoKeys.length === 0;
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -134,6 +146,7 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: (Platform.OS === "ios" ? 0 : kb) + 60 }}>
+            {bare ? <View style={{ marginBottom: 24 }}>{pics()}</View> : null}
             {label("Description")}
             <TextInput
               accessibilityLabel="Description"
@@ -171,7 +184,19 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
               <TextInput accessibilityLabel="Title" value={title} onChangeText={setTitle} maxLength={60} style={[{ borderBottomWidth: 1, borderColor: C.ink, fontFamily: F.bold, fontSize: 18, paddingVertical: 6, color: C.ink }, noRing]} />
             </View>
 
-            <View style={{ marginTop: 24 }}>
+            {bare ? null : <View style={{ marginTop: 24 }}>{pics()}</View>}
+
+            {error ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.accent, marginTop: 18 }}>{error}</Text> : null}
+            {busy ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 18 }]}>{busy}</Text> : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  function pics() {
+    return (
+            <View>
               {label("Photos · you, and the monitor")}
               <View style={{ flexDirection: "row", gap: 10 }}>
                 {slots.map((x, i) => (
@@ -197,12 +222,6 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
               </View>
               {photosChanged && !full ? <Text style={[mono(10, false, C.accent, 0.1), { marginTop: 10 }]}>A row carries two photos. Fill the open place to save.</Text> : null}
             </View>
-
-            {error ? <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.accent, marginTop: 18 }}>{error}</Text> : null}
-            {busy ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 18 }]}>{busy}</Text> : null}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
+    );
+  }
 }

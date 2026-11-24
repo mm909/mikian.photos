@@ -455,6 +455,15 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
       </Pressable>
 
       {it.masked ? null : <PhotoSwap key={it.photos[0]?.full ?? "none"} photos={it.photos} style={{ marginTop: 16 }} gallery={gallery} onHold={onHold} />}
+      {/* The rower's own row off the monitor, logged before its photos
+          (autolog.ts, 2026-11-24): where the picture would be is the way to
+          add the two, on the row's page. To everybody else the row is its
+          title and its figures, and no picture. */}
+      {it.mine && !it.masked && it.photos.length === 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Add the two photos to this row" onPress={() => onRow(it.id)} style={({ pressed }) => ({ marginTop: 14, marginHorizontal: PAD, borderWidth: 1.5, borderStyle: "dashed", borderColor: C.gray, paddingVertical: 18, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>ADD THE TWO PHOTOS</Text>
+        </Pressable>
+      ) : null}
 
       <PostActions id={it.id} likes={it.likes ?? 0} liked={!!it.liked} comments={it.comments ?? 0} onComments={onTalk} onShare={onShare} onChange={onLike} style={{ marginTop: 8, marginBottom: -4, paddingHorizontal: PAD }} />
 
