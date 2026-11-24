@@ -1,6 +1,6 @@
 import { useRef, type ReactElement, type ReactNode } from "react";
 import { Text, View } from "react-native";
-import Svg, { Circle, G, Line, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Ellipse, G, Line, Path, Rect } from "react-native-svg";
 import { DOT_ON, FlipDots, dotClock } from "../arcade/Art159";
 import { useWallClock } from "../arcade/BoatArt";
 import { Board, boardOf, pieceAt, sOf, type Piece } from "../arcade/Board";
@@ -12,7 +12,7 @@ import { useRating } from "../arcade/rating";
 import { levelOf } from "../arcade/score";
 import { READY_S, type ShowView } from "../arcade/show";
 import { STOCK, wear } from "../arcade/skins";
-import { TokenArt, ShotArt, type Paint } from "../arcade/Token";
+import { TOKEN_U, TokenArt, ShotArt, star, type Paint } from "../arcade/Token";
 import type { Showed } from "../arcade/useShow";
 import { milestone } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
@@ -417,6 +417,7 @@ function Ring({ x, y, r, k, color }: { x: number; y: number; r: number; k: numbe
   const big = a > Math.PI ? 1 : 0;
   return (
     <G>
+      <Circle cx={x} cy={y} r={r} stroke={C.paper} strokeOpacity={0.75} strokeWidth={8} fill="none" />
       <Circle cx={x} cy={y} r={r} stroke={C.line} strokeWidth={4} fill="none" />
       {k >= 0.999 ? (
         <Circle cx={x} cy={y} r={r} stroke={color} strokeWidth={4.5} fill="none" />
@@ -432,6 +433,49 @@ function Ring({ x, y, r, k, color }: { x: number; y: number; r: number; k: numbe
 /* How long a shot is in the air, in the wall's seconds (so it is seen at ten
  * times a clock too). */
 const FLY_S = 0.42;
+
+/* A spiky burst round a point: the "pow" of a hit. */
+const burst = (x: number, y: number, R: number, r: number, n: number, turn = 0): string => {
+  let d = "";
+  for (let i = 0; i < n * 2; i++) {
+    const a = (i / (n * 2)) * Math.PI * 2 + turn;
+    const q = i % 2 ? r : R;
+    d += `${i ? "L" : "M"}${(x + Math.cos(a) * q).toFixed(1)} ${(y + Math.sin(a) * q).toFixed(1)}`;
+  }
+  return `${d}Z`;
+};
+
+/* A HEALTH BAR: what is left in its colour, and what was just lost shown
+ * a moment longer in yellow, draining after it; the bar jolts as it is
+ * hit. */
+function HealthBar({ name, h, max, mine, wall }: { name: string; h: number; max: number; mine: boolean; wall: number }) {
+  const lag = useRef({ v: h, hitAt: -9, was: h });
+  const L = lag.current;
+  if (h < L.was) L.hitAt = wall;
+  L.was = h;
+  if (h >= L.v) L.v = h;
+  else L.v += (h - L.v) * 0.07;
+  const m = Math.max(1, max);
+  const now = clamp(h / m);
+  const ghost = clamp(L.v / m) - now;
+  const since = wall - L.hitAt;
+  const jolt = since >= 0 && since < 0.4 ? Math.sin(since * 60) * 5 * (1 - since / 0.4) : 0;
+  const low = now < 0.3;
+  return (
+    <View style={{ flex: 1, transform: [{ translateX: jolt }] }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 18, color: mine ? C.accent : C.ink, flexShrink: 1 }}>
+          {name}
+        </Text>
+        <Text style={{ fontFamily: F.monoBold, fontSize: 15, color: since < 0.4 ? BEST : C.ink }}>{`${h}`}</Text>
+      </View>
+      <View style={{ height: 16, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, flexDirection: mine ? "row" : "row-reverse", backgroundColor: C.paper }}>
+        <View style={{ width: `${(100 * now).toFixed(1)}%`, backgroundColor: low ? BEST : mine ? C.accent : C.ink, opacity: low ? 0.7 + 0.3 * Math.sin(wall * 9) : 1 }} />
+        <View style={{ width: `${(100 * ghost).toFixed(1)}%`, backgroundColor: DOT_ON }} />
+      </View>
+    </View>
+  );
+}
 
 function Match(p: P) {
   const { v, width, height, wall, rt, myM, paint, hop, showed } = p;
@@ -466,9 +510,18 @@ function Match(p: P) {
   });
   const meS = sOf(geo, myM);
   const opS = sOf(geo, showed.show.current?.metersAt(opp.id, rt) ?? 0, 2);
+  /* A piece that is hit shakes for a moment. */
+  const jolt = (id: string): number => {
+    let j = 0;
+    for (const s of mv.shots) {
+      const e = wall - wallOf(s) - FLY_S;
+      if (s.hit && !s.cancelled && s.to === id && e >= 0 && e < 0.45) j = Math.max(j, 0.9 * (1 - e / 0.45));
+    }
+    return j;
+  };
   const pieces: Piece[] = [
-    { id: "me", paint, s: meS, hop, wobble, label: "YOU", mine: true, out: (me?.health ?? 1) <= 0 && mv.phase === "over", firing: flying.some((s) => s.from === "me" && wall - wallOf(s) < FLY_S) },
-    { id: "op", paint: oppPaint(opp.id), s: opS, hop: botHop(opp.id, rt), wobble: 0, label: opp.name.split(" ")[0].toUpperCase(), firing: flying.some((s) => s.from !== "me" && wall - wallOf(s) < FLY_S) },
+    { id: "me", paint, s: meS, hop, wobble: Math.max(wobble, jolt("me")), label: "YOU", mine: true, out: (me?.health ?? 1) <= 0 && mv.phase === "over", firing: flying.some((s) => s.from === "me" && wall - wallOf(s) < FLY_S) },
+    { id: "op", paint: oppPaint(opp.id), s: opS, hop: botHop(opp.id, rt), wobble: jolt(opp.id), label: opp.name.split(" ")[0].toUpperCase(), firing: flying.some((s) => s.from !== "me" && wall - wallOf(s) < FLY_S) },
   ];
   const posOf = (id: string) => pieceAt(geo, id === "me" ? meS : opS);
   const shots: ReactElement[] = [];
@@ -481,26 +534,67 @@ function Match(p: P) {
      * wide and into the water. */
     const end = s.cancelled ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : s.hit ? b : { x: b.x + (b.y - a.y) * 0.28, y: b.y - (b.x - a.x) * 0.28 };
     const q = s.cancelled ? Math.min(1, e) : e;
+    const R0 = 7 * k + 2;
     if (q < 1) {
-      const x = a.x + (end.x - a.x) * q;
-      const y = a.y + (end.y - a.y) * q - Math.sin(q * Math.PI) * 26 * k;
-      shots.push(<ShotArt key={`s${s.n}`} o={shotPaint} x={x} y={y} r={7 * k + 2} t={wall} />);
+      const at = (u: number) => ({ x: a.x + (end.x - a.x) * u, y: a.y + (end.y - a.y) * u - Math.sin(u * Math.PI) * 26 * k });
+      const c0 = shotPaint.extra === "flame" ? "#F0631E" : shotPaint.extra === "bolt" ? "#F2C230" : shotPaint.blade === "ink" ? C.ink : shotPaint.blade;
+      /* Its shadow runs along the water under it. */
+      shots.push(<Ellipse key={`w${s.n}`} cx={a.x + (end.x - a.x) * q} cy={a.y + (end.y - a.y) * q + 9 * k} rx={R0 * (0.9 - 0.3 * Math.sin(q * Math.PI))} ry={R0 * 0.3} fill={C.ink} fillOpacity={0.16} />);
+      /* The puff where it left, and the streak behind it. */
+      if (q < 0.35) shots.push(<Circle key={`f${s.n}`} cx={a.x} cy={a.y} r={R0 * (1 + 3 * q)} stroke={c0} strokeWidth={3} strokeOpacity={1 - q / 0.35} fill="none" />);
+      for (let j = 4; j >= 1; j--) {
+        const u = q - j * 0.055;
+        if (u <= 0) continue;
+        const g2 = at(u);
+        shots.push(<Circle key={`t${s.n}-${j}`} cx={g2.x} cy={g2.y} r={R0 * (1 - j * 0.17)} fill={c0} fillOpacity={0.34 - j * 0.07} />);
+      }
+      const here = at(q);
+      shots.push(<ShotArt key={`s${s.n}`} o={shotPaint} x={here.x} y={here.y} r={R0} t={wall} />);
     } else {
       const kb = clamp(e - 1, 0, 2) / 0.8;
       if (kb < 1) {
         const R = (10 + 26 * kb) * k;
-        if (s.cancelled) shots.push(<Circle key={`c${s.n}`} cx={end.x} cy={end.y} r={R} stroke={C.gray} strokeWidth={3} fill="none" opacity={1 - kb} />);
-        else if (s.hit) {
+        const fade = 1 - kb;
+        if (s.cancelled) {
+          /* Two that meet: a clink, and sparks. */
           shots.push(
-            <G key={`h${s.n}`} opacity={1 - kb}>
-              <Circle cx={end.x} cy={end.y} r={R} stroke={s.lucky ? DOT_ON : BEST} strokeWidth={4} fill="none" />
-              {Array.from({ length: 8 }, (_, i) => {
-                const an = (i / 8) * Math.PI * 2;
-                return <Line key={i} x1={end.x + Math.cos(an) * R * 0.5} y1={end.y + Math.sin(an) * R * 0.5} x2={end.x + Math.cos(an) * R * 1.15} y2={end.y + Math.sin(an) * R * 1.15} stroke={C.ink} strokeWidth={2.6} strokeLinecap="round" />;
+            <G key={`c${s.n}`} opacity={fade}>
+              {kb < 0.35 ? <Path d={burst(end.x, end.y, R0 * (1.6 + 3 * kb), R0 * (0.7 + kb), 6, 0.3)} fill={C.paper} stroke={C.ink} strokeWidth={2} strokeLinejoin="round" /> : null}
+              <Circle cx={end.x} cy={end.y} r={R} stroke={C.gray} strokeWidth={3} fill="none" />
+              {Array.from({ length: 6 }, (_, i) => {
+                const an = (i / 6) * Math.PI * 2 + 0.5;
+                const d = R * (0.5 + 0.9 * kb);
+                return <Path key={i} d={star(end.x + Math.cos(an) * d, end.y + Math.sin(an) * d, (5 - 3 * kb) * k)} fill={DOT_ON} stroke={C.ink} strokeWidth={0.8} strokeLinejoin="round" />;
               })}
             </G>,
           );
-        } else shots.push(<Circle key={`m${s.n}`} cx={end.x} cy={end.y} r={R * 0.7} stroke={C.accent} strokeWidth={2} fill="none" opacity={1 - kb} />);
+        } else if (s.hit) {
+          /* A hit: a flash, a "pow", and a ring going out. */
+          const hot = s.lucky ? DOT_ON : BEST;
+          shots.push(
+            <G key={`h${s.n}`} opacity={fade}>
+              {kb < 0.2 ? <Circle cx={end.x} cy={end.y} r={R * 1.3} fill="#FFFFFF" fillOpacity={0.8 * (1 - kb / 0.2)} /> : null}
+              {kb < 0.32 ? <Path d={burst(end.x, end.y, (14 + 22 * Math.min(1, kb / 0.2)) * k, (8 + 9 * Math.min(1, kb / 0.2)) * k, 9, kb * 2)} fill={hot} stroke={C.ink} strokeWidth={2.2} strokeLinejoin="round" fillOpacity={0.9 - kb * 2} strokeOpacity={1 - kb * 2.5} /> : null}
+              <Circle cx={end.x} cy={end.y} r={R * 1.25} stroke={hot} strokeWidth={4 * fade + 1} fill="none" />
+              {Array.from({ length: 8 }, (_, i) => {
+                const an = (i / 8) * Math.PI * 2;
+                return <Line key={i} x1={end.x + Math.cos(an) * R * 0.9} y1={end.y + Math.sin(an) * R * 0.9} x2={end.x + Math.cos(an) * R * 1.5} y2={end.y + Math.sin(an) * R * 1.5} stroke={C.ink} strokeWidth={2.8} strokeLinecap="round" />;
+              })}
+            </G>,
+          );
+        } else {
+          /* A miss: it goes into the water. */
+          shots.push(
+            <G key={`m${s.n}`} opacity={fade}>
+              <Ellipse cx={end.x} cy={end.y} rx={R * 0.9} ry={R * 0.34} stroke={C.accent} strokeWidth={2.4} fill="none" />
+              <Ellipse cx={end.x} cy={end.y} rx={R * 0.5} ry={R * 0.19} stroke={C.accent} strokeWidth={2} fill="none" />
+              {[-1, 0, 1].map((i) => {
+                const u = Math.min(1, kb * 1.6);
+                return <Circle key={i} cx={end.x + i * 14 * k * u} cy={end.y - (i === 0 ? 30 : 20) * k * Math.sin(u * Math.PI)} r={(3 - 1.5 * u) * k + 1} fill={C.accent} />;
+              })}
+            </G>,
+          );
+        }
       }
     }
   }
@@ -515,7 +609,7 @@ function Match(p: P) {
     if (!(s.hit && !s.cancelled) || e < 0 || e > 1.4) continue;
     const b = posOf(s.to);
     pops.push(
-      <Text key={`p${s.n}`} style={{ position: "absolute", left: b.x - 60, width: 120, top: HUD + b.y - geo.unit * 0.9 - e * 30, textAlign: "center", fontFamily: F.black, fontSize: 30, color: s.to === "me" ? BEST : C.ink, opacity: 1 - clamp((e - 0.9) / 0.5) }}>
+      <Text key={`p${s.n}`} style={{ position: "absolute", left: b.x - 60, width: 120, top: HUD + b.y - geo.unit * 0.9 - e * 30, textAlign: "center", fontFamily: F.black, fontSize: 32, color: s.to === "me" ? BEST : C.ink, opacity: 1 - clamp((e - 0.9) / 0.5), transform: [{ scale: 0.5 + 0.5 * pop(e / 0.22) }], textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
         {`−${s.damage}`}
       </Text>,
     );
@@ -528,19 +622,6 @@ function Match(p: P) {
   const word = lastMine && lastE < Math.min(1.6, (0.8 * (COOL_S + AIM_S)) / Math.max(0.2, v.rate)) ? (lastMine.cancelled ? "CANCEL" : lastMine.lucky ? `LUCKY −${lastMine.damage}` : lastMine.hit ? `HIT −${lastMine.damage}` : "MISS") : "";
   const wordColor = lastMine?.cancelled ? C.gray : lastMine?.lucky ? "#111111" : lastMine?.hit ? C.good : BEST;
 
-  const bar = (name: string, h: number, max: number, mine: boolean) => (
-    <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 18, color: mine ? C.accent : C.ink, flexShrink: 1 }}>
-          {name}
-        </Text>
-        <Text style={{ fontFamily: F.monoBold, fontSize: 15, color: C.ink }}>{`${h}`}</Text>
-      </View>
-      <View style={{ height: 14, borderWidth: 2, borderColor: C.ink, marginTop: 3, flexDirection: mine ? "row" : "row-reverse" }}>
-        <View style={{ width: `${Math.round((100 * h) / Math.max(1, max))}%`, backgroundColor: h / max < 0.3 ? BEST : mine ? C.accent : C.ink }} />
-      </View>
-    </View>
-  );
   const over = mv.phase === "over";
   /* THE AIM: what to hold, and the 3 seconds' pace so far, in tenths. */
   const phaseWord = (
@@ -572,8 +653,8 @@ function Match(p: P) {
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <View style={{ height: HUD, flexDirection: "row", columnGap: 18, paddingHorizontal: 16, paddingTop: 8 }}>
-        {bar("YOU", me?.health ?? 0, me?.max ?? 1, true)}
-        {bar(opp.name.toUpperCase(), op?.health ?? 0, op?.max ?? 1, false)}
+        <HealthBar name="YOU" h={me?.health ?? 0} max={me?.max ?? 1} mine wall={wall} />
+        <HealthBar name={opp.name.toUpperCase()} h={op?.health ?? 0} max={op?.max ?? 1} mine={false} wall={wall} />
       </View>
       <View style={{ flexDirection: "row" }}>
         <View style={{ width: g.W, height: g.H }}>
@@ -582,7 +663,7 @@ function Match(p: P) {
             {shots}
           </Board>
           {word ? (
-            <View pointerEvents="none" style={{ position: "absolute", top: 6, alignSelf: "center", backgroundColor: lastMine?.lucky ? DOT_ON : C.paper, paddingHorizontal: 10, borderWidth: 2, borderColor: C.ink }}>
+            <View pointerEvents="none" style={{ position: "absolute", top: 6, alignSelf: "center", backgroundColor: lastMine?.lucky ? DOT_ON : C.paper, paddingHorizontal: 10, borderWidth: 2, borderColor: C.ink, borderRadius: 4, transform: [{ scale: 0.6 + 0.4 * pop(lastE / 0.2) }, { rotate: `${(-3 * (1 - clamp(lastE / 0.3))).toFixed(1)}deg` }] }}>
               <Text style={{ fontFamily: F.black, fontSize: 32, letterSpacing: 1, color: wordColor }}>{word}</Text>
             </View>
           ) : null}
@@ -672,7 +753,26 @@ function LevelUp({ v, width, height, wall, paint, hop }: P) {
       <View style={{ transform: [{ scale: up ? 0.8 + 0.2 * pop((e - 3.4) / 0.5) : 1 }] }}>
         <Big text={up && e > 3.4 ? `LEVEL ${lv.level}!` : upEnd ? "LEVEL UP" : "THIS ROW'S XP"} width={width - 32} max={60} color={up && e > 3.4 ? C.accent : C.ink} />
       </View>
-      <TokenArt paint={paint} size={size} t={wall} hop={hop} look={0} uid="levelup" />
+      <View style={{ width: (76 * size) / TOKEN_U, height: (72 * size) / TOKEN_U }}>
+        {/* The light behind the piece once the level is made, turning. */}
+        {up && e > 3.4 ? (
+          <Svg width={size * 3} height={size * 3} style={{ position: "absolute", left: (36 * size) / TOKEN_U - size * 1.5, top: (52 * size) / TOKEN_U - size * 1.5 }}>
+            {Array.from({ length: 12 }, (_, i) => {
+              const a = (i / 12) * Math.PI * 2 + e * 0.5;
+              const R = size * 1.45 * pop((e - 3.4) / 0.5) * (i % 2 ? 0.7 : 1);
+              const w = 0.1;
+              const c = size * 1.5;
+              return <Path key={i} d={`M${c} ${c} L${c + Math.cos(a - w) * R} ${c + Math.sin(a - w) * R} L${c + Math.cos(a + w) * R} ${c + Math.sin(a + w) * R}Z`} fill={C.accent} fillOpacity={i % 2 ? 0.14 : 0.24} />;
+            })}
+            {Array.from({ length: 6 }, (_, i) => {
+              const a = (i / 6) * Math.PI * 2 - e * 0.7;
+              const tw = Math.max(0, Math.sin(e * 4 + i * 1.9));
+              return <Path key={`s${i}`} d={star(size * 1.5 + Math.cos(a) * size * 0.95, size * 1.5 + Math.sin(a) * size * 0.8, 3 + 7 * tw)} fill={DOT_ON} stroke={C.ink} strokeWidth={1} strokeLinejoin="round" />;
+            })}
+          </Svg>
+        ) : null}
+        <TokenArt paint={paint} size={size} t={wall} hop={up && e > 3.4 ? Math.abs(Math.sin((e - 3.4) * 5)) : hop} look={0} uid="levelup" />
+      </View>
       <Num size={34} color={C.accent}>{`+${fmtInt(v.xpRow * k)} XP`}</Num>
       <Text style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.4, color: C.soft }}>{`THIS ROW'S MATCHES · ${v.matches} PLAYED`}</Text>
       <View style={{ width: Math.min(width - 40, 420), marginTop: 6 }}>
@@ -708,12 +808,26 @@ function Finish({ v, width, height, wall, myM, paint, hop }: P) {
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <Svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0 }}>
-        <Rect x={0} y={laneY - 4} width={width} height={height - laneY + 4} fill={C.accent} fillOpacity={0.09} />
+        <Rect x={0} y={laneY - 4} width={width} height={height - laneY + 4} fill={C.accent} fillOpacity={0.12} />
+        {Array.from({ length: 9 }, (_, i) => {
+          const wx = ((((i * 97 + 13) % width) - wall * 34 * (0.6 + (i % 3) * 0.3)) % (width + 40) + width + 40) % (width + 40) - 20;
+          const wy = laneY + size * 0.3 + ((i * 53) % Math.max(20, height - laneY - size * 0.4));
+          return <Path key={`w${i}`} d={`M${wx.toFixed(1)} ${wy.toFixed(1)} q4 -3.5 8 0 t8 0`} stroke={C.accent} strokeOpacity={0.4} strokeWidth={1.8} fill="none" strokeLinecap="round" />;
+        })}
         <Line x1={0} y1={laneY + size * 0.12} x2={width} y2={laneY + size * 0.12} stroke={C.ink} strokeOpacity={0.25} strokeWidth={2} strokeDasharray="2 9" />
         {Array.from({ length: rows }, (_, j) =>
           [0, 1].map((i) => ((i + j) % 2 === 0 ? <Rect key={`${i}-${j}`} x={lineX + i * sq} y={height * 0.4 + j * sq} width={sq} height={sq} fill={C.ink} /> : null)),
         )}
         <Rect x={lineX} y={height * 0.4} width={sq * 2} height={rows * sq} fill="none" stroke={C.ink} strokeWidth={2} />
+        {/* The flag over the line, flying. */}
+        <Line x1={lineX + sq} y1={height * 0.4} x2={lineX + sq} y2={height * 0.4 - 46} stroke={C.ink} strokeWidth={3} strokeLinecap="round" />
+        {Array.from({ length: 4 }, (_, i) =>
+          [0, 1, 2].map((j) => {
+            const fx = lineX + sq + 1.5 + i * 9;
+            const fy = height * 0.4 - 45 + j * 8 + Math.sin(wall * 6 - i * 0.9) * (1 + i * 0.9);
+            return <Rect key={`f${i}-${j}`} x={fx} y={fy} width={9} height={8} fill={(i + j) % 2 ? C.paper : C.ink} stroke={C.ink} strokeWidth={0.8} />;
+          }),
+        )}
       </Svg>
       <View style={{ position: "absolute", left: x, top: laneY - size * 0.95 }}>
         <TokenArt paint={paint} size={size} t={wall} trail hop={hop} look={1} uid="finish" />

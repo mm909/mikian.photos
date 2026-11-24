@@ -985,3 +985,12 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - 159, THE MATCH (arcade/match.ts, bots.ts): cool 3 s, aim 3 s, fire; a hit when the aim's pace is the given pace or faster in whole seconds (HIT_SLACK 0.9); damage = meters rowed in the aim; both landing cancel; health 65 m on a 5K (x target/5000, floor 0.35). Bots are other rowers' saved rows with their own median pace. Celebration: XP (match meters + 100 win / 50 draw; level 2 at 1,500, +250 a level), Elo (1200, K 32), the chest, lifetime ticking.
 - Checked: scripts/arcade-check.ts, 109 checks (steady 1:59 wins 65% against level bots, wobbly 23%; no match past 80%; finale at 90/100%). Seen in the sandbox (1K demo at 4x: match, NO MORE MATCHES, final chest). NOT on a phone or a real PM5. The intro's title was cut ("ROWVEM..."): the big line now reckons a full size per letter.
 - Open, for the owner: the hit rule, health, the failed ready check costing a shot, plain bots, the art. The admin's produced page no longer shows the director's scenes.
+
+## Round 54 (2026-11-24, morning): the arcade's art, polished (Fable)
+
+- The piece: eyes with a glint, cheeks, a smile, a blink, a worried face when the aim is off; squash and stretch on each stroke (a transform string now, the old scaleY was ignored on web); line weight scales with size.
+- The rarity ladder made plain: common a flat colour, uncommon two-tone, rare a shine and a passing glint, epic a thing added (the bird hops and chirps, halo, captain's cap, viking), legendary always moving (molten lava, fireball, ball lightning, the crown's sweep, the rainbow, starfall). Ids, names, rarities unchanged.
+- The board: sand, grass, shallows and surf, the path as a ring of board-game spaces, fish, a palm with coconuts, a lighthouse; its own dark mode.
+- The match: muzzle puffs, streaks, hit bursts and shakes, cancel sparks, miss splashes; health bars whose lost part lingers in yellow and pulses red when low. Level up rays, a waving finish flag.
+- The chest: redrawn; shakes, flashes, confetti; cards pop in and float, rarity tags, a rainbow border for a legendary; the card no longer covers the line under CHEST.
+- Seen in headless Chrome only. Unsure on a phone: the frame cost (the board and up to 20 moving locker cards), Android has no card glow, the hit burst briefly covers the piece.

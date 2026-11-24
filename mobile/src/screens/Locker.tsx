@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import Svg, { Ellipse, Path, Rect } from "react-native-svg";
 import { useWallClock } from "../arcade/BoatArt";
 import { TOKEN_U, TokenArt } from "../arcade/Token";
 import { ChestOpen } from "../arcade/Chest";
@@ -40,6 +41,29 @@ function Hopping({ equipped, size }: { equipped: Record<string, string>; size: n
   return <TokenArt paint={wear(equipped)} size={size} t={t} trail hop={hop} look={0.5} uid="locker" />;
 }
 
+/* A card's piece. The ones that shine or move (a rare, an epic, a
+ * legendary) do it here too, so the ladder is seen in the locker; the plain
+ * ones are drawn once and left. */
+function CardPiece({ layer, id, size, alive }: { layer: Layer; id: string; size: number; alive: boolean }) {
+  const t = useWallClock(alive);
+  return <TokenArt paint={wear({ ...STOCK, [layer]: id })} size={size} t={alive ? t : 1.3} trail={layer === "aura"} uid={`l${id}`} />;
+}
+
+/* The water the piece stands on at the top of the locker. */
+function Stage({ w, h }: { w: number; h: number }) {
+  const t = useWallClock(true);
+  return (
+    <Svg width={w} height={h} style={{ position: "absolute", left: 0, bottom: 0 }}>
+      <Rect x={0} y={0} width={w} height={h} rx={h / 2} fill={C.accent} fillOpacity={0.12} />
+      <Ellipse cx={w / 2} cy={h * 0.5} rx={w * 0.36} ry={h * 0.3} fill={C.paper} fillOpacity={0.5} />
+      {[0, 1, 2, 3, 4].map((i) => {
+        const x = ((((i * 0.23 + 0.05) * w - t * 14) % w) + w) % w;
+        return <Path key={i} d={`M${x.toFixed(1)} ${(h * (0.3 + (i % 3) * 0.22)).toFixed(1)} q4 -3.5 8 0 t8 0`} stroke={C.accent} strokeOpacity={0.45} strokeWidth={1.8} fill="none" strokeLinecap="round" />;
+      })}
+    </Svg>
+  );
+}
+
 const RANK = (r: string) => (r === "stock" ? -1 : RARITIES.indexOf(r as (typeof RARITIES)[number]));
 
 export function LockerScreen() {
@@ -74,8 +98,11 @@ export function LockerScreen() {
         <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.ink, marginTop: 4 }}>
           Your <Text style={{ color: C.accent }}>piece</Text>
         </Text>
-        <View style={{ alignItems: "center", marginVertical: 8 }}>
-          <Hopping equipped={l.equipped} size={Math.min(150, (W - PAD * 2) * 0.42)} />
+        <View style={{ alignItems: "center", marginVertical: 8, paddingBottom: 6 }}>
+          <Stage w={Math.min(W - PAD * 2, 340)} h={44} />
+          <View style={{ zIndex: 1 }}>
+            <Hopping equipped={l.equipped} size={Math.min(150, (W - PAD * 2) * 0.42)} />
+          </View>
         </View>
         <Text style={[styles.body, { marginBottom: 4 }]}>
           {found} of {DROPPABLE.length} found · {l.games.played} {l.games.played === 1 ? "game" : "games"}, {l.games.won} won
@@ -130,11 +157,14 @@ function LayerRow({ layer, equipped, owned, fresh, cardW }: { layer: Layer; equi
               <View style={{ height: 4, backgroundColor: c, borderRadius: 2, marginBottom: 4, opacity: have ? 1 : 0.5 }} />
               {have ? (
                 <View style={{ height: cardArt(cardW), alignItems: "center", justifyContent: "center" }}>
-                  <TokenArt paint={wear({ ...STOCK, [layer]: s.id })} size={cardToken(cardW, layer === "aura")} t={1.3} trail={layer === "aura"} uid={`l${s.id}`} />
+                  <CardPiece layer={layer} id={s.id} size={cardToken(cardW, layer === "aura")} alive={RANK(s.rarity) >= 2} />
                 </View>
               ) : (
                 <View style={{ width: cardW - 14, height: cardArt(cardW), alignItems: "center", justifyContent: "center", backgroundColor: C.tint, borderRadius: 4 }}>
-                  <Text style={{ fontFamily: F.black, fontSize: 26, color: c }}>?</Text>
+                  {/* Not found yet: the shape of a box, in its rarity's colour. */}
+                  <View style={{ width: 46, height: 44, borderRadius: 12, borderWidth: 2.5, borderStyle: "dashed", borderColor: c, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontFamily: F.black, fontSize: 24, lineHeight: 28, color: c }}>?</Text>
+                  </View>
                 </View>
               )}
               <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 13, color: have ? C.ink : C.gray, marginTop: 4 }}>
