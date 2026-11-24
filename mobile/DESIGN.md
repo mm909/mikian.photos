@@ -1048,3 +1048,7 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - TUNED (scripts/pve-check.ts): 1K at own pace 3 KO; 5K at own pace 10 KO, two bosses, no wreck; 6 s slower wrecked once; upgrades 5/5/3 take 25 minutes from 14 KO to 22.
 - Seen in headless Chrome against the sandbox: a 2K demo at 10x (stage 1's boss, STAGE 2, the hull bar and the three skills, the summary), the arcade tab's upgrades. NOT on a phone or a real PM5.
 - NEXT: the swarm (wiki page "swarm"): the boat roams open water steering from a chasing school of fish, speed from the rowing, skills as area attacks, pickups; a director alternating it with the course.
+
+## Round 58b (2026-11-24, evening): the ROWING strip on the bar
+
+- FOLLOW-UP, the same evening: the ROWING strip (the row in progress, shown off the monitor) was drawn at the foot of the page, and the tab bar floats over the foot of the page, so on his phone it sat half under the bar (owner: "This shouldn't be able to happen"). It now rides on the floating bar itself (App.tsx TabBar `above`): a dark rounded strip in the bar's own glass, 8 points over it, moving and tucking with it, on every tab. Seen in headless Chrome at phone width; NOT on a phone.

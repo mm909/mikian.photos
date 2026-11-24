@@ -674,21 +674,26 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           ) : null}
         </View>
 
-        {/* THE ROW IN PROGRESS, while the monitor is not on screen. */}
-        {rowing && !monitor ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to the row in progress" onPress={openLog} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.ink, paddingHorizontal: 18, minHeight: 46 }}>
-            <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: C.paper, fontVariant: ["tabular-nums"] }}>
-              <Text style={{ color: C.accentLight }}>● </Text>
-              {erg.live.ended ? "FINISHED" : "ROWING"} · {fmtInt(Math.floor(erg.live.meters))} M · {fmtClock(erg.live.elapsedS, false)}
-            </Text>
-            <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: C.paper }}>OPEN →</Text>
-          </Pressable>
-        ) : null}
-
         <MonthSheet open={monthsOpen} onClose={() => setMonthsOpen(false)} />
         {monitor ? null : (
           <TabBar
             small={tuck}
+            above={
+              /* THE ROW IN PROGRESS, while the monitor is not on screen. It
+                 rides on the floating bar, over it and moving with it
+                 (owner, 2026-11-24, of the strip drawn under the bar: "This
+                 shouldn't be able to happen"). It was a line at the foot of
+                 the page, and the bar floats over the foot of the page. */
+              rowing ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Back to the row in progress" onPress={openLog} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: isDark() ? "rgba(52,56,62,0.94)" : "rgba(21,23,26,0.94)", borderRadius: 23, paddingHorizontal: 18, minHeight: 46, marginBottom: 8, opacity: pressed ? 0.8 : 1 }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
+                  <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: "#FFFFFF", fontVariant: ["tabular-nums"] }}>
+                    <Text style={{ color: C.accentLight }}>● </Text>
+                    {erg.live.ended ? "FINISHED" : "ROWING"} · {fmtInt(Math.floor(erg.live.meters))} M · {fmtClock(erg.live.elapsedS, false)}
+                  </Text>
+                  <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: "#FFFFFF" }}>OPEN →</Text>
+                </Pressable>
+              ) : null
+            }
             tab={tab}
             onTab={(t) => {
               setMenu(false);
@@ -760,7 +765,7 @@ const BAR = 62;
 const TAB_PAD = 10;
 const TAB_EDGE = 6;
 const TAB_AIR = 7;
-function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; small: Animated.Value }) {
+function TabBar({ tab, onTab, small, above }: { tab: Tab; onTab: (t: Tab) => void; small: Animated.Value; /* Rides on the bar, over it: the row in progress. */ above?: ReactNode }) {
   const [w, setW] = useState(0);
   const at = TABS.findIndex((t) => t.id === tab);
   const x = useRef(new Animated.Value(at)).current;
@@ -782,6 +787,7 @@ function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; smal
        of its slot under the open tab, and the rower's own face where the
        profile is. */
     <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 18, paddingBottom: 10, transform: [{ scale: small.interpolate({ inputRange: [0, 1], outputRange: [1, 0.8] }) }, { translateY: small.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }}>
+      {above}
       <View accessibilityRole="tablist" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={[{ flexDirection: "row", height: BAR, borderRadius: BAR / 2, paddingHorizontal: TAB_PAD, backgroundColor: isDark() ? "rgba(52,56,62,0.9)" : "rgba(21,23,26,0.9)", overflow: "hidden" }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
         {w ? (
           <Animated.View
