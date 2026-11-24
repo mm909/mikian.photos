@@ -280,6 +280,9 @@ function Unlogged({ rows, onLog }: { rows: Pending[]; onLog: (p: Pending) => voi
 const signed = (v: number) => `${v < 0 ? "−" : "+"}${Math.abs(v).toFixed(1)} s`;
 /* How long the meters stand still before the row counts as stopped. */
 const IDLE_MS = 6000;
+/* How long the monitor has to have called a piece finished before the
+ * buttons come up for it. */
+const END_HOLD_MS = 1200;
 /* The monitor's pages count from 0: the race and the numbers (the race
  * first when the piece is a set distance), the four figures, the split,
  * the splits, and the way out, which is the last. A set distance has the
@@ -317,13 +320,34 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
    * seconds says it. Before the first stroke there is nothing to log, so
    * nothing shows: the way out then is the last page. */
   const moved = useRef({ m: 0, at: Date.now() });
-  const [still, setStill] = useState(false);
   if (live.meters !== moved.current.m) moved.current = { m: live.meters, at: Date.now() };
+  /* NEVER ON THE FIRST STROKE (owner, 2026-11-23: "As soon as I started
+   * rowing on the race view for live, like the first stroke, it pulled up
+   * those buttons to like submit and cancel my row, and then they went
+   * away. They just flashed for a moment"). What did it: "the meters have
+   * stood still" was a note taken once a second, and before a row the
+   * meters have stood at nothing for as long as the rower took to sit
+   * down, so the note said STILL. The first stroke made the meters 1, the
+   * note was up to a second old, and for that long the two together read
+   * as a row that had stopped. Now it is worked out as the screen is
+   * drawn, off the moment the meters last moved, so the stroke that moves
+   * them is the one that clears it; the clock below only has the screen
+   * drawn again a few times a second so the six seconds are noticed. And a piece
+   * the monitor calls finished has to have been finished for a moment
+   * (END_HOLD_MS) before it counts, so one stray word from the monitor as a
+   * piece starts cannot bring the buttons up either. */
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStill(Date.now() - moved.current.at > IDLE_MS), 1000);
+    const t = setInterval(() => setTick((n) => n + 1), 400);
     return () => clearInterval(t);
   }, []);
-  const over = meters >= 1 && (live.ended || !!error || still);
+  const endedSince = useRef(0);
+  if (!live.ended) endedSince.current = 0;
+  else if (!endedSince.current) endedSince.current = Date.now();
+  const at = Date.now();
+  const still = at - moved.current.at > IDLE_MS;
+  const finished = live.ended && at - endedSince.current >= END_HOLD_MS;
+  const over = meters >= 1 && (finished || !!error || still);
   /* A demo row ends on its analytics: it is not logged, so that is what
    * there is to see of it. Eight strokes in, there is a piece to read. In
    * development it can be logged as well, and the read is a second line. */
