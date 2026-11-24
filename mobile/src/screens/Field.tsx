@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ticks } from "../erg/reviewGeom";
 import { api } from "../api";
 import { medianOf, meanOf, placeOf, quantile, SHAPE_STEPS, type FieldStats, type RowMeasure } from "../pm5/craft";
 import { Dash, Eye, mono } from "../site";
 import { C, F, fmtInt, fmtPace } from "../theme";
-import { Dots, Skel, scrub, setSideDrag, useLoad } from "../ui";
+import { Dots, Skel, useLoad, useTap } from "../ui";
 import { Axes, Box, FieldDensity, Key, Lab, PAD } from "./reviewBits";
 import { Pages } from "./Pages";
 
@@ -101,59 +101,25 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
   useEffect(() => {
     x.setValue(-at.current * slot);
   }, [slot, x]);
-  const go = (i: number, v = 0) => {
+  const go = (i: number) => {
     const real = i === 0 ? 2 : i === 3 ? 1 : i;
     at.current = real;
     setPage(real - 1);
-    Animated.spring(x, { toValue: -i * width.current, velocity: v, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
+    Animated.spring(x, { toValue: -i * width.current, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
       if (finished && real !== i) x.setValue(-real * width.current);
     });
   };
-  /* A JS PAGER, NOT A SCROLLER (owner, 2026-11-23: "as I'm scrubbing
-   * through the KDE to look at the values, I'm also moving those cards, and
-   * we shouldn't move the card if I'm scrubbing"). A native horizontal
-   * scroller takes every sideways drag before a chart can, so the card slid
-   * under a scrubbing finger. Now the card turns from a sideways drag that
-   * no chart inside it has claimed: a chart asks first (it is deeper) and
-   * holds the touch once it has it. */
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        /* Taken early, at 6 points and anything more across than down
-         * (owner, 2026-11-23: "Sometimes when I swipe to the right or the
-         * left ... it scrolls vertically ... it just sometimes it jumps up
-         * and down"): the longer the card waited, the further the page had
-         * already slid before it was held still. */
-        onMoveShouldSetPanResponder: (_e, g) => !scrub.chart && Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.1,
-        /* Once the card has the drag it keeps it: the tabs' own swipe, an
-         * ancestor, would otherwise take it over and turn the page. */
-        onPanResponderGrant: () => {
-          scrub.on = true;
-          setSideDrag(true);
-        },
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_e, g) => {
-          x.setValue(-at.current * width.current + Math.max(-width.current, Math.min(width.current, g.dx)));
-        },
-        onPanResponderRelease: (_e, g) => {
-          scrub.on = false;
-          setSideDrag(false);
-          const far = Math.abs(g.dx) > width.current * 0.22 || Math.abs(g.vx) > 0.35;
-          go(far ? at.current + (g.dx < 0 ? 1 : -1) : at.current, g.vx);
-        },
-        onPanResponderTerminate: () => {
-          scrub.on = false;
-          setSideDrag(false);
-          go(at.current);
-        },
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  /* A TAP TURNS THE CARD, NOT A SWIPE (owner, 2026-11-24: "The swiping, it
+   * doesn't feel very good. So instead, can we just tap on those and have
+   * them go through?"). It was a sideways drag no chart had claimed (a JS
+   * pager, 2026-11-23, so a scrubbing finger did not move the card); now a
+   * tap anywhere on the card is the other face, round and round, and a
+   * finger held or dragged on a chart only reads it (ui.tsx useTap). */
+  const tap = useTap(() => go(at.current + 1));
   if (!other) return <>{own(false)}</>;
   return (
     <>
-      <View {...pan.panHandlers} style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
+      <View {...tap} accessibilityHint="Tap for the other side" style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
         <Animated.View style={{ width: slot * 4, flexDirection: "row", transform: [{ translateX: x }] }}>
           <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {other}

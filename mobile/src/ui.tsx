@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { peek } from "./api";
-import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { buzz } from "./buzz";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { CloseIcon, DotsIcon } from "./icons";
@@ -522,6 +522,43 @@ export function Dots({ n, at, onGo, labels, style }: { n: number; at: number; on
   );
 }
 
+/* A CARD TURNS ON A TAP, NOT A SWIPE (owner, 2026-11-24, of the analytics'
+ * cards: "there's 5 charts. The swiping, it doesn't feel very good. So
+ * instead, can we just tap on those and have them go through?"). The touch
+ * is watched, not taken, so a chart inside still reads under a finger: a
+ * finger down and up again inside a moment, having hardly moved, is a tap;
+ * one that is held or drags is reading the chart, or scrolling the page. */
+const TAP_MS = 300;
+const TAP_PX = 8;
+export function useTap(onTap: () => void): object {
+  const s = useRef({ x: 0, y: 0, t: 0, on: false });
+  const fire = useRef(onTap);
+  fire.current = onTap;
+  return useMemo(() => {
+    const down = (x: number, y: number) => (s.current = { x, y, t: Date.now(), on: true });
+    const move = (x: number, y: number) => {
+      if (Math.abs(x - s.current.x) > TAP_PX || Math.abs(y - s.current.y) > TAP_PX) s.current.on = false;
+    };
+    const up = () => {
+      if (s.current.on && Date.now() - s.current.t < TAP_MS) fire.current();
+      s.current.on = false;
+    };
+    /* A browser's mouse sends no touches: there the pointer says the same. */
+    return Platform.OS === "web"
+      ? {
+          onPointerDown: (e: { nativeEvent: { pageX: number; pageY: number } }) => down(e.nativeEvent.pageX, e.nativeEvent.pageY),
+          onPointerMove: (e: { nativeEvent: { pageX: number; pageY: number } }) => move(e.nativeEvent.pageX, e.nativeEvent.pageY),
+          onPointerUp: up,
+        }
+      : {
+          onTouchStart: (e: GestureResponderEvent) => down(e.nativeEvent.pageX, e.nativeEvent.pageY),
+          onTouchMove: (e: GestureResponderEvent) => move(e.nativeEvent.pageX, e.nativeEvent.pageY),
+          onTouchEnd: up,
+          onTouchCancel: () => (s.current.on = false),
+        };
+  }, []);
+}
+
 /* `chart` is the narrower of the two: set by a chart's own surface alone,
  * so a card that turns (Field.tsx Flip) leaves a scrub to the chart. */
 export const scrub = { on: false, chart: false };
@@ -605,8 +642,13 @@ export function PhotoViewer({ photos, stamps, start, onClose, onMenu, onAt, chil
         >
           {photos.map((p, i) => (
             /* A TAP at the right goes on, at the left goes back (owner,
-               2026-11-22: "let me tap through them"); a swipe does the same. */
-            <Pressable key={i} onPress={(e) => go(e.nativeEvent.locationX > w / 2 ? i + 1 : i - 1)} style={{ width: w, height: "100%", justifyContent: "center" }}>
+               2026-11-22: "let me tap through them"); a swipe does the same.
+               A ROW'S TWO PHOTOS: a tap anywhere is the other one, round
+               and round (owner, 2026-11-24: "anywhere where we're opening up
+               those 2 photos, we should be able to tap and have them loop
+               back and forth ... I had to like tap one direction then the
+               other direction"). */
+            <Pressable key={i} onPress={(e) => go(photos.length === 2 ? 1 - i : e.nativeEvent.locationX > w / 2 ? i + 1 : i - 1)} style={{ width: w, height: "100%", justifyContent: "center" }}>
               {Math.abs(i - at) <= 2 ? <Image source={{ uri: p.full }} resizeMode="contain" style={{ width: w, height: "100%" }} /> : null}
             </Pressable>
           ))}

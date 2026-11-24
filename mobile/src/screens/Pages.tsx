@@ -1,20 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, Platform, View } from "react-native";
-import { Dots, scrub, setSideDrag } from "../ui";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Platform, View } from "react-native";
+import { Dots, useTap } from "../ui";
 
 /* A CARD WITH AS MANY FACES AS IT HAS FIGURES (owner, 2026-11-23, of the
  * analytics' comparisons: "if we can't show it in one chart or one page,
- * that's okay. Just make another page ... we can keep swiping. We can have
- * multiple of those dots. So if we need to show a chart that's just the
- * stroke KDE ... and then the steady pace KDE, then that's okay too").
+ * that's okay. Just make another page ... we can have multiple of those
+ * dots. So if we need to show a chart that's just the stroke KDE ... and
+ * then the steady pace KDE, then that's okay too").
  *
- * Field.tsx Flip, for any number of faces: a JS pager that turns from a
- * sideways drag no chart inside it has claimed (`scrub.chart`), keeps the
- * drag from the tabs once it has it, and goes round, a copy of the last
- * face before the first and of the first after the last. The dots are the
+ * A TAP TURNS IT, NOT A SWIPE (owner, 2026-11-24: "there's 5 charts. The
+ * swiping, it doesn't feel very good. So instead, can we just tap on those
+ * and have them go through?"). A tap anywhere on the card is the next face,
+ * and after the last, the first again (ui.tsx useTap: a finger that is held
+ * or drags is reading a chart, not turning the card). The dots are the
  * app's own (ui.tsx Dots): a tap goes to that face, and a finger held on
- * them and slid goes face to face. With one face it is that face alone.
- * The faces are side by side, so each is the height of the tallest. */
+ * them and slid goes face to face. The faces slide in as before. With one
+ * face it is that face alone. The faces are side by side, so each is the
+ * height of the tallest. */
 export function Pages({ w, pages, labels }: { w: number; pages: ReactNode[]; labels?: string[] }) {
   const n = pages.length;
   const [page, setPage] = useState(0);
@@ -31,48 +33,25 @@ export function Pages({ w, pages, labels }: { w: number; pages: ReactNode[]; lab
     }
     x.setValue(-at.current * w);
   }, [w, n, x]);
-  const go = (i: number, v = 0) => {
+  const go = (i: number) => {
     const N = count.current;
     const real = i <= 0 ? N : i >= N + 1 ? 1 : i;
     at.current = real;
     setPage(real - 1);
-    Animated.spring(x, { toValue: -Math.max(0, Math.min(N + 1, i)) * width.current, velocity: v, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
+    Animated.spring(x, { toValue: -Math.max(0, Math.min(N + 1, i)) * width.current, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
       if (finished && real !== i) x.setValue(-real * width.current);
     });
   };
-  const goRef = useRef(go);
-  goRef.current = go;
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, g) => count.current > 1 && !scrub.chart && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-        onPanResponderGrant: () => {
-          scrub.on = true;
-          setSideDrag(true);
-        },
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_e, g) => {
-          x.setValue(-at.current * width.current + Math.max(-width.current, Math.min(width.current, g.dx)));
-        },
-        onPanResponderRelease: (_e, g) => {
-          scrub.on = false;
-          setSideDrag(false);
-          const far = Math.abs(g.dx) > width.current * 0.22 || Math.abs(g.vx) > 0.35;
-          goRef.current(far ? at.current + (g.dx < 0 ? 1 : -1) : at.current, g.vx);
-        },
-        onPanResponderTerminate: () => {
-          scrub.on = false;
-          setSideDrag(false);
-          goRef.current(at.current);
-        },
-      }),
-    [x],
-  );
+  const tap = useTap(() => {
+    if (count.current > 1) go(at.current + 1);
+  });
   if (n <= 1) return <>{pages[0] ?? null}</>;
+  /* A copy of the last face before the first and of the first after the
+   * last, so the turn from the last to the first slides on the same way. */
   const strip = [pages[n - 1], ...pages, pages[0]];
   return (
     <>
-      <View {...pan.panHandlers} style={{ width: w, overflow: "hidden" }}>
+      <View {...tap} accessibilityHint="Tap for the next chart" style={{ width: w, overflow: "hidden" }}>
         <Animated.View style={{ width: w * (n + 2), flexDirection: "row", transform: [{ translateX: x }] }}>
           {strip.map((p, i) => {
             const copy = i === 0 || i === n + 1;
