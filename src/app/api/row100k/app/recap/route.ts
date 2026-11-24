@@ -1,3 +1,4 @@
+import { rowedAtFor } from "@/lib/rowedAt";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { CHALLENGE, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, plainTitle } from "@/lib/row100k";
@@ -55,6 +56,15 @@ export async function GET() {
       select: { id: true, participantId: true, meters: true, seconds: true, title: true, photos: true, createdAt: true, participant: { select: { displayName: true, rowerNumber: true } } },
     });
     if (entries.length === 0) return yes({ rowers: [] });
+    /* WHEN IT WAS ROWED, NOT SENT (owner, 2026-11-23: "if I had 2 rows
+     * within 24 hours ... the story should be up for 24 hours ... those
+     * rows should be there"): a monitor row is stamped with the time it was
+     * rowed (lib/rowedAt.ts), as the feed is, and is up for a day from
+     * then. A row is sent after it is rowed, so the day's rows are all among
+     * those sent in the last day. */
+    const rowedAt = await rowedAtFor(entries.map((e) => ({ id: e.id, createdAt: e.createdAt })));
+    const when = (e: { id: string; createdAt: Date }) => rowedAt.get(e.id) ?? e.createdAt;
+    const inDay = entries.filter((e) => when(e).getTime() >= since.getTime()).sort((a, b) => when(b).getTime() - when(a).getTime());
 
     /* Lights out, as the feed masks it. */
     let masked = new Set<string>();
@@ -66,7 +76,7 @@ export async function GET() {
       const blackout = previewBlackout(viewer, await activeBlackout());
       hideAll = blackout.active && !(viewer.isAdmin && !viewer.preview);
     }
-    const shown = entries.filter((e) => e.participantId === me || (!hideAll && !masked.has(e.participantId)));
+    const shown = inDay.filter((e) => e.participantId === me || (!hideAll && !masked.has(e.participantId)));
 
     /* By rower, in the order their newest row came in (entries are newest
      * first), the viewer's own at the front. */
@@ -98,7 +108,7 @@ export async function GET() {
         avatar: faces.get(pid) ?? null,
         me: pid === me,
         /* When their newest row came in. */
-        latest: rows[rows.length - 1].createdAt.toISOString(),
+        latest: when(rows[rows.length - 1]).toISOString(),
         rows: rows.map((e) => ({
           id: e.id,
           meters: e.meters,
@@ -108,7 +118,7 @@ export async function GET() {
           splitStr: e.meters > 0 && e.seconds > 0 ? fmtSplit(e.meters, e.seconds) : "",
           title: plainTitle(e.title),
           photo: photoOf.get(e.id) ?? null,
-          absIso: e.createdAt.toISOString(),
+          absIso: when(e).toISOString(),
         })),
       };
     });
