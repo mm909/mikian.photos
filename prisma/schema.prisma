@@ -1662,6 +1662,13 @@ model RowSocialSetting {
   /// "leave that as off for now, like default off"): "rowed" (a rower I
   /// follow logs a row), "rowedAll" (anybody does). Additive.
   notifyOn      String[] @default([])
+  /// THE ROWERS LEFT OUT of "rowed" and "rowedAll" (owner, 2026-11-23: "If
+  /// you have the setting for all notifications, then that effectively
+  /// means ... the notification bell is on for every rower ... if we ...
+  /// turn off the notification button ... turn off for this rower"):
+  /// RowParticipant ids whose rows this rower is not told of by those two
+  /// blanket settings. Additive.
+  quiet         String[] @default([])
   /// THE PROFILE PHOTO (owner, 2026-11-22: "I think the answer is yes, we do
   /// profile photos"). The storage key of the picture, under the rower's
   /// own upload prefix like a row's photos; null means none, and every

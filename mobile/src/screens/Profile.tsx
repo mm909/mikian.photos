@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Alert, Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ROWER_URL, shareLink } from "../files";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
 import { MonthGrid, PaceLine } from "../charts";
@@ -13,6 +13,7 @@ import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FieldCards } from "./Stats";
 import { StoryRing } from "./Recap";
+import type { SettingsPage } from "./Settings";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
 /* A ROWER'S PROFILE, the site's /r/[num] on a phone (looks/Profile.tsx and
@@ -126,10 +127,13 @@ export function ProfileScreen({
   onBest,
   onPlus,
   onEdit,
+  onSettings,
 }: {
   num?: number;
   /* EDIT PROFILE, pressed on the rower's own page: the account's settings. */
   onEdit?: () => void;
+  /* A page of the settings, for the bell's question (2026-11-23). */
+  onSettings?: (page: SettingsPage) => void;
   /* Whether this rower wears the black check, for the bar over the page. */
   onPlus?: (num: number, on: boolean) => void;
   onLog?: () => void;
@@ -422,6 +426,7 @@ export function ProfileScreen({
         counts={counts}
         onPeople={onPeople}
         onRow={onRow}
+        onSettings={onSettings}
         onChange={(r) => {
           setLive(r);
           /* A follow that opened a private page: read it again. */
@@ -517,7 +522,7 @@ export function ProfileScreen({
  * page has EDIT PROFILE and SHARE: FOLLOW, in the blue until it is
  * pressed, and SHARE, which hands the address of this rower's page to the
  * phone's share sheet. SHARE beside it is MINE. */
-function SocialLine({ p, rel, counts, onPeople, onChange, onRow }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void; onRow?: (id: string) => void }) {
+function SocialLine({ p, rel, counts, onPeople, onChange, onRow, onSettings }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void; onRow?: (id: string) => void; onSettings?: (page: SettingsPage) => void }) {
   const { me } = useSession();
   const n = p.rower.rowerNumber;
   const count = (v: number, word: string, list?: PeopleList) => (
@@ -531,14 +536,33 @@ function SocialLine({ p, rel, counts, onPeople, onChange, onRow }: { p: Profile;
   /* THE BELL on this rower: told when they log a row (and when they pass
    * me), or not. Off until pressed. */
   const [ringing, setRinging] = useState(false);
-  const ring = async () => {
+  const set = async (on: boolean) => {
     setRinging(true);
     try {
-      onChange(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num: n, action: "bell", on: !rel.bell } }));
+      onChange(await api<{ rel: Rel; counts: Counts }>("/api/row100k/app/follow", { body: { num: n, action: "bell", on } }));
     } catch {
       /* The bell stays as it was; a second press tries again. */
     }
     setRinging(false);
+  };
+  /* ON FOR EVERYBODY, OFF FOR ONE (owner, 2026-11-23: "If you have the
+   * setting for all notifications ... the notification bell is on for every
+   * rower. And if we have that setting turned on and we turn off the
+   * notification button, we should give them ... a pop-up that says, you
+   * have notifications turned on for everyone. Do you want to turn off for
+   * just this rower? ... or go to settings and you can change it"). */
+  const ring = () => {
+    if (!(rel.bell && rel.bellAll)) return void set(!rel.bell);
+    const name = p.rower.displayName;
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Notifications are on for every rower. Turn them off for ${name} only?`)) void set(false);
+      return;
+    }
+    Alert.alert("Notifications are on for everyone", `You're told about every row. Turn that off for ${name} only, or change it for everyone in Settings.`, [
+      { text: `Off for ${name}`, onPress: () => void set(false) },
+      ...(onSettings ? [{ text: "Open Settings", onPress: () => onSettings("notifications") }] : []),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
   };
   const rows = p.lifetime?.sessions ?? p.sessions;
   /* To his screenshot of it: the name beside the face with the three

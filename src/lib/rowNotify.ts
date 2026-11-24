@@ -226,16 +226,18 @@ async function notifyRowed(rower: { id: string; displayName: string }, entry: { 
   try {
     const [follows, opted, priv, blocked, muters] = await Promise.all([
       db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted" }, select: { followerId: true, notify: true } }),
-      db.rowSocialSetting.findMany({ where: { challenge: CHALLENGE, notifyOn: { hasSome: [...OPT_IN] } }, select: { participantId: true, notifyOn: true } }),
+      db.rowSocialSetting.findMany({ where: { challenge: CHALLENGE, notifyOn: { hasSome: [...OPT_IN] } }, select: { participantId: true, notifyOn: true, quiet: true } }),
       db.rowSocialSetting.findUnique({ where: { participantId: rower.id }, select: { isPrivate: true } }),
       blockedIds(rower.id),
       db.rowMute.findMany({ where: { mutedId: rower.id }, select: { muterId: true } }),
     ]);
-    const on = new Map(opted.map((s) => [s.participantId, s.notifyOn]));
+    /* A blanket setting leaves out the rowers its owner turned the bell off
+     * for (RowSocialSetting.quiet); a bell turned on still tells. */
+    const on = new Map(opted.filter((s) => !s.quiet.includes(rower.id)).map((s) => [s.participantId, s.notifyOn]));
     const follower = new Set(follows.map((f) => f.followerId));
     const to = new Set<string>();
     for (const f of follows) if (f.notify || on.get(f.followerId)?.includes("rowed")) to.add(f.followerId);
-    for (const s of opted) if (s.notifyOn.includes("rowedAll") && (!priv?.isPrivate || follower.has(s.participantId))) to.add(s.participantId);
+    for (const s of opted) if (s.notifyOn.includes("rowedAll") && !s.quiet.includes(rower.id) && (!priv?.isPrivate || follower.has(s.participantId))) to.add(s.participantId);
     to.delete(rower.id);
     for (const id of blocked) to.delete(id);
     for (const m of muters) to.delete(m.muterId);

@@ -122,7 +122,7 @@ export type Me = {
 
 export type FollowState = "none" | "pending" | "accepted";
 /* How the viewer and one rower stand (lib/rowSocial.ts on the server). */
-export type Rel = { following: FollowState; bell: boolean; followsYou: FollowState; isPrivate: boolean; muted?: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
+export type Rel = { following: FollowState; bell: boolean; /* The bell is on by "every row" (2026-11-23). */ bellAll?: boolean; followsYou: FollowState; isPrivate: boolean; muted?: boolean; locked?: boolean; blockedByMe?: boolean; blockedMe?: boolean; access?: "open" | "private" | "blocked" };
 export type Counts = { followers: number; following: number };
 export type Person = { rowerNumber: number; numStr: string; name: string; instagram: string; isPrivate: boolean; following: FollowState; followsYou: FollowState; me: boolean; meters: number | null; avatar?: string | null };
 export type Notice = { avatar?: string | null; id: string; kind: "follow" | "request" | "accepted" | "rowed" | "passed" | "liked" | "commented" | "replied" | "mentioned" | "likedComment"; rowerNumber: number; numStr: string; name: string; text: string; entryId: string | null; open: boolean; unread: boolean; absIso: string; dayKey: string; dayStr: string; clockStr: string };

@@ -889,3 +889,10 @@ His words, by voice: "during the row, I want users to want to use our app during
 - NOT DONE: "Don't let the other screens ... go horizontal." Holding every screen but the live row upright needs a piece of the phone the app does not carry (`expo-screen-orientation`), so it needs a new build from him; nothing was added.
 
 SEEN in a browser on the sandbox (headless Chrome, a demo row start to finish at ten and at twenty times a clock, upright and on its side): every scene, the camera going up and coming down, the lanes going 5 to 3 to 1 and back, both compares, the cue words, the last stretch and the finish with the boats on the line, the tap from page to page, the page kept through a turn, the log form with its title and date, the calendar open and a day of last month taken (the title steps aside for the site to number). NOT SEEN: any of it on a phone; a real monitor's curves through the director; the tap on a phone, where it shares the page with the swipe.
+
+## Round 43 (2026-11-23): one push a row, and the bell under "every row"
+
+- **Two pushes for one row** came from two tokens for one phone (a phone set up again keeps getting the old token's pushes). Saving a token now drops the account's other tokens of that kind (`api/row100k/app/push`); a phone cleans itself up the next time the app opens.
+- **"Every row" turns the bell on for everyone you follow** (and "every row of the rowers I follow" the same): the relation's `bell` reads on, with `bellAll` saying why (`lib/rowSocial.ts`).
+- **Turning the bell off under it asks**: "Off for <name>" or "Open Settings" (Profile.tsx). Off for one rower adds them to `RowSocialSetting.quiet` (new, additive column), which the blanket settings skip (`lib/rowNotify.ts`); turning the bell back on takes them out.
+- Checked on the sandbox database: plain follow, bell off; every row on, bell on and asks; left out, bell off. NOT seen on a phone.

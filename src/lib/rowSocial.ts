@@ -47,8 +47,13 @@ export type Access = "open" | "private" | "blocked";
 export type Relation = {
   /* Me to them. */
   following: FollowState;
-  /* The bell on my follow of them. */
+  /* The bell on my follow of them: on when I turned it on, and also while
+   * "every row" (or "every row of the rowers I follow") is on and I have
+   * not left this rower out of it (RowSocialSetting.quiet). */
   bell: boolean;
+  /* One of those two blanket settings is what turns the bell on for this
+   * rower, so turning it off asks first (owner, 2026-11-23). */
+  bellAll?: boolean;
   /* Them to me. */
   followsYou: FollowState;
   blockedByMe: boolean;
@@ -74,7 +79,7 @@ export async function relation(viewerId: string | null, subjectId: string): Prom
   if (!viewerId || viewerId === subjectId) {
     return { following: "none", bell: false, followsYou: "none", blockedByMe: false, blockedMe: false, muted: false, isPrivate: priv, access: viewerId === subjectId || !priv ? "open" : "private" };
   }
-  const [follows, blocks, mutes] = await Promise.all([
+  const [follows, blocks, mutes, mine] = await Promise.all([
     orEmpty(
       db.rowFollow.findMany({
         where: { OR: [{ followerId: viewerId, followeeId: subjectId }, { followerId: subjectId, followeeId: viewerId }] },
@@ -88,6 +93,7 @@ export async function relation(viewerId: string | null, subjectId: string): Prom
       }),
     ),
     orEmpty(db.rowMute.findMany({ where: { muterId: viewerId, mutedId: subjectId }, select: { id: true } })),
+    orEmpty(db.rowSocialSetting.findMany({ where: { participantId: viewerId }, select: { notifyOn: true, quiet: true } })),
   ]);
   const out = follows.find((f) => f.followerId === viewerId);
   const back = follows.find((f) => f.followerId === subjectId);
@@ -95,7 +101,11 @@ export async function relation(viewerId: string | null, subjectId: string): Prom
   const blockedMe = blocks.some((b) => b.blockerId === subjectId);
   const following = state(out?.status);
   const access: Access = blockedByMe || blockedMe ? "blocked" : priv && following !== "accepted" ? "private" : "open";
-  return { following, bell: following === "accepted" ? out!.notify : false, followsYou: state(back?.status), blockedByMe, blockedMe, muted: mutes.length > 0, isPrivate: priv, access };
+  const on = mine[0]?.notifyOn ?? [];
+  const bellAll = following === "accepted" && (on.includes("rowedAll") || on.includes("rowed"));
+  const quiet = (mine[0]?.quiet ?? []).includes(subjectId);
+  const bell = following === "accepted" ? out!.notify || (bellAll && !quiet) : false;
+  return { following, bell, bellAll: bellAll && !quiet, followsYou: state(back?.status), blockedByMe, blockedMe, muted: mutes.length > 0, isPrivate: priv, access };
 }
 
 /* Everybody this viewer follows and has been accepted by. */

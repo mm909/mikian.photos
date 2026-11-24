@@ -64,6 +64,13 @@ export async function POST(req: Request) {
       else await db.rowMute.upsert({ where: { muterId_mutedId: { muterId: me.id, mutedId: them.id } }, create: { challenge: CHALLENGE, muterId: me.id, mutedId: them.id }, update: {} });
     } else if (action === "bell") {
       await db.rowFollow.updateMany({ where: { followerId: me.id, followeeId: them.id }, data: { notify: body?.on === true } });
+      /* Off is off for this rower even under "every row": they join the
+       * ones left out of it; on takes them out again (owner, 2026-11-23). */
+      const set = await db.rowSocialSetting.findUnique({ where: { participantId: me.id }, select: { quiet: true } });
+      const quiet = new Set(set?.quiet ?? []);
+      if (body?.on === true) quiet.delete(them.id);
+      else quiet.add(them.id);
+      await db.rowSocialSetting.upsert({ where: { participantId: me.id }, create: { challenge: CHALLENGE, participantId: me.id, quiet: [...quiet] }, update: { quiet: [...quiet] } });
     } else if (action === "accept") {
       const asked = await db.rowFollow.findUnique({ where: theirs, select: { status: true } });
       if (asked?.status === "pending") {
