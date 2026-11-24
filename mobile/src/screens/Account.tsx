@@ -22,7 +22,7 @@ onLook(() => {
   field = fieldOf();
 });
 
-export function SignIn({ why }: { why: string }) {
+export function SignIn(_props: { why: string }) {
   const { signInDev, signInSite, signInApple, signInReview } = useSession();
   const [email, setEmail] = useState("");
   /* The Developer's sign-in, a password alone, folded away until asked
@@ -52,12 +52,12 @@ export function SignIn({ why }: { why: string }) {
     setBusy(false);
   };
   return (
-    <View style={{ padding: 20 }}>
-      <Eyebrow>Your account</Eyebrow>
-      <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.ink, marginTop: 6, marginBottom: 8 }}>
-        Sign <Text style={{ color: C.accent }}>in</Text>
-      </Text>
-      <Text style={[styles.body, { marginBottom: 18 }]}>{why}</Text>
+    /* THE BUTTONS AND NOTHING ELSE (owner, 2026-11-23: "remove the copy at
+       the top. On the sign-in page, it's just sign with Apple, sign with
+       Google, and then the developer sign in, and then the terms and
+       policy. We also don't need to say by signing in you agree"). The
+       heading, the line of why, and the line on abusive content are gone. */
+    <View style={{ padding: 20, paddingTop: 28 }}>
       {/* SIGN IN WITH APPLE, on an iPhone (2026-11-21: Apple asks for it
           beside any other sign-in). Apple's own button, as Apple draws it.
           Closing the sheet is not an error. */}
@@ -109,17 +109,6 @@ export function SignIn({ why }: { why: string }) {
           }}
         />
       ) : null}
-      <Text style={[styles.body, { fontSize: 13, lineHeight: 19, marginTop: 14 }]}>
-        By signing in you agree to the{" "}
-        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)}>
-          terms
-        </Text>{" "}
-        and the{" "}
-        <Text accessibilityRole="link" style={{ textDecorationLine: "underline" }} onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)}>
-          privacy policy
-        </Text>
-        . There is no tolerance for abusive content: rows and rowers can be reported and blocked.
-      </Text>
       {/* APP REVIEW SIGN-IN (owner, 2026-11-22: "Add a reviewer login").
           Apple's reviewer is handed a name and a password in the review
           notes; nobody else has them, and with none set on the server the
@@ -135,6 +124,14 @@ export function SignIn({ why }: { why: string }) {
           Developer sign-in
         </Text>
       )}
+      <View style={{ flexDirection: "row", gap: 18, marginTop: 22 }}>
+        <Text accessibilityRole="link" suppressHighlighting style={[styles.body, { fontSize: 13, textDecorationLine: "underline" }]} onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)}>
+          Terms
+        </Text>
+        <Text accessibilityRole="link" suppressHighlighting style={[styles.body, { fontSize: 13, textDecorationLine: "underline" }]} onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)}>
+          Privacy policy
+        </Text>
+      </View>
       {__DEV__ ? (
         <View style={{ marginTop: 22 }}>
           <Eyebrow>Development: an existing account's email</Eyebrow>

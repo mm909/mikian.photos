@@ -60,6 +60,7 @@ export function WordMenu<T extends string>({
   textStyle,
   panel,
   width = 220,
+  chip = false,
 }: {
   options?: { key: T; label: string }[];
   value?: T;
@@ -69,6 +70,11 @@ export function WordMenu<T extends string>({
   textStyle?: StyleProp<TextStyle>;
   panel?: (close: () => void) => ReactNode;
   width?: number;
+  /* Drawn as a button, a box with a caret, where it has to be plain at a
+   * glance that it can be changed (owner, 2026-11-23, of the stats tab's
+   * time frame: "put the time frame somewhere where, one, it's clear that
+   * users can change it"). */
+  chip?: boolean;
 }) {
   const ref = useRef<ComponentRef<typeof View>>(null);
   const win = useWindowDimensions();
@@ -79,7 +85,14 @@ export function WordMenu<T extends string>({
   return (
     <>
       <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={`${ariaLabel}: ${word}`} accessibilityState={{ expanded: at !== null }} onPress={open} hitSlop={8}>
-        <Text style={[mono(12, true), textStyle, { textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{word}</Text>
+        {chip ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
+            <Text style={[mono(12, true), textStyle]}>{word}</Text>
+            <Text style={[mono(10, true, C.gray)]}>▼</Text>
+          </View>
+        ) : (
+          <Text style={[mono(12, true), textStyle, { textDecorationLine: "underline", textDecorationStyle: "dotted" }]}>{word}</Text>
+        )}
       </Pressable>
       <Modal visible={at !== null} transparent animationType="none" onRequestClose={close}>
         <Pressable accessibilityLabel="Close the menu" style={StyleSheet.absoluteFill} onPress={close}>

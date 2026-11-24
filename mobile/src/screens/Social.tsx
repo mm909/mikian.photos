@@ -70,7 +70,7 @@ export function FollowButton({ num, state, onChange, block }: { num: number; sta
 
 /* One rower in a list: the grey number, the bold name, the handle under
  * it, and whatever the list puts at the right. The whole line opens them. */
-function PersonLine({ p, onRower, right, share }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number }) {
+function PersonLine({ p, onRower, right, share, handle = true }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number; /* The search leaves the handle off (owner, 2026-11-23: "Maybe we can leave out the Instagram handle from the search results"). */ handle?: boolean }) {
   /* Over a bar, the small type is a shade darker (owner, 2026-11-21: "the
    * lighter text is a little hard to read, especially when we have ... the
    * colored bars behind them"). */
@@ -84,7 +84,7 @@ function PersonLine({ p, onRower, right, share }: { p: { rowerNumber: number; nu
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: small }}>{p.numStr} · </Text>
           {p.name}
         </Text>
-        {p.instagram ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: small, marginTop: 3 }}>@{p.instagram}</Text> : null}
+        {handle && p.instagram ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: small, marginTop: 3 }}>@{p.instagram}</Text> : null}
       </Pressable>
       {right}
     </View>
@@ -283,7 +283,7 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
               <>
                 {head("Recent", <Ctl label="Clear" onPress={forget} />)}
                 {recent.map((p) => (
-                  <PersonLine key={p.rowerNumber} p={p} onRower={() => open(p)} />
+                  <PersonLine key={p.rowerNumber} p={p} handle={false} onRower={() => open(p)} />
                 ))}
               </>
             ) : null}
@@ -291,7 +291,7 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
           </View>
         )
       }
-      renderItem={({ item }) => <PersonLine p={item} onRower={() => open(item)} share={!searching && list[0]?.meters ? (item.meters ?? 0) / list[0].meters : undefined} right={meters(item)} />}
+      renderItem={({ item }) => <PersonLine p={item} handle={false} onRower={() => open(item)} share={!searching && list[0]?.meters ? (item.meters ?? 0) / list[0].meters : undefined} right={meters(item)} />}
       ListEmptyComponent={<Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>Nobody by that name, handle or number.</Text>}
       ListFooterComponent={more && searching ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
     />

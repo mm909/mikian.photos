@@ -115,12 +115,15 @@ function useTouch(handlers: TouchHandlers) {
        * is over when the finger lifts, or the page takes it to scroll. */
       onTouchStart: () => {
         scrub.on = true;
+        scrub.chart = true;
       },
       onTouchEnd: () => {
         scrub.on = false;
+        scrub.chart = false;
       },
       onTouchCancel: () => {
         scrub.on = false;
+        scrub.chart = false;
       },
       onStartShouldSetResponder: () => true,
       onResponderGrant: (e: GestureResponderEvent) => {
@@ -606,7 +609,7 @@ const PAD_Y = 8;
  * wide. */
 const TILE_W = 480;
 
-export function PaceLine({ curve, dots, fmt, height = 150 }: { curve: PacePoint[]; dots: PaceDot[]; fmt: (s: number) => string; height?: number }) {
+export function PaceLine({ curve, dots, fmt, height = 220 }: { curve: PacePoint[]; dots: PaceDot[]; fmt: (s: number) => string; height?: number }) {
   const [w, onLayout] = useWidth();
   /* How many rows fit the width; 0 is all of them. */
   const [fit, setFit] = useState(20);
@@ -770,7 +773,11 @@ export function PaceLine({ curve, dots, fmt, height = 150 }: { curve: PacePoint[
               <View style={{ width: contentW }}>
                 <View style={{ flexDirection: "row", height: H }}>{tiles}</View>
                 {sel !== null ? <View pointerEvents="none" style={{ position: "absolute", left: cx(at) - 0.5, top: 0, width: 1, height: H - 2, backgroundColor: C.ink, opacity: 0.45 }} /> : null}
-                {sel !== null && row.s !== null ? <View pointerEvents="none" style={{ position: "absolute", left: cx(at) - 5, top: sy(row.s) - 5, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: C.ink }} /> : null}
+                {/* The picked row's dot, ringed and filled grey right through
+                    (owner, 2026-11-23: "inside the circle should be all gray,
+                    but instead it's like gray and a section of black"): the
+                    ring was hollow, so the hairline showed through it. */}
+                {sel !== null && row.s !== null ? <View pointerEvents="none" style={{ position: "absolute", left: cx(at) - 6, top: sy(row.s) - 6, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: C.ink, backgroundColor: C.gray }} /> : null}
                 {sel !== null && row.avg !== null && row.avg >= lo && row.avg <= hi ? (
                   <View pointerEvents="none" style={{ position: "absolute", left: cx(at) - 4, top: sy(row.avg) - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: C.accent, borderWidth: 1, borderColor: C.paper }} />
                 ) : null}
@@ -803,10 +810,9 @@ export function PaceLine({ curve, dots, fmt, height = 150 }: { curve: PacePoint[
       ) : (
         <View style={{ height: H + 20 }} />
       )}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 14, marginTop: 6 }}>
-        <Text style={[small(), { color: C.accent, fontFamily: F.monoBold }]}>━ RUNNING AVERAGE</Text>
-        <Text style={small()}>● EACH ROW</Text>
-      </View>
+      {/* No key under it (owner, 2026-11-23: "we can remove each row in the
+          running average ... we don't need that copy"); the head over the
+          chart says how many rows it is. Taller too: 150 was cramped. */}
       {model.left ? (
         <Text style={[small(), { marginTop: 4 }]}>
           {model.left} SLOW {model.left === 1 ? "ROW" : "ROWS"} LEFT OUT{model.again ? " OF THE CHART AND ITS AVERAGE" : ""}

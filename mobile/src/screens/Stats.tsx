@@ -110,7 +110,7 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
     setSlot(null);
   };
 
-  const monthWord = (color: string, size = 12, bold = true) => <WordMenu options={s.periods} value={s.period.key} onPick={pickPeriod} ariaLabel="Which month" textStyle={mono(size, bold, color)} />;
+  const monthWord = (color: string, size = 12, bold = true, chip = false) => <WordMenu options={s.periods} value={s.period.key} onPick={pickPeriod} ariaLabel="Which time frame" textStyle={mono(size, bold, color)} chip={chip} />;
   const statWord = (
     <WordMenu
       options={[...RECORDS, ...(month ? PERIODS : [])]}
@@ -120,6 +120,7 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
         setSlot(null);
       }}
       ariaLabel="Which stat"
+      chip
     />
   );
 
@@ -148,10 +149,12 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}
-      {/* THE TWO WORDS */}
-      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8, marginTop: 24 }}>
-        {monthWord(C.ink)}
-        <Dot />
+      {/* THE TWO CHOICES, centred at the head of the page as two buttons
+          (owner, 2026-11-23: "the time frame is like kind of off the
+          corner ... we just need to center it, or ... put the time frame
+          somewhere where ... it's clear that users can change it"). */}
+      <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
+        {monthWord(C.ink, 12, true, true)}
         {statWord}
       </View>
 
@@ -181,56 +184,17 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
           {s.field.length ? <Summary k="Length · median row" v={fmtInt(s.field.length.median)} u="m" first /> : null}
           {s.field.pace ? <Summary k="Pace · median split" v={m2(s.field.pace.median)} u="/500m" /> : null}
           <View onLayout={(e) => setCardW(Math.round(e.nativeEvent.layout.width))} style={{ marginTop: 10 }}>
-            {s.field.lengthKde ? (
-              <FieldCard
-                w={cardW}
-                name="the length of every row"
-                title="Length of every row"
-                note={`${fmtInt(s.field.sessions)} rows`}
-                kde={s.field.lengthKde}
-                fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)}
-                say={lengthSay(s.field.lengthKde)}
-                you={st?.you?.lengthYou ?? null}
-                youNote={st?.you ? `${fmtInt(st.you.sessions)} of yours` : undefined}
-                sayYou={st?.you?.lengthYou ? lengthYouSay(st.you.lengthYou, st.you.lenPct) : null}
-              />
-            ) : null}
-            {s.field.paceKde ? (
-              <FieldCard
-                w={cardW}
-                name="the split of every row"
-                title="Split of every row"
-                note="/500m"
-                kde={s.field.paceKde}
-                fmt={m2}
-                lowerIsBetter
-                say={`Half of all timed rows hold a split faster than ${m2(s.field.paceKde.median)} /500m${middleHalf(s.field.paceKde, m2, 1, "sit")}. Faster is to the left.`}
-                you={st?.you?.paceYou ?? null}
-                youNote={st?.you?.paceYou ? `${fmtInt(st.you.paceYou.rug.length)} of yours` : undefined}
-                sayYou={st?.you?.paceYou ? paceYouSay(st.you.paceYou, st.you.pacePct) : null}
-              />
-            ) : null}
-            {s.distances
-              .filter((d) => d.fieldN > 0)
-              .map((d) => {
-                const mine = st?.distances.find((x) => x.meters === d.meters) ?? null;
-                return (
-                  <FieldCard
-                    key={d.meters}
-                    w={cardW}
-                    name={`every ${d.label}`}
-                    title={`The ${d.label}`}
-                    note={`${fmtInt(d.fieldN)} timed rows`}
-                    kde={d.field}
-                    fmt={m2}
-                    lowerIsBetter
-                    say={`The ${d.label} in the middle takes ${m2(d.field.median)}: half of the ${fmtInt(d.fieldN)} timed rows are quicker${middleHalf(d.field, m2, 5, "finish")}. Faster is to the left.`}
-                    you={mine?.you ?? d.you ?? null}
-                    youNote={mine ? `${fmtInt(mine.youN)} of yours` : undefined}
-                    sayYou={mine ? distanceYouSay(d.label, d.field, mine.you, mine.youN) : null}
-                  />
-                );
-              })}
+            <FieldCards
+              w={cardW}
+              field={s.field}
+              you={st?.you ?? null}
+              distances={s.distances
+                .filter((d) => d.fieldN > 0)
+                .map((d) => {
+                  const mine = st?.distances.find((x) => x.meters === d.meters) ?? null;
+                  return { meters: d.meters, label: d.label, field: d.field, fieldN: d.fieldN, you: mine?.you ?? d.you ?? null, youN: mine ? mine.youN : null };
+                })}
+            />
           </View>
           {month && s.hourGrid.length ? null : hoursOfDay}
         </>
@@ -275,10 +239,77 @@ function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; li
  * turn. */
 /* Taller (owner, 2026-11-23: "give more vertical space to the KDEs"); was 180. */
 const CURVE_H = 260;
-function FieldCard({ w, name, title, note, kde, fmt, lowerIsBetter, say, you, youNote, sayYou }: { w: number; name: string; title: string; note?: string; kde: Kde; fmt: (x: number) => string; lowerIsBetter?: boolean; say: string | null; you: KdeYou | null; youNote?: string; sayYou: string | null }) {
+/* THE FIELD'S CARDS, the stats tab's and a rower's profile's alike (owner,
+ * 2026-11-23: "make the user page ... the exact same KDEs ... but starts
+ * with their data, and then swiping is everyone else's data"). The stats
+ * tab opens on everyone; a profile (`youFirst`) on the rower. */
+type FieldYou = { sessions: number; lenPct: number | null; pacePct: number | null; lengthYou: KdeYou | null; paceYou: KdeYou | null };
+type FieldDistance = { meters: number; label: string; field: Kde; fieldN: number; you: KdeYou | null; youN: number | null };
+export function FieldCards({ w, field, you, distances, youFirst = false }: { w: number; field: { sessions: number; lengthKde?: Kde | null; paceKde?: Kde | null }; you: FieldYou | null; distances: FieldDistance[]; youFirst?: boolean }) {
+  return (
+    <>
+      {field.lengthKde ? (
+        <FieldCard
+          w={w}
+          youFirst={youFirst}
+          name="the length of every row"
+          title="Length of every row"
+          note={`${fmtInt(field.sessions)} rows`}
+          kde={field.lengthKde}
+          fmt={(x) => (x >= 1000 ? `${x / 1000}K` : `${x}`)}
+          say={lengthSay(field.lengthKde)}
+          you={you?.lengthYou ?? null}
+          youNote={you ? `${fmtInt(you.sessions)} of yours` : undefined}
+          sayYou={you?.lengthYou ? lengthYouSay(you.lengthYou, you.lenPct) : null}
+        />
+      ) : null}
+      {field.paceKde ? (
+        <FieldCard
+          w={w}
+          youFirst={youFirst}
+          name="the split of every row"
+          title="Split of every row"
+          note="/500m"
+          kde={field.paceKde}
+          fmt={m2}
+          lowerIsBetter
+          say={`Half of all timed rows hold a split faster than ${m2(field.paceKde.median)} /500m${middleHalf(field.paceKde, m2, 1, "sit")}. Faster is to the left.`}
+          you={you?.paceYou ?? null}
+          youNote={you?.paceYou ? `${fmtInt(you.paceYou.rug.length)} of yours` : undefined}
+          sayYou={you?.paceYou ? paceYouSay(you.paceYou, you.pacePct) : null}
+        />
+      ) : null}
+      {distances.map((d) => (
+        <FieldCard
+          key={d.meters}
+          w={w}
+          youFirst={youFirst}
+          name={`every ${d.label}`}
+          title={`The ${d.label}`}
+          note={`${fmtInt(d.fieldN)} timed rows`}
+          kde={d.field}
+          fmt={m2}
+          lowerIsBetter
+          say={`The ${d.label} in the middle takes ${m2(d.field.median)}: half of the ${fmtInt(d.fieldN)} timed rows are quicker${middleHalf(d.field, m2, 5, "finish")}. Faster is to the left.`}
+          you={d.you}
+          youNote={d.youN !== null ? `${fmtInt(d.youN)} of yours` : undefined}
+          sayYou={d.you && d.youN !== null ? distanceYouSay(d.label, d.field, d.you, d.youN) : null}
+        />
+      ))}
+    </>
+  );
+}
+
+function FieldCard({ w, name, title, note, kde, fmt, lowerIsBetter, say, you, youNote, sayYou, youFirst = false }: { w: number; name: string; title: string; note?: string; kde: Kde; fmt: (x: number) => string; lowerIsBetter?: boolean; say: string | null; you: KdeYou | null; youNote?: string; sayYou: string | null; youFirst?: boolean }) {
   const everyone = (fill: boolean) => (
     <Box fill={fill} title={title} note={note} say={say}>
       <Density kde={kde} fmt={fmt} lowerIsBetter={lowerIsBetter} height={CURVE_H} />
+    </Box>
+  );
+  /* The same name over it, so either face says what it is a curve of. */
+  const mine = (fill: boolean) => (
+    <Box fill={fill} title={title} note={youNote ? `You over everyone · ${youNote}` : "You over everyone"} say={sayYou}>
+      <Density kde={kde} you={you} fmt={fmt} lowerIsBetter={lowerIsBetter} height={CURVE_H} />
     </Box>
   );
   /* Before the width is known there is nothing to page across. */
@@ -301,16 +332,9 @@ function FieldCard({ w, name, title, note, kde, fmt, lowerIsBetter, say, you, yo
       <Flip
         w={w}
         name={name}
-        words={["Swipe: you over everyone", "Swipe back: everyone"]}
-        labels={[`Everyone: ${name}`, `You over everyone: ${name}`]}
-        own={everyone}
-        other={
-          /* The same name over it, so the second face still says what it
-             is a curve of. */
-          <Box fill title={title} note={youNote ? `You over everyone · ${youNote}` : "You over everyone"} say={sayYou}>
-            <Density kde={kde} you={you} fmt={fmt} lowerIsBetter={lowerIsBetter} height={CURVE_H} />
-          </Box>
-        }
+        labels={youFirst ? [`You over everyone: ${name}`, `Everyone: ${name}`] : [`Everyone: ${name}`, `You over everyone: ${name}`]}
+        own={youFirst ? mine : everyone}
+        other={youFirst ? everyone(true) : mine(true)}
       />
     </View>
   );

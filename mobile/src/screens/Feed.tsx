@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
 import { api, edits, peek, type FeedItem, type FeedPage } from "../api";
 import { buzz } from "../buzz";
 import { ROW_URL, shareLink } from "../files";
@@ -7,8 +7,10 @@ import { DotsIcon, ExpandIcon, LinkIcon, StickerIcon, SwapIcon, VerifiedIcon } f
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, MONTHS, dayKey, wholeSplit } from "../theme";
-import { Avatar, Blocks, HOLD_MS, HoldMenu, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, Skel, SkelCards } from "../ui";
+import { LiftMenu, whereOnScreen, type Rect, type Spot } from "../lift";
+import { Avatar, Blocks, HOLD_MS, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, Skel, SkelCards } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
+import { RecapStrip } from "./Recap";
 import { deck } from "../stickers";
 import { StickerViewer } from "./RowPage";
 import { RowMenu } from "./Social";
@@ -47,8 +49,8 @@ import { RowMenu } from "./Social";
  * little round at the corners.
  *
  * A PHOTO THAT IS HELD brings the row forward over a dark screen with a
- * short list under it, as Instagram does (owner, 2026-11-23; ui.tsx
- * HoldMenu): SHARE LINK, a line about the row and the address of its own
+ * short list under it, as Instagram does (owner, 2026-11-23; lift.tsx
+ * LiftMenu, which lifts it off the page and puts it back): SHARE LINK, a line about the row and the address of its own
  * page on the site, to the phone's share sheet; STICKERS; and VIEW PHOTO,
  * which is what holding a photo did until that day and is MINE to have
  * kept. The grid of a profile has SHARE LINK.
@@ -199,9 +201,11 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
     <>
       {menu ? sheet(menu, () => setMenu(null)) : null}
       {held && held.it.photos[held.h.at] ? (
-        <HoldMenu
+        <LiftMenu
           head={{ name: held.it.name, sub: when(held.it), avatar: held.it.avatar }}
           photo={held.it.photos[held.h.at]}
+          figures={figures(held.it)}
+          from={held.h.from}
           onClose={() => setHeld(null)}
           items={[
             ...(held.it.mine && held.it.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held.it) } as HoldItem] : []),
@@ -225,6 +229,9 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
   const { items, older, error, refreshing, first, next } = rows;
   const { card, overlays } = useCards(rows, onRower, onRow);
   const dir = useScrollDir(onScrollDir);
+  /* Counts the pulls down, so the story recap over the cards reads again
+   * with the feed (Recap.tsx; owner, 2026-11-23). */
+  const [pulls, setPulls] = useState(0);
   /* The stickers of the viewer's own newest rows are drawn while the feed
    * is being read, so SHARE has them in hand. */
   const mineIds = (items ?? []).filter((it) => it.mine && !it.masked).slice(0, 2).map((it) => it.id).join(",");
@@ -240,12 +247,28 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
         data={items}
         keyExtractor={(it) => it.id}
         contentContainerStyle={{ paddingBottom: 124 }}
-        onRefresh={() => first(true)}
-        refreshing={refreshing}
+        /* Its own colour, so the spinner shows on the dark look too
+           (owner, 2026-11-23: "The spinner doesn't show up on dark mode");
+           the list's bare onRefresh drew iOS's dark one on black. */
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setPulls((n) => n + 1);
+              first(true);
+            }}
+            tintColor={C.ink}
+            colors={[C.ink]}
+            progressBackgroundColor={C.paper}
+          />
+        }
         onEndReached={next}
         onEndReachedThreshold={1.2}
         /* Which way the list is going, for the bars that step aside. */
         {...dir}
+        /* WHO ROWED IN THE LAST DAY, as stories over the cards (Recap.tsx).
+           Nothing at all when nobody did. */
+        ListHeaderComponent={<RecapStrip again={`${stamp}:${pulls}:${me.me?.rowerNumber ?? ""}`} onRow={onRow} onRower={onRower} />}
         renderItem={({ item }) => <>{card(item)}</>}
         ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, paddingHorizontal: 14, lineHeight: 18 }]}>Nothing logged yet. The feed starts with the first row.</Text>}
         ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
@@ -328,6 +351,14 @@ function when(it: FeedItem): string {
   if (it.dayKey === dayKey(new Date(Date.now() - 86_400_000))) return `Yesterday at ${it.clockStr}`;
   const [y, m, d] = it.dayKey.split("-").map(Number);
   return `${MONTHS[(m || 1) - 1]} ${d}, ${y} at ${it.clockStr}`;
+}
+
+/* How long and how fast, under a held photo (owner, 2026-11-23: "when I
+ * press and hold it to view it, I also want to see the how long and how
+ * fast stat"): the meters, the pace to the second as the card says it, and
+ * the time. */
+function figures(it: FeedItem) {
+  return { meters: it.metersStr, pace: wholeSplit(it.splitStr), time: it.durationStr };
 }
 
 /* One figure of a row: a small grey word over the number in ink. */
@@ -459,6 +490,17 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
   /* A tile that is held: the row forward and a short list, as on the feed.
    * SHARE LINK is the feed's, and so is SWAP PHOTO, on the rower's own. */
   const [held, setHeld] = useState<FeedItem | null>(null);
+  /* Where the held square is on the screen, so the card lifts off it and
+   * goes back into it (owner, 2026-11-23: "I want to take it, lift it off
+   * the page, show it, give it the options. Then I can swipe down and have
+   * it be removed"; lift.tsx). */
+  const [heldFrom, setHeldFrom] = useState<Rect | undefined>(undefined);
+  const squares = useRef(new Map<string, Spot | null>());
+  const lift = (it: FeedItem) =>
+    whereOnScreen(squares.current.get(it.id), (r) => {
+      setHeldFrom(r);
+      setHeld(it);
+    });
   const face = (it: FeedItem) => (it.masked ? null : it.photos[0] || null);
   const have = items?.length ?? 0;
   useEffect(() => {
@@ -502,8 +544,14 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
         {items.slice(0, shown).map((it) => {
           const photo = face(it);
           return (
-            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} delayLongPress={HOLD_MS} onLongPress={photo ? () => setHeld(it) : undefined} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
-              <View style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}>
+            <Pressable key={it.id} accessibilityRole="link" accessibilityLabel={`Open the row of ${it.dayStr}`} onPress={() => onRow(it.id)} delayLongPress={HOLD_MS} onLongPress={photo ? () => lift(it) : undefined} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
+              <View
+                ref={(v) => {
+                  squares.current.set(it.id, v);
+                }}
+                collapsable={false}
+                style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}
+              >
                 {photo ? <Image source={{ uri: photo.thumb ?? photo.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
               </View>
             </Pressable>
@@ -512,9 +560,11 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
       </View>
       {older || items.length > shown ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : null}
       {held && face(held) ? (
-        <HoldMenu
+        <LiftMenu
           head={{ name: held.name, sub: when(held), avatar: held.avatar }}
           photo={face(held) as NonNullable<ReturnType<typeof face>>}
+          figures={figures(held)}
+          from={heldFrom}
           onClose={() => setHeld(null)}
           items={[
             ...(held.mine && held.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held) } as HoldItem] : []),

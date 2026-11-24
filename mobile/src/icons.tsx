@@ -236,7 +236,7 @@ export function GridIcon({ color = C.ink, size = 24 }: P) {
   );
 }
 
-/* THE MENU A HELD ROW OPENS (ui.tsx HoldMenu). Two arrows, one each way:
+/* THE MENU A HELD ROW OPENS (lift.tsx LiftMenu). Two arrows, one each way:
  * the other photo. */
 export function SwapIcon({ color = C.ink, size = 24 }: P) {
   return (

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { CHALLENGE } from "@/lib/row100k";
+import { CHALLENGE, MONTH, nowMs } from "@/lib/row100k";
 import { resolveViewer } from "@/lib/row100kViewer";
+import { FIRST_MONTH_KEY, monthFromKey, monthName, monthsThrough } from "@/lib/rowPeriod";
 import { buildBoardPage } from "@/app/row100k/board/boardPageData";
 
 /* THE 100K BOARD for the phone app (2026-11-20): the same rows, tiers and
@@ -12,10 +13,25 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 
-export async function GET() {
+/* ?m=2026-10: WHICH MONTH'S BOARD (owner, 2026-11-23: "I want to be able
+ * to change what month I'm looking at. I want to see September's and
+ * October's results as well"). A month from Rowtember through this one;
+ * nothing is this month. Anything else is refused, not quietly swapped for
+ * this month, so the app never prints one month under another's name.
+ * The same rows, mask and Developer rule as this month's (boardPageData,
+ * boardView, lib/db.ts). */
+export async function GET(req: Request) {
+  const raw = new URL(req.url).searchParams.get("m");
+  const month = raw ? monthFromKey(raw.trim()) : MONTH;
+  if (!month || month.key < FIRST_MONTH_KEY || month.key > MONTH.key) {
+    return NextResponse.json({ ok: false, error: "There is no board for that month." }, { status: 400, headers: NO_STORE });
+  }
+  /* Every month there is a board for, oldest first, for the picker. */
+  const months = monthsThrough(nowMs()).map((m) => ({ key: m.key, label: m.label, name: monthName(m) }));
+  const live = month.key === MONTH.key;
   try {
     const viewer = await resolveViewer();
-    const data = await buildBoardPage(viewer);
+    const data = await buildBoardPage(viewer, month);
     /* THE LAST EIGHT DAYS, DAY BY DAY, for the look of the board the app
      * is trying (owner, 2026-11-22: "like an attendance sheet ... boxes ...
      * where inside of them is the meters that were rowed that day"): for
@@ -45,7 +61,7 @@ export async function GET() {
     } catch (err) {
       console.error("row app: failed to read the board's week", err);
     }
-    return NextResponse.json({ ok: true, signedIn: viewer.actor !== null, ...data, week }, { headers: NO_STORE });
+    return NextResponse.json({ ok: true, signedIn: viewer.actor !== null, ...data, week, months, live }, { headers: NO_STORE });
   } catch (err) {
     console.error("row app: failed to build the board", err);
     return NextResponse.json({ ok: false, error: "The board could not be read just now." }, { status: 500, headers: NO_STORE });

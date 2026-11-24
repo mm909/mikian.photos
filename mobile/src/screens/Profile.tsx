@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ROWER_URL, shareLink } from "../files";
 import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
-import { Density, MonthGrid, PaceLine } from "../charts";
+import { MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
@@ -11,6 +11,7 @@ import { Avatar, Bar, Blocks, PhotoViewer, Waiting, modals, scrub, setSideDrag, 
 import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
+import { FieldCards } from "./Stats";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
 /* A ROWER'S PROFILE, the site's /r/[num] on a phone (looks/Profile.tsx and
@@ -158,6 +159,8 @@ export function ProfileScreen({
   /* How the two stand after a press here, until the page is read again. */
   const [live, setLive] = useState<{ rel: Rel; counts: Counts } | null>(null);
   const [sharing, setSharing] = useState(false);
+  /* How wide the field's cards are, to page across. */
+  const [fieldW, setFieldW] = useState(0);
   const [tab, setTab] = useState<Sub>("rows");
   /* Counts up while the end of the page is near, for the gallery. */
   const [near, setNear] = useState(0);
@@ -316,7 +319,10 @@ export function ProfileScreen({
           </View>
           {p.paceCurve.length >= 2 ? (
             <>
-              <Eye left="The pace" right="Each row, and the running average" />
+              {/* How many rows, not what the marks are (owner, 2026-11-23:
+                  "we can remove each row in the running average ... we can
+                  instead put how many rows you have"). */}
+              <Eye left="The pace" right={`${fmtInt(Math.max(p.paceCurve.length, p.paceDots.length))} rows`} />
               <PaceLine curve={p.paceCurve} dots={p.paceDots} fmt={(s) => fmtClock(s, false)} />
             </>
           ) : null}
@@ -332,16 +338,19 @@ export function ProfileScreen({
                 <View style={{ width: 1, backgroundColor: C.ink }} />
                 <Standing k="Average pace" v={m2(p.field.you.avgPace)} u="/500m" line={`Faster than ${p.field.you.pacePct}%`} pad />
               </View>
-              <ChartHead>Length of every row</ChartHead>
-              <Density kde={p.field.field.lengthKde} you={p.field.you.lengthYou} fmt={(x) => (x >= 1000 ? `${Math.round(x / 100) / 10}K` : `${Math.round(x)}`)} />
-              <ChartHead>Split of every row</ChartHead>
-              <Density kde={p.field.field.paceKde} you={p.field.you.paceYou} fmt={m2} lowerIsBetter />
-              {p.field.distances.map((d) => (
-                <View key={d.meters}>
-                  <ChartHead note={`${d.youN} of ${d.fieldN} timed rows`}>The {d.label}</ChartHead>
-                  <Density kde={d.field} you={d.you} fmt={m2} lowerIsBetter />
-                </View>
-              ))}
+              {/* The stats tab's own cards, the rower first and everyone a
+                  swipe away (owner, 2026-11-23: "make the user page ... the
+                  exact same KDEs ... but starts with their data, and then
+                  swiping is everyone else's data"). */}
+              <View onLayout={(e) => setFieldW(Math.round(e.nativeEvent.layout.width))} style={{ marginTop: 14 }}>
+                <FieldCards
+                  w={fieldW}
+                  youFirst
+                  field={p.field.field}
+                  you={p.field.you}
+                  distances={p.field.distances.map((d) => ({ meters: d.meters, label: d.label, field: d.field, fieldN: d.fieldN, you: d.you, youN: d.youN }))}
+                />
+              </View>
             </>
           ) : null}
 
@@ -725,8 +734,11 @@ function Standing({ k, v, u, line, pad }: { k: string; v: string; u: string; lin
     <View style={{ flex: 1, paddingVertical: 14, paddingLeft: pad ? 12 : 0 }}>
       <Text style={mono(10, false, C.gray, 0.14)}>{k}</Text>
       <View style={{ flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 6 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 26, color: C.accent, fontVariant: ["tabular-nums"] }}>{v}</Text>
-        <Text style={{ fontFamily: F.bold, fontSize: 12, color: C.accent }}>{u}</Text>
+        {/* In the ink, white on the dark look (owner, 2026-11-23: "Let's
+            change the color of average row and average pace, make them
+            white"); they were the blue. */}
+        <Text style={{ fontFamily: F.black, fontSize: 26, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
+        <Text style={{ fontFamily: F.bold, fontSize: 12, color: C.ink }}>{u}</Text>
       </View>
       <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6 }]}>{line}</Text>
     </View>

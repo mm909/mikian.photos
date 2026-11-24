@@ -781,3 +781,48 @@ With Instagram's own held post open beside the app: "give me the ability to have
 - **The foot reads FOR YOURSELF AND OTHERS** ("instead of the version number stuff"); the build line is gone.
 - **The KDEs are taller** ("give more vertical space to the KDEs"): the stats tab's field cards 180 → 260, the profile's curves 120 → 200 (`Density`'s default).
 - SEEN in the browser sandbox (the letters' order, the count after, the foot, the 260 cards); NOT seen on a phone at full frame rate.
+
+## Round 40b (2026-11-23): the 100K tab's months and warming up
+
+"On the 100K tab, I think I want to be able to change what month I'm looking at. I want to see September's and October's results as well"; "I'm also still not able to click on the warming up section and have me see those rowers." Typechecked (app and site); NOT seen in a browser and NOT seen on a phone.
+
+- **The month, at the top of the board** (`Board.tsx` MonthPick, both looks): the month's name big between two boxed arrows, an arrow with nowhere to go greyed out, and the name itself a menu of every month there is a board for (Rowvember, October, Rowtember). Under it THIS MONTH in the blue, or FINAL. This month is the default. While another month's board is on its way the arrows stay up over the loading blocks.
+- **The route takes `?m=2026-10`** (`api/row100k/app/board`): a month from Rowtember through this one; nothing is this month; anything else is a 400, never quietly this month. It answers `months` (oldest first) and `live`. The rows come from the site's own builder (`boardPageData.ts` buildBoardPage, now with an optional month; the site's /board still asks for this month only), through `boardView` with the period, so the lights-out mask and the Developer rule are the ones this month's board has.
+- **September had no opt-in** (it began 2026-10-01), so its board is everyone who rowed it. October and on are the rowers opted into that month.
+- **A past month is final standings**: FINAL STANDINGS where the day of the month was, every day's square filled, no OPT IN, the rungs in that month's name, and the rowers under 10K listed in full under UNDER 10K instead of the warming-up line. In the sheet: no days ahead to plan, no ringed today, the boxes are the month's last eight days.
+- **WARMING UP opens** (this month only): the one line is a button with SEE ▾ at its right in the blue; pressed, it lists every rower in it (each opens that rower) and reads HIDE ▴; pressed again, it is one line again. A long list has a second HIDE at its foot. Shut again on a month change.
+- NOT seen: any of it on a phone or in a browser; a past month during a live lights out; the menu's width with the longest month name.
+
+## Round 40 (2026-11-23): stories atop the feed
+
+"a story recap. I want anyone who has rowed in the last 24 hours to show up kind of like a story at the top of the feed. And when we click it, something similar to stories happens ... we'll just show their first photo and some text about length and time and who did it"; "there's probably a section or an area that you can click on that lets you go to that row, and then otherwise it lets you just go to the next one"; "We can build that, ship it, and we'll see how we like it." Typechecked (app and site); NOT seen in a browser and NOT seen on a phone.
+
+- **The route** (`api/row100k/app/recap`, new; not `app/stories`, which is the FAQs): for the signed-in rower, every rower with a row logged (createdAt) in the last 24 hours, the one who logged last first and the viewer's own ahead of everybody when they rowed; each with those rows oldest first, the first photo only. Who is left out is the feed's rule: private rowers who have not accepted the viewer, both sides of a block, the muted, the Developer (lib/db.ts). A row the lights-out hides is LEFT OUT, not drawn as blocks (MINE: a story is the photo, the length and the time, and the lights-out hides all three); with the board unreadable during a window, everybody's but the viewer's own.
+- **The circles** (`Recap.tsx` RecapStrip, the feed's list header): the face, or the rower number in a circle without one; the ring in the blue until every row in it has been seen on this phone, then the hairline (the seen row ids kept on the phone, `recap/seen/1`); the first name under it in the small mono, YOU for the viewer's own (MINE). Gone when nobody rowed in a day. Read again with the pull down, a row logged, an account change. A drag along circles that run past the screen does not change the tab.
+- **The stories** (`Recap.tsx` RecapViewer): a page to a row, the first photo filling the screen with a dark wash at top and foot; a row with no photo is the paper with its figures big in the middle. The bars on top, one per row of that rower's; the face, name, number and how long ago under them (a tap opens the rower); an X. At the foot the meters big, TIME and PACE (whole seconds, /500m), and SEE THE ROW: a tap there opens the row. The left third goes back, the rest goes on; five seconds a page; held, it stops; a drag down closes it. Past a rower's last row is the next rower's first row not yet seen; past the last, it closes.
+- NOT built: a recap for a viewer who has not joined (the route answers JOIN FIRST and the circles are not drawn); seen rings moving to the end of the row as Instagram does (the server's order stands).
+
+## Round 40c (2026-11-23): a held square lifts off the page
+
+"whenever we hover over or like hard press one of the posts on the gallery, I need it to like animate open ... right now it just pops open ... I want to pick it up and lift it up and make it bigger ... I want to take it, lift it off the page, show it, give it the options. Then I can swipe down and have it be removed. Also, I feel like when I press and hold it to view it, I also want to see the how long and how fast stat." Type-checked only; NOT seen in a browser and NOT seen on a phone.
+
+- **The held menu is `lift.tsx` `LiftMenu`** (it replaced `ui.tsx` HoldMenu; `HOLD_MS` and `HoldItem` stay in ui.tsx). Both holds use it: a square of a profile's grid (`Feed.tsx` RowGrid) and a photo on the feed (`ui.tsx` PhotoSwap `onHold`, which now hands on where the photo is, `Held.from`).
+- **Up**: the held square is measured on the screen (`measureInWindow`) and the card is first drawn so its photo sits exactly on the square, then springs to the middle and grows to the card's width (about a third of a second, the native driver). The page darkens as it goes; the card's paper, its shadow, who and when, and the figures come up round the photo in the last part of the way; the list rises under it. The buzz is the held row's own (`buzz.thud`, round 34).
+- **How long and how fast**: DISTANCE, PACE (to the second, "/500m" small after it) and TIME under the photo, in the feed card's figure style.
+- **Down**: a drag down takes the card with the finger, smaller as it goes (to 80% at 420 px), and the dark thins so the page shows. Past 110 px or a flick and the photo goes back into its square as the dark goes (280 ms); short of that it springs back. A press off the card, on the card, or the phone's back does the same. SHARE LINK goes back into the square once the share sheet is done; the other lines close at once, as before.
+- **The square stays on the page underneath**; the photo lands on it and the cover goes. MINE.
+- **Reduce motion**: nothing flies; the card fades up in the middle and fades away there.
+- NOT done: the finger that held the square cannot drag the card without lifting first (the phone keeps that touch on the page under the cover). No blur behind (no blur module in the build). NOT checked: Android, where the square's place and the cover's may differ by the status bar if the app is ever not drawn under it.
+
+## Round 40d (2026-11-23): fixes from the owner's long list
+
+- **The race grades itself on passes** ("optimize the number of people that I'm passing ... people that are passing me and people that I'm passing"): an open lane goes to the boat that will cross the rower soonest (inside 90 s), and a boat that never will (same speed, not beside the rower) gives its lane to one that will cross inside a minute, one trade every six seconds (`erg/ghosts.ts` nextBoat, `GhostRace.tsx`). Rivals at the start weigh lead changes three times as much.
+- **The feed's pull-to-refresh spinner wears the ink**, so it shows on the dark look.
+- **A field card turns by a JS pager, not a native scroller** (`Field.tsx` Flip): a drag on a chart scrubs and never moves the card; a drag elsewhere on the card turns it and keeps the drag from the tabs. The dots stay; the "Swipe: ..." words are gone.
+- **A profile's field charts are the stats tab's cards** (`Stats.tsx` FieldCards), the rower's face first and everyone a swipe away. Average row and average pace are in the ink.
+- **The pace chart** is 220 tall (was 150), its key is gone, its head says how many rows, and the picked row's ring is filled grey.
+- **The stats tab's time frame and stat** are two centred buttons with a caret (`WordMenu` chip).
+- **Sign-in** is Apple, Google, Developer sign-in, then Terms and Privacy policy; no heading, no "by signing in you agree", no line on abusive content.
+- **Search** leaves the Instagram handle off.
+- **The splash's count** springs up as zeros and the M, then counts.
+- SEEN in the browser sandbox: the stats buttons, scrub vs turn on a card, the board's months, the feed's circles and a story. NOT seen: any of it on a phone, the race on the water, sign-in, the lift.

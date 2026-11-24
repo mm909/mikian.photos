@@ -38,6 +38,13 @@ const ROLLED_MS = (LETTERS.length - 1) * ROLL_STEP + ROLL_MS - 60;
  * stuff, I want it to just say for yourself and others"). */
 const FOOT = "FOR YOURSELF AND OTHERS";
 
+/* THE COUNT POPS UP AS ZEROS FIRST (owner, 2026-11-23: "the meters count
+ * kind of just pops in. Can that also pop up, but pop up as all zeros and
+ * then start counting ... pop up all the zeros and then the M, and then
+ * start counting"). The zeros and the M spring up into place; the count
+ * starts once they are there. */
+const NUM_POP_MS = 360;
+
 /* EVERY PLACE IS THERE FROM THE START, AND ONE MORE (owner, 2026-11-23:
  * "Always add a 0 in front of the digits that we end with ... Even when
  * we're counting and it only has the 100,000s place and doesn't have the
@@ -65,6 +72,7 @@ export function Splash() {
   const fade = useRef(new Animated.Value(1)).current;
   /* The mark rolls in first; the count waits for it. */
   const rolls = useRef(LETTERS.map(() => new Animated.Value(0))).current;
+  const numPop = useRef(new Animated.Value(0)).current;
   const target = useRef(0);
   const gone = useRef(false);
 
@@ -92,12 +100,18 @@ export function Splash() {
         timer = setTimeout(leave, HOLD_MS + 300);
         return;
       }
+      setMeters(0);
       setKnown(true);
       if (still) {
+        numPop.setValue(1);
         setMeters(target.current);
         timer = setTimeout(leave, HOLD_MS + 400);
         return;
       }
+      Animated.spring(numPop, { toValue: 1, friction: 7, tension: 110, useNativeDriver: Platform.OS !== "web" }).start();
+      timer = setTimeout(count, NUM_POP_MS);
+    };
+    const count = () => {
       const t0 = Date.now();
       const tick = () => {
         const p = Math.min(1, (Date.now() - t0) / COUNT_MS);
@@ -145,7 +159,7 @@ export function Splash() {
     );
     const wait = setTimeout(run, WAIT_MS);
     /* However it goes, the app is never held behind the opening for long. */
-    const cap = setTimeout(leave, ROLLED_MS + WAIT_MS + COUNT_MS + HOLD_MS + 600);
+    const cap = setTimeout(leave, ROLLED_MS + WAIT_MS + NUM_POP_MS + COUNT_MS + HOLD_MS + 600);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -169,13 +183,13 @@ export function Splash() {
         </View>
         <View style={{ height: 64, alignItems: "center", justifyContent: "flex-start", marginTop: 14 }}>
           {known ? (
-            <>
+            <Animated.View style={{ alignItems: "center", opacity: numPop.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ translateY: numPop.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }, { scale: numPop.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] }}>
               <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 36, color: C.ink, fontVariant: ["tabular-nums"] }}>
                 {zeroed(meters, target.current)}
                 <Text style={{ color: C.accent }}> M</Text>
               </Text>
               <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2.2, color: C.gray, marginTop: 6 }}>METERS ROWED</Text>
-            </>
+            </Animated.View>
           ) : null}
         </View>
         <Text style={{ position: "absolute", left: 16, right: 16, bottom: 28, textAlign: "center", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray }}>{FOOT}</Text>

@@ -443,7 +443,9 @@ export const modals = { open: 0 };
  * takes it back as the finger lifts (charts.tsx); the app's outermost view
  * clears it as every touch begins, and no swipe between tabs takes a touch
  * that has it set (App.tsx, screens/Profile.tsx). */
-export const scrub = { on: false };
+/* `chart` is the narrower of the two: set by a chart's own surface alone,
+ * so a card that turns (Field.tsx Flip) leaves a scrub to the chart. */
+export const scrub = { on: false, chart: false };
 /* A DRAG ACROSS THE SCREEN DOES NOT ALSO SCROLL THE PAGE UP AND DOWN
  * (owner, 2026-11-22, of the profile's three tabs: "whenever I'm swiping
  * back and forth between them, I can still scroll up and down. We probably
@@ -620,14 +622,23 @@ export function Plate({ label, height = 18 }: { label: string; height?: number }
  * because every post is going to have two photos"). Both are loaded from
  * the start, so the swap is at once. A long press opens the photo whole,
  * with the run of every photo in the list behind it as before; or, where
- * the list has a menu for a held row (`onHold`, HoldMenu below), it opens
- * that, and the photo whole is a line of the menu. */
-export type Held = { at: number; view: () => void };
+ * the list has a menu for a held row (`onHold`, lift.tsx LiftMenu), it opens
+ * that, and the photo whole is a line of the menu. Where the photo sits on
+ * the screen goes with it (`from`), so the menu's card can lift off from it
+ * (lift.tsx; owner, 2026-11-23: "lift it off the page"). */
+export type Held = { at: number; view: () => void; from?: { x: number; y: number; w: number; h: number } };
 export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { photos: Photo[]; gallery?: Gallery; style?: StyleProp<ViewStyle>; ratio?: number; onHold?: (h: Held) => void }) {
   const [at, setAt] = useState(0);
   const [open, setOpen] = useState<number | null>(null);
   const [dots, setDots] = useState(false);
   const seen = useRef(0);
+  const frame = useRef<ComponentRef<typeof View>>(null);
+  const hold = (h: Held) => {
+    if (!onHold) return;
+    const v = frame.current;
+    if (!v) return onHold(h);
+    v.measureInWindow((x, y, w, hh) => onHold(w > 0 && hh > 0 ? { ...h, from: { x, y, w, h: hh } } : h));
+  };
   if (!photos.length) return null;
   const shown = photos.slice(0, 2);
   const i = Math.min(at, shown.length - 1);
@@ -638,7 +649,7 @@ export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { p
   };
   return (
     <View style={style}>
-      <Pressable accessibilityRole="imagebutton" accessibilityLabel={shown.length > 1 ? (i === 0 ? "The rower's photo. Tap for the monitor's." : "The monitor's photo. Tap for the rower's.") : "The row's photo"} onPress={() => (shown.length > 1 ? setAt(1 - i) : setOpen(0))} delayLongPress={onHold ? HOLD_MS : undefined} onLongPress={() => (onHold ? onHold({ at: i, view: () => setOpen(i) }) : setOpen(i))} style={{ width: "100%", aspectRatio: ratio, backgroundColor: C.pale }}>
+      <Pressable ref={frame} accessibilityRole="imagebutton" accessibilityLabel={shown.length > 1 ? (i === 0 ? "The rower's photo. Tap for the monitor's." : "The monitor's photo. Tap for the rower's.") : "The row's photo"} onPress={() => (shown.length > 1 ? setAt(1 - i) : setOpen(0))} delayLongPress={onHold ? HOLD_MS : undefined} onLongPress={() => (onHold ? hold({ at: i, view: () => setOpen(i) }) : setOpen(i))} style={{ width: "100%", aspectRatio: ratio, backgroundColor: C.pale }}>
         {shown.map((p, k) => (
           <Image key={k} source={{ uri: p.full }} resizeMode="cover" style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", opacity: k === i ? 1 : 0 }]} />
         ))}
@@ -671,78 +682,11 @@ export function PhotoSwap({ photos, gallery, style, ratio = 3 / 4, onHold }: { p
  * share link, nothing happened"). The menu closed first and the sheet was
  * asked for in the same breath; a phone will not bring a sheet up from a
  * screen that is on its way out, and says nothing about it. Now the sheet
- * comes up over the menu, and the menu goes when the sheet does. */
+ * comes up over the menu, and the menu goes when the sheet does.
+ *
+ * The menu itself is lift.tsx LiftMenu since 2026-11-23 (owner: "I want to
+ * pick it up and lift it up and make it bigger"): the card flies up out of
+ * the held photo and back into it. The hold's length and the lines are
+ * still here. */
 export const HOLD_MS = 320;
 export type HoldItem = { label: string; icon: ReactNode; onPress: () => void | Promise<unknown>; wait?: boolean };
-export function HoldMenu({ head, photo, items, onClose }: { head?: { name: string; sub?: string; avatar?: string | null }; photo: Photo; items: HoldItem[]; onClose: () => void }) {
-  useModalHold();
-  const win = useWindowDimensions();
-  const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    buzz.thud();
-    Animated.timing(a, { toValue: 1, duration: 190, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start();
-  }, [a]);
-  const LINE = 50;
-  const HEAD = head ? 56 : 0;
-  const GAP = 12;
-  const menuW = 236;
-  /* Upright: the card over the list, as tall as the two fit. On its side:
-   * the card beside the list. */
-  const flat = win.width > win.height;
-  const tall = flat ? win.height - 48 - HEAD : win.height - 132 - HEAD - GAP - items.length * LINE;
-  const cardW = Math.round(Math.max(150, Math.min(flat ? win.width - menuW - GAP - 48 : win.width - 32, 440, (tall * 3) / 4)));
-  return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(8,10,14,0.8)", opacity: a }]}>
-          <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1 }} />
-        </Animated.View>
-        <Animated.View pointerEvents="box-none" style={{ flexDirection: flat ? "row" : "column", alignItems: flat ? "flex-end" : "flex-start", gap: GAP, opacity: a, transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] }}>
-          <Pressable accessibilityLabel="Close" onPress={onClose} style={{ width: cardW, borderRadius: 18, overflow: "hidden", backgroundColor: C.paper }}>
-            {head ? (
-              <View style={{ height: HEAD, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12 }}>
-                <Avatar uri={head.avatar} name={head.name} size={34} />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontFamily: F.semi, fontSize: 14.5, color: C.ink }}>
-                    {head.name}
-                  </Text>
-                  {head.sub ? (
-                    <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 12.5, color: C.gray, marginTop: 1 }}>
-                      {head.sub}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-            <Image source={{ uri: photo.full }} resizeMode="cover" style={{ width: cardW, height: Math.round((cardW * 4) / 3), backgroundColor: C.pale }} />
-          </Pressable>
-          <View accessibilityRole="menu" style={{ width: menuW, borderRadius: 14, overflow: "hidden", backgroundColor: C.paper }}>
-            {items.map((it, k) => (
-              <Pressable
-                key={it.label}
-                accessibilityRole="menuitem"
-                accessibilityLabel={it.label}
-                onPress={() => {
-                  if (it.wait) {
-                    Promise.resolve(it.onPress())
-                      .catch(() => null)
-                      .then(onClose);
-                    return;
-                  }
-                  onClose();
-                  it.onPress();
-                }}
-                style={({ pressed }) => ({ height: LINE, flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, borderTopWidth: k ? 1 : 0, borderColor: C.line, backgroundColor: pressed ? C.pale : C.paper })}
-              >
-                {it.icon}
-                <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 16.5, color: C.ink }}>
-                  {it.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-}

@@ -1,12 +1,12 @@
-import { useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Animated, PanResponder, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import { ticks } from "../erg/reviewGeom";
 import { api } from "../api";
 import { medianOf, meanOf, placeOf, quantile, SHAPE_STEPS, type FieldStats, type RowMeasure } from "../pm5/craft";
 import { Dash, Eye, mono } from "../site";
 import { C, F, fmtInt, fmtPace } from "../theme";
-import { Skel, useLoad } from "../ui";
+import { Skel, scrub, setSideDrag, useLoad } from "../ui";
 import { Axes, Box, Key, Lab, PAD } from "./reviewBits";
 
 /* A ROW AGAINST EVERYONE, CARD BY CARD (owner, 2026-11-22: "for every one
@@ -78,26 +78,78 @@ function against(vals: number[], mine: number, better: "low" | "high", tie: numb
  * about, everyone first and the rower over them second (Stats.tsx): `words`
  * are the two lines under the dots, and `labels` what a screen reader is
  * told each dot is. */
-export function Flip({ w, name, own, other, words, labels }: { w: number; name: string; own: (fill: boolean) => ReactNode; other: ReactNode | null; words?: [string, string]; labels?: [string, string] }) {
+export function Flip({ w, name, own, other, labels }: { w: number; name: string; own: (fill: boolean) => ReactNode; other: ReactNode | null; words?: [string, string]; labels?: [string, string] }) {
   const [page, setPage] = useState(0);
-  const strip = useRef<ComponentRef<typeof ScrollView>>(null);
+  const x = useRef(new Animated.Value(0)).current;
+  const at = useRef(0);
+  const width = useRef(w);
+  width.current = w;
+  const go = (i: number, v = 0) => {
+    at.current = i;
+    setPage(i);
+    Animated.spring(x, { toValue: -i * width.current, velocity: v, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start();
+  };
+  /* A JS PAGER, NOT A SCROLLER (owner, 2026-11-23: "as I'm scrubbing
+   * through the KDE to look at the values, I'm also moving those cards, and
+   * we shouldn't move the card if I'm scrubbing"). A native horizontal
+   * scroller takes every sideways drag before a chart can, so the card slid
+   * under a scrubbing finger. Now the card turns from a sideways drag that
+   * no chart inside it has claimed: a chart asks first (it is deeper) and
+   * holds the touch once it has it. */
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) => !scrub.chart && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        /* Once the card has the drag it keeps it: the tabs' own swipe, an
+         * ancestor, would otherwise take it over and turn the page. */
+        onPanResponderGrant: () => {
+          scrub.on = true;
+          setSideDrag(true);
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderMove: (_e, g) => {
+          const base = -at.current * width.current;
+          let to = base + g.dx;
+          /* Past either end it gives, a third as far. */
+          const min = -width.current;
+          if (to > 0) to /= 3;
+          else if (to < min) to = min + (to - min) / 3;
+          x.setValue(to);
+        },
+        onPanResponderRelease: (_e, g) => {
+          scrub.on = false;
+          setSideDrag(false);
+          const far = Math.abs(g.dx) > width.current * 0.22 || Math.abs(g.vx) > 0.35;
+          const next = far ? (g.dx < 0 ? 1 : 0) : at.current;
+          go(next, g.vx);
+        },
+        onPanResponderTerminate: () => {
+          scrub.on = false;
+          setSideDrag(false);
+          go(at.current);
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   if (!other) return <>{own(false)}</>;
-  const go = (i: number) => strip.current?.scrollTo({ x: i * w, animated: true });
   return (
     <>
-      <ScrollView ref={strip} horizontal pagingEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} onScroll={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, w)))} scrollEventThrottle={32} style={{ width: w }}>
-        <View style={{ width: w }}>{own(true)}</View>
-        <View style={{ width: w }}>{other}</View>
-      </ScrollView>
+      <View {...pan.panHandlers} style={{ width: w, overflow: "hidden" }}>
+        <Animated.View style={{ width: w * 2, flexDirection: "row", transform: [{ translateX: x }] }}>
+          <View style={{ width: w }}>{own(true)}</View>
+          <View style={{ width: w }}>{other}</View>
+        </Animated.View>
+      </View>
+      {/* The two dots and no words (owner, 2026-11-23: "I don't think that I
+          like the copy that says swipe you over everyone. I think we can
+          leave the 2 little dots there"). */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
         {[0, 1].map((i) => (
           <Pressable key={i} accessibilityRole="button" accessibilityLabel={labels ? labels[i] : i === 0 ? `Your ${name}` : `Your ${name} against everyone`} onPress={() => go(i)} hitSlop={10}>
             <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? C.accent : C.line }} />
           </Pressable>
         ))}
-        <Text accessibilityRole="button" onPress={() => go(page === 0 ? 1 : 0)} suppressHighlighting style={mono(10, false, C.gray, 0.1)}>
-          {words ? words[page === 0 ? 0 : 1] : page === 0 ? "Swipe: against everyone" : "Swipe back: yours"}
-        </Text>
       </View>
     </>
   );

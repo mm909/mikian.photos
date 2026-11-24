@@ -514,6 +514,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
            off, and the profile's own tabs would not swipe again. */
         onTouchStartCapture={() => {
           scrub.on = false;
+          scrub.chart = false;
         }}
       >
         {monitor ? null : (
