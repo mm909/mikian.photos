@@ -13,7 +13,11 @@ import { LegalPage } from "@/components/legal/LegalPage";
  * advertising ... We'll sell the data if someone's buying it ... But we're
  * not doing that right now"): no promise never to sell or advertise; what
  * is true today is said as today, and a change is promised to be written
- * here before it starts. */
+ * here before it starts.
+ *
+ * 2026-11-24 (the owner, of the store's privacy label marking email for
+ * marketing: "I mean to send people marketing"; "Yes, add it"): email is
+ * also for news about ROW and Rowtember, each one with a way to stop it. */
 export const metadata = {
   title: "Privacy · ROW",
   robots: { index: false, follow: false },
@@ -23,7 +27,7 @@ const MAIL = "row@rowtember.com";
 
 export default function Page() {
   return (
-    <LegalPage title="Privacy policy" accent="policy" effective="2026-11-23">
+    <LegalPage title="Privacy policy" accent="policy" effective="2026-11-24">
       <p>
         This covers ROW, the rowing app, and the Rowtember website at rowtember.com. The short version: we keep what you log and what you choose to post, we show it to other rowers the way your settings
         say, and you can delete your account from inside the app.
@@ -66,6 +70,7 @@ export default function Page() {
       <h2>How we use it</h2>
       <ul>
         <li>To run the app: your board, your stats, your feed, notifications and email.</li>
+        <li>To email you news about ROW and Rowtember. Every such email has a link to stop them, and stopping them does not affect your account.</li>
         <li>For statistics across rowers, such as averages by age, weight or gym.</li>
         <li>
           Today we do not show advertising and do not sell your data. We may do either in the future, or share data with partners. If we do, we will change this policy, and its date, before it
