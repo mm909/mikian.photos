@@ -77,7 +77,7 @@ export function whereOnScreen(v: Spot | null | undefined, then: (r: Rect | undef
  * have it swap the photo, but if I tap the stats down at the bottom, take
  * me to that row"): `photos`, the row's photos from the one held, turn over
  * on a tap of the photo; `onOpen` is the row, opened from the figures. */
-export function LiftMenu({ head, photo, photos, figures, from, items, onClose, onOpen }: { head?: { name: string; sub?: string; avatar?: string | null }; photo: Photo; photos?: Photo[]; figures?: Figures; from?: Rect; items: HoldItem[]; onClose: () => void; onOpen?: () => void }) {
+export function LiftMenu({ head, photo, photos, figures, from, items, onClose, onOpen }: { head?: { name: string; sub?: string; avatar?: string | null; num?: number | string }; photo: Photo; photos?: Photo[]; figures?: Figures; from?: Rect; items: HoldItem[]; onClose: () => void; onOpen?: () => void }) {
   const [turn, setTurn] = useState(0);
   const many = (photos?.length ?? 0) > 1;
   const showing = many && photos ? photos[turn % photos.length] : photo;
@@ -184,7 +184,7 @@ export function LiftMenu({ head, photo, photos, figures, from, items, onClose, o
           <Pressable accessibilityLabel="Close" accessibilityHint="Or drag it down" onPress={leave} style={{ flex: 1 }}>
             {head ? (
               <Animated.View style={{ height: HEAD, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, backgroundColor: C.paper, opacity: late }}>
-                <Avatar uri={head.avatar} name={head.name} size={34} />
+                <Avatar uri={head.avatar} name={head.name} num={head.num} size={34} />
                 <View style={{ flex: 1 }}>
                   <Text numberOfLines={1} style={{ fontFamily: F.semi, fontSize: 14.5, color: C.ink }}>
                     {head.name}

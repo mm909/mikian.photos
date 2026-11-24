@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, PanResponder, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ticks } from "../erg/reviewGeom";
 import { api } from "../api";
 import { medianOf, meanOf, placeOf, quantile, SHAPE_STEPS, type FieldStats, type RowMeasure } from "../pm5/craft";
 import { Dash, Eye, mono } from "../site";
 import { C, F, fmtInt, fmtPace } from "../theme";
-import { Skel, scrub, setSideDrag, useLoad } from "../ui";
-import { Axes, Box, Key, Lab, PAD } from "./reviewBits";
+import { Dots, Skel, scrub, setSideDrag, useLoad } from "../ui";
+import { Axes, Box, FieldDensity, Key, Lab, PAD } from "./reviewBits";
+import { Pages } from "./Pages";
 
 /* A ROW AGAINST EVERYONE, CARD BY CARD (owner, 2026-11-22: "for every one
  * of these stats on the telemetry page ... pace along the piece and rates
@@ -84,14 +85,22 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
    * two faces with a copy at each end, [second, FIRST, SECOND, first]: a
    * swipe off either face lands on a copy, and the strip is set back onto
    * the real one under it, which looks the same, once it has stopped. */
+  /* AIR ROUND EACH FACE (owner, 2026-11-23: "the momentum swings it off to
+   * the left side. That edge like gets cut off ... it just looks a little
+   * buggy ... increase those margins just a little bit ... right now, those
+   * two cards are like touching"). Each face sits in a slot GUTTER wider on
+   * both sides, and the window is as wide as the slot, reaching into the
+   * page's own margin: the spring's swing shows the gap, not a clipped card,
+   * and two faces side by side stand 2 × GUTTER apart. */
+  const slot = w + 2 * GUTTER;
   const [page, setPage] = useState(0);
   const at = useRef(1);
-  const x = useRef(new Animated.Value(-w)).current;
-  const width = useRef(w);
-  width.current = w;
+  const x = useRef(new Animated.Value(-slot)).current;
+  const width = useRef(slot);
+  width.current = slot;
   useEffect(() => {
-    x.setValue(-at.current * w);
-  }, [w, x]);
+    x.setValue(-at.current * slot);
+  }, [slot, x]);
   const go = (i: number, v = 0) => {
     const real = i === 0 ? 2 : i === 3 ? 1 : i;
     at.current = real;
@@ -139,14 +148,14 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
   if (!other) return <>{own(false)}</>;
   return (
     <>
-      <View {...pan.panHandlers} style={{ width: w, overflow: "hidden" }}>
-        <Animated.View style={{ width: w * 4, flexDirection: "row", transform: [{ translateX: x }] }}>
-          <View style={{ width: w }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      <View {...pan.panHandlers} style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
+        <Animated.View style={{ width: slot * 4, flexDirection: "row", transform: [{ translateX: x }] }}>
+          <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {other}
           </View>
-          <View style={{ width: w }}>{own(true)}</View>
-          <View style={{ width: w }}>{other}</View>
-          <View style={{ width: w }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <View style={{ width: slot, paddingHorizontal: GUTTER }}>{own(true)}</View>
+          <View style={{ width: slot, paddingHorizontal: GUTTER }}>{other}</View>
+          <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {own(true)}
           </View>
         </Animated.View>
@@ -154,16 +163,14 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
       {/* The two dots and no words (owner, 2026-11-23: "I don't think that I
           like the copy that says swipe you over everyone. I think we can
           leave the 2 little dots there"). */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
-        {[0, 1].map((i) => (
-          <Pressable key={i} accessibilityRole="button" accessibilityLabel={labels ? labels[i] : i === 0 ? `Your ${name}` : `Your ${name} against everyone`} onPress={() => go(i + 1)} hitSlop={10}>
-            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? C.accent : C.line }} />
-          </Pressable>
-        ))}
-      </View>
+      {/* With room above and below, to be pressed (owner, 2026-11-23: "I
+          need some more breathing room vertically between some of the
+          charts, so I can click on the dots"). */}
+      <Dots n={2} at={page} onGo={(i) => go(i + 1)} labels={labels ?? [`Your ${name}`, `Your ${name} against everyone`]} style={{ marginTop: 10, marginBottom: 18 }} />
     </>
   );
 }
+const GUTTER = 14;
 
 /* The last line of a card: the way to its questions. */
 export function Ask({ onPress }: { onPress: () => void }) {
@@ -188,77 +195,132 @@ export function fieldHas(id: MetricId, m: RowMeasure, f: FieldStats | null | und
   return m.peak !== null && f.peak.length > 0;
 }
 
-/* ---- one figure on a line ------------------------------------------------ */
+/* ---- one figure, every rower, as a curve -------------------------------- */
 
-/* ONE FIGURE, EVERY ROWER: a mark a rower along a line, the middle half of
- * them shaded, the rower in the middle as the tall grey mark with EVERYONE
- * under it, and this row as the blue one with YOU over it. It reads the
- * same with three rowers as with three hundred. `word` says which way is
- * better, at the right of the name. */
-export function Strip({ name, word, vals, mine, fmt, w }: { name: string; word: string; vals: number[]; mine: number | null; fmt: (v: number) => string; w: number }) {
-  if (!vals.length || w < 80) return null;
-  const H = 58;
-  const edge = 10;
-  let lo = Math.min(...vals, mine ?? Infinity);
-  let hi = Math.max(...vals, mine ?? -Infinity);
-  if (hi - lo < 1e-9) {
-    lo -= 1;
-    hi += 1;
-  }
-  const air = (hi - lo) * 0.08;
-  lo -= air;
-  hi += air;
-  const sx = (v: number) => edge + ((v - lo) / (hi - lo)) * (w - 2 * edge);
-  const mid = medianOf(vals);
-  const side = (x: number): "start" | "middle" | "end" => (x < w * 0.3 ? "start" : x > w * 0.7 ? "end" : "middle");
-  const y = 30;
-  return (
-    <View style={{ marginBottom: 6 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", columnGap: 10 }}>
-        <Text style={mono(10, true, C.ink, 0.12)}>{name}</Text>
-        <Text style={mono(9, false, C.gray, 0.1)}>{word}</Text>
-      </View>
-      <Svg width={w} height={H}>
-        {vals.length >= 4 ? <Rect x={sx(quantile(vals, 0.25))} y={y - 7} width={Math.max(1, sx(quantile(vals, 0.75)) - sx(quantile(vals, 0.25)))} height={14} fill={C.ink} opacity={0.09} /> : null}
-        <Line x1={edge} x2={w - edge} y1={y} y2={y} stroke={C.line} strokeWidth={1} />
-        {vals.map((v, i) => (
-          <Line key={i} x1={sx(v)} x2={sx(v)} y1={y - 6} y2={y + 6} stroke={C.gray} strokeWidth={1.5} opacity={0.55} />
-        ))}
-        <Line x1={sx(mid)} x2={sx(mid)} y1={y - 10} y2={y + 10} stroke={C.gray} strokeWidth={2} />
-        <Lab x={sx(mid)} y={H - 4} anchor={side(sx(mid))} color={C.soft}>{`EVERYONE ${fmt(mid)}`.toUpperCase()}</Lab>
-        {mine !== null ? (
-          <>
-            <Line x1={sx(mine)} x2={sx(mine)} y1={y - 14} y2={y + 14} stroke={C.accent} strokeWidth={2.5} />
-            <Circle cx={sx(mine)} cy={y} r={4} fill={C.accent} />
-            <Lab x={sx(mine)} y={10} anchor={side(sx(mine))} color={C.accent} bold>{`YOU ${fmt(mine)}`.toUpperCase()}</Lab>
-          </>
-        ) : null}
-      </Svg>
-    </View>
-  );
+/* NO MORE LINES WITH MARKS ON THEM (owner, 2026-11-23: "if we're going to
+ * show this sort of like you against everyone on a line chart, the line
+ * chart's probably not the way to go. It's definitely like a KDE ... Show
+ * me the KDE where I lie. Show me the distribution, because this line chart
+ * doesn't mean anything ... I don't like the line charts"). Each figure is
+ * the curve of every rower's (reviewBits.tsx FieldDensity), one figure to a
+ * face of the card (Pages.tsx), with this row on it and one plain line
+ * saying where it lies; the sentence under it says how big the gap to the
+ * middle is against how spread the field is ("441 and everyone else is
+ * 446. Is that a big difference? Is that a little difference?").
+ *
+ * `side` is the side `win` is said of ("Steadier" is the low side of a
+ * split spread); `better` is whether that side is the better one, which
+ * washes in the blue the part of the field the row beats. `key` is what is
+ * compared when it is not the figure itself: the fade is nearer zero, not
+ * smaller. `gap` says a difference in the figure's own unit. */
+type FigKey = "steady" | "same" | "spread" | "rateSd" | "rate" | "length" | "work" | "fade" | "peak";
+type FigDef = {
+  name: string;
+  word: string;
+  fmt: (v: number) => string;
+  tick: (v: number) => string;
+  gap: (v: number) => string;
+  side: "low" | "high";
+  better: boolean;
+  key?: (v: number) => number;
+  tie: number;
+  win: string;
+  lose: string;
+  say: (mine: string, mid: string) => string;
+};
+const oneDp = (v: number) => v.toFixed(1);
+const whole = (v: number) => String(Math.round(v));
+const points = (v: number) => `${Math.round(v)} ${Math.round(v) === 1 ? "point" : "points"}`;
+const FIGS: Record<FigKey, FigDef> = {
+  spread: { name: "Split spread", word: "Lower is steadier", fmt: plusMinus, tick: oneDp, gap: (v) => `${v.toFixed(1)} s`, side: "low", better: true, tie: 0.05, win: "Steadier", lose: "Less steady", say: (y, m) => `Your split wandered ${y} around its average; the rower in the middle wanders ${m}.` },
+  steady: { name: "Steady pace", word: "Higher is steadier", fmt: score, tick: whole, gap: points, side: "high", better: true, tie: 0.5, win: "Steadier", lose: "Less steady", say: (y, m) => `Steady pace ${y} out of 100; the rower in the middle scores ${m}.` },
+  same: { name: "Same stroke", word: "Higher is more alike", fmt: score, tick: whole, gap: points, side: "high", better: true, tie: 0.5, win: "More alike stroke to stroke", lose: "Less alike stroke to stroke", say: (y, m) => `Same stroke ${y} out of 100, how alike one stroke's force curve is to the next; the rower in the middle scores ${m}.` },
+  rateSd: { name: "Rate held", word: "Lower is steadier", fmt: (v) => `± ${v.toFixed(1)}`, tick: oneDp, gap: (v) => `${v.toFixed(1)} strokes a minute`, side: "low", better: true, tie: 0.05, win: "Held the rate closer", lose: "Let the rate wander more", say: (y, m) => `Your rate wandered ${y} strokes a minute around its average; the rower in the middle's wanders ${m}.` },
+  rate: { name: "Strokes a minute", word: "Neither way is better", fmt: perMin, tick: whole, gap: (v) => `${v.toFixed(1)} strokes a minute`, side: "high", better: false, tie: 0.5, win: "More strokes a minute", lose: "Fewer strokes a minute", say: (y, m) => `You rowed ${y} strokes a minute; the rower in the middle rates ${m}. Neither is the better rate.` },
+  length: { name: "Meters a stroke", word: "Longer goes further", fmt: meters2, tick: oneDp, gap: meters2, side: "high", better: true, tie: 0.01, win: "Longer strokes", lose: "Shorter strokes", say: (y, m) => `Each stroke carried you ${y}; the rower in the middle travels ${m}. At the same rate, longer is faster.` },
+  work: { name: "Joules a stroke", word: "Follows size and split", fmt: joules, tick: (v) => fmtInt(v), gap: joules, side: "high", better: false, tie: 2, win: "Bigger strokes", lose: "Smaller strokes", say: (y, m) => `Each stroke did ${y}; the rower in the middle does ${m}. It follows size and split, so it is not a score.` },
+  fade: { name: "Kept to the end", word: "Nearer zero is better", fmt: pct, tick: whole, gap: points, side: "low", better: true, key: Math.abs, tie: 0.5, win: "Held nearer level", lose: "Moved further from level", say: (y, m) => `From the first third to the last, the work in your stroke changed ${y}; the rower in the middle's changes ${m}.` },
+  peak: { name: "Where the push peaks", word: "A third to a half is the mark", fmt: peakAt, tick: whole, gap: points, side: "high", better: false, tie: 1, win: "Later in the drive", lose: "Earlier in the drive", say: (y, m) => `Your push peaks ${y} of the way through the drive; the rower in the middle's peaks at ${m}.` },
+};
+
+/* Where the row lies, said plainly: from the side most of the field is on,
+ * as a share of rowers once there are ten, as a count before that. */
+function standOf(d: FigDef, vals: number[], mine: number): string {
+  const list = d.key ? vals.map(d.key).sort((a, b) => a - b) : vals;
+  const p = placeOf(list, d.key ? d.key(mine) : mine, d.tie);
+  const beaten = d.side === "low" ? p.over : p.under;
+  const ahead = d.side === "low" ? p.under : p.over;
+  const of = (c: number) => (p.n >= 10 ? `${Math.max(1, Math.min(99, Math.round((100 * c) / p.n)))}% of rowers` : `${c} of the ${p.n} rowers`);
+  if (p.n === 1) return beaten ? `${d.win} than the one rower on record` : ahead ? `${d.lose} than the one rower on record` : "Level with the one rower on record";
+  if (beaten === p.n) return `${d.win} than every rower on record`;
+  if (ahead === p.n) return `${d.lose} than every rower on record`;
+  if (!beaten && !ahead) return "Level with every rower on record";
+  return beaten >= ahead ? `${d.win} than ${of(beaten)}` : `${d.lose} than ${of(ahead)}`;
 }
 
-/* The strips a card draws, by the figure's name. */
-type StripDef = { k: "steady" | "same" | "spread" | "rateSd" | "rate" | "length" | "work" | "fade" | "peak"; name: string; word: string; fmt: (v: number) => string };
-const STRIPS: Record<StripDef["k"], StripDef> = {
-  spread: { k: "spread", name: "Split spread", word: "Lower is steadier", fmt: plusMinus },
-  steady: { k: "steady", name: "Steady pace", word: "Higher is steadier", fmt: score },
-  same: { k: "same", name: "Same stroke", word: "Higher is more alike", fmt: score },
-  rateSd: { k: "rateSd", name: "Rate held", word: "Lower is steadier", fmt: (v) => `± ${v.toFixed(1)}` },
-  rate: { k: "rate", name: "Strokes a minute", word: "Neither way is better", fmt: perMin },
-  length: { k: "length", name: "Meters a stroke", word: "Higher goes further", fmt: meters2 },
-  work: { k: "work", name: "Joules a stroke", word: "Follows size and pace", fmt: joules },
-  fade: { k: "fade", name: "Kept to the end", word: "Nearer zero is better", fmt: pct },
-  peak: { k: "peak", name: "Where the push peaks", word: "Percent of the drive", fmt: peakAt },
-};
-function Strips({ keys, m, f, w }: { keys: StripDef["k"][]; m: RowMeasure; f: FieldStats; w: number }) {
-  return (
-    <>
-      {keys.map((k) => (
-        <Strip key={k} name={STRIPS[k].name} word={STRIPS[k].word} vals={f[k]} mine={m[k]} fmt={STRIPS[k].fmt} w={w} />
-      ))}
-    </>
-  );
+/* How big the gap to the middle is, against the middle half of the field. */
+function sizeOf(d: FigDef, vals: number[], mine: number): string {
+  if (vals.length < 4) return "";
+  const q1 = quantile(vals, 0.25);
+  const q3 = quantile(vals, 0.75);
+  const iqr = q3 - q1;
+  const gap = Math.abs(mine - medianOf(vals));
+  const how = !(iqr > 0) ? "" : gap < 0.25 * iqr ? "a small difference" : gap < 0.75 * iqr ? "a clear difference" : "a big difference";
+  return ` The middle half of rowers sit between ${d.fmt(q1)} and ${d.fmt(q3)}${how ? `, so the ${d.gap(gap)} between you and the middle is ${how}` : ""}.`;
+}
+
+const has = (k: FigKey, m: RowMeasure, f: FieldStats) => m[k] !== null && f[k].length > 0;
+
+/* One figure's curve with the row on it, and its plain line. */
+function Fig({ k, m, f, w }: { k: FigKey; m: RowMeasure; f: FieldStats; w: number }) {
+  const d = FIGS[k];
+  const mine = m[k];
+  if (mine === null || !f[k].length) return null;
+  return <FieldDensity name={d.name} word={d.word} vals={f[k]} mine={mine} fmt={d.fmt} tick={d.tick} beats={d.better && !d.key ? d.side : null} stand={standOf(d, f[k], mine)} w={w} />;
+}
+
+/* The faces of a card for these figures, each a card of its own: the curve,
+ * then what the numbers are and how big the gap is. */
+function figurePages(keys: FigKey[], m: RowMeasure, f: FieldStats, w: number, foot?: ReactNode): ReactNode[] {
+  return keys
+    .filter((k) => has(k, m, f))
+    .map((k) => {
+      const d = FIGS[k];
+      const mine = m[k] as number;
+      const n = f[k].length;
+      return (
+        <Box key={k} fill title="Against everyone" note={`${fmtInt(f.rows)} ${f.rows === 1 ? "row" : "rows"} · ${fmtInt(n)} ${n === 1 ? "rower" : "rowers"}`} say={`${d.say(d.fmt(mine), d.fmt(medianOf(f[k])))}${sizeOf(d, f[k], mine)}${smallField({ rowers: n })}`} foot={foot}>
+          <Fig k={k} m={m} f={f} w={w} />
+        </Box>
+      );
+    });
+}
+/* The same curves bare, for a card's questions page. */
+function figureCharts(keys: FigKey[], m: RowMeasure, f: FieldStats, w: number): ReactNode[] {
+  return keys.filter((k) => has(k, m, f)).map((k) => <Fig key={k} k={k} m={m} f={f} w={w} />);
+}
+const figureNames = (keys: FigKey[], m: RowMeasure, f: FieldStats) => keys.filter((k) => has(k, m, f)).map((k) => `${FIGS[k].name} against everyone`);
+
+/* The faces after a card's own, for Review.tsx: one a figure. The labels
+ * are what a screen reader is told each dot is. */
+export function steadyPages(m: RowMeasure, f: FieldStats, w: number, foot?: ReactNode): { pages: ReactNode[]; labels: string[] } {
+  const keys: FigKey[] = ["spread", "steady", "same", "rateSd"];
+  return { pages: figurePages(keys, m, f, w, foot), labels: figureNames(keys, m, f) };
+}
+export function workPages(m: RowMeasure, f: FieldStats, w: number, foot?: ReactNode): { pages: ReactNode[]; labels: string[] } {
+  const keys: FigKey[] = ["work", "fade"];
+  return { pages: figurePages(keys, m, f, w, foot), labels: figureNames(keys, m, f) };
+}
+/* Rate and length: the dot a rower first, then each figure's curve. */
+export function ratePages(m: RowMeasure, f: FieldStats, w: number, foot?: ReactNode): { pages: ReactNode[]; labels: string[] } {
+  const keys: FigKey[] = ["rate", "length"];
+  return { pages: [<RateField key="pairs" m={m} f={f} w={w} foot={foot} />, ...figurePages(keys, m, f, w, foot)], labels: ["Rate and length against everyone", ...figureNames(keys, m, f)] };
+}
+
+/* A questions page's curves, one a face. */
+function FigDeck({ keys, m, f, w, first }: { keys: FigKey[]; m: RowMeasure; f: FieldStats; w: number; first?: ReactNode }) {
+  const pages = [...(first ? [first] : []), ...figureCharts(keys, m, f, w)];
+  return <Pages w={w} pages={pages} labels={[...(first ? ["Rate and length against everyone"] : []), ...figureNames(keys, m, f)]} />;
 }
 
 /* ---- HOW STEADY, against everyone --------------------------------------- */
@@ -271,13 +333,6 @@ function steadyWords(m: RowMeasure, f: FieldStats): string | null {
   return out.length ? out.join(" ") + smallField(f) : null;
 }
 
-export function SteadyField({ m, f, w, foot }: { m: RowMeasure; f: FieldStats; w: number; foot?: ReactNode }) {
-  return (
-    <Box fill title="Against everyone" note={count(f)} say={steadyWords(m, f)} foot={foot}>
-      <Strips keys={["spread", "steady", "same"]} m={m} f={f} w={w} />
-    </Box>
-  );
-}
 
 /* ---- PACE ALONG THE PIECE, against everyone ------------------------------ */
 
@@ -467,13 +522,6 @@ function workWords(m: RowMeasure, f: FieldStats): string | null {
   return out.length ? out.join(" ") + smallField(f) : null;
 }
 
-export function WorkField({ m, f, w, foot }: { m: RowMeasure; f: FieldStats; w: number; foot?: ReactNode }) {
-  return (
-    <Box fill title="Against everyone" note={count(f)} say={workWords(m, f)} foot={foot}>
-      <Strips keys={["work", "fade"]} m={m} f={f} w={w} />
-    </Box>
-  );
-}
 
 /* ---- THE CARD'S QUESTIONS ------------------------------------------------ */
 
@@ -560,7 +608,7 @@ function steadyPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
     value: m.spread !== null ? `± ${m.spread.toFixed(1)}` : m.steady !== null ? score(m.steady) : "--",
     unit: m.spread !== null ? "seconds, your split spread" : "steady pace, out of 100",
     stands: f ? (steadyWords(m, f) ?? NOBODY) : NOBODY,
-    charts: f ? <Strips keys={["spread", "steady", "rateSd", "same"]} m={m} f={f} w={w} /> : null,
+    charts: f ? <FigDeck keys={["spread", "steady", "same", "rateSd"]} m={m} f={f} w={w} /> : null,
     qa: [
       ["What does this say about you?", about],
       ["Which way is better?", "A lower spread is better, and a higher score is better. A split that stays within a second of its average is a piece rowed at one effort. Every surge above the average costs more than easing off below it gives back, because the work goes up much faster than the speed does, so the level piece is the cheapest way to row any time."],
@@ -618,13 +666,7 @@ function ratePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
     value: m.length !== null ? m.length.toFixed(1) : "--",
     unit: m.rate !== null ? `meters a stroke, at ${m.rate.toFixed(0)} a minute` : "meters a stroke",
     stands: f ? (rateWords(m, f) ?? NOBODY) : NOBODY,
-    charts: f ? (
-      <>
-        <RatePairs m={m} f={f} w={w} />
-        <View style={{ height: 14 }} />
-        <Strips keys={["rate", "length"]} m={m} f={f} w={w} />
-      </>
-    ) : null,
+    charts: f ? <FigDeck keys={["rate", "length"]} m={m} f={f} w={w} first={<RatePairs m={m} f={f} w={w} />} /> : null,
     qa: [
       ["What does this say about you?", about],
       ["Which way is better?", `Neither rate is the better one. Rate times length is your speed, so the same split can be rowed many ways.${sum} At the same rate, more meters a stroke is faster, so length is the one with a better direction. A taller rower travels further each stroke for the same effort, so read your length against your own other rows before anybody else's.`],
@@ -656,7 +698,7 @@ function forcePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
     value: p !== null ? String(Math.round(p)) : "--",
     unit: "percent of the drive, where the push peaks",
     stands,
-    charts: f ? <Strips keys={["peak", "same"]} m={m} f={f} w={w} /> : null,
+    charts: f ? <FigDeck keys={["peak", "same"]} m={m} f={f} w={w} /> : null,
     qa: [
       ["What does this say about you?", about],
       ["Which way is better?", "There is not one right curve, and the field's is a mark and not a rule. What to look for is a peak between a third and a half of the way through the drive, and one smooth hump with no dip in it: the legs, the strongest thing you have, take the load first, and the back joins before the pressure falls. A peak past half way usually means the legs went without the handle. A fuller, rounder curve is better than a taller, sharper one."],
@@ -681,7 +723,7 @@ function workPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
     value: m.work !== null ? fmtInt(m.work) : "--",
     unit: "joules a stroke",
     stands: f ? (workWords(m, f) ?? NOBODY) : NOBODY,
-    charts: f ? <Strips keys={["work", "fade"]} m={m} f={f} w={w} /> : null,
+    charts: f ? <FigDeck keys={["work", "fade"]} m={m} f={f} w={w} /> : null,
     qa: [
       ["What does this say about you?", about],
       ["Which way is better?", "More joules is a bigger stroke, but it is not a score: it rises with your size and with the split you are rowing, and it falls as the rate goes up at the same split. The figure with a direction is how much of it you kept. Nearer zero from the first third to the last is better; giving back more than a few percent means the strokes got smaller and the rate had to cover for them."],

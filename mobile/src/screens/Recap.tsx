@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { api, peek } from "../api";
 import { CloseIcon } from "../icons";
@@ -100,7 +100,9 @@ export function RecapStrip({ again, onRow, onRower }: { again: string; onRow: (i
   const FACE = RING - 10;
   const overflow = wide.content > wide.view + 1;
   return (
-    <View style={{ borderBottomWidth: 6, borderColor: C.tint }}>
+    /* No rule under the circles (owner, 2026-11-23: "I don't like the line
+       that's underneath the stories"). */
+    <View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -288,6 +290,12 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
       },
     }),
   ).current;
+  /* BELOW THE CAMERA (owner, 2026-11-23: "the bar for like how long the
+   * story is going ... is covered by ... the little black like camera bar on
+   * my iPhone, so it probably needs to go a little lower"): how far down the
+   * phone's own top edge reaches, read off a SafeAreaView (in every build,
+   * unlike the safe-area module) on an iPhone, the status bar on Android. */
+  const [safeTop, setSafeTop] = useState(Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) : Platform.OS === "ios" ? 54 : 0);
 
   if (!rower || !row) return null;
   const photo = row.photo;
@@ -297,12 +305,17 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
   const GAP = 4;
   const n = rower.rows.length;
   const segW = Math.max(4, (win.width - 16 - GAP * (n - 1)) / n);
-  const TOP = 44;
+  const TOP = safeTop + 8;
   const pace = row.splitStr ? wholeSplit(row.splitStr) : "";
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {Platform.OS === "ios" ? (
+          <SafeAreaView pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+            <View onLayout={(e) => setSafeTop(Math.round(e.nativeEvent.layout.y))} style={{ height: 1 }} />
+          </SafeAreaView>
+        ) : null}
         <Animated.View
           {...pan.panHandlers}
           style={{ flex: 1, backgroundColor: photo ? "#000" : C.paper, overflow: "hidden", transform: [{ translateY: drag }, { scale: drag.interpolate({ inputRange: [0, win.height], outputRange: [1, 0.85], extrapolate: "clamp" }) }] }}
@@ -400,5 +413,65 @@ function Fig({ k, v, fg, shade, big }: { k: string; v: string; fg: string; shade
       <Text style={[mono(10, false, fg, 0.12), { opacity: 0.8 }, shade]}>{k}</Text>
       <Text style={[{ fontFamily: F.bold, fontSize: big ? 28 : 24, lineHeight: big ? 34 : 30, color: fg, marginTop: 2, fontVariant: ["tabular-nums"] }, shade]}>{v}</Text>
     </View>
+  );
+}
+
+/* A ROWER'S STORY FROM THEIR PROFILE (owner, 2026-11-23: "if I have rowed in
+ * the last 24 hours and I have a story up, that story should also be
+ * available to click on my profile page"). The face on a profile, ringed as
+ * the feed's circles are (the blue until every row in it is seen on this
+ * phone, then the hairline) when that rower has rowed in the last day; a
+ * press opens their story alone. Without a story the face is as it was,
+ * and a press does nothing. Reads the same recap the feed does, kept. */
+export function StoryRing({ num, size, children, onRow, onRower }: { num: number; size: number; children: ReactNode; onRow?: (id: string) => void; onRower?: (n: number) => void }) {
+  const kept = peek<RecapPage>(PATH);
+  const [rowers, setRowers] = useState<RecapRower[]>(kept?.rowers ?? []);
+  const [seen, setSeen] = useState<Set<string>>(() => new Set(seenCache ?? []));
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    readSeen().then((ids) => live && setSeen(new Set(ids)));
+    api<RecapPage>(PATH)
+      .then((p) => live && setRowers(p.rowers ?? []))
+      .catch(() => null);
+    return () => {
+      live = false;
+    };
+  }, [num]);
+  const mine = rowers.find((r) => r.rowerNumber === num);
+  if (!mine) return <>{children}</>;
+  const fresh = !mine.rows.every((x) => seen.has(x.id));
+  const ring = size + 10;
+  const mark = (id: string) =>
+    setSeen((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      writeSeen([...(seenCache ?? []).filter((x) => x !== id), id]);
+      return next;
+    });
+  return (
+    <>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${mine.me ? "Your" : `${mine.name}'s`} rows of the last day${fresh ? ", not seen" : ""}`} onPress={() => setOpen(true)} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        <View style={{ width: ring, height: ring, borderRadius: ring / 2, borderWidth: fresh ? 2.5 : 1.5, borderColor: fresh ? C.accent : C.line, alignItems: "center", justifyContent: "center", margin: -5 }}>{children}</View>
+      </Pressable>
+      {open ? (
+        <RecapViewer
+          rowers={[mine]}
+          start={0}
+          seen={seen}
+          onSeen={mark}
+          onClose={() => setOpen(false)}
+          onRow={(id) => {
+            setOpen(false);
+            onRow?.(id);
+          }}
+          onRower={(n) => {
+            setOpen(false);
+            if (n !== num) onRower?.(n);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

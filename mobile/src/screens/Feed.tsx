@@ -202,7 +202,7 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
       {menu ? sheet(menu, () => setMenu(null)) : null}
       {held && held.it.photos[held.h.at] ? (
         <LiftMenu
-          head={{ name: held.it.name, sub: when(held.it), avatar: held.it.avatar }}
+          head={{ name: held.it.name, sub: when(held.it), avatar: held.it.avatar, num: held.it.numStr || held.it.rowerNumber }}
           photo={held.it.photos[held.h.at]}
           photos={[...held.it.photos.slice(held.h.at, 2), ...held.it.photos.slice(0, held.h.at)]}
           figures={figures(held.it)}
@@ -270,7 +270,7 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
         {...dir}
         /* WHO ROWED IN THE LAST DAY, as stories over the cards (Recap.tsx).
            Nothing at all when nobody did. */
-        ListHeaderComponent={<RecapStrip again={`${stamp}:${pulls}:${me.me?.rowerNumber ?? ""}`} onRow={onRow} onRower={onRower} />}
+        ListHeaderComponent={<RecapStrip again={`${stamp}:${pulls}:${me.me?.rowerNumber ?? ""}:${edits.n}`} onRow={onRow} onRower={onRower} />}
         renderItem={({ item }) => <>{card(item)}</>}
         ListEmptyComponent={<Text style={[mono(11, false, C.gray, 0.12), { paddingVertical: 24, paddingHorizontal: 14, lineHeight: 18 }]}>Nothing logged yet. The feed starts with the first row.</Text>}
         ListFooterComponent={older ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : items.length ? <Text style={[mono(11, false, C.gray), { textAlign: "center", marginVertical: 24 }]}>The first row</Text> : undefined}
@@ -402,7 +402,7 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
     <View style={{ paddingTop: 14, paddingBottom: 14, borderBottomWidth: 6, borderColor: C.tint }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: PAD }}>
         <Pressable accessibilityLabel={`${it.name}'s page`} onPress={() => onRower(it.rowerNumber)}>
-          <Avatar uri={it.avatar} name={it.name} size={38} />
+          <Avatar uri={it.avatar} name={it.name} num={it.numStr || it.rowerNumber} size={38} />
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel={`${it.name}, rower ${it.numStr}`} onPress={() => onRower(it.rowerNumber)} hitSlop={6} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -563,7 +563,7 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
       {older || items.length > shown ? <ActivityIndicator color={C.ink} style={{ marginVertical: 24 }} /> : null}
       {held && face(held) ? (
         <LiftMenu
-          head={{ name: held.name, sub: when(held), avatar: held.avatar }}
+          head={{ name: held.name, sub: when(held), avatar: held.avatar, num: held.numStr || held.rowerNumber }}
           photo={face(held) as NonNullable<ReturnType<typeof face>>}
           photos={held.photos.slice(0, 2)}
           figures={figures(held)}

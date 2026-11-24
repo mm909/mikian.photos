@@ -10,6 +10,7 @@
  * With no total at all (first launch with no network) it is the mark alone.
  * A tap anywhere lets it go at once. */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Platform, Pressable, Text, View } from "react-native";
 import { api } from "./api";
@@ -36,7 +37,17 @@ const ROLLED_MS = (LETTERS.length - 1) * ROLL_STEP + ROLL_MS - 60;
 
 /* THE LINE AT THE FOOT (owner, 2026-11-23: "instead of the version number
  * stuff, I want it to just say for yourself and others"). */
-const FOOT = "FOR YOURSELF AND OTHERS";
+/* And the version after it (owner, 2026-11-23: "I do want the version
+ * number down at the bottom ... probably to the right of it. It's probably
+ * for yourself and others, .v, whatever"). */
+const VERSION = (() => {
+  try {
+    return Constants.expoConfig?.version ?? "";
+  } catch {
+    return "";
+  }
+})();
+const FOOT = `FOR YOURSELF AND OTHERS${VERSION ? ` · V${VERSION}` : ""}`;
 
 /* THE COUNT POPS UP AS ZEROS FIRST (owner, 2026-11-23: "the meters count
  * kind of just pops in. Can that also pop up, but pop up as all zeros and

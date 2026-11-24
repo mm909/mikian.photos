@@ -11,7 +11,8 @@ import { Chip, Ctl, Dash, Eye, mono } from "../site";
 import { asSaved, loadDoc, type Row } from "../store";
 import { C, F, fmtInt } from "../theme";
 import { Skel } from "../ui";
-import { Ask, FIELD_PATH, fieldHas, Flip, PaceField, RateField, smallField, SteadyField, WorkField, type FieldAnswer, type FieldForce, type MetricId } from "./Field";
+import { Ask, FIELD_PATH, fieldHas, Flip, PaceField, ratePages, smallField, steadyPages, workPages, type FieldAnswer, type FieldForce, type MetricId } from "./Field";
+import { Pages } from "./Pages";
 import { Axes, Box, BOX_PAD, Key, Lab, PAD, pathOf } from "./reviewBits";
 
 /* THE READ (owner, 2026-11-14, of the website's saved-session screen: "this
@@ -176,6 +177,14 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
   const stats = all?.stats ?? null;
   const ask = (id: MetricId) => (onMetric ? <Ask onPress={() => onMetric(id, mine)} /> : undefined);
   const versus = (id: MetricId) => fieldHas(id, mine, stats);
+  /* A CARD, THEN A FACE A FIGURE AGAINST EVERYONE (owner, 2026-11-23: "if
+   * we can't show it in one chart or one page, that's okay. Just make
+   * another page ... we can keep swiping. We can have multiple of those
+   * dots"): the row's own face first, then each figure's curve of every
+   * rower (Field.tsx, Pages.tsx). With nobody to compare against it is the
+   * one face. */
+  const deck = (name: string, own: (fill: boolean) => ReactNode, more: { pages: ReactNode[]; labels: string[] } | null) =>
+    more && more.pages.length ? <Pages w={w} pages={[own(true), ...more.pages]} labels={[`Your ${name}`, ...more.labels]} /> : own(false);
   const steady: CellData[] = [
     num(st.paceSdTenths) ? { k: "Split spread", v: `± ${fmtGap(st.paceSdTenths)}`, u: num(st.paceMeanTenths) ? `around ${split(Math.round(st.paceMeanTenths))}` : "" } : null,
     craft.rateSd !== null ? { k: "Rate held", v: `± ${craft.rateSd.toFixed(1)}`, u: "strokes a minute" } : null,
@@ -280,11 +289,10 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
 
       {/* HOW STEADY, first among the pictures: the two scores here that are
           not about speed. */}
-      {w > 0 && (craft.steady !== null || steady.length) ? (
-        <Flip
-          w={w}
-          name="steadiness"
-          own={(fill) => (
+      {w > 0 && (craft.steady !== null || steady.length)
+        ? deck(
+            "steadiness",
+            (fill) => (
             <Box fill={fill} title="How steady" say={steadySay} foot={versus("steady") ? undefined : ask("steady")}>
               {craft.steady !== null || craft.same !== null ? (
                 <View style={{ flexDirection: "row", gap: 18, marginBottom: 14 }}>
@@ -299,10 +307,10 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
                 </View>
               ) : null}
             </Box>
-          )}
-          other={versus("steady") && stats ? <SteadyField m={mine} f={stats} w={cw} foot={ask("steady")} /> : null}
-        />
-      ) : null}
+            ),
+            versus("steady") && stats ? steadyPages(mine, stats, cw, ask("steady")) : null,
+          )
+        : null}
 
       {/* The second card of each is the WHOLE piece against everyone,
           whichever split the first is showing. */}
@@ -318,12 +326,10 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
           other={versus("pace") && stats ? <PaceField m={mine} f={stats} w={cw} foot={ask("pace")} /> : null}
         />
       ) : null}
-      {w > 0 && has.rate ? (
-        <Flip
-          w={w}
-          name="rate and length"
-          other={versus("rate") && stats ? <RateField m={mine} f={stats} w={cw} foot={ask("rate")} /> : null}
-          own={(fill) => (
+      {w > 0 && has.rate
+        ? deck(
+            "rate and length",
+            (fill) => (
             <Box
               fill={fill}
               foot={versus("rate") ? undefined : ask("rate")}
@@ -341,22 +347,22 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
             >
               <RateLength rate={rate} len={len} w={cw} />
             </Box>
-          )}
-        />
-      ) : null}
+            ),
+            versus("rate") && stats ? ratePages(mine, stats, cw, ask("rate")) : null,
+          )
+        : null}
       {w > 0 && a.force ? <ForceCards a={a} field={field} w={w} cw={cw} foot={ask("force")} /> : null}
-      {w > 0 && has.work ? (
-        <Flip
-          w={w}
-          name="work per stroke"
-          own={(fill) => (
-            <Box fill={fill} title="Work per stroke" note={only || "Joules"} say={range ? null : workWords(workAvg, state.usual)} foot={versus("work") ? undefined : ask("work")}>
-              <WorkPerStroke pts={work} avg={workAvg} trend={range ? null : a.workTrend} usual={range ? null : state.usual} w={cw} />
-            </Box>
-          )}
-          other={versus("work") && stats ? <WorkField m={mine} f={stats} w={cw} foot={ask("work")} /> : null}
-        />
-      ) : null}
+      {w > 0 && has.work
+        ? deck(
+            "work per stroke",
+            (fill) => (
+              <Box fill={fill} title="Work per stroke" note={only || "Joules"} say={range ? null : workWords(workAvg, state.usual)} foot={versus("work") ? undefined : ask("work")}>
+                <WorkPerStroke pts={work} avg={workAvg} trend={range ? null : a.workTrend} usual={range ? null : state.usual} w={cw} />
+              </Box>
+            ),
+            versus("work") && stats ? workPages(mine, stats, cw, ask("work")) : null,
+          )
+        : null}
 
       {/* The splits as the monitor recorded them, or cut out of the tick
           stream and said so when the monitor sent none. A press on one

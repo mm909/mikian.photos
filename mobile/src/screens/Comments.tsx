@@ -312,7 +312,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
         accessibilityLabel={`${c.name}'s page`}
         onPress={() => shut(() => onRower(c.rowerNumber))}
       >
-        <Avatar uri={c.avatar} name={c.name} size={inner ? 26 : 34} />
+        <Avatar uri={c.avatar} name={c.name} num={c.rowerNumber} size={inner ? 26 : 34} />
       </Pressable>
       <View style={{ flex: 1 }}>
         <Text style={{ fontFamily: F.sans, fontSize: 15, lineHeight: 20, color: C.ink }}>
@@ -403,7 +403,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
               {/* The roster, while a name is being written after an @. */}
               {offer.map((p) => (
                 <Pressable key={p.rowerNumber} accessibilityRole="button" accessibilityLabel={`Tag ${p.name}`} onPress={() => pick(p)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}>
-                  <Avatar uri={p.avatar} name={p.name} size={28} />
+                  <Avatar uri={p.avatar} name={p.name} num={p.rowerNumber} size={28} />
                   <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 15, color: C.ink }}>
                     <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{p.numStr} · </Text>
                     {p.name}
@@ -424,7 +424,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
               <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
                 {/* The face sits on the middle of the field's one line. */}
                 <View style={{ height: 40, justifyContent: "center" }}>
-                  <Avatar uri={me.avatar} name={me.me.displayName} size={34} />
+                  <Avatar uri={me.avatar} name={me.me.displayName} num={me.me.rowerNumber} size={34} />
                 </View>
                 <View style={{ flex: 1, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 14, justifyContent: "center" }}>
                   <TextInput

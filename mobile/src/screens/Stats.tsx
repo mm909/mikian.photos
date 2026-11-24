@@ -65,6 +65,11 @@ const PERIODS: { key: "day" | "week"; label: string }[] = [
   { key: "week", label: "Meters by week" },
 ];
 const m2 = (s: number) => fmtClock(s, false);
+const WHO: { key: "all" | "M" | "F"; label: string }[] = [
+  { key: "all", label: "Everyone" },
+  { key: "M", label: "Men" },
+  { key: "F", label: "Women" },
+];
 const dayWord = (day?: string) => (day ? `${MONTHS[Number(day.slice(5, 7)) - 1].slice(0, 3)} ${Number(day.slice(8))}` : "");
 
 type Payload = Stats & {
@@ -365,7 +370,9 @@ function lengthYouSay(you: KdeYou, pct: number | null): string {
   const a = `Your average row is ${fmtInt(you.median)} m`;
   const b = pct === null ? "." : `, longer than the average of ${pct}% of the other rowers.`;
   const c = num(you.best) ? ` Your longest is ${fmtInt(you.best)} m.` : "";
-  return `${a}${b}${c} Longer is more meters in a sitting, not a better row.`;
+  /* No moral after it (owner, 2026-11-23: "We can remove the commentary
+   * that says longer is more meters in a sitting, not a better row"). */
+  return `${a}${b}${c}`;
 }
 function paceYouSay(you: KdeYou, pct: number | null): string {
   const a = `Your average split is ${m2(you.median)} /500m`;
@@ -605,15 +612,14 @@ export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: strin
   let place = 0;
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", rowGap: 8 }}>
-        <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which month" />
-        <Dot />
-        <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" />
-      </View>
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-        <Chip label="Everyone" on={who === "all"} onPress={() => setWho("all")} />
-        <Chip label="Men" on={who === "M"} onPress={() => setWho("M")} />
-        <Chip label="Women" on={who === "F"} onPress={() => setWho("F")} />
+      {/* THREE OF ONE KIND (owner, 2026-11-23: "all-time, total meters, and
+          then men, women, everyone should have the same exact selectors"):
+          the time frame, the record and who, each a button with a caret,
+          centred as on the stats tab. */}
+      <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 10 }}>
+        <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which time frame" chip />
+        <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" chip />
+        <WordMenu options={WHO} value={who} onPick={(k) => setWho(k as typeof who)} ariaLabel="Who" chip width={160} />
       </View>
       <TableHead>{`${rows.length} ${rows.length === 1 ? "rower" : "rowers"}`}</TableHead>
       {rows.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}

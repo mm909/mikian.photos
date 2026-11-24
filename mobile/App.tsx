@@ -9,7 +9,7 @@ import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
 import { useErg } from "./src/erg/useErg";
 import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
-import { Mark, type MarkKind } from "./src/mark";
+import { Mark, RollIn, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
@@ -563,7 +563,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               ) : mark ? (
                 <Pressable accessibilityLabel={flip ? "Swap the look being tried" : undefined} disabled={!flip} onPress={() => setBoardLook((v) => (v === "bars" ? "sheet" : "bars"))} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Mark label={mark} kind={markIs} />
-                  {pageOf !== null && checked[pageOf] ? <VerifiedIcon size={17} /> : null}
+                  {pageOf !== null && checked[pageOf] ? (
+                    <RollIn key={mark} after={mark.length}>
+                      <VerifiedIcon size={17} />
+                    </RollIn>
+                  ) : null}
                 </Pressable>
               ) : null}
             </View>
@@ -744,14 +748,19 @@ function TabBar({ tab, onTab, small }: { tab: Tab; onTab: (t: Tab) => void; smal
         {w ? (
           <Animated.View
             pointerEvents="none"
-            style={{ position: "absolute", top: 7, left: 7, width: cell - 14, height: BAR - 14, borderRadius: (BAR - 14) / 2, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ translateX: x.interpolate({ inputRange: [0, TABS.length - 1], outputRange: [0, cell * (TABS.length - 1)] }) }] }}
+            /* BIGGER, as Instagram's (owner, 2026-11-23: "the highlighting of
+               what icon we're on could be slightly larger ... a little bit
+               taller and wider, close to the Instagram view of it"): nearly
+               the bar's height, a little wider than its slot, and kept 4
+               points inside the bar at either end. */
+            style={{ position: "absolute", top: 4, left: 0, width: cell + 10, height: BAR - 8, borderRadius: (BAR - 8) / 2, backgroundColor: "rgba(255,255,255,0.2)", transform: [{ translateX: x.interpolate({ inputRange: TABS.map((_, i) => i), outputRange: TABS.map((_, i) => Math.max(4, Math.min(w - (cell + 10) - 4, cell * i - 5))) }) }] }}
           />
         ) : null}
         {TABS.map((t) => (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }} onPress={() => onTab(t.id)} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             {t.id === "profile" && me.me ? (
               <View style={{ borderRadius: 16, borderWidth: 2, borderColor: tab === t.id ? "#fff" : "transparent" }}>
-                <Avatar uri={me.avatar} name={me.me.displayName} size={28} />
+                <Avatar uri={me.avatar} name={me.me.displayName} num={me.me.rowerNumber} size={28} />
               </View>
             ) : (
               <t.Icon color="#fff" size={26} />

@@ -12,6 +12,7 @@ import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FieldCards } from "./Stats";
+import { StoryRing } from "./Recap";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
 
 /* A ROWER'S PROFILE, the site's /r/[num] on a phone (looks/Profile.tsx and
@@ -148,7 +149,9 @@ export function ProfileScreen({
   const dir = useScrollDir(onScrollDir);
   const { ready, me } = useSession();
   const own = num === undefined;
-  const [period, setPeriod] = useState<string>("");
+  /* ALL TIME FIRST (owner, 2026-11-23: "On the stats page on the profile,
+   * we should default to all-time first"). */
+  const [period, setPeriod] = useState<string>("all");
   const mine = me.me?.rowerNumber;
   const path = `/api/row100k/app/profile?${own ? "" : `num=${num}&`}${period ? `m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(
@@ -300,7 +303,10 @@ export function ProfileScreen({
           {/* A centred button with a caret, as on the stats tab (owner,
               2026-11-23: "I just didn't like how the all-time looks on the
               profile"). */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", columnGap: 10, marginTop: 16, marginBottom: 12 }}>
+          {/* Back at the left, as a button (owner, 2026-11-23: "I don't
+              really like the placement there in the middle ... maybe just
+              back to the left"). */}
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 10, marginTop: 16, marginBottom: 12 }}>
             <WordMenu options={p.periodOptions} value={turning && period ? period : p.period.key} onPick={setPeriod} ariaLabel="Which time frame" chip />
             {turning ? <Text style={mono(11, false, C.gray)}>Reading</Text> : null}
           </View>
@@ -415,6 +421,7 @@ export function ProfileScreen({
         rel={rel}
         counts={counts}
         onPeople={onPeople}
+        onRow={onRow}
         onChange={(r) => {
           setLive(r);
           /* A follow that opened a private page: read it again. */
@@ -510,7 +517,7 @@ export function ProfileScreen({
  * page has EDIT PROFILE and SHARE: FOLLOW, in the blue until it is
  * pressed, and SHARE, which hands the address of this rower's page to the
  * phone's share sheet. SHARE beside it is MINE. */
-function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void }) {
+function SocialLine({ p, rel, counts, onPeople, onChange, onRow }: { p: Profile; rel: Rel; counts: Counts; onPeople?: (list: PeopleList, num?: number) => void; onChange: (r: { rel: Rel; counts: Counts }) => void; onRow?: (id: string) => void }) {
   const { me } = useSession();
   const n = p.rower.rowerNumber;
   const count = (v: number, word: string, list?: PeopleList) => (
@@ -541,7 +548,9 @@ function SocialLine({ p, rel, counts, onPeople, onChange }: { p: Profile; rel: R
   return (
     <>
       <View style={{ flexDirection: "row", alignItems: "center", columnGap: 18 }}>
-        <Avatar uri={p.avatar} name={p.rower.displayName} size={88} />
+        <StoryRing num={p.rower.rowerNumber} size={88} onRow={onRow}>
+          <Avatar uri={p.avatar} name={p.rower.displayName} num={p.rower.rowerNumber} size={88} />
+        </StoryRing>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 8 }}>
             <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, flexShrink: 1 }}>

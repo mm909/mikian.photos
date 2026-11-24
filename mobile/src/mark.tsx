@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Platform, View } from "react-native";
 import { C, F } from "./theme";
 
@@ -114,6 +114,25 @@ function Gone({ ch, delay, blue, size }: { ch: string; delay: number; blue: bool
   return (
     <View style={{ height: WHEEL, overflow: "hidden" }}>
       <Animated.Text style={[face(size, blue), { transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [0, -WHEEL] }) }] }]}>{ch}</Animated.Text>
+    </View>
+  );
+}
+
+/* WHAT RIDES BESIDE THE MARK ROLLS IN WITH IT (owner, 2026-11-23: "the
+ * verified icon doesn't animate in with the rower ... number, and I think
+ * that it should"): up into its own window, the way a letter does, as the
+ * mark's last letter lands. Keyed on the mark's word by the caller, so it
+ * rolls again each time the word changes. `after` is how many letters the
+ * word has. */
+export function RollIn({ children, after }: { children: ReactNode; after: number }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const step = Math.min(55, 460 / Math.max(1, after));
+    Animated.timing(a, { toValue: 1, duration: 380, delay: WAIT + after * step, easing: EASE, useNativeDriver: Platform.OS !== "web" }).start();
+  }, [a, after]);
+  return (
+    <View style={{ height: WHEEL, overflow: "hidden", justifyContent: "center" }}>
+      <Animated.View style={{ transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [WHEEL, 0] }) }] }}>{children}</Animated.View>
     </View>
   );
 }

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { peek } from "./api";
-import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { buzz } from "./buzz";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { CloseIcon, DotsIcon } from "./icons";
@@ -349,8 +349,13 @@ export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: Sc
  * someone doesn't fill it out?"). Round, the photo cropped to fill it. With
  * no photo: the rower's initials in the blue on its pale ground, so every
  * line has something where a face goes and nobody looks unfinished. */
-export function Avatar({ uri, name, size = 36 }: { uri?: string | null; name: string; size?: number }) {
+/* NO PHOTO, THE ROWER'S NUMBER (owner, 2026-11-23: "I like the profile
+ * photo, if they don't have one, being their rower number instead of their
+ * initial, like we have it in the stories"). `num`, as a number or as the
+ * board writes it ("043"); the initials only where no number is known. */
+export function Avatar({ uri, name, size = 36, num }: { uri?: string | null; name: string; size?: number; num?: number | string | null }) {
   const [bad, setBad] = useState(false);
+  const numStr = num === undefined || num === null || num === "" ? "" : typeof num === "number" ? String(num).padStart(3, "0") : num;
   const letters = name
     .split(/\s+/)
     .filter(Boolean)
@@ -359,7 +364,13 @@ export function Avatar({ uri, name, size = 36 }: { uri?: string | null; name: st
     .join("");
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}>
-      {uri && !bad ? <Image source={{ uri }} resizeMode="cover" onError={() => setBad(true)} style={{ width: size, height: size }} /> : <Text style={{ fontFamily: F.bold, fontSize: Math.round(size * 0.38), color: C.accent }}>{letters || "·"}</Text>}
+      {uri && !bad ? (
+        <Image source={{ uri }} resizeMode="cover" onError={() => setBad(true)} style={{ width: size, height: size }} />
+      ) : numStr ? (
+        <Text style={{ fontFamily: F.monoBold, fontSize: Math.round(size * 0.3), letterSpacing: 0.5, color: C.ink }}>{numStr}</Text>
+      ) : (
+        <Text style={{ fontFamily: F.bold, fontSize: Math.round(size * 0.38), color: C.accent }}>{letters || "·"}</Text>
+      )}
     </View>
   );
 }
@@ -443,6 +454,74 @@ export const modals = { open: 0 };
  * takes it back as the finger lifts (charts.tsx); the app's outermost view
  * clears it as every touch begins, and no swipe between tabs takes a touch
  * that has it set (App.tsx, screens/Profile.tsx). */
+/* PAGE DOTS YOU CAN TOUCH (owner, 2026-11-23: "allow me to click on the
+ * dots whenever we have them to change. Also allow me to like click the
+ * dots, hold, and then swipe back and forth, and I can quickly swipe
+ * between all of them. Instagram has this feature"). A tap on a dot goes to
+ * its page; a finger held on the row and slid along it goes to the page of
+ * the dot under it, one after the other, as fast as it moves. The row holds
+ * the touch, so the tabs do not swipe under it. */
+const DOT_SLOT = 22;
+export function Dots({ n, at, onGo, labels, style }: { n: number; at: number; onGo: (i: number) => void; labels?: string[]; style?: StyleProp<ViewStyle> }) {
+  const go = useRef(onGo);
+  go.current = onGo;
+  const count = useRef(n);
+  count.current = n;
+  const last = useRef(-1);
+  const left = useRef(0);
+  const pick = (x: number) => {
+    const i = Math.max(0, Math.min(count.current - 1, Math.floor(x / DOT_SLOT)));
+    if (i !== last.current) {
+      last.current = i;
+      go.current(i);
+    }
+  };
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (e) => {
+          scrub.on = true;
+          setSideDrag(true);
+          last.current = -1;
+          left.current = e.nativeEvent.pageX - e.nativeEvent.locationX;
+          pick(e.nativeEvent.locationX);
+        },
+        onPanResponderMove: (e) => pick(e.nativeEvent.pageX - left.current),
+        onPanResponderRelease: () => {
+          scrub.on = false;
+          setSideDrag(false);
+        },
+        onPanResponderTerminate: () => {
+          scrub.on = false;
+          setSideDrag(false);
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  return (
+    <View style={[{ alignItems: "center", marginTop: 4 }, style]}>
+      <View
+        {...pan.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityLabel={labels?.[at] ?? `Page ${at + 1} of ${n}`}
+        accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+        onAccessibilityAction={(e) => onGo(e.nativeEvent.actionName === "increment" ? Math.min(n - 1, at + 1) : Math.max(0, at - 1))}
+        style={{ flexDirection: "row", height: 26 }}
+      >
+        {Array.from({ length: n }, (_, i) => (
+          <View key={i} pointerEvents="none" style={{ width: DOT_SLOT, height: 26, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: at === i ? C.accent : C.line }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /* `chart` is the narrower of the two: set by a chart's own surface alone,
  * so a card that turns (Field.tsx Flip) leaves a scrub to the chart. */
 export const scrub = { on: false, chart: false };

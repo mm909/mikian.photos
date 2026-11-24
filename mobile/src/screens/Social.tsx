@@ -78,7 +78,7 @@ function PersonLine({ p, onRower, right, share, handle = true }: { p: { rowerNum
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 58, borderBottomWidth: 1, borderColor: C.line }}>
       {share !== undefined ? <Wash share={share} /> : null}
-      <Avatar uri={p.avatar} name={p.name} size={36} />
+      <Avatar uri={p.avatar} name={p.name} num={p.numStr || p.rowerNumber} size={36} />
       <Pressable accessibilityRole="link" accessibilityLabel={`${p.name}, rower ${p.numStr}`} onPress={() => onRower(p.rowerNumber)} style={({ pressed }) => ({ flex: 1, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>
         <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: small }}>{p.numStr} · </Text>
@@ -422,7 +422,7 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
           {index === 0 || data.items[index - 1].dayKey !== item.dayKey ? <Text style={[mono(11, false, C.gray, 0.14), { paddingTop: 22, paddingBottom: 4 }]}>{item.dayStr}</Text> : null}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, borderBottomWidth: 1, borderColor: C.line }}>
             <View>
-              <Avatar uri={item.avatar} name={item.name} size={36} />
+              <Avatar uri={item.avatar} name={item.name} num={item.numStr || item.rowerNumber} size={36} />
               {item.unread ? <View style={{ position: "absolute", right: -2, top: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: C.accent, borderWidth: 2, borderColor: C.paper }} /> : null}
             </View>
             <Pressable accessibilityRole="link" accessibilityLabel={`${item.name} ${item.text}`} onPress={() => open(item)} style={({ pressed }) => ({ flex: 1, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>

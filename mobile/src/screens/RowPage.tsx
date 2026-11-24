@@ -155,7 +155,7 @@ export function RowPage({
           less vertical space"). The rower's number is in the bar above. */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Pressable accessibilityLabel={`${r.name}'s page`} onPress={() => onRower(r.rowerNumber)}>
-          <Avatar uri={r.avatar} name={r.name} size={40} />
+          <Avatar uri={r.avatar} name={r.name} num={r.rowerNumber} size={40} />
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel={`${r.name}, rower ${r.numStr}`} onPress={() => onRower(r.rowerNumber)} hitSlop={8} style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 18, color: C.ink }}>

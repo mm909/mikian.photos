@@ -587,8 +587,22 @@ function paceModel(curve: PacePoint[], dots: PaceDot[]) {
   const seen = rows.flatMap((r) => (r.s === null ? [] : [r.s]));
   const range = seen.length ? seen : rows.flatMap((r) => (r.avg === null ? [] : [r.avg]));
   if (rows.length < 2 || !range.length) return null;
-  const lo = Math.floor(Math.min(...range) / 10) * 10;
-  const hi = Math.max(lo + 10, Math.ceil(Math.max(...range) / 10) * 10);
+  /* THE RANGE HUGS THE DOTS (owner, 2026-11-23: "its y-axis goes from 2
+   * minutes to 150, but all of the dots on here are between 2 minutes and
+   * 155 ... the bounds plus or minus some margin ... would get us a tighter
+   * y range"): the slowest and the fastest with a tenth of the spread and at
+   * least a second of air, never under four seconds tall. It used to round
+   * out to whole tens of seconds. */
+  const min = Math.min(...range);
+  const max = Math.max(...range);
+  const air = Math.max(1, (max - min) * 0.1);
+  let lo = min - air;
+  let hi = max + air;
+  if (hi - lo < 4) {
+    const mid = (lo + hi) / 2;
+    lo = mid - 2;
+    hi = mid + 2;
+  }
   return { rows, lo, hi, left, again };
 }
 
@@ -708,8 +722,11 @@ export function PaceLine({ curve, dots, fmt, height = 220 }: { curve: PacePoint[
    * marking for y-axis at 2 minutes and at 150, but we should definitely
    * have at least every 5"): the rules every 5 s while they stand 6 px
    * apart, the labels on the fewest of them that keep 15 px apart. */
-  const gap = [5, 10, 20, 30, 60, 120, 300, 600].find((g) => ((H - 2 * PAD_Y) * g) / (hi - lo) >= 15) ?? 600;
-  const fine = ((H - 2 * PAD_Y) * 5) / (hi - lo) >= 6 ? 5 : gap;
+  const px = (g: number) => ((H - 2 * PAD_Y) * g) / (hi - lo);
+  const STEPS = [1, 2, 5, 10, 20, 30, 60, 120, 300, 600];
+  const gap = STEPS.find((g) => px(g) >= 22) ?? 600;
+  /* And as many lines between the labels as stand 10 px apart. */
+  const fine = STEPS.find((g) => px(g) >= 10 && gap % g === 0) ?? gap;
   const marks: number[] = [];
   for (let v = Math.ceil(lo / gap) * gap; v <= hi + 1e-6; v += gap) marks.push(v);
   const rules: number[] = [];

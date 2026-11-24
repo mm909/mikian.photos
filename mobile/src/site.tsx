@@ -86,7 +86,7 @@ export function WordMenu<T extends string>({
     <>
       <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={`${ariaLabel}: ${word}`} accessibilityState={{ expanded: at !== null }} onPress={open} hitSlop={8}>
         {chip ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
             <Text style={[mono(12, true), textStyle]}>{word}</Text>
             <Text style={[mono(10, true, C.gray)]}>▼</Text>
           </View>

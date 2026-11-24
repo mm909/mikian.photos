@@ -213,13 +213,16 @@ function AccountPage({ s, name, num, save, onPhoto, onDeleted }: { s: SocialSett
   return (
     <>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingBottom: 14, borderBottomWidth: 1, borderColor: C.line }}>
-        <Avatar uri={s.avatar} name={name} size={64} />
+        <Avatar uri={s.avatar} name={name} num={num} size={64} />
         <View style={{ flex: 1, gap: 10 }}>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Small label={face === "busy" ? "Sending" : s.avatar ? "Change photo" : "Add a photo"} fill disabled={face === "busy"} onPress={choose} />
             {s.avatar ? <Small label="Remove" disabled={face === "busy"} onPress={() => save({ avatarKey: null })} /> : null}
           </View>
-          <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray }}>{face && face !== "busy" ? face : "Shown beside your name. Without one, your initials are."}</Text>
+          {/* No line of what the photo is for (owner, 2026-11-23: "we can
+              remove the text that says shown beside your name, without one
+              your initials are"); only a word while it is being sent. */}
+          {face && face !== "busy" ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray }}>{face}</Text> : null}
         </View>
       </View>
 
