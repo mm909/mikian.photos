@@ -857,6 +857,16 @@ export function MonthGrid({ month, byDay, today, marks }: { month: { key: string
   const cells: (number | null)[] = [...Array.from({ length: month.firstDow }, () => null), ...Array.from({ length: month.days }, (_, i) => i + 1)];
   while (cells.length % 7) cells.push(null);
   const shade = (m: number) => (m <= 0 ? -1 : m < marks[0] ? 0 : m < marks[1] ? 1 : m < marks[2] ? 2 : 3);
+  /* TOMORROW WAITS FOR THE PHONE'S MIDNIGHT (owner, 2026-11-23: "the
+   * calendar that shows the number of meters you rode per day. Make sure
+   * that doesn't get the next day's box until midnight local time"). The
+   * day that is today is the phone's own, not the server's (`today` said
+   * the server's, which can turn over hours early); a day after it is still
+   * to come. A month after the phone's is all to come, one before it none. */
+  const now = new Date();
+  const localKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const ahead = (d: number) => (month.key > localKey ? true : month.key === localKey ? d > now.getDate() : false);
+  void today;
   return (
     <View>
       <View style={{ flexDirection: "row", marginBottom: 6 }}>
@@ -872,7 +882,7 @@ export function MonthGrid({ month, byDay, today, marks }: { month: { key: string
             if (d === null) return <View key={i} style={{ flex: 1, aspectRatio: 1.15 }} />;
             const m = byDay[`${month.key}-${String(d).padStart(2, "0")}`] ?? 0;
             const s = shade(m);
-            const future = today !== undefined && d > today;
+            const future = ahead(d);
             return (
               <View key={i} accessibilityLabel={`${d}: ${m.toLocaleString("en-US")} meters`} style={{ flex: 1, aspectRatio: 1.15, alignItems: "center", justifyContent: "center", borderWidth: s < 0 ? 1 : 0, borderStyle: "dashed", borderColor: C.line, opacity: future ? 0.5 : 1 }}>
                 {s >= 0 ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.accent, opacity: SHADES[s] }} /> : null}
