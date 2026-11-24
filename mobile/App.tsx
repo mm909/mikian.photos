@@ -402,7 +402,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRow={openRow} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
-      <ProfileScreen key={stamp} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen key={stamp} onLocker={() => push({ kind: "locker" })} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     );
 
   /* A ROW LOGGED lands on its own page, with what the totals were a moment

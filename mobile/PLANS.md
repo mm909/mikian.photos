@@ -15,6 +15,7 @@ Written down 2026-11-24, 12:40 AM, from the owner's voice note. Nothing below is
 - [ ] **Post asking Android users to help** (the survey / testers).
 - [ ] **Stretch.** The knee.
 - If there is more: tell me how 159 felt; pick the art direction (line-art tokens, or a reference); decide the match's hit rule.
+- Afternoon (built on his notes after the demo): 159 is single player now, the island with an always-filling bar; the match against rowers got the same bar; one chest at the end; the row page shows the game; the version is a stamp. Wiki, Today.
 - Not today: multiplayer, matchmaking, ratings (all in the wiki: The 5K show, 159 the match, Home, The look, Ratings).
 
 **Wednesday, Nov 25**

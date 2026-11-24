@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { api } from "../api";
 import type { Ghost, Ghosts } from "../erg/ghosts";
 import type { Erg } from "../erg/useErg";
+import { saveGame } from "./games";
+import { loadMode } from "./mode";
 import { grant } from "./locker";
 import { addXp, loadXp } from "./progress";
 import { loadRating, rate } from "./rating";
@@ -67,8 +69,9 @@ export function useShow(erg: Erg, on: boolean): Showed {
     if (!live) return;
     let alive = true;
     const c = ctx.current;
-    Promise.all([loadRating(), loadXp()]).then(([r, xp]) => {
+    Promise.all([loadRating(), loadXp(), loadMode()]).then(([r, xp, mode]) => {
       if (!alive) return;
+      c.solo = mode !== "match";
       c.elo = r.elo;
       c.xp = xp;
       c.loaded = true;
@@ -142,6 +145,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
         banked.current = v.xpRow;
         if (rest) addXp(rest).catch(() => null);
         grant(v.final.chest.items, true).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: v.battle ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: v.battle?.kills ?? 0, matches: v.matches, items: v.final.chest.items }).catch(() => null);
       }
       const key = `${v.phase}/${v.search}/${v.matches}/${v.ready ? "ready" : ""}`;
       setAt((was) => (was.key === key ? was : { phase: v.phase, key }));

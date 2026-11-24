@@ -109,7 +109,7 @@ export function boardOf(W: number, H: number): BoardGeo {
     [0, H],
   ];
   const grass = land.map(([x, y], i) => blob(x, y, rc * 0.78, rc * 0.66, 23 + i * 5, 12));
-  const geo: BoardGeo = { W, H, pts, cum, L: cum[N], island: blob(cx, cy, W * 0.15, H * 0.13, 3), corners, islandGrass: blob(cx + W * 0.008, cy - H * 0.006, W * 0.1, H * 0.082, 9, 12), grass, spaces: "", bigSpaces: "", rc, unit: Math.max(54, Math.min(92, m * 0.21)), cx, cy };
+  const geo: BoardGeo = { W, H, pts, cum, L: cum[N], island: blob(cx, cy, W * 0.15, H * 0.13, 3), corners, islandGrass: blob(cx + W * 0.008, cy - H * 0.006, W * 0.1, H * 0.082, 9, 12), grass, spaces: "", bigSpaces: "", rc, unit: Math.max(46, Math.min(76, m * 0.18)), cx, cy };
   /* The spaces: evenly along the path, about one every 15 points, a whole
    * number of fives round the lap. */
   const count = Math.max(20, Math.round(geo.L / 15 / 5) * 5);

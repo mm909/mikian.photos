@@ -7,7 +7,8 @@ import { Board, boardOf, pieceAt, sOf, type Piece } from "../arcade/Board";
 import { ChestOpen } from "../arcade/Chest";
 import { MonsterG } from "../arcade/Monster";
 import { useLocker } from "../arcade/locker";
-import { AIM_S, COOL_S, holds, type MShot } from "../arcade/match";
+import { type MShot } from "../arcade/match";
+import { FILL_S } from "../arcade/pve";
 import { useProgress } from "../arcade/progress";
 import { useRating } from "../arcade/rating";
 import { levelOf } from "../arcade/score";
@@ -117,7 +118,7 @@ function figures(erg: Erg): [string, string, string][] {
 function Headline({ erg, width, height, wide }: { erg: Erg; width: number; height: number; wide: boolean }) {
   const figs = figures(erg);
   if (wide) {
-    const size = Math.max(26, Math.min(44, Math.floor((height - 16) / 4) - 22, Math.floor((width - 28) / 4.3)));
+    const size = Math.max(22, Math.min(36, Math.floor((height - 16) / 4) - 22, Math.floor((width - 28) / 4.3)));
     return (
       <View style={{ width, height, paddingLeft: 18, paddingRight: 8, justifyContent: "center", borderRightWidth: 1, borderColor: C.line }}>
         {figs.map(([k, v, c]) => (
@@ -131,7 +132,7 @@ function Headline({ erg, width, height, wide }: { erg: Erg; width: number; heigh
       </View>
     );
   }
-  const size = Math.max(28, Math.min(46, Math.floor((width - 40) / 2 / 4.4)));
+  const size = Math.max(22, Math.min(36, Math.floor((width - 40) / 2 / 4.4)));
   return (
     <View style={{ width, height, flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 18, borderBottomWidth: 1, borderColor: C.line }}>
       {figs.map(([k, v, c], i) => (
@@ -146,7 +147,7 @@ function Headline({ erg, width, height, wide }: { erg: Erg; width: number; heigh
   );
 }
 const stripOf = (width: number) => {
-  const size = Math.max(28, Math.min(46, Math.floor((width - 40) / 2 / 4.4)));
+  const size = Math.max(22, Math.min(36, Math.floor((width - 40) / 2 / 4.4)));
   return 2 * (Math.round(size * 1.12) + 17) + 6;
 };
 
@@ -248,16 +249,16 @@ function Banner({ eyebrow, line, sub, width, color = C.ink }: { eyebrow: string;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, backgroundColor: C.paper, borderBottomWidth: 1, borderColor: C.line }}>
       <Eyebrow style={{ color: C.ink }}>{eyebrow}</Eyebrow>
-      <Big text={line} width={width - 32} max={34} color={color} align="left" />
+      <Big text={line} width={width - 32} max={26} color={color} align="left" />
       {sub ? (
-        <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1.2, color: C.soft }}>
+        <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 1.2, color: C.soft }}>
           {sub}
         </Text>
       ) : null}
     </View>
   );
 }
-const BANNER = (sub: boolean) => (sub ? 86 : 66);
+const BANNER = (sub: boolean) => (sub ? 72 : 56);
 
 /* ---- the intro ---------------------------------------------------------- */
 
@@ -276,19 +277,19 @@ function Intro({ v, width, height, wall, paint, hop, showed }: P) {
     ["Rating", `${rating.elo}`],
     ["Level", `${prog.level}`],
   ];
-  const tokenSize = Math.min(wide ? height * 0.5 : width * 0.27, 130);
+  const tokenSize = Math.min(wide ? height * 0.42 : width * 0.24, 108);
   return (
     <View style={{ width, height, overflow: "hidden", paddingHorizontal: 18, paddingTop: 10 }}>
       <View style={{ opacity: clamp(e / 0.4), transform: [{ scale: 0.9 + 0.1 * pop(e / 0.6) }] }}>
         <Eyebrow style={{ color: C.ink }}>The arcade presents</Eyebrow>
-        <Big text={word} width={width - 36} max={wide ? 64 : 56} align="left" />
+        <Big text={word} width={width - 36} max={wide ? 50 : 44} align="left" />
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8, flex: 1 }}>
         <View style={{ flex: 1, rowGap: wide ? 4 : 10, minWidth: 0, flexDirection: wide ? "row" : "column", flexWrap: "wrap" }}>
           {stats.map(([k2, val], i) => (
             <View key={k2} style={{ width: wide ? "50%" : undefined, opacity: clamp((e - 0.5 - i * 0.25) / 0.4), transform: [{ translateX: (1 - ease((e - 0.5 - i * 0.25) / 0.4)) * -30 }] }}>
               <Eyebrow>{k2}</Eyebrow>
-              <Num size={wide ? 28 : Math.min(34, Math.floor((width - 36 - tokenSize * 1.65) / (val.length * 0.98)))}>{val}</Num>
+              <Num size={wide ? 24 : Math.min(28, Math.floor((width - 36 - tokenSize * 1.65) / (val.length * 0.98)))}>{val}</Num>
             </View>
           ))}
         </View>
@@ -362,11 +363,10 @@ function Lobby(p: P) {
   /* THE LOBBY TEACHES BY PLAYING ("This minute also teaches the game, by
    * playing, not reading"): the rhythm of the match runs round the
    * rower's piece already, cool and aim, and says so. */
-  const cyc = (rt - v.lobbyAt) % (COOL_S + AIM_S);
-  const aiming = cyc >= COOL_S;
+
   const at = pieceAt(geo, pieces[0].s);
-  const ringK = aiming ? (cyc - COOL_S) / AIM_S : cyc / COOL_S;
-  const ring = <Ring x={at.x} y={at.y} r={geo.unit * 0.42} k={ringK} color={aiming ? C.good : C.gray} />;
+  const ringK = (((rt - v.lobbyAt) % FILL_S) + FILL_S) % FILL_S / FILL_S;
+  const ring = <Ring x={at.x} y={at.y} r={geo.unit * 0.42} k={ringK} color={C.accent} />;
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <View style={{ position: "absolute", top: B, left: 0 }}>
@@ -374,7 +374,7 @@ function Lobby(p: P) {
           {!ready ? ring : null}
         </Board>
       </View>
-      <Banner eyebrow={ready ? "Ready check" : `Lobby · practice: ${aiming ? "aim, hold your pace" : "cool"}`} line={opp ? `VS ${opp.name.toUpperCase()}` : "LOBBY"} sub={opp ? `${whole(opp.assigned)} PACE · ELO ${opp.elo} · MATCH IN ${clockS(v.gunAt - rt)}` : undefined} width={width} />
+      <Banner eyebrow={ready ? "Ready check" : "Lobby · the bar fills faster at your pace"} line={opp ? `VS ${opp.name.toUpperCase()}` : "LOBBY"} sub={opp ? `${whole(opp.assigned)} PACE · ELO ${opp.elo} · MATCH IN ${clockS(v.gunAt - rt)}` : undefined} width={width} />
       {ready ? <Ready v={v} width={width} height={CARD} wall={wall} rt={rt} /> : null}
     </View>
   );
@@ -400,14 +400,14 @@ function Ready({ v, width, height, wall, rt }: { v: ShowView; width: number; hei
         </View>
         <View style={{ flex: 1, alignItems: "flex-end" }}>
           <Eyebrow>Now, 3 s</Eyebrow>
-          <Num size={Math.min(52, Math.floor((width - dotsW - 50) / 4.2))} color={ok ? C.good : BEST}>
+          <Num size={Math.min(42, Math.floor((width - dotsW - 50) / 4.2))} color={ok ? C.good : BEST}>
             {tenthsWord(now)}
           </Num>
         </View>
       </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
-        <Big text={ok ? "READY" : `GET TO ${whole(v.assigned)}`} width={width * 0.62} max={40} color={ok ? C.good : C.ink} align="left" />
-        <Num size={44}>{`${left}`}</Num>
+        <Big text={ok ? "READY" : `GET TO ${whole(v.assigned)}`} width={width * 0.62} max={32} color={ok ? C.good : C.ink} align="left" />
+        <Num size={36}>{`${left}`}</Num>
       </View>
     </View>
   );
@@ -467,12 +467,12 @@ function HealthBar({ name, h, max, mine, wall }: { name: string; h: number; max:
   return (
     <View style={{ flex: 1, transform: [{ translateX: jolt }] }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 18, color: mine ? C.accent : C.ink, flexShrink: 1 }}>
+        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 15, color: mine ? C.accent : C.ink, flexShrink: 1 }}>
           {name}
         </Text>
-        <Text style={{ fontFamily: F.monoBold, fontSize: 15, color: since < 0.4 ? BEST : C.ink }}>{`${h}`}</Text>
+        <Text style={{ fontFamily: F.monoBold, fontSize: 13, color: since < 0.4 ? BEST : C.ink }}>{`${h}`}</Text>
       </View>
-      <View style={{ height: 16, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, flexDirection: mine ? "row" : "row-reverse", backgroundColor: C.paper }}>
+      <View style={{ height: 13, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, flexDirection: mine ? "row" : "row-reverse", backgroundColor: C.paper }}>
         <View style={{ width: `${(100 * now).toFixed(1)}%`, backgroundColor: low ? BEST : mine ? C.accent : C.ink, opacity: low ? 0.7 + 0.3 * Math.sin(wall * 9) : 1 }} />
         <View style={{ width: `${(100 * ghost).toFixed(1)}%`, backgroundColor: DOT_ON }} />
       </View>
@@ -490,20 +490,18 @@ function Match(p: P) {
   const op = mv.players.find((x) => x.id !== "me");
   /* Upright, the aim is under the board; on its side, beside it, so the
    * board keeps its height. */
-  const HUD = 66;
-  const AIM = wide ? 0 : 128;
+  const HUD = 54;
+  const AIM = wide ? 0 : 104;
   const SIDE = wide ? Math.round(Math.min(210, width * 0.32)) : 0;
   const g = { W: width - SIDE, H: Math.max(120, height - HUD - AIM) };
   const geo = boardOf(g.W, g.H);
   const k = geo.unit / 64;
-  /* Where the round is, by the show's second. */
-  const into = rt - mv.t0;
-  const cyc = into - Math.floor(into / (COOL_S + AIM_S)) * (COOL_S + AIM_S);
-  const aiming = cyc >= COOL_S;
-  const aimPace = aiming && cyc - COOL_S > 0.25 ? (mv.aimPace.me ?? NaN) : NaN;
-  const holding = Number.isFinite(aimPace) && holds(aimPace, me?.assigned ?? 0);
-  const offBy = Number.isFinite(aimPace) ? aimPace - ((me?.assigned ?? 0) + 0.9) : 0;
-  const wobble = aiming && !holding && Number.isFinite(aimPace) ? clamp(offBy / 4, 0.15, 1) : 0;
+  /* The bar, and how near the pace sits (match.ts): no rounds, no
+   * cooldown. */
+  const near = me?.near ?? 0;
+  const holding = near >= 0.99;
+  const aimPace = me && Number.isFinite(me.pace) ? me.pace : NaN;
+  const wobble = Number.isFinite(aimPace) && near < 0.6 ? clamp(1 - near, 0.15, 1) * 0.6 : 0;
 
   /* The wall's second a shot fired at: the show's second, back from now. */
   const wallOf = (s: MShot) => wall - (rt - s.at) / Math.max(0.2, v.rate);
@@ -604,7 +602,7 @@ function Match(p: P) {
   /* The ring round the rower's piece: the cool filling grey, the aim green
    * while held. */
   const at = posOf("me");
-  const ring = mv.phase !== "over" ? <Ring x={at.x} y={at.y} r={geo.unit * 0.42} k={aiming ? (cyc - COOL_S) / AIM_S : cyc / COOL_S} color={aiming ? (holding ? C.good : BEST) : C.gray} /> : null;
+  const ring = mv.phase !== "over" ? <Ring x={at.x} y={at.y} r={geo.unit * 0.42} k={clamp(me?.charge ?? 0)} color={holding ? C.good : C.accent} /> : null;
   /* The damage, floating up off whoever took it. */
   const pops: ReactNode[] = [];
   for (const s of mv.shots) {
@@ -612,7 +610,7 @@ function Match(p: P) {
     if (!(s.hit && !s.cancelled) || e < 0 || e > 1.4) continue;
     const b = posOf(s.to);
     pops.push(
-      <Text key={`p${s.n}`} style={{ position: "absolute", left: b.x - 60, width: 120, top: HUD + b.y - geo.unit * 0.9 - e * 30, textAlign: "center", fontFamily: F.black, fontSize: 32, color: s.to === "me" ? BEST : C.ink, opacity: 1 - clamp((e - 0.9) / 0.5), transform: [{ scale: 0.5 + 0.5 * pop(e / 0.22) }], textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
+      <Text key={`p${s.n}`} style={{ position: "absolute", left: b.x - 60, width: 120, top: HUD + b.y - geo.unit * 0.9 - e * 30, textAlign: "center", fontFamily: F.black, fontSize: 24, color: s.to === "me" ? BEST : C.ink, opacity: 1 - clamp((e - 0.9) / 0.5), transform: [{ scale: 0.5 + 0.5 * pop(e / 0.22) }], textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
         {`−${s.damage}`}
       </Text>,
     );
@@ -622,23 +620,28 @@ function Match(p: P) {
   const lastE = lastMine ? wall - wallOf(lastMine) : 99;
   /* Up for a second and a half, or most of a round when a demo runs the
    * rounds faster than that. */
-  const word = lastMine && lastE < Math.min(1.6, (0.8 * (COOL_S + AIM_S)) / Math.max(0.2, v.rate)) ? (lastMine.cancelled ? "CANCEL" : lastMine.lucky ? `LUCKY −${lastMine.damage}` : lastMine.hit ? `HIT −${lastMine.damage}` : "MISS") : "";
+  const word = lastMine && lastE < Math.min(1.2, (0.8 * FILL_S) / Math.max(0.2, v.rate)) ? (lastMine.cancelled ? "CANCEL" : lastMine.lucky ? `LUCKY −${lastMine.damage}` : lastMine.hit ? `HIT −${lastMine.damage}` : "MISS") : "";
   const wordColor = lastMine?.cancelled ? C.gray : lastMine?.lucky ? "#111111" : lastMine?.hit ? C.good : BEST;
 
   const over = mv.phase === "over";
-  /* THE AIM: what to hold, and the 3 seconds' pace so far, in tenths. */
+  /* THE BAR: always filling, faster the nearer the pace given. */
   const phaseWord = (
     <View style={{ width: wide ? undefined : 124 }}>
-      <Eyebrow style={{ color: C.ink }}>{over ? "Match" : `Round ${mv.round}`}</Eyebrow>
-      <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: wide ? 40 : 34, lineHeight: wide ? 46 : 40, color: over ? C.ink : aiming ? (holding ? C.good : C.ink) : C.gray }}>{over ? "OVER" : aiming ? "AIM" : "COOL"}</Text>
-      {!over ? <Text style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: C.soft }}>{aiming ? `FIRE IN ${Math.max(1, Math.ceil(COOL_S + AIM_S - cyc))}` : `AIM IN ${Math.max(1, Math.ceil(COOL_S - cyc))}`}</Text> : null}
+      <Eyebrow style={{ color: C.ink }}>{over ? "Match" : "Throw"}</Eyebrow>
+      {over ? (
+        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 30, color: C.ink }}>OVER</Text>
+      ) : (
+        <View style={{ height: 18, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 4, backgroundColor: C.paper }}>
+          <View style={{ width: `${(100 * clamp(me?.charge ?? 0)).toFixed(1)}%`, height: "100%", backgroundColor: holding ? C.good : C.accent }} />
+        </View>
+      )}
     </View>
   );
   const paceBig = (
     <View style={{ flex: wide ? undefined : 1, alignItems: wide ? "flex-start" : "flex-end" }}>
-      <Eyebrow>{`Hold ${whole(me?.assigned ?? 0)} · 3 s`}</Eyebrow>
-      <Num size={wide ? Math.min(52, Math.floor((SIDE - 28) / 4.2)) : Math.min(60, Math.floor((width - 170) / 4))} color={!aiming || over || !Number.isFinite(aimPace) ? C.gray : holding ? C.good : BEST}>
-        {aiming && !over && Number.isFinite(aimPace) ? tenthsWord(aimPace) : whole(me?.assigned ?? 0)}
+      <Eyebrow>{`Target ${whole(me?.assigned ?? 0)} · 4 s`}</Eyebrow>
+      <Num size={wide ? Math.min(40, Math.floor((SIDE - 28) / 4.2)) : Math.min(44, Math.floor((width - 170) / 4))} color={over || !Number.isFinite(aimPace) ? C.gray : holding ? C.good : near < 0.45 ? BEST : C.ink}>
+        {!over && Number.isFinite(aimPace) ? tenthsWord(aimPace) : whole(me?.assigned ?? 0)}
       </Num>
     </View>
   );
@@ -667,7 +670,7 @@ function Match(p: P) {
           </Board>
           {word ? (
             <View pointerEvents="none" style={{ position: "absolute", top: 6, alignSelf: "center", backgroundColor: lastMine?.lucky ? DOT_ON : C.paper, paddingHorizontal: 10, borderWidth: 2, borderColor: C.ink, borderRadius: 4, transform: [{ scale: 0.6 + 0.4 * pop(lastE / 0.2) }, { rotate: `${(-3 * (1 - clamp(lastE / 0.3))).toFixed(1)}deg` }] }}>
-              <Text style={{ fontFamily: F.black, fontSize: 32, letterSpacing: 1, color: wordColor }}>{word}</Text>
+              <Text style={{ fontFamily: F.black, fontSize: 24, letterSpacing: 1, color: wordColor }}>{word}</Text>
             </View>
           ) : null}
         </View>
@@ -696,8 +699,8 @@ function Battle(p: P) {
   const b = v.battle;
   if (!b) return null;
   const wide = width >= 520;
-  const HUD = 50;
-  const PANEL = wide ? 0 : 104;
+  const HUD = 46;
+  const PANEL = wide ? 0 : 92;
   const SIDE = wide ? Math.round(Math.min(200, width * 0.3)) : 0;
   const g = { W: width - SIDE, H: Math.max(120, height - HUD - PANEL) };
   const geo = boardOf(g.W, g.H);
@@ -753,7 +756,7 @@ function Battle(p: P) {
       if (kb < 1.1 && !s.from.startsWith("deck")) {
         const dx = ((s.n * 41) % 50) - 25;
         pops.push(
-          <Text key={`p${s.n}`} style={{ position: "absolute", left: mx + dx - 50, width: 100, top: HUD + my - mr * 1.5 - kb * 34, textAlign: "center", fontFamily: F.black, fontSize: s.acc >= 0.95 ? 24 : 18, color: s.acc >= 0.95 ? C.good : C.ink, opacity: 1 - clamp((kb - 0.7) / 0.4), textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
+          <Text key={`p${s.n}`} style={{ position: "absolute", left: mx + dx - 50, width: 100, top: HUD + my - mr * 1.5 - kb * 34, textAlign: "center", fontFamily: F.black, fontSize: s.acc >= 0.95 ? 20 : 15, color: s.acc >= 0.95 ? C.good : C.ink, opacity: 1 - clamp((kb - 0.7) / 0.4), textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
             {`−${s.dmg}`}
           </Text>,
         );
@@ -788,7 +791,7 @@ function Battle(p: P) {
         <Eyebrow style={{ color: C.ink }}>Throw</Eyebrow>
         <Eyebrow>{`${b.kills} KO · ${fmtInt(b.xp)} XP${b.decks ? ` · ${b.decks} CREW` : ""}${b.twin ? " · TWIN" : ""}`}</Eyebrow>
       </View>
-      <View style={{ height: 18, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, backgroundColor: C.paper }}>
+      <View style={{ height: 14, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, backgroundColor: C.paper }}>
         <View style={{ width: `${(100 * clamp(b.charge)).toFixed(1)}%`, height: "100%", backgroundColor: b.near >= 0.99 ? C.good : C.accent }} />
       </View>
     </View>
@@ -797,13 +800,13 @@ function Battle(p: P) {
     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 4 }}>
       <View>
         <Eyebrow>Pace · 4 s</Eyebrow>
-        <Num size={wide ? 30 : 34} color={nearColor}>
+        <Num size={wide ? 26 : 28} color={nearColor}>
           {pace}
         </Num>
       </View>
       <View style={{ alignItems: "flex-end" }}>
         <Eyebrow>Target</Eyebrow>
-        <Num size={wide ? 30 : 34}>{whole(b.target)}</Num>
+        <Num size={wide ? 26 : 28}>{whole(b.target)}</Num>
       </View>
     </View>
   );
@@ -821,7 +824,7 @@ function Battle(p: P) {
           </Board>
           {word ? (
             <View pointerEvents="none" style={{ position: "absolute", top: 6, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 2, borderColor: C.ink, borderRadius: 4 }}>
-              <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 20, color: word.c }}>
+              <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 17, color: word.c }}>
                 {word.big}
               </Text>
               <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: C.soft }}>{word.small}</Text>
@@ -848,7 +851,7 @@ function Battle(p: P) {
 
 /* ---- the celebration ------------------------------------------------------- */
 
-function Celebrate({ v, width, height, wall, showed }: P) {
+function Celebrate({ v, erg, width, height, wall, showed, paint }: P) {
   const r = v.result;
   if (!r) return null;
   const e = wall - v.sinceWall;
@@ -869,29 +872,41 @@ function Celebrate({ v, width, height, wall, showed }: P) {
   const stats = (
     <View style={{ width: statsW, paddingHorizontal: 16, paddingTop: 8, rowGap: 4 }}>
       <View style={{ transform: [{ scale: 0.7 + 0.3 * pop(e / 0.5) }], alignSelf: "flex-start" }}>
-        <Big text={head} width={statsW - 32} max={46} color={r.result === "win" ? C.good : r.result === "loss" ? BEST : C.ink} align="left" />
+        <Big text={head} width={statsW - 32} max={36} color={r.result === "win" ? C.good : r.result === "loss" ? BEST : C.ink} align="left" />
       </View>
       {why ? <Text style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.4, color: C.soft }}>{why}</Text> : null}
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
         <Eyebrow style={{ color: C.ink }}>{`Level ${lv.level}${lv.level > lvWas ? " · UP!" : ""}`}</Eyebrow>
-        <Num size={26} color={C.accent}>{`+${fmtInt(r.xp * k)} XP`}</Num>
+        <Num size={22} color={C.accent}>{`+${fmtInt(r.xp * k)} XP`}</Num>
       </View>
       <View style={{ height: 12, backgroundColor: C.line }}>
         <View style={{ width: `${Math.round((100 * lv.into) / lv.need)}%`, height: 12, backgroundColor: C.accent }} />
       </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
         <Eyebrow>Lifetime</Eyebrow>
-        <Num size={26}>{`${fmtInt(life)} m`}</Num>
+        <Num size={22}>{`${fmtInt(life)} m`}</Num>
       </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
         <Eyebrow>Rating</Eyebrow>
-        <Num size={26} color={dElo > 0 ? C.good : dElo < 0 ? BEST : C.ink}>{`${elo} ${dElo > 0 ? "▲" : dElo < 0 ? "▼" : ""}${dElo ? Math.abs(dElo) : ""}`}</Num>
+        {erg.demo ? (
+          <Num size={22} color={C.gray}>{`${r.eloBefore} · DEMO, NOT RATED`}</Num>
+        ) : (
+          <Num size={22} color={dElo > 0 ? C.good : dElo < 0 ? BEST : C.ink}>{`${elo} ${dElo > 0 ? "▲" : dElo < 0 ? "▼" : ""}${dElo ? Math.abs(dElo) : ""}`}</Num>
+        )}
       </View>
     </View>
   );
   const chestW = wide ? width - statsW : width;
   const chestH = wide ? height : Math.max(160, height - 228);
-  const chest = e >= 1.2 ? <ChestOpen chest={r.chest} at={v.sinceWall + 1.2} t={wall} width={chestW} height={chestH} won={r.result === "win"} note={`THE MATCH'S CHEST · +${fmtInt(r.rowed)} M ROWED`} /> : <View style={{ width: chestW, height: chestH }} />;
+  /* NO CHEST HERE (owner, 2026-11-24: "remove the treasure chest animation
+   * from mid-row. There is only ONE loot box, at the very end of the
+   * row"): the rower's own piece, hopping on a win. */
+  const tk = Math.min(chestW * 0.5, chestH * 0.7, 150);
+  const chest = (
+    <View style={{ width: chestW, height: chestH, alignItems: "center", justifyContent: "center" }}>
+      <TokenArt paint={paint} size={tk} t={wall} hop={r.result === "win" ? Math.abs(Math.sin(e * 5)) : 0} look={0} uid="celebrate" />
+    </View>
+  );
   return wide ? (
     <View style={{ width, height, flexDirection: "row" }}>
       {stats}
@@ -917,11 +932,11 @@ function LevelUp({ v, width, height, wall, paint, hop }: P) {
   const up = lv.level > was;
   /* Whether the row's XP makes a level by the end of the count. */
   const upEnd = levelOf(from + v.xpRow).level > was;
-  const size = Math.min(width * 0.34, height * 0.34, 150);
+  const size = Math.min(width * 0.28, height * 0.28, 118);
   return (
     <View style={{ width, height, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, rowGap: 6 }}>
       <View style={{ transform: [{ scale: up ? 0.8 + 0.2 * pop((e - 3.4) / 0.5) : 1 }] }}>
-        <Big text={up && e > 3.4 ? `LEVEL ${lv.level}!` : upEnd ? "LEVEL UP" : "THIS ROW'S XP"} width={width - 32} max={60} color={up && e > 3.4 ? C.accent : C.ink} />
+        <Big text={up && e > 3.4 ? `LEVEL ${lv.level}!` : upEnd ? "LEVEL UP" : "THIS ROW'S XP"} width={width - 32} max={46} color={up && e > 3.4 ? C.accent : C.ink} />
       </View>
       <View style={{ width: (76 * size) / TOKEN_U, height: (72 * size) / TOKEN_U }}>
         {/* The light behind the piece once the level is made, turning. */}
@@ -943,7 +958,7 @@ function LevelUp({ v, width, height, wall, paint, hop }: P) {
         ) : null}
         <TokenArt paint={paint} size={size} t={wall} hop={up && e > 3.4 ? Math.abs(Math.sin((e - 3.4) * 5)) : hop} look={0} uid="levelup" />
       </View>
-      <Num size={34} color={C.accent}>{`+${fmtInt(v.xpRow * k)} XP`}</Num>
+      <Num size={28} color={C.accent}>{`+${fmtInt(v.xpRow * k)} XP`}</Num>
       <Text style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.4, color: C.soft }}>{v.battle ? `THIS ROW · ${v.battle.kills} KO` : `THIS ROW'S MATCHES · ${v.matches} PLAYED`}</Text>
       <View style={{ width: Math.min(width - 40, 420), marginTop: 6 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -967,7 +982,7 @@ function Finish({ v, width, height, wall, myM, paint, hop }: P) {
   const k = clamp(1 - left / Math.max(1, stretch));
   const laneY = height * 0.62;
   const lineX = width * 0.82;
-  const size = Math.min(96, height * 0.26);
+  const size = Math.min(80, height * 0.22);
   /* The box's middle goes from the left edge to the line; the drawing has
    * its trail to the left of the box (TokenArt: the box's middle is 62 of
    * its 102 units across). */
@@ -1004,7 +1019,7 @@ function Finish({ v, width, height, wall, myM, paint, hop }: P) {
       </View>
       <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
         <Eyebrow style={{ color: C.ink }}>The finish line</Eyebrow>
-        <Big text={`LAST ${fmtInt(Math.ceil(left))} M`} width={width - 32} max={56} align="left" />
+        <Big text={`LAST ${fmtInt(Math.ceil(left))} M`} width={width - 32} max={44} align="left" />
       </View>
     </View>
   );

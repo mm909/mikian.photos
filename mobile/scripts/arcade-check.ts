@@ -18,7 +18,8 @@ import { BAND_MAX, BAND_MIN, BAND_NONE, PLAY_M, REWARD_S, SEG_M, SHOTS, TITLE_S,
 import { prng } from "../src/arcade/rng";
 import { CLEAR_END_M, GAME_M, gameMarks } from "../src/arcade/schedule";
 import { DROP, DROPPABLE, LAYERS, RARITIES, SKIN_BY_ID, TRIPLE, rollChest, rollRarity, wear } from "../src/arcade/skins";
-import { AIM_S, CYCLE_S, HEALTH, HIT_SLACK, LUCK_AT_LINE, createMatch, holds, luckOf } from "../src/arcade/match";
+import { HEALTH, HIT_SLACK, THROW, createMatch, holds } from "../src/arcade/match";
+import { FILL_S } from "../src/arcade/pve";
 import { GRID_S, HOME_MIN_S, INTRO_S, FINALE, LAST_MATCH, createShow, healthOf, scaleOf, type ShowCtx, type ShowView } from "../src/arcade/show";
 import { DRAW_XP, ELO_K, WIN_XP, botElo, eloAfter, levelOf, matchXp, needFor } from "../src/arcade/score";
 import type { Ghost } from "../src/erg/ghosts";
@@ -235,47 +236,47 @@ console.log(`  ${LAYERS.map((l) => `${l}: ${DROPPABLE.filter((s) => s.layer === 
  * on health, damage the meters rowed in the aim.) */
 console.log("\n---- the match ----");
 
-/* The hit rule: the aim's pace, read in tenths, at the pace given or within
- * HIT_SLACK of it. */
-ok(`the hit rule: 1:59.9 holds 1:59, 2:00.0 does not, 1:55 does (slack ${HIT_SLACK})`, holds(119.95, 119) && holds(119.9, 119) && !holds(120.0, 119) && holds(115, 119) && !holds(Infinity, 119));
-ok("an off-pace shot lands less the further off it is", luckOf(120.0, 119) > luckOf(122, 119) && luckOf(122, 119) > luckOf(126, 119) && luckOf(118, 119) === LUCK_AT_LINE);
+/* The ready check still reads a pace in whole seconds. */
+ok(`the ready check: 1:59.9 holds 1:59, 2:00.0 does not, 1:55 does (slack ${HIT_SLACK})`, holds(119.95, 119) && holds(119.9, 119) && !holds(120.0, 119) && holds(115, 119) && !holds(Infinity, 119));
 
 /* Even lines, for the arithmetic. */
 const line = (pace: number) => (t: number) => (t > 0 ? (500 / pace) * t : 0);
 const lines = (a: (t: number) => number, b: (t: number) => number) => (id: string, t: number) => (id === "me" ? a(t) : b(t));
+const sides = (b = 125) => [{ id: "me", name: "You", kind: "me" as const, assigned: 119 }, { id: "b", name: "Bot", kind: "bot" as const, assigned: b }];
 {
-  /* Both hold their pace: every round both land, and every round cancels. */
-  const m = createMatch({ id: "c", t0: 100, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 1 });
-  const v = m.step(100 + CYCLE_S * 10 + 0.5);
-  ok("both land at once: they cancel, nobody is hurt (10 rounds)", v.shots.length === 20 && v.shots.every((s) => s.hit && s.cancelled && s.damage === 0) && v.players.every((p) => p.health === HEALTH) && v.phase !== "over", v.players.map((p) => p.health));
+  /* THE BAR, NO COOLDOWN: both on their pace, each throws about every
+   * FILL_S seconds, a full THROW each, and nobody waits. */
+  const m = createMatch({ id: "c", t0: 100, sides: sides(), metersAt: lines(line(119), line(125)), seed: 1 });
+  let v = m.step(100);
+  for (let t = 100; t <= 130; t += 0.1) v = m.step(t);
+  const mine = v.shots.filter((s) => s.from === "me");
+  ok(`on the pace: a throw about every ${FILL_S} s (30 s: ${mine.length})`, mine.length >= 8 && mine.length <= 11, mine.length);
+  ok(`on the pace: every throw does all of it, ${THROW}`, mine.slice(1).every((s) => s.damage === THROW), mine.map((s) => s.damage));
+  ok("no throw is wasted: every one lands", v.shots.every((s) => s.hit && !s.cancelled));
 }
 {
-  /* The rower holds 1:59; the bot, given 2:05, rows 2:10 and (all but)
-   * never lands. Damage is the rower's meters in the aim: 3 s at 1:59 is
-   * 12.6 m, so 13 a shot. */
-  const m = createMatch({ id: "d", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(130)), seed: 2 });
+  /* The rower holds 1:59; the bot, given 2:05, rows 2:15: its bar is slow
+   * and its throws weak, and the rower wins. */
+  const m = createMatch({ id: "d", t0: 0, sides: sides(), metersAt: lines(line(119), line(135)), seed: 2 });
   let v = m.step(0);
-  for (let t = 0; t < 400 && v.phase !== "over"; t += 0.1) v = m.step(t);
-  const mine = v.shots.filter((s) => s.from === "me");
-  const per = Math.round((500 / 119) * AIM_S);
-  const rounds = Math.ceil(HEALTH / per);
-  ok(`damage is the meters rowed in the aim: ${per} a shot at 1:59`, mine.every((s) => s.damage === per || s.cancelled), mine.map((s) => s.damage));
-  ok(`health ${HEALTH}: the bot is out after ${rounds} clean rounds, ${rounds * CYCLE_S} s, and the rower wins`, v.winner === "me" && v.endAt === rounds * CYCLE_S && v.players.find((p) => p.id === "b")?.health === 0, { winner: v.winner, end: v.endAt });
-  ok("a shot that does not land does no damage", v.shots.filter((s) => !s.hit).every((s) => s.damage === 0));
+  for (let t = 0; t < 900 && v.phase !== "over"; t += 0.1) v = m.step(t);
+  const theirs = v.shots.filter((s) => s.from === "b");
+  ok("off the pace: fewer throws, and weaker", theirs.length < v.shots.length / 2 && theirs.every((s) => s.damage < THROW), theirs.map((s) => s.damage));
+  ok(`health ${HEALTH}: the rower on the pace wins, in about ${Math.round((HEALTH / THROW) * FILL_S)} s`, v.winner === "me" && v.endAt < (HEALTH / THROW) * FILL_S * 1.3, { winner: v.winner, end: v.endAt });
   ok("the rower's meters in the match are counted", Math.abs((v.players.find((p) => p.id === "me")?.rowed ?? 0) - line(119)(v.endAt)) < 0.01);
 }
 {
   /* Called: the more health wins; level is a draw. */
-  const m = createMatch({ id: "e", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(130)), seed: 3 });
-  m.step(13);
-  const v = m.call(13);
-  ok("a match called by the show: the more health wins", v.called && v.winner === "me" && v.phase === "over", v);
-  const d = createMatch({ id: "f", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 4 });
-  d.step(30);
-  ok("called level: a draw", d.call(30).winner === "draw");
-  const late = createMatch({ id: "g", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 5, late: ["me"] });
-  const lv = late.step(6.5);
-  ok("a rower who failed the ready check loses only the first shot", lv.shots.length === 1 && lv.shots[0].from === "b" && lv.players[0].health === HEALTH - Math.round((500 / 125) * 3), lv.shots);
+  const m = createMatch({ id: "e", t0: 0, sides: sides(), metersAt: lines(line(119), line(140)), seed: 3 });
+  for (let t = 0; t <= 30; t += 0.1) m.step(t);
+  const v = m.call(30);
+  ok("a match called by the show: the more health wins", v.called && v.winner === "me" && v.phase === "over", v.players.map((p) => p.health));
+  const d = createMatch({ id: "f", t0: 0, sides: sides(), metersAt: lines(line(119), line(125)), seed: 4 });
+  ok("called before anybody threw: a draw", d.call(0.5).winner === "draw");
+  const late = createMatch({ id: "g", t0: 0, sides: sides(), metersAt: lines(line(119), line(125)), seed: 5, late: ["me"] });
+  let lv = late.step(0);
+  for (let t = 0; t <= 12; t += 0.1) lv = late.step(t);
+  ok("a rower who failed the ready check starts a throw behind", lv.shots[0]?.from === "b" && lv.shots.filter((s) => s.from === "me").length < lv.shots.filter((s) => s.from === "b").length, lv.shots.map((s) => s.from));
 }
 
 /* ---- rowers and saved rows for the show ---------------------------------- */
@@ -369,7 +370,7 @@ function printShow(title: string, r: Rowed) {
     const mv = x.match;
     const mine = mv.shots.filter((s) => s.from === "me");
     const theirs = mv.shots.filter((s) => s.from !== "me");
-    console.log(`  ${x.id} vs ${res.opp.name} (given ${pace(res.opp.assigned)}, Elo ${res.opp.elo}): gun ${fmt(x.m0)} m, ${Math.round(x.end - x.t0)} s, ${res.result.toUpperCase()}${res.called ? " (called)" : ""} ${res.health.me}-${res.health.opp} of ${res.health.max}; you landed ${mine.filter((s) => s.hit && !s.cancelled).length}/${mine.length} (lucky ${mine.filter((s) => s.lucky).length}), they ${theirs.filter((s) => s.hit && !s.cancelled).length}/${theirs.length}, cancels ${mine.filter((s) => s.cancelled).length}; +${res.xp} XP, Elo ${res.eloBefore}->${res.eloAfter}`);
+    console.log(`  ${x.id} vs ${res.opp.name} (given ${pace(res.opp.assigned)}, Elo ${res.opp.elo}): gun ${fmt(x.m0)} m, ${Math.round(x.end - x.t0)} s, ${res.result.toUpperCase()}${res.called ? " (called)" : ""} ${res.health.me}-${res.health.opp} of ${res.health.max}; you threw ${mine.length} (${fmt(mine.reduce((a, s) => a + s.damage, 0))} damage), they ${theirs.length} (${fmt(theirs.reduce((a, s) => a + s.damage, 0))}); +${res.xp} XP, Elo ${res.eloBefore}->${res.eloAfter}`);
   }
   if (r.end.final) console.log(`  final chest: ${r.end.final.chest.items.map((id) => SKIN_BY_ID[id].name).join(", ")}; the row's XP ${r.end.xpRow}`);
 }

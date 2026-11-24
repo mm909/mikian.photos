@@ -8,13 +8,20 @@ import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
-import { Avatar, Bar, Blocks, PhotoViewer, Waiting, modals, scrub, setSideDrag, useLoad, useScrollDir } from "../ui";
+import { Avatar, Bar, Blocks, Btn, PhotoViewer, Waiting, modals, scrub, setSideDrag, useLoad, useScrollDir } from "../ui";
 import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FieldCards } from "./Stats";
 import { Lab } from "./reviewBits";
 import { useRating } from "../arcade/rating";
+import { useWallClock } from "../arcade/BoatArt";
+import { useLocker } from "../arcade/locker";
+import { setMode, useMode } from "../arcade/mode";
+import { useProgress } from "../arcade/progress";
+import { levelOf } from "../arcade/score";
+import { wear, type Equipped } from "../arcade/skins";
+import { TokenArt } from "../arcade/Token";
 import { StoryRing } from "./Recap";
 import type { SettingsPage } from "./Settings";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
@@ -140,8 +147,11 @@ export function ProfileScreen({
   onPlus,
   onEdit,
   onSettings,
+  onLocker,
 }: {
   num?: number;
+  /* The arcade tab's CHANGE THE LOOK: the locker. */
+  onLocker?: () => void;
   /* EDIT PROFILE, pressed on the rower's own page: the account's settings. */
   onEdit?: () => void;
   /* A page of the settings, for the bell's question (2026-11-23). */
@@ -311,7 +321,7 @@ export function ProfileScreen({
     sub === "rows" ? (
       <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} more={near} />
     ) : sub === "ratings" ? (
-      <Ratings p={p} />
+      <Ratings p={p} onLocker={onLocker} />
     ) : (
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the
@@ -734,7 +744,7 @@ function Hundred({ p }: { p: Profile }) {
  * months, whatever time frame the stats tab is on). A server from before
  * them sends none, and the same rule is run here over the log in hand. A
  * private or masked page never reaches this tab (no tabs are drawn). */
-function Ratings({ p }: { p: Profile }) {
+function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
   const [w, setW] = useState(0);
   const five = p.fiveK === undefined ? fiveKFrom(p.logRows) : p.fiveK;
   const n = five?.n ?? 0;
@@ -744,10 +754,36 @@ function Ratings({ p }: { p: Profile }) {
   const { me } = useSession();
   const rating = useRating();
   const showRating = p.isMe && !!me.isAdmin;
+  const locker = useLocker();
+  const prog = useProgress();
+  const mode = useMode();
+  const lv = levelOf(prog.xp);
   return (
     <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
       {showRating ? (
         <>
+          {/* THE ROWER'S PIECE, with the way to the locker (owner,
+              2026-11-24: "add a portrait of the rower's avatar and a button
+              that opens the Locker to change its look"). */}
+          <View style={{ flexDirection: "row", alignItems: "center", columnGap: 14, marginTop: 16 }}>
+            <Portrait equipped={locker.equipped} />
+            <View style={{ flex: 1, rowGap: 6 }}>
+              <Text style={mono(11, true)}>{`LEVEL ${lv.level}`}</Text>
+              <View style={{ height: 8, backgroundColor: C.line }}>
+                <View style={{ width: `${Math.round((100 * lv.into) / lv.need)}%`, height: 8, backgroundColor: C.accent }} />
+              </View>
+              <Text style={mono(10, false, C.gray, 0.1)}>{`${fmtInt(lv.into)} / ${fmtInt(lv.need)} XP`}</Text>
+              {onLocker ? <Btn label="Change the look" quiet onPress={onLocker} style={{ marginTop: 2 }} /> : null}
+            </View>
+          </View>
+          {/* Which game a row plays. */}
+          <View style={{ flexDirection: "row", columnGap: 6, marginTop: 14 }}>
+            {(["solo", "match"] as const).map((m) => (
+              <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: mode === m }} onPress={() => setMode(m).catch(() => null)} style={({ pressed }) => ({ flex: 1, paddingVertical: 8, borderRadius: 6, borderWidth: 1.5, borderColor: mode === m ? C.ink : C.line, backgroundColor: mode === m ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+                <Text style={mono(10, true, mode === m ? C.paper : C.ink)}>{m === "solo" ? "SINGLE PLAYER" : "AGAINST ROWERS"}</Text>
+              </Pressable>
+            ))}
+          </View>
           <Eye style={{ marginTop: 14 }} left="Rating" right="The arcade · only you see this" />
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
             <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.ink, fontVariant: ["tabular-nums"] }}>{String(rating.elo)}</Text>
@@ -775,6 +811,18 @@ function Ratings({ p }: { p: Profile }) {
           <FiveKDots paces={five.paces} mean={five.meanPace} sd={five.sdPace} w={w} />
         </>
       )}
+    </View>
+  );
+}
+
+/* The rower's arcade piece, hopping, in a round frame. */
+function Portrait({ equipped }: { equipped: Equipped }) {
+  const t = useWallClock(true);
+  const q = ((t * 26) / 60) % 1;
+  const hop = q < 0.3 ? Math.sin((q / 0.3) * Math.PI) : 0;
+  return (
+    <View style={{ width: 104, height: 104, borderRadius: 52, borderWidth: 2, borderColor: C.ink, backgroundColor: C.tint, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+      <TokenArt paint={wear(equipped)} size={78} t={t} hop={hop} look={0.3} uid="portrait" />
     </View>
   );
 }

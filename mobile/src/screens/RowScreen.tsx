@@ -16,6 +16,7 @@ import { FRAME, finishRow, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
+import { bindRow } from "../arcade/games";
 import { useShow } from "../arcade/useShow";
 import { ShowOverlay, ShowPage, overlays } from "./Show";
 
@@ -160,6 +161,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
           setForm("none");
         }}
         onDone={(id, day, meters, seconds, doc, fake) => {
+          bindRow(id, erg.demo).catch(() => null);
           const out: Logged = { id, meters, seconds, day, doc, demo: erg.demo, device: erg.name || "PM5", strokes: snap.strokes, avgWatts: snap.avgWatts, fake };
           if (stillIt) erg.discard();
           setForm("none");
@@ -388,6 +390,13 @@ const LAST = 5;
 
 function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
   const { live, name, error, demo, auto } = erg;
+  /* The row's game (arcade/games.ts) is told the row's id once it has one. */
+  const boundRow = useRef<string | null>(null);
+  useEffect(() => {
+    if (auto?.state !== "saved" || !auto.rowId || boundRow.current === auto.rowId) return;
+    boundRow.current = auto.rowId;
+    bindRow(auto.rowId, demo).catch(() => null);
+  }, [auto, demo]);
   /* LOG was pressed and the row is on its way in. */
   const [asking, setAsking] = useState(false);
   const log = async () => {

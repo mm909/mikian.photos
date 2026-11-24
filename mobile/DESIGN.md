@@ -1003,3 +1003,16 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - DEMO ROWS NO LONGER MOVE THE RATING; the rating started again at 1200 (kept under arcade/rating/2; the old one, all demo games, is left on the phone).
 - THE MATCH (multiplayer) is kept, behind ShowCtx.solo = false.
 - Seen in headless Chrome against the sandbox (a 1K demo at 4x: intro, the island, KOs, the chest). NOT on a phone or a real PM5.
+
+## Round 56 (2026-11-24, afternoon): the rest of his notes on the demo
+
+- THE MATCH GETS THE BAR (his words: "the always-filling bar, filling faster near pace, with no cooldown"): arcade/match.ts rewritten. Each piece's bar fills by the island's `nearOf` against the pace it was given (4 s of its meters); full, it throws at once: THROW 10 times 0.4 to 1 by how near the pace sat. Every throw lands (no luck, no cancels). Health 300 on a 5K. Checked (arcade-check.ts): about 1:40 a match; steady 1:59 wins 63% against bots of its level, wobbly 2%, steady 2:30 43%. The failed ready check starts the bar a throw behind.
+- WHICH GAME: `arcade/mode.ts`, single player by default; the arcade tab on his own profile has SINGLE PLAYER / AGAINST ROWERS.
+- ONE CHEST, AT THE END: the match's celebration has no chest and gives no items (his piece hops there instead); the one chest drops at the end of the row, and now also when a row stops short after the intro.
+- THE ROW'S GAME ON ITS PAGE: `arcade/games.ts` keeps the last 30 games on the phone (XP, the XP before, KOs or matches, the items) and binds each to its row id when the monitor logs the row (or the form does). RowPage shows THE ARCADE after the stickers and reels, before the analytics: +XP, the level bar, each item with EQUIP. On the rower's own rows only, where this phone played.
+- THE ARCADE TAB: his piece in a round frame, hopping; the level and its bar; CHANGE THE LOOK opens the locker; the mode switch; the rating under it.
+- THE LOCKER: the piece and BOX / SHOT / HAT / TRAIL pinned at the top; the one layer's items scroll under it, four across. Gone: "x of 37 found", "Every match of the arcade ends on a chest ...", the rarity legend and the rarity words on cards (the coloured strip on each card says it).
+- SMALLER: the show's figures max 36 (was 46), banners 26 (34), titles 44 (56), the board's pieces max 76 (92), the match HUD and pops about a fifth down.
+- THE SPLASH VERSION IS A STAMP: `src/build.ts` holds the all-time meters taken when an update is published (`node scripts/stamp-version.mjs` in mobile/, then commit it), with a letter when two ship at the same meters. Shown from the first frame; never live.
+- Seen in headless Chrome against the sandbox: a 1K demo (island, KOs, the chest, DONE, the row page's arcade with EQUIP), a 2K demo against rowers (the bar, HIT −10, YOU LOSE with DEMO, NOT RATED), the arcade tab, the locker's BOX tab. NOT on a phone or a real PM5.
+- OPEN: the target stays 1:59 (harder over time? his own 5K pace?); a 2:30 rower barely hurts the first monster; more crew kinds; monsters hitting back; the games list is on the phone only (a server table so it follows him is not built).

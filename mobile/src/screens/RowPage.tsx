@@ -19,6 +19,11 @@ import { Review } from "./Review";
 import type { MetricId } from "./Field";
 import type { RowMeasure } from "../pm5/craft";
 import { RowMenu, Sheet } from "./Social";
+import { useGame } from "../arcade/games";
+import { equip, useLocker } from "../arcade/locker";
+import { levelOf } from "../arcade/score";
+import { RARITY_COLOR, SKIN_BY_ID, STOCK, LAYER_WORD, wear } from "../arcade/skins";
+import { TokenArt } from "../arcade/Token";
 
 /* ONE ROW'S PAGE (owner, 2026-11-20). The journey he walked: "right as they
  * finish they submit the row and see an animation of their meters going up
@@ -270,6 +275,11 @@ export function RowPage({
           them"). */}
       {mayShare ? <Stickers rowId={r.id} onOpen={() => setSharing(true)} /> : null}
       {r.canReel && !r.masked && !fake ? <Reels rowId={r.id} /> : null}
+
+      {/* THE ROW'S GAME (owner, 2026-11-24: "after the stickers/reels and
+          before the analytics. It shows the XP he got, the items he just
+          got, and lets him equip them"). Only where this phone played one. */}
+      {r.mine ? <GameSummary rowId={r.id} /> : null}
 
       {/* THE MONITOR'S AVERAGES, on ONE line, and only where the read
           below is not shown: the read's own NUMBERS carry the same figures
@@ -775,6 +785,47 @@ function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: numb
 
 /* THE STICKERS OF THIS ROW, a strip of them on the ink they are made for.
  * A press opens the viewer, where one is shared or copied. */
+/* What the row's game gave: the XP and the level it left, how it went, and
+ * the items out of its chest, each with EQUIP. */
+function GameSummary({ rowId }: { rowId: string }) {
+  const g = useGame(rowId);
+  const l = useLocker();
+  if (!g) return null;
+  const was = levelOf(g.xpBefore);
+  const now = levelOf(g.xpBefore + g.xp);
+  const how = g.mode === "solo" ? `${g.kills} ${g.kills === 1 ? "monster" : "monsters"} down` : `${g.matches} ${g.matches === 1 ? "match" : "matches"}`;
+  return (
+    <>
+      <Eye left="The arcade" right={how} />
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Text style={{ fontFamily: F.black, fontSize: 30, color: C.accent, fontVariant: ["tabular-nums"] }}>{`+${fmtInt(g.xp)} XP`}</Text>
+        <Text style={mono(11, true)}>{now.level > was.level ? `LEVEL ${now.level} · UP` : `LEVEL ${now.level}`}</Text>
+      </View>
+      <View style={{ height: 8, backgroundColor: C.line, marginTop: 6 }}>
+        <View style={{ width: `${Math.round((100 * now.into) / now.need)}%`, height: 8, backgroundColor: C.accent }} />
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 10, marginTop: 14 }}>
+        {g.items.map((id, i) => {
+          const s = SKIN_BY_ID[id];
+          if (!s) return null;
+          const on = l.equipped[s.layer] === id;
+          return (
+            <View key={`${id}${i}`} style={{ width: 104, borderWidth: 1.5, borderColor: RARITY_COLOR[s.rarity], borderRadius: 7, padding: 6, alignItems: "center" }}>
+              <View style={{ height: 4, alignSelf: "stretch", backgroundColor: RARITY_COLOR[s.rarity], borderRadius: 2, marginBottom: 4 }} />
+              <TokenArt paint={wear({ ...STOCK, [s.layer]: id })} size={56} t={1.3} trail={s.layer === "aura"} uid={`gs${id}${i}`} />
+              <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 12, color: C.ink, marginTop: 4 }}>{s.name}</Text>
+              <Text style={mono(9, false, C.gray, 0.1)}>{LAYER_WORD[s.layer].toUpperCase()}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={on ? `${s.name} is on` : `Equip ${s.name}`} disabled={on} onPress={() => equip(s.layer, id).catch(() => null)} style={({ pressed }) => ({ marginTop: 6, alignSelf: "stretch", paddingVertical: 6, borderRadius: 5, backgroundColor: on ? C.paper : C.ink, borderWidth: 1.5, borderColor: C.ink, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+                <Text style={mono(10, true, on ? C.ink : C.paper)}>{on ? "ON" : "EQUIP"}</Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
   const { data } = useLoad(() => deck(rowId), [rowId]);
   const cards = data?.cards ?? [];
