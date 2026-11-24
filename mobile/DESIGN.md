@@ -774,3 +774,10 @@ With Instagram's own held post open beside the app: "give me the ability to have
 - **The profile grid loads as its own squares** ("it looks like it's loading like a post, but it's not loading posts"): twelve 3:4 squares, three across, in place of a feed card (`Feed.tsx` RowGrid). SEEN in the browser.
 - **The row push says the pace in whole seconds, tenths dropped, never rounded** ("if it was 221.7, it just becomes 221"): `rowNotify.ts` rowedWords; the notifications list too. The row's page keeps its tenths.
 - NOT seen: the pop and the roll on a phone (the browser pane was hidden, so its frames did not run); the build line's update stamp (web has no updates).
+
+## Round 39 (2026-11-23): the splash rolls, the KDEs grow
+
+- **ROW rolls in letter by letter** on the splash, as the bar's title does ("I want it to roll in like it does on the title ... one letter by letter"): each letter rises into its own window, 70 ms apart; the count starts as W lands. Replaced round 38's pop.
+- **The foot reads FOR YOURSELF AND OTHERS** ("instead of the version number stuff"); the build line is gone.
+- **The KDEs are taller** ("give more vertical space to the KDEs"): the stats tab's field cards 180 → 260, the profile's curves 120 → 200 (`Density`'s default).
+- SEEN in the browser sandbox (the letters' order, the count after, the foot, the 260 cards); NOT seen on a phone at full frame rate.

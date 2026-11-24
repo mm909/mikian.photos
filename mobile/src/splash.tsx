@@ -10,7 +10,6 @@
  * With no total at all (first launch with no network) it is the mark alone.
  * A tap anywhere lets it go at once. */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Constants from "expo-constants";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Platform, Pressable, Text, View } from "react-native";
 import { api } from "./api";
@@ -23,34 +22,21 @@ const FADE_MS = 280;
 /* How long to wait for a total when this phone has none kept. */
 const WAIT_MS = 700;
 
-/* How long the mark's pop runs before the count starts. */
-const POP_MS = 340;
+/* THE MARK ROLLS IN, letter by letter, the way the bar's title does
+ * (owner, 2026-11-23: "I want it to roll in like it does on the title ...
+ * it animates in kind of like one letter by letter"): each letter rises
+ * into its own window, one after the other (mark.tsx's wheel, at this size).
+ * The count starts as the last letter settles. */
+const LETTERS = ["R", "O", "W"];
+const LINE = 84;
+const ROLL_STEP = 70;
+const ROLL_MS = 420;
+const EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
+const ROLLED_MS = (LETTERS.length - 1) * ROLL_STEP + ROLL_MS - 60;
 
-/* THE BUILD LINE at the foot (owner, 2026-11-23: "a small secondary text for
- * yourself and others down at the bottom, kind of like where a version
- * number would be"): which app, which channel, and which over-the-air update
- * this phone is running, so "did the update land?" is answered by looking.
- * "V1.3.0 · PRODUCTION · UPDATE NOV 23 10:42" or "· AS BUILT" when it runs
- * the code it was installed with. */
-const BUILD = (() => {
-  try {
-    const version = Constants.expoConfig?.version ?? "";
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const U = Platform.OS === "web" ? null : (require("expo-updates") as typeof import("expo-updates"));
-    const parts = [version ? `V${version}` : "", U?.channel ? U.channel.toUpperCase() : ""];
-    if (U) {
-      const at = U.createdAt;
-      parts.push(
-        !U.isEmbeddedLaunch && at
-          ? `UPDATE ${at.toLocaleString("en-US", { month: "short" }).toUpperCase()} ${at.getDate()} ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`
-          : "AS BUILT",
-      );
-    }
-    return parts.filter(Boolean).join(" · ");
-  } catch {
-    return "";
-  }
-})();
+/* THE LINE AT THE FOOT (owner, 2026-11-23: "instead of the version number
+ * stuff, I want it to just say for yourself and others"). */
+const FOOT = "FOR YOURSELF AND OTHERS";
 
 /* EVERY PLACE IS THERE FROM THE START, AND ONE MORE (owner, 2026-11-23:
  * "Always add a 0 in front of the digits that we end with ... Even when
@@ -77,9 +63,8 @@ export function Splash() {
   const [meters, setMeters] = useState(0);
   const [known, setKnown] = useState(false);
   const fade = useRef(new Animated.Value(1)).current;
-  /* The mark pops in first, the way the bar's title does; the count waits
-     for it. */
-  const pop = useRef(new Animated.Value(0)).current;
+  /* The mark rolls in first; the count waits for it. */
+  const rolls = useRef(LETTERS.map(() => new Animated.Value(0))).current;
   const target = useRef(0);
   const gone = useRef(false);
 
@@ -134,12 +119,11 @@ export function Splash() {
           if (asked) run();
         };
         if (still) {
-          pop.setValue(1);
+          rolls.forEach((r) => r.setValue(1));
           popDone();
         } else {
-          Animated.spring(pop, { toValue: 1, friction: 6, tension: 120, useNativeDriver: Platform.OS !== "web" }).start();
-          /* The count starts as the spring settles, not after its last wobble. */
-          setTimeout(popDone, POP_MS);
+          rolls.forEach((r, i) => Animated.timing(r, { toValue: 1, duration: ROLL_MS, delay: i * ROLL_STEP, easing: EASE, useNativeDriver: Platform.OS !== "web" }).start());
+          setTimeout(popDone, ROLLED_MS);
         }
       })
       .then(() => AsyncStorage.getItem(KEEP).catch(() => null))
@@ -161,7 +145,7 @@ export function Splash() {
     );
     const wait = setTimeout(run, WAIT_MS);
     /* However it goes, the app is never held behind the opening for long. */
-    const cap = setTimeout(leave, POP_MS + WAIT_MS + COUNT_MS + HOLD_MS + 600);
+    const cap = setTimeout(leave, ROLLED_MS + WAIT_MS + COUNT_MS + HOLD_MS + 600);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -176,11 +160,13 @@ export function Splash() {
   return (
     <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 1000, elevation: 1000, backgroundColor: C.paper, opacity: fade }}>
       <Pressable accessibilityLabel="Row. Tap to open." onPress={leave} style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 40 }}>
-        <Animated.View style={{ opacity: pop.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }}>
-          <Text accessibilityRole="header" style={{ fontFamily: F.black, fontSize: 76, lineHeight: 84, letterSpacing: 1, color: C.ink }}>
-            R<Text style={{ color: C.accent }}>O</Text>W
-          </Text>
-        </Animated.View>
+        <View accessibilityRole="header" accessibilityLabel="Row" style={{ flexDirection: "row", height: LINE }}>
+          {LETTERS.map((ch, i) => (
+            <View key={ch} style={{ height: LINE, overflow: "hidden" }}>
+              <Animated.Text style={{ fontFamily: F.black, fontSize: 76, lineHeight: LINE, letterSpacing: 1, color: ch === "O" ? C.accent : C.ink, transform: [{ translateY: rolls[i].interpolate({ inputRange: [0, 1], outputRange: [LINE, 0] }) }] }}>{ch}</Animated.Text>
+            </View>
+          ))}
+        </View>
         <View style={{ height: 64, alignItems: "center", justifyContent: "flex-start", marginTop: 14 }}>
           {known ? (
             <>
@@ -192,7 +178,7 @@ export function Splash() {
             </>
           ) : null}
         </View>
-        <Text style={{ position: "absolute", left: 16, right: 16, bottom: 28, textAlign: "center", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray }}>{BUILD}</Text>
+        <Text style={{ position: "absolute", left: 16, right: 16, bottom: 28, textAlign: "center", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray }}>{FOOT}</Text>
       </Pressable>
     </Animated.View>
   );

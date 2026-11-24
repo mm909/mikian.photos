@@ -358,7 +358,9 @@ export function Density({
   kde,
   you,
   fmt,
-  height = 120,
+  /* TALLER (owner, 2026-11-23: "give more vertical space to the KDEs"):
+   * 120 was a shape squashed flat on a phone. */
+  height = 200,
   lowerIsBetter = false,
   title,
   note,

@@ -273,7 +273,8 @@ function Summary({ k, v, u, line, first }: { k: string; v: string; u: string; li
  * it, two: everyone, then the rower over everyone. The same curve, the same
  * frame of numbers, the same height, so the eye keeps its place across the
  * turn. */
-const CURVE_H = 180;
+/* Taller (owner, 2026-11-23: "give more vertical space to the KDEs"); was 180. */
+const CURVE_H = 260;
 function FieldCard({ w, name, title, note, kde, fmt, lowerIsBetter, say, you, youNote, sayYou }: { w: number; name: string; title: string; note?: string; kde: Kde; fmt: (x: number) => string; lowerIsBetter?: boolean; say: string | null; you: KdeYou | null; youNote?: string; sayYou: string | null }) {
   const everyone = (fill: boolean) => (
     <Box fill={fill} title={title} note={note} say={say}>
