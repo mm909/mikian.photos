@@ -8,10 +8,14 @@ Written down 2026-11-24, 12:40 AM, from the owner's voice note. Nothing below is
 
 ## This week
 
-**Tuesday, Nov 24: a killer day is these three things.**
+**Tuesday, Nov 24: a successful day is these five** (rewritten at 3:45 AM; also in the app: Settings → Wiki → Today).
 - [ ] **Start the App Store submission.** It only has to be started, not approved. Production iOS build, then `eas submit`. His Apple sign-in is needed in the terminal.
-- [ ] **Post asking Android users to help** (the survey / testers). Post tomorrow, not tonight.
-- [ ] **Row a 5K at about 1:59, then make a reel straight after** that shows the app.
+- [ ] **Row a 5K at about 1:59 and play 159** (it comes up at 1,000 / 2,000 / 3,000 / 4,000 m).
+- [ ] **Make the reel straight after**, with 159 as the hook.
+- [ ] **Post asking Android users to help** (the survey / testers).
+- [ ] **Stretch.** The knee.
+- If there is more: tell me how 159 felt; pick the art direction (line-art tokens, or a reference); decide the match's hit rule.
+- Not today: multiplayer, matchmaking, ratings (all in the wiki: The 5K show, 159 the match, Home, The look, Ratings).
 
 **Wednesday, Nov 25**
 - [ ] **Android submission.** The Android phone arrives that day.
