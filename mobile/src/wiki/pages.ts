@@ -192,7 +192,7 @@ export const PAGES: Page[] = [
   {
     id: "match",
     title: "159, the match",
-    sub: "Boats shooting every 6 seconds, until one is out",
+    sub: "A shot every 6 seconds; damage is your meters",
     blocks: [
       { p: "From the meeting of Nov 24, 3 AM. Not started; the single-player 159 against rocks is built." },
       { draw: "match" },
@@ -207,7 +207,7 @@ export const PAGES: Page[] = [
         "Every gun starts cooling: 3 seconds. Then 3 seconds of aim: hold your pace. Then it fires. Again and again, a shot every 6 seconds.",
         "It always flies at the other boat. Held: it hits. Off your pace: it wobbles and may miss, more the further off.",
         "Both hit at once: they cancel out, a draw. Neither fires: nothing happens.",
-        "Three lives each. It goes on until somebody is out; no time limit.",
+        "HEALTH, not lives (changed Nov 24, 4 AM): a hit does as much damage as the meters you rowed while aiming. It goes on until somebody's health is gone; no time limit.",
         "The last few seconds: no more shots, the last one lands.",
         "The cooldown is a rhythm: hold 3 seconds, ease 3 seconds.",
       ] },
@@ -215,13 +215,12 @@ export const PAGES: Page[] = [
       { list: [
         "Your first idea: the 3-second average, rounded down, must read your pace or faster. 1:59.9 and 1:59.1 both count as 1:59, so you can say you always saw 159 on the screen.",
         "Your later idea: within half a second either side, because the app can show the tenths big.",
-        "Mine: that pace or faster, with the tenths shown big while you aim. Faster never does more damage.",
+        "Mine, built as the starting rule: that pace or faster, with the tenths shown big while you aim. Faster means more meters, so a little more damage. One number in the code to change.",
       ] },
       { h: "The celebration, 12 seconds" },
       { list: ["XP and the bar going up.", "The chest.", "Your lifetime meters ticking up with what you rowed in the match.", "A level, if you made one.", "Your rating moving, if you won."] },
       { h: "Ideas for later" },
       { list: [
-        "Damage equal to the meters you rowed in that stretch.",
         "Upgrades won in matches: a shorter cooldown (and only matched against others with it).",
         "Difficulty as a z-score: 0 plays at your median; 0.5 or 1 plays half or a whole deviation faster than your usual 5K. Only 3 seconds at a time, then the cooldown.",
         "Up to four boats, a battle royale.",
@@ -382,7 +381,8 @@ export const PAGES: Page[] = [
       { h: "Stories show both photos" },
       { p: "Stepping through stories, a row shows its first photo, then its second." },
       { h: "A version number made of meters" },
-      { p: "The first number is all-time meters in tens of millions: 8,066,757 m on Nov 24 reads 0. One way to write it: V0.8.0 now, V1.0.0 at ten million. The store's number has to only go up and the updates are keyed to it, so the meters version is the line on the opening screen, read live, and the store number stays." },
+      { p: "BUILT Nov 24. Decided at 4 AM: the first number is ours (1), the second is all-time meters in millions, the third is the meters under the million. 8,066,757 m reads V1.8.66757. It is the line at the foot of the opening screen, read live off the total, so it ticks up as people row." },
+      { p: "The App Store's own number stays 1.3.0 for the submission on Nov 24: the over-the-air updates are keyed to it, and changing it overnight would cut your phone off from them. At the next store build it can become 1.8.x; Apple only needs it to go up." },
       { h: "The FAQs" },
       { p: "Read them again; the notes you gave the graphs probably apply." },
     ],

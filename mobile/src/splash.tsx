@@ -47,7 +47,21 @@ const VERSION = (() => {
     return "";
   }
 })();
-const FOOT = `FOR YOURSELF AND OTHERS${VERSION ? ` · V${VERSION}` : ""}`;
+/* THE VERSION IS MADE OF METERS (owner, 2026-11-24: "the first version in
+ * our counter the actual version number, like that we control ... Second
+ * is the millions number for the rower ... right now it's going to be 8,
+ * but eventually it'll be 10, and then eventually it'll be 100 ... Then
+ * after that, it's the hundred thousands and beyond place"). MAJOR is ours;
+ * then every meter anybody has logged, in millions, then the meters under
+ * the million: 8,066,757 m reads V1.8.66757. Read off the same total the
+ * count rolls to. The store's own number (app.json) is apart from it: the
+ * updates a phone takes are keyed to that one. */
+const MAJOR = 1;
+export function metersVersion(total: number): string {
+  const t = Math.max(0, Math.floor(total));
+  return `${MAJOR}.${Math.floor(t / 1_000_000)}.${t % 1_000_000}`;
+}
+const footOf = (total: number) => `FOR YOURSELF AND OTHERS · V${total > 0 ? metersVersion(total) : VERSION}`;
 
 /* THE COUNT POPS UP AS ZEROS FIRST (owner, 2026-11-23: "the meters count
  * kind of just pops in. Can that also pop up, but pop up as all zeros and
@@ -203,7 +217,7 @@ export function Splash() {
             </Animated.View>
           ) : null}
         </View>
-        <Text style={{ position: "absolute", left: 16, right: 16, bottom: 28, textAlign: "center", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray }}>{FOOT}</Text>
+        <Text style={{ position: "absolute", left: 16, right: 16, bottom: 28, textAlign: "center", fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray }}>{footOf(target.current)}</Text>
       </Pressable>
     </Animated.View>
   );
