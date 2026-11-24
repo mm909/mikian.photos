@@ -169,7 +169,7 @@ export function pieceAt(g: BoardGeo, s: number): { x: number; y: number } {
   return { x: p.x, y: p.y - (TOKEN_CY - 44) * (g.unit / TOKEN_U) };
 }
 
-export function Board({ W, H, pieces, t, uid = "bd", fish = true, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; children?: ReactNode }) {
+export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; /* Off when a monster has the island (single player). */ palm?: boolean; children?: ReactNode }) {
   const g = boardOf(W, H);
   const k = g.unit / TOKEN_U;
   const ink = C.ink;
@@ -270,7 +270,7 @@ export function Board({ W, H, pieces, t, uid = "bd", fish = true, children }: { 
       {/* The island: a pebble or two on its sand, and its palm. */}
       <Ellipse cx={g.cx - W * 0.1} cy={g.cy + H * 0.045} rx={3.4} ry={2.4} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
       <Ellipse cx={g.cx + W * 0.085} cy={g.cy - H * 0.075} rx={2.6} ry={1.9} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
-      <Palm x={g.cx + W * 0.02} y={g.cy + H * 0.05} s={g.unit / 60} t={t} />
+      {palm ? <Palm x={g.cx + W * 0.02} y={g.cy + H * 0.05} s={g.unit / 60} t={t} /> : null}
       {school.map((f) => (
         <G key={f.i} transform={`translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) rotate(${f.a.toFixed(0)}) scale(0.85)`} opacity={0.62}>
           <Path d={`M-4.5 0 L-9 ${(-3.4 + Math.sin(t * 9 + f.i) * 1.6).toFixed(1)} L-9 ${(3.4 + Math.sin(t * 9 + f.i) * 1.6).toFixed(1)} Z`} fill={water} />

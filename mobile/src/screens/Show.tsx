@@ -5,6 +5,7 @@ import { DOT_ON, FlipDots, dotClock } from "../arcade/Art159";
 import { useWallClock } from "../arcade/BoatArt";
 import { Board, boardOf, pieceAt, sOf, type Piece } from "../arcade/Board";
 import { ChestOpen } from "../arcade/Chest";
+import { MonsterG } from "../arcade/Monster";
 import { useLocker } from "../arcade/locker";
 import { AIM_S, COOL_S, holds, type MShot } from "../arcade/match";
 import { useProgress } from "../arcade/progress";
@@ -207,6 +208,8 @@ function Stage({ showed, erg, width, height, active }: { showed: Showed; erg: Er
     case "home":
     case "done":
       return <Home {...p} />;
+    case "battle":
+      return <Battle {...p} />;
     case "lobby":
       return <Lobby {...p} />;
     case "match":
@@ -292,7 +295,7 @@ function Intro({ v, width, height, wall, paint, hop, showed }: P) {
         <TokenArt paint={paint} size={tokenSize} t={wall} trail hop={hop} look={0.4} uid="intro" />
       </View>
       <View style={{ paddingBottom: 12 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>{`LOOKING FOR A MATCH${dots}`}</Text>
+        <Text style={{ fontFamily: F.black, fontSize: 20, color: C.ink }}>{ctx.solo ? `TO THE ISLAND · HOLD 1:59${dots}` : `LOOKING FOR A MATCH${dots}`}</Text>
         <View style={{ height: 8, backgroundColor: C.line, marginTop: 6 }}>
           <View style={{ width: `${Math.round(k * 100)}%`, height: 8, backgroundColor: C.ink }} />
         </View>
@@ -676,6 +679,173 @@ function Match(p: P) {
   );
 }
 
+/* ---- single player: the island (arcade/pve.ts) ------------------------- */
+
+/* The deckhands' boats: plain pieces in colours of their own. */
+const DECK_PAINT = [wear({ ...STOCK, hull: "hull-green", rower: "rower-teal" }), wear({ ...STOCK, hull: "hull-yellow", rower: "rower-purple" }), wear({ ...STOCK, hull: "hull-red" })];
+
+/* THE ISLAND ON THE MONITOR (owner, 2026-11-24: "He circles the island
+ * board. A boss or enemy sits on the centre island ... a bar is always
+ * filling while he rows. It fills faster the closer his pace is to 1:59.
+ * When it is full he throws at the enemy"). The monster's health across the
+ * top; the board with the monster on the island and the rower's piece (and
+ * any deckhands) going round it; under it the bar, the pace it reads and
+ * the target. The bar is also a ring round the rower's piece. */
+function Battle(p: P) {
+  const { v, width, height, wall, rt, myM, paint, hop } = p;
+  const b = v.battle;
+  if (!b) return null;
+  const wide = width >= 520;
+  const HUD = 50;
+  const PANEL = wide ? 0 : 104;
+  const SIDE = wide ? Math.round(Math.min(200, width * 0.3)) : 0;
+  const g = { W: width - SIDE, H: Math.max(120, height - HUD - PANEL) };
+  const geo = boardOf(g.W, g.H);
+  const k = geo.unit / 64;
+  const rate = Math.max(0.2, v.rate);
+  /* The wall's second something at the row's second `at` happened. */
+  const wallAt = (at: number) => wall - (rt - at) / rate;
+  const FLY = 0.38;
+  const meS = sOf(geo, myM);
+  const deckS = (i: number) => sOf(geo, myM, i + 1);
+  const pieces: Piece[] = [{ id: "me", paint, s: meS, hop, wobble: 0, label: "YOU", mine: true, firing: b.shots.some((s) => (s.from === "me" || s.from === "me2") && wall - wallAt(s.at) < FLY) }];
+  for (let i = 0; i < b.decks; i++) pieces.push({ id: `deck${i + 1}`, paint: DECK_PAINT[i % DECK_PAINT.length], s: deckS(i), hop: botHop(`deck${i}`, rt), wobble: 0, label: "CREW", firing: b.shots.some((s) => s.from === `deck${i + 1}` && wall - wallAt(s.at) < FLY) });
+  const mx = geo.cx;
+  const my = geo.cy - geo.unit * 0.08;
+  const mr = geo.unit * 0.42;
+  const fromOf = (id: string) => {
+    if (id === "me" || id === "me2") {
+      const q = pieceAt(geo, meS);
+      return id === "me2" ? { x: q.x + 10 * k, y: q.y - 8 * k } : q;
+    }
+    return pieceAt(geo, deckS(Number(id.slice(4)) - 1));
+  };
+  const deckOars = wear(STOCK).oars;
+  const shots: ReactElement[] = [];
+  const pops: ReactNode[] = [];
+  let hurt = 0;
+  /* What is still in the air on this monster: its health shows them when
+   * they land, not when they leave. */
+  let inAir = 0;
+  for (const s of b.shots) {
+    const e = (wall - wallAt(s.at)) / FLY;
+    if (e < 0) {
+      if (b.monster && s.monster === b.monster.n) inAir += s.dmg;
+      continue;
+    }
+    if (e > 4) continue;
+    if (e < 1 && b.monster && s.monster === b.monster.n) inAir += s.dmg;
+    const a = fromOf(s.from);
+    const o = s.from.startsWith("deck") ? deckOars : paint.oars;
+    const R0 = (s.from.startsWith("deck") ? 5 : 7) * k + 2;
+    if (e < 1) {
+      const x = a.x + (mx - a.x) * e;
+      const y = a.y + (my - a.y) * e - Math.sin(e * Math.PI) * 30 * k;
+      shots.push(<Ellipse key={`w${s.n}`} cx={a.x + (mx - a.x) * e} cy={a.y + (my - a.y) * e + 9 * k} rx={R0 * 0.8} ry={R0 * 0.28} fill={C.ink} fillOpacity={0.15} />);
+      shots.push(<ShotArt key={`s${s.n}`} o={o} x={x} y={y} r={R0} t={wall} />);
+    } else {
+      const kb = (e - 1) * FLY;
+      if (kb < 0.3) {
+        hurt = Math.max(hurt, 1 - kb / 0.3);
+        const big = s.acc >= 0.95;
+        shots.push(<Path key={`h${s.n}`} d={burst(mx + ((s.n * 37) % 21) - 10, my + ((s.n * 53) % 17) - 8, (big ? 22 : 14) * k * (0.6 + kb * 2), (big ? 11 : 7) * k, 8, s.n)} fill={big ? DOT_ON : C.paper} stroke={C.ink} strokeWidth={1.8} strokeLinejoin="round" opacity={1 - kb / 0.3} />);
+      }
+      if (kb < 1.1 && !s.from.startsWith("deck")) {
+        const dx = ((s.n * 41) % 50) - 25;
+        pops.push(
+          <Text key={`p${s.n}`} style={{ position: "absolute", left: mx + dx - 50, width: 100, top: HUD + my - mr * 1.5 - kb * 34, textAlign: "center", fontFamily: F.black, fontSize: s.acc >= 0.95 ? 24 : 18, color: s.acc >= 0.95 ? C.good : C.ink, opacity: 1 - clamp((kb - 0.7) / 0.4), textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
+            {`−${s.dmg}`}
+          </Text>,
+        );
+      }
+    }
+  }
+  /* The monster: rising out of the water, on the island, or going KO. The
+   * KO plays once the throw that did it has landed. */
+  const m = b.monster;
+  const ko = b.kos[b.kos.length - 1];
+  const koE = ko ? wall - wallAt(ko.at) - FLY : 99;
+  const KO_S = 0.7;
+  let monster: ReactNode = null;
+  if (ko && koE < KO_S && (!m || wallAt(m.born) > wall - 0.05)) {
+    monster = <MonsterG x={mx} y={my} r={mr} n={ko.n} boss={ko.boss} seed={ko.seed} t={wall} hurt={koE < 0.2 ? 1 : 0} ko={clamp(koE / KO_S)} />;
+  } else if (m) {
+    const born = clamp((wall - wallAt(m.born)) / 0.5);
+    const me = pieceAt(geo, meS);
+    monster = <MonsterG x={mx} y={my} r={mr} n={m.n} boss={m.boss} seed={m.seed} t={wall} hurt={hurt} born={born} lookX={(me.x - mx) / (geo.W * 0.4)} />;
+  }
+  const at = pieceAt(geo, meS);
+  const nearColor = b.near >= 0.99 ? C.good : b.near < 0.45 ? BEST : C.ink;
+  const ring = <Ring x={at.x} y={at.y} r={geo.unit * 0.42} k={b.charge} color={b.near >= 0.99 ? C.good : C.accent} />;
+  /* The word over the board: a boat recruited, or a KO. */
+  const crewE = b.crew ? wall - wallAt(b.crew.at) : 99;
+  const word = crewE >= 0 && crewE < 3.2 && b.crew ? { big: `NEW BOAT · ${b.crew.crew.name}`, small: b.crew.crew.line, c: C.accent } : ko && koE >= 0 && koE < 1.8 ? { big: `KO! ${ko.name}`, small: `+${ko.xp} XP`, c: C.good } : null;
+  const hp = m ? Math.min(m.max, m.hp + inAir) : 0;
+  const pace = b.pace > 0 && Number.isFinite(b.pace) && b.pace < 600 ? fmtClock(b.pace) : "-:--.-";
+  const bar = (
+    <View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Eyebrow style={{ color: C.ink }}>Throw</Eyebrow>
+        <Eyebrow>{`${b.kills} KO · ${fmtInt(b.xp)} XP${b.decks ? ` · ${b.decks} CREW` : ""}${b.twin ? " · TWIN" : ""}`}</Eyebrow>
+      </View>
+      <View style={{ height: 18, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", marginTop: 3, backgroundColor: C.paper }}>
+        <View style={{ width: `${(100 * clamp(b.charge)).toFixed(1)}%`, height: "100%", backgroundColor: b.near >= 0.99 ? C.good : C.accent }} />
+      </View>
+    </View>
+  );
+  const paceRow = (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 4 }}>
+      <View>
+        <Eyebrow>Pace · 4 s</Eyebrow>
+        <Num size={wide ? 30 : 34} color={nearColor}>
+          {pace}
+        </Num>
+      </View>
+      <View style={{ alignItems: "flex-end" }}>
+        <Eyebrow>Target</Eyebrow>
+        <Num size={wide ? 30 : 34}>{whole(b.target)}</Num>
+      </View>
+    </View>
+  );
+  return (
+    <View style={{ width, height, overflow: "hidden" }}>
+      <View style={{ height: HUD, flexDirection: "row", paddingHorizontal: 14, paddingTop: 6 }}>
+        {m ? <HealthBar name={`${m.boss ? "BOSS · " : ""}${m.name}`} h={Math.ceil(hp)} max={m.max} mine={false} wall={wall} /> : <Text style={{ fontFamily: F.black, fontSize: 16, color: C.soft }}>THE NEXT ONE IS COMING</Text>}
+      </View>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ width: g.W, height: g.H }}>
+          <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false}>
+            {monster}
+            {ring}
+            {shots}
+          </Board>
+          {word ? (
+            <View pointerEvents="none" style={{ position: "absolute", top: 6, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 2, borderColor: C.ink, borderRadius: 4 }}>
+              <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 20, color: word.c }}>
+                {word.big}
+              </Text>
+              <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: C.soft }}>{word.small}</Text>
+            </View>
+          ) : null}
+        </View>
+        {wide ? (
+          <View style={{ width: SIDE, height: g.H, borderLeftWidth: 2, borderColor: C.ink, paddingHorizontal: 12, justifyContent: "center", rowGap: 10 }}>
+            {bar}
+            {paceRow}
+          </View>
+        ) : null}
+      </View>
+      {pops}
+      {wide ? null : (
+        <View style={{ height: PANEL, borderTopWidth: 2, borderColor: C.ink, paddingHorizontal: 14, paddingTop: 6 }}>
+          {bar}
+          {paceRow}
+        </View>
+      )}
+    </View>
+  );
+}
+
 /* ---- the celebration ------------------------------------------------------- */
 
 function Celebrate({ v, width, height, wall, showed }: P) {
@@ -774,7 +944,7 @@ function LevelUp({ v, width, height, wall, paint, hop }: P) {
         <TokenArt paint={paint} size={size} t={wall} hop={up && e > 3.4 ? Math.abs(Math.sin((e - 3.4) * 5)) : hop} look={0} uid="levelup" />
       </View>
       <Num size={34} color={C.accent}>{`+${fmtInt(v.xpRow * k)} XP`}</Num>
-      <Text style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.4, color: C.soft }}>{`THIS ROW'S MATCHES · ${v.matches} PLAYED`}</Text>
+      <Text style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.4, color: C.soft }}>{v.battle ? `THIS ROW · ${v.battle.kills} KO` : `THIS ROW'S MATCHES · ${v.matches} PLAYED`}</Text>
       <View style={{ width: Math.min(width - 40, 420), marginTop: 6 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Eyebrow style={{ color: C.ink }}>{`Level ${lv.level}`}</Eyebrow>

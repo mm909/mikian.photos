@@ -51,11 +51,14 @@ export function useShow(erg: Erg, on: boolean): Showed {
   const show = useRef<Show | null>(null);
   if (!show.current) show.current = createShow(Date.now() % 1_000_000);
   const view = useRef<ShowView | null>(null);
-  const ctx = useRef<ShowCtx>({ assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
+  const ctx = useRef<ShowCtx>({ solo: true, assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
   const [at, setAt] = useState<{ phase: ShowPhase | null; key: string }>({ phase: null, key: "" });
   const now = useRef(erg);
   now.current = erg;
   const done = useRef(new Set<string>());
+  /* The row's XP banked so far (a match's as its celebration starts); the
+   * rest goes in with the last chest. */
+  const banked = useRef(0);
   const live = on && erg.phase === "live";
   const target = erg.live.targetM;
 
@@ -112,8 +115,12 @@ export function useShow(erg: Erg, on: boolean): Showed {
       setAt({ phase: null, key: "" });
       return;
     }
+    banked.current = 0;
     const tick = () => {
       const l = now.current.live;
+      /* A DEMO ROW NEVER MOVES THE RATING (owner, 2026-11-24): its XP and
+       * its items still count, so the demo shows what a row gives. */
+      const demo = now.current.demo;
       const s = show.current;
       if (!s) return;
       const v = s.step({ wall: Date.now() / 1000, t: l.elapsedS, m: l.meters, pace: l.pace, target: l.targetM, ended: l.ended }, ctx.current);
@@ -122,13 +129,18 @@ export function useShow(erg: Erg, on: boolean): Showed {
       const r = v.result;
       if (v.phase === "celebrate" && r && !done.current.has(r.id)) {
         done.current.add(r.id);
-        ctx.current.elo = r.eloAfter;
-        grant(r.chest.items, r.result === "win").catch(() => null);
+        if (!demo) {
+          ctx.current.elo = r.eloAfter;
+          rate(r.eloAfter, r.result).catch(() => null);
+        }
+        banked.current += r.xp;
         addXp(r.xp).catch(() => null);
-        rate(r.eloAfter, r.result).catch(() => null);
       }
       if (v.final && !done.current.has(v.final.id)) {
         done.current.add(v.final.id);
+        const rest = Math.max(0, v.xpRow - banked.current);
+        banked.current = v.xpRow;
+        if (rest) addXp(rest).catch(() => null);
         grant(v.final.chest.items, true).catch(() => null);
       }
       const key = `${v.phase}/${v.search}/${v.matches}/${v.ready ? "ready" : ""}`;

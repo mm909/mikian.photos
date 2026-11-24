@@ -10,7 +10,10 @@ import { ELO_START } from "./score";
 
 export type Rating = { elo: number; games: number; wins: number; draws: number };
 
-const KEY = "arcade/rating/1";
+/* /2 since 2026-11-24: every game under /1 was a demo row ("demo rows must
+ * NOT count toward his rating"), so the rating starts again at 1200. /1 is
+ * left on the phone, not deleted. */
+const KEY = "arcade/rating/2";
 const EMPTY: Rating = { elo: ELO_START, games: 0, wins: 0, draws: 0 };
 
 let cache: Rating | null = null;

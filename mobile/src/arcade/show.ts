@@ -1,5 +1,6 @@
 import type { Ghost } from "../erg/ghosts";
 import { pickBot, type Bot } from "./bots";
+import { createPve, type Pve, type PveView } from "./pve";
 import { HEALTH, createMatch, holds, paceOf, tenths, type Match, type MatchView } from "./match";
 import { prng, seedOf } from "./rng";
 import { botElo, eloAfter, matchXp } from "./score";
@@ -49,7 +50,7 @@ import { rollChest, type Chest } from "./skins";
  * says on the phone. No React, no clock, so scripts/arcade-check.ts rows
  * whole pieces through it. */
 
-export type ShowPhase = "intro" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "done";
+export type ShowPhase = "intro" | "battle" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "done";
 
 export type STick = { wall: number; t: number; m: number; pace: number; target: number; ended?: boolean };
 
@@ -57,7 +58,9 @@ export type STick = { wall: number; t: number; m: number; pace: number; target: 
  * the pace given (their median 5K, whole seconds; null to use the pace of
  * the row so far), the rating, the XP, lifetime meters before this row, and
  * the saved rows the bots come from (over `ghostM` meters). */
-export type ShowCtx = { assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean };
+/* `solo`: the single player island (pve.ts) after the intro, the default
+ * from 2026-11-24; off, matchmaking and the match against bots. */
+export type ShowCtx = { solo: boolean; assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean };
 
 export type Opp = { id: string; name: string; numStr: string; assigned: number; elo: number };
 
@@ -105,6 +108,8 @@ export type ShowView = {
   ready: { pace: number; ok: boolean } | null;
   match: MatchView | null;
   result: Result | null;
+  /* The island, in single player. */
+  battle: PveView | null;
   /* The row's XP from its matches, and the XP the row started at. */
   xpRow: number;
   xpStart: number;
@@ -153,6 +158,7 @@ export function createShow(seed = 1): Show {
   let samples: { t: number; m: number }[] = [];
   let last = { t: -1, m: -1, wall: 0 };
   let match: Match | null = null;
+  let pve: Pve | null = null;
   let bot: Bot | null = null;
   let played = new Set<string>();
   let waitFrom = -1;
@@ -160,12 +166,13 @@ export function createShow(seed = 1): Show {
   let finaleDue = false;
   const log: Show["log"] = { phases: [], matches: [] };
 
-  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, xpRow: 0, xpStart: -1, final: null, matches: 0 });
+  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, xpRow: 0, xpStart: -1, final: null, matches: 0 });
 
   const reset = (tick: STick) => {
     target = tick.target;
     samples = [];
     match = null;
+    pve = null;
     bot = null;
     played = new Set();
     waitFrom = -1;
@@ -294,13 +301,32 @@ export function createShow(seed = 1): Show {
 
       switch (v.phase) {
         case "intro":
-          if (t >= scaled(INTRO_S)) home(tick);
-          else if (tick.ended) go("done", tick);
+          if (tick.ended) go("done", tick);
+          else if (t >= scaled(INTRO_S) && ctx.solo) {
+            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`) });
+            v.search = "closed";
+            v.battle = pve.step(t, tick.pace);
+            go("battle", tick);
+          } else if (t >= scaled(INTRO_S)) home(tick);
+          break;
+
+        case "battle":
+          if (tick.ended) {
+            go("chest", tick);
+            break;
+          }
+          if (pve) {
+            /* The pace the bar reads: the last four seconds of the row's own
+             * meters, steadier than one stroke's. */
+            const p4 = t > 4 ? paceOf(tick.m - mine(t - 4), 4) : tick.pace;
+            v.battle = pve.step(t, p4);
+            v.xpRow = v.battle.xp;
+          }
           break;
 
         case "home": {
           if (tick.ended) {
-            go(complete ? "chest" : "done", tick);
+            go("chest", tick);
             break;
           }
           const least = v.since + scaled(HOME_MIN_S);
@@ -385,17 +411,17 @@ export function createShow(seed = 1): Show {
            * seconds alone say when a card is done. */
           if ((t >= v.since + CELEBRATE_S || tick.ended) && tick.wall >= v.sinceWall + CELEBRATE_WALL_S) {
             if (finaleDue) go("levelup", tick);
-            else if (tick.ended) go(complete ? "chest" : "done", tick);
+            else if (tick.ended) go("chest", tick);
             else home(tick);
           }
           break;
 
         case "levelup":
-          if ((t >= v.since + scaled(LEVELUP_S) || tick.ended) && tick.wall >= v.sinceWall + LEVELUP_WALL_S) go(complete || tick.ended ? (complete ? "chest" : "done") : "finish", tick);
+          if ((t >= v.since + scaled(LEVELUP_S) || tick.ended) && tick.wall >= v.sinceWall + LEVELUP_WALL_S) go(complete || tick.ended ? "chest" : "finish", tick);
           break;
 
         case "finish":
-          if (complete || tick.ended) go(complete ? "chest" : "done", tick);
+          if (complete || tick.ended) go("chest", tick);
           break;
 
         default:

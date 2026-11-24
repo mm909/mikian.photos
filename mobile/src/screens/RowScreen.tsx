@@ -570,6 +570,19 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
     pages.current?.scrollTo({ x: n * w, animated: n !== 0 });
     setPage(n);
   };
+  /* SINGLE PLAYER DROPS STRAIGHT IN (owner, 2026-11-24: "keep the same
+   * intro/show screens, then drop straight into single player"): as the
+   * island starts, the pages go to the show, once a row; a swipe away from
+   * it after that is the rower's own. */
+  const dropped = useRef(false);
+  useEffect(() => {
+    if (showed.phase === "intro") dropped.current = false;
+    if (showed.phase !== "battle" || dropped.current || !w || prodPage < 0) return;
+    dropped.current = true;
+    const n = prodPage;
+    pages.current?.scrollTo({ x: n * w, animated: true });
+    setPage(n);
+  }, [showed.phase, w, prodPage]);
   const plain = Platform.OS === "web" ? ({ cursor: "auto" } as ViewStyle) : null;
   const leaf = (children: ReactNode, style?: ViewStyle) => (
     <Pressable accessible={false} onPress={next} style={[{ width: w, height: h }, plain, style]}>

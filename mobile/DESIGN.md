@@ -994,3 +994,12 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - The match: muzzle puffs, streaks, hit bursts and shakes, cancel sparks, miss splashes; health bars whose lost part lingers in yellow and pulses red when low. Level up rays, a waving finish flag.
 - The chest: redrawn; shakes, flashes, confetti; cards pop in and float, rarity tags, a rainbow border for a legendary; the card no longer covers the line under CHEST.
 - Seen in headless Chrome only. Unsure on a phone: the frame cost (the board and up to 20 moving locker cards), Android has no card glow, the hit burst briefly covers the piece.
+
+## Round 55 (2026-11-24, after he watched the demo): 159 single player, the island
+
+- HIS WORDS: a PvE auto-battler as single player, pace-driven like an idle clicker; the same intro, then straight into single player, no matchmaking; he circles the island, a monster on the centre island; the target fixed at 1:59 for now; a bar always filling while he rows, faster the nearer 1:59, a throw when it is full, NO cooldown; about 3 monsters in a 1K; monster health and damage grow; boats recruited that help (one auto-throws, one makes him throw two). He wants to row it on his 5K today.
+- BUILT: arcade/pve.ts (the loop, pure), arcade/Monster.tsx (line-art monsters, every fifth a crowned boss), Battle in screens/Show.tsx, the "battle" phase in arcade/show.ts (intro, then the island until 90%, then level up, finish, the one chest). The pages jump to the show as the island starts.
+- NUMBERS (scripts/pve-check.ts): the bar fills in 3 s within 1.5 s of 1:59, falls off by e every 8 s past that, never under a fifth while moving. Damage 10 x 1.1 per kill, times 0.4 to 1 by how near the pace sat while the bar filled. Health 150 x 1.25 per monster, a boss x1.25. Crew: a DECKHAND at 2 KO (throws every 5 s, 40% of his power, whatever the pace), TWIN at 4, a second deckhand at 7, QUICK HANDS at 10, a third at 14. A 1K at 1:59 gets 3, a 2K 8, a 5K 15; at 2:05 a 5K gets 10, at 2:10 five.
+- DEMO ROWS NO LONGER MOVE THE RATING; the rating started again at 1200 (kept under arcade/rating/2; the old one, all demo games, is left on the phone).
+- THE MATCH (multiplayer) is kept, behind ShowCtx.solo = false.
+- Seen in headless Chrome against the sandbox (a 1K demo at 4x: intro, the island, KOs, the chest). NOT on a phone or a real PM5.
