@@ -31,7 +31,7 @@ import { asRower, no, yes } from "../social";
  * the viewer's own is left out, as the feed fails closed.
  *
  * Cheap: one read of the day's rows, the board (cached), the faces, and
- * only the FIRST photo of each row resolved. */
+ * the first two photos of each row resolved. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -95,8 +95,13 @@ export async function GET() {
       order.unshift(me);
     }
 
-    const [faces, firsts] = await Promise.all([avatarsFor(order), Promise.all(shown.map((e) => (e.photos[0] ? resolvePhotoMedia([e.photos[0]]) : Promise.resolve([]))))]);
-    const photoOf = new Map(shown.map((e, i) => [e.id, firsts[i][0] ?? null]));
+    /* BOTH PHOTOS (owner, 2026-11-24: "When I am looking through stories, I
+     * actually do want to look through both of the rows, photos. So just one
+     * right after the other. Post both of them"): a row's first two photos
+     * are resolved, and sent as `photos`; `photo` stays the first, for the
+     * builds already on phones that read only it. */
+    const [faces, media] = await Promise.all([avatarsFor(order), Promise.all(shown.map((e) => (e.photos.length ? resolvePhotoMedia(e.photos.slice(0, 2)) : Promise.resolve([]))))]);
+    const photosOf = new Map(shown.map((e, i) => [e.id, media[i]]));
 
     const rowers = order.map((pid) => {
       const rows = (byRower.get(pid) ?? []).slice().reverse();
@@ -117,7 +122,8 @@ export async function GET() {
           durationStr: fmtDuration(e.seconds),
           splitStr: e.meters > 0 && e.seconds > 0 ? fmtSplit(e.meters, e.seconds) : "",
           title: plainTitle(e.title),
-          photo: photoOf.get(e.id) ?? null,
+          photo: photosOf.get(e.id)?.[0] ?? null,
+          photos: photosOf.get(e.id) ?? [],
           absIso: when(e).toISOString(),
         })),
       };

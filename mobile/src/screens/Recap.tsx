@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { api, peek } from "../api";
@@ -30,9 +30,29 @@ const SEEN_KEY = "recap/seen/1";
 const SHOW_MS = 5000;
 const ND = Platform.OS !== "web";
 
-export type RecapRow = { id: string; meters: number; seconds: number; metersStr: string; durationStr: string; splitStr: string; title: string; photo: { full: string; thumb: string | null } | null; absIso: string };
+type RecapPhoto = { full: string; thumb: string | null };
+/* `photos` is the row's first two (owner, 2026-11-24); a server from before
+ * it sends only `photo`, the first. */
+export type RecapRow = { id: string; meters: number; seconds: number; metersStr: string; durationStr: string; splitStr: string; title: string; photo: RecapPhoto | null; photos?: RecapPhoto[]; absIso: string };
 export type RecapRower = { rowerNumber: number; numStr: string; name: string; avatar: string | null; me: boolean; latest: string; rows: RecapRow[] };
 type RecapPage = { rowers: RecapRower[] };
+
+/* BOTH PHOTOS, ONE RIGHT AFTER THE OTHER (owner, 2026-11-24: "When I am
+ * looking through stories, I actually do want to look through both of the
+ * rows, photos. So just one right after the other. Post both of them"). A
+ * story page is a FRAME: a row with two photos is two frames back to back,
+ * the first photo then the second, its length and time on both; a row with
+ * one photo, or none, is one. */
+type Frame = { row: RecapRow; photo: RecapPhoto | null; key: string };
+function framesOf(r: RecapRower): Frame[] {
+  const out: Frame[] = [];
+  for (const row of r.rows) {
+    const photos = row.photos?.length ? row.photos : row.photo ? [row.photo] : [];
+    if (!photos.length) out.push({ row, photo: null, key: row.id });
+    else photos.forEach((photo, k) => out.push({ row, photo, key: `${row.id}/${k}` }));
+  }
+  return out;
+}
 
 /* WHICH ROWS HAVE BEEN SEEN, on this phone: the ids, newest last, the last
  * few hundred kept. A day's rows are a few dozen. */
@@ -174,9 +194,10 @@ function Face({ r, size, light }: { r: RecapRower; size: number; light?: boolean
  * click on that lets you go to that row, and then otherwise it lets you just
  * go to the next one").
  *
- * One page to a row, the row's first photo filling the screen; a row with
- * no photo is a plain page on the paper with its figures big. The bars over
- * the top, one to a row of this rower's, fill as the page stands. Under
+ * One page to a photo of a row (framesOf, above: a row's two photos are two
+ * pages, 2026-11-24), the photo filling the screen; a row with no photo is a
+ * plain page on the paper with its figures big. The bars over the top, one
+ * to a page of this rower's, fill as the page stands. Under
  * them the rower's face, number and name (a tap opens the rower) and how
  * long ago. At the foot the meters big, and the time and the pace: a tap
  * there opens the row. Anywhere else, the right two thirds go on and the
@@ -189,12 +210,16 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
   /* Where a rower opens: their first row not yet seen, as things stood
    * when the viewer opened, so marking a page seen does not move it. */
   const seenAtOpen = useRef(seen).current;
-  const firstOpen = (ri: number) => Math.max(0, rowers[ri]?.rows.findIndex((x) => !seenAtOpen.has(x.id)) ?? 0);
+  /* Each rower's pages, a page to a photo. */
+  const frames = useMemo(() => rowers.map(framesOf), [rowers]);
+  const firstOpen = (ri: number) => Math.max(0, frames[ri]?.findIndex((f) => !seenAtOpen.has(f.row.id)) ?? 0);
   const [pos, setPos] = useState(() => ({ r: start, p: firstOpen(start) }));
   const posRef = useRef(pos);
   posRef.current = pos;
   const rower = rowers[pos.r];
-  const row = rower?.rows[pos.p];
+  const pages = frames[pos.r] ?? [];
+  const frame = pages[pos.p];
+  const row = frame?.row;
 
   const prog = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -216,7 +241,7 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
   };
   const next = () => {
     const { r, p } = posRef.current;
-    if (p < (rowers[r]?.rows.length ?? 0) - 1) go({ r, p: p + 1 });
+    if (p < (frames[r]?.length ?? 0) - 1) go({ r, p: p + 1 });
     else if (r < rowers.length - 1) go({ r: r + 1, p: firstOpen(r + 1) });
     else close();
   };
@@ -259,7 +284,7 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
     at.current = 0;
     if (held.current) prog.setValue(0);
     else run(0);
-    const after = rower.rows[pos.p + 1] ?? rowers[pos.r + 1]?.rows[0];
+    const after = pages[pos.p + 1] ?? frames[pos.r + 1]?.[0];
     if (after?.photo) Image.prefetch(after.photo.full).catch(() => null);
     return () => anim.current?.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,13 +322,13 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
    * unlike the safe-area module) on an iPhone, the status bar on Android. */
   const [safeTop, setSafeTop] = useState(Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) : Platform.OS === "ios" ? 54 : 0);
 
-  if (!rower || !row) return null;
-  const photo = row.photo;
+  if (!rower || !frame || !row) return null;
+  const photo = frame.photo;
   /* Over a photo the type is white; on the plain page it is the ink. */
   const fg = photo ? "#fff" : C.ink;
   const shade: TextStyle | null = photo ? { textShadowColor: "rgba(0,0,0,0.55)", textShadowRadius: 8 } : null;
   const GAP = 4;
-  const n = rower.rows.length;
+  const n = pages.length;
   const segW = Math.max(4, (win.width - 16 - GAP * (n - 1)) / n);
   const TOP = safeTop + 8;
   const pace = row.splitStr ? wholeSplit(row.splitStr) : "";
@@ -320,7 +345,7 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
           {...pan.panHandlers}
           style={{ flex: 1, backgroundColor: photo ? "#000" : C.paper, overflow: "hidden", transform: [{ translateY: drag }, { scale: drag.interpolate({ inputRange: [0, win.height], outputRange: [1, 0.85], extrapolate: "clamp" }) }] }}
         >
-          {photo ? <Image key={row.id} source={{ uri: photo.full }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+          {photo ? <Image key={frame.key} source={{ uri: photo.full }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
           {/* A dark wash at the top and the foot, so the white type reads over
               any photo. */}
           {photo ? (
@@ -348,14 +373,18 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
             onPressOut={resume}
             delayLongPress={250}
             onLongPress={() => null}
-            onPress={(e) => (e.nativeEvent.locationX < win.width / 3 ? prev() : next())}
+            /* Where across the page: the phone gives `locationX`; a browser's
+               click may come without it, and the page fills the window, so
+               its `pageX` is the same place (2026-11-24, seen in the sandbox:
+               a tap on the left went on). */
+            onPress={(e) => ((e.nativeEvent.locationX ?? e.nativeEvent.pageX ?? win.width) < win.width / 3 ? prev() : next())}
             style={StyleSheet.absoluteFill}
           />
 
-          {/* THE BARS, one to a row of this rower's. */}
+          {/* THE BARS, one to a page of this rower's. */}
           <View pointerEvents="none" style={{ position: "absolute", top: TOP, left: 8, right: 8, flexDirection: "row", gap: GAP }}>
-            {rower.rows.map((x, k) => (
-              <View key={x.id} style={{ width: segW, height: 2.5, borderRadius: 2, overflow: "hidden", backgroundColor: photo ? "rgba(255,255,255,0.35)" : C.line }}>
+            {pages.map((x, k) => (
+              <View key={x.key} style={{ width: segW, height: 2.5, borderRadius: 2, overflow: "hidden", backgroundColor: photo ? "rgba(255,255,255,0.35)" : C.line }}>
                 {k < pos.p ? <View style={{ flex: 1, backgroundColor: fg }} /> : null}
                 {k === pos.p ? <Animated.View style={{ width: segW, height: "100%", backgroundColor: fg, transform: [{ translateX: prog.interpolate({ inputRange: [0, 1], outputRange: [-segW, 0] }) }] }} /> : null}
               </View>

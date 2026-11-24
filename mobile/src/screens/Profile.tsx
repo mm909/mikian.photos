@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ROWER_URL, shareLink } from "../files";
-import { api, edits, type Best, type Blocked, type Counts, type LogRow, type Profile, type Rel } from "../api";
+import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogRow, type Profile, type Rel } from "../api";
 import { MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { useSession } from "../session";
@@ -12,6 +13,8 @@ import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FieldCards } from "./Stats";
+import { Lab } from "./reviewBits";
+import { useRating } from "../arcade/rating";
 import { StoryRing } from "./Recap";
 import type { SettingsPage } from "./Settings";
 import { FollowButton, RowerMenu, type PeopleList } from "./Social";
@@ -106,9 +109,18 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  * just ... the stats ... we just can't reload the whole page"). The page
  * was one read keyed by its month, so a new month had nothing to show and
  * the whole screen went to its waiting state. What was last read stays up
- * now, the stats faint under the new word until the month arrives. */
+ * now, the stats faint under the new word until the month arrives.
+ *
+ * THE THIRD TAB IS RATINGS, AND THE CALENDAR IS BACK IN THE STATS (owner,
+ * 2026-11-24: "the third tab in the player profile. I want to move that
+ * stat, the calendar, back to the stats tab, and this tab I need their elo
+ * here ... the person's average 5K pace and the standard deviation of that
+ * time"). The 100K tab's calendar, and its list of every month against the
+ * 100,000 that picks the calendar's month, are the last section of STATS
+ * (`Hundred`, as it was). The third tab (`Ratings`) is the rower's 5Ks over
+ * all months: the average pace, the spread, how many, and the dots. */
 
-const SUBS = ["rows", "stats", "100k"] as const;
+const SUBS = ["rows", "stats", "ratings"] as const;
 type Sub = (typeof SUBS)[number];
 
 const m2 = (s: number) => fmtClock(s, false);
@@ -298,8 +310,8 @@ export function ProfileScreen({
   const panel = (sub: Sub): ReactNode =>
     sub === "rows" ? (
       <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} more={near} />
-    ) : sub === "100k" ? (
-      <Hundred p={p} />
+    ) : sub === "ratings" ? (
+      <Ratings p={p} />
     ) : (
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the
@@ -399,6 +411,11 @@ export function ProfileScreen({
             </>
           ) : null}
           {p.paceCurve.length < 2 && !p.field && !rowed.length && !p.ergRows.length ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>The stats fill in with the first timed rows.</Text> : null}
+          {/* THE CALENDAR, BACK IN THE STATS (owner, 2026-11-24: "move that
+              stat, the calendar, back to the stats tab"): the month's meters
+              a day and every month against the 100K, as the third tab had
+              them. Read over all months, whatever time frame is picked. */}
+          <Hundred p={p} />
           </View>
           </>
     );
@@ -617,14 +634,15 @@ function SocialLine({ p, rel, counts, onPeople, onChange, onRow, onSettings }: {
 }
 
 /* THE THREE TABS of a profile, as Instagram draws them: a picture each, a
- * short ink rule under the open one. The grid of photos, the stats, and
- * the 100K, which keeps its name until he decides what that tab becomes. */
+ * short ink rule under the open one. The grid of photos, the stats, and the
+ * ratings (2026-11-24), a bell curve with its middle marked: the average
+ * and the spread the tab is. Until that day the third was the word 100K. */
 function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => void; pos: Animated.Value; width: number }) {
   const cell = width / SUBS.length;
   const tabs: { id: Sub; label: string }[] = [
     { id: "rows", label: "Photos of every row" },
     { id: "stats", label: "Stats" },
-    { id: "100k", label: "The 100K" },
+    { id: "ratings", label: "Ratings" },
   ];
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", marginTop: 18, marginBottom: 2 }}>
@@ -633,7 +651,7 @@ function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => v
         const tone = on ? C.ink : C.gray;
         return (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingTop: 10 }}>
-            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : <Text style={{ fontFamily: F.black, fontSize: 15, color: tone }}>100K</Text>}</View>
+            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : <CurveIcon color={tone} size={24} />}</View>
             <View style={{ height: 2, marginTop: 10 }} />
           </Pressable>
         );
@@ -644,7 +662,8 @@ function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => v
   );
 }
 
-/* THE 100K TAB: the calendar of the month in view, then every month the
+/* THE MONTH, at the foot of the stats tab (it was the 100K tab until
+ * 2026-11-24): the calendar of the month in view, then every month the
  * rower has logged in against the 100,000 (owner, 2026-11-21: "maybe it's
  * something about the 100K"; and his aim for the whole app: "make making
  * the 100K as appealing as possible"). The months are reckoned from the
@@ -675,11 +694,11 @@ function Hundred({ p }: { p: Profile }) {
     <>
       {cal ? (
         <>
-          <Eye style={{ marginTop: 14 }} left={`${MONTHS[Number(cal.key.slice(5, 7)) - 1]} ${cal.key.slice(0, 4)}`} right="Meters per day" />
+          <Eye left={`${MONTHS[Number(cal.key.slice(5, 7)) - 1]} ${cal.key.slice(0, 4)}`} right="Meters per day" />
           <MonthGrid month={cal} byDay={calDays} today={cal.key === p.thisMonthKey ? p.days : undefined} marks={marksOf(calDays)} />
         </>
       ) : null}
-      <Eye style={cal ? undefined : { marginTop: 14 }} left="Every month" right="Against 100,000 m" />
+      <Eye left="Every month" right="Against 100,000 m" />
       {months.length === 0 ? <Text style={mono(11, false, C.gray)}>{data ? "No month yet." : "Reading"}</Text> : null}
       {months.map(([key, meters]) => (
         <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: key === open }} accessibilityLabel={`Show ${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)} on the calendar`} onPress={() => setPick(key)} style={({ pressed }) => ({ paddingVertical: 12, paddingHorizontal: 8, marginHorizontal: -8, borderBottomWidth: 1, borderColor: C.line, borderLeftWidth: 3, borderLeftColor: key === open ? C.accent : "transparent", backgroundColor: key === open ? C.tint : "transparent", opacity: pressed ? 0.6 : 1 })}>
@@ -696,6 +715,160 @@ function Hundred({ p }: { p: Profile }) {
         </Pressable>
       ))}
     </>
+  );
+}
+
+/* THE RATINGS TAB (owner, 2026-11-24: "this tab I need their elo here ...
+ * the person's average 5K pace and the standard deviation of that time").
+ *
+ *   RATING, the arcade's Elo (arcade/rating.ts), on the rower's own page
+ *     and for an admin only while the arcade is the owner's alone: the
+ *     figure big, the games, wins and draws beside it;
+ *   THE 5K: the average pace of the rower's 5Ks and their spread (one
+ *     standard deviation, a 500 m and over the whole 5K), how many 5Ks it
+ *     is from, and every 5K as a dot on one line of pace, the average the
+ *     blue line and one standard deviation either side of it washed in the
+ *     blue. "No 5Ks yet" when there are none.
+ *
+ * The figures are the server's (api/row100k/app/profile `fiveK`, all
+ * months, whatever time frame the stats tab is on). A server from before
+ * them sends none, and the same rule is run here over the log in hand. A
+ * private or masked page never reaches this tab (no tabs are drawn). */
+function Ratings({ p }: { p: Profile }) {
+  const [w, setW] = useState(0);
+  const five = p.fiveK === undefined ? fiveKFrom(p.logRows) : p.fiveK;
+  const n = five?.n ?? 0;
+  /* THE RATING: the arcade's Elo, kept on this phone (arcade/rating.ts), so
+   * on the rower's own page only, and for an admin only while the arcade is
+   * the owner's alone. */
+  const { me } = useSession();
+  const rating = useRating();
+  const showRating = p.isMe && !!me.isAdmin;
+  return (
+    <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
+      {showRating ? (
+        <>
+          <Eye style={{ marginTop: 14 }} left="Rating" right="The arcade · only you see this" />
+          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
+            <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.ink, fontVariant: ["tabular-nums"] }}>{String(rating.elo)}</Text>
+            <Text style={mono(11, false, C.gray, 0.1)}>
+              {rating.games
+                ? `${rating.games} ${rating.games === 1 ? "game" : "games"} · ${rating.wins} ${rating.wins === 1 ? "win" : "wins"}${rating.draws ? ` · ${rating.draws} ${rating.draws === 1 ? "draw" : "draws"}` : ""}`
+                : "No games yet"}
+            </Text>
+          </View>
+        </>
+      ) : null}
+      <Eye style={showRating ? undefined : { marginTop: 14 }} left="The 5K" right={n ? `${n} ${n === 1 ? "5K" : "5Ks"} · all time` : "All time"} />
+      {!five || n === 0 ? (
+        <Text style={[mono(11, false, C.gray), { paddingVertical: 16 }]}>No 5Ks yet.</Text>
+      ) : (
+        <>
+          <View style={{ flexDirection: "row", borderTopWidth: 2, borderBottomWidth: 2, borderColor: C.ink }}>
+            <Standing k="Average pace" v={fmtClock(five.meanPace)} u="/500m" line={`A ${fmtClock(five.meanPace * 10)} 5K`} />
+            <View style={{ width: 1, backgroundColor: C.ink }} />
+            <Standing k="Spread" v={five.sdPace === null ? "-" : `±${five.sdPace.toFixed(1)}`} u="s /500m" line={five.sdPace === null ? "Needs a second 5K" : `±${five.sdPace * 10 < 60 ? `${Math.round(five.sdPace * 10)} s` : fmtClock(five.sdPace * 10, false)} over the 5K`} pad />
+          </View>
+          <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 10 }]}>
+            From {n} {n === 1 ? "5K" : "5Ks"}: rows within 50 m of 5,000 m. Spread is one standard deviation of their paces.
+          </Text>
+          <FiveKDots paces={five.paces} mean={five.meanPace} sd={five.sdPace} w={w} />
+        </>
+      )}
+    </View>
+  );
+}
+
+/* The 5K rule the server runs (profileData.ts fiveKOf), for a server that
+ * does not yet send `fiveK`: over the log in hand, so over the time frame
+ * the page was read for. */
+function fiveKFrom(rows: LogRow[]): FiveK {
+  const paces = rows.filter((r) => !r.masked && r.meters !== undefined && Math.abs(r.meters - 5000) <= 50 && (r.seconds ?? 0) > 0).map((r) => (r.seconds ?? 0) / ((r.meters ?? 1) / 500)).reverse();
+  const n = paces.length;
+  if (!n) return { n: 0, meanPace: 0, sdPace: null, paces: [] };
+  const mean = paces.reduce((a, b) => a + b, 0) / n;
+  const sd = n >= 2 ? Math.sqrt(paces.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)) : null;
+  return { n, meanPace: mean, sdPace: sd, paces };
+}
+
+/* EVERY 5K AS A DOT on one line of pace, quicker to the left: the average
+ * the blue line, one standard deviation either side washed in the blue,
+ * and from four 5Ks a faint curve of where they fall. Dots that would sit
+ * on each other stack up. */
+function FiveKDots({ paces, mean, sd, w }: { paces: number[]; mean: number; sd: number | null; w: number }) {
+  if (w < 80 || !paces.length) return null;
+  const R = 5;
+  const spread = sd ?? 0;
+  const a = Math.min(...paces, mean - spread);
+  const b = Math.max(...paces, mean + spread);
+  const air = Math.max(1, (b - a) * 0.12);
+  const lo = a - air;
+  const hi = b + air;
+  const edge = 8;
+  const sx = (v: number) => edge + ((v - lo) / (hi - lo)) * (w - 2 * edge);
+  /* Stack: each dot on the lowest level with no dot within a diameter. */
+  const levels: number[][] = [];
+  const placed = paces.map((v) => {
+    const x = sx(v);
+    let lv = 0;
+    while (levels[lv]?.some((o) => Math.abs(o - x) < R * 2 + 1)) lv++;
+    (levels[lv] ??= []).push(x);
+    return { x, lv };
+  });
+  const tall = Math.min(levels.length, 6);
+  const base = 40 + tall * (R * 2 + 1) + 30;
+  const H = base + 26;
+  const dotY = (lv: number) => base - R - 3 - Math.min(lv, 5) * (R * 2 + 1);
+  /* The faint curve: a Gaussian over the 5Ks, Silverman's width. */
+  let curve: string | null = null;
+  if (paces.length >= 4 && spread > 0) {
+    const h = Math.max(1.06 * spread * Math.pow(paces.length, -0.2), (hi - lo) / 60);
+    const N = 80;
+    const xs = Array.from({ length: N }, (_, i) => lo + ((hi - lo) * i) / (N - 1));
+    const ys = xs.map((x) => paces.reduce((s, v) => s + Math.exp(-0.5 * ((x - v) / h) ** 2), 0));
+    const top = Math.max(...ys) || 1;
+    const room = base - 34;
+    curve = `M${xs.map((x, i) => `${sx(x).toFixed(1)} ${(base - (ys[i] / top) * room).toFixed(1)}`).join(" L")}`;
+  }
+  const step = [1, 2, 5, 10, 15, 30, 60].find((s) => (hi - lo) / s <= 5) ?? 60;
+  const marks: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) marks.push(v);
+  const xm = sx(mean);
+  return (
+    <View style={{ marginTop: 18 }}>
+      <Svg width={w} height={H} accessibilityLabel={`${paces.length} 5Ks, averaging ${fmtClock(mean)} a 500 m`}>
+        {sd ? <Rect x={sx(mean - sd)} y={22} width={sx(mean + sd) - sx(mean - sd)} height={base - 22} fill={C.accent} opacity={0.12} /> : null}
+        {curve ? <Path d={curve} stroke={C.soft} strokeWidth={1.5} fill="none" strokeLinejoin="round" opacity={0.6} /> : null}
+        <Line x1={0} x2={w} y1={base} y2={base} stroke={C.ink} strokeWidth={2} />
+        <Line x1={xm} x2={xm} y1={18} y2={base} stroke={C.accent} strokeWidth={2.5} />
+        <Lab x={xm} y={13} anchor={xm < w * 0.3 ? "start" : xm > w * 0.7 ? "end" : "middle"} color={C.accent} bold>
+          {`AVERAGE ${fmtClock(mean)}`}
+        </Lab>
+        {placed.map((d, i) => (
+          <Circle key={i} cx={d.x} cy={dotY(d.lv)} r={R} fill={C.soft} opacity={0.75} />
+        ))}
+        {marks.map((v) => (
+          <Lab key={v} x={sx(v)} y={base + 16} anchor={sx(v) < 16 ? "start" : sx(v) > w - 16 ? "end" : "middle"}>
+            {fmtClock(v, false)}
+          </Lab>
+        ))}
+      </Svg>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text style={mono(9, false, C.gray, 0.1)}>← Quicker</Text>
+        <Text style={mono(9, false, C.gray, 0.1)}>A dot a 5K · /500m</Text>
+      </View>
+    </View>
+  );
+}
+
+/* THE RATINGS TAB'S PICTURE: a bell curve on its line, the middle marked. */
+function CurveIcon({ color, size }: { color: string; size: number }) {
+  const s = { stroke: color, strokeWidth: 2, fill: "none", strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M2.5 19 C7 19 8.5 6 12 6 C15.5 6 17 19 21.5 19" {...s} />
+      <Path d="M12 9.5 V19" {...s} />
+    </Svg>
   );
 }
 

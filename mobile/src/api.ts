@@ -239,7 +239,13 @@ export type Profile = {
   field: { field: FieldModel; you: { sessions: number; avgLen: number; avgPace: number; lenPct: number; pacePct: number; lengthYou: KdeYou; paceYou: KdeYou }; distances: DistanceKde[] } | null;
   ergRows: ErgRow[];
   ownTag: { until?: string } | null;
+  /* The rower's 5Ks over all months, for the RATINGS tab (2026-11-24): how
+   * many, the average pace (s a 500 m), the standard deviation of the paces
+   * (null under two), and each pace, oldest first. Null on a masked or
+   * locked page; missing from a server before it. */
+  fiveK?: FiveK | null;
 };
+export type FiveK = { n: number; meanPace: number; sdPace: number | null; paces: number[] };
 
 export type RecordRow = { participantId: string; entryId?: string; name: string; rowerNumber: number; division: string; value: number; day?: string; sessions?: number; masked?: boolean; digits?: number; hideLow?: number; unranked?: boolean; paceTag?: string };
 export type PeriodRow = { participantId: string; name: string; division: string; rowerNumber: number; meters: number; sessions: number; masked?: boolean; digits?: number };

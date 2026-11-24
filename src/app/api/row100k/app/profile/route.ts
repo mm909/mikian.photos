@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     if (!Number.isInteger(num) || num < 0 || num > 999999) return no("No such rower.", 404);
     const built = await buildProfile(num, q.get("m") ?? undefined);
     if (!built) return no("No such rower.", 404);
-    const { view: v, viewer, until, lifetime, rel } = built;
+    const { view: v, viewer, until, lifetime, rel, fiveK } = built;
     /* BLOCKED, either way: the name and the number, and how to undo it if
      * the block is the viewer's own. Nothing else of the rower. */
     if (rel.access === "blocked") {
@@ -83,9 +83,12 @@ export async function GET(req: Request) {
       days: v.days,
     };
     const profile = v.masked
-      ? { ...base, totals: null, lifetime: null, rank: null, byDay: {}, paceCurve: [], paceDots: [], field: null, ergRows: [], ownTag: null }
+      ? { ...base, totals: null, lifetime: null, rank: null, byDay: {}, paceCurve: [], paceDots: [], field: null, ergRows: [], ownTag: null, fiveK: null }
       : {
           ...base,
+          /* The RATINGS tab's 5Ks, all months, whatever month was asked for
+           * (2026-11-24, profileData.ts fiveKOf); null across a lock. */
+          fiveK,
           totals: v.totals,
           lifetime,
           rank: v.rank ?? null,

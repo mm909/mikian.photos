@@ -109,7 +109,32 @@ export type ProfileBuild = {
    * NO rows, bests, calendar, pace or erg lines: a private page shows the
    * totals and nothing a single row would give away. */
   rel: Relation;
+  /* The rower's 5Ks, all months (fiveKOf, below): null for a masked view
+   * and across a private or blocked page, as the rows themselves are. */
+  fiveK: FiveK | null;
 };
+
+/* THE 5K FIGURES of the phone app's RATINGS tab (owner, 2026-11-24: "this
+ * tab I need their elo here ... the person's average 5K pace and the
+ * standard deviation of that time"). Every row of the rower's within 50 m
+ * of 5,000 m and timed, all months: the same rows the app's 5K chip and its
+ * ranking of a rower's 5Ks count. The pace of each is its own split (s a
+ * 500 m), so a 5,030 m row is the pace it was rowed at; the average is of
+ * the rows, each 5K counting once; the spread is the sample standard
+ * deviation of those paces (none with one 5K). `paces` are the 5Ks oldest
+ * first, for the dots. */
+export type FiveK = { n: number; meanPace: number; sdPace: number | null; paces: number[] };
+const FIVE_K = 5000;
+const FIVE_K_SLACK = 50;
+function fiveKOf(entries: { meters: number; seconds: number }[]): FiveK | null {
+  const paces = entries.filter((e) => Math.abs(e.meters - FIVE_K) <= FIVE_K_SLACK && e.seconds > 0).map((e) => e.seconds / (e.meters / 500));
+  if (!paces.length) return { n: 0, meanPace: 0, sdPace: null, paces: [] };
+  const n = paces.length;
+  const meanPace = paces.reduce((a, b) => a + b, 0) / n;
+  const sdPace = n >= 2 ? Math.sqrt(paces.reduce((a, b) => a + (b - meanPace) ** 2, 0) / (n - 1)) : null;
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return { n, meanPace: r1(meanPace), sdPace: sdPace === null ? null : Math.round(sdPace * 100) / 100, paces: paces.map(r1) };
+}
 
 export async function buildProfile(num: number, m: string | string[] | undefined): Promise<ProfileBuild | null> {
   const data = await getRower(num).catch(() => null);
@@ -464,5 +489,6 @@ export async function buildProfile(num: number, m: string | string[] | undefined
     seconds: allEntries.reduce((s, e) => s + e.seconds, 0),
     sessions: allEntries.length,
   };
-  return { view, viewer, until: blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined, lifetime, rel };
+  const fiveK = masked || rel.access !== "open" ? null : fiveKOf(allEntries);
+  return { view, viewer, until: blackout.endsAt ? fmtPacificDay(blackout.endsAt) : undefined, lifetime, rel, fiveK };
 }
