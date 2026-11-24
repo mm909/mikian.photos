@@ -155,8 +155,11 @@ export function sendPiece(id: string): Promise<AutoState> {
         return set(id, { state: "refused", error });
       }
       /* No signal, signed out, too many at once, or the site is away: it
-       * is kept and tried again. */
-      if (status === 0 || status === 401 || status === 429 || status >= 500) {
+       * is kept and tried again. And 404: a site from before this was
+       * built does not know a row sent this way (it looks for a row to
+       * tie the recording to and finds none), which is a site that has
+       * not caught up yet, not a row that was refused. */
+      if (status === 0 || status === 401 || status === 404 || status === 429 || status >= 500) {
         const n = (tries.get(id)?.n ?? 0) + 1;
         tries.set(id, { n, next: Date.now() + Math.min(15 * 60_000, 30_000 * 2 ** (n - 1)) });
         return set(id, { state: "waiting", error });
