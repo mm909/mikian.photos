@@ -119,7 +119,12 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, g) => !scrub.chart && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        /* Taken early, at 6 points and anything more across than down
+         * (owner, 2026-11-23: "Sometimes when I swipe to the right or the
+         * left ... it scrolls vertically ... it just sometimes it jumps up
+         * and down"): the longer the card waited, the further the page had
+         * already slid before it was held still. */
+        onMoveShouldSetPanResponder: (_e, g) => !scrub.chart && Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy) * 1.1,
         /* Once the card has the drag it keeps it: the tabs' own swipe, an
          * ancestor, would otherwise take it over and turn the page. */
         onPanResponderGrant: () => {
@@ -574,6 +579,11 @@ export function MetricScreen({ id, mine }: { id: MetricId; mine: RowMeasure }) {
   );
 }
 
+/* THE ADVICE ON THESE PAGES IS FOR A GOAL (owner, 2026-11-23: "if you want
+ * a faster time, or if you want to be more consistent, or if you want to try
+ * and lower your heart rate, or if you want to try and not burn out, then
+ * here are the things that you can do"): each "how do you move it" and each
+ * tip in "what does this say about you" says first what it is for. */
 const NOBODY = "Nobody else's recordings are in to set this against yet, so this page says what the figure is and which way is better.";
 
 function pageOf(id: MetricId, m: RowMeasure, f: FieldStats | null, w: number): Page {
@@ -599,10 +609,10 @@ function steadyPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
     s === null
       ? "With nobody to set it against, read it against your own rows: the same distance rowed with a smaller spread was rowed better, whatever the time."
       : s < 0
-        ? "You hold a split better than most of the field. On a piece like this one the time is not hiding in the pacing: it is in a quicker split, held the same way."
+        ? "You hold a split better than most of the field. For a faster time on a piece like this one, the seconds are not hiding in the pacing: they are in a quicker split, held the same way."
         : s > 0
           ? "Your split moves about more than most rowers' does. That usually means going out quicker than the piece can hold, or chasing the monitor from one stroke to the next. The same average split rowed level would have cost you less."
-          : "You sit in the middle of the field: about as steady as most. There are a few easy seconds in holding the split closer, before any of it has to come from pulling harder.";
+          : "You sit in the middle of the field: about as steady as most. For a faster time, there are a few easy seconds in holding the split closer, before any of it has to come from pulling harder.";
   const eg = m.spread !== null && m.pace !== null ? ` Yours was ${plusMinus(m.spread)} on an average of ${fmtPace(m.pace)}: most of your strokes were between ${fmtPace(m.pace - m.spread)} and ${fmtPace(m.pace + m.spread)}.` : "";
   return {
     value: m.spread !== null ? `± ${m.spread.toFixed(1)}` : m.steady !== null ? score(m.steady) : "--",
@@ -614,7 +624,7 @@ function steadyPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
       ["Which way is better?", "A lower spread is better, and a higher score is better. A split that stays within a second of its average is a piece rowed at one effort. Every surge above the average costs more than easing off below it gives back, because the work goes up much faster than the speed does, so the level piece is the cheapest way to row any time."],
       ["What is the split spread?", `Every stroke has a split. The spread is how far those splits sat from their average: about two strokes in three fall inside it.${eg}`],
       ["What are the two scores?", "STEADY PACE is 100, less ten for every 1% the split wandered from its own average, so a 2:00 held within a second and a bit scores 90. SAME STROKE is 100, less three for every 1% the shape of a stroke's force curve differed from your average stroke. Neither knows how fast the piece was: a 2:30 rowed level outscores a 1:50 that wandered."],
-      ["How do you move it?", "Pick the split before the first stroke and hold it through the first third, when it feels too easy. Watch the average split on the monitor and not the one under it. A steady rate makes a steady split: RATE HELD is the same idea for strokes a minute, and lower is better there too."],
+      ["How do you move it?", "To hold one pace: pick the split before the first stroke and hold it through the first third, when it feels too easy. Watch the average split on the monitor and not the one under it. A steady rate makes a steady split: RATE HELD is the same idea for strokes a minute, and lower is better there too."],
     ],
   };
 }
@@ -639,7 +649,7 @@ function pacePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
       ["What does this say about you?", about],
       ["Which way is better?", "Nearer level is better. The quickest way to cover a distance on an erg is very nearly one split from the first stroke to the last, with a little more in the final tenth. A second half slower than the first means the first half cost more than it gave; a second half much quicker means there was more to spend."],
       ["What is the picture?", "The blue line is your split through the piece as a moving average, set against your own average: above the dashed rule you were quicker than your average, below it slower. The grey line is the same thing for everybody's rows, each measured against its own average, so a 1:45 rower and a 2:30 rower share one picture. Both are drawn in seconds at your split, so the seconds are yours."],
-      ["How do you move it?", "Start a second or two a 500 slower than you mean to finish, hold the middle, and spend what is left over the last 500. The coaching under the splits gives the number for this row."],
+      ["How do you move it?", "For a faster time, or to not fade at the end: start a second or two a 500 slower than you mean to finish, hold the middle, and spend what is left over the last 500. To hold one pace the whole way: pick the split and row it from the first stroke to the last. The coaching under the splits gives the number for this row."],
     ],
   };
 }
@@ -649,18 +659,18 @@ function ratePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
   const about = !c
     ? "With nobody to set it against, read it against your own rows: at the same rate, the row with more meters a stroke was the faster one."
     : c.rate === 0 && c.length === 0
-      ? "You row about the stroke the field rows: the same count and the same length. From here either one moves the split: a little more length at this rate, or this stroke a beat higher."
+      ? "You row about the stroke the field rows: the same count and the same length. For a faster time, either one moves the split: a little more length at this rate, or this stroke a beat higher."
       : c.length > 0 && c.rate <= 0
-        ? "You get your speed from the length of the stroke and not the count: fewer, longer strokes than most. That is the cheap way to go fast, and it leaves rate in hand: the same stroke a beat or two higher is a quicker split."
+        ? "You get your speed from the length of the stroke and not the count: fewer, longer strokes than most. That is the cheap way to go fast, and it leaves rate in hand: for a faster time, the same stroke a beat or two higher is a quicker split."
         : c.length < 0 && c.rate >= 0
-          ? "You get your speed from the count: more, shorter strokes than most. That costs more for the same split, because every stroke spends something on turning round at each end. Length is the thing to find before more rate."
+          ? "You get your speed from the count: more, shorter strokes than most. That costs more for the same split, because every stroke spends something on turning round at each end. For a faster time on the same effort, length is the thing to find before more rate."
           : c.length > 0
             ? "More strokes than most, and longer ones: you are simply moving faster than the middle of the field. The thing to watch is whether the length holds to the end, which the chart on the first card shows."
             : c.length < 0
-              ? "Fewer strokes than most, and shorter ones: an easy row, or one with more in it. Length first: reach the same catch every stroke and finish the legs before the arms bend, then bring the rate up."
+              ? "Fewer strokes than most, and shorter ones: an easy row, or one with more in it. For a faster time, length first: reach the same catch every stroke and finish the legs before the arms bend, then bring the rate up."
               : c.rate > 0
                 ? "You rate higher than most at about the same length: a quicker split than the middle of the field, bought with strokes. It holds as long as the length does."
-                : "You rate lower than most at about the same length: a steadier, cheaper piece than the middle of the field. The same stroke a beat or two higher is where the next seconds are.";
+                : "You rate lower than most at about the same length: a steadier, cheaper piece than the middle of the field. For a faster time, the same stroke a beat or two higher is where the next seconds are.";
   const sum = m.rate !== null && m.length !== null ? ` Yours: ${m.rate.toFixed(0)} strokes a minute at ${m.length.toFixed(1)} m is ${fmtInt(m.rate * m.length)} m a minute, which is a ${fmtPace((500 / (m.rate * m.length)) * 60)} split.` : "";
   return {
     value: m.length !== null ? m.length.toFixed(1) : "--",
@@ -671,7 +681,7 @@ function ratePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
       ["What does this say about you?", about],
       ["Which way is better?", `Neither rate is the better one. Rate times length is your speed, so the same split can be rowed many ways.${sum} At the same rate, more meters a stroke is faster, so length is the one with a better direction. A taller rower travels further each stroke for the same effort, so read your length against your own other rows before anybody else's.`],
       ["What are the two figures?", "Rate is strokes a minute. Length is how far the flywheel carried you for each stroke: the meters of the piece over its strokes. On the first card they are drawn together, because a piece that holds its speed by shortening and rating up shows as the two lines moving apart."],
-      ["How do you move it?", "For length: a full reach at the catch, the legs finished before the arms bend, and a recovery slower than the drive so the wheel runs between strokes. For rate at the same length: quicker hands away from the finish, and the same drive."],
+      ["How do you move it?", "For more meters a stroke, a faster time on the same effort: a full reach at the catch, the legs finished before the arms bend, and a recovery slower than the drive so the wheel runs between strokes. For a faster time by more rate at the same length: quicker hands away from the finish, and the same drive."],
     ],
   };
 }
@@ -703,7 +713,7 @@ function forcePage(m: RowMeasure, f: FieldStats | null, w: number): Page {
       ["What does this say about you?", about],
       ["Which way is better?", "There is not one right curve, and the field's is a mark and not a rule. What to look for is a peak between a third and a half of the way through the drive, and one smooth hump with no dip in it: the legs, the strongest thing you have, take the load first, and the back joins before the pressure falls. A peak past half way usually means the legs went without the handle. A fuller, rounder curve is better than a taller, sharper one."],
       ["What is the force curve?", "How hard you pulled on the handle at each moment of one drive, the catch at the left and the finish at the right. The card draws the average of every stroke in the piece. Against everyone, each curve is drawn as a percent of its own peak, so it compares when the push comes and not how strong it is: a light rower and a strong one with the same timing draw the same line."],
-      ["How do you move it?", "A late peak: squeeze the legs down off the catch with the arms still long, and the peak moves forward. An early peak: keep pushing as the back opens, and the rest of the curve fills in. A dip in the middle: one unbroken push, with no pause where the legs hand over to the back."],
+      ["How do you move it?", "For more speed from each stroke. With a late peak: squeeze the legs down off the catch with the arms still long, and the peak moves forward. With an early peak: keep pushing as the back opens, and the rest of the curve fills in. With a dip in the middle: one unbroken push, with no pause where the legs hand over to the back."],
     ],
   };
 }
@@ -717,7 +727,7 @@ function workPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
         ? `Your stroke at the end was the stroke at the start: the work in it held level.${s !== null && s < 0 ? " Most of the field does not manage that." : ""} If the split still slipped, it was the rate that dropped and not the push.`
         : m.fade < 0
           ? `Each stroke did ${Math.abs(m.fade).toFixed(0)}% less by the last third than in the first.${s === null ? "" : s > 0 ? " That is more than most of the field gives back." : s < 0 ? " Most of the field gives back more than that." : " That is about what the middle of the field gives back."} If the split held anyway, the rate rose to cover it, which is the dearer way to hold a split.`
-          : `Each stroke did ${m.fade.toFixed(0)}% more by the last third than in the first: you grew into the piece. There was more there at the start, and a warm-up before the next one finds it.`;
+          : `Each stroke did ${m.fade.toFixed(0)}% more by the last third than in the first: you grew into the piece. There was more there at the start: for a faster time, a warm-up before the next one finds it.`;
   const watts = m.work !== null && m.rate !== null ? ` Yours: ${fmtInt(m.work)} joules at ${m.rate.toFixed(0)} strokes a minute is ${fmtInt((m.work * m.rate) / 60)} watts.` : "";
   return {
     value: m.work !== null ? fmtInt(m.work) : "--",
@@ -728,7 +738,7 @@ function workPage(m: RowMeasure, f: FieldStats | null, w: number): Page {
       ["What does this say about you?", about],
       ["Which way is better?", "More joules is a bigger stroke, but it is not a score: it rises with your size and with the split you are rowing, and it falls as the rate goes up at the same split. The figure with a direction is how much of it you kept. Nearer zero from the first third to the last is better; giving back more than a few percent means the strokes got smaller and the rate had to cover for them."],
       ["What is it?", `The energy you put into the flywheel with one stroke, in joules: how hard you pulled on the handle, times how far it travelled. Your watts are this times your rate.${watts}`],
-      ["How do you move it?", "A bigger stroke is a longer one with the legs finished: the same things that make length. To keep it to the end, open a little lighter than feels right and warm up first, so the piece starts where the strokes are already at their strongest."],
+      ["How do you move it?", "For a bigger stroke: a longer one with the legs finished, the same things that make length. To keep it to the end and not burn out: open a little lighter than feels right and warm up first, so the piece starts where the strokes are already at their strongest."],
     ],
   };
 }

@@ -251,11 +251,11 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
      * give a suggestion"). */
     rateSay =
       Math.abs(dSpm) < 1 && Math.abs(dMps) < 0.1
-        ? `Rate and length both held: about ${a.rateTrend.mean.toFixed(0)} strokes a minute at ${a.mpsTrend.mean.toFixed(1)} m a stroke from start to finish. Next row: the same stroke, a beat higher.`
+        ? `Rate and length both held: about ${a.rateTrend.mean.toFixed(0)} strokes a minute at ${a.mpsTrend.mean.toFixed(1)} m a stroke from start to finish. For a faster time: the same stroke, a beat higher.`
         : dSpm >= 1 && dMps <= -0.1
-          ? `The rate climbed (${r0} to ${a.rateTrend.last.toFixed(0)}) while each stroke got shorter (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): the speed was kept by taking more strokes, not longer ones. Next row: hold ${r0} strokes a minute and keep ${m0} m a stroke to the end.`
+          ? `The rate climbed (${r0} to ${a.rateTrend.last.toFixed(0)}) while each stroke got shorter (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): the speed was kept by taking more strokes, not longer ones. For the same speed on less effort: hold ${r0} strokes a minute and keep ${m0} m a stroke to the end.`
           : dSpm <= -1 && dMps >= 0.1
-            ? `The rate came down (${r0} to ${a.rateTrend.last.toFixed(0)}) and each stroke went further (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): longer, slower strokes as it went on. Next row: keep that length and bring the rate back to ${r0} for the last third.`
+            ? `The rate came down (${r0} to ${a.rateTrend.last.toFixed(0)}) and each stroke went further (${m0} m to ${a.mpsTrend.last.toFixed(1)} m): longer, slower strokes as it went on. For a faster time: keep that length and bring the rate back to ${r0} for the last third.`
             : `Rate went ${r0} to ${a.rateTrend.last.toFixed(0)} strokes a minute, and the stroke ${m0} m to ${a.mpsTrend.last.toFixed(1)} m.`;
   }
   const steadySay = craft.steady !== null ? `${Math.round(craft.within1 * 100)}% of the piece was rowed within a second of the average split, ${paceFmt(craft.paceMean)}.` : null;
@@ -383,12 +383,17 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
           thin for any of them keeps the plain sentences. */}
       {cues.length ? (
         <>
-          <Eye left="Coaching" right="For the next row" />
+          <Eye left="Coaching" right="By what you are after" />
           {cues.map((c, i) => (
             <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderBottomWidth: i < cues.length - 1 ? 1 : 0, borderColor: C.line }}>
               <Text style={{ width: 18, fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.accent }}>{i + 1}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.ink }}>{c.act}</Text>
+                {/* The goal first, then the thing to do: "For a faster
+                    time: start 1.8 s a 500 quicker." */}
+                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.ink }}>
+                  <Text style={{ color: C.gray }}>{c.goal}: </Text>
+                  {c.act}
+                </Text>
                 <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft, marginTop: 4 }}>{c.why}</Text>
               </View>
             </View>
@@ -407,15 +412,24 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
         </>
       ) : null}
 
-      {/* AT THE FOOT: how much came off the monitor, and which monitor it
-          was (owner, 2026-11-21: "we can just do number of packets and
-          number of strokes, and then the rower ID"). */}
+      {/* AT THE VERY FOOT: when it was rowed and how it was recorded, which
+          monitor it was, and how much came off it (owner, 2026-11-21: "we
+          can just do number of packets and number of strokes, and then the
+          rower ID"; and 2026-11-23, of the line that opened the page: "it
+          says November 23, the date, the rower, and then PM5 over
+          Bluetooth. All that information can be thrown at the bottom, the
+          very bottom of this analytics page"). */}
       <View style={{ marginTop: 40, borderTopWidth: 1, borderColor: C.line, paddingTop: 14 }}>
+        {(() => {
+          const when = fig(fmtWhen(a.startedAt));
+          const meta = [when === "--" ? "" : when, a.recordedVia].filter(Boolean);
+          return meta.length ? <Text style={[mono(10, false, C.gray, 0.1), { lineHeight: 16, marginBottom: 6 }]}>{meta.join(" · ")}</Text> : null;
+        })()}
         <Text style={[mono(10, false, C.gray, 0.1), { lineHeight: 16 }]}>
-          {fmtInt(a.packetsRecorded)} packets · {fmtInt(a.strokesCounted)} strokes
+          {[doc.device.simulated ? "Simulated monitor" : doc.device.name || a.device || "Monitor", doc.device.serial ? `serial ${doc.device.serial}` : "", doc.device.model ?? "", doc.device.firmware ? `firmware ${doc.device.firmware}` : ""].filter(Boolean).join(" · ")}
         </Text>
         <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 6, lineHeight: 16 }]}>
-          {[doc.device.simulated ? "Simulated monitor" : doc.device.name || "Monitor", doc.device.serial ? `serial ${doc.device.serial}` : "", doc.device.model ?? "", doc.device.firmware ? `firmware ${doc.device.firmware}` : ""].filter(Boolean).join(" · ")}
+          {fmtInt(a.packetsRecorded)} packets · {fmtInt(a.strokesCounted)} strokes
         </Text>
       </View>
     </View>
@@ -433,25 +447,37 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
  * everybody's. When the pacing needs nothing, the steady score is the
  * reason given ("let's support that by saying like what my consistency
  * is"). */
-type Cue = { act: string; why: string };
+/* EVERY CUE IS FOR A GOAL (owner, 2026-11-23: "it says start 1.8 seconds
+ * quicker. Maybe there's something here that says like if you want a faster
+ * time ... I'm trying to row a 5K a day at 1:59 pace the entire month. And
+ * so like I'm not going to start faster ... if someone gets advice that they
+ * know doesn't apply to them, then they might feel a little silly. But if we
+ * say, hey, if you want a faster time, or if you want to be more consistent,
+ * or if you want to try and lower your heart rate, or if you want to try and
+ * not burn out, then here are the things that you can do"). `goal` is what
+ * the cue is for, said first: the goal a tip honestly serves, two when it
+ * serves two. Nothing here reads the heart rate, so no cue claims it. */
+type Cue = { goal: string; act: string; why: string };
+const FASTER = "For a faster time";
+const ONE_PACE = "To hold one pace";
 function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, number>, field: FieldForce | null): Cue[] {
   const out: Cue[] = [];
   const h = a.halves;
   if (h) {
     const score = c.steady !== null ? `Steady pace ${c.steady} out of 100: ${Math.round(c.within1 * 100)}% of the strokes within a second of ${paceFmt(c.paceMean)}. ` : "";
-    if (h.level) out.push({ act: "Pace the next one the same way.", why: `${score}The two halves came in level, so pacing is not the thing to work on here: the time is in the boat speed.` });
-    else if (h.negative) out.push({ act: `Start ${fmtGap(Math.abs(h.deltaTenths) / 2)} a 500 quicker.`, why: `The second half was ${fmtGap(Math.abs(h.deltaTenths))} a 500 faster than the first, so the front half had room. ${score}`.trim() });
-    else out.push({ act: `Take the first half out ${fmtGap(h.deltaTenths / 2)} a 500 slower.`, why: `This one gave back ${fmtGap(h.deltaTenths)} a 500 over the second half. ${score}`.trim() });
+    if (h.level) out.push({ goal: ONE_PACE, act: "pace the next one the same way.", why: `${score}The two halves came in level, so pacing is not the thing to work on here: for a faster time, the time is in the boat speed.` });
+    else if (h.negative) out.push({ goal: FASTER, act: `start ${fmtGap(Math.abs(h.deltaTenths) / 2)} a 500 quicker.`, why: `The second half was ${fmtGap(Math.abs(h.deltaTenths))} a 500 faster than the first, so the front half had room. ${score}`.trim() });
+    else out.push({ goal: `${FASTER}, or to hold one pace`, act: `take the first half out ${fmtGap(h.deltaTenths / 2)} a 500 slower.`, why: `This one gave back ${fmtGap(h.deltaTenths)} a 500 over the second half. ${score}`.trim() });
   }
   const r = a.rateTrend;
   const m = a.mpsTrend;
   if (r && m) {
     const dS = r.last - r.first;
     const dM = m.last - m.first;
-    if (dS >= 1 && dM <= -0.05) out.push({ act: `Hold ${r.first.toFixed(0)} strokes a minute and ${m.first.toFixed(1)} m a stroke.`, why: `The rate climbed ${r.first.toFixed(0)} to ${r.last.toFixed(0)} while the stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m. When it starts to bite, finish the legs before the arms bend and take the recovery slower than the drive: the same speed for less work.` });
-    else if (dM <= -0.05) out.push({ act: `Hold ${m.first.toFixed(1)} m a stroke to the end.`, why: `The stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m at much the same rate. In the last third, reach the same catch every stroke.` });
-    else if (dS <= -1 && dM >= 0) out.push({ act: `Bring the rate back to ${r.first.toFixed(0)} for the last third.`, why: `The rate came down ${r.first.toFixed(0)} to ${r.last.toFixed(0)} and the stroke held at ${m.last.toFixed(2)} m, so the length is there to rate up on.` });
-    else out.push({ act: `Row the next one a beat higher: ${(r.mean + 1).toFixed(0)} strokes a minute.`, why: "Rate and stroke length both held inside a few percent from start to finish, so there is nothing to fix there." });
+    if (dS >= 1 && dM <= -0.05) out.push({ goal: "For the same speed on less effort", act: `hold ${r.first.toFixed(0)} strokes a minute and ${m.first.toFixed(1)} m a stroke.`, why: `The rate climbed ${r.first.toFixed(0)} to ${r.last.toFixed(0)} while the stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m. When it starts to bite, finish the legs before the arms bend and take the recovery slower than the drive: the same speed for less work.` });
+    else if (dM <= -0.05) out.push({ goal: "To not fade at the end", act: `hold ${m.first.toFixed(1)} m a stroke to the end.`, why: `The stroke shortened ${m.first.toFixed(2)} m to ${m.last.toFixed(2)} m at much the same rate. In the last third, reach the same catch every stroke.` });
+    else if (dS <= -1 && dM >= 0) out.push({ goal: FASTER, act: `bring the rate back to ${r.first.toFixed(0)} for the last third.`, why: `The rate came down ${r.first.toFixed(0)} to ${r.last.toFixed(0)} and the stroke held at ${m.last.toFixed(2)} m, so the length is there to rate up on.` });
+    else out.push({ goal: FASTER, act: `row the next one a beat higher, ${(r.mean + 1).toFixed(0)} strokes a minute.`, why: "Rate and stroke length both held inside a few percent from start to finish, so there is nothing to fix there: to row it the same again, the same rate does it." });
   }
   if (work.length >= 30) {
     const top = work.reduce((b, p) => (p.y > b.y ? p : b), work[0]);
@@ -463,17 +489,17 @@ function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, num
     const last = meanOf(work.slice(-third).map((p) => p.y));
     if (at >= 0.06 && at <= 0.6 && dist >= 300 && open > 0 && open < top.y * 0.96) {
       const warm = Math.max(500, Math.round(dist / 250) * 250);
-      out.push({ act: `Warm up for ${fmtInt(warm)} m before a fast one.`, why: `Work per stroke peaked around stroke ${Math.round(top.x)}, about ${fmtInt(Math.round(dist / 50) * 50)} m in, ${Math.round((top.y / open - 1) * 100)}% over the opening strokes. Row that far easy first and the piece starts where this one peaked.` });
+      out.push({ goal: FASTER, act: `warm up for ${fmtInt(warm)} m before a fast one.`, why: `Work per stroke peaked around stroke ${Math.round(top.x)}, about ${fmtInt(Math.round(dist / 50) * 50)} m in, ${Math.round((top.y / open - 1) * 100)}% over the opening strokes. Row that far easy first and the piece starts where this one peaked.` });
     } else if (first > 0 && last < first * 0.95) {
-      out.push({ act: "Open a little lighter.", why: `Each stroke did ${Math.round((1 - last / first) * 100)}% less work in the last third than in the first. A lighter first 500 leaves that push for the end.` });
+      out.push({ goal: "To not fade or burn out", act: "open a little lighter.", why: `Each stroke did ${Math.round((1 - last / first) * 100)}% less work in the last third than in the first. A lighter first 500 leaves that push for the end.` });
     }
   }
   if (a.force) {
     const p = a.force.peakPct;
-    if (field ? p - field.peakPct >= 5 : p > 50) out.push({ act: "Legs first: push before you pull.", why: `Peak force comes at ${p.toFixed(0)}% of the drive${field ? `; the average stroke of ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"} peaks at ${field.peakPct}%` : ""}. Squeeze the legs down off the catch with the arms still long, and the peak moves forward.` });
-    else if (field ? field.peakPct - p >= 8 : p < 30) out.push({ act: "Hold the pressure on through the back.", why: `Peak force comes early, at ${p.toFixed(0)}% of the drive${field ? ` against ${field.peakPct}% for the field` : ""}: a hard hit off the catch that falls away. Keep pushing as the back opens and the rest of the curve fills in.` });
+    if (field ? p - field.peakPct >= 5 : p > 50) out.push({ goal: "For more speed from each stroke", act: "push with the legs before you pull.", why: `Peak force comes at ${p.toFixed(0)}% of the drive${field ? `; the average stroke of ${fmtInt(field.rowers)} ${field.rowers === 1 ? "rower" : "rowers"} peaks at ${field.peakPct}%` : ""}. Squeeze the legs down off the catch with the arms still long, and the peak moves forward.` });
+    else if (field ? field.peakPct - p >= 8 : p < 30) out.push({ goal: "For more speed from each stroke", act: "hold the pressure on through the back.", why: `Peak force comes early, at ${p.toFixed(0)}% of the drive${field ? ` against ${field.peakPct}% for the field` : ""}: a hard hit off the catch that falls away. Keep pushing as the back opens and the rest of the curve fills in.` });
   }
-  if (c.same !== null && c.same < 70) out.push({ act: "Make every stroke the same stroke.", why: `Same stroke ${c.same} out of 100: the shape of the push kept changing. For the first 1,000 m think only of repeating the stroke before.` });
+  if (c.same !== null && c.same < 70) out.push({ goal: "To be more consistent", act: "make every stroke the same stroke.", why: `Same stroke ${c.same} out of 100: the shape of the push kept changing. For the first 1,000 m think only of repeating the stroke before.` });
   return out.slice(0, 4);
 }
 
@@ -482,11 +508,9 @@ function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, num
 /* The time is the headline, in the one colour this product has; everything
  * beside it is what makes that time mean something. */
 function Head({ a, read }: { a: ErgAnalysis; read: string[] }) {
-  const when = fig(fmtWhen(a.startedAt));
-  /* When it was rowed and what recorded it: one quiet line. The strokes,
-   * the watts and the drag are in THE NUMBERS. */
-  const meta = [when === "--" ? "" : when, a.device, a.recordedVia].filter(Boolean);
-  /* The totals describe the whole row; when the detail below does not, that
+  /* When it was rowed and what recorded it are at the very foot of the
+   * page since 2026-11-23; the strokes, the watts and the drag are in THE
+   * NUMBERS. The totals describe the whole row; when the detail below does not, that
    * is said out loud rather than letting a half-row be read as a row. */
   const flags = [
     a.simulated ? "Simulated" : "",
@@ -525,7 +549,6 @@ function Head({ a, read }: { a: ErgAnalysis; read: string[] }) {
           ))}
         </View>
       ) : null}
-      {meta.length ? <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 12, lineHeight: 16 }]}>{meta.join(" · ")}</Text> : null}
       {flags.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
           {flags.map((f) => (

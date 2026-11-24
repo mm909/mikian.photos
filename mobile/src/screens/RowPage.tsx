@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { createElement } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { api, type BoardData, type FollowState, type Photo } from "../api";
+import { api, type BoardData, type BoardRow, type FollowState, type Photo } from "../api";
 import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
@@ -29,9 +29,10 @@ import { RowMenu, Sheet } from "./Social";
  * can use the shareables".
  *
  * So one page, top to bottom:
- *   LOGGED, only when the row was logged a moment ago: the meters counting
- *     up, the month's bar filling from where it was, the all-time total and
- *     any tag just earned, and the climb past the rowers just passed;
+ *   LOGGED, only when the row was logged a moment ago: the all-time meters
+ *     counting up (since 2026-11-23; see Logged), the next mark and the next
+ *     rung, any tag just earned, and the month as a slice of its board, the
+ *     rower's line rising past the rowers just passed;
  *   the row: who, when, the meters, the time and the split, the two photos;
  *   STICKERS, for the rower's own row: the site's transparent share cards,
  *     drawn by the site, a tap to share;
@@ -140,9 +141,12 @@ export function RowPage({
   const doc = r.doc ?? localDoc ?? null;
   const erg = r.erg ? [r.erg.watts ? [`${r.erg.watts}`, "Watts"] : null, r.erg.spm ? [`${r.erg.spm}`, "Strokes a minute"] : null, r.erg.hr ? [`${r.erg.hr}`, "Heart rate"] : null, r.erg.drag ? [`${r.erg.drag}`, "Drag factor"] : null].filter((x): x is string[] => x !== null) : [];
 
-  /* The time and the split, under the meters of a row just logged. */
+  /* The row itself, small, under the all-time meters of a row just logged:
+   * its meters, its time and its split (owner, 2026-11-23: "I know that I
+   * just rode 5,000"). */
   const figures = (
     <Text style={{ fontFamily: F.mono, fontSize: 14, color: C.gray, marginTop: 10, fontVariant: ["tabular-nums"] }}>
+      <Text style={{ fontFamily: F.monoBold, color: C.ink }}>+{fmtInt(r.meters ?? 0)} m  </Text>
       {r.masked ? null : <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{r.durationStr}  </Text>}
       {r.splitStr}
     </Text>
@@ -173,14 +177,16 @@ export function RowPage({
           pace is second and no smaller than it needs to be; the time is the
           small one under it. */}
       {fresh && r.meters ? (
-        <Logged fresh={fresh} meters={r.meters} line={figures} />
+        <Logged fresh={fresh} meters={r.meters} line={figures} onRower={onRower} />
       ) : (
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 16 }}>
+          {/* In the ink, not the blue (owner, 2026-11-23: "let's default it
+              to just white ... the 5,000 meters"). */}
           <View>
             {r.masked ? (
               <Blocks n={r.digits ?? 4} size={40} />
             ) : (
-              <Text style={{ fontFamily: F.black, fontSize: 52, lineHeight: 54, letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>{fmtInt(r.meters ?? 0)}</Text>
+              <Text style={{ fontFamily: F.black, fontSize: 52, lineHeight: 54, letterSpacing: -1, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(r.meters ?? 0)}</Text>
             )}
             <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 4 }]}>Meters</Text>
           </View>
@@ -295,26 +301,29 @@ export function RowPage({
 }
 
 /* This row beside the rower's own average, and its place among their rows
- * of the same distance. Blue where it beat the usual. */
+ * of the same distance. Every figure in the ink, better or not (owner,
+ * 2026-11-23: "the against row as usual ... section, all the numbers there
+ * should just be white ... the 9.1 seconds, the first of fourth, the plus
+ * 1990 meters. All of that can be white instead of blue"). */
 function Usual({ u, meters, seconds, mine, name }: { u: NonNullable<RowData["usual"]>; meters: number; seconds: number; mine: boolean; name: string }) {
   const pace = (seconds / meters) * 500;
   const dp = pace - u.avgPace;
   const dm = meters - u.avgMeters;
   const clock = (s: number) => `${Math.floor(s / 60)}:${(s - Math.floor(s / 60) * 60).toFixed(1).padStart(4, "0")}`;
-  const line = (k: string, v: string, note: string, good: boolean) => (
+  const line = (k: string, v: string, note: string) => (
     <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line }}>
       <Text style={mono(11, false, C.gray)}>{k}</Text>
       <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>
-        <Text style={{ fontFamily: F.black, fontSize: 18, color: good ? C.accent : C.ink }}>{v}</Text> {note}
+        <Text style={{ fontFamily: F.black, fontSize: 18, color: C.ink }}>{v}</Text> {note}
       </Text>
     </View>
   );
   return (
     <>
       <Eye left={mine ? "Against your usual" : `Against ${name.split(" ")[0]}'s usual`} right={`${u.rows} rows`} />
-      {line("Split", `${dp <= 0 ? "−" : "+"}${Math.abs(dp).toFixed(1)} s`, `usual ${clock(u.avgPace)}`, dp < 0)}
-      {line("Length", `${dm >= 0 ? "+" : "−"}${fmtInt(Math.abs(dm))} m`, `usual ${fmtInt(u.avgMeters)} m`, dm > 0)}
-      {u.same >= 2 ? line(`At ${fmtInt(meters)} m`, `${ordinal(u.place)} of ${u.same}`, u.place === 1 ? "the fastest" : `best ${clock(u.best)}`, u.place === 1) : null}
+      {line("Split", `${dp <= 0 ? "−" : "+"}${Math.abs(dp).toFixed(1)} s`, `usual ${clock(u.avgPace)}`)}
+      {line("Length", `${dm >= 0 ? "+" : "−"}${fmtInt(Math.abs(dm))} m`, `usual ${fmtInt(u.avgMeters)} m`)}
+      {u.same >= 2 ? line(`At ${fmtInt(meters)} m`, `${ordinal(u.place)} of ${u.same}`, u.place === 1 ? "the fastest" : `best ${clock(u.best)}`) : null}
     </>
   );
 }
@@ -348,13 +357,37 @@ export function ErgPage({ id, rows, onMetric }: { id: string; rows: Row[]; onMet
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
-function Logged({ fresh, meters, line }: { fresh: Fresh; meters: number; line: ReactNode }) {
+/* THE ROW JUST LOGGED (owner, 2026-11-23: "instead of the number that
+ * counts up being the 5,000 or the meters that I just rode, I want it to be
+ * ... my lifetime ... I know that I just rode 5,000, so I don't need to see
+ * that increase"; "my all-time number is going to be super big ... my next
+ * thing is till like 1 million ... the progress isn't very large ... we want
+ * to make the user feel like they just made a lot of progress ... maybe we
+ * change the axes"; and of the month: "since I'm already at the 100K, like
+ * saying 115 of 100K doesn't really do it for me here. I think a better way
+ * to show this November stat is by the board").
+ *
+ * So, top to bottom: the ALL-TIME meters rolling from where they were to
+ * where they are (the row itself is the small line under it); THE NEXT
+ * MARK, a bar over a round stretch of meters sized to the row (a 5K row
+ * fills a fifth of a 25,000 m stretch), so this row's piece of it reads big;
+ * the next rung, its bar from where the rower stood at the start of the
+ * month (or the rung below, whichever is later), not from nothing; the
+ * month's 100K bar only while the month is still short of it; and THE
+ * BOARD, the rower's own line among the five above and the one below. */
+
+/* The stretch a row's mark bar spans: the smallest round step at least four
+ * times the row, so the row fills between a tenth and a quarter of it, and
+ * crosses at most one mark. */
+const STEPS = [5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
+const stepFor = (meters: number) => STEPS.find((s) => s >= meters * 4) ?? STEPS[STEPS.length - 1];
+
+function Logged({ fresh, meters, line, onRower }: { fresh: Fresh; meters: number; line: ReactNode; onRower: (n: number) => void }) {
   const [go, setGo] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setGo(true), 250);
     return () => clearTimeout(t);
   }, []);
-  const added = useCount(go ? meters : 0, 1200);
   const monthAfter = fresh.monthBefore + (fresh.inMonth ? meters : 0);
   const month = useCount(go ? monthAfter : fresh.monthBefore, 1400);
   const lifeAfter = fresh.lifeBefore + meters;
@@ -362,21 +395,88 @@ function Logged({ fresh, meters, line }: { fresh: Fresh; meters: number; line: R
   const tagBefore = lifetimeTag(fresh.lifeBefore)?.tag ?? "";
   const tagNow = lifetimeTag(lifeAfter);
   const newTag = tagNow?.tag && tagNow.tag !== tagBefore ? tagNow.tag : "";
-  const prevRung = LADDER.filter((l) => l.meters <= lifeAfter).pop()?.meters ?? 0;
   const club = fresh.inMonth && fresh.monthBefore < fresh.goal && monthAfter >= fresh.goal;
+
+  /* THE NEXT MARK. A row that crosses one shows the stretch it finished,
+   * filled to the end; otherwise the stretch it is in. */
+  const step = stepFor(meters);
+  const crossed = Math.floor(lifeAfter / step) > Math.floor(fresh.lifeBefore / step);
+  const markLo = crossed ? Math.floor(lifeAfter / step) * step - step : Math.floor(fresh.lifeBefore / step) * step;
+  const markHi = markLo + step;
+
+  /* THE RUNG: its bar starts where the rower stood at the start of this
+   * month, or at the rung below, whichever is later. */
+  const rungBelow = LADDER.filter((l) => l.meters <= lifeAfter).pop() ?? null;
+  const monthStart = fresh.inMonth ? Math.max(0, fresh.lifeBefore - fresh.monthBefore) : 0;
+  const fromMonth = fresh.inMonth && monthStart > (rungBelow?.meters ?? 0);
+  const rungLo = Math.min(fresh.lifeBefore, fromMonth ? monthStart : (rungBelow?.meters ?? 0));
+  const next = tagNow?.next ?? null;
+
+  /* All time is the big one, sized to fit "1,250,000" across a phone. */
+  const big = fmtInt(lifeAfter).length;
+  const size = big >= 9 ? 50 : big >= 7 ? 60 : 68;
 
   return (
     <View style={{ marginTop: 16 }}>
       <Pop>
         <Text style={mono(12, true, C.accent)}>Row logged</Text>
       </Pop>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 68, lineHeight: 74, letterSpacing: -1, color: C.accent, fontVariant: ["tabular-nums"] }}>+{fmtInt(added)}</Text>
-        <Text style={{ fontFamily: F.bold, fontSize: 24, color: C.gray }}>m</Text>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+        <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: size, lineHeight: size + 6, letterSpacing: -1, color: C.ink, fontVariant: ["tabular-nums"] }}>
+          {fmtInt(life)}
+        </Text>
+        <Text style={{ fontFamily: F.bold, fontSize: 22, color: C.gray }}>m</Text>
       </View>
+      <Text style={mono(10, false, C.gray, 0.14)}>All time</Text>
       {line}
 
-      {fresh.inMonth ? (
+      <View style={{ marginTop: 22 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <Text style={mono(11, true)}>{crossed ? fmtInt(markHi) : `To ${fmtInt(markHi)}`}</Text>
+          {crossed ? (
+            <Pop delay={1500}>
+              <Text style={mono(11, true, C.accent)}>Passed</Text>
+            </Pop>
+          ) : (
+            <Text style={mono(11, false, C.gray)}>
+              <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(markHi - lifeAfter)}</Text> m to go
+            </Text>
+          )}
+        </View>
+        <Fill from={(fresh.lifeBefore - markLo) / step} to={(lifeAfter - markLo) / step} go={go} height={12} />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+          <Text style={mono(9, false, C.gray, 0.08)}>{fmtInt(markLo)}</Text>
+          <Text style={mono(9, false, C.gray, 0.08)}>{fmtInt(markHi)}</Text>
+        </View>
+      </View>
+
+      {next ? (
+        <View style={{ marginTop: 18 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+            <Text style={mono(11, true)}>To {next.tag}</Text>
+            <Text style={mono(11, false, C.gray)}>
+              <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(next.meters - lifeAfter)}</Text> m to go
+            </Text>
+          </View>
+          <Fill from={(fresh.lifeBefore - rungLo) / Math.max(1, next.meters - rungLo)} to={(lifeAfter - rungLo) / Math.max(1, next.meters - rungLo)} go={go} height={6} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+            <Text style={mono(9, false, C.gray, 0.08)}>{fromMonth ? `${fmtInt(rungLo)} · start of ${fresh.monthWord}` : rungBelow ? rungBelow.tag : "0"}</Text>
+            <Text style={mono(9, false, C.gray, 0.08)}>{next.tag}</Text>
+          </View>
+        </View>
+      ) : null}
+      {newTag ? (
+        <Pop delay={1700}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 }}>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: "#fff", backgroundColor: C.accent, paddingHorizontal: 9, paddingVertical: 3 }}>{newTag}</Text>
+            <Text style={mono(11, true)}>New tag</Text>
+          </View>
+        </Pop>
+      ) : null}
+
+      {/* The month's 100K, only while the month is short of it (or this row
+          is the one that gets there): past it, the board says the month. */}
+      {fresh.inMonth && fresh.monthBefore < fresh.goal ? (
         <View style={{ marginTop: 22 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
             <Text style={mono(11, true)}>{fresh.monthWord}</Text>
@@ -391,35 +491,13 @@ function Logged({ fresh, meters, line }: { fresh: Fresh; meters: number; line: R
                 THE <Text style={{ color: C.accent }}>100K</Text> CLUB
               </Text>
             </Pop>
-          ) : monthAfter < fresh.goal ? (
+          ) : (
             <Text style={[mono(11, false, C.gray), { marginTop: 8 }]}>{fmtInt(fresh.goal - monthAfter)} m to 100K</Text>
-          ) : null}
+          )}
         </View>
       ) : null}
 
-      <View style={{ marginTop: 22 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-          <Text style={mono(11, true)}>All time</Text>
-          <Text style={mono(11, false, C.gray)}>
-            <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{fmtInt(life)}</Text> m
-          </Text>
-        </View>
-        {tagNow?.next ? <Fill from={Math.max(0, fresh.lifeBefore - prevRung) / (tagNow.next.meters - prevRung)} to={(lifeAfter - prevRung) / (tagNow.next.meters - prevRung)} go={go} height={6} /> : null}
-        {newTag ? (
-          <Pop delay={1700}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 }}>
-              <Text style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: "#fff", backgroundColor: C.accent, paddingHorizontal: 9, paddingVertical: 3 }}>{newTag}</Text>
-              <Text style={mono(11, true)}>New tag</Text>
-            </View>
-          </Pop>
-        ) : tagNow?.next ? (
-          <Text style={[mono(11, false, C.gray), { marginTop: 8 }]}>
-            {fmtInt(tagNow.next.meters - lifeAfter)} m to {tagNow.next.tag}
-          </Text>
-        ) : null}
-      </View>
-
-      {fresh.inMonth ? <Climb meters={meters} /> : null}
+      {fresh.inMonth ? <Climb meters={meters} word={fresh.monthWord} onRower={onRower} /> : null}
     </View>
   );
 }
@@ -439,63 +517,174 @@ function Fill({ from, to, go, height }: { from: number; to: number; go: boolean;
   );
 }
 
-/* THE CLIMB: the board as it stands now, read back one row: where the rower
- * was before this row, who that carried them past, and the place it leaves
- * them. Their line starts under the rowers passed and rises over them.
- * Nothing draws for a rower who is not on the month's board. */
+/* THE MONTH, AS A SLICE OF ITS BOARD (owner, 2026-11-23: "I think that we
+ * should show my number increasing and then my position changing on the
+ * board if it changes ... it says 9,000 meters behind Abraham. I want to see
+ * Abraham's name here. I don't see Abraham's row number here ... show the
+ * people that are ... 1 below me and 5 above me ... I want to be able to see
+ * where I'm going, who I'm passing").
+ *
+ * The month's board as it stands now (api/row100k/app/board, the rows the
+ * 100K tab prints, masked the same way): the rower's line with the five
+ * above it and the one below, each with its place, number, name and meters.
+ * Read back one row: the rower's line starts where this row found it, under
+ * everybody it has just passed, its meters count up to the total, and it
+ * rises over them as they each drop a place; the window then settles so it
+ * is five above and one below again. Places belong to the slots, not the
+ * lines, so a line that moves takes the place of where it lands.
+ *
+ * The board's mask, kept: a hidden total is its blocks, a run-up total its
+ * shape; the elite carry no place. A rower who is one of the hidden elite
+ * does not move (their place is not on the board). Nothing draws for a
+ * rower not on this month's board. */
 const ROW_H = 44;
+const ABOVE = 5;
+const BELOW = 1;
+const VIEW = ABOVE + 1 + BELOW;
 
-function Climb({ meters }: { meters: number }) {
+function Climb({ meters, word, onRower }: { meters: number; word: string; onRower: (n: number) => void }) {
   const { data } = useLoad(() => api<BoardData>("/api/row100k/app/board"), []);
-  const a = useRef(new Animated.Value(0)).current;
-  const me = data?.rows.find((x) => x.me);
-  const ranked = data ? data.rows.filter((x) => !x.unranked && x.blocks === undefined) : [];
-  const at = me ? ranked.findIndex((x) => x.me) : -1;
-  const before = me ? me.meters - meters : 0;
-  /* Everybody the row carried them past: at or over where they were, under where they are. */
-  const passed = me && at >= 0 ? ranked.filter((x) => !x.me && x.meters < me.meters && x.meters >= before) : [];
-  const shown = passed.slice(0, 4);
+  const rows = data?.rows ?? [];
+  const at = rows.findIndex((x) => x.me);
+  if (!data || at < 0) return null;
+  return <Slice rows={rows} at={at} meters={meters} word={word} onRower={onRower} />;
+}
+
+function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: number; meters: number; word: string; onRower: (n: number) => void }) {
+  const me = rows[at];
+  const before = Math.max(0, me.meters - meters);
+  /* Everybody the row carried them past: the ranked lines straight under
+   * the rower now that stood at or over what the rower had before it. The
+   * board is in meters order there, so they are the next lines down. */
+  let k = 0;
+  if (!me.unranked && me.blocks === undefined) {
+    for (let i = at + 1; i < rows.length; i++) {
+      const x = rows[i];
+      if (x.unranked || x.blocks !== undefined || x.meters < before) break;
+      k++;
+    }
+  }
+  /* Where the rower's line was (s) and is (at), in the board's order. */
+  const s = at + k;
+  const n = rows.length;
+  const shown = Math.min(VIEW, n);
+  const camOf = (i: number) => Math.max(0, Math.min(n - shown, i - ABOVE));
+  /* p: the rower's line, from s to at. q: the window, which follows a beat
+   * later for a short climb (so the line is seen rising) and with the line
+   * for a long one (so it never leaves the window). Both start where the
+   * row found the rower. */
+  const p = useRef(new Animated.Value(s)).current;
+  const q = useRef(new Animated.Value(s)).current;
+  const [go, setGo] = useState(false);
   useEffect(() => {
-    if (shown.length) Animated.timing(a, { toValue: 1, duration: 1100, delay: 1500, easing: Easing.bezier(0.2, 0.7, 0.2, 1), useNativeDriver: false }).start();
-  }, [a, shown.length]);
-  if (!data || !me || at < 0) return null;
-  const place = at + 1;
-  const line = (num: number, name: string, m: number, mine: boolean) => (
-    <View style={{ height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, backgroundColor: mine ? C.pale : C.tint, borderBottomWidth: 1, borderColor: C.line }}>
+    const t = setTimeout(() => setGo(true), 1400);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (!go || k === 0) return;
+    const d = Math.min(2600, 900 + k * 180);
+    const ease = Easing.bezier(0.2, 0.7, 0.2, 1);
+    const native = Platform.OS !== "web";
+    Animated.parallel([
+      Animated.timing(p, { toValue: at, duration: d, easing: ease, useNativeDriver: native }),
+      Animated.timing(q, { toValue: at, duration: d, delay: k <= 4 ? Math.round(d * 0.4) : 0, easing: k <= 4 ? Easing.inOut(Easing.cubic) : ease, useNativeDriver: native }),
+    ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [go]);
+  const mine = useCount(go ? me.meters : before, 1400);
+
+  /* Places by slot: the ranked lines counted down the board. */
+  const places: (number | null)[] = [];
+  let c = 0;
+  for (const x of rows) places.push(x.unranked ? null : ++c);
+  const place = places[at];
+
+  /* The others, in the board's order without the rower: other o is at slot
+   * o while above the rower's line and o + 1 once under it. */
+  const others = rows.filter((x) => !x.me);
+  const lo = Math.max(0, camOf(at) - 1);
+  const hi = Math.min(others.length - 1, camOf(s) + shown);
+  /* Made once: the count above draws this every frame while the lines
+   * move, and a moving line keeps the same interpolation all the way. */
+  const moved = useMemo(() => {
+    const slot = new Map<number, Animated.AnimatedInterpolation<number>>();
+    for (let o = at; o < s; o++) slot.set(o, p.interpolate({ inputRange: [o, o + 1], outputRange: [(o + 1) * ROW_H, o * ROW_H], extrapolate: "clamp" }));
+    return {
+      slot,
+      me: k > 0 ? p.interpolate({ inputRange: [at, s], outputRange: [at * ROW_H, s * ROW_H], extrapolate: "clamp" }) : null,
+      cam: n > shown ? q.interpolate({ inputRange: [ABOVE, ABOVE + n - shown], outputRange: [0, -(n - shown) * ROW_H], extrapolate: "clamp" }) : null,
+    };
+  }, [p, q, at, s, k, n, shown]);
+  const slotOf = (o: number) => (o < at ? o * ROW_H : o >= s ? (o + 1) * ROW_H : (moved.slot.get(o) ?? o * ROW_H));
+  const meY = moved.me ?? at * ROW_H;
+  const camY = moved.cam ?? 0;
+  /* Before the climb starts the window stands where the row found the
+   * rower: q starts at s. A board that does not move stands at `at`. */
+  const camStill = -camOf(at) * ROW_H;
+
+  const figure = (x: BoardRow, m: number) =>
+    x.blocks !== undefined ? <Blocks n={x.blocks} size={12} /> : <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>{x.me ? fmtInt(m) : (x.shape ?? fmtInt(x.meters))}</Text>;
+  const line = (x: BoardRow, m: number) => (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Rower ${x.rowerNumber}, ${x.name}, ${x.blocks !== undefined ? "hidden" : `${fmtInt(x.me ? m : x.meters)} meters`}`}
+      onPress={() => onRower(x.rowerNumber)}
+      style={{ height: ROW_H, flexDirection: "row", alignItems: "center", paddingLeft: 40, paddingRight: 6, backgroundColor: x.me ? C.pale : C.tint, borderBottomWidth: 1, borderColor: C.line }}
+    >
       <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 15, color: C.ink }}>
-        <Text style={{ fontFamily: mine ? F.monoBold : F.mono, fontSize: 12, color: mine ? C.accent : C.gray }}>{String(num).padStart(3, "0")} · </Text>
-        {name}
+        <Text style={{ fontFamily: x.me ? F.monoBold : F.mono, fontSize: 12, color: x.me ? C.accent : C.gray }}>{String(x.rowerNumber).padStart(3, "0")} · </Text>
+        {x.name}
       </Text>
-      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(m)}</Text>
-    </View>
+      {figure(x, m)}
+    </Pressable>
   );
+
+  /* THE ONE AHEAD, by number and name (owner, 2026-11-23). A total the
+   * board hides (blocks, or the run-up's shape) gives no gap. */
+  const ahead = at > 0 ? rows[at - 1] : null;
+  const num3 = (x: BoardRow) => `${String(x.rowerNumber).padStart(3, "0")} · ${x.name}`;
+  const gap = ahead && ahead.blocks === undefined && ahead.shape === undefined ? ahead.meters - me.meters : null;
+
   return (
     <View style={{ marginTop: 26 }}>
       <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8 }}>
-        <Text style={mono(11, true)}>{passed.length ? `Passed ${passed.length}` : "The board"}</Text>
+        <Text style={mono(11, true)}>{word} board</Text>
         <Dot size={11} />
-        <Text style={mono(11, true, C.accent)}>
-          {passed.length ? "Now " : ""}
-          {ordinal(place)}
-        </Text>
-        <Text style={mono(11, false, C.gray)}> of {data.rows.length}</Text>
+        {k ? <Text style={mono(11, true)}>Passed {k} · </Text> : null}
+        {place ? (
+          <>
+            <Text style={mono(11, true, C.accent)}>
+              {k ? "Now " : ""}
+              {ordinal(place)}
+            </Text>
+            <Text style={mono(11, false, C.gray)}> of {n}</Text>
+          </>
+        ) : (
+          <Text style={mono(11, false, C.gray)}>{n} rowers</Text>
+        )}
       </View>
-      {shown.length ? (
-        <View style={{ height: ROW_H * (shown.length + 1) }}>
-          {shown.map((x, i) => (
-            <Animated.View key={x.rowerNumber} style={{ position: "absolute", left: 0, right: 0, top: a.interpolate({ inputRange: [0, 1], outputRange: [i * ROW_H, (i + 1) * ROW_H] }) }}>
-              {line(x.rowerNumber, x.name, x.meters, false)}
+      <View style={{ height: shown * ROW_H, overflow: "hidden" }}>
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, height: n * ROW_H, transform: [{ translateY: k > 0 ? camY : camStill }] }}>
+          {others.slice(lo, hi + 1).map((x, i) => (
+            <Animated.View key={x.rowerNumber} style={{ position: "absolute", left: 0, right: 0, top: 0, transform: [{ translateY: slotOf(lo + i) }] }}>
+              {line(x, x.meters)}
             </Animated.View>
           ))}
-          <Animated.View style={{ position: "absolute", left: 0, right: 0, top: a.interpolate({ inputRange: [0, 1], outputRange: [shown.length * ROW_H, 0] }) }}>{line(me.rowerNumber, me.name, me.meters, true)}</Animated.View>
-        </View>
-      ) : (
-        line(me.rowerNumber, me.name, me.meters, true)
-      )}
-      {passed.length > shown.length ? <Text style={[mono(11, false, C.gray), { marginTop: 8 }]}>and {passed.length - shown.length} more</Text> : null}
-      {at > 0 ? (
+          <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, zIndex: 2, transform: [{ translateY: meY }] }}>{line(me, mine)}</Animated.View>
+          {/* The places, one to a slot, over the lines. */}
+          {places.map((pl, i) =>
+            i >= lo && i <= hi + 1 && pl !== null ? (
+              <View key={`p${i}`} pointerEvents="none" style={{ position: "absolute", left: 6, top: i * ROW_H, height: ROW_H, justifyContent: "center", zIndex: 3 }}>
+                <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>{pl}</Text>
+              </View>
+            ) : null,
+          )}
+        </Animated.View>
+      </View>
+      {ahead ? (
         <Text style={[mono(11, false, C.gray, 0.12), { marginTop: 8, lineHeight: 18 }]}>
-          {fmtInt(ranked[at - 1].meters - me.meters)} m behind {ranked[at - 1].name}
+          {gap === null ? "Behind " : gap <= 0 ? "Level with " : `${fmtInt(gap)} m behind `}
+          <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{num3(ahead)}</Text>
         </Text>
       ) : (
         <Text style={[mono(11, true, C.accent), { marginTop: 8 }]}>Leading the board</Text>
