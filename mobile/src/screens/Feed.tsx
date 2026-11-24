@@ -7,7 +7,7 @@ import { DotsIcon, ExpandIcon, LinkIcon, StickerIcon, SwapIcon, VerifiedIcon } f
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, MONTHS, dayKey, wholeSplit } from "../theme";
-import { Avatar, Blocks, HOLD_MS, HoldMenu, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, SkelCards } from "../ui";
+import { Avatar, Blocks, HOLD_MS, HoldMenu, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, Skel, SkelCards } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { deck } from "../stickers";
 import { StickerViewer } from "./RowPage";
@@ -476,9 +476,26 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
     // Each count of `more` is one step; the rest is read as it stands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [more]);
-  if (!items) return error ? <Waiting error={error} onRetry={() => first()} /> : <SkelCards n={1} />;
-  if (items.length === 0) return <Text style={[mono(11, false, C.gray), { paddingVertical: 24, paddingHorizontal: 14 }]}>{mine ? "Nothing logged yet." : "No rows to show."}</Text>;
   const GAP = 2;
+  /* Waiting, it is the grid's own squares, not a feed card (owner,
+     2026-11-23: "The loading boxes on the profile should probably be the
+     same size as those squares ... it's not loading posts. It's loading
+     those images"). Four rows of three, cut exactly as the photos are. */
+  if (!items)
+    return error ? (
+      <Waiting error={error} onRetry={() => first()} />
+    ) : (
+      <View accessibilityLabel="Loading" style={{ flexDirection: "row", flexWrap: "wrap", marginRight: -GAP }}>
+        {Array.from({ length: 12 }, (_, i) => (
+          <View key={i} style={{ width: "33.3333%", paddingRight: GAP, paddingBottom: GAP }}>
+            <View style={{ width: "100%", aspectRatio: 3 / 4 }}>
+              <Skel r={0} style={{ height: "100%" }} />
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  if (items.length === 0) return <Text style={[mono(11, false, C.gray), { paddingVertical: 24, paddingHorizontal: 14 }]}>{mine ? "Nothing logged yet." : "No rows to show."}</Text>;
   return (
     <View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginRight: -GAP }}>

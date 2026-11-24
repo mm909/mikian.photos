@@ -765,3 +765,12 @@ With Instagram's own held post open beside the app: "give me the ability to have
 - **Nobody else ever sees it** (`src/lib/devHide.ts`, applied to `db` in `src/lib/db.ts`): every read of rowers, rows, erg pieces and the social tables leaves rower 000 out unless it names the Developer, so the copied meters are never counted twice: not on the board, not in a total, not in the stats, the feed, a follower count, an email or a site page. Its own likes and comments are shown back to it alone, by the bearer token on the request. Its actions notify nobody (`rowNotify.ts`). A read of rower number 0 by anybody else is NO SUCH ROWER. The live race's raw SQL carries the same rule by hand.
 - **Rower 0 is a real number in the app**: places that read "no rower number" as false now ask for null (`App.tsx`, `Profile.tsx`, `Social.tsx`, the feed route's `?rower=`), so 000 shows as 000.
 - NOT seen: copying erg pieces and follows (the sandbox's rower 001 has none); the Developer logging a row; Apple's reviewer deleting the account (it is made again at the next sign-in).
+
+## Round 38 (2026-11-23): the opening's zeros, its pop and its build line; the grid's own loading squares; the push's whole-second pace
+
+- **The opening's count wears every place from the start, and one more** (owner: "Always add a 0 in front of the digits that we end with ... those ... million places should be 00"): 13,303,326 counts 000,000,000 → 013,303,326 (`splash.tsx` zeroed).
+- **ROW pops in first** ("first the row pops up, kind of like it does on the top bar ... and then the numbers start going up"): a spring from 55% size; the count waits about a third of a second for it. Reduce motion: no pop.
+- **A build line at the foot of the opening** ("a small secondary text for yourself and others ... where a version number would be"): `V1.3.0 · PRODUCTION · UPDATE NOV 23 10:42`, or `AS BUILT` when the phone runs the code it was installed with. Answers "did the update land?" by looking.
+- **The profile grid loads as its own squares** ("it looks like it's loading like a post, but it's not loading posts"): twelve 3:4 squares, three across, in place of a feed card (`Feed.tsx` RowGrid). SEEN in the browser.
+- **The row push says the pace in whole seconds, tenths dropped, never rounded** ("if it was 221.7, it just becomes 221"): `rowNotify.ts` rowedWords; the notifications list too. The row's page keeps its tenths.
+- NOT seen: the pop and the roll on a phone (the browser pane was hidden, so its frames did not run); the build line's update stamp (web has no updates).
