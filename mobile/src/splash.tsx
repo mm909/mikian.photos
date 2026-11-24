@@ -83,9 +83,38 @@ const NUM_POP_MS = 360;
  * million yet, those ... million places should be 00"). The count wears as
  * many digits as the total, plus a leading 0, the whole way up, so it rolls
  * like a meter: 13,303,326 counts 000,000,000 → 013,303,326. */
-function zeroed(n: number, total: number): string {
+export function zeroed(n: number, total: number): string {
   const width = String(Math.max(0, Math.round(total))).length + 1;
   return String(Math.max(0, n)).padStart(width, "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/* THE SAME TOTAL, FOR THE SIGN-IN PAGE (owner, 2026-11-24: "login page
+ * should probably have the same preview as our splash screen"): the last
+ * total this phone kept, at once, then the fresh one when it lands. 0 when
+ * there is none (no network on a first launch). */
+export function useAllTimeMeters(): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    AsyncStorage.getItem(KEEP)
+      .then((kept) => {
+        const k = Number(kept);
+        if (live && k > 0) setN((c) => c || k);
+      })
+      .catch(() => null);
+    api<{ meters: number }>("/api/row100k/app/total").then(
+      (r) => {
+        if (!live || !(r.meters > 0)) return;
+        setN(r.meters);
+        AsyncStorage.setItem(KEEP, String(r.meters)).catch(() => null);
+      },
+      () => null,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return n;
 }
 
 /* Once per launch: a change of look mounts the app afresh, not the opening. */

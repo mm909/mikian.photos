@@ -1,8 +1,10 @@
 import { useState } from "react";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { SAME_ORIGIN, SITE, api } from "../api";
 import { useSession } from "../session";
+import { useAllTimeMeters, zeroed } from "../splash";
 import { C, F, onLook } from "../theme";
 import { Btn, Eyebrow, styles } from "../ui";
 
@@ -28,6 +30,51 @@ onLook(() => {
  * to it (session.tsx take: the token, then /me), a dark bar with a spinner
  * in place of the quiet button. The first sign-in of a day is the slow
  * one: the server copies the sample rower's rows to the Developer then. */
+/* THE LITTLE GRAPHIC: three lines of water under the count, the blue
+ * fading as they go down, the way a hull leaves a wake. */
+function Water() {
+  const wave = (y: number) => `M0 ${y} Q 15 ${y - 5} 30 ${y} T 60 ${y} T 90 ${y} T 120 ${y} T 150 ${y} T 180 ${y}`;
+  return (
+    <Svg width={180} height={34} viewBox="0 0 180 34" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {[8, 18, 28].map((y, i) => (
+        <Path key={y} d={wave(y)} stroke={C.accent} strokeOpacity={1 - i * 0.3} strokeWidth={2} strokeLinecap="round" fill="none" />
+      ))}
+    </Svg>
+  );
+}
+
+/* THE TOP HALF OF THE SIGN-IN PAGE (owner, 2026-11-24: "login page should
+ * probably have the same preview as our splash screen. You should have like
+ * the row app name and the total number of meters rowed. Because right now
+ * it's kind of bare ... put some header there, do a little graphic"): the
+ * splash's mark, its count of every meter logged (still, not rolling: the
+ * splash has just rolled it), and the water under it. */
+function Masthead() {
+  const meters = useAllTimeMeters();
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Text accessibilityRole="header" accessibilityLabel="Row" style={{ fontFamily: F.black, fontSize: 76, lineHeight: 84, letterSpacing: 1, color: C.ink }}>
+        R<Text style={{ color: C.accent }}>O</Text>W
+      </Text>
+      <View style={{ height: 58, alignItems: "center", marginTop: 10 }}>
+        {meters > 0 ? (
+          <>
+            <Text accessibilityLabel={`${fmt(meters)} meters rowed`} style={{ fontFamily: F.black, fontSize: 30, lineHeight: 36, color: C.ink, fontVariant: ["tabular-nums"] }}>
+              {zeroed(meters, meters)}
+              <Text style={{ color: C.accent }}> M</Text>
+            </Text>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2.2, color: C.gray, marginTop: 6 }}>METERS ROWED</Text>
+          </>
+        ) : null}
+      </View>
+      <View style={{ marginTop: 18 }}>
+        <Water />
+      </View>
+    </View>
+  );
+}
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
+
 function Working() {
   return (
     <View accessibilityRole="progressbar" accessibilityLabel="Signing in" style={[styles.btn, { backgroundColor: C.ink, borderColor: C.ink, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: 10 }]}>
@@ -72,7 +119,15 @@ export function SignIn(_props: { why: string }) {
        Google, and then the developer sign in, and then the terms and
        policy. We also don't need to say by signing in you agree"). The
        heading, the line of why, and the line on abusive content are gone. */
-    <View style={{ padding: 20, paddingTop: 28 }}>
+    /* THE BUTTONS NEAR THE MIDDLE (owner, 2026-11-24: "let's put the
+       buttons closer to the center of the screen"): the masthead fills the
+       top half and stands on the middle; the buttons start just under it.
+       A scroll, so the Developer's field is never under the keyboard. */
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: 96 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: 24, paddingBottom: 34 }}>
+        <Masthead />
+      </View>
+      <View style={{ flex: 1, width: "100%", maxWidth: 400, alignSelf: "center" }}>
       {/* SIGN IN WITH APPLE, on an iPhone (2026-11-21: Apple asks for it
           beside any other sign-in). Apple's own button, as Apple draws it.
           Closing the sheet is not an error. */}
@@ -135,11 +190,11 @@ export function SignIn(_props: { why: string }) {
           {busy ? <Working /> : <Btn label="Sign in" quiet disabled={pass.length < 8} onPress={asReviewer} />}
         </View>
       ) : (
-        <Text accessibilityRole="button" onPress={() => setReview(true)} suppressHighlighting style={[styles.body, { fontSize: 13, marginTop: 18, textDecorationLine: "underline" }]}>
+        <Text accessibilityRole="button" onPress={() => setReview(true)} suppressHighlighting style={[styles.body, { fontSize: 13, marginTop: 18, textAlign: "center", textDecorationLine: "underline" }]}>
           Developer sign-in
         </Text>
       )}
-      <View style={{ flexDirection: "row", gap: 18, marginTop: 22 }}>
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 18, marginTop: 22 }}>
         <Text accessibilityRole="link" suppressHighlighting style={[styles.body, { fontSize: 13, textDecorationLine: "underline" }]} onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)}>
           Terms
         </Text>
@@ -155,7 +210,8 @@ export function SignIn(_props: { why: string }) {
         </View>
       ) : null}
       {error ? <Text style={[styles.body, { color: C.accent, marginTop: 12 }]}>{error}</Text> : null}
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 

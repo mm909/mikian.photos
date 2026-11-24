@@ -70,11 +70,27 @@ export function FollowButton({ num, state, onChange, block }: { num: number; sta
 
 /* One rower in a list: the grey number, the bold name, the handle under
  * it, and whatever the list puts at the right. The whole line opens them. */
-function PersonLine({ p, onRower, right, share, handle = true }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number; /* The search leaves the handle off (owner, 2026-11-23: "Maybe we can leave out the Instagram handle from the search results"). */ handle?: boolean }) {
+function PersonLine({ p, onRower, right, share, handle = true, sub }: { p: { rowerNumber: number; numStr: string; name: string; instagram: string; avatar?: string | null }; onRower: (n: number) => void; right?: ReactNode; share?: number; /* The search leaves the handle off (owner, 2026-11-23: "Maybe we can leave out the Instagram handle from the search results"). */ handle?: boolean; /* THE SEARCH'S LINE, AS INSTAGRAM'S (owner, 2026-11-24: "the text is a little large ... what I want to copy from this is just the text sizing and placement, and where they have like a bio or who's following them, we can just put their total number of meters rowed"): a bigger round avatar, the name in a medium semibold line, a smaller grey line under it with the rower's number and all-time meters. */ sub?: string }) {
   /* Over a bar, the small type is a shade darker (owner, 2026-11-21: "the
    * lighter text is a little hard to read, especially when we have ... the
    * colored bars behind them"). */
   const small = share !== undefined ? C.soft : C.gray;
+  if (sub !== undefined)
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 }}>
+        {share !== undefined ? <Wash share={share} /> : null}
+        <Avatar uri={p.avatar} name={p.name} num={p.numStr || p.rowerNumber} size={48} />
+        <Pressable accessibilityRole="link" accessibilityLabel={`${p.name}, rower ${p.numStr}, ${sub}`} onPress={() => onRower(p.rowerNumber)} style={({ pressed }) => ({ flex: 1, paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}>
+          <Text numberOfLines={1} style={{ fontFamily: F.semi, fontSize: 15, lineHeight: 19, color: C.ink }}>
+            {p.name}
+          </Text>
+          <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 18, color: small, marginTop: 1, fontVariant: ["tabular-nums"] }}>
+            {sub}
+          </Text>
+        </Pressable>
+        {right}
+      </View>
+    );
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 58, borderBottomWidth: 1, borderColor: C.line }}>
       {share !== undefined ? <Wash share={share} /> : null}
@@ -258,12 +274,8 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
       {right}
     </View>
   );
-  const meters = (p: Person) =>
-    p.meters !== null ? (
-      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink, fontVariant: ["tabular-nums"] }}>
-        {fmtInt(p.meters)} <Text style={{ color: searching ? C.gray : C.soft }}>m</Text>
-      </Text>
-    ) : null;
+  /* The grey line: the rower's number, then their all-time meters. */
+  const subOf = (p: Person) => (p.meters !== null ? `${p.numStr} · ${fmtInt(p.meters)} m` : p.numStr);
 
   if (!list) return <Waiting error={error} />;
   return (
@@ -283,7 +295,7 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
               <>
                 {head("Recent", <Ctl label="Clear" onPress={forget} />)}
                 {recent.map((p) => (
-                  <PersonLine key={p.rowerNumber} p={p} handle={false} onRower={() => open(p)} />
+                  <PersonLine key={p.rowerNumber} p={p} sub={subOf(p)} onRower={() => open(p)} />
                 ))}
               </>
             ) : null}
@@ -291,7 +303,7 @@ export function SearchScreen({ text, onRower, onScrollDir }: { text: string; onR
           </View>
         )
       }
-      renderItem={({ item }) => <PersonLine p={item} handle={false} onRower={() => open(item)} share={!searching && list[0]?.meters ? (item.meters ?? 0) / list[0].meters : undefined} right={meters(item)} />}
+      renderItem={({ item }) => <PersonLine p={item} sub={subOf(item)} onRower={() => open(item)} share={!searching && list[0]?.meters ? (item.meters ?? 0) / list[0].meters : undefined} />}
       ListEmptyComponent={<Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>Nobody by that name, handle or number.</Text>}
       ListFooterComponent={more && searching ? <Text style={[mono(11, false, C.gray), { paddingVertical: 20 }]}>More than this match. Type a little more.</Text> : undefined}
     />
