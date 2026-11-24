@@ -109,7 +109,7 @@ export type Me = {
   isDev?: boolean;
   name?: string;
   me?: { participantId: string; rowerNumber: number; displayName: string; instagram: string; division: string } | null;
-  totals?: { meters: number; seconds: number; sessions: number; monthMeters: number };
+  totals?: { meters: number; seconds: number; sessions: number; monthMeters: number; /* Rows this month; an older site does not say. */ monthSessions?: number };
   optedIn?: boolean;
   /* The bell: lines not read, follow requests not answered. */
   social?: { unread: number; requests: number; isPrivate: boolean };

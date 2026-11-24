@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ComponentRef } from "react";
-import { ActivityIndicator, Image, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { ActivityIndicator, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import Svg, { Line, Path } from "react-native-svg";
 import { milestone, projectedMeters } from "../erg/milestone";
@@ -7,11 +7,12 @@ import type { Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
-import { C, F, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
+import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
 import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
+import { Produced, useDirector } from "./Produced";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -281,7 +282,9 @@ const signed = (v: number) => `${v < 0 ? "−" : "+"}${Math.abs(v).toFixed(1)} s
 const IDLE_MS = 6000;
 /* The monitor's pages count from 0: the race and the numbers (the race
  * first when the piece is a set distance), the four figures, the split,
- * the splits, and the way out, which is the last. */
+ * the splits, and the way out, which is the last. A set distance has the
+ * produced row after the race, and upright the race up the page after
+ * that; those are counted where they are added. */
 const LAST = 5;
 
 function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void; onRead: () => void; onLeave: () => void }) {
@@ -298,7 +301,11 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
     setW(Math.round(e.nativeEvent.layout.width));
     setH(Math.round(e.nativeEvent.layout.height));
   };
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => w && setPage(Math.round(e.nativeEvent.contentOffset.x / w));
+  /* The width the pages were last put in their place at: while the phone
+   * is being turned the pages are a new width and the strip is still where
+   * the old one left it, and what it says of itself then is not a swipe. */
+  const settled = useRef(0);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => w && settled.current === w && setPage(Math.round(e.nativeEvent.contentOffset.x / w));
   const meters = Math.floor(live.meters);
   /* A demo row is the simulator: it shows the screens, it is never logged
    * to the board outside development. */
@@ -361,19 +368,51 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
    * version"). One race for the two (GhostRace.tsx useRace): the page in
    * view moves it on and says who has a lane; the other draws the same
    * boats. On its side the phone has the one page, across the screen. */
-  const upPage = raceFirst && !wide ? 1 : -1;
-  const last = LAST + (upPage > 0 ? 1 : 0);
-  const race = (
-    <View style={{ width: w, height: h }}>
-      <GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage} active={page === (raceFirst ? 0 : 1)} />
-    </View>
+  /* THE PRODUCED ROW is the page after the race (owner, 2026-11-23: "I want
+   * to produce a screen that they're looking at ... like a 20-minute
+   * television show"; Produced.tsx, and its director in erg/director.ts).
+   * One more page, and every page there was is still there. A set distance
+   * only, as the race is. The director is held here, beside the race, so
+   * it has watched the whole row whichever page was up. MINE: one swipe
+   * from the race and not ahead of it, until he has seen it on a phone;
+   * the race is the page he said to land on. */
+  const prodPage = raceFirst ? 1 : -1;
+  const directed = useDirector(erg, shared);
+  const upPage = raceFirst && !wide ? 2 : -1;
+  const last = LAST + (prodPage > 0 ? 1 : 0) + (upPage > 0 ? 1 : 0);
+  /* A PHONE THAT IS TURNED KEEPS ITS PAGE. The pages are as wide as the
+   * screen, so turning it left the strip between two of them, or on the
+   * first: nothing to notice while the race was the first page and the
+   * one looked at, and the produced page is the second. */
+  useEffect(() => {
+    if (!w) return;
+    pages.current?.scrollTo({ x: page * w, animated: false });
+    settled.current = w;
+    // Only as the width changes; `page` is the one it was on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w]);
+  /* A TAP TURNS THE PAGE (owner, 2026-11-23: "Let me just tap the screen
+   * instead of swiping to change the view that I'm looking at during the
+   * live row"). Anywhere on a page that is not a button goes to the next
+   * one, and from the last back to the first. The swipe is as it was: a
+   * finger that moves is a swipe and one that does not is a tap, as on any
+   * list of rows. The buttons on the last page, and the ones that come up
+   * under the pages when the row stops, are their own presses. */
+  const next = () => {
+    if (!w) return;
+    const n = page >= last ? 0 : page + 1;
+    pages.current?.scrollTo({ x: n * w, animated: n !== 0 });
+    setPage(n);
+  };
+  const plain = Platform.OS === "web" ? ({ cursor: "auto" } as ViewStyle) : null;
+  const leaf = (children: ReactNode, style?: ViewStyle) => (
+    <Pressable accessible={false} onPress={next} style={[{ width: w, height: h }, plain, style]}>
+      {children}
+    </Pressable>
   );
-  const raceUp =
-    upPage > 0 ? (
-      <View style={{ width: w, height: h }}>
-        <GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />
-      </View>
-    ) : null;
+  const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && page !== prodPage} active={page === (raceFirst ? 0 : 1)} />);
+  const produced = prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
+  const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
   const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
 
@@ -393,31 +432,34 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
         {w ? (
           <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
             {raceFirst ? race : null}
+            {produced}
             {raceUp}
-            <View style={{ width: w, height: h, paddingHorizontal: 20 }}>
-              <Main erg={erg} wide={wide} width={w - 40} />
-            </View>
+            {leaf(<Main erg={erg} wide={wide} width={w - 40} />, { paddingHorizontal: 20 })}
             {raceFirst ? null : race}
-            <View style={{ width: w, height: h, paddingHorizontal: 20, justifyContent: "center" }}>
+            {leaf(
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                 <Big k="Strokes a minute" v={live.spm > 0 ? `${live.spm}` : "--"} wide={wide} />
                 <Big k="Watts" v={live.watts > 0 ? fmtInt(live.watts) : "---"} wide={wide} />
                 <Big k="Heart rate" v={live.hr ? `${live.hr}` : "--"} wide={wide} />
                 <Big k="Drag factor" v={live.drag > 0 ? `${live.drag}` : "--"} wide={wide} />
-              </View>
-            </View>
-            <View style={{ width: w, height: h, paddingHorizontal: 20, justifyContent: "center" }}>
-              <PacePage erg={erg} width={w - 40} height={Math.max(90, Math.min(260, h - 70))} />
-            </View>
-            <ScrollView style={{ width: w, height: h }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10 }}>
-              <SplitsPage erg={erg} />
+              </View>,
+              { paddingHorizontal: 20, justifyContent: "center" },
+            )}
+            {leaf(<PacePage erg={erg} width={w - 40} height={Math.max(90, Math.min(260, h - 70))} />, { paddingHorizontal: 20, justifyContent: "center" })}
+            <ScrollView style={{ width: w, height: h }} contentContainerStyle={{ minHeight: h }}>
+              <Pressable accessible={false} onPress={next} style={[{ flex: 1, minHeight: h, paddingHorizontal: 20, paddingTop: 10 }, plain]}>
+                <SplitsPage erg={erg} />
+              </Pressable>
             </ScrollView>
             {/* THE LAST PAGE: the way out, always a swipe away. */}
-            <View style={{ width: w, height: h, paddingHorizontal: 20, justifyContent: "center" }}>
-              <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
-              <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.` : demo && meters >= 1 ? "A demo row is not logged. Its analytics open from here." : "Nothing rowed yet."}</Text>
-              {ends}
-            </View>
+            {leaf(
+              <>
+                <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
+                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.` : demo && meters >= 1 ? "A demo row is not logged. Its analytics open from here." : "Nothing rowed yet."}</Text>
+                {ends}
+              </>,
+              { paddingHorizontal: 20, justifyContent: "center" },
+            )}
           </ScrollView>
         ) : null}
       </View>
@@ -625,7 +667,26 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
    * or a bare number for whole minutes. */
   const [time, setTime] = useState("");
   const [day, setDay] = useState(day0 && day0 <= today ? day0 : today);
-  const [title, setTitle] = useState("");
+  /* THE TITLE COMES FILLED IN (owner, 2026-11-23: "when I'm manually
+   * logging a row, fill in the title as like November number X, and we can
+   * leave the description blank"): the month and which row of it this will
+   * be, "November #12", the title the site gives a row logged with none
+   * (lib/row100k defaultRowTitle), so what is in the field is what the row
+   * would have been called anyway, there to be typed over. It is numbered
+   * off this month's rows, so a row dated into another month goes without
+   * and the site numbers it there. */
+  const { me } = useSession();
+  const count = me.totals?.monthSessions;
+  const auto = me.month && count !== undefined ? `${me.month.label.split(" ")[0]} #${count + 1}` : "";
+  const [title, setTitle] = useState(day.slice(0, 7) === today.slice(0, 7) ? auto : "");
+  const pickDay = (d: string) => {
+    const was = day.slice(0, 7) === today.slice(0, 7);
+    const is = d.slice(0, 7) === today.slice(0, 7);
+    if (was && !is && title === auto) setTitle("");
+    if (!was && is && title === "") setTitle(auto);
+    setDay(d);
+  };
+  const [picking, setPicking] = useState(false);
   const [caption, setCaption] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
   const [busy, setBusy] = useState("");
@@ -732,27 +793,31 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
         {photos[0] || photos[1] ? <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>Drag a photo to choose the part that shows.</Text> : null}
       </Card>
 
+      {/* THE DATE, as a date, and a calendar behind it (owner, 2026-11-23:
+          "the date it was rowed, instead of have it being today with this
+          weird picker, we can just have it be like a normal date and then
+          have a date picker for it"). It was a word, Today or Yesterday,
+          between two arrows that stepped a day at a time. */}
       <Card>
-        <Eyebrow style={{ color: C.ink }}>The day it was rowed</Eyebrow>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="The day before" onPress={() => setDay(shiftDay(day, -1))} hitSlop={6} style={{ width: 48, height: 44, justifyContent: "center" }}>
-            <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>←</Text>
-          </Pressable>
-          <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>{day === today ? "Today" : day === shiftDay(today, -1) ? "Yesterday" : day}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="The day after" disabled={day >= today} onPress={() => setDay(shiftDay(day, 1))} hitSlop={6} style={{ width: 48, height: 44, justifyContent: "center", alignItems: "flex-end", opacity: day >= today ? 0.25 : 1 }}>
-            <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>→</Text>
-          </Pressable>
-        </View>
+        <Eyebrow style={{ color: C.ink }}>Date rowed</Eyebrow>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Date rowed: ${dateWord(day)}. Change it`} onPress={() => setPicking(true)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderBottomWidth: 1, borderColor: C.ink, opacity: pressed ? 0.6 : 1 })}>
+          <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>{dateWord(day)}</Text>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>{day === today ? "TODAY · CHANGE" : "CHANGE"}</Text>
+        </Pressable>
       </Card>
+      {picking ? <DaySheet day={day} today={today} onPick={pickDay} onClose={() => setPicking(false)} /> : null}
 
+      {/* Title, Description: no "(optional)" after either (the same day:
+          "We can also remove the optional section there. Like we can also
+          just say title, description"). */}
       <Card>
-        <Eyebrow style={{ color: C.ink }}>A title (optional)</Eyebrow>
+        <Eyebrow style={{ color: C.ink }}>Title</Eyebrow>
         <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 18, fontFamily: F.bold, paddingVertical: 8, color: C.ink }} value={title} onChangeText={setTitle} maxLength={60} accessibilityLabel="Title" />
       </Card>
 
       {/* A CAPTION, shown under the photos (owner, 2026-11-22). */}
       <Card>
-        <Eyebrow style={{ color: C.ink }}>A description (optional)</Eyebrow>
+        <Eyebrow style={{ color: C.ink }}>Description</Eyebrow>
         <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 16, lineHeight: 22, fontFamily: F.sans, paddingVertical: 8, color: C.ink, minHeight: 44 }} value={caption} onChangeText={setCaption} multiline maxLength={500} accessibilityLabel="Description" />
       </Card>
 
@@ -761,6 +826,98 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
       {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
       <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
     </ScrollView>
+  );
+}
+
+/* "Nov 23, 2026", off a day written 2026-11-23. */
+function dateWord(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return `${MONTHS[m - 1].slice(0, 3)} ${d}, ${y}`;
+}
+
+/* THE CALENDAR BEHIND THE DATE: a sheet up from the foot with one month on
+ * it, a week to a line, the arrows at its head going a month back or on.
+ * A press on a day takes it and puts the sheet away. No day after today
+ * can be taken, and no month after this one is shown; how far back a row
+ * may be dated is the site's to say, as it was with the arrows. Made here
+ * and not with the phone's own date wheel: that is a piece of the phone the
+ * app would have to be built again to carry. */
+function DaySheet({ day, today, onPick, onClose }: { day: string; today: string; onPick: (d: string) => void; onClose: () => void }) {
+  const [ym, setYm] = useState(day.slice(0, 7));
+  const [y, m] = ym.split("-").map(Number);
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const firstDow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const step = (by: number) => {
+    const d = new Date(Date.UTC(y, m - 1 + by, 1));
+    setYm(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  };
+  const cells: (number | null)[] = [...Array.from({ length: firstDow }, () => null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  while (cells.length % 7) cells.push(null);
+  const atEnd = ym >= today.slice(0, 7);
+  const arrow = (label: string, glyph: string, by: number, off: boolean) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={off} onPress={() => step(by)} hitSlop={8} style={{ width: 52, height: 48, alignItems: "center", justifyContent: "center", opacity: off ? 0.2 : 1 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>{glyph}</Text>
+    </Pressable>
+  );
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable accessibilityLabel="Close the calendar" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }} />
+      <View style={{ backgroundColor: C.paper, borderTopWidth: 2, borderColor: C.ink, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 34 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          {arrow("The month before", "←", -1, false)}
+          <Text style={{ fontFamily: F.black, fontSize: 20, color: C.ink }}>
+            {MONTHS[m - 1]} {y}
+          </Text>
+          {arrow("The month after", "→", 1, atEnd)}
+        </View>
+        <View style={{ flexDirection: "row" }}>
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+            <Text key={i} style={{ flex: 1, textAlign: "center", fontFamily: F.mono, fontSize: 11, letterSpacing: 1.5, color: C.gray, paddingVertical: 6 }}>
+              {d}
+            </Text>
+          ))}
+        </View>
+        {Array.from({ length: cells.length / 7 }, (_, r) => (
+          <View key={r} style={{ flexDirection: "row" }}>
+            {cells.slice(r * 7, r * 7 + 7).map((n, i) => {
+              if (n === null) return <View key={i} style={{ flex: 1, height: 46 }} />;
+              const d = `${ym}-${String(n).padStart(2, "0")}`;
+              const off = d > today;
+              const on = d === day;
+              return (
+                <Pressable
+                  key={i}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${dateWord(d)}${d === today ? ", today" : ""}`}
+                  accessibilityState={{ selected: on, disabled: off }}
+                  disabled={off}
+                  onPress={() => {
+                    onPick(d);
+                    onClose();
+                  }}
+                  style={{ flex: 1, height: 46, alignItems: "center", justifyContent: "center" }}
+                >
+                  <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: on ? C.ink : "transparent", borderWidth: d === today && !on ? 1 : 0, borderColor: C.ink }}>
+                    <Text style={{ fontFamily: on ? F.black : F.bold, fontSize: 17, color: on ? C.paper : C.ink, opacity: off ? 0.22 : 1, fontVariant: ["tabular-nums"] }}>{n}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <Btn label="Cancel" quiet onPress={onClose} style={{ flex: 1 }} />
+          <Btn
+            label="Today"
+            onPress={() => {
+              onPick(today);
+              onClose();
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </View>
+    </Modal>
   );
 }
 

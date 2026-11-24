@@ -18,7 +18,7 @@ export async function GET() {
   const viewer = await resolveViewer();
   if (!viewer.actor) return NextResponse.json({ ok: true, signedIn: false }, { headers: NO_STORE });
   const me = viewer.me;
-  let totals = { meters: 0, seconds: 0, sessions: 0, monthMeters: 0 };
+  let totals = { meters: 0, seconds: 0, sessions: 0, monthMeters: 0, monthSessions: 0 };
   let optedIn = false;
   /* The dot on the bell: lines not yet read, and requests not yet answered. */
   let social = { unread: 0, requests: 0, isPrivate: false };
@@ -42,10 +42,14 @@ export async function GET() {
     try {
       const [all, month, ins] = await Promise.all([
         db.rowEntry.aggregate({ where: { challenge: CHALLENGE, participantId: me.id }, _sum: { meters: true, seconds: true }, _count: true }),
-        db.rowEntry.aggregate({ where: { challenge: CHALLENGE, participantId: me.id, day: { gte: MONTH.firstDay, lte: MONTH.lastDay } }, _sum: { meters: true } }),
+        db.rowEntry.aggregate({ where: { challenge: CHALLENGE, participantId: me.id, day: { gte: MONTH.firstDay, lte: MONTH.lastDay } }, _sum: { meters: true }, _count: true }),
         monthOptIns(),
       ]);
-      totals = { meters: all._sum.meters ?? 0, seconds: all._sum.seconds ?? 0, sessions: all._count, monthMeters: month._sum.meters ?? 0 };
+      /* `monthSessions`: how many rows this month, for the title the app's
+       * log form fills in ("November #12" is the twelfth; owner, 2026-11-23:
+       * "fill in the title as like November number X"). The same count
+       * rows/route.ts numbers an untitled row by. */
+      totals = { meters: all._sum.meters ?? 0, seconds: all._sum.seconds ?? 0, sessions: all._count, monthMeters: month._sum.meters ?? 0, monthSessions: month._count };
       optedIn = ins.has(me.id);
     } catch (err) {
       console.error("row app: failed to read the viewer's totals", err);

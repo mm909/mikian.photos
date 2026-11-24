@@ -133,14 +133,14 @@ import { Eyebrow, Num, styles } from "../ui";
  * few times a second; the picture is drawn thirty times a second from
  * where the last word put the rower, carried on at the split it gave. */
 
-const PX_PER_M = 7.2;
-const BOAT_M = 8.2;
+export const PX_PER_M = 7.2;
+export const BOAT_M = 8.2;
 const PUDDLE_S = 2.4;
 const LANES = 5;
-const MID = 2;
+export const MID = 2;
 const RIVALS = 4;
 /* The rower's best over the distance, and the water as they close on it. */
-const BEST = "#D8362A";
+export const BEST = "#D8362A";
 /* How far behind their best the finish they are headed for can be, as a
  * share of that best, before the water has none of its red. */
 const BEST_SHARE = 0.025;
@@ -253,22 +253,45 @@ export function useRace(target: number) {
   /* When the lanes were last looked over for a duplicate to hand back. */
   const handedAt = useRef(0);
   const swappedAt = useRef(0);
-  return { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt };
+  /* When, by the clock on the wall, the rower's boat reached the line. */
+  const lineWall = useRef(0);
+  return { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt, lineWall };
 }
 export type Race = ReturnType<typeof useRace>;
+
+/* WHERE THE WATER IS on a page of the race across the screen with no
+ * figures under it (`bare`): how far down the page it starts, how tall it
+ * is, and how far across it the rower's boat holds its place. The produced
+ * page (Produced.tsx) lays its view of the whole course over the same
+ * water, so one can turn into the other. */
+export function raceWater(width: number, height: number): { top: number; h: number; xMe: number } {
+  const wide = width >= 520;
+  const top = (wide ? 2 : 6) + (wide ? 20 : 22);
+  return { top, h: Math.max(150, height - top - 8), xMe: width * 0.42 };
+}
 
 /* `upright`: the course runs up the page (an upright phone only; on its
  * side the page is the one across the screen whatever is asked). `drive`:
  * of two pages on one race, only one moves it on and says who has a lane,
  * because how much water is in view differs between the two; the other
- * draws what it is given. */
-export function GhostRace({ erg, width, height, active, race, upright = false, drive = true }: { erg: Erg; width: number; height: number; active: boolean; race?: Race; upright?: boolean; drive?: boolean }) {
+ * draws what it is given.
+ *
+ * FOR THE PRODUCED PAGE (owner, 2026-11-23: "reduce the number of people
+ * we're racing against to 3 ... 2 of the edge people fall off ... keep it
+ * at 1, 3 or 5"). `lanes` is how many lanes are in view, across the screen
+ * only: at three the lanes grow taller about the rower's own and the two
+ * at the edges go off the top and the bottom of the water; at one there is
+ * the rower's lane alone. Nobody loses their lane by it: the four are
+ * still racing, and come back as the lanes do. The change is eased, never
+ * cut. `bare` leaves the three figures under the water off: the produced
+ * page has its own, always up. */
+export function GhostRace({ erg, width, height, active, race, upright = false, drive = true, lanes = 5, bare = false }: { erg: Erg; width: number; height: number; active: boolean; race?: Race; upright?: boolean; drive?: boolean; lanes?: 1 | 3 | 5; bare?: boolean }) {
   const { live } = erg;
   const { me } = useSession();
   const myName = (me.me?.displayName || "You").toUpperCase();
   const target = live.targetM;
   const own = useRace(race ? 0 : target);
-  const { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt } = race ?? own;
+  const { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt, lineWall } = race ?? own;
 
   const ghosts = useMemo(() => field?.ghosts ?? [], [field]);
   /* The rower's fastest row over the distance: it rows in the rower's own
@@ -308,6 +331,11 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   }, [active]);
 
   const now = Date.now();
+  /* How many lanes are in view, eased toward how many were asked for. */
+  const vis = useRef({ n: lanes as number, at: now });
+  const visStep = Math.min(1, Math.max(0, (now - vis.current.at) / 1000) * 3);
+  const visN = Math.abs(lanes - vis.current.n) < 0.02 ? lanes : vis.current.n + (lanes - vis.current.n) * visStep;
+  vis.current = { n: visN, at: now };
   if (live.elapsedS !== said.current.t || live.meters !== said.current.m) {
     /* A new piece on the monitor starts the picture, and the race, again. */
     if (live.meters + 5 < said.current.m) {
@@ -341,9 +369,15 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   let wantM = said.current.m < 0 ? 0 : said.current.m + (moving ? (since * 500) / live.pace : 0);
   if (target > 0) wantM = Math.min(target, wantM);
   if (target > 0 && said.current.m > 0 && (live.ended || wantM >= target - 0.01)) {
-    if (lineAt.current === null) lineAt.current = wantT;
+    if (lineAt.current === null) {
+      lineAt.current = wantT;
+      lineWall.current = now;
+    }
     wantT = Math.min(wantT, lineAt.current);
-  } else lineAt.current = null;
+  } else {
+    lineAt.current = null;
+    lineWall.current = 0;
+  }
   /* Time passes for the page that drives the race, and stands still for
    * one that only draws it. */
   const dt = drive && shown.current.at ? Math.min(0.25, (now - shown.current.at) / 1000) : 0;
@@ -351,6 +385,18 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   if (drive) shown.current = { at: now, t: shown.current.t + (wantT - shown.current.t) * ease, m: Math.max(0, shown.current.m + (wantM - shown.current.m) * ease) };
   const t = shown.current.t;
   const myM = shown.current.m;
+  /* THE OTHERS ROW ON TO THE LINE (owner, 2026-11-23: "When the race
+   * finishes, let the other rowers in my lanes also finish. So that way
+   * they're not idling ... let them also finish"). The rower's own clock
+   * stops on the line with them, and the seconds on each lane are read off
+   * it, so they stand at what they were as the rower crossed: a boat that
+   * was 3.1 behind finishes 3.1 behind. The boats themselves are placed by
+   * a clock that goes on from there, so each comes up to the line at its
+   * own pace and stops on it, and nobody sits still short of the finish.
+   * (The clock that ran on used to move the seconds too, which put a boat
+   * a second behind on the line as if it had won it; that is why it was
+   * stopped.) */
+  const tb = t + (lineAt.current !== null && lineWall.current ? Math.min(900, ((now - lineWall.current) / 1000) * rate.current) : 0);
 
   if (!(target > 0)) {
     return (
@@ -372,9 +418,12 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const TOP = wide ? 2 : 6;
   const RULE = up ? 0 : wide ? 20 : 22;
   const GUT = up ? 50 : 0;
-  const FOOT = wide ? 62 : 64;
+  const FOOT = bare ? 0 : wide ? 62 : 64;
   const waterH = Math.max(150, height - TOP - RULE - FOOT - 8);
-  const pitch = up ? (W - GUT) / LANES : waterH / LANES;
+  const pitch = up ? (W - GUT) / LANES : waterH / visN;
+  /* Where lane 0 starts across the water: at its edge with five in view,
+   * and off it with fewer, the rower's lane staying in the middle. */
+  const top0 = up ? GUT : waterH / 2 - (MID + 0.5) * pitch;
   /* Upright with the course across the page, a lane is tall: its words are
    * along its top and its boat a little under the middle. On its side the
    * words are across the middle and the boats row over them, as over
@@ -388,7 +437,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const course = up ? waterH : W;
   const xMe = up ? waterH * 0.36 : W * 0.42;
   const xOf = (m: number) => xMe + (m - myM) * u;
-  const yOf = (lane: number) => GUT + (lane + 0.5) * pitch + drop;
+  const yOf = (lane: number) => top0 + (lane + 0.5) * pitch + drop;
   const pt: To = (a, c) => (up ? [c, waterH - a] : [a, c]);
   const n1 = (v: number) => v.toFixed(1);
   /* The seconds at the end of a lane: on its side they are across the
@@ -406,7 +455,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const proj = live.ended ? t : ms ? ms.projected : 0;
   const near = proj > 0 ? proj : usual > 0 ? usual : live.avgPace > 0 && live.meters > 20 ? (target * live.avgPace) / 500 : 0;
   const speed = live.avgPace > 0 ? 500 / live.avgPace : near > 0 ? target / near : 0;
-  const gapOf = (g: Ghost, at = t, mine = myM) => ghostMeters(g, target, at) - mine;
+  const gapOf = (g: Ghost, at = tb, mine = myM) => ghostMeters(g, target, at) - mine;
   const inView = (d: number) => d >= -back && d <= front;
 
   /* A boat takes a lane on the side with fewer boats on it. */
@@ -609,14 +658,14 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
 
   const others = rivals.current.map((r) => {
     const d = gapOf(r.g);
-    const done = ghostDone(r.g, t);
+    const done = ghostDone(r.g, tb);
     const y = yOf(r.lane);
     const s = pull(r.g.id, done || t <= 0 ? 0 : r.g.spm > 0 ? r.g.spm : 24, r.lane, myM + d);
-    s.tint += (ghostTrend(r.g, target, t) - s.tint) * tintStep;
+    s.tint += (ghostTrend(r.g, target, tb) - s.tint) * tintStep;
     /* Its average split so far, as the rower's own figure is; the whole
      * row's before it has gone anywhere. */
     const gone = myM + d;
-    const pace = t > 0 && gone > 20 ? (Math.min(ghostClock(r.g, t), r.g.seconds) / gone) * 500 : (r.g.seconds / target) * 500;
+    const pace = t > 0 && gone > 20 ? (Math.min(ghostClock(r.g, tb), r.g.seconds) / gone) * 500 : (r.g.seconds / target) * 500;
     return { r, g: r.g, d, y, s, on: inView(d), rise: r.born ? Math.min(1, (now - r.born) / RISE_MS) : 1, lead: leadSeconds(r.g, target, t, myM), pace, x: xOf(gone), shape: boat(xOf(gone), y, u, pitch, s.phase, pt) };
   });
   const racing = new Set(rivals.current.map((r) => r.g.id));
@@ -629,9 +678,9 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   if (best && t > 0) {
     const d = gapOf(best);
     const lead = leadSeconds(best, target, t, myM);
-    if (inView(d) && (!ghostDone(best, t) || Math.abs(lead) <= 8)) {
+    if (inView(d) && (!ghostDone(best, tb) || Math.abs(lead) <= 8)) {
       if (drive && !bestBorn.current) bestBorn.current = t > 3 ? now : 1;
-      const s = pull(best.id, ghostDone(best, t) ? 0 : best.spm > 0 ? best.spm : 24, MID, myM + d);
+      const s = pull(best.id, ghostDone(best, tb) ? 0 : best.spm > 0 ? best.spm : 24, MID, myM + d);
       pb = { x: xOf(myM + d), lead, rise: Math.min(1, (now - (bestBorn.current || 1)) / RISE_MS), shape: boat(xOf(myM + d), yOf(MID), u, pitch, s.phase, pt) };
     } else if (drive) bestBorn.current = 0;
   }
@@ -652,7 +701,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const hundreds: number[] = [];
   for (let m = Math.ceil(fromM / 100) * 100; m <= toM; m += 100) if (m > 0 && m < target) hundreds.push(m);
   let ropes = "";
-  for (let l = 1; l < LANES; l++) ropes += up ? `M${n1(GUT + l * pitch)} 0 V${n1(waterH)}` : `M0 ${n1(l * pitch)} H${n1(W)}`;
+  for (let l = 1; l < LANES; l++) ropes += up ? `M${n1(GUT + l * pitch)} 0 V${n1(waterH)}` : `M0 ${n1(top0 + l * pitch)} H${n1(W)}`;
 
   /* THE REST OF THE FIELD: a dot for every other row that is within the
    * water right now, each in a place of its own across it. */
@@ -708,7 +757,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   /* The top of a lane's words: across the middle of the lane on its side
    * (the small line after the name there, not under it, so the name can be
    * as tall as the lane allows), along its top upright. */
-  const wordsTop = (lane: number, h: number) => lane * pitch + (wide ? (pitch - h) / 2 : 5);
+  const wordsTop = (lane: number, h: number) => top0 + lane * pitch + (wide ? (pitch - h) / 2 : 5);
   /* The split painted ahead of a bow, when there is water for it short of
    * the seconds at the lane's end. */
   const paceFits = (x: number) => x + bow > 0 && (wide ? x + bow + paceW < W - gapW - 14 : x + bow < W);
@@ -740,7 +789,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
       <Path d={myBoat.blades} stroke={C.accent} strokeWidth={myBoat.wet ? 3.4 : 1.8} fill="none" strokeLinecap="round" />
     </>
   );
-  const foot: ReactNode = (
+  const foot: ReactNode = bare ? null : (
     <View style={{ height: FOOT + 4, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: PAD }}>
       <View style={{ flex: 1 }}>
         <Eyebrow>Meters to go</Eyebrow>
@@ -899,7 +948,10 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
             seconds that boat is ahead or behind, and its split ahead of
             its bow. */}
         {note ? <Eyebrow style={{ position: "absolute", left: 0, right: 0, top: wordsTop(MID - 1, 14), textAlign: "center" }}>{note}</Eyebrow> : null}
-        <Text numberOfLines={1} style={[paint(nameSize, nameLine), { position: "absolute", left: 10, right: gapW + (stacked ? 18 : 64), top: wordsTop(MID, nameLine), color: C.accent }]}>
+        {/* On the produced page's narrower water, on its side, the name
+            stops short of the rower's own stern: it is the one name no
+            boat rows over, so it is never the one that goes faint. */}
+        <Text numberOfLines={1} style={[paint(nameSize, nameLine), { position: "absolute", left: 10, top: wordsTop(MID, nameLine), color: C.accent }, bare && wide ? { width: Math.max(60, xMe - (BOAT_M * u) / 2 - 20) } : { right: gapW + (stacked ? 18 : 64) }]}>
           {myName}
         </Text>
         {/* The rower's best, while it is on their water: the seconds
@@ -981,7 +1033,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
             </LinearGradient>
           </Defs>
           {wakes.map((w) => (
-            <Rect key={`k${w.id}`} x={0} y={w.lane * pitch + 1.5} width={w.x} height={pitch - 3} fill={w.tint > 0 ? "url(#raceWakeUp)" : "url(#raceWakeDown)"} fillOpacity={Math.abs(w.tint) * WAKE * w.rise} />
+            <Rect key={`k${w.id}`} x={0} y={top0 + w.lane * pitch + 1.5} width={w.x} height={pitch - 3} fill={w.tint > 0 ? "url(#raceWakeUp)" : "url(#raceWakeDown)"} fillOpacity={Math.abs(w.tint) * WAKE * w.rise} />
           ))}
           <Path d={ropes} stroke={C.line} strokeWidth={1} fill="none" />
           {heat > 0 ? <Path d={ropes} stroke={BEST} strokeWidth={1 + 2 * heat} strokeOpacity={0.3 + 0.6 * heat} fill="none" /> : null}
