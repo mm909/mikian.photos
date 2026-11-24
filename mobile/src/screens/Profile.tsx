@@ -818,6 +818,8 @@ function BestRow({ b, onPress }: { b: Best; onPress?: () => void }) {
  * just 10. We can just rank"). Every row of theirs that counts for it, all
  * time, best first; a row opens its page. The word at the top switches
  * which best. */
+/* A best's own rankings board on the stats tab. */
+const RANK_OF: Record<string, string> = { fastest5000: "5000", fastest10000: "10000", longest: "longest", bigday: "bigday" };
 const BESTS: { key: string; label: string; at?: number }[] = [
   { key: "fastest5000", label: "Fastest 5k", at: 5000 },
   { key: "fastest10000", label: "Fastest 10k", at: 10000 },
@@ -865,7 +867,7 @@ function RaceDay({ num, onRower }: { num: number; onRower?: (n: number) => void 
   );
 }
 
-export function BestsScreen({ num, best, onRow, onRower }: { num: number; best: string; onRow: (id: string) => void; onRower?: (n: number) => void }) {
+export function BestsScreen({ num, best, onRow, onRower, onRankings }: { num: number; best: string; onRow: (id: string) => void; onRower?: (n: number) => void; onRankings?: (period: string, rec: string) => void }) {
   const options = best === RACE.key ? [...BESTS, RACE] : BESTS;
   const [key, setKey] = useState(options.some((b) => b.key === best) ? best : "longest");
   const path = `/api/row100k/app/profile?num=${num}&m=all`;
@@ -907,6 +909,15 @@ export function BestsScreen({ num, best, onRow, onRower }: { num: number; best: 
       <Text style={[mono(11, true), { borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8, marginTop: 24 }]}>
         {lines.length} {def.key === "bigday" ? (lines.length === 1 ? "day" : "days") : lines.length === 1 ? "row" : "rows"} · all time
       </Text>
+      {/* EVERYBODY'S, A PRESS AWAY (owner, 2026-11-23: "I can't see who has
+          the fastest 10K ... I need a link to that rankings page after my
+          best, so that way I can see where I fall"). */}
+      {onRankings ? (
+        <Pressable accessibilityRole="link" onPress={() => onRankings("all", RANK_OF[def.key] ?? "total")} hitSlop={6} style={({ pressed }) => ({ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.5 : 1 })}>
+          <Text style={mono(11, true, C.ink, 0.1)}>Everyone's {def.label.toLowerCase()} · rankings</Text>
+          <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink }}>→</Text>
+        </Pressable>
+      ) : null}
       {lines.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 16 }]}>None yet.</Text> : null}
       {lines.map((l, i) => (
         <Pressable key={`${l.id ?? l.head}${i}`} accessibilityRole={l.id ? "link" : undefined} disabled={!l.id} onPress={() => l.id && onRow(l.id)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54, borderBottomWidth: 1, borderColor: C.line, backgroundColor: i === 0 ? C.pale : "transparent", paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 })}>

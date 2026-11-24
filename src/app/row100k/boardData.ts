@@ -38,7 +38,7 @@ const loadRows = async () => {
     }),
     db.rowEntry.findMany({
       where: { challenge: CHALLENGE },
-      select: { participantId: true, day: true, meters: true, seconds: true },
+      select: { id: true, participantId: true, day: true, meters: true, seconds: true },
       orderBy: [{ day: "asc" }, { createdAt: "asc" }],
     }),
   ]);

@@ -35,7 +35,8 @@ const WHEEL = 32;
 const OUT_SPREAD = 100;
 const OUT_MS = 150;
 const WAIT = OUT_SPREAD + OUT_MS - 20;
-export type MarkKind = "word" | "meters";
+/* "month": "11/26", the month's two figures in the blue (2026-11-23). */
+export type MarkKind = "word" | "meters" | "month";
 
 /* How a word is set: its size, and which ONE thing in it is the blue. A
  * count of meters: its M. A rower's number: what is between its first and
@@ -50,7 +51,7 @@ function setting(word: string, kind: MarkKind) {
   const digits = /^\d+$/.test(word);
   const o = word.indexOf("O");
   const one = word === "FAQS" ? 2 : word[0] === "Q" ? 0 : o >= 0 ? o : Math.floor((n - 1) / 2);
-  const blue = (i: number) => (kind === "meters" ? i === n - 1 : digits ? i > 0 && i < n - 1 : i === one);
+  const blue = (i: number) => (kind === "month" ? i < 2 : kind === "meters" ? i === n - 1 : digits ? i > 0 && i < n - 1 : i === one);
   /* The whole word is under way inside about half a second. */
   const step = Math.min(55, 460 / Math.max(1, n));
   /* And on its way out, much faster. */
@@ -135,4 +136,43 @@ export function RollIn({ children, after }: { children: ReactNode; after: number
       <Animated.View style={{ transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [WHEEL, 0] }) }] }}>{children}</Animated.View>
     </View>
   );
+}
+
+/* THE CHECK GOES WITH THE NUMBER TOO (owner, 2026-11-23: "where it's
+ * transitioning that top title, and we're going from profile to something
+ * else, the verified badge disappears on the leaving animation. It should
+ * probably stay and leave with the 001 or whatever it is"). The slot beside
+ * the mark: when the word changes, a check that was there rolls up and out
+ * with the old word's letters, and one that belongs to the new word rolls
+ * in after its letters (RollIn). `word` is the mark's word; `on`, whether
+ * this word wears the check. */
+export function BadgeSlot({ word, on, children }: { word: string; on: boolean; children: ReactNode }) {
+  const [s, setS] = useState({ word, on, turn: 0, was: false });
+  useEffect(() => {
+    setS((p) => (p.word === word && p.on === on ? p : { word, on, turn: p.turn + 1, was: p.on }));
+  }, [word, on]);
+  const leaving = s.turn > 0 && s.was;
+  if (!s.on && !leaving) return null;
+  return (
+    <View style={{ height: WHEEL, overflow: "hidden", justifyContent: "center" }}>
+      {leaving ? (
+        <View key={`out-${s.turn}`} pointerEvents="none" style={s.on ? { position: "absolute", left: 0, top: 0, bottom: 0, justifyContent: "center" } : { justifyContent: "center" }}>
+          <GoneBadge delay={Math.min(OUT_SPREAD, 24 * 3)}>{children}</GoneBadge>
+        </View>
+      ) : null}
+      {s.on ? (
+        <RollIn key={`in-${s.turn}`} after={s.word.length}>
+          {children}
+        </RollIn>
+      ) : null}
+    </View>
+  );
+}
+
+function GoneBadge({ children, delay }: { children: ReactNode; delay: number }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(a, { toValue: 1, duration: OUT_MS, delay, easing: Easing.in(Easing.quad), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [a, delay]);
+  return <Animated.View style={{ opacity: a.interpolate({ inputRange: [0, 0.9, 1], outputRange: [1, 1, 0] }), transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [0, -WHEEL] }) }] }}>{children}</Animated.View>;
 }

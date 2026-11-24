@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Animated, Easing, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type BoardData, type BoardRow } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, WordMenu, mono } from "../site";
@@ -49,11 +49,71 @@ type BoardView = BoardData & { months?: Months; live?: boolean };
 /* Everything right of the 100,000 m line: the meters column and the edge. */
 const FIGS = 102;
 
+/* THE MONTH ON THE BOARD, held outside the screen (owner, 2026-11-23:
+ * "where the 100K is for the 100K challenge. Instead, that's where we should
+ * put the November 2026 ... I think I like the 11/26 ... you click on that
+ * and that can get you to the October, November"): the title over the page
+ * says it and opens the menu (App.tsx), the board reads it. `month` null is
+ * the month we are in. */
+type MonthState = { month: string | null; months: Months };
+let monthState: MonthState = { month: null, months: [] };
+const monthSubs = new Set<() => void>();
+function setMonthState(next: Partial<MonthState>): void {
+  monthState = { ...monthState, ...next };
+  for (const f of monthSubs) f();
+}
+export function useBoardMonth(): MonthState & { shown: string } {
+  const s = useSyncExternalStore(
+    (f) => {
+      monthSubs.add(f);
+      return () => monthSubs.delete(f);
+    },
+    () => monthState,
+  );
+  return { ...s, shown: s.month ?? s.months[s.months.length - 1]?.key ?? "" };
+}
+export function pickBoardMonth(k: string): void {
+  const now = monthState.months[monthState.months.length - 1]?.key;
+  setMonthState({ month: k === now ? null : k });
+}
+/* "2026-11" -> "11/26". */
+export const monthMark = (key: string): string => (/^\d{4}-\d{2}$/.test(key) ? `${key.slice(5, 7)}/${key.slice(2, 4)}` : "");
+
+/* The months, newest first, under the title. */
+export function MonthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { months, shown } = useBoardMonth();
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable accessibilityLabel="Close the months" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}>
+        <View style={{ position: "absolute", top: 96, left: 0, right: 0, alignItems: "center" }}>
+          <Pressable onPress={() => {}} style={{ width: 240, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderRadius: 8, paddingVertical: 6 }}>
+            {[...months].reverse().map((m) => (
+              <Pressable
+                key={m.key}
+                accessibilityRole="menuitem"
+                accessibilityState={{ selected: m.key === shown }}
+                onPress={() => {
+                  pickBoardMonth(m.key);
+                  onClose();
+                }}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", gap: 10, paddingHorizontal: 16, paddingVertical: 12, opacity: pressed ? 0.5 : 1 })}
+              >
+                <Text style={{ fontFamily: F.black, fontSize: 18, color: m.key === shown ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{monthMark(m.key)}</Text>
+                <Text style={mono(11, m.key === shown, m.key === shown ? C.ink : C.gray)}>{m.name && m.name !== m.label.split(" ")[0] ? `${m.label} · ${m.name}` : m.label}</Text>
+              </Pressable>
+            ))}
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void; /* Which look: the board as it is, or the sheet being tried. */ look?: "bars" | "sheet" }) {
   const dir = useScrollDir(onScrollDir);
   const { me, refresh } = useSession();
   /* The month on the screen: null is this month, whichever it is. */
-  const [month, setMonth] = useState<string | null>(null);
+  const { month } = useBoardMonth();
   const path = `/api/row100k/app/board${month ? `?m=${month}` : ""}`;
   const { data, error, loading, reload } = useLoad(() => api<BoardView>(path), [path, me.me?.rowerNumber], path);
   const [busy, setBusy] = useState(false);
@@ -66,19 +126,23 @@ export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: 
    * board is on its way. */
   const months = useRef<Months>([]);
   if (data?.months?.length) months.current = data.months;
-  const pick = (k: string) => {
-    const now = months.current[months.current.length - 1]?.key;
-    setMonth(k === now ? null : k);
+  const known = data?.months?.map((m) => m.key).join(",") ?? "";
+  useEffect(() => {
+    if (data?.months?.length) setMonthState({ months: data.months });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [known]);
+  useEffect(() => {
     setWarm(false);
     setNote("");
-  };
+  }, [month]);
+  const pick = (k: string) => pickBoardMonth(k);
   const shownKey = month ?? months.current[months.current.length - 1]?.key ?? data?.month.key ?? "";
   if (!data || (month !== null && data.month.key !== month)) {
     if (!months.current.length) return <Waiting error={error} onRetry={reload} />;
     return (
       <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }}>
         <View style={{ paddingHorizontal: look === "sheet" ? 16 : 20 }}>
-          <Dateline left={monthMenu(months.current, shownKey, pick)} right="" />
+          <Dateline left={months.current.find((m) => m.key === shownKey)?.label ?? ""} right="" />
         </View>
         <Waiting error={error} onRetry={reload} />
       </ScrollView>
@@ -106,7 +170,9 @@ export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: 
    * November 2026 a link that's selectable that brings that drop down, like
    * we do in other places ... other than making it underlined"). `head` is
    * the month line's left end, the menu when there is more than one. */
-  const head = months.current.length > 1 ? monthMenu(months.current, data.month.key, pick) : null;
+  /* The month's menu is the title over the page now (11/26, App.tsx). */
+  const head = null;
+  void pick;
   if (look === "sheet") return <Sheet data={data} live={live} head={head} placed={placed} loading={loading} reload={reload} onRower={onRower} dir={dir} />;
   const tierOf = (r: BoardRow) => data.tiers.find((t) => r.meters >= t.floor) ?? data.tiers[data.tiers.length - 1];
 

@@ -678,6 +678,9 @@ export type ParticipantLite = {
 };
 
 export type EntryLite = {
+  /* The row's own id, where the reader has it: a record that is one row
+   * names it (RecordRow.entryId). */
+  id?: string;
   participantId: string;
   day: string;
   meters: number;
@@ -750,6 +753,9 @@ export type RecordRow = {
   /* fastest boards only: the piece was longer than the board's distance, so
    * this time is a pace conversion rather than a rowed one */
   prorated?: boolean;
+  /* fastest and longest: the row that holds it, so a press opens that row
+   * (owner, 2026-11-23: "it should take me to that row"). */
+  entryId?: string;
 };
 
 export type Boards = {
@@ -846,6 +852,7 @@ export function computeBoards(
             day: e.day,
             meters: e.meters,
             prorated: e.meters > Math.round(dist * RECORD_TOLERANCE),
+            ...(e.id ? { entryId: e.id } : {}),
           };
         }
       }
@@ -869,6 +876,7 @@ export function computeBoards(
         instagram: p.instagram,
         value: best.meters,
         day: best.day,
+        ...(best.id ? { entryId: best.id } : {}),
       });
     }
   }

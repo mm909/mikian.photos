@@ -896,3 +896,13 @@ SEEN in a browser on the sandbox (headless Chrome, a demo row start to finish at
 - **"Every row" turns the bell on for everyone you follow** (and "every row of the rowers I follow" the same): the relation's `bell` reads on, with `bellAll` saying why (`lib/rowSocial.ts`).
 - **Turning the bell off under it asks**: "Off for <name>" or "Open Settings" (Profile.tsx). Off for one rower adds them to `RowSocialSetting.quiet` (new, additive column), which the blanket settings skip (`lib/rowNotify.ts`); turning the bell back on takes them out.
 - Checked on the sandbox database: plain follow, bell off; every row on, bell on and asks; left out, bell off. NOT seen on a phone.
+
+## Round 45 (2026-11-23): 11/26, records that open their row, a policy that does not promise
+
+- **The 100K tab's title is the month**, "11/26" with the month in the blue (mark kind "month"); a press opens the months (Board.tsx MonthSheet); the board's month is held outside the screen (`useBoardMonth`). The admin look swap is a long press now.
+- **The check leaves with the number** (mark.tsx BadgeSlot): it rolls out with the old word and in after the new.
+- **Stats**: median row and median split side by side; the stat chosen is remembered (for the app's life and on the phone); a card claims a sideways drag at 6 points.
+- **Records name their row** (`RecordRow.entryId`, from the board's own entries): a fastest or a longest opens that row at once, on the stats tab and on rankings; rankings' three buttons fit one line (`tight`), and a fastest shows its pace under its time.
+- **Bests link to everybody's**: "Everyone's fastest 10k · rankings →" under a rower's bests.
+- **Privacy policy (2026-11-23)**: no promise never to sell or advertise ("today we do not ... we will change this policy before it starts"); birthday, height and weight used in aggregate; a rough location may be estimated from the IP and the machine.
+- SEEN in the browser: 11/26 and its menu (October picked), medians side by side, the rankings line (desktop width). NOT seen on a phone.

@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { api, type Kde, type KdeYou, type PeriodRow, type RecordRow, type Stats } from "../api";
 import { Columns, Density, HourGrid, MonthGrid, kdeAtShare, kdePeak, kdeShareUnder } from "../charts";
@@ -65,6 +66,9 @@ const PERIODS: { key: "day" | "week"; label: string }[] = [
   { key: "week", label: "Meters by week" },
 ];
 const m2 = (s: number) => fmtClock(s, false);
+const STAT_KEY = "stats/stat/1";
+const ALL_STATS: StatKey[] = ["total", "5000", "10000", "longest", "bigday", "day", "week"];
+let lastStat: StatKey = "total";
 const WHO: { key: "all" | "M" | "F"; label: string }[] = [
   { key: "all", label: "Everyone" },
   { key: "M", label: "Men" },
@@ -94,7 +98,25 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
   /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
    * all time"). */
   const [period, setPeriod] = useState("all");
-  const [stat, setStat] = useState<StatKey>("total");
+  /* THE STAT LEFT ON IS THE STAT COME BACK TO (owner, 2026-11-23: "make
+   * the stat page remember the category that I left off at. Right now it
+   * resets to total meters"): kept for the app's life and on the phone. */
+  const [stat, setStatNow] = useState<StatKey>(lastStat);
+  useEffect(() => {
+    AsyncStorage.getItem(STAT_KEY)
+      .then((v) => {
+        if (v && ALL_STATS.includes(v as StatKey) && v !== lastStat) {
+          lastStat = v as StatKey;
+          setStatNow(lastStat);
+        }
+      })
+      .catch(() => null);
+  }, []);
+  const setStat = (k: StatKey) => {
+    lastStat = k;
+    setStatNow(k);
+    AsyncStorage.setItem(STAT_KEY, k).catch(() => null);
+  };
   const [slot, setSlot] = useState<number | null>(null);
   const path = `/api/row100k/stats${period ? `?m=${period}` : ""}`;
   const { data, error, loading, reload } = useLoad(() => api<{ data: Payload }>(path), [path, me.me?.rowerNumber], path);
@@ -186,8 +208,16 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
               percentiles under them (owner, 2026-11-21: "the field on the
               stats page, that like little copy, isn't doing much ... we
               can probably just remove it"). */}
-          {s.field.length ? <Summary k="Length · median row" v={fmtInt(s.field.length.median)} u="m" first /> : null}
-          {s.field.pace ? <Summary k="Pace · median split" v={m2(s.field.pace.median)} u="/500m" /> : null}
+          {/* The two side by side, as a profile has them (owner, 2026-11-23:
+              "length median row and pace median split can be on the same
+              line"). */}
+          {s.field.length || s.field.pace ? (
+            <View style={{ flexDirection: "row", borderTopWidth: 2, borderBottomWidth: 2, borderColor: C.ink }}>
+              {s.field.length ? <Half k="Median row" v={fmtInt(s.field.length.median)} u="m" /> : null}
+              {s.field.length && s.field.pace ? <View style={{ width: 1, backgroundColor: C.ink }} /> : null}
+              {s.field.pace ? <Half k="Median split" v={m2(s.field.pace.median)} u="/500m" pad={!!s.field.length} /> : null}
+            </View>
+          ) : null}
           <View onLayout={(e) => setCardW(Math.round(e.nativeEvent.layout.width))} style={{ marginTop: 10 }}>
             <FieldCards
               w={cardW}
@@ -222,6 +252,19 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
 function marksOf(byDay: Record<string, number>): [number, number, number] {
   const max = Math.max(1, ...Object.values(byDay));
   return [max * 0.25, max * 0.5, max * 0.75];
+}
+
+/* One of two figures on a line, as the profile's standings are set. */
+function Half({ k, v, u, pad }: { k: string; v: string; u: string; pad?: boolean }) {
+  return (
+    <View style={{ flex: 1, paddingVertical: 14, paddingLeft: pad ? 12 : 0 }}>
+      <Text style={mono(10, false, C.gray, 0.14)}>{k}</Text>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 6 }}>
+        <Text style={{ fontFamily: F.black, fontSize: 26, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
+        <Text style={{ fontFamily: F.bold, fontSize: 12, color: C.gray }}>{u}</Text>
+      </View>
+    </View>
+  );
 }
 
 /* A figure of the field with its line of spread, between ink rules. */
@@ -407,7 +450,11 @@ function ChartHead({ children }: { children: ReactNode }) {
  * longest. Total meters and the biggest day are a sum of rows, and open
  * the rower, as does a row that cannot be found (a private account). */
 async function recordRow(num: number, key: RecordKey, r: RecordRow): Promise<string | null> {
-  if (!r.day || (key !== "5000" && key !== "10000" && key !== "longest")) return null;
+  if (key !== "5000" && key !== "10000" && key !== "longest") return null;
+  /* The board names the row now; the search below is for an answer cached
+   * from before it did. */
+  if (r.entryId) return r.entryId;
+  if (!r.day) return null;
   const got = await api<{ profile?: { logRows: { id: string; day: string; meters?: number; seconds?: number; masked: boolean }[] } }>(`/api/row100k/app/profile?num=${num}&m=all`);
   const rows = (got.profile?.logRows ?? []).filter((x) => x.day === r.day && !x.masked && (x.meters ?? 0) > 0);
   if (key === "longest") return [...rows].sort((a, b) => (b.meters ?? 0) - (a.meters ?? 0))[0]?.id ?? null;
@@ -416,14 +463,29 @@ async function recordRow(num: number, key: RecordKey, r: RecordRow): Promise<str
   return [...timed].sort((a, b) => Math.abs(((a.seconds ?? 0) * dist) / (a.meters ?? 1) - r.value) - Math.abs(((b.seconds ?? 0) * dist) / (b.meters ?? 1) - r.value))[0]?.id ?? null;
 }
 
+function openRecord(r: RecordRow, key: RecordKey, onRower: (n: number) => void, onRow?: (id: string) => void): void {
+  if (!onRow || r.masked) return onRower(r.rowerNumber);
+  if (r.entryId && key !== "total" && key !== "bigday") return onRow(r.entryId);
+  recordRow(r.rowerNumber, key, r).then(
+    (id) => (id ? onRow(id) : onRower(r.rowerNumber)),
+    () => onRower(r.rowerNumber),
+  );
+}
+
+/* A fastest's time with its pace under it (owner, 2026-11-23: "for the
+ * fastest, I really need the pace here as well"). */
+function TimeFig({ rec, r, val }: { rec: (typeof RECORDS)[number]; r: RecordRow; val: string }) {
+  if (!rec.time) return <Fig>{val}</Fig>;
+  return (
+    <View style={{ alignItems: "flex-end" }}>
+      <Fig>{val}</Fig>
+      <Text style={[mono(10, false, C.gray), { marginTop: 2 }]}>{fmtClock(r.value / (rec.time / 500))} /500m</Text>
+    </View>
+  );
+}
+
 function Records({ s, rec, onRower, onRow, onAll }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void; onRow?: (id: string) => void; onAll?: () => void }) {
-  const open = (r: RecordRow) => {
-    if (!onRow || r.masked) return onRower(r.rowerNumber);
-    recordRow(r.rowerNumber, rec.key, r).then(
-      (id) => (id ? onRow(id) : onRower(r.rowerNumber)),
-      () => onRower(r.rowerNumber),
-    );
-  };
+  const open = (r: RecordRow) => openRecord(r, rec.key, onRower, onRow);
   const rows: RecordRow[] = s.records[rec.key] ?? [];
   const first = rows[0];
   const elite = rec.key === "total" ? rows.filter((r) => r.unranked) : [];
@@ -439,7 +501,7 @@ function Records({ s, rec, onRower, onRow, onAll }: { s: Payload; rec: (typeof R
         {shown.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}
         {shown.map(({ r, place }) => (
           <Tr key={r.participantId} place={r.unranked ? null : place} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => open(r)} label={`${r.unranked ? "" : `Place ${place}, `}${r.name}, ${r.masked ? "hidden" : val(r)}`}>
-            {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <Fig>{val(r)}</Fig>}
+            {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <TimeFig rec={rec} r={r} val={val(r)} />}
           </Tr>
         ))}
       </View>
@@ -594,7 +656,7 @@ function DayPanel({ month, max, value, today, onPick }: { month: Stats["month"];
 /* THE FULL RANKINGS for one record: everybody on it, men and women in one
  * table in order, as the website's rankings page lists a board. The record
  * and the month are the two words at the top, as on the stats tab. */
-export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: string; rec: string; onRower: (n: number) => void }) {
+export function RankingsScreen({ period: p0, rec: r0, onRower, onRow }: { period: string; rec: string; onRower: (n: number) => void; onRow?: (id: string) => void }) {
   const [period, setPeriod] = useState(p0);
   const [key, setKey] = useState<RecordKey>((RECORDS.find((r) => r.key === r0)?.key ?? "total") as RecordKey);
   const [who, setWho] = useState<"all" | "M" | "F">("all");
@@ -616,18 +678,20 @@ export function RankingsScreen({ period: p0, rec: r0, onRower }: { period: strin
           then men, women, everyone should have the same exact selectors"):
           the time frame, the record and who, each a button with a caret,
           centred as on the stats tab. */}
-      <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 10 }}>
-        <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which time frame" chip />
-        <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" chip />
-        <WordMenu options={WHO} value={who} onPick={(k) => setWho(k as typeof who)} ariaLabel="Who" chip width={160} />
+      {/* On one line (owner, 2026-11-23: "These three menu options ... can
+          they be like on the same line?"): the smaller button. */}
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginHorizontal: -14 }}>
+        <WordMenu options={s.periods} value={s.period.key} onPick={setPeriod} ariaLabel="Which time frame" chip tight />
+        <WordMenu options={RECORDS} value={key} onPick={(k) => setKey(k as RecordKey)} ariaLabel="Which record" chip tight />
+        <WordMenu options={WHO} value={who} onPick={(k) => setWho(k as typeof who)} ariaLabel="Who" chip tight width={160} />
       </View>
       <TableHead>{`${rows.length} ${rows.length === 1 ? "rower" : "rowers"}`}</TableHead>
       {rows.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}
       {rows.map((r) => {
         const n = r.unranked ? null : ++place;
         return (
-          <Tr key={r.participantId} place={n} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => onRower(r.rowerNumber)} label={`${n ? `Place ${n}, ` : ""}${r.name}`}>
-            {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <Fig>{val(r)}</Fig>}
+          <Tr key={r.participantId} place={n} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => openRecord(r, rec.key, onRower, onRow)} label={`${n ? `Place ${n}, ` : ""}${r.name}`}>
+            {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <TimeFig rec={rec} r={r} val={val(r)} />}
           </Tr>
         );
       })}

@@ -148,6 +148,9 @@ export type FeedItem = {
   dayKey: string;
   dayStr: string;
   clockStr: string;
+  /* A row off a monitor that was rowed on another day than it was sent:
+   * the day and the clock it was ROWED, which is what a card says. */
+  rowed?: { dayKey: string; dayStr: string; clockStr: string };
   rowerNumber: number;
   numStr: string;
   name: string;
@@ -238,7 +241,7 @@ export type Profile = {
   ownTag: { until?: string } | null;
 };
 
-export type RecordRow = { participantId: string; name: string; rowerNumber: number; division: string; value: number; day?: string; sessions?: number; masked?: boolean; digits?: number; hideLow?: number; unranked?: boolean; paceTag?: string };
+export type RecordRow = { participantId: string; entryId?: string; name: string; rowerNumber: number; division: string; value: number; day?: string; sessions?: number; masked?: boolean; digits?: number; hideLow?: number; unranked?: boolean; paceTag?: string };
 export type PeriodRow = { participantId: string; name: string; division: string; rowerNumber: number; meters: number; sessions: number; masked?: boolean; digits?: number };
 export type Stats = {
   period: { key: string; kind: "month" | "all"; label: string };

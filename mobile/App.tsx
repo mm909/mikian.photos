@@ -9,9 +9,9 @@ import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
 import { useErg } from "./src/erg/useErg";
 import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
-import { Mark, RollIn, type MarkKind } from "./src/mark";
+import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
-import { BoardScreen } from "./src/screens/Board";
+import { BoardScreen, MonthSheet, monthMark, useBoardMonth } from "./src/screens/Board";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
@@ -185,6 +185,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * its bars and the sheet (screens/Board.tsx). Nobody else's press does
    * anything. */
   const [boardLook, setBoardLook] = useState<"bars" | "sheet">("bars");
+  /* The board's month, read and set from the title (Board.tsx). */
+  const boardMonth = useBoardMonth();
+  const [monthsOpen, setMonthsOpen] = useState(false);
   /* Every meter anybody has logged, for the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
   /* What is typed in the search field, which sits in the bar on that tab. */
@@ -444,15 +447,19 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
     } else if (tab === "board") {
-      /* The board is the 100K (owner, 2026-11-22: "when we go to the
-       * board, row can turn into 100K ... maybe the K" in the blue). */
-      mark = "100K";
-      markIs = "meters";
+      /* The board's month, "11/26", with the month in the blue (owner,
+       * 2026-11-23: "where the 100K is ... that's where we should put the
+       * November 2026 ... I think I like the 11/26 ... we'll make the month
+       * there colored"); a press opens the months. "100K" until the board
+       * has said which months it has. */
+      mark = monthMark(boardMonth.shown) || "100K";
+      markIs = monthMark(boardMonth.shown) ? "month" : "meters";
     } else mark = "ROW";
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
   const pageOf = logOn ? null : !top ? (tab === "profile" && mine != null ? mine : null) : top.kind === "rower" ? top.num : null;
   const flip = !logOn && !top && tab === "board" && !!me.isAdmin;
+  const monthsMenu = !logOn && !top && tab === "board" && boardMonth.months.length > 1;
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
@@ -469,11 +476,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
-      <BestsScreen num={o.num} best={o.best} onRow={openRow} onRower={openRower} />
+      <BestsScreen num={o.num} best={o.best} onRow={openRow} onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} />
     ) : o.kind === "erg" ? (
       <ErgPage id={o.id} rows={rows} onMetric={openMetric} />
     ) : o.kind === "rankings" ? (
-      <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} />
+      <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} onRow={openRow} />
     ) : o.kind === "settings" ? (
       <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} />
     ) : o.kind === "stories" ? (
@@ -561,13 +568,19 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                   ) : null}
                 </View>
               ) : mark ? (
-                <Pressable accessibilityLabel={flip ? "Swap the look being tried" : undefined} disabled={!flip} onPress={() => setBoardLook((v) => (v === "bars" ? "sheet" : "bars"))} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Pressable
+                  accessibilityRole={monthsMenu ? "button" : undefined}
+                  accessibilityLabel={monthsMenu ? "Which month" : flip ? "Swap the look being tried" : undefined}
+                  disabled={!flip && !monthsMenu}
+                  onPress={() => (monthsMenu ? setMonthsOpen(true) : setBoardLook((v) => (v === "bars" ? "sheet" : "bars")))}
+                  onLongPress={flip ? () => setBoardLook((v) => (v === "bars" ? "sheet" : "bars")) : undefined}
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
                   <Mark label={mark} kind={markIs} />
-                  {pageOf !== null && checked[pageOf] ? (
-                    <RollIn key={mark} after={mark.length}>
-                      <VerifiedIcon size={17} />
-                    </RollIn>
-                  ) : null}
+                  <BadgeSlot word={mark} on={pageOf !== null && !!checked[pageOf]}>
+                    <VerifiedIcon size={17} />
+                  </BadgeSlot>
                 </Pressable>
               ) : null}
             </View>
@@ -657,6 +670,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           </Pressable>
         ) : null}
 
+        <MonthSheet open={monthsOpen} onClose={() => setMonthsOpen(false)} />
         {monitor ? null : (
           <TabBar
             small={tuck}

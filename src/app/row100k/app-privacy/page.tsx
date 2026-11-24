@@ -4,7 +4,16 @@ import { LegalPage } from "@/components/legal/LegalPage";
  * the owner, of what the App Store asks for: "Do all the items to get it
  * Apple App Store ready"). The store listing links here, so the page is
  * public from the day it is made: a policy nobody can read is not one. It
- * says what the code does today; change the two together. */
+ * says what the code does today; change the two together.
+ *
+ * 2026-11-23 (the owner: "remove the 'we don't sell any of your data' ...
+ * Let's not say that other people don't see your weight, heights and
+ * birthday, because we definitely will use them in aggregation ... I do
+ * want to collect location data probably for gym ... We will be running
+ * advertising ... We'll sell the data if someone's buying it ... But we're
+ * not doing that right now"): no promise never to sell or advertise; what
+ * is true today is said as today, and a change is promised to be written
+ * here before it starts. */
 export const metadata = {
   title: "Privacy · ROW",
   robots: { index: false, follow: false },
@@ -14,10 +23,10 @@ const MAIL = "row@rowtember.com";
 
 export default function Page() {
   return (
-    <LegalPage title="Privacy policy" accent="policy" effective="2026-11-21">
+    <LegalPage title="Privacy policy" accent="policy" effective="2026-11-23">
       <p>
         This covers ROW, the rowing app, and the Rowtember website at rowtember.com. The short version: we keep what you log and what you choose to post, we show it to other rowers the way your settings
-        say, we do not sell any of it, and you can delete your account from inside the app.
+        say, and you can delete your account from inside the app.
       </p>
 
       <h2>What we collect</h2>
@@ -36,7 +45,8 @@ export default function Page() {
           <strong>Your profile.</strong> A profile photo and a bio if you add them, and your Instagram handle if you gave one. These are shown to other rowers.
         </li>
         <li>
-          <strong>Details only you see.</strong> Your birthday, height and weight, if you enter them. They are not shown to anyone else.
+          <strong>Your body and age.</strong> Your birthday, height and weight, if you enter them. They are not shown on your page. We use them, together with other rowers&rsquo;, for statistics
+          such as age and weight groups.
         </li>
         <li>
           <strong>What you do in the app.</strong> Who you follow, the rows you like, the comments you write, who you block or mute, and the reports you send.
@@ -47,13 +57,20 @@ export default function Page() {
         <li>
           <strong>Basic technical data.</strong> Standard server logs (IP address, the page or route asked for, the time) for security and for fixing faults.
         </li>
+        <li>
+          <strong>Rough location.</strong> The app does not ask for your phone&rsquo;s location. We may estimate a rough location, such as a city or the gym you row at, from your IP address and from
+          the rowing machine you connect to.
+        </li>
       </ul>
 
-      <h2>What we do not collect</h2>
+      <h2>How we use it</h2>
       <ul>
-        <li>We do not track your location. Bluetooth is used only to talk to the rowing machine.</li>
-        <li>We do not run advertising or third-party marketing trackers.</li>
-        <li>We do not sell or rent your data.</li>
+        <li>To run the app: your board, your stats, your feed, notifications and email.</li>
+        <li>For statistics across rowers, such as averages by age, weight or gym.</li>
+        <li>
+          Today we do not show advertising and do not sell your data. We may do either in the future, or share data with partners. If we do, we will change this policy, and its date, before it
+          starts, and say what is used and with whom.
+        </li>
       </ul>
 
       <h2>Who sees what</h2>

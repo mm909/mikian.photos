@@ -61,6 +61,7 @@ export function WordMenu<T extends string>({
   panel,
   width = 220,
   chip = false,
+  tight = false,
 }: {
   options?: { key: T; label: string }[];
   value?: T;
@@ -75,6 +76,8 @@ export function WordMenu<T extends string>({
    * time frame: "put the time frame somewhere where, one, it's clear that
    * users can change it"). */
   chip?: boolean;
+  /* A smaller button, so three fit on one line (rankings, 2026-11-23). */
+  tight?: boolean;
 }) {
   const ref = useRef<ComponentRef<typeof View>>(null);
   const win = useWindowDimensions();
@@ -86,8 +89,8 @@ export function WordMenu<T extends string>({
     <>
       <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={`${ariaLabel}: ${word}`} accessibilityState={{ expanded: at !== null }} onPress={open} hitSlop={8}>
         {chip ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={[mono(12, true), textStyle]}>{word}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: tight ? 5 : 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 8, paddingHorizontal: tight ? 7 : 14, paddingVertical: 8 }}>
+            <Text numberOfLines={1} style={[mono(tight ? 11 : 12, true), textStyle]}>{word}</Text>
             <Text style={[mono(10, true, C.gray)]}>▼</Text>
           </View>
         ) : (

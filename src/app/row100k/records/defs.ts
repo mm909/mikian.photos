@@ -99,6 +99,8 @@ export type Ranked = {
   row: TotalRow | RecordRow;
   value: number;
   day?: string;
+  /* The one row a fastest or longest is (2026-11-23). */
+  entryId?: string;
   sessions?: number;
   /* Total board only: one of the elite, who carry no place while a
    * blackout window is open (blackoutRules.maskBoards). The other four
@@ -132,7 +134,7 @@ export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
       : key === "bigday"
         ? boards.bigDay
         : boards.fastest[Number(key) as 5000 | 10000];
-  return rows.map((r) => ({ row: r, value: r.value, day: r.day }));
+  return rows.map((r) => ({ row: r, value: r.value, day: r.day, ...(key !== "bigday" && r.entryId ? { entryId: r.entryId } : {}) }));
 }
 
 /* ------------------------------------------------------- stats page props */
@@ -148,6 +150,8 @@ export function rankedRows(boards: Boards, key: RecordKey): Ranked[] {
  * pct, no piece length) goes along. */
 export type RecordRowLite = {
   participantId: string;
+  /* A fastest or longest: the row it is, to open (2026-11-23). */
+  entryId?: string;
   name: string;
   rowerNumber: number;
   division: string;
@@ -186,6 +190,7 @@ export function liteRecords(boards: Boards, hidden: Set<string>): RecordsProp {
         value: r.value,
         day: r.day,
         sessions: r.sessions,
+        ...(r.entryId ? { entryId: r.entryId } : {}),
         ...(r.unranked ? { unranked: true } : {}),
         ...(r.paceTag ? { paceTag: r.paceTag } : {}),
       };
@@ -202,7 +207,10 @@ export function liteRecords(boards: Boards, hidden: Set<string>): RecordsProp {
       /* A masked total row already carries its digit count from boardView
        * (its meters are the tier floor by then); a record row still holds
        * the truth here on the server, so count it and drop it. */
-      return { ...lite, value: 0, masked: true, digits: src.digits ?? digitCount(r.value) };
+      /* No row named for a hidden rower's meters: it would point at the row. */
+      const { entryId: _row, ...bare } = lite;
+      void _row;
+      return { ...bare, value: 0, masked: true, digits: src.digits ?? digitCount(r.value) };
     });
   }
   return out;
