@@ -9,6 +9,7 @@ import { MonsterG } from "../arcade/Monster";
 import { useBoat } from "../arcade/boat";
 import { useLocker } from "../arcade/locker";
 import { FILL_S, type MShot } from "../arcade/match";
+import type { SkillView } from "../arcade/pve";
 import { useProgress } from "../arcade/progress";
 import { useRating } from "../arcade/rating";
 import { levelOf } from "../arcade/score";
@@ -211,6 +212,8 @@ function Stage({ showed, erg, width, height, active }: { showed: Showed; erg: Er
       return <Home {...p} />;
     case "battle":
       return <Battle {...p} />;
+    case "swarm":
+      return <Swarm {...p} />;
     case "lobby":
       return <Lobby {...p} />;
     case "match":
@@ -807,37 +810,8 @@ function Battle(p: P) {
       ? { big: `KO! ${ko.name}`, small: `+${ko.xp} XP · +${fmtInt(ko.coins)} COINS`, c: C.good }
       : null;
   const hp = m ? Math.min(m.max, m.hp + inAir) : 0;
-  const pace = b.pace > 0 && Number.isFinite(b.pace) && b.pace < 600 ? fmtClock(b.pace) : "-:--.-";
-  const nearColor = b.near >= 0.99 ? C.good : b.near < 0.5 ? BEST : C.ink;
   const where = m ? `STAGE ${m.stage + 1} · ${m.boss ? "THE BOSS" : `${(m.i % 4) + 1} OF 3, THEN THE BOSS`}` : `STAGE ${b.stage + 1}`;
-  const panel = (
-    <View style={{ rowGap: 5 }}>
-      <HealthBar name="YOUR HULL" h={Math.ceil(b.hull)} max={b.hullMax} mine wall={wall} />
-      {b.skills.map((s) => (
-        <View key={s.def.id} style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
-          <Text numberOfLines={1} style={{ width: 66, fontFamily: F.black, fontSize: 13, color: C.ink }}>
-            {s.def.name}
-          </Text>
-          <View style={{ flex: 1, height: 11, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", backgroundColor: C.paper }}>
-            <View style={{ width: `${(100 * clamp(s.charge)).toFixed(1)}%`, height: "100%", backgroundColor: SLOT_COLOR[s.def.slot], opacity: m ? 1 : 0.35 }} />
-          </View>
-          <Text style={{ width: 40, textAlign: "right", fontFamily: F.monoBold, fontSize: 11, color: s.q >= 0.99 ? C.good : s.q < 0.5 ? BEST : C.soft }}>{whole(Math.round(s.target))}</Text>
-        </View>
-      ))}
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <View>
-          <Eyebrow>Pace · 4 s</Eyebrow>
-          <Num size={24} color={nearColor}>
-            {pace}
-          </Num>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Eyebrow>{`${b.kills} KO · ${fmtInt(b.coins)} coins`}</Eyebrow>
-          <Num size={24}>{whole(Math.round(b.own))}</Num>
-        </View>
-      </View>
-    </View>
-  );
+  const panel = <SkillPanel hull={b.hull} hullMax={b.hullMax} skills={b.skills} pace={b.pace} near={b.near} own={b.own} right={`${b.kills} KO · ${fmtInt(b.coins)} coins`} wall={wall} dim={!m} />;
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <View style={{ height: HUD, paddingHorizontal: 14, paddingTop: 4 }}>
@@ -869,6 +843,194 @@ function Battle(p: P) {
   );
 }
 
+/* ---- single player: the swarm (arcade/swarm.ts) ----------------------- */
+
+/* The hull and the three skills, the course's panel and the swarm's. */
+function SkillPanel({ hull, hullMax, skills, pace, near, own, right, wall, dim }: { hull: number; hullMax: number; skills: SkillView[]; pace: number; near: number; own: number; right: string; wall: number; dim: boolean }) {
+  const word = pace > 0 && Number.isFinite(pace) && pace < 600 ? fmtClock(pace) : "-:--.-";
+  const nearColor = near >= 0.99 ? C.good : near < 0.5 ? BEST : C.ink;
+  return (
+    <View style={{ rowGap: 5 }}>
+      <HealthBar name="YOUR HULL" h={Math.ceil(hull)} max={hullMax} mine wall={wall} />
+      {skills.map((s) => (
+        <View key={s.def.id} style={{ flexDirection: "row", alignItems: "center", columnGap: 8 }}>
+          <Text numberOfLines={1} style={{ width: 66, fontFamily: F.black, fontSize: 13, color: C.ink }}>
+            {s.def.name}
+          </Text>
+          <View style={{ flex: 1, height: 11, borderWidth: 2, borderColor: C.ink, borderRadius: 3, overflow: "hidden", backgroundColor: C.paper }}>
+            <View style={{ width: `${(100 * clamp(s.charge)).toFixed(1)}%`, height: "100%", backgroundColor: SLOT_COLOR[s.def.slot], opacity: dim ? 0.35 : 1 }} />
+          </View>
+          <Text style={{ width: 40, textAlign: "right", fontFamily: F.monoBold, fontSize: 11, color: s.q >= 0.99 ? C.good : s.q < 0.5 ? BEST : C.soft }}>{whole(Math.round(s.target))}</Text>
+        </View>
+      ))}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <View>
+          <Eyebrow>Pace · 4 s</Eyebrow>
+          <Num size={24} color={nearColor}>
+            {word}
+          </Num>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Eyebrow>{right}</Eyebrow>
+          <Num size={24}>{whole(Math.round(own))}</Num>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const FISH_COLOR = ["#6EC6D9", "#F2A65A", "#F28CB1", "#9AA7B5"];
+
+/* A fish from above, nose along `a`, its tail beating. */
+function fishPath(x: number, y: number, a: number, L: number, t: number, seed: number): string {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const P = (u: number, w: number) => `${(x + c * u - s * w).toFixed(1)} ${(y + s * u + c * w).toFixed(1)}`;
+  const wag = Math.sin(t * 14 + seed) * L * 0.18;
+  return `M${P(L * 0.55, 0)} Q${P(L * 0.1, L * 0.32)} ${P(-L * 0.3, 0)} Q${P(L * 0.1, -L * 0.32)} ${P(L * 0.55, 0)}Z M${P(-L * 0.25, 0)} L${P(-L * 0.62, L * 0.24 + wag)} L${P(-L * 0.62, -L * 0.24 + wag)}Z`;
+}
+
+/* THE SWARM ON THE MONITOR (owner, 2026-11-24: "I really like the view of
+ * Vampire Survivors ... more things moving around, more things exploding").
+ * Seen from above, the boat always in the middle and the water going by
+ * under it; the fish closing in, the skills going off round the boat, the
+ * coins and XP the fish leave being drawn in. Across the top the round's
+ * clock and its haul; the hull and the skills under it, as on the course. */
+function Swarm(p: P) {
+  const { v, width, height, wall, rt, paint, hop } = p;
+  const s = v.swarm;
+  if (!s) return null;
+  const wide = width >= 520;
+  const HUD = 50;
+  const PANEL = wide ? 0 : 172;
+  const SIDE = wide ? Math.round(Math.min(230, width * 0.34)) : 0;
+  const W = width - SIDE;
+  const H = Math.max(120, height - HUD - PANEL);
+  const rate = Math.max(0.2, v.rate);
+  const wallAt = (at: number) => wall - (rt - at) / rate;
+  /* Carried on from the last word at the speeds it gave. */
+  const ahead = s.over ? 0 : clamp(rt - s.t, 0, 1.5);
+  const bx = s.x + s.vx * ahead;
+  const by = s.y + s.vy * ahead;
+  /* Pixels a meter: about forty-six meters across the short side. */
+  const px = Math.min(W, H) / 46;
+  const X = (x: number) => W / 2 + (x - bx) * px;
+  const Y = (y: number) => H / 2 + (y - by) * px;
+  const marks: ReactElement[] = [];
+  const GAP = 9;
+  const gx0 = Math.floor((bx - W / 2 / px) / GAP) - 1;
+  const gy0 = Math.floor((by - H / 2 / px) / GAP) - 1;
+  for (let i = gx0; i <= gx0 + Math.ceil(W / px / GAP) + 2; i++) {
+    for (let j = gy0; j <= gy0 + Math.ceil(H / px / GAP) + 2; j++) {
+      const h = ((i * 73856093) ^ (j * 19349663)) >>> 0;
+      if (h % 3) continue;
+      const wx = X(i * GAP + (h % 7)) + Math.sin(wall * 1.3 + i) * 2;
+      const wy = Y(j * GAP + ((h >> 3) % 7));
+      marks.push(<Path key={`w${i}_${j}`} d={`M${wx.toFixed(1)} ${wy.toFixed(1)} q3 -2.6 6 0 t6 0`} stroke={C.accent} strokeOpacity={0.35} strokeWidth={1.6} fill="none" strokeLinecap="round" />);
+    }
+  }
+  const art: ReactElement[] = [];
+  /* The boat's wake. */
+  const sp = Math.hypot(s.vx, s.vy);
+  if (sp > 0.1) {
+    const ux = -s.vx / sp;
+    const uy = -s.vy / sp;
+    for (let i = 1; i <= 5; i++) {
+      const d = i * 2.2 + ((wall * 6) % 2.2);
+      art.push(<Circle key={`k${i}`} cx={X(bx + ux * d)} cy={Y(by + uy * d)} r={(0.6 + i * 0.35) * px} fill="none" stroke={C.paper} strokeOpacity={0.9 - i * 0.15} strokeWidth={1.5} />);
+    }
+  }
+  for (const d of s.drops) {
+    const x = X(d.x);
+    const y = Y(d.y);
+    if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue;
+    const bob = Math.sin(wall * 5 + d.id) * 1.5;
+    art.push(
+      d.kind === "coin" ? (
+        <G key={`d${d.id}`}>
+          <Circle cx={x} cy={y + bob} r={0.75 * px + 1} fill={DOT_ON} stroke={C.ink} strokeWidth={1.4} />
+          <Line x1={x} y1={y + bob - 0.35 * px} x2={x} y2={y + bob + 0.35 * px} stroke={C.ink} strokeWidth={1.2} />
+        </G>
+      ) : (
+        <Path key={`d${d.id}`} d={`M${x} ${y + bob - 0.8 * px} L${x + 0.55 * px} ${y + bob} L${x} ${y + bob + 0.8 * px} L${x - 0.55 * px} ${y + bob}Z`} fill={C.accent} stroke={C.ink} strokeWidth={1.2} />
+      ),
+    );
+  }
+  for (const f of s.fish) {
+    const fx = f.x + f.vx * ahead;
+    const fy = f.y + f.vy * ahead;
+    const x = X(fx);
+    const y = Y(fy);
+    if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+    const a = Math.atan2(by - fy, bx - fx);
+    const hit = wall - wallAt(f.hitAt) < 0.15;
+    const L = (f.kind === 3 ? 2.6 : 1.8) * px;
+    art.push(<Path key={`f${f.id}`} d={fishPath(x, y, a, L, wall, f.id)} fill={hit ? C.paper : FISH_COLOR[f.kind]} stroke={C.ink} strokeWidth={1.3} strokeLinejoin="round" />);
+    art.push(<Circle key={`e${f.id}`} cx={x + Math.cos(a) * L * 0.28} cy={y + Math.sin(a) * L * 0.28} r={Math.max(1, L * 0.07)} fill={C.ink} />);
+  }
+  for (const b of s.blasts) {
+    const e = (wall - wallAt(b.at)) / 0.45;
+    if (e < 0 || e > 1) continue;
+    const r = b.r * px * (0.35 + 0.65 * ease(e));
+    /* The pulse and the ring go with the boat; the blast stays on its fish. */
+    const on = b.slot !== 1;
+    art.push(<Circle key={`b${b.id}`} cx={on ? W / 2 : X(b.x)} cy={on ? H / 2 : Y(b.y)} r={r} fill={SLOT_COLOR[b.slot]} fillOpacity={0.18 * (1 - e)} stroke={SLOT_COLOR[b.slot]} strokeWidth={3 * (1 - e) + 1} strokeOpacity={1 - e} />);
+  }
+  for (const d of s.deaths) {
+    const e = (wall - wallAt(d.at)) / 0.4;
+    if (e < 0 || e > 1) continue;
+    art.push(<Path key={`x${d.id}`} d={burst(X(d.x), Y(d.y), 1.8 * px * (0.6 + e), 0.8 * px, 7, d.id)} fill={DOT_ON} stroke={C.ink} strokeWidth={1.2} opacity={1 - e} />);
+  }
+  const tk = Math.max(48, 7 * px);
+  const bit = wall - wallAt(s.bitAt);
+  const left = Math.max(0, s.end - (s.over ? s.end : rt));
+  const done = s.over;
+  return (
+    <View style={{ width, height, overflow: "hidden" }}>
+      <View style={{ height: HUD, paddingHorizontal: 14, paddingTop: 4, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <View>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1.2, color: C.soft }}>{`THE SWARM · ROUND ${v.swarmTot.rounds + 1}`}</Text>
+          <Text style={{ fontFamily: F.black, fontSize: 20, color: C.ink }}>{`${s.kills} FISH · ${fmtInt(s.coins)} COINS`}</Text>
+        </View>
+        <Num size={26}>{clockS(left)}</Num>
+      </View>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ width: W, height: H, backgroundColor: "#DDEFF7", overflow: "hidden" }}>
+          <Svg width={W} height={H} style={{ position: "absolute", left: 0, top: 0 }}>
+            {marks}
+            {art}
+          </Svg>
+          <View style={{ position: "absolute", left: W / 2 - (36 * tk) / TOKEN_U, top: H / 2 - (52 * tk) / TOKEN_U, transform: [{ translateX: bit < 0.25 ? Math.sin(bit * 60) * 4 : 0 }] }}>
+            <TokenArt paint={paint} size={tk} t={wall} hop={hop} look={Math.cos(s.heading)} uid="swarm" />
+          </View>
+          {bit >= 0 && bit < 0.3 ? <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: W, height: H, borderWidth: 6, borderColor: BEST, opacity: 0.5 * (1 - bit / 0.3) }} /> : null}
+          {done ? (
+            <View pointerEvents="none" style={{ position: "absolute", top: H * 0.3, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 2, borderColor: C.ink, borderRadius: 4 }}>
+              <Text style={{ fontFamily: F.black, fontSize: 24, color: s.wrecked ? BEST : C.good }}>{s.wrecked ? "SUNK" : "ROUND OVER"}</Text>
+              <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: C.soft }}>{`${s.kills} FISH · +${fmtInt(s.coins)} COINS · +${s.xp} XP · BACK TO THE COURSE`}</Text>
+            </View>
+          ) : rt - s.t0 < 3 ? (
+            <View pointerEvents="none" style={{ position: "absolute", top: 8, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 2, borderColor: C.ink, borderRadius: 4 }}>
+              <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink }}>THE SWARM</Text>
+              <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: C.soft }}>HOLD YOUR PACE · OUTRUN THE FISH</Text>
+            </View>
+          ) : null}
+        </View>
+        {wide ? (
+          <View style={{ width: SIDE, height: H, borderLeftWidth: 2, borderColor: C.ink, paddingHorizontal: 12, justifyContent: "center" }}>
+            <SkillPanel hull={s.hull} hullMax={s.hullMax} skills={s.skills} pace={s.pace} near={s.near} own={s.own} right={`${s.xp} XP`} wall={wall} dim={false} />
+          </View>
+        ) : null}
+      </View>
+      {wide ? null : (
+        <View style={{ height: PANEL, borderTopWidth: 2, borderColor: C.ink, paddingHorizontal: 14, paddingTop: 6 }}>
+          <SkillPanel hull={s.hull} hullMax={s.hullMax} skills={s.skills} pace={s.pace} near={s.near} own={s.own} right={`${s.xp} XP`} wall={wall} dim={false} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 /* ---- the summary, after the chest ------------------------------------------ */
 
 /* THE GAME'S SUMMARY (owner, 2026-11-24: "XP gained, item gained, number of
@@ -886,8 +1048,9 @@ function Summary({ v, width, height, wall, paint }: P) {
         ["Monsters down", `${b.kills}`],
         ["Bosses", `${b.bosses}`],
         ["Furthest", `STAGE ${b.best}`],
-        ["Coins", `+${fmtInt(b.coins)}`],
+        ["Coins", `+${fmtInt(b.coins + v.swarmTot.coins)}`],
         ["Wrecked", `${b.wrecks}`],
+        ...(v.swarmTot.rounds ? ([["Fish", `${v.swarmTot.kills}`]] as [string, string][]) : []),
       ]
     : [
         ["XP", `+${fmtInt(v.xpRow)}`],

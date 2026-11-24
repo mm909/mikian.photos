@@ -162,8 +162,9 @@ export function useShow(erg: Erg, on: boolean): Showed {
          * stuff that's on your screen"): the island's coins, or a match's
          * rating, never both; the island never touches the rating. */
         const b = v.battle;
-        if (b) addCoins(b.coins).catch(() => null);
-        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: Math.round(b?.coins ?? 0), bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
+        const sw = v.swarmTot;
+        if (b) addCoins(b.coins + sw.coins).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: Math.round((b?.coins ?? 0) + sw.coins), fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
       }
       const key = `${v.phase}/${v.search}/${v.matches}/${v.ready ? "ready" : ""}`;
       setAt((was) => (was.key === key ? was : { phase: v.phase, key }));

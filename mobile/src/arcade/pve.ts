@@ -202,7 +202,9 @@ export type PveView = {
   event: PEvent | null;
 };
 
-export type Pve = { step(t: number, pace: number): PveView; view(): PveView };
+/* `rest(t)`: the course was put aside (the swarm, show.ts) and is taken
+ * up again at the row's second `t`: the time between is not fought. */
+export type Pve = { step(t: number, pace: number): PveView; view(): PveView; rest(t: number): void };
 
 /* `sigma`: the rower's own spread, one standard deviation of their 5K
  * paces (the profile's "Spread"), the step of the difficulty index; SIGMA
@@ -295,6 +297,12 @@ export function createPve({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_UPG
 
   return {
     view: () => v,
+    rest(t) {
+      const gap = t - last;
+      if (gap <= 0) return;
+      v = { ...v, monster: v.monster ? { ...v.monster, atkAt: v.monster.atkAt + gap } : null, nextAt: v.nextAt + gap };
+      last = t;
+    },
     step(t, pace) {
       v = { ...v, monster: v.monster ? { ...v.monster } : null, shots: [...v.shots], hits: [...v.hits], skills: v.skills.map((s) => ({ ...s })) };
       /* A pause in the row's clock, or a jump, is not filled: a tick is

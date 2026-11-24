@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 
 /* coins, bosses (stages beaten), best (the furthest stage), wrecks and
  * meters: the island's, from 2026-11-24 evening; older games have none. */
-export type Game = { id: string; at: number; rowId: string | null; demo: boolean; mode: "solo" | "match"; xp: number; xpBefore: number; kills: number; matches: number; items: string[]; coins?: number; bosses?: number; best?: number; wrecks?: number; meters?: number };
+export type Game = { id: string; at: number; rowId: string | null; demo: boolean; mode: "solo" | "match"; xp: number; xpBefore: number; kills: number; matches: number; items: string[]; coins?: number; bosses?: number; best?: number; wrecks?: number; meters?: number; fish?: number };
 
 const KEY = "arcade/games/1";
 const KEEP = 30;

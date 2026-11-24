@@ -3,6 +3,7 @@ import { pickBot, type Bot } from "./bots";
 import { NO_UPGRADES, TARGET, createPve, type BoatLv, type Pve, type PveView } from "./pve";
 import { HEALTH, createMatch, holds, paceOf, tenths, type Match, type MatchView } from "./match";
 import { prng, seedOf } from "./rng";
+import { ROUND_S, createSwarm, type Swarm, type SwarmView } from "./swarm";
 import { botElo, eloAfter, matchXp } from "./score";
 import { rollChest, type Chest } from "./skins";
 
@@ -50,7 +51,7 @@ import { rollChest, type Chest } from "./skins";
  * says on the phone. No React, no clock, so scripts/arcade-check.ts rows
  * whole pieces through it. */
 
-export type ShowPhase = "intro" | "battle" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "summary" | "done";
+export type ShowPhase = "intro" | "battle" | "swarm" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "summary" | "done";
 
 export type STick = { wall: number; t: number; m: number; pace: number; target: number; ended?: boolean };
 
@@ -111,6 +112,14 @@ export type ShowView = {
   result: Result | null;
   /* The island, in single player. */
   battle: PveView | null;
+  /* THE DIRECTOR (owner, 2026-11-24: "a round or two of the single boss,
+   * and then a round or two of the Vampire Survivors type of game"): single
+   * player plays a stage of the course (pve.ts) until its boss is down (or
+   * the rower is wrecked), then a round of the swarm (swarm.ts), then the
+   * course again where it was left. The swarm round on now, and what the
+   * rounds done gave. */
+  swarm: SwarmView | null;
+  swarmTot: { rounds: number; kills: number; coins: number; xp: number; wrecked: number };
   /* The row's XP from its matches, and the XP the row started at. */
   xpRow: number;
   xpStart: number;
@@ -137,6 +146,12 @@ export const LEVELUP_WALL_S = 6;
  * number of people killed, things like that"): the chest is held this many
  * seconds of the wall, then the summary stays. */
 export const CHEST_WALL_S = 7;
+/* A swarm round: ROUND_S of a 5K's seconds, cut to the piece (never under
+ * SWARM_LEAST); the course's card is held SWAP_WALL_S of the wall before it,
+ * and the round's end SWARM_END_WALL_S. */
+const SWARM_LEAST = 45;
+const SWAP_WALL_S = 3.5;
+const SWARM_END_WALL_S = 3;
 export const LAST_MATCH = 0.8;
 export const FINALE = 0.9;
 /* The least share of a 5K a show is cut to, and of its health. */
@@ -164,6 +179,12 @@ export function createShow(seed = 1): Show {
   let last = { t: -1, m: -1, wall: 0 };
   let match: Match | null = null;
   let pve: Pve | null = null;
+  let swarm: Swarm | null = null;
+  /* The course's last stage card seen, and the wall's second to go to the
+   * swarm. */
+  let seenEvent = -1;
+  let swapAt = -1;
+  let swarmOverWall = -1;
   let bot: Bot | null = null;
   let played = new Set<string>();
   let waitFrom = -1;
@@ -171,13 +192,17 @@ export function createShow(seed = 1): Show {
   let finaleDue = false;
   const log: Show["log"] = { phases: [], matches: [] };
 
-  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, xpRow: 0, xpStart: -1, final: null, matches: 0 });
+  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, swarm: null, swarmTot: { rounds: 0, kills: 0, coins: 0, xp: 0, wrecked: 0 }, xpRow: 0, xpStart: -1, final: null, matches: 0 });
 
   const reset = (tick: STick) => {
     target = tick.target;
     samples = [];
     match = null;
     pve = null;
+    swarm = null;
+    seenEvent = -1;
+    swapAt = -1;
+    swarmOverWall = -1;
     bot = null;
     played = new Set();
     waitFrom = -1;
@@ -215,6 +240,18 @@ export function createShow(seed = 1): Show {
   };
 
   const scaled = (s: number) => s * v.scale;
+
+  /* The XP of the row so far in single player: the course's and the
+   * swarm's. */
+  const soloXp = () => (v.battle?.xp ?? 0) + v.swarmTot.xp + (v.swarm && !swarm ? 0 : (v.swarm?.xp ?? 0));
+  /* A swarm round is over (or cut off): its haul goes in the totals. */
+  const settleSwarm = () => {
+    const s = v.swarm;
+    if (!s || !swarm) return;
+    v.swarmTot = { rounds: v.swarmTot.rounds + 1, kills: v.swarmTot.kills + s.kills, coins: v.swarmTot.coins + s.coins, xp: v.swarmTot.xp + s.xp, wrecked: v.swarmTot.wrecked + (s.wrecked ? 1 : 0) };
+    swarm = null;
+    v.xpRow = soloXp();
+  };
 
   /* The match is over: what it gave. */
   const settle = (mv: MatchView, ctx: ShowCtx, tick: STick): Result => {
@@ -296,6 +333,7 @@ export function createShow(seed = 1): Show {
         v.search = "closed";
         if (v.phase === "match" && match) endMatch(match.call(t), ctx, tick);
         else if (v.phase !== "celebrate") {
+          settleSwarm();
           v.opp = null;
           v.ready = null;
           go("levelup", tick);
@@ -326,9 +364,43 @@ export function createShow(seed = 1): Show {
              * meters, steadier than one stroke's. */
             const p4 = t > 4 ? paceOf(tick.m - mine(t - 4), 4) : tick.pace;
             v.battle = pve.step(t, p4);
-            v.xpRow = v.battle.xp;
+            v.xpRow = soloXp();
+            /* A stage beaten or a wreck: its card, then the swarm. */
+            const ev = v.battle.event;
+            if (ev && ev.at > seenEvent) {
+              seenEvent = ev.at;
+              swapAt = tick.wall + SWAP_WALL_S;
+            }
+            if (swapAt > 0 && tick.wall >= swapAt) {
+              swapAt = -1;
+              swarm = createSwarm({ t0: t, seed: seedOf(`${seed}/${T}/swarm${v.swarmTot.rounds}`), own: ctx.assigned ?? TARGET, sigma: ctx.sigma ?? undefined, boat: ctx.boat ?? NO_UPGRADES, skills: v.battle.skills.map((s) => s.def), roundS: Math.max(SWARM_LEAST, scaled(ROUND_S)) });
+              v.swarm = swarm.step(t, p4);
+              swarmOverWall = -1;
+              go("swarm", tick);
+            }
           }
           break;
+
+        case "swarm": {
+          if (tick.ended) {
+            settleSwarm();
+            go("chest", tick);
+            break;
+          }
+          if (swarm) {
+            const p4 = t > 4 ? paceOf(tick.m - mine(t - 4), 4) : tick.pace;
+            v.swarm = swarm.step(t, p4);
+            v.xpRow = soloXp();
+            if (v.swarm.over && swarmOverWall < 0) swarmOverWall = tick.wall;
+          }
+          /* The round's end held a moment, then the course where it was. */
+          if (swarmOverWall > 0 && tick.wall >= swarmOverWall + SWARM_END_WALL_S) {
+            settleSwarm();
+            pve?.rest(t);
+            go("battle", tick);
+          }
+          break;
+        }
 
         case "home": {
           if (tick.ended) {
